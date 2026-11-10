@@ -141,7 +141,7 @@ func registerTeamTools(server *mcp.Server, s *studio) {
 		Description: "Rename a team or replace its aliases, as the team page does. Aliases are the clan names that resolve to the team; " +
 			"matches whose clan name becomes an alias follow it, and a demo whose clan name is no alias makes a new team. " +
 			"An alias another team owns is refused; a name is not checked, so two teams can share one. " +
-			"own marks the team as one of the user's own (Mi equipo), which whose=own reads; hltv_rank is its HLTV rank, which opponent_top reads."},
+			"own marks the team as one of the user's own (Mi equipo), which whose=own reads; hltv_rank is its HLTV rank, which opponent_top reads (a pro import uses the rank its catalog gave on the day)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updateTeamIn) (*mcp.CallToolResult, teamOut, error) {
 			patch, err := in.patch()
 			if err != nil {

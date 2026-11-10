@@ -66,7 +66,7 @@ func sameTeam(a, b string) bool {
 // resolveTeams pairs the document's teams (their clan names) with HLTV's two
 // teams. A team no name reaches takes the one HLTV team left; otherwise it
 // keeps its clan name and no rank.
-func resolveTeams(doc []tacticalplan.Team, hltv []hltvTeam) map[string]tacticalplan.ProPlayersTeam {
+func resolveTeams(doc []tacticalplan.Team, hltv []community.ProSidecarTeam) map[string]tacticalplan.ProPlayersTeam {
 	out := map[string]tacticalplan.ProPlayersTeam{}
 	used := map[int]bool{}
 	for _, t := range doc {
@@ -97,7 +97,7 @@ func resolveTeams(doc []tacticalplan.Team, hltv []hltvTeam) map[string]tacticalp
 	return out
 }
 
-func hltvProTeam(h hltvTeam) tacticalplan.ProPlayersTeam {
+func hltvProTeam(h community.ProSidecarTeam) tacticalplan.ProPlayersTeam {
 	t := tacticalplan.ProPlayersTeam{Name: h.Name}
 	if h.Rank != nil && *h.Rank > 0 {
 		t.Rank = *h.Rank
@@ -108,7 +108,7 @@ func hltvProTeam(h hltvTeam) tacticalplan.ProPlayersTeam {
 // proPart is one analysis file of a map: its document and the opening frames of
 // its rounds, read once so the file's position blob can go.
 type proPart struct {
-	header  analysisHeader
+	header  community.ProAnalysisHeader
 	opening map[int][]tacticalplan.Frame
 	// first is the part's lowest game round; the later part owns a replayed round.
 	first int
@@ -207,7 +207,7 @@ func readProPlayersMatches(ctx context.Context, analysesDir string) (map[string]
 		if !ok {
 			continue
 		}
-		key := match + "/" + mapKey(entry)
+		key := proMapGroup(match, entry)
 		if groups[key] == nil {
 			keys = append(keys, key)
 		}

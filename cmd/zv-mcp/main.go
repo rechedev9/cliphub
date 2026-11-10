@@ -74,7 +74,7 @@ tactic key its rounds show; pass keys in with and without to combine them (every
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
 Every team tool (team_side_stats, find_player_pattern and find_pattern_rounds too) also takes the rest of the team Replay's filter bar, so all team figures count the same rounds:
 max_matches (last 3 or 5), last_days (3, 7, 14, 30, 90, 180, 365), opponent_top (HLTV top 5 to 200, by each
-rival's rank today; rivals without a rank come back as unranked), whose (own: matches of the user's own team,
+rival's rank today, or its rank on the day for a Partidas pro import; rivals without a rank come back as unranked), whose (own: matches of the user's own team,
 the one list_teams marks own; others: scouting), buy and opponent_buy (full with full, half is semi and force,
 pistol with pistol), awp and opponent_awp (with or without; awp_estimated counts older analyses read from AWP
 kills), advantage (4v5, 5v4 at some moment) and round_from/round_to. team_rounds lists those rounds over
@@ -117,6 +117,11 @@ list_pro_lineup_maps, find_pro_lineups (kind, side, landing and throw callouts, 
 recorded) and list_pro_combos (each with clip_url once a round of it is recorded); save_pro_lineup copies
 one into the Libreta. pro_grenade_meta is the Meta view: one map side's grenades ranked by throws per 100 rounds in a
 period, the teams that use each and the trend (new, rising, falling or steady), so a grenade entering the meta shows.
+Partidas pro are recent HLTV matches the same server analysed: list_pro_matches (period, team, event, map; studio_path opens the list with those filters;
+each match has its hltv_url, where its .dem files are downloaded to record clips), import_pro_match (one map, its
+demos joined after a server restart; returns the library match_id and studio_path, read only until its .dem is
+imported; old_analysis marks one older than the current scan), follow_pro_team, unfollow_pro_team and
+list_pro_follows (a followed team's last five maps and its new ones are imported on their own).
 launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades,
 lineup_ids of Libreta lineups or pro_lineup_ids of pro lineups on one map.
 launch_bot_replay (match_id, round, side, replace_steamid) is Practicar contra esta ronda: CS2 opens with frozen bots

@@ -5,7 +5,7 @@ import { Clapperboard, RefreshCw } from 'lucide-react';
 import { deleteLibraryDemo, isLibraryNotFound, type LibraryMatch } from '@/lib/api/library';
 import { PRODUCE_FORMAT } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
-import { PARSE_STATE_LABEL, demoErrorLabel, matchTitle, scoreline, type Outcome, type PartidaRow } from '@/lib/library/partidas';
+import { PARSE_STATE_LABEL, demoErrorLabel, matchTitle, scoreline, withoutDemo, type Outcome, type PartidaRow } from '@/lib/library/partidas';
 import { cn } from '@/lib/utils';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { OpenInCrearButton } from '@/components/matches/open-in-crear-button';
@@ -84,7 +84,7 @@ export function RowActions({ row, handlers }: { row: PartidaRow; handlers: RowHa
       </span>
     );
   }
-  if (match === null || demo.source === 'shared') return null;
+  if (match === null || withoutDemo(demo.source)) return null;
   if (demo.state !== 'ready') return <span className="block text-right whitespace-nowrap text-fg-3">{PARSE_STATE_LABEL[demo.state]}</span>;
   return (
     <span className="flex justify-end">

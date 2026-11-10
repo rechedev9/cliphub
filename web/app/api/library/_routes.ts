@@ -28,6 +28,7 @@ import { TEAM_GRENADES_KEYS, TEAM_GRENADES_QUERY } from '../../../lib/api/grenad
 import { LINEUP_FIELDS, LINEUP_KEYS, LINEUP_LIST_QUERY, LINEUP_PATCH_FIELDS } from '../../../lib/api/lineups.ts';
 import { PRO_LINEUP_MAP_KEYS, PRO_LINEUP_MAPS_KEYS } from '../../../lib/api/pro-lineups.ts';
 import { BOT_REPLAY_FIELDS, BOT_REPLAY_KEYS } from '../../../lib/api/bot-replay.ts';
+import { PRO_FOLLOW_KEYS, PRO_IMPORT_KEYS, PRO_MATCH_INFO_KEYS, PRO_MATCH_QUERY, PRO_MATCHES_KEYS } from '../../../lib/api/pro-matches.ts';
 import { ROLE_SHEET_FIELDS, ROLE_SHEET_KEYS, TEAM_ROLES_KEYS } from '../../../lib/api/roles.ts';
 import { CALL_FIELDS, CALL_KEYS, CALL_LIST_QUERY } from '../../../lib/api/calls.ts';
 import { PATTERN_FIELDS, PATTERN_LIST_QUERY, PATTERN_RUN_KEYS, SAVED_PATTERN_KEYS, TEAM_PATTERN_QUERY } from '../../../lib/api/patterns.ts';
@@ -103,6 +104,9 @@ const PRO_LINEUP_ID = /^(smoke|flash|he|molotov)-(t|ct)(-(-?[0-9]{1,4})){4}-[01]
 const PRO_CLIP_MATCH = /^[0-9]{1,12}$/;
 const PRO_CLIP_FILE = /^[a-z0-9-]{1,220}-r[0-9]{1,3}-t[0-9]{1,9}-[0-9]{17}(-combo)?\.mp4$/;
 /** A CS2 place name (`m_szLastPlaceName`) such as `BombsiteA` or `TopofMid`. */
+/** An HLTV match or team id, and a pro map's demo entry without .dem. */
+const HLTV_ID = /^[1-9][0-9]{0,11}$/;
+const PRO_ENTRY = /^[A-Za-z0-9][A-Za-z0-9_.()-]{0,200}$/;
 const PLACE = /^[A-Za-z0-9_][A-Za-z0-9_ '.-]{0,63}$/;
 
 const PAGING = ['limit', 'offset'];
@@ -152,6 +156,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['matches', UUID], response: json(MATCH_KEYS) },
   { method: 'PATCH', segments: ['matches', UUID], body: fields(['played_at', 'series_id']), response: json(MATCH_KEYS) },
   { method: 'PUT', segments: ['matches', UUID, 'teams', TEAM_KEY], body: fields(['team_id', 'team_name', 'remember_alias']), response: json(MATCH_KEYS) },
+  { method: 'GET', segments: ['matches', UUID, 'pro'], response: json(PRO_MATCH_INFO_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'tactical'], response: json(TACTICAL_DOCUMENT_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'rounds', ROUND], response: json(TACTICAL_ROUND_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'positions'], response: { kind: 'stream' } },
@@ -274,6 +279,11 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['pro-lineups', MAP], response: json(PRO_LINEUP_MAP_KEYS) },
   { method: 'GET', segments: ['pro-lineups', 'clips', PRO_CLIP_MATCH, PRO_CLIP_FILE], response: { kind: 'stream' } },
   { method: 'POST', segments: ['pro-lineups', MAP, 'lineups', PRO_LINEUP_ID, 'save'], response: json(LINEUP_KEYS) },
+  { method: 'GET', segments: ['pro-matches'], query: PRO_MATCH_QUERY, response: json(PRO_MATCHES_KEYS) },
+  { method: 'POST', segments: ['pro-matches', HLTV_ID, PRO_ENTRY, 'import'], response: json(PRO_IMPORT_KEYS) },
+  { method: 'GET', segments: ['pro-follows'], response: json(['follows']) },
+  { method: 'POST', segments: ['pro-follows'], body: fields(['team_id', 'name']), response: json(PRO_FOLLOW_KEYS) },
+  { method: 'DELETE', segments: ['pro-follows', HLTV_ID], response: { kind: 'empty' } },
   { method: 'GET', segments: ['jobs'], response: json(['unlinked_job_ids']) },
   { method: 'POST', segments: ['jobs'], response: json(['demos']) },
   { method: 'GET', segments: ['jobs', UUID], response: json(LIBRARY_DEMO_KEYS) },

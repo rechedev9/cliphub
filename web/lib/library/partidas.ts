@@ -23,11 +23,25 @@ export const SOURCE_LABEL: Record<LibrarySource, string> = {
   scrim: 'Scrim',
   unknown: 'Sin identificar',
   shared: 'Compartido',
+  pro: 'Pro (HLTV)',
 };
 
 /** Why an action that needs the .dem is off on a shared match. */
 export const SHARED_MATCH_REASON =
   'Esta partida llegó en un paquete compartido, sin la demo. Importa su archivo .dem para analizarla de nuevo o crear vídeos: se une a esta partida.';
+
+/** Why an action that needs the .dem is off on a pro match from the catalog. */
+export const PRO_MATCH_REASON =
+  'Esta partida pro llegó con su análisis, sin la demo. Importa su archivo .dem para analizarla de nuevo o crear vídeos: se une a esta partida.';
+
+/** A shared or pro match came without its .dem: it cannot be analyzed again or recorded. */
+export function withoutDemo(source: LibrarySource | undefined): boolean {
+  return source === 'shared' || source === 'pro';
+}
+
+export function withoutDemoReason(source: LibrarySource | undefined): string {
+  return source === 'pro' ? PRO_MATCH_REASON : SHARED_MATCH_REASON;
+}
 
 export const PARSE_STATE_LABEL: Record<LibraryParseState, string> = {
   queued: 'En cola',

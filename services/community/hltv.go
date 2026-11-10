@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,9 +14,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/klauspost/compress/zstd"
 	"github.com/nwaples/rardecode/v2"
 
+	"github.com/rechedev9/cliphub/internal/community"
 	"github.com/rechedev9/cliphub/internal/tactical"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
@@ -27,40 +25,8 @@ import (
 // operator PC (tools/hltv-harvester downloads them, prepare-hltv scans them).
 const hltvDataset = "hltv"
 
-// analysisFormat is the first field of every prepared analysis file. The file is
-// zstd of one JSON header line followed by the raw position blob.
-const analysisFormat = "zvpro1"
-
-const analysisSuffix = ".zvpro.zst"
-
-// maxHeaderBytes bounds the JSON line of one analysis file.
-const maxHeaderBytes = 64 << 20
-
-// hltvSidecar is what the harvester writes next to each archive.
-type hltvSidecar struct {
-	Source   string     `json:"source"`
-	MatchID  int        `json:"match_id"`
-	DemoPath string     `json:"demo_path"`
-	Event    string     `json:"event"`
-	PlayedAt string     `json:"played_at"`
-	Teams    []hltvTeam `json:"teams"`
-	Maps     []string   `json:"maps"`
-}
-
-type hltvTeam struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	Rank *int   `json:"rank"`
-}
-
-// analysisHeader is the JSON line of a prepared analysis.
-type analysisHeader struct {
-	Format    string                 `json:"format"`
-	Match     hltvSidecar            `json:"match"`
-	Entry     string                 `json:"entry"`
-	Document  tacticalplan.Document  `json:"document"`
-	Positions tacticalplan.Positions `json:"positions"`
-}
+// analysisSuffix ends every prepared analysis; community.ProAnalysisFormat is its layout.
+const analysisSuffix = community.ProAnalysisSuffix
 
 var demoEntry = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.()-]{0,200}\.dem$`)
 
@@ -113,7 +79,7 @@ func prepareArchive(ctx context.Context, sidecarPath, archive string, dirs prepa
 	if err != nil {
 		return 0, err
 	}
-	var meta hltvSidecar
+	var meta community.ProSidecar
 	if err := json.Unmarshal(raw, &meta); err != nil || meta.Source != hltvDataset || meta.MatchID <= 0 {
 		return 0, fmt.Errorf("bad sidecar %s", filepath.Base(sidecarPath))
 	}
@@ -168,7 +134,7 @@ func prepareArchive(ctx context.Context, sidecarPath, archive string, dirs prepa
 // prepareDemo copies one archive entry to a temporary demo, scans it and writes the analysis.
 // demoJob is one archive entry to prepare; keep is where the demo stays for lineup clips, or empty.
 type demoJob struct {
-	meta                   hltvSidecar
+	meta                   community.ProSidecar
 	entry, out, work, keep string
 }
 
@@ -227,7 +193,7 @@ func prepareDemo(ctx context.Context, src io.Reader, job demoJob) error {
 		return err
 	}
 	res.Document.Demo.Path = ""
-	if err := writeAnalysis(out, analysisHeader{Format: analysisFormat, Match: meta, Entry: entry, Document: res.Document, Positions: res.Positions.Descriptor}, res.Positions.Data); err != nil {
+	if err := writeAnalysis(out, community.ProAnalysisHeader{Format: community.ProAnalysisFormat, Match: meta, Entry: entry, Document: res.Document, Positions: res.Positions.Descriptor}, res.Positions.Data); err != nil {
 		return err
 	}
 	if job.keep == "" {
@@ -252,28 +218,13 @@ func checkMatch(s tacticalplan.ProDemoSummary) error {
 	return nil
 }
 
-func writeAnalysis(out string, h analysisHeader, blob []byte) error {
-	line, err := json.Marshal(h)
-	if err != nil {
-		return err
-	}
+func writeAnalysis(out string, h community.ProAnalysisHeader, blob []byte) error {
 	tmp := out + ".tmp"
 	f, err := os.Create(tmp)
 	if err != nil {
 		return err
 	}
-	zw, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
-	if err != nil {
-		_ = f.Close()
-		return err
-	}
-	_, werr := zw.Write(append(line, '\n'))
-	if werr == nil {
-		_, werr = zw.Write(blob)
-	}
-	if cerr := zw.Close(); werr == nil {
-		werr = cerr
-	}
+	werr := community.WriteProAnalysis(f, h, blob)
 	if cerr := f.Close(); werr == nil {
 		werr = cerr
 	}
@@ -313,51 +264,13 @@ func writeSidecars(analysesDir, outDir string) (int, error) {
 }
 
 // readAnalysis decodes a prepared analysis file.
-func readAnalysis(name string) (analysisHeader, []byte, error) {
+func readAnalysis(name string) (community.ProAnalysisHeader, []byte, error) {
 	f, err := os.Open(name)
 	if err != nil {
-		return analysisHeader{}, nil, err
+		return community.ProAnalysisHeader{}, nil, err
 	}
 	defer f.Close()
-	zr, err := zstd.NewReader(f)
-	if err != nil {
-		return analysisHeader{}, nil, err
-	}
-	defer zr.Close()
-	br := bufio.NewReaderSize(io.LimitReader(zr, maxHeaderBytes+maxDemoBytes), 1<<20)
-	line, err := readLine(br)
-	if err != nil {
-		return analysisHeader{}, nil, err
-	}
-	var h analysisHeader
-	if err := json.Unmarshal(line, &h); err != nil {
-		return analysisHeader{}, nil, fmt.Errorf("decode analysis header: %w", err)
-	}
-	if h.Format != analysisFormat {
-		return analysisHeader{}, nil, fmt.Errorf("analysis format %q", h.Format)
-	}
-	blob, err := io.ReadAll(br)
-	if err != nil {
-		return analysisHeader{}, nil, err
-	}
-	return h, blob, nil
-}
-
-func readLine(br *bufio.Reader) ([]byte, error) {
-	var buf bytes.Buffer
-	for {
-		chunk, err := br.ReadSlice('\n')
-		buf.Write(chunk)
-		if err == nil {
-			return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
-		}
-		if !errors.Is(err, bufio.ErrBufferFull) {
-			return nil, fmt.Errorf("read analysis header: %w", err)
-		}
-		if buf.Len() > maxHeaderBytes {
-			return nil, errors.New("analysis header is too large")
-		}
-	}
+	return community.ReadProAnalysis(f)
 }
 
 // listAnalyses lists prepared analyses with their size and SHA-256. Their path

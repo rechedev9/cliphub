@@ -38,12 +38,17 @@ func (h *Handlers) proReference() (tacticalplan.ProReference, string) {
 	return tacticalplan.DefaultProReference(), referenceSourceBundled
 }
 
-// StartCommunity refreshes the pro reference in the background until ctx
-// ends, and asks the server to forget an install that shared rankings.
+// StartCommunity refreshes the pro reference and imports the followed pro teams'
+// matches in the background until ctx ends, and asks the server to forget an install that shared rankings.
 func (h *Handlers) StartCommunity(ctx context.Context) {
 	deps := h.references.community
 	if deps.Reference != nil {
 		go deps.Reference.Run(ctx)
+	}
+	if deps.Client != nil && h.libraryRepo != nil {
+		wake := make(chan struct{}, 1)
+		h.references.pro.wake = wake
+		go h.runProFollowSync(ctx, wake)
 	}
 	if deps.Dir != "" {
 		go community.RetireRankings(ctx, deps.Dir, deps.Client)

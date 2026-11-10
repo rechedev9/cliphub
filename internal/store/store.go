@@ -134,6 +134,7 @@ type LibraryRepository interface {
 	LibretaRepository
 	PlaylistRepository
 	PatternRepository
+	ProMatchRepository
 }
 
 type Repositories struct {

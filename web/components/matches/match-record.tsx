@@ -11,7 +11,7 @@ import type { Match, Video } from '@/lib/api/types';
 import { OUTPUT_STATE, OUTPUT_TYPE, isHighlightsVideo, isWorking, outputLabel, outputState, outputType, toOutput, type OutputState } from '@/lib/clips/hub';
 import { MATCHES_HREF, PRODUCE_FORMAT, produceHref, publishHref, type ProduceFormat } from '@/lib/clips/routes';
 import { matchDateLabel, prettyMapName, timeAgo } from '@/lib/format';
-import { SHARED_MATCH_REASON } from '@/lib/library/partidas';
+import { withoutDemo, withoutDemoReason } from '@/lib/library/partidas';
 import { startPollLoop } from '@/lib/poll-loop';
 import { matchSourceLabel } from '@/lib/records/matches';
 import { cn } from '@/lib/utils';
@@ -258,7 +258,7 @@ function makePaths({ matchId, demo, onOpenRounds }: Omit<MatchVideosProps, 'vide
 function MakeVideos(props: Omit<MatchVideosProps, 'videos' | 'onVideosChange'>): ReactNode {
   const headingId = useId();
   // A shared match came without its .dem, so no video can be made until the demo is imported.
-  const shared = props.demo?.source === 'shared';
+  const shared = withoutDemo(props.demo?.source);
   const paths = makePaths(props);
   // Three choices share one row; two or four sit in two columns, so none is left alone.
   const grid = paths.length === 3 ? 'grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]' : 'sm:grid-cols-2';
@@ -269,7 +269,7 @@ function MakeVideos(props: Omit<MatchVideosProps, 'videos' | 'onVideosChange'>):
           Todavía no has hecho vídeos de esta partida
         </h2>
         <p className="text-body-sm text-fg-2">
-          {shared ? SHARED_MATCH_REASON : 'Elige qué quieres sacar de ella. Los vídeos que hagas aparecerán aquí y en Mis vídeos.'}
+          {shared ? withoutDemoReason(props.demo?.source) : 'Elige qué quieres sacar de ella. Los vídeos que hagas aparecerán aquí y en Mis vídeos.'}
         </p>
       </div>
       {shared ? null : (

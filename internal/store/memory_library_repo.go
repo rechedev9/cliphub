@@ -31,6 +31,7 @@ type MemoryLibraryRepository struct {
 	plays        map[uuid.UUID]library.Play
 	playlists    map[uuid.UUID]library.Playlist
 	libreta      memoryLibreta
+	pro          memoryPro
 }
 
 type memoryJobLink struct {

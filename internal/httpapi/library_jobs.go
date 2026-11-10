@@ -100,7 +100,7 @@ func (h *Handlers) registerJobDemo(ctx context.Context, j job.Job) (library.Demo
 	if err != nil {
 		return library.Demo{}, err
 	}
-	if !created && demo.Source == library.SourceShared {
+	if !created && demo.Source.WithoutDemo() {
 		if demo, err = h.attachSharedDemo(ctx, demo, upload); err != nil {
 			return library.Demo{}, err
 		}
@@ -332,7 +332,7 @@ func (h *Handlers) CreateJobFromLibraryDemo(w http.ResponseWriter, r *http.Reque
 			return
 		}
 	}
-	if d.Source == library.SourceShared {
+	if d.Source.WithoutDemo() {
 		writeCodedError(w, http.StatusConflict, codeSharedMatch, errSharedMatch)
 		return
 	}

@@ -28,8 +28,8 @@ import type { TeamSideStats } from './side-stats.ts';
  * is the source of truth. All access is same-origin through `/api/library/*`.
  */
 
-/** `shared` is a match that came in a .cliphub package without its demo: read only. */
-export const LIBRARY_SOURCES = ['valve', 'faceit', 'hltv', 'scrim', 'unknown', 'shared'] as const;
+/** `shared` came in a .cliphub package and `pro` from the pro match catalog, both without the demo: read only. */
+export const LIBRARY_SOURCES = ['valve', 'faceit', 'hltv', 'scrim', 'unknown', 'shared', 'pro'] as const;
 export type LibrarySource = (typeof LIBRARY_SOURCES)[number];
 
 export const LIBRARY_PARSE_STATES = ['queued', 'parsing', 'ready', 'failed'] as const;

@@ -13,7 +13,7 @@ import {
 } from '@/lib/api/library';
 import { MATCHES_HREF } from '@/lib/clips/routes';
 import { formatShortDate } from '@/lib/format';
-import { PARSE_STATE_LABEL, SHARED_MATCH_REASON, SOURCE_LABEL, demoErrorLabel } from '@/lib/library/partidas';
+import { PARSE_STATE_LABEL, SOURCE_LABEL, demoErrorLabel, withoutDemo, withoutDemoReason } from '@/lib/library/partidas';
 import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import {
@@ -28,7 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 /** A shared match keeps its source until its .dem is imported, so it is never offered. */
-const EDITABLE_SOURCES = LIBRARY_SOURCES.filter((source) => source !== 'shared');
+const EDITABLE_SOURCES = LIBRARY_SOURCES.filter((source) => !withoutDemo(source));
 
 /** The demo a partida was read from, folded at the end of Resumen: its file, source, tags and upkeep. */
 export function MatchDemoDetails({ demo, onDemoChange }: { demo: LibraryDemo; onDemoChange: (demo: LibraryDemo) => void }): ReactNode {
@@ -85,7 +85,7 @@ export function MatchDemoDetails({ demo, onDemoChange }: { demo: LibraryDemo; on
             {demo.state === 'failed' ? <span className="block text-meta text-destructive">{demoErrorLabel(demo.error_code)}</span> : null}
           </Fact>
           <Fact label="Fuente">
-            {demo.source === 'shared' ? SOURCE_LABEL.shared : (
+            {withoutDemo(demo.source) ? SOURCE_LABEL[demo.source] : (
               <Select
                 value={demo.source}
                 disabled={busy}
@@ -107,7 +107,7 @@ export function MatchDemoDetails({ demo, onDemoChange }: { demo: LibraryDemo; on
                 </SelectContent>
               </Select>
             )}
-            {demo.source_manual && demo.source !== 'shared' ? <span className="block text-meta text-fg-3">Elegida a mano</span> : null}
+            {demo.source_manual && !withoutDemo(demo.source) ? <span className="block text-meta text-fg-3">Elegida a mano</span> : null}
           </Fact>
         </dl>
         <div className="flex flex-wrap items-end gap-3">
@@ -129,7 +129,7 @@ export function MatchDemoDetails({ demo, onDemoChange }: { demo: LibraryDemo; on
             type="button"
             variant="outline"
             size="sm"
-            disabled={busy || demo.state === 'queued' || demo.state === 'parsing' || demo.source === 'shared'}
+            disabled={busy || demo.state === 'queued' || demo.state === 'parsing' || withoutDemo(demo.source)}
             onClick={() => void act(async () => onDemoChange(await analyzeLibraryDemo(demo.id)), 'No se pudo poner la demo en cola.')}
           >
             <RefreshCw aria-hidden />
@@ -140,7 +140,7 @@ export function MatchDemoDetails({ demo, onDemoChange }: { demo: LibraryDemo; on
             Quitar de la biblioteca
           </Button>
         </div>
-        {demo.source === 'shared' ? <p className="text-body-sm text-fg-3">{SHARED_MATCH_REASON}</p> : null}
+        {withoutDemo(demo.source) ? <p className="text-body-sm text-fg-3">{withoutDemoReason(demo.source)}</p> : null}
         {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
       </div>
       <Dialog open={confirmDelete} onOpenChange={(next) => !busy && setConfirmDelete(next)}>

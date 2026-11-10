@@ -20,6 +20,7 @@ type referenceCaches struct {
 	norms      normsCache
 	patterns   patternCache
 	community  CommunityDeps
+	pro        proMatchState
 }
 
 // normsCache keeps one pass per map and date range, valid while the matches

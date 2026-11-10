@@ -14,7 +14,7 @@ import {
   type AnalysisVideoAction,
   type VideoSource,
 } from '@/lib/library/analysis-video';
-import { SHARED_MATCH_REASON, matchTitle, teamByKey, teamLabel } from '@/lib/library/partidas';
+import { matchTitle, teamByKey, teamLabel, withoutDemo, withoutDemoReason } from '@/lib/library/partidas';
 import { formatShortDate } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -105,7 +105,7 @@ export function AnalysisVideoDialog({ sources, onClose, selected, teamId, steamI
   const rounds = [...checked].sort((a, b) => a - b);
   const loaded = match !== null && typeof match !== 'string' ? match : null;
   const players = loaded ? videoPlayers(loaded, teamId) : [];
-  const shared = loaded?.source === 'shared';
+  const shared = withoutDemo(loaded?.source);
 
   return (
     <Dialog open onOpenChange={(open) => !open && busy === null && onClose()}>
@@ -217,7 +217,7 @@ export function AnalysisVideoDialog({ sources, onClose, selected, teamId, steamI
                 );
               })}
             </ul>
-            {shared ? <p className="text-body-sm text-fg-2">{SHARED_MATCH_REASON}</p> : null}
+            {shared ? <p className="text-body-sm text-fg-2">{withoutDemoReason(loaded?.source)}</p> : null}
             {error ? (
               <p role="alert" className="text-body-sm text-destructive">
                 {error}

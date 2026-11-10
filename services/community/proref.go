@@ -51,6 +51,9 @@ func mapKey(path string) string {
 	return partSuffix.ReplaceAllString(strings.ToLower(path), "")
 }
 
+// proMapGroup keys one map of an HLTV match, so the parts of a map group together.
+func proMapGroup(match, entry string) string { return match + "/" + mapKey(entry) }
+
 // rebuildReference measures the reference from every indexed demo, with the
 // parts of one map joined, and stores the full document, the index and one payload per map.
 func rebuildReference(ctx context.Context, s *store) (community.ProReferenceIndex, error) {

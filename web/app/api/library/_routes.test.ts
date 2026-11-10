@@ -295,3 +295,14 @@ test('a pro lineup clip streams only under a recorded clip name', () => {
   assert.equal(matchLibraryRoute('GET', ['pro-lineups', 'clips', '2398992', combo])?.response.kind, 'stream');
   assert.equal(matchLibraryRoute('GET', ['pro-lineups', 'clips', '2398992', file.replace('.mp4', '-combo-x.mp4')]), undefined);
 });
+
+test('pro match routes take only HLTV ids and map entries', () => {
+  const list = matchLibraryRoute('GET', ['pro-matches']);
+  assert.ok(list);
+  assert.equal(libraryUpstreamQuery(list, new URLSearchParams('days=30&team=9565&map=de_nuke&secret=1')), 'days=30&team=9565&map=de_nuke');
+  assert.equal(matchLibraryRoute('POST', ['pro-matches', '2400001', 'vitality-vs-faze-m1-mirage', 'import'])?.response.kind, 'json');
+  assert.equal(matchLibraryRoute('POST', ['pro-matches', '0', 'a-m1-mirage', 'import']), undefined);
+  assert.equal(matchLibraryRoute('POST', ['pro-matches', '2400001', '..%2Fdb', 'import']), undefined);
+  assert.equal(matchLibraryRoute('DELETE', ['pro-follows', '9565'])?.response.kind, 'empty');
+  assert.equal(matchLibraryRoute('DELETE', ['pro-follows', 'faze']), undefined);
+});
