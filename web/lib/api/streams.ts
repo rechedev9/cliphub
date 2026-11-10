@@ -198,7 +198,7 @@ export type StreamRenderState = {
   render_progress?: StreamRenderProgress;
 };
 
-/** A run of the recording player's kills found in the source kill feed. */
+/** A run of the recording player's kills found in the source kill feed, or a voice peak with no kill. */
 export type StreamPlay = {
   id: string;
   label: string;
@@ -206,6 +206,24 @@ export type StreamPlay = {
   end_seconds: number;
   kill_seconds: number[];
   score: number;
+  /** Absent on plays saved before voice peaks: those are kills. */
+  kind?: 'kill' | 'voice_peak';
+  /** The voice peaks inside the play. */
+  voice_seconds?: number[];
+  /** How far the loudest peak rose over the streamer's usual level, in dB. */
+  voice_db?: number;
+  /** A shout loud enough to be on purpose. */
+  marked?: boolean;
+};
+
+/** The voice peak settings of a scan; sensitivity runs from 1 (only big shouts) to 5. */
+export type StreamVoiceSettings = { enabled: boolean; sensitivity: number };
+
+export type StreamVoiceScan = StreamVoiceSettings & {
+  status: 'off' | 'done' | 'no_audio' | 'no_voice' | 'failed';
+  /** The detection ran on the game mix because no mic track was found. */
+  mix?: boolean;
+  peaks: number;
 };
 
 export type StreamPlayScan = {
@@ -214,6 +232,8 @@ export type StreamPlayScan = {
   progress: number;
   plays: StreamPlay[];
   error?: string;
+  /** Absent on a scan saved before voice peaks. */
+  voice?: StreamVoiceScan;
 };
 
 export type StreamSummary = {
@@ -246,7 +266,7 @@ export interface StreamsApiClient {
   getRenderState(id: string, variant: StreamVariant): Promise<StreamRenderState>;
   getPlays(id: string): Promise<StreamPlayScan>;
   /** Starts the kill-feed scan of the source; answers at once with the running state. */
-  startPlayScan(id: string): Promise<StreamPlayScan>;
+  startPlayScan(id: string, voice: StreamVoiceSettings): Promise<StreamPlayScan>;
   getSummary(id: string): Promise<StreamSummary>;
   /** Renders the chosen plays into one landscape video; answers at once. */
   startSummary(id: string, playIds: readonly string[]): Promise<StreamSummary>;
@@ -353,8 +373,14 @@ export class RealStreamsApiClient implements StreamsApiClient {
     return readJson<StreamPlayScan>(await fetch(`/api/streams/${id}/plays`, { cache: 'no-store' }));
   }
 
-  async startPlayScan(id: string): Promise<StreamPlayScan> {
-    return readJson<StreamPlayScan>(await fetch(`/api/streams/${id}/plays`, { method: 'POST' }));
+  async startPlayScan(id: string, voice: StreamVoiceSettings): Promise<StreamPlayScan> {
+    return readJson<StreamPlayScan>(
+      await fetch(`/api/streams/${id}/plays`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voice: voice.enabled, voice_sensitivity: voice.sensitivity }),
+      }),
+    );
   }
 
   async getSummary(id: string): Promise<StreamSummary> {

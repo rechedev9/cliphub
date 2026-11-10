@@ -5,6 +5,16 @@ export function rankPlays(plays: readonly StreamPlay[]): StreamPlay[] {
   return [...plays].sort((a, b) => b.score - a.score || a.start_seconds - b.start_seconds);
 }
 
+/** The second a play is about: its first kill, else its first voice peak. */
+export function playMoment(play: StreamPlay): number {
+  return play.kill_seconds[0] ?? play.voice_seconds?.[0] ?? play.start_seconds;
+}
+
+/** Whether a play is a voice peak with no kill. */
+export function isVoiceOnly(play: StreamPlay): boolean {
+  return play.kind === 'voice_peak';
+}
+
 /** Whether a play already has a moment that covers part of it. */
 export function playIsCovered(clips: readonly StreamClipRange[], play: StreamPlay): boolean {
   return clips.some((clip) => clip.start_seconds < play.end_seconds && play.start_seconds < clip.end_seconds);

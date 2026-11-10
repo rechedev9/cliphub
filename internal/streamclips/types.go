@@ -107,6 +107,10 @@ type SourceProbe struct {
 	DurationSeconds float64 `json:"duration_seconds,omitempty"`
 	VideoCodec      string  `json:"video_codec,omitempty"`
 	AudioCodec      string  `json:"audio_codec,omitempty"`
+	// AudioStreams counts the audio tracks; 0 on a probe saved before it was recorded.
+	AudioStreams int `json:"audio_streams,omitempty"`
+	// AudioTitles holds each audio track's title tag in track order ("" when untitled).
+	AudioTitles []string `json:"audio_titles,omitempty"`
 	FrameRate       string  `json:"frame_rate,omitempty"`
 	// Container is ffprobe's format_name, such as "mov,mp4,m4a,3gp,3g2,mj2" or "mpegts".
 	Container string `json:"container,omitempty"`

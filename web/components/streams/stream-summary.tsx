@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, Download } from 'lucide-react';
 import { streamsApi, type StreamPlay, type StreamSummary } from '@/lib/api/streams';
 import { errorMessage, formatStreamClock } from '@/lib/streams/plan';
-import { sameIds, summaryPlayIds } from '@/lib/streams/plays';
+import { isVoiceOnly, playMoment, sameIds, summaryPlayIds } from '@/lib/streams/plays';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 
@@ -47,7 +47,7 @@ export function StreamSummaryCard({
 
   // The last summary's plays seed the choice; with none, every play is in.
   const covered = summary ? summaryPlayIds(summary, plays) : null;
-  const selected = chosen ?? new Set(covered ?? plays.map((play) => play.id));
+  const selected = chosen ?? new Set(covered ?? plays.filter((play) => !isVoiceOnly(play)).map((play) => play.id));
   const selectedPlays = plays.filter((play) => selected.has(play.id));
   const selectedSeconds = selectedPlays.reduce((total, play) => total + play.end_seconds - play.start_seconds, 0);
 
@@ -111,7 +111,7 @@ export function StreamSummaryCard({
                   />
                   <span className="font-semibold">{play.label}</span>
                   <span className="text-fg-3 tabular-nums">
-                    {formatStreamClock(play.kill_seconds[0] ?? play.start_seconds)}
+                    {formatStreamClock(playMoment(play))}
                   </span>
                 </label>
               </li>

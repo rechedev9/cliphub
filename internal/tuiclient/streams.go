@@ -105,6 +105,26 @@ type StreamPlay struct {
 	EndSeconds   float64   `json:"end_seconds"`
 	KillSeconds  []float64 `json:"kill_seconds"`
 	Score        int       `json:"score"`
+	// Kind is "kill" or "voice_peak"; empty on plays saved before voice peaks.
+	Kind         string    `json:"kind,omitempty"`
+	VoiceSeconds []float64 `json:"voice_seconds,omitempty"`
+	VoiceDB      float64   `json:"voice_db,omitempty"`
+	Marked       bool      `json:"marked,omitempty"`
+}
+
+// StreamVoiceScan is what the voice peak scan did (internal/httpapi voiceScan).
+type StreamVoiceScan struct {
+	Enabled     bool   `json:"enabled"`
+	Sensitivity int    `json:"sensitivity"`
+	Status      string `json:"status"`
+	Mix         bool   `json:"mix,omitempty"`
+	Peaks       int    `json:"peaks"`
+}
+
+// StreamPlayScanOptions is the optional body of the scan start; nil fields keep the Studio defaults.
+type StreamPlayScanOptions struct {
+	Voice            *bool `json:"voice,omitempty"`
+	VoiceSensitivity int   `json:"voice_sensitivity,omitempty"`
 }
 
 // StreamPlayScan mirrors GET /api/stream-jobs/{id}/plays.
@@ -113,6 +133,8 @@ type StreamPlayScan struct {
 	Progress float64      `json:"progress"`
 	Plays    []StreamPlay `json:"plays"`
 	Error    string       `json:"error,omitempty"`
+	// Voice is absent on a scan saved before voice peaks.
+	Voice *StreamVoiceScan `json:"voice,omitempty"`
 }
 
 // StreamSummary mirrors GET /api/stream-jobs/{id}/summary: the 16:9 video of every play.
@@ -146,9 +168,9 @@ func (c *Client) GetStreamPlays(ctx context.Context, id string) (StreamPlayScan,
 }
 
 // StartStreamPlayScan starts the kill-feed scan; a running scan is left alone.
-func (c *Client) StartStreamPlayScan(ctx context.Context, id string) (StreamPlayScan, error) {
+func (c *Client) StartStreamPlayScan(ctx context.Context, id string, opts StreamPlayScanOptions) (StreamPlayScan, error) {
 	var out StreamPlayScan
-	err := c.doJSON(ctx, http.MethodPost, "/api/stream-jobs/"+id+"/plays", nil, &out)
+	err := c.doJSON(ctx, http.MethodPost, "/api/stream-jobs/"+id+"/plays", opts, &out)
 	return out, err
 }
 

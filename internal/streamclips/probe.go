@@ -27,6 +27,9 @@ type ffprobeOutput struct {
 		TimeBase   string `json:"time_base"`
 		StartTime  string `json:"start_time"`
 		Duration   string `json:"duration"`
+		Tags       struct {
+			Title string `json:"title"`
+		} `json:"tags"`
 	} `json:"streams"`
 	Format struct {
 		FormatName string `json:"format_name"`
@@ -42,7 +45,7 @@ func (p FFprobeProber) Probe(ctx context.Context, filePath string) (SourceProbe,
 	// #nosec G204 -- ffprobe path is local config and args are not shell-expanded.
 	cmd := exec.CommandContext(ctx, p.Path,
 		"-v", "error",
-		"-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,time_base,start_time,duration:format=format_name,duration,start_time",
+		"-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,time_base,start_time,duration:stream_tags=title:format=format_name,duration,start_time",
 		"-of", "json",
 		filePath,
 	)
@@ -82,6 +85,8 @@ func parseFFprobeOutput(out []byte) (SourceProbe, error) {
 				}
 			}
 		case "audio":
+			probe.AudioStreams++
+			probe.AudioTitles = append(probe.AudioTitles, stream.Tags.Title)
 			if probe.AudioCodec == "" {
 				probe.AudioCodec = stream.CodecName
 			}
