@@ -94,7 +94,7 @@ export function ReplayTimeline({
       </Button>
       <div className={CLOCK_BOX}>
         <Timer aria-hidden className="size-4 text-fg-3" />
-        <span ref={clockRef} className="w-[6ch] text-right">
+        <span ref={clockRef} className="min-w-[7ch] text-center">
           {roundClockLabelFor(timeline, 0)}
         </span>
       </div>

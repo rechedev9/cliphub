@@ -1,11 +1,12 @@
 import { app, dialog, ipcMain } from 'electron';
+import { execFile } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { GifTargets, parseReplayGifRequest, STUDIO_REPLAY_GIF_CHANNEL } from './replay-gif-ipc';
 import type { ReplayFileFormat } from './replay-gif-ipc';
 import type { SaveFileOptions } from './report-pdf-window';
 
-type GifReply = { ok: boolean; token?: string; name?: string; canceled?: boolean; error?: string };
+type GifReply = { ok: boolean; token?: string; name?: string; canceled?: boolean; error?: string; copied?: boolean };
 
 const NAMES: Record<ReplayFileFormat, { filter: string; noun: string; folder: 'pictures' | 'videos' }> = {
   gif: { filter: 'GIF', noun: 'el GIF', folder: 'pictures' },
@@ -36,11 +37,31 @@ async function write(request: { token: string; bytes: Uint8Array; format: Replay
   if (target.format !== format) return { ok: false, error: `No se pudo guardar ${NAMES[target.format].noun}.` };
   try {
     await fs.promises.writeFile(target.path, bytes);
-    return { ok: true, name: path.basename(target.path) };
   } catch (err) {
     options.log(`[replay] could not write the ${format}: ${String(err)}\n`);
     return { ok: false, error: `No se pudo guardar ${NAMES[format].noun}.` };
   }
+  const copied = format === 'gif' && (await copyFileToClipboard(target.path, options));
+  return { ok: true, name: path.basename(target.path), copied };
+}
+
+/**
+ * Puts the saved GIF on the clipboard as a file, so Ctrl+V drops it animated into a Google Doc.
+ * Electron cannot write a file list, Windows PowerShell's Set-Clipboard can; the path travels in the environment.
+ */
+function copyFileToClipboard(filePath: string, options: SaveFileOptions): Promise<boolean> {
+  if (process.platform !== 'win32') return Promise.resolve(false);
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', 'Set-Clipboard -LiteralPath $env:CLIPHUB_CLIPBOARD_FILE'],
+      { env: { ...process.env, CLIPHUB_CLIPBOARD_FILE: filePath }, timeout: 10_000, windowsHide: true },
+      (err) => {
+        if (err !== null) options.log(`[replay] could not copy the gif to the clipboard: ${String(err)}\n`);
+        resolve(err === null);
+      },
+    );
+  });
 }
 
 /** Saves the Replay's GIF or MP4: the dialog opens on the click, the bytes arrive once encoded. */

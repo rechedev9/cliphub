@@ -19,9 +19,9 @@ function bridge(pickAnswer: unknown, writeAnswer: unknown, calls: string[]): obj
 
 test('the desktop picks the file first, then gets the bytes under its token', async () => {
   const calls: string[] = [];
-  const scope = bridge({ ok: true, token: 't1' }, { ok: true, name: 'a.gif' }, calls);
+  const scope = bridge({ ok: true, token: 't1' }, { ok: true, name: 'a.gif', copied: true }, calls);
   assert.deepEqual(await pickGifTarget('a.gif', scope), { kind: 'file', token: 't1' });
-  assert.deepEqual(await writeGifTarget('t1', new Uint8Array(6), scope), { kind: 'saved', name: 'a.gif' });
+  assert.deepEqual(await writeGifTarget('t1', new Uint8Array(6), scope), { kind: 'saved', name: 'a.gif', copied: true });
   assert.deepEqual(calls, ['pick a.gif', 'write t1 6']);
 });
 

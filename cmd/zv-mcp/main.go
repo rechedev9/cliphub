@@ -195,7 +195,7 @@ pattern is edited. match_patterns lists the saved patterns a match's rounds meet
 get_play lists the patterns linked to a play.
 player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay); with grenades it
 also lists the player's grenades of the round, each with the setpos of its throw (the button on a grenade's row in the Replay's Eventos list).
-export_replay_gif saves a round's tramo as a looping GIF with the radar, players, utility, clock and saved drawings, as Exportar GIF (G) does.
+export_replay_gif saves a round's tramo as a looping GIF with the radar, players, utility, clock and saved drawings, as Exportar GIF (G) does; copy also puts the file on the clipboard to paste into a Google Doc, as Studio does after saving.
 export_replay_video saves the tramo of one round, or of several rounds one after another, as an H.264 MP4 (Exportar MP4), with layers
 to pick what is drawn, include_voice for the synced team voice cut to the same moments and freeze_only for its freeze-time comms only.
 record_round_pov is the Replay's "Grabar su POV de esta ronda": one player's first-person video of one round (match_id, round, steamid),

@@ -1,7 +1,6 @@
 import { REPLAY_MAX_REFS, type ReplayRef } from '../analysis/replay-link.ts';
 import { scopeDateRange, type AnalysisScope } from '../analysis/scope.ts';
-import { TEAM_REPLAY_FIELDS } from '../analysis/team-replay-fields.ts';
-import { teamScopeEntries } from '../analysis/team-scope.ts';
+import { teamReplayEntries } from '../analysis/team-replay-fields.ts';
 import type { TeamScoutQuery } from '../api/library.ts';
 import type { TeamRounds } from '../api/team-insights.ts';
 
@@ -19,7 +18,7 @@ export function teamRoundsQuery(input: { scope: AnalysisScope; lineup: readonly 
     to,
     opponent_ids: scope.opponent === '' ? [] : [scope.opponent],
     lineup,
-    criteria: teamScopeEntries(scope, TEAM_REPLAY_FIELDS),
+    criteria: teamReplayEntries(scope),
   };
 }
 

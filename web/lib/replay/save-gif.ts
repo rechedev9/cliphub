@@ -10,7 +10,8 @@ export type GifTarget =
   | { readonly kind: 'canceled' }
   | { readonly kind: 'failed'; readonly message: string };
 
-export type GifWrite = { readonly kind: 'saved'; readonly name: string } | { readonly kind: 'failed'; readonly message: string };
+/** `copied`: the desktop also put the file on the clipboard, ready to paste into a document. */
+export type GifWrite = { readonly kind: 'saved'; readonly name: string; readonly copied: boolean } | { readonly kind: 'failed'; readonly message: string };
 
 type Format = { pick: string; write: string; failed: string };
 
@@ -56,7 +57,7 @@ async function writeTarget(options: { token: string; bytes: Uint8Array; scope: o
   if (bridge === null) return { kind: 'failed', message: options.format.failed };
   const result = await bridge.write(options.token, options.bytes);
   const name = field(result, 'name');
-  if (field(result, 'ok') === true) return { kind: 'saved', name: typeof name === 'string' ? name : '' };
+  if (field(result, 'ok') === true) return { kind: 'saved', name: typeof name === 'string' ? name : '', copied: field(result, 'copied') === true };
   return failure(result, options.format);
 }
 

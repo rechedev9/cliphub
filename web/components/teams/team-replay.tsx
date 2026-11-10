@@ -6,9 +6,8 @@ import { ListVideo } from 'lucide-react';
 import { getTeamRounds, type LibraryMatch, type LibraryRosterEntry, type TeamCriterion } from '@/lib/api/library';
 import { REPLAY_MAX_REFS, replayHref, type ReplayRef } from '@/lib/analysis/replay-link';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
-import { TEAM_REPLAY_FIELDS } from '@/lib/analysis/team-replay-fields';
+import { teamReplayEntries } from '@/lib/analysis/team-replay-fields';
 import type { MapCounts } from '@/lib/analysis/map-counts';
-import { teamScopeEntries } from '@/lib/analysis/team-scope';
 import type { ReplayForm } from '@/lib/replay/forms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { PatternFinder } from '@/components/patterns/pattern-finder';
@@ -97,7 +96,7 @@ export function TeamReplay({
   onScopeChange: (patch: Partial<AnalysisScope>) => void;
   onCounts: (counts: ScopeCounts | null) => void;
 }): ReactNode {
-  const criteria = useMemo(() => teamScopeEntries(scope, TEAM_REPLAY_FIELDS), [scope]);
+  const criteria = useMemo(() => teamReplayEntries(scope), [scope]);
   const [spatialRefs, setSpatialRefs] = useState<readonly ReplayRef[] | null>(null);
   const onRounds = useCallback((refs: readonly ReplayRef[]) => setSpatialRefs(refs), []);
   const grenadeRefs = useGrenadeRounds({ teamId, scope, lineup, criteria, active: form === 'granadas' });

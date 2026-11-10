@@ -141,7 +141,9 @@ export function useReplayGif(source: {
         }
         setState({ kind: 'saving' });
         const written = await writeGifTarget(target.token, bytes);
-        setState(written.kind === 'saved' ? { kind: 'done', message: `GIF guardado: ${written.name === '' ? fileName : written.name}` } : { kind: 'failed', message: written.message });
+        if (written.kind === 'failed') return setState({ kind: 'failed', message: written.message });
+        const name = written.name === '' ? fileName : written.name;
+        setState({ kind: 'done', message: written.copied ? `GIF guardado y copiado: ${name}. Pégalo con Ctrl+V en un documento.` : `GIF guardado: ${name}` });
       } catch (error) {
         if (controller.signal.aborted) return setState({ kind: 'idle' });
         console.error('Replay: the GIF could not be made', error);

@@ -486,7 +486,7 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
           </Button>
           <div className={CLOCK_BOX}>
             <Timer aria-hidden className="size-4 text-fg-3" />
-            <span ref={clockRef} className="w-[5ch] text-right">
+            <span ref={clockRef} className="min-w-[6ch] text-center">
               0:00
             </span>
           </div>

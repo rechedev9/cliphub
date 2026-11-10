@@ -25,10 +25,12 @@ type replayGIFIn struct {
 	Size         int     `json:"size,omitempty" jsonschema:"side of the GIF in pixels, from 128 to 1024; 512 by default"`
 	SkipDrawings bool    `json:"skip_drawings,omitempty" jsonschema:"true leaves out the drawings saved on the round's notes"`
 	Path         string  `json:"path" jsonschema:"absolute path of a new .gif file on this PC"`
+	Copy         bool    `json:"copy,omitempty" jsonschema:"also put the saved file on the Windows clipboard, so Ctrl+V pastes it animated into a document, as the Studio button does"`
 }
 
 type replayGIFOut struct {
 	Path     string  `json:"path"`
+	Copied   bool    `json:"copied,omitempty" jsonschema:"the file is on the clipboard"`
 	Bytes    int     `json:"bytes"`
 	Frames   int     `json:"frames"`
 	FPS      int     `json:"fps" jsonschema:"frames a second: 10, lower for a long tramo or a big size so the GIF stays in memory"`
@@ -124,7 +126,14 @@ func registerReplayGIFTool(server *mcp.Server, s *studio) {
 			if err := writeNewFile(in.Path, buf.Bytes()); err != nil {
 				return nil, replayGIFOut{}, err
 			}
-			return nil, replayGIFOut{Path: in.Path, Bytes: buf.Len(), Frames: got.Frames, FPS: got.FPS, Seconds: got.Seconds,
+			copied := false
+			if in.Copy {
+				if err := copyFileToClipboard(ctx, in.Path); err != nil {
+					return nil, replayGIFOut{}, fmt.Errorf("the GIF is saved at %s but could not be copied: %w", in.Path, err)
+				}
+				copied = true
+			}
+			return nil, replayGIFOut{Path: in.Path, Copied: copied, Bytes: buf.Len(), Frames: got.Frames, FPS: got.FPS, Seconds: got.Seconds,
 				Radar: scene.Radar != nil, Drawings: drawnNotes(scene.Notes)}, nil
 		})
 }

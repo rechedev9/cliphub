@@ -7,8 +7,7 @@ import type { LibraryMatch } from '@/lib/api/library';
 import { lineupSteamIds } from '@/lib/analysis/lineup';
 import { PATTERN_MODES, PATTERN_MODE_LABEL, patternModeFromQuery, writePatternMode, type PatternMode } from '@/lib/analysis/pattern-canvas-mode';
 import { inScopePeriod } from '@/lib/analysis/scope';
-import { TEAM_REPLAY_FIELDS, TEAM_REPLAY_LIMITS, TEAM_REPLAY_STACK_FIELDS } from '@/lib/analysis/team-replay-fields';
-import { teamScopeEntries } from '@/lib/analysis/team-scope';
+import { TEAM_REPLAY_LIMITS, TEAM_REPLAY_STACK_FIELDS, teamReplayEntries } from '@/lib/analysis/team-replay-fields';
 import { teamHref } from '@/lib/clips/routes';
 import { formatShortDate } from '@/lib/format';
 import { rivalOf, teamLabel } from '@/lib/library/partidas';
@@ -63,7 +62,7 @@ export function PatternsCanvas({ analysis, onTeam }: { analysis: TeamAnalysis; o
   const lineupKey = lineupSteamIds(scope.lineup, lineups).join(',');
   const lineup = useMemo(() => (lineupKey === '' ? [] : lineupKey.split(',')), [lineupKey]);
   // The URL also keeps the window and the players, so the scope is rebuilt on every drag: only its content may refetch.
-  const criteria = useContentStable(useMemo(() => teamScopeEntries(scope, TEAM_REPLAY_FIELDS), [scope]));
+  const criteria = useContentStable(useMemo(() => teamReplayEntries(scope), [scope]));
   const onMapChange = useCallback((map: string) => changeScope({ map }), [changeScope]);
   const fields = useMemo(() => (mode === 'patron' ? TEAM_REPLAY_STACK_FIELDS.filter((field) => field !== 'side') : TEAM_REPLAY_STACK_FIELDS), [mode]);
   const mapCounts = useTeamMapCounts({ teamId: team.id, scope, fields, lineup, enabled: true });
