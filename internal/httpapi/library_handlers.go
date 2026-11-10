@@ -498,6 +498,7 @@ func (h *Handlers) DeleteLibraryDemo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.discardLibraryDemo(id)
+	h.discardDemoVoice(id)
 	if getErr == nil && d.MatchID != nil {
 		h.discardMatchVoice(*d.MatchID)
 	}

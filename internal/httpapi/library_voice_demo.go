@@ -205,6 +205,11 @@ func (h *Handlers) extractDemoVoice(ctx context.Context, src demoVoiceSource) {
 		})
 	}
 	wg.Wait()
+	if _, err := h.libraryRepo.GetDemo(context.WithoutCancel(ctx), m.DemoID); errors.Is(err, library.ErrNotFound) {
+		// The demo went while its voice was read: leave nothing behind.
+		h.discardDemoVoice(m.DemoID)
+		return
+	}
 	state := ""
 	if err := errors.Join(errs...); err != nil {
 		log.Printf("httpapi: extract the in-game voice of match %s: %v", m.ID, err)
@@ -222,6 +227,19 @@ func (h *Handlers) extractDemoVoice(ctx context.Context, src demoVoiceSource) {
 		return
 	}
 	h.voice.demoJobs[m.DemoID] = state
+}
+
+// discardDemoVoice removes a deleted demo's extracted in-game voice and its extraction state.
+func (h *Handlers) discardDemoVoice(demoID uuid.UUID) {
+	if h.voice == nil || h.voice.deps.Dir == "" {
+		return
+	}
+	h.voice.mu.Lock()
+	delete(h.voice.demoJobs, demoID)
+	h.voice.mu.Unlock()
+	if err := os.RemoveAll(h.voice.demoVoiceDir(demoID)); err != nil {
+		log.Printf("httpapi: remove the in-game voice of demo %s: %v", demoID, err)
+	}
 }
 
 func countTracks(found [][]voicecomms.Track) int {

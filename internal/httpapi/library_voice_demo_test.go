@@ -47,8 +47,9 @@ func TestLibraryMatchDemoVoiceExtractsBothTeamsAndServesTheirTracks(t *testing.T
 	repo := store.NewMemoryLibraryRepository()
 	files := localFakeStorage{fakeStorage: newFakeStorage(), root: t.TempDir()}
 	extractor := &fakeDemoVoice{}
+	voiceDir := t.TempDir()
 	h := NewHandlers(newFakeRepo(), files, &fakeQueue{}, WithLibrary(repo),
-		WithVoice(VoiceDeps{Dir: t.TempDir(), Media: fakeVoiceMedia{}, Transcriber: &fakeTranscriber{}, DemoVoice: extractor}))
+		WithVoice(VoiceDeps{Dir: voiceDir, Media: fakeVoiceMedia{}, Transcriber: &fakeTranscriber{}, DemoVoice: extractor}))
 	env := libraryTestEnv{t: t, repo: repo, storage: files.fakeStorage, queue: &fakeQueue{}, h: h, router: Routes(h)}
 	m := env.seedLibraryMatch("demo-voice", "Alpha", "Bravo")
 	base := "/api/library/matches/" + m.ID.String() + "/voice/demo"
@@ -99,5 +100,16 @@ func TestLibraryMatchDemoVoiceExtractsBothTeamsAndServesTheirTracks(t *testing.T
 	env.json(http.MethodPost, base, nil, http.StatusOK, &status)
 	if len(extractor.targets) != 2 {
 		t.Fatalf("extracted %v; a second request must reuse the first extraction", extractor.targets)
+	}
+
+	extracted := filepath.Join(voiceDir, "demo", m.DemoID.String())
+	if _, err := os.Stat(extracted); err != nil {
+		t.Fatalf("extracted voice folder: %v", err)
+	}
+	if rw := env.do(http.MethodDelete, "/api/library/demos/"+m.DemoID.String(), nil, ""); rw.Code != http.StatusNoContent {
+		t.Fatalf("delete demo = %d", rw.Code)
+	}
+	if _, err := os.Stat(extracted); !os.IsNotExist(err) {
+		t.Fatalf("the in-game voice outlived its demo: %v", err)
 	}
 }
