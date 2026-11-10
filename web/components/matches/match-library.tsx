@@ -52,7 +52,7 @@ import {
   type PartidaRow,
 } from '@/lib/library/partidas';
 import { loadPovJobs } from '@/lib/library/pov-jobs';
-import { voiceIndex } from '@/lib/library/voice-summary';
+import { voiceIndex, type VoiceByMatch } from '@/lib/library/voice-summary';
 import type { CountNoun } from '@/lib/records/selection';
 import { FILTER_ANY, SEARCH_FILTER, filterRows, type TableViewState } from '@/lib/records/table-view';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -68,6 +68,7 @@ import { useTableView } from '@/components/records/use-table-view';
 import { DemoImport } from '@/components/matches/demo-import';
 import { LibraryListControls } from '@/components/matches/library-list-controls';
 import { PartidaGroupsList } from '@/components/matches/partida-groups-list';
+import { PartidaVoice } from '@/components/matches/partida-voice';
 import { DemoStatus, RowActions, Scoreline, isPending, removeDemo, type RowHandlers } from '@/components/matches/partida-cells';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
@@ -96,7 +97,9 @@ const IDLE_POLL_MS = 30_000;
 // Radix refuses an empty item value, so "every map" travels as this sentinel inside the chips only.
 const ALL_MAPS = '__all__';
 
-function columns(handlers: RowHandlers): DataTableColumn<PartidaRow>[] {
+type VoiceColumn = { byMatch: VoiceByMatch; onResynced: () => void };
+
+function columns(handlers: RowHandlers, voice: VoiceColumn): DataTableColumn<PartidaRow>[] {
   return [
     {
       id: 'map',
@@ -142,6 +145,15 @@ function columns(handlers: RowHandlers): DataTableColumn<PartidaRow>[] {
       header: 'Rondas',
       cell: ({ match }) => (match ? <span className="tabular-nums">{match.round_count}</span> : null),
       sortValue: ({ match }) => match?.round_count ?? null,
+    },
+    {
+      id: 'voice',
+      header: 'Voz',
+      cell: ({ match }) => {
+        const summary = match ? voice.byMatch.get(match.id) : undefined;
+        return summary ? <PartidaVoice compact summary={summary} onResynced={voice.onResynced} /> : null;
+      },
+      sortValue: ({ match }) => (match && voice.byMatch.has(match.id) ? 1 : 0),
     },
     {
       id: 'source',
@@ -606,7 +618,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
               </>
             ),
           }}
-          columns={columns(handlers)}
+          columns={columns(handlers, { byMatch: voices, onResynced: () => pollRef.current() })}
           rowKey={(row) => row.demo.id}
           rowHref={(row) => (row.match ? matchHref(row.match.id) : undefined)}
           view={view}
