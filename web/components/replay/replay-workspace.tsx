@@ -184,7 +184,6 @@ export function ReplayWorkspace({
 
   const entry = entries[index];
   const focusKey = entry === undefined ? '' : entryKey(entry);
-  const matchId = entry?.matchId;
   // With players in focus, or a list opened to superpose, every round is superposed; otherwise the cap keeps the map readable.
   const everyRound = focus.length > 0 || superpose;
   const selectedKeys = useMemo(() => {
