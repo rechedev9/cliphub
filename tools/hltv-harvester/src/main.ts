@@ -1,6 +1,10 @@
 // HLTV demo harvester: a visible browser window that walks HLTV results the way a
-// person would, keeps matches with a ranked team and downloads their demo archives
-// one at a time. It never solves a Cloudflare challenge: it waits for the user.
+// person would and downloads the demo archive of every match that has one, one at a
+// time. It never solves a Cloudflare challenge: it waits for the user.
+// --ranked-only keeps only matches with a top-N team. --hours N reads only the last N hours,
+// for a frequent run: keep the nightly --days 7 run beside it, because a results page that
+// fails mid-walk cuts a window short (the log says results_incomplete=true) and the longer
+// nightly window picks up what a short run missed.
 //
 //   pnpm start -- --days 30 --top 50 --out C:\Users\me\cliphub-hltv
 //   pnpm start -- --best-maps --days 90 --top 20 --min-maps 10 --per-map 5
@@ -11,15 +15,19 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   CHALLENGE_SCRIPT, HLTV, MATCH_SCRIPT, RANKING_SCRIPT, RESULTS_SCRIPT,
-  isCandidate, needsVisit, normalizeName, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState,
-  rankedTeamIn, sidecarFor, withSeries, type HarvestRecord, type HarvestState, type RankedTeam, type ResultRow,
+  cutRanking, normalizeName, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState,
+  rankedTeamIn, selectCandidates, sidecarFor, windowMs, withSeries, type HarvestRecord, type HarvestState, type RankedTeam, type ResultRow,
 } from "./hltv.ts";
+import { ChallengeTimeoutError, FailureBreaker, isTransient, withRetry } from "./retry.ts";
 import { MAP_STATS_SCRIPT, isoDay, parseTeamMapStats, pickBestPerMap, teamSlug, type BestMapPick, type TeamStats } from "./best-maps.ts";
 
 const PAGE_DELAY_MS: [number, number] = [6000, 12000];
 const CHALLENGE_WAIT_MS = 30 * 60 * 1000;
 const DOWNLOAD_TIMEOUT_MS = 60 * 60 * 1000;
 const RESULTS_PAGE_SIZE = 100;
+const LOAD_ATTEMPTS = 4;
+const LOAD_BACKOFF_MS = 15_000;
+const MAX_CONSECUTIVE_FAILURES = 3;
 
 const opts = parseArgs(process.argv.slice(2), join(homedir(), "cliphub-hltv"));
 const downloadsDir = join(opts.outDir, "downloads");
@@ -57,7 +65,7 @@ class Browser {
   // open loads a page and, when Cloudflare shows a challenge, hands the window
   // to the user and waits for the page to come back.
   async open(url: string): Promise<void> {
-    await this.win.loadURL(url);
+    await this.load(url);
     if (!(await this.challenged())) return;
     log("class=challenge message=\"Cloudflare pide verificación: complétala en la ventana del recolector\"");
     this.win.show();
@@ -67,11 +75,22 @@ class Browser {
       await sleep(5000);
       if (!(await this.challenged())) {
         log("class=challenge_cleared");
-        await this.win.loadURL(url);
+        await this.load(url);
         return;
       }
     }
-    throw new Error("Cloudflare challenge was not completed within 30 minutes");
+    throw new ChallengeTimeoutError();
+  }
+
+  // load retries a cut connection (ERR_CONNECTION_CLOSED and friends) with a growing wait.
+  private load(url: string): Promise<void> {
+    return withRetry(() => this.win.loadURL(url), {
+      attempts: LOAD_ATTEMPTS,
+      baseMs: LOAD_BACKOFF_MS,
+      sleep,
+      isTransient,
+      onRetry: (attempt, err) => log(`class=load_retry attempt=${attempt} url="${url}" error="${String(err)}"`),
+    });
   }
 
   private async challenged(): Promise<boolean> {
@@ -105,25 +124,50 @@ class Browser {
   }
 }
 
+// Without --ranked-only the ranking only fills each sidecar's rank, so a broken page must not stop the run.
 async function rankedTeams(browser: Browser): Promise<RankedTeam[]> {
+  const cut = opts.rankedOnly || opts.bestMaps;
+  if (cut) return readRanking(browser, cut);
+  try {
+    return await readRanking(browser, cut);
+  } catch (err) {
+    if (err instanceof ChallengeTimeoutError) throw err;
+    log(`class=ranking_failed error="${String(err)}"`);
+    return [];
+  }
+}
+
+async function readRanking(browser: Browser, cut: boolean): Promise<RankedTeam[]> {
   await browser.open(`${HLTV}/ranking/teams`);
-  const ranked = parseRanking(await browser.read(RANKING_SCRIPT)).filter((t) => t.rank <= opts.top);
+  const ranked = cutRanking(parseRanking(await browser.read(RANKING_SCRIPT)), { top: opts.top, cut });
   if (ranked.length < Math.min(opts.top, 10)) throw new Error(`ranking page gave ${ranked.length} teams`);
   return ranked;
 }
 
-async function recentResults(browser: Browser, cutoffMs: number): Promise<ResultRow[]> {
+type Listing = { rows: ResultRow[]; complete: boolean };
+
+// complete is false when a results page failed after the first, so the window was cut short.
+async function recentResults(browser: Browser, cutoffMs: number): Promise<Listing> {
   const rows: ResultRow[] = [];
+  let complete = true;
   for (let offset = 0; offset < 5000; offset += RESULTS_PAGE_SIZE) {
     await pause();
-    await browser.open(`${HLTV}/results?offset=${offset}`);
-    const page = parseResults(await browser.read(RESULTS_SCRIPT));
+    let page: ResultRow[];
+    try {
+      await browser.open(`${HLTV}/results?offset=${offset}`);
+      page = parseResults(await browser.read(RESULTS_SCRIPT));
+    } catch (err) {
+      if (rows.length === 0 || err instanceof ChallengeTimeoutError) throw err;
+      log(`class=results_page_failed offset=${offset} error="${String(err)}"`);
+      complete = false;
+      break;
+    }
     if (page.length === 0) break;
     rows.push(...page.filter((r) => r.unixMs >= cutoffMs));
     if (page.every((r) => r.unixMs < cutoffMs)) break;
     if (page[page.length - 1].unixMs < cutoffMs) break;
   }
-  return rows;
+  return { rows, complete };
 }
 
 async function harvest(win: BrowserWindow, ses: Session): Promise<void> {
@@ -132,42 +176,59 @@ async function harvest(win: BrowserWindow, ses: Session): Promise<void> {
   const browser = new Browser(win);
   const ranked = await rankedTeams(browser);
   const names = new Set(ranked.map((t) => normalizeName(t.name)));
-  const cutoff = Date.now() - opts.days * 24 * 60 * 60 * 1000;
-  const rows = await recentResults(browser, cutoff);
-  const todo = rows.filter((r) => isCandidate(r, names) && needsVisit(state, r.matchId)).slice(0, opts.maxMatches);
-  log(`class=listed results=${rows.length} candidates=${todo.length} ranked=${ranked.length} days=${opts.days}`);
+  const { rows, complete } = await recentResults(browser, Date.now() - windowMs(opts));
+  const { todo, seen, unranked } = selectCandidates(rows, { state, rankedNames: names, rankedOnly: opts.rankedOnly, max: opts.maxMatches });
+  log(`class=listed results=${rows.length} candidates=${todo.length} already_seen=${seen} unranked=${unranked} ranked=${ranked.length} ranked_only=${opts.rankedOnly} days=${opts.days} hours=${opts.hours} results_incomplete=${!complete}`);
+  const breaker = new FailureBreaker(MAX_CONSECUTIVE_FAILURES);
   let downloaded = 0;
+  let failed = 0;
   for (const row of todo) {
-    await pause();
-    await browser.open(`${HLTV}${row.path}`);
-    const match = parseMatch(await browser.read(MATCH_SCRIPT));
-    if (match === null) {
-      record(state, row.matchId, { status: "skipped", reason: "unreadable match page" });
-      continue;
-    }
-    if (rankedTeamIn(match, ranked) === null) {
-      record(state, row.matchId, { status: "skipped", reason: "no ranked team" });
-      continue;
-    }
-    const demoPath = match.demoPaths[0];
-    if (demoPath === undefined) {
-      record(state, row.matchId, { status: "no_demo" });
-      continue;
-    }
-    if (match.unixMs === 0) match.unixMs = row.unixMs;
-    const file = join(downloadsDir, `${row.matchId}.rar`);
-    log(`class=downloading match=${row.matchId} event="${match.event}" maps=${match.maps.length}`);
     try {
-      await browser.download(ses, `${HLTV}${demoPath}`, file);
+      if (await visit({ browser, ses, state, ranked, row })) downloaded++;
+      breaker.success();
     } catch (err) {
-      log(`class=download_failed match=${row.matchId} error="${String(err)}"`);
-      continue;
+      if (err instanceof ChallengeTimeoutError) throw err;
+      failed++;
+      log(`class=match_failed match=${row.matchId} error="${String(err)}"`);
+      if (breaker.failure()) throw new Error(`${MAX_CONSECUTIVE_FAILURES} matches failed in a row: offline or blocked`);
     }
-    writeFileSync(join(downloadsDir, `${row.matchId}.json`), JSON.stringify(sidecarFor(row.matchId, demoPath, match, ranked), null, 2));
-    record(state, row.matchId, { status: "downloaded", file });
-    downloaded++;
   }
-  log(`class=done downloaded=${downloaded}`);
+  log(`class=done downloaded=${downloaded} failed=${failed} results_incomplete=${!complete}`);
+}
+
+type VisitContext = { browser: Browser; ses: Session; state: HarvestState; ranked: RankedTeam[]; row: ResultRow };
+
+// visit reads one match page and downloads its demo archive; it returns true when an archive was saved.
+async function visit(ctx: VisitContext): Promise<boolean> {
+  const { browser, ses, state, ranked, row } = ctx;
+  await pause();
+  await browser.open(`${HLTV}${row.path}`);
+  const match = parseMatch(await browser.read(MATCH_SCRIPT));
+  if (match === null) {
+    record(state, row.matchId, { status: "skipped", reason: "unreadable match page" });
+    return false;
+  }
+  if (opts.rankedOnly && rankedTeamIn(match, ranked) === null) {
+    record(state, row.matchId, { status: "skipped", reason: "no ranked team" });
+    return false;
+  }
+  const demoPath = match.demoPaths[0];
+  if (demoPath === undefined) {
+    record(state, row.matchId, { status: "no_demo" });
+    return false;
+  }
+  if (match.unixMs === 0) match.unixMs = row.unixMs;
+  const file = join(downloadsDir, `${row.matchId}.rar`);
+  log(`class=downloading match=${row.matchId} event="${match.event}" maps=${match.maps.length}`);
+  try {
+    await browser.download(ses, `${HLTV}${demoPath}`, file);
+  } catch (err) {
+    log(`class=download_failed match=${row.matchId} error="${String(err)}"`);
+    return false;
+  }
+  writeFileSync(join(downloadsDir, `${row.matchId}.json`), JSON.stringify(sidecarFor(row.matchId, demoPath, match, ranked), null, 2));
+  record(state, row.matchId, { status: "downloaded", file });
+  return true;
 }
 
 // refetch downloads again the archives of sidecars kept from earlier runs, so their demos can be recorded.

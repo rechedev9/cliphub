@@ -151,6 +151,33 @@ export function isCandidate(row: ResultRow, rankedNames: Set<string>): boolean {
   return rankedNames.has(normalizeName(row.team1)) || rankedNames.has(normalizeName(row.team2));
 }
 
+export type SelectOptions = { state: HarvestState; rankedNames: Set<string>; rankedOnly: boolean; max: number };
+
+/** What a run visits and why the rest is left: already in the state, or outside the ranking when rankedOnly is set. */
+export type Selection = { todo: ResultRow[]; seen: number; unranked: number };
+
+/** Every results row not yet visited (or still without a demo) is a candidate; rankedOnly restores the top-N filter. */
+export function selectCandidates(rows: ResultRow[], opts: SelectOptions): Selection {
+  const todo: ResultRow[] = [];
+  const taken = new Set<number>();
+  let seen = 0;
+  let unranked = 0;
+  for (const row of rows) {
+    if (taken.has(row.matchId)) continue;
+    if (!needsVisit(opts.state, row.matchId)) {
+      seen++;
+      continue;
+    }
+    if (opts.rankedOnly && !isCandidate(row, opts.rankedNames)) {
+      unranked++;
+      continue;
+    }
+    taken.add(row.matchId);
+    todo.push(row);
+  }
+  return { todo: todo.slice(0, opts.max), seen, unranked };
+}
+
 export function rankedTeamIn(match: MatchPage, ranked: RankedTeam[]): RankedTeam | null {
   const byId = new Map(ranked.map((t) => [t.id, t]));
   for (const t of match.teams) {
@@ -186,27 +213,46 @@ export function parseState(raw: unknown): HarvestState {
 export type HarvestOptions = {
   days: number; top: number; outDir: string; maxMatches: number; refetch: string;
   bestMaps: boolean; minMaps: number; perMap: number;
+  /** When set, the results window is this many hours instead of days: a short run for a frequent schedule. */
+  hours: number;
+  /** Keep only matches with a team of the top N, as the harvester did before every match with a demo was wanted. */
+  rankedOnly: boolean;
   /** A folder of sidecars whose format and veto are read from their match pages, without downloading a demo. */
   vetoBackfill: string;
 };
 
 export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
-  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "" };
+  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false };
   for (let i = 0; i < argv.length; i++) {
-    const next = argv[i + 1] ?? "";
+    // A following flag is never a value, so `--hours --ranked-only` keeps the flag.
+    const raw = argv[i + 1] ?? "";
+    const next = raw.startsWith("--") ? "" : raw;
+    const skip = next === "" ? 0 : 1;
     switch (argv[i]) {
-      case "--days": opts.days = positive(next, opts.days); i++; break;
-      case "--top": opts.top = positive(next, opts.top); i++; break;
-      case "--max": opts.maxMatches = positive(next, opts.maxMatches); i++; break;
-      case "--out": if (next !== "") opts.outDir = next; i++; break;
-      case "--refetch": if (next !== "") opts.refetch = next; i++; break;
+      case "--days": opts.days = positive(next, opts.days); i += skip; break;
+      case "--top": opts.top = positive(next, opts.top); i += skip; break;
+      case "--max": opts.maxMatches = positive(next, opts.maxMatches); i += skip; break;
+      case "--out": if (next !== "") opts.outDir = next; i += skip; break;
+      case "--refetch": if (next !== "") opts.refetch = next; i += skip; break;
       case "--best-maps": opts.bestMaps = true; break;
-      case "--min-maps": opts.minMaps = positive(next, opts.minMaps); i++; break;
-      case "--per-map": opts.perMap = positive(next, opts.perMap); i++; break;
-      case "--veto-backfill": if (next !== "") opts.vetoBackfill = next; i++; break;
+      case "--min-maps": opts.minMaps = positive(next, opts.minMaps); i += skip; break;
+      case "--per-map": opts.perMap = positive(next, opts.perMap); i += skip; break;
+      case "--hours": opts.hours = positive(next, opts.hours); i += skip; break;
+      case "--ranked-only": opts.rankedOnly = true; break;
+      case "--veto-backfill": if (next !== "") opts.vetoBackfill = next; i += skip; break;
     }
   }
   return opts;
+}
+
+/** The ranking to use: cut at the top N only when the run keeps ranked matches, else whole so every sidecar gets its rank. */
+export function cutRanking(ranked: RankedTeam[], opts: { top: number; cut: boolean }): RankedTeam[] {
+  return opts.cut ? ranked.filter((t) => t.rank <= opts.top) : ranked;
+}
+
+/** The length of the results window in milliseconds: hours when given, else days. */
+export function windowMs(opts: Pick<HarvestOptions, "days" | "hours">): number {
+  return opts.hours > 0 ? opts.hours * 60 * 60 * 1000 : opts.days * 24 * 60 * 60 * 1000;
 }
 
 function positive(v: string, fallback: number): number {
