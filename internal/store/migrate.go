@@ -48,6 +48,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV22SeriesVetoAuto,
 	migrateV23LibraryVoiceRecordings,
 	migrateV24PatternDetection,
+	migrateV25LibraryPinnedPlayers,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -925,6 +926,18 @@ func migrateV22SeriesVetoAuto(tx *sql.Tx) error {
 	}
 	if _, err := tx.Exec(`ALTER TABLE library_series ADD COLUMN veto_auto INTEGER NOT NULL DEFAULT 0`); err != nil {
 		return fmt.Errorf("series veto auto: %w", err)
+	}
+	return nil
+}
+
+// migrateV25LibraryPinnedPlayers stores the Ranking's pinned players, in table order.
+func migrateV25LibraryPinnedPlayers(tx *sql.Tx) error {
+	if _, err := tx.Exec(`CREATE TABLE IF NOT EXISTS library_pinned_players (
+		steamid64 TEXT    PRIMARY KEY,
+		name      TEXT    NOT NULL DEFAULT '',
+		position  INTEGER NOT NULL
+	)`); err != nil {
+		return fmt.Errorf("library pinned players: %w", err)
 	}
 	return nil
 }

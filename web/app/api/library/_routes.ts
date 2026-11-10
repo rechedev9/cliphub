@@ -12,6 +12,7 @@ import {
 import { METRICS_KEYS, PLAYER_METRICS_QUERY } from '../../../lib/api/metrics.ts';
 import { BASELINE_KEYS, BASELINE_QUERY, LEADERBOARD_KEYS, LEADERBOARD_QUERY } from '../../../lib/api/baseline.ts';
 import { NORMS_KEYS, NORMS_QUERY } from '../../../lib/api/norms.ts';
+import { PINNED_PLAYERS_FIELDS, PINNED_PLAYERS_KEYS } from '../../../lib/api/pinned-players.ts';
 import { PLAYBOOK_KEYS, PLAYBOOK_QUERY, PREP_KEYS, PREP_QUERY } from '../../../lib/api/playbook.ts';
 import { ATTACK_KEYS, ATTACK_QUERY } from '../../../lib/api/attack.ts';
 import { DATA_WARNINGS_KEYS, DATA_WARNINGS_QUERY, FIRST_DEATH_KEYS, FIRST_DEATH_QUERY } from '../../../lib/api/first-death.ts';
@@ -341,6 +342,8 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['baseline'], query: BASELINE_QUERY, response: json(BASELINE_KEYS) },
   { method: 'GET', segments: ['leaderboard'], query: LEADERBOARD_QUERY, response: json(LEADERBOARD_KEYS) },
   { method: 'GET', segments: ['norms'], query: NORMS_QUERY, response: json(NORMS_KEYS) },
+  { method: 'GET', segments: ['pinned-players'], response: json(PINNED_PLAYERS_KEYS) },
+  { method: 'PUT', segments: ['pinned-players'], body: fields(PINNED_PLAYERS_FIELDS), response: json(PINNED_PLAYERS_KEYS) },
   { method: 'GET', segments: ['pro-lineups'], response: json(PRO_LINEUP_MAPS_KEYS) },
   { method: 'GET', segments: ['pro-lineups', MAP], response: json(PRO_LINEUP_MAP_KEYS) },
   { method: 'GET', segments: ['pro-lineups', 'clips', PRO_CLIP_MATCH, PRO_CLIP_FILE], response: { kind: 'stream' } },

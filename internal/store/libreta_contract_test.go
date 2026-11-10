@@ -178,6 +178,39 @@ func TestLibretaRepositoryContract(t *testing.T) {
 			},
 		},
 		{
+			name: "pinned players keep their order, replace whole and read back empty as a list",
+			run: func(t *testing.T, f libraryFixture) {
+				if got, err := f.repo.ListPinnedPlayers(f.ctx); err != nil || got == nil || len(got) != 0 {
+					t.Fatalf("ListPinnedPlayers(none) = %+v, %v; want an empty list", got, err)
+				}
+				first := []library.PinnedPlayer{{SteamID64: "76561198000000002", Name: "ZywOo"}, {SteamID64: "76561198000000001", Name: "donk"}}
+				if err := f.repo.SetPinnedPlayers(f.ctx, first); err != nil {
+					t.Fatal(err)
+				}
+				got, err := f.repo.ListPinnedPlayers(f.ctx)
+				if err != nil || len(got) != 2 || got[0] != first[0] || got[1] != first[1] {
+					t.Fatalf("ListPinnedPlayers = %+v, %v; want the saved order", got, err)
+				}
+				got[0].Name = "changed"
+				if again, _ := f.repo.ListPinnedPlayers(f.ctx); again[0].Name != "ZywOo" {
+					t.Fatalf("a caller edit reached the store: %+v", again)
+				}
+				dup := []library.PinnedPlayer{first[1], first[0], {SteamID64: first[1].SteamID64, Name: "again"}}
+				if err := f.repo.SetPinnedPlayers(f.ctx, dup); err != nil {
+					t.Fatalf("SetPinnedPlayers(duplicate) = %v", err)
+				}
+				if got, err = f.repo.ListPinnedPlayers(f.ctx); err != nil || len(got) != 2 || got[0] != first[1] || got[1] != first[0] {
+					t.Fatalf("after a duplicate = %+v, %v; want each player once, first kept", got, err)
+				}
+				if err := f.repo.SetPinnedPlayers(f.ctx, first[1:]); err != nil {
+					t.Fatal(err)
+				}
+				if got, err = f.repo.ListPinnedPlayers(f.ctx); err != nil || len(got) != 1 || got[0].Name != "donk" {
+					t.Fatalf("after replace = %+v, %v; want donk only", got, err)
+				}
+			},
+		},
+		{
 			name: "calls list by name, a side keeps the calls of both, and callout names replace and clear",
 			run: func(t *testing.T, f libraryFixture) {
 				for _, c := range []*library.Call{

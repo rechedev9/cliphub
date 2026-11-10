@@ -24,6 +24,8 @@ type libretaRepository interface {
 	ListTeamRoles(ctx context.Context) ([]library.TeamRoleSheet, error)
 	SetTeamProfile(ctx context.Context, p *library.TeamProfile) error
 	ListTeamProfiles(ctx context.Context) ([]library.TeamProfile, error)
+	ListPinnedPlayers(ctx context.Context) ([]library.PinnedPlayer, error)
+	SetPinnedPlayers(ctx context.Context, players []library.PinnedPlayer) error
 	CreateCall(ctx context.Context, c *library.Call) error
 	GetCall(ctx context.Context, id uuid.UUID) (library.Call, error)
 	ListCalls(ctx context.Context, filter library.CallFilter) ([]library.Call, error)
