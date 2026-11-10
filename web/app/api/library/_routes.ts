@@ -149,12 +149,12 @@ const ROLE_KEYS = [
   'steamid64', 'role', 'match_count', 'rounds', 'awp_kills', 't_openings', 'utility', 'team_utility', 'thresholds',
 ];
 
-const REPORT_KEYS = ['id', 'title', 'team_id', 'team_name', 'match_ids', 'side', 'notes', 'created_at', 'updated_at'];
+const REPORT_KEYS = ['id', 'title', 'team_id', 'team_name', 'match_ids', 'side', 'notes', 'round_lists', 'created_at', 'updated_at'];
 const SCOUT_KEYS = [
   'team_id', 'team_name', 'skipped', 'filter', 'thresholds', 'matches', 'maps', 'tendencies', 'pistols',
   't_defaults', 'ct_setups', 'executes', 'economy', 'awp', 'openings',
 ];
-const REPORT_FIELDS = ['title', 'match_ids', 'side', 'notes'];
+const REPORT_FIELDS = ['title', 'match_ids', 'side', 'notes', 'round_lists'];
 /** The sender's optional message, written into the package manifest. */
 const SHARE_EXPORT_FIELDS = ['notes'];
 /** A note moves along its round but never to another round or match. */

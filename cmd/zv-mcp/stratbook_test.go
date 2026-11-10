@@ -36,7 +36,8 @@ func stratbookStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 		"plays":[{"map":"de_mirage","side":"T","kind":"execute","site":"B","rounds":5,"share":{"pct":12.5},"win_rate":{"pct":60,"reliable":true},
 		"grenades":[{"kind":"flash","seconds":30,"pos":[0,0,0]}],"positions":[{"player":"x","pos":[0,0,0]}],
 		"seed":{"match_id":"`+testMatchID+`","round":7},"examples":[{"match_id":"`+testMatchID+`","round":7},{"match_id":"`+testMatchID+`","round":9}]}]}`)
-	rec.handle(mux, "GET /api/library/reports", `{"reports":[{"id":"`+testReportID+`","title":"Vitality Mirage","team_id":"`+testTeamID+`","match_ids":["`+testMatchID+`"],"side":"T","notes":"","updated_at":"2026-11-01T00:00:00Z"}]}`)
+	rec.handle(mux, "GET /api/library/reports", `{"reports":[{"id":"`+testReportID+`","title":"Vitality Mirage","team_id":"`+testTeamID+`","match_ids":["`+testMatchID+`"],"side":"T","notes":"`+strings.Repeat("Plan. ", 200)+`",
+		"round_lists":[{"title":"Split B","rounds":[{"match_id":"`+testMatchID+`","round":4},{"match_id":"`+testMatchID+`","round":7}]}],"updated_at":"2026-11-01T00:00:00Z"}]}`)
 	rec.handle(mux, "GET /api/library/reports/{id}", `{"id":"`+testReportID+`","title":"Vitality Mirage","team_id":"`+testTeamID+`","team_name":"Vitality","match_ids":[],"side":"","notes":"a\u0007b\nc","updated_at":"2026-11-01T00:00:00Z"}`)
 	rec.handle(mux, "GET /api/library/reports/{id}/scout", `{"team_name":"Vitality","tendencies":{"round_count":20,"wins":10}}`)
 	rec.handle(mux, "GET /api/library/reports/{id}/metrics", `{"players":[{"steamid64":"`+testSteamID+`","name":"ZywOo","rounds":20,"kills":20,"deaths":10,"box":{"damage":1700}}]}`)
@@ -154,8 +155,12 @@ func TestReportTools(t *testing.T) {
 	cs, rec := stratbookStudio(t)
 	var list listReportsOut
 	callTool(t, cs, "list_reports", map[string]any{"team_id": testTeamID}, &list)
-	if len(list.Reports) != 1 || list.Reports[0].Side != "T" {
-		t.Fatalf("reports = %+v", list)
+	if len(list.Reports) != 1 || list.Reports[0].Side != "T" || len([]rune(list.Reports[0].Notes)) > 301 {
+		t.Fatalf("reports = %+v, want the notes cut for the list", list)
+	}
+	if lists := list.Reports[0].RoundLists; len(lists) != 1 || lists[0].Rounds != 2 || lists[0].Refs != nil ||
+		lists[0].StudioPath != "/replay?r="+testMatchID+"%3A4&r="+testMatchID+"%3A7&t=Split+B" {
+		t.Errorf("listed round lists = %+v, want the count and the Replay path without refs", lists)
 	}
 	var r reportDetailOut
 	callTool(t, cs, "get_report", map[string]any{"report_id": testReportID}, &r)
@@ -165,7 +170,7 @@ func TestReportTools(t *testing.T) {
 
 	var created reportOut
 	callTool(t, cs, "create_report", map[string]any{"title": "Vitality Mirage", "team_id": testTeamID, "match_ids": []string{testMatchID}, "side": "ct"}, &created)
-	want := `{"title":"Vitality Mirage","team_id":"` + testTeamID + `","match_ids":["` + testMatchID + `"],"side":"CT","notes":""}`
+	want := `{"title":"Vitality Mirage","team_id":"` + testTeamID + `","match_ids":["` + testMatchID + `"],"side":"CT","notes":"","round_lists":[]}`
 	if got := rec.get("POST /api/library/reports"); !strings.HasSuffix(got, want) {
 		t.Errorf("create = %s, want %s", got, want)
 	}
@@ -175,7 +180,17 @@ func TestReportTools(t *testing.T) {
 	if got := rec.get("PATCH /api/library/reports/{id}"); !strings.HasSuffix(got, `{"match_ids":[],"side":""}`) {
 		t.Errorf("patch = %s, want an empty side (both) and match list", got)
 	}
-	toolFails(t, cs, "update_report", map[string]any{"report_id": testReportID}, "set title, match_ids, side or notes")
+	toolFails(t, cs, "update_report", map[string]any{"report_id": testReportID}, "set title, match_ids, side, notes or round_lists")
+
+	prep := "## Mirage\n\n" + strings.Repeat("- Ejecutan B con humo en ventana.\n", 300)
+	callTool(t, cs, "update_report", map[string]any{"report_id": testReportID, "notes": prep,
+		"round_lists": []map[string]any{{"title": "Split B", "rounds": []string{testMatchID + "/4", testMatchID + "/7"}}}}, &created)
+	if got := rec.get("PATCH /api/library/reports/{id}"); !strings.Contains(got, `"round_lists":[{"title":"Split B","rounds":[{"match_id":"`+testMatchID+`","round":4},`) {
+		t.Errorf("patch = %.200s, want the long notes and the list with its rounds", got)
+	}
+	toolFails(t, cs, "update_report", map[string]any{"report_id": testReportID, "notes": strings.Repeat("x", 20001)}, "at most 20000")
+	toolFails(t, cs, "update_report", map[string]any{"report_id": testReportID, "round_lists": []map[string]any{{"title": "x", "rounds": []string{}}}}, "from 1 to 200")
+	toolFails(t, cs, "update_report", map[string]any{"report_id": testReportID, "round_lists": []map[string]any{{"title": "x", "rounds": []string{"nope"}}}}, "not a round ref")
 
 	var del deleteOut
 	callTool(t, cs, "delete_report", map[string]any{"report_id": testReportID}, &del)

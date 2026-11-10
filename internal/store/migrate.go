@@ -44,6 +44,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV18LibraryPatterns,
 	migrateV19LibraryProMatches,
 	migrateV20LibraryVoice,
+	migrateV21ReportRoundLists,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -896,6 +897,19 @@ func migrateV20LibraryVoice(tx *sql.Tx) error {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("library voice: %w", err)
 		}
+	}
+	return nil
+}
+
+// migrateV21ReportRoundLists gives a report its named round lists, JSON on the row like its match ids.
+// It checks the column first, so its place in the list can move when a branch lands before it.
+func migrateV21ReportRoundLists(tx *sql.Tx) error {
+	found, err := columnExists(tx, "library_reports", "round_lists")
+	if err != nil || found {
+		return err
+	}
+	if _, err := tx.Exec(`ALTER TABLE library_reports ADD COLUMN round_lists TEXT NOT NULL DEFAULT '[]'`); err != nil {
+		return fmt.Errorf("report round lists: %w", err)
 	}
 	return nil
 }

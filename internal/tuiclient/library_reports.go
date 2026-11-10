@@ -9,24 +9,38 @@ import (
 
 // LibraryReport is a saved scouting report on one rival.
 type LibraryReport struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	TeamID    string    `json:"team_id"`
-	TeamName  string    `json:"team_name"`
-	MatchIDs  []string  `json:"match_ids"`
-	Side      string    `json:"side"`
-	Notes     string    `json:"notes"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         string            `json:"id"`
+	Title      string            `json:"title"`
+	TeamID     string            `json:"team_id"`
+	TeamName   string            `json:"team_name"`
+	MatchIDs   []string          `json:"match_ids"`
+	Side       string            `json:"side"`
+	Notes      string            `json:"notes"`
+	RoundLists []ReportRoundList `json:"round_lists"`
+	UpdatedAt  time.Time         `json:"updated_at"`
+}
+
+// ReportRound is one round of a report's list.
+type ReportRound struct {
+	MatchID string `json:"match_id"`
+	Round   int    `json:"round"`
+}
+
+// ReportRoundList is a named list of rounds on a report.
+type ReportRoundList struct {
+	Title  string        `json:"title"`
+	Rounds []ReportRound `json:"rounds"`
 }
 
 // ReportInput is the body of a report create or edit; nil fields are left out.
 // A report's team is fixed once it is created.
 type ReportInput struct {
-	Title    *string   `json:"title,omitempty"`
-	TeamID   *string   `json:"team_id,omitempty"`
-	MatchIDs *[]string `json:"match_ids,omitempty"`
-	Side     *string   `json:"side,omitempty"`
-	Notes    *string   `json:"notes,omitempty"`
+	Title      *string            `json:"title,omitempty"`
+	TeamID     *string            `json:"team_id,omitempty"`
+	MatchIDs   *[]string          `json:"match_ids,omitempty"`
+	Side       *string            `json:"side,omitempty"`
+	Notes      *string            `json:"notes,omitempty"`
+	RoundLists *[]ReportRoundList `json:"round_lists,omitempty"`
 }
 
 func reportPath(id string) string { return "/api/library/reports/" + url.PathEscape(id) }

@@ -189,7 +189,14 @@ export type LibraryReport = {
   team_name: string;
   match_ids: string[];
   side: ReportSide;
+  /** Markdown, up to `MAX_REPORT_NOTES` characters. */
   notes: string;
+  round_lists: ReportRoundList[];
   created_at: string;
   updated_at: string;
 };
+
+/** A named list of rounds a report keeps, such as "Splits B en full buy". */
+export type ReportRoundList = { title: string; rounds: { match_id: string; round: number }[] };
+
+export const MAX_REPORT_NOTES = 20000;

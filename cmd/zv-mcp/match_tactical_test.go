@@ -18,6 +18,7 @@ func matchTacticalStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 		"players":[{"slot":0,"steamid64":"`+testSteamID+`","name":"ZywOo","team_key":"ct-start"},{"slot":5,"steamid64":"76561198000000002","name":"torzsi","team_key":"t-start"}],
 		"rounds":[{"number":2,"tick_freeze_end":1000,"tick_end":4200,"score_ct_before":1,"score_t_before":0,"winner":"CT","end_reason":"t_killed",
 		"bomb":{"plant_tick":3200,"site":"A","planter_slot":5,"defuse_tick":4100},
+		"timeouts":[{"side":"T","tick":200,"end_tick":680,"technical":true}],
 		"economy":{"ct_equip_value":4000,"t_equip_value":22000,"ct_buy":"eco","t_buy":"full"},
 		"class":{"t_side":"execute","ct_side":"retake","site":"A","tags":["anti_eco"],"reasons":["plant at 34 s"]},
 		"players":[{"slot":0,"side":"CT","kills":1,"damage":100,"equip_value":800,"survived":true},{"slot":5,"side":"T","deaths":1,"opening_death":true}],
@@ -54,6 +55,9 @@ func TestGetRoundNamesSlotsAndTimesFromFreezeEnd(t *testing.T) {
 	}
 	if len(r.Players) != 2 || r.Players[1].Name != "torzsi" || !r.Players[1].OpeningDeath {
 		t.Errorf("players = %+v", r.Players)
+	}
+	if len(r.Timeouts) != 1 || r.Timeouts[0].Side != "T" || r.Timeouts[0].FromSecond != -12.5 || r.Timeouts[0].ToSecond != -5 || !r.Timeouts[0].Technical {
+		t.Errorf("timeouts = %+v, want the T technical timeout in the freeze time", r.Timeouts)
 	}
 	if len(r.WinTimeline) != 4 || r.WinTimeline[1].Event != "ZywOo > torzsi" || r.WinTimeline[1].CTPct != 35 {
 		t.Errorf("timeline = %+v", r.WinTimeline)

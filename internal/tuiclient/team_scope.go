@@ -14,6 +14,7 @@ type TeamRound struct {
 	Buy         string `json:"buy"`
 	OpponentBuy string `json:"opponent_buy"`
 	Site        string `json:"site"`
+	Pattern     string `json:"pattern"`
 }
 
 // TeamRoundsMatch is one match of a team scope with the rounds it keeps.

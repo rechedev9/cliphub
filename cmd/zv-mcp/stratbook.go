@@ -287,7 +287,7 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, playDetailOut{}, err
 			}
-			notes, err := reportNotes(&in.Notes)
+			notes, err := checkNotes(&in.Notes, maxNotesRunes)
 			if err != nil {
 				return nil, playDetailOut{}, err
 			}
@@ -534,7 +534,7 @@ func (in updatePlayIn) patch() (tuiclient.PlayPatch, error) {
 		patch.Site = &in.Site
 	}
 	if in.Notes != nil {
-		notes, err := reportNotes(in.Notes)
+		notes, err := checkNotes(in.Notes, maxNotesRunes)
 		if err != nil {
 			return patch, err
 		}
@@ -587,7 +587,7 @@ func (in createPlayIn) play() (tuiclient.Play, error) {
 	if !slices.Contains(playSites, site) {
 		return tuiclient.Play{}, errors.New("site must be A, B, mid or none")
 	}
-	notes, err := reportNotes(&in.Notes)
+	notes, err := checkNotes(&in.Notes, maxNotesRunes)
 	if err != nil {
 		return tuiclient.Play{}, err
 	}
@@ -671,7 +671,7 @@ func playSummaryOf(p tuiclient.Play) playSummaryOut {
 }
 
 func playDetailOf(p tuiclient.Play) playDetailOut {
-	out := playDetailOut{playSummaryOut: playSummaryOf(p), Notes: cleanText(p.Notes, maxReportNotesRunes), PositionsSeconds: p.PositionsSeconds,
+	out := playDetailOut{playSummaryOut: playSummaryOf(p), Notes: cleanText(p.Notes, maxNotesRunes), PositionsSeconds: p.PositionsSeconds,
 		GrenadeList: grenadesOf(p.Grenades), Positions: []playPositionOut{}, Refs: []string{}, MissingMatchIDs: p.MissingMatchIDs}
 	for _, pos := range p.Positions {
 		out.Positions = append(out.Positions, playPositionOut{Player: cleanName(pos.Player), Callout: cleanName(pos.Callout), SharePct: sharePct(pos.Share)})

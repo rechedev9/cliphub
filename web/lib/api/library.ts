@@ -1,7 +1,7 @@
 import type { TeamAttack } from './attack.ts';
 import type { TeamGrenadeKind, TeamGrenades } from './grenades.ts';
 import type { MetricsReport } from './metrics.ts';
-import type { LibraryReport, ReportSide, ScoutReport } from './scout.ts';
+import type { LibraryReport, ReportRoundList, ReportSide, ScoutReport } from './scout.ts';
 import type { Annotation, HeatmapGrenade, HeatmapKind, KillSpot, SpatialResponse, Stroke } from './spatial.ts';
 import type {
   LibraryPlay,
@@ -435,7 +435,7 @@ export function createLibraryReport(input: ReportInput): Promise<LibraryReport> 
   return request<LibraryReport>('/reports', jsonInit('POST', input));
 }
 
-export type ReportPatch = { title?: string; match_ids?: string[]; side?: ReportSide; notes?: string };
+export type ReportPatch = { title?: string; match_ids?: string[]; side?: ReportSide; notes?: string; round_lists?: ReportRoundList[] };
 
 export function patchLibraryReport(reportId: string, patch: ReportPatch): Promise<LibraryReport> {
   return request<LibraryReport>(`/reports/${id(reportId)}`, jsonInit('PATCH', patch));

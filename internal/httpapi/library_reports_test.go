@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -160,6 +161,32 @@ func TestLibraryReportsLifecycle(t *testing.T) {
 	rw = env.do(http.MethodPatch, "/api/library/reports/"+report.ID.String(), mustJSON(t, map[string]any{"team_id": f.mouz}), "application/json")
 	if rw.Code != http.StatusBadRequest {
 		t.Fatalf("changing the report's team = %d, want 400", rw.Code)
+	}
+
+	// A whole prep fits in the notes, and each named list keeps its rounds once, in order.
+	prep := "## Mirage\n\n" + strings.Repeat("Ejecutan B con humo en ventana. ", 500)
+	env.json(http.MethodPatch, "/api/library/reports/"+report.ID.String(), map[string]any{
+		"notes": prep,
+		"round_lists": []map[string]any{{"title": "  Split   B ", "rounds": []map[string]any{
+			{"match_id": f.home.ID, "round": 4}, {"match_id": f.home.ID, "round": 2}, {"match_id": f.home.ID, "round": 4}}}},
+	}, http.StatusOK, &patched)
+	if len([]rune(patched.Notes)) <= 4000 || len(patched.RoundLists) != 1 || patched.RoundLists[0].Title != "Split B" || len(patched.RoundLists[0].Rounds) != 2 {
+		t.Fatalf("report with a long prep = %d notes runes, lists %+v", len([]rune(patched.Notes)), patched.RoundLists)
+	}
+	for name, body := range map[string]map[string]any{
+		"notes over the cap":   {"notes": strings.Repeat("x", library.MaxReportNotesRunes+1)},
+		"a list with no title": {"round_lists": []map[string]any{{"title": " ", "rounds": []map[string]any{{"match_id": f.home.ID, "round": 1}}}}},
+		"a round zero":         {"round_lists": []map[string]any{{"title": "x", "rounds": []map[string]any{{"match_id": f.home.ID, "round": 0}}}}},
+		"a match not read":     {"round_lists": []map[string]any{{"title": "x", "rounds": []map[string]any{{"match_id": f.away.ID, "round": 2}}}}},
+	} {
+		if rw := env.do(http.MethodPatch, "/api/library/reports/"+report.ID.String(), mustJSON(t, body), "application/json"); rw.Code != http.StatusBadRequest {
+			t.Errorf("%s = %d, want 400", name, rw.Code)
+		}
+	}
+	// Taking a match out of the report takes its rounds out of the lists.
+	env.json(http.MethodPatch, "/api/library/reports/"+report.ID.String(), map[string]any{"match_ids": []uuid.UUID{f.away.ID}}, http.StatusOK, &patched)
+	if len(patched.RoundLists) != 0 || patched.Notes != strings.TrimSpace(prep) {
+		t.Fatalf("report after dropping the listed match = lists %+v", patched.RoundLists)
 	}
 
 	if rw := env.do(http.MethodDelete, "/api/library/reports/"+report.ID.String(), nil, ""); rw.Code != http.StatusNoContent {

@@ -650,6 +650,14 @@ func TestLibraryRepositoryContract(t *testing.T) {
 				if err != nil || patched.Title != "Apex" || patched.Notes != "Anti-strat B" || patched.Side != "" || len(patched.MatchIDs) != 1 {
 					t.Fatalf("UpdateReport = %+v, %v", patched, err)
 				}
+				if second.RoundLists == nil || len(second.RoundLists) != 0 {
+					t.Fatalf("new report round lists = %#v, want empty", second.RoundLists)
+				}
+				lists := []library.ReportRoundList{{Title: "Split B", Rounds: []library.ReportRound{{MatchID: b.ID, Round: 4}, {MatchID: a.ID, Round: 9}}}}
+				withLists, err := f.repo.UpdateReport(f.ctx, first.ID, library.ReportPatch{RoundLists: &lists})
+				if err != nil || len(withLists.RoundLists) != 1 || withLists.RoundLists[0].Rounds[1] != (library.ReportRound{MatchID: a.ID, Round: 9}) || withLists.Notes != notes {
+					t.Fatalf("UpdateReport(round lists) = %+v, %v; want the list stored and the notes kept", withLists, err)
+				}
 				if !patched.UpdatedAt.After(first.UpdatedAt) && !patched.UpdatedAt.Equal(first.UpdatedAt) {
 					t.Fatalf("updated_at went back: %v before %v", patched.UpdatedAt, first.UpdatedAt)
 				}

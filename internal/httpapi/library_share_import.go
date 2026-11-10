@@ -264,11 +264,32 @@ func (h *Handlers) importSharedReport(ctx context.Context, rep library.Report, m
 	}
 	report := library.Report{
 		ID: rep.ID, Title: cleanLibraryText(rep.Title), TeamID: team.ID, MatchIDs: ids, Side: rep.Side, Notes: rep.Notes,
+		RoundLists: remapRoundLists(rep.RoundLists, matchIDs),
 	}
 	if err := h.libraryRepo.CreateReport(ctx, &report); err != nil {
 		return nil, false, fmt.Errorf("store report: %w", err)
 	}
 	return &report.ID, false, nil
+}
+
+// remapRoundLists moves a report's lists onto other match ids; rounds of a match not in ids drop out, and so does a list left empty.
+func remapRoundLists(lists []library.ReportRoundList, ids map[uuid.UUID]uuid.UUID) []library.ReportRoundList {
+	out := []library.ReportRoundList{}
+	for _, list := range lists {
+		kept := library.ReportRoundList{Title: cleanLibraryText(list.Title)}
+		if kept.Title == "" {
+			continue
+		}
+		for _, r := range list.Rounds {
+			if id, ok := ids[r.MatchID]; ok {
+				kept.Rounds = append(kept.Rounds, library.ReportRound{MatchID: id, Round: r.Round})
+			}
+		}
+		if len(kept.Rounds) > 0 {
+			out = append(out, kept)
+		}
+	}
+	return out
 }
 
 // attachSharedDemo gives a shared match the .dem just stored at upload.Path,

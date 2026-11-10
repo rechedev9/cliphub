@@ -12,14 +12,14 @@ import (
 	"github.com/rechedev9/cliphub/internal/library"
 )
 
-const libraryReportColumns = `SELECT r.id, r.title, r.team_id, t.name, r.match_ids, r.side, r.notes, r.created_at, r.updated_at
+const libraryReportColumns = `SELECT r.id, r.title, r.team_id, t.name, r.match_ids, r.side, r.notes, r.round_lists, r.created_at, r.updated_at
 	FROM library_reports r JOIN library_teams t ON t.id = r.team_id`
 
 func scanLibraryReport(row sqlScanner) (library.Report, error) {
 	var rep library.Report
-	var id, teamID, matchIDs string
+	var id, teamID, matchIDs, lists string
 	var created, updated int64
-	if err := row.Scan(&id, &rep.Title, &teamID, &rep.TeamName, &matchIDs, &rep.Side, &rep.Notes, &created, &updated); err != nil {
+	if err := row.Scan(&id, &rep.Title, &teamID, &rep.TeamName, &matchIDs, &rep.Side, &rep.Notes, &lists, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return library.Report{}, library.ErrNotFound
 		}
@@ -38,6 +38,12 @@ func scanLibraryReport(row sqlScanner) (library.Report, error) {
 	if rep.MatchIDs == nil {
 		rep.MatchIDs = []uuid.UUID{}
 	}
+	if err := json.Unmarshal([]byte(lists), &rep.RoundLists); err != nil {
+		return library.Report{}, fmt.Errorf("decode report round lists: %w", err)
+	}
+	if rep.RoundLists == nil {
+		rep.RoundLists = []library.ReportRoundList{}
+	}
 	rep.CreatedAt, rep.UpdatedAt = fromMillis(created), fromMillis(updated)
 	return rep, nil
 }
@@ -50,6 +56,14 @@ func encodeReportMatchIDs(ids []uuid.UUID) (string, error) {
 	return string(raw), nil
 }
 
+func encodeReportRoundLists(lists []library.ReportRoundList) (string, error) {
+	raw, err := json.Marshal(library.CopyReportRoundLists(lists))
+	if err != nil {
+		return "", fmt.Errorf("encode report round lists: %w", err)
+	}
+	return string(raw), nil
+}
+
 func (r *SQLiteLibraryRepository) CreateReport(ctx context.Context, rep *library.Report) error {
 	if rep.ID == uuid.Nil {
 		rep.ID = uuid.New()
@@ -58,14 +72,18 @@ func (r *SQLiteLibraryRepository) CreateReport(ctx context.Context, rep *library
 	if err != nil {
 		return err
 	}
+	lists, err := encodeReportRoundLists(rep.RoundLists)
+	if err != nil {
+		return err
+	}
 	now := libraryNow()
 	err = r.inTx(ctx, func(tx *sql.Tx) error {
 		if err := r.teamExists(ctx, tx, rep.TeamID); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO library_reports (id, title, team_id, match_ids, side, notes, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			rep.ID.String(), rep.Title, rep.TeamID.String(), matchIDs, rep.Side, rep.Notes, millis(now), millis(now))
+		_, err := tx.ExecContext(ctx, `INSERT INTO library_reports (id, title, team_id, match_ids, side, notes, round_lists, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			rep.ID.String(), rep.Title, rep.TeamID.String(), matchIDs, rep.Side, rep.Notes, lists, millis(now), millis(now))
 		return err
 	})
 	if err != nil {
@@ -119,8 +137,12 @@ func (r *SQLiteLibraryRepository) UpdateReport(ctx context.Context, id uuid.UUID
 		if err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE library_reports SET title = ?, match_ids = ?, side = ?, notes = ?, updated_at = ? WHERE id = ?`,
-			next.Title, matchIDs, next.Side, next.Notes, millis(libraryNow()), id.String())
+		lists, err := encodeReportRoundLists(next.RoundLists)
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE library_reports SET title = ?, match_ids = ?, side = ?, notes = ?, round_lists = ?, updated_at = ? WHERE id = ?`,
+			next.Title, matchIDs, next.Side, next.Notes, lists, millis(libraryNow()), id.String())
 		return err
 	})
 	if err != nil {

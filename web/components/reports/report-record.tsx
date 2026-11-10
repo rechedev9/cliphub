@@ -40,7 +40,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
 import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { useRecordTab } from '@/hooks/use-record-tab';
 import { MAX_REPORT_MATCHES, ReportSideSelect } from './new-report-dialog';
@@ -51,6 +50,7 @@ import { reportShareSummary } from '@/lib/library/share';
 import { ScoutView } from './scout-view';
 import { ReportSpatial } from './report-spatial';
 import { ReportAttack } from './report-attack';
+import { ReportNotes } from './report-notes';
 
 /** Metrics are `null` when they could not be computed: the report still opens without them. */
 type Loaded = { report: LibraryReport; scout: ScoutReport; metrics: MetricsReport | null };
@@ -327,48 +327,6 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function ReportNotes({ report, onSaved }: { report: LibraryReport; onSaved: () => void }): ReactNode {
-  const [notes, setNotes] = useState(report.notes);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const dirty = notes !== report.notes;
-
-  async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await patchLibraryReport(report.id, { notes });
-      onSaved();
-    } catch {
-      setError('No se pudieron guardar las notas.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={(event) => void save(event)} className="flex max-w-3xl flex-col gap-3">
-      <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-        El plan contra este rival y lo que hay que vigilar
-        <Textarea
-          value={notes}
-          maxLength={4000}
-          rows={8}
-          onChange={(event) => setNotes(event.target.value)}
-        />
-      </label>
-      {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" size="sm" disabled={busy || !dirty}>
-          Guardar notas
-        </Button>
-        <span className="text-meta text-fg-3">Salen al principio del informe exportado.</span>
-      </div>
-    </form>
   );
 }
 

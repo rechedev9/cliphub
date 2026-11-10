@@ -246,7 +246,7 @@ func (in saveLineupIn) body() (tuiclient.NewLineup, error) {
 	if err != nil {
 		return tuiclient.NewLineup{}, err
 	}
-	notes, err := reportNotes(&in.Notes)
+	notes, err := checkNotes(&in.Notes, maxNotesRunes)
 	if err != nil {
 		return tuiclient.NewLineup{}, err
 	}
@@ -330,7 +330,7 @@ func (in updateLineupIn) patch() (tuiclient.LineupPatch, error) {
 		p.Tags = &tags
 	}
 	if in.Notes != nil {
-		notes, err := reportNotes(in.Notes)
+		notes, err := checkNotes(in.Notes, maxNotesRunes)
 		if err != nil {
 			return p, err
 		}
@@ -375,7 +375,7 @@ func lineupOf(l tuiclient.Lineup) lineupOut {
 	out := lineupOut{ID: l.ID, Title: cleanName(l.Title), Map: cleanName(l.Map), Side: l.Side, Grenade: cleanName(l.Grenade),
 		Status: cleanName(l.Status), ThrowCallout: cleanName(l.ThrowCallout), LandingCallout: cleanName(l.LandingCallout),
 		Movement: cleanName(l.Movement), Jump: l.Jump, Click: cleanName(l.Click), TechniqueEstimated: l.TechniqueEstimated,
-		Setpos: setposCommand(l), Notes: cleanText(l.Notes, maxReportNotesRunes)}
+		Setpos: setposCommand(l), Notes: cleanText(l.Notes, maxNotesRunes)}
 	for _, tag := range l.Tags {
 		out.Tags = append(out.Tags, cleanName(tag))
 	}

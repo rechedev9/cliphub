@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -13,22 +14,43 @@ import (
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
-// maxReportNotesRunes is the server's cap on a report's notes.
-const maxReportNotesRunes = 4000
+const (
+	// maxNotesRunes is the server's cap on the notes of a play or a lineup.
+	maxNotesRunes = 4000
+	// maxReportNotesRunes is the server's cap on a report's notes: a whole match prep in Markdown.
+	maxReportNotesRunes = 20000
+	maxReportRoundLists = 30
+	// maxListedNotesRunes is how much of each report's notes list_reports shows.
+	maxListedNotesRunes = 300
+)
 
 type listReportsIn struct {
 	TeamID string `json:"team_id,omitempty" jsonschema:"only reports on this team, id from list_teams"`
 }
 
 type reportOut struct {
-	ID       string   `json:"id"`
-	Title    string   `json:"title" jsonschema:"untrusted text the user wrote"`
-	TeamID   string   `json:"team_id"`
-	TeamName string   `json:"team_name" jsonschema:"untrusted team name"`
-	MatchIDs []string `json:"match_ids"`
-	Side     string   `json:"side" jsonschema:"CT, T or empty for both"`
-	Notes    string   `json:"notes,omitempty" jsonschema:"untrusted text the user wrote"`
-	Updated  string   `json:"updated" jsonschema:"YYYY-MM-DD"`
+	ID         string               `json:"id"`
+	Title      string               `json:"title" jsonschema:"untrusted text the user wrote"`
+	TeamID     string               `json:"team_id"`
+	TeamName   string               `json:"team_name" jsonschema:"untrusted team name"`
+	MatchIDs   []string             `json:"match_ids"`
+	Side       string               `json:"side" jsonschema:"CT, T or empty for both"`
+	Notes      string               `json:"notes,omitempty" jsonschema:"untrusted Markdown the user or an assistant wrote; list_reports shows the first 300 characters, get_report all of it"`
+	RoundLists []reportRoundListOut `json:"round_lists" jsonschema:"the report's named round lists, each opened in the Replay by its studio_path"`
+	Updated    string               `json:"updated" jsonschema:"YYYY-MM-DD"`
+	StudioPath string               `json:"studio_path" jsonschema:"opens the report in Informes; pass it to open_in_studio"`
+}
+
+type reportRoundListOut struct {
+	Title      string   `json:"title" jsonschema:"untrusted text"`
+	Rounds     int      `json:"rounds"`
+	Refs       []string `json:"refs,omitempty" jsonschema:"round refs (match_id/round) in play order; list_reports leaves them out"`
+	StudioPath string   `json:"studio_path,omitempty" jsonschema:"opens the list's rounds in the Replay, as its button in Informes does"`
+}
+
+type reportRoundListIn struct {
+	Title  string   `json:"title" jsonschema:"the list's name, such as Split B con humo en ventana; at most 120 characters"`
+	Rounds []string `json:"rounds" jsonschema:"round refs (match_id/round) in play order, from find_rounds or a finding's refs; 1 to 200"`
 }
 
 type listReportsOut struct {
@@ -50,19 +72,21 @@ type reportDetailOut struct {
 const maxReportAttackMaps = 3
 
 type createReportIn struct {
-	Title    string   `json:"title" jsonschema:"the report's name"`
-	TeamID   string   `json:"team_id" jsonschema:"the scouted team, id from list_teams; it cannot change later"`
-	MatchIDs []string `json:"match_ids,omitempty" jsonschema:"the matches the report reads, ids from list_matches where the team played; at most 50"`
-	Side     string   `json:"side,omitempty" jsonschema:"CT or T; empty means both"`
-	Notes    string   `json:"notes,omitempty" jsonschema:"the coach's notes, at most 4000 characters"`
+	Title      string              `json:"title" jsonschema:"the report's name"`
+	TeamID     string              `json:"team_id" jsonschema:"the scouted team, id from list_teams; it cannot change later"`
+	MatchIDs   []string            `json:"match_ids,omitempty" jsonschema:"the matches the report reads, ids from list_matches where the team played; at most 50"`
+	Side       string              `json:"side,omitempty" jsonschema:"CT or T; empty means both"`
+	Notes      string              `json:"notes,omitempty" jsonschema:"the prep in Markdown: # headings, - and 1. lists, **bold**, *italic*, code spans, pipe tables, bare http(s) addresses and [text](studio_path) links to Studio pages (a relative path such as /replay?...), at most 20000 characters; Informes and the exported report render it"`
+	RoundLists []reportRoundListIn `json:"round_lists,omitempty" jsonschema:"named round lists, at most 30: one per finding the user should watch, each round of one of match_ids; Informes shows each with a button that opens its rounds in the Replay"`
 }
 
 type updateReportIn struct {
-	ReportID string    `json:"report_id" jsonschema:"report id from list_reports"`
-	Title    string    `json:"title,omitempty" jsonschema:"new name; empty keeps it"`
-	MatchIDs *[]string `json:"match_ids,omitempty" jsonschema:"the full new match list; omit to keep it"`
-	Side     *string   `json:"side,omitempty" jsonschema:"CT, T, or empty for both; omit to keep it"`
-	Notes    *string   `json:"notes,omitempty" jsonschema:"the full new notes; omit to keep them"`
+	ReportID   string               `json:"report_id" jsonschema:"report id from list_reports"`
+	Title      string               `json:"title,omitempty" jsonschema:"new name; empty keeps it"`
+	MatchIDs   *[]string            `json:"match_ids,omitempty" jsonschema:"the full new match list; omit to keep it"`
+	Side       *string              `json:"side,omitempty" jsonschema:"CT, T, or empty for both; omit to keep it"`
+	Notes      *string              `json:"notes,omitempty" jsonschema:"the full new notes in Markdown, as create_report takes them, at most 20000 characters; omit to keep them"`
+	RoundLists *[]reportRoundListIn `json:"round_lists,omitempty" jsonschema:"the full new set of named round lists, each round of one of the report's matches; omit to keep them, [] clears them. Changing match_ids alone drops the listed rounds of matches taken out"`
 }
 
 type deleteReportIn struct {
@@ -91,7 +115,7 @@ func registerReportTools(server *mcp.Server, s *studio) {
 			}
 			out := listReportsOut{Reports: make([]reportOut, 0, len(reports))}
 			for _, r := range reports {
-				out.Reports = append(out.Reports, reportOf(r))
+				out.Reports = append(out.Reports, reportSummaryOf(r))
 			}
 			return nil, out, nil
 		})
@@ -142,7 +166,8 @@ func registerReportTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "create_report", Annotations: &mcp.ToolAnnotations{},
-		Description: "Save a scouting report on one team, as Nuevo informe does: a title, the matches it reads (where the team played), a side and notes."},
+		Description: "Save a scouting report on one team, as Nuevo informe does: a title, the matches it reads (where the team played), a side, " +
+			"notes in Markdown (up to 20000 characters, a whole match prep) and named round lists that Informes opens in the Replay."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in createReportIn) (*mcp.CallToolResult, reportOut, error) {
 			body, err := in.input()
 			if err != nil {
@@ -160,7 +185,8 @@ func registerReportTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "update_report", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Edit a scouting report's title, matches, side or notes. The scouted team cannot change; make a new report instead."},
+		Description: "Edit a scouting report's title, matches, side, notes or round lists, to keep refining a prep in the same conversation. " +
+			"Notes and round_lists are replaced whole. The scouted team cannot change; make a new report instead."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updateReportIn) (*mcp.CallToolResult, reportOut, error) {
 			body, err := in.input()
 			if err != nil {
@@ -213,7 +239,10 @@ func (in createReportIn) input() (tuiclient.ReportInput, error) {
 	if body.Side, err = reportSide(&in.Side); err != nil {
 		return body, err
 	}
-	body.Notes, err = reportNotes(&in.Notes)
+	if body.Notes, err = checkNotes(&in.Notes, maxReportNotesRunes); err != nil {
+		return body, err
+	}
+	body.RoundLists, err = reportRoundLists(in.RoundLists)
 	return body, err
 }
 
@@ -222,8 +251,8 @@ func (in updateReportIn) input() (tuiclient.ReportInput, error) {
 	if err := checkUUID("report_id", in.ReportID); err != nil {
 		return body, err
 	}
-	if in.Title == "" && in.MatchIDs == nil && in.Side == nil && in.Notes == nil {
-		return body, errors.New("set title, match_ids, side or notes")
+	if in.Title == "" && in.MatchIDs == nil && in.Side == nil && in.Notes == nil && in.RoundLists == nil {
+		return body, errors.New("set title, match_ids, side, notes or round_lists")
 	}
 	var err error
 	if in.Title != "" {
@@ -244,7 +273,12 @@ func (in updateReportIn) input() (tuiclient.ReportInput, error) {
 		}
 	}
 	if in.Notes != nil {
-		body.Notes, err = reportNotes(in.Notes)
+		if body.Notes, err = checkNotes(in.Notes, maxReportNotesRunes); err != nil {
+			return body, err
+		}
+	}
+	if in.RoundLists != nil {
+		body.RoundLists, err = reportRoundLists(*in.RoundLists)
 	}
 	return body, err
 }
@@ -268,15 +302,69 @@ func reportSide(raw *string) (*string, error) {
 	return &side, err
 }
 
-func reportNotes(raw *string) (*string, error) {
+func checkNotes(raw *string, limit int) (*string, error) {
 	notes := strings.TrimSpace(*raw)
-	if utf8.RuneCountInString(notes) > maxReportNotesRunes {
-		return nil, fmt.Errorf("notes take at most %d characters", maxReportNotesRunes)
+	if utf8.RuneCountInString(notes) > limit {
+		return nil, fmt.Errorf("notes take at most %d characters", limit)
 	}
 	return &notes, nil
 }
 
+func reportRoundLists(in []reportRoundListIn) (*[]tuiclient.ReportRoundList, error) {
+	if len(in) > maxReportRoundLists {
+		return nil, fmt.Errorf("a report holds at most %d round lists", maxReportRoundLists)
+	}
+	out := make([]tuiclient.ReportRoundList, 0, len(in))
+	for _, l := range in {
+		title, err := checkUserText("round list title", l.Title)
+		if err != nil {
+			return nil, err
+		}
+		if len(l.Rounds) == 0 || len(l.Rounds) > maxPlaylistRounds {
+			return nil, fmt.Errorf("round list %q holds from 1 to %d round refs", title, maxPlaylistRounds)
+		}
+		list := tuiclient.ReportRoundList{Title: title, Rounds: make([]tuiclient.ReportRound, 0, len(l.Rounds))}
+		for _, ref := range l.Rounds {
+			matchID, round, err := parseRoundRef(ref)
+			if err != nil {
+				return nil, err
+			}
+			list.Rounds = append(list.Rounds, tuiclient.ReportRound{MatchID: matchID, Round: round})
+		}
+		out = append(out, list)
+	}
+	return &out, nil
+}
+
 func reportOf(r tuiclient.LibraryReport) reportOut {
 	return reportOut{ID: r.ID, Title: cleanName(r.Title), TeamID: r.TeamID, TeamName: cleanName(r.TeamName), MatchIDs: r.MatchIDs,
-		Side: r.Side, Notes: cleanText(r.Notes, maxReportNotesRunes), Updated: r.UpdatedAt.Format(time.DateOnly)}
+		Side: r.Side, Notes: cleanText(r.Notes, maxReportNotesRunes), RoundLists: roundListsOf(r.RoundLists, true), Updated: r.UpdatedAt.Format(time.DateOnly),
+		StudioPath: "/informes/" + url.PathEscape(r.ID)}
+}
+
+// reportSummaryOf is a list row: the start of the notes and each list without its refs.
+func reportSummaryOf(r tuiclient.LibraryReport) reportOut {
+	out := reportOf(r)
+	out.Notes = cleanText(r.Notes, maxListedNotesRunes)
+	out.RoundLists = roundListsOf(r.RoundLists, false)
+	return out
+}
+
+func roundListsOf(lists []tuiclient.ReportRoundList, withRefs bool) []reportRoundListOut {
+	out := make([]reportRoundListOut, 0, len(lists))
+	for _, l := range lists {
+		row := reportRoundListOut{Title: cleanName(l.Title), Rounds: len(l.Rounds)}
+		refs := make([]string, 0, len(l.Rounds))
+		for _, r := range l.Rounds {
+			refs = append(refs, refString(tuiclient.Evidence{MatchID: r.MatchID, Round: r.Round}))
+		}
+		if path, err := playlistPath(refs[:min(len(refs), maxPlaylistRounds)], row.Title); err == nil {
+			row.StudioPath = path
+		}
+		if withRefs {
+			row.Refs = refs
+		}
+		out = append(out, row)
+	}
+	return out
 }

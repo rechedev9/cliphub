@@ -23,6 +23,9 @@ func applyReportPatch(rep library.Report, patch library.ReportPatch) library.Rep
 	if patch.Notes != nil {
 		rep.Notes = *patch.Notes
 	}
+	if patch.RoundLists != nil {
+		rep.RoundLists = library.CopyReportRoundLists(*patch.RoundLists)
+	}
 	return rep
 }
 
@@ -35,11 +38,12 @@ func (r *MemoryLibraryRepository) teamHasReports(teamID uuid.UUID) bool {
 	return false
 }
 
-// reportView fills the team name and copies the match ids, so the caller owns
+// reportView fills the team name and copies the match ids and lists, so the caller owns
 // what it reads.
 func (r *MemoryLibraryRepository) reportView(rep library.Report) library.Report {
 	rep.TeamName = r.teams[rep.TeamID].name
 	rep.MatchIDs = append([]uuid.UUID{}, rep.MatchIDs...)
+	rep.RoundLists = library.CopyReportRoundLists(rep.RoundLists)
 	return rep
 }
 
@@ -58,6 +62,7 @@ func (r *MemoryLibraryRepository) CreateReport(ctx context.Context, rep *library
 	now := libraryNow()
 	stored := *rep
 	stored.MatchIDs = uniqueMatchIDs(rep.MatchIDs)
+	stored.RoundLists = library.CopyReportRoundLists(rep.RoundLists)
 	stored.CreatedAt, stored.UpdatedAt = now, now
 	r.reports[stored.ID] = stored
 	*rep = r.reportView(stored)
