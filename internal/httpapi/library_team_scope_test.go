@@ -126,7 +126,16 @@ func TestTeamScopeTacticKeepsThePlayRounds(t *testing.T) {
 	if rounds.Rounds != 1 || len(rounds.Matches) != 1 || rounds.Matches[0].MatchID != f.away.ID || rounds.Matches[0].Rounds[0].Round != 2 {
 		t.Fatalf("tactic rounds = %+v, want round 2 of the away match", rounds)
 	}
-	for _, bad := range []string{"?tactic=nope", "?tactic=" + uuid.NewString(), "?weapon=knife", "?equip_to=0", "?end_reason=surrender"} {
+	f.env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/rounds?tactic="+uuid.NewString(), nil, http.StatusOK, &rounds)
+	if rounds.Rounds != 0 {
+		t.Fatalf("a deleted tactic kept %d rounds, want none", rounds.Rounds)
+	}
+	theirs := library.Play{Title: "MOUZ exec", TeamID: &f.mouz, Map: "de_mirage", Side: "T", Kind: "execute", Origin: "manual",
+		Examples: []tacticalplan.Evidence{{MatchID: f.away.ID, Round: 2}}}
+	if err := f.env.repo.CreatePlay(t.Context(), &theirs); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"?tactic=nope", "?tactic=" + theirs.ID.String(), "?weapon=knife", "?equip_to=0", "?end_reason=surrender"} {
 		if rw := f.env.do(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/rounds"+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Errorf("rounds%s = %d, want 400", bad, rw.Code)
 		}

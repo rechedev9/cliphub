@@ -74,7 +74,7 @@ func (h *Handlers) framedRequest(w http.ResponseWriter, r *http.Request) (framed
 	if !ok {
 		return framedQuery{}, false
 	}
-	filter, matchIDs, err := h.teamScope(r.Context(), r.URL.Query())
+	filter, matchIDs, err := h.teamScope(r.Context(), scopeRequest{teamID: id, q: r.URL.Query()})
 	if err == nil && len(filter.Maps) != 1 {
 		err = errors.New("map is required, exactly once")
 	}

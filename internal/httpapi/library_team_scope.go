@@ -123,9 +123,17 @@ var teamRoundKeys = []string{
 	"equip_from", "equip_to", "opponent_equip_from", "opponent_equip_to",
 }
 
+// scopeRequest is a team view's query and the team it reads.
+type scopeRequest struct {
+	teamID uuid.UUID
+	q      url.Values
+}
+
 // teamScope reads the scout filter of a team view plus its tactic, a Libreta
-// play id whose example rounds become the only rounds the scope keeps.
-func (h *Handlers) teamScope(ctx context.Context, q url.Values) (tacticalplan.ScoutFilter, []uuid.UUID, error) {
+// play id whose example rounds become the only rounds the scope keeps. A play
+// deleted since keeps no round; a play of another team is refused.
+func (h *Handlers) teamScope(ctx context.Context, s scopeRequest) (tacticalplan.ScoutFilter, []uuid.UUID, error) {
+	q := s.q
 	f, matchIDs, err := scoutQuery(q)
 	if err != nil {
 		return f, nil, err
@@ -140,10 +148,14 @@ func (h *Handlers) teamScope(ctx context.Context, q url.Values) (tacticalplan.Sc
 	}
 	play, err := h.libraryRepo.GetPlay(ctx, id)
 	if errors.Is(err, library.ErrNotFound) {
-		return f, nil, errors.New("tactic names no Libreta play")
+		f.PlayRounds = map[uuid.UUID][]int{}
+		return f, matchIDs, nil
 	}
 	if err != nil {
 		return f, nil, fmt.Errorf("read tactic: %w", err)
+	}
+	if play.TeamID != nil && *play.TeamID != s.teamID {
+		return f, nil, errors.New("tactic is a Libreta play of another team")
 	}
 	f.PlayRounds = make(map[uuid.UUID][]int, len(play.Examples))
 	for _, e := range play.Examples {

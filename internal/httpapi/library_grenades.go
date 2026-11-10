@@ -52,7 +52,7 @@ func (h *Handlers) ListLibraryTeamGrenades(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	q := r.URL.Query()
-	filter, matchIDs, err := h.teamScope(r.Context(), q)
+	filter, matchIDs, err := h.teamScope(r.Context(), scopeRequest{teamID: id, q: q})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

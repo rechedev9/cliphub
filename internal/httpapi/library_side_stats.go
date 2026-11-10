@@ -49,7 +49,7 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	q := r.URL.Query()
-	filter, matchIDs, err := h.teamScope(r.Context(), q)
+	filter, matchIDs, err := h.teamScope(r.Context(), scopeRequest{teamID: team.ID, q: q})
 	var asked []uuid.UUID
 	if err == nil {
 		asked, err = uuidList(q["compare_team"], "compare_team", maxCompareTeams)

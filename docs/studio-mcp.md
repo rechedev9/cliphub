@@ -271,7 +271,7 @@ Team scope rules (`internal/tacticalplan`, shared by the Replay, the playbook, t
 - `weapon` `hero_ak`: one player of the side killed or hit with an AK-47 while every teammate carried under $1,000 of equipment.
 - `weapon` `hero_awp`: one player of the side held an AWP (from kills and hits before analysis version 11) while every teammate carried under $1,000.
 - `second_round`: the round after a regulation half's pistol round. `end_reason`: `elimination`, `bomb_exploded`, `bomb_defused` or `time_expired`; pair it with `outcome` for a win reason.
-- `tactic`: the example rounds of a Libreta play; matches outside them drop out.
+- `tactic`: the example rounds of a Libreta play of the same team (another team's play is a 400); matches outside them drop out, and a deleted play keeps no round.
 
 Write:
 

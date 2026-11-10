@@ -53,7 +53,7 @@ func (h *Handlers) GetLibraryTeamRounds(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	filter, matchIDs, err := h.teamScope(r.Context(), r.URL.Query())
+	filter, matchIDs, err := h.teamScope(r.Context(), scopeRequest{teamID: id, q: r.URL.Query()})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

@@ -13,6 +13,7 @@ import {
   type ScopeEquip,
   type ScopeWeapon,
 } from '@/lib/analysis/scope-replay-filters';
+import { tacticChoices, type TacticOption } from '@/lib/analysis/scope-tactics';
 import { ChoiceSelect } from '@/components/analysis/scope-round-controls';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +21,6 @@ import { Toggle } from '@/components/ui/toggle';
 
 type Patch = (patch: Partial<AnalysisScope>) => void;
 type Props = { scope: AnalysisScope; onChange: Patch };
-export type TacticOption = { readonly value: string; readonly label: string };
 
 const TOGGLE = 'h-8 px-2.5 text-body-sm';
 
@@ -155,14 +155,15 @@ export function BuySwapButton({ scope, onChange }: Props): ReactNode {
   );
 }
 
-/** The Libreta plays of the team; one keeps only the rounds it was read from. */
+/** The Libreta plays of the team on the scope's map and side; one keeps only the rounds it was read from. */
 export function TacticSelect({ scope, tactics, onChange }: Props & { tactics: readonly TacticOption[] }): ReactNode {
-  const known = tactics.some((option) => option.value === scope.tactic);
-  const choices = known || scope.tactic === '' ? tactics : [...tactics, { value: scope.tactic, label: 'Jugada que ya no está en la Libreta' }];
+  const shown = tacticChoices(tactics, scope);
+  const picked = tactics.find((option) => option.value === scope.tactic) ?? { value: scope.tactic, label: 'Jugada de la Libreta' };
+  const choices = scope.tactic === '' || shown.some((option) => option.value === scope.tactic) ? shown : [...shown, picked];
   return (
     <ChoiceSelect
       label="Táctica de la Libreta"
-      allLabel={tactics.length === 0 ? 'Táctica: la Libreta no tiene jugadas' : 'Táctica: cualquiera'}
+      allLabel={shown.length === 0 ? 'Táctica: sin jugadas en este mapa y lado' : 'Táctica: cualquiera'}
       value={scope.tactic}
       choices={choices}
       onChange={(tactic) => onChange({ tactic })}

@@ -21,6 +21,7 @@ import {
 } from '@/lib/analysis/scope';
 import type { MapCounts } from '@/lib/analysis/map-counts';
 import { scopeChips } from '@/lib/analysis/scope-chips';
+import type { TacticOption } from '@/lib/analysis/scope-tactics';
 import { buyLabel } from '@/lib/tactical-labels';
 import { EntityPicker } from '@/components/analysis/entity-picker';
 import { LineupPicker } from '@/components/analysis/lineup-picker';
@@ -100,7 +101,7 @@ export type ScopeBarProps = {
   /** Rival teams for the opponent control. */
   opponents?: readonly ScopeOption[];
   /** The team's Libreta plays for the tactic control. */
-  tactics?: readonly ScopeOption[];
+  tactics?: readonly TacticOption[];
   /** The match limits offered, and the one the view uses while the URL names none. */
   limits?: { readonly options: readonly number[]; readonly fallback: number };
   /** Sample size of the answer on screen; null while it is being counted, absent to hide it. */
