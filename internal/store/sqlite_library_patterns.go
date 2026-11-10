@@ -103,6 +103,9 @@ func (r *SQLiteLibraryRepository) CreatePattern(ctx context.Context, p *library.
 		if n > 0 {
 			return library.ErrConflict
 		}
+		if err := checkPatternPlay(ctx, tx, p.PlayID); err != nil {
+			return err
+		}
 		_, err := tx.ExecContext(ctx, `INSERT INTO library_patterns (id, name, map, team_id, category, play_id, detail, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, p.ID.String(), p.Name, p.Map, row.team, p.Category, row.play, row.detail, now, now)
 		return err
@@ -159,6 +162,21 @@ func (r *SQLiteLibraryRepository) ListPatterns(ctx context.Context, filter libra
 	return out, rows.Err()
 }
 
+// checkPatternPlay turns a link to a play that does not exist into ErrNotFound, not a foreign key error.
+func checkPatternPlay(ctx context.Context, tx *sql.Tx, playID *uuid.UUID) error {
+	if playID == nil {
+		return nil
+	}
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM library_plays WHERE id = ?`, playID.String()).Scan(&n); err != nil {
+		return err
+	}
+	if n == 0 {
+		return library.ErrNotFound
+	}
+	return nil
+}
+
 func (r *SQLiteLibraryRepository) UpdatePattern(ctx context.Context, id uuid.UUID, patch library.PatternPatch) (library.Pattern, error) {
 	err := r.inTx(ctx, func(tx *sql.Tx) error {
 		current, err := scanLibraryPattern(tx.QueryRowContext(ctx, libraryPatternColumns+` WHERE id = ?`, id.String()))
@@ -166,6 +184,9 @@ func (r *SQLiteLibraryRepository) UpdatePattern(ctx context.Context, id uuid.UUI
 			return err
 		}
 		next := library.ApplyPatternPatch(current, patch)
+		if err := checkPatternPlay(ctx, tx, patch.PlayID); err != nil {
+			return err
+		}
 		row, err := encodePatternDetail(next)
 		if err != nil {
 			return err

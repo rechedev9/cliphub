@@ -20,6 +20,15 @@ func patternMatches(p library.Pattern, f library.PatternFilter) bool {
 	return f.TeamID == nil || p.TeamID == nil || *p.TeamID == *f.TeamID
 }
 
+// playExists reports whether a linked play is there; no link is fine. The caller holds r.mu.
+func (r *MemoryLibraryRepository) playExists(id *uuid.UUID) bool {
+	if id == nil {
+		return true
+	}
+	_, ok := r.plays[*id]
+	return ok
+}
+
 func (r *MemoryLibraryRepository) CreatePattern(ctx context.Context, p *library.Pattern) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -31,6 +40,9 @@ func (r *MemoryLibraryRepository) CreatePattern(ctx context.Context, p *library.
 	}
 	if _, taken := r.libreta.patterns[p.ID]; taken {
 		return library.ErrConflict
+	}
+	if !r.playExists(p.PlayID) {
+		return library.ErrNotFound
 	}
 	if r.libreta.patterns == nil {
 		r.libreta.patterns = map[uuid.UUID]library.Pattern{}
@@ -87,6 +99,9 @@ func (r *MemoryLibraryRepository) UpdatePattern(ctx context.Context, id uuid.UUI
 	defer r.mu.Unlock()
 	p, ok := r.libreta.patterns[id]
 	if !ok {
+		return library.Pattern{}, library.ErrNotFound
+	}
+	if !r.playExists(patch.PlayID) {
 		return library.Pattern{}, library.ErrNotFound
 	}
 	next := library.ApplyPatternPatch(p, patch)

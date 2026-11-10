@@ -263,7 +263,7 @@ func blockSlots(in patternRound, b PatternBlock) map[uint8]bool {
 }
 
 // blockAnswer is one block in one round before inversion. Out marks a round the
-// block cannot speak for: none of its named players was on the side.
+// block cannot speak for: none of its named players, or fewer than its count, was on the side.
 type blockAnswer struct {
 	held, out bool
 	seconds   float64
@@ -281,6 +281,10 @@ func evalBlock(in patternRound, b PatternBlock) blockAnswer {
 	}
 	if b.Kind == PatternPlayer {
 		need := max(1, b.MinPlayers)
+		if len(b.Players) > 0 && len(slots) < need {
+			// Fewer of the named players than the count played the round: it cannot speak for it.
+			return blockAnswer{out: true}
+		}
 		end := roundEndTick(in.r)
 		for _, frame := range in.frames {
 			if end > 0 && frame.Tick > end {

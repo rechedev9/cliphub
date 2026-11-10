@@ -201,9 +201,10 @@ type PatternMatchSet struct {
 	Rows      []PatternMatchRow
 }
 
-// PatternMatchFilter selects stored rows; nil fields do not filter. MatchedOnly keeps rows with a matched round.
+// PatternMatchFilter selects stored rows: of any of PatternIDs and any of MatchIDs, where an empty
+// list does not filter. MatchedOnly keeps rows with a matched round.
 type PatternMatchFilter struct {
-	PatternID   *uuid.UUID
-	MatchID     *uuid.UUID
+	PatternIDs  []uuid.UUID
+	MatchIDs    []uuid.UUID
 	MatchedOnly bool
 }

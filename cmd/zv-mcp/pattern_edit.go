@@ -55,7 +55,7 @@ type matchPatternOut struct {
 
 type matchPatternsOut struct {
 	Map      string            `json:"map"`
-	Total    int               `json:"total" jsonschema:"saved patterns of the map, matched or not"`
+	Total    int               `json:"total" jsonschema:"saved patterns that apply to the match, matched or not: library-wide or of its two teams"`
 	Patterns []matchPatternOut `json:"patterns" jsonschema:"use pattern_rounds with an id to open all its other rounds"`
 }
 
@@ -183,7 +183,7 @@ func registerPatternEditTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "match_patterns", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "List the saved patterns a match's rounds meet, as the Replay's Patrones panel does for the current round: each with the rounds it holds in, " +
-			"the side it holds for and replay_path. A team's pattern only counts from that team's side. total is every saved pattern of the map."},
+			"the side it holds for and replay_path. A team's pattern only counts from that team's side. total is every saved pattern that applies to the match: library-wide or of its two teams."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in matchPatternsIn) (*mcp.CallToolResult, matchPatternsOut, error) {
 			if err := checkUUID("match_id", in.MatchID); err != nil {
 				return nil, matchPatternsOut{}, err

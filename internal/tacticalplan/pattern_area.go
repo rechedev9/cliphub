@@ -108,7 +108,13 @@ func (a PatternArea) check() error {
 type zoneTest struct {
 	geometry MapGeometry
 	area     *PatternArea
-	cells    map[[3]int]bool
+	cells    map[zoneCell]bool
+}
+
+// zoneCell is a remembered answer's cell: x, y, a z band and the floor.
+type zoneCell struct {
+	x, y, z int
+	level   string
 }
 
 // zoneCalloutStep is the height band a cell's remembered answer holds for: stacked places differ in z.
@@ -126,9 +132,9 @@ func (z *zoneTest) contains(pos [3]float64) bool {
 		return z.area.Contains(z.geometry, pos)
 	}
 	size := z.geometry.CellSize
-	key := [3]int{int(math.Floor(pos[0] / size)), int(math.Floor(pos[1] / size)), int(math.Floor(pos[2] / zoneCalloutStep))}
+	key := zoneCell{int(math.Floor(pos[0] / size)), int(math.Floor(pos[1] / size)), int(math.Floor(pos[2] / zoneCalloutStep)), z.geometry.Calibration.Level(pos[2])}
 	if z.cells == nil {
-		z.cells = map[[3]int]bool{}
+		z.cells = map[zoneCell]bool{}
 	}
 	in, ok := z.cells[key]
 	if !ok {

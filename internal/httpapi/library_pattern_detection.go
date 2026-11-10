@@ -84,7 +84,7 @@ type matchPatternHit struct {
 type matchPatternsResponse struct {
 	MatchID uuid.UUID `json:"match_id"`
 	Map     string    `json:"map"`
-	// Total is how many saved patterns the map has, matched or not.
+	// Total is how many saved patterns apply to the match, matched or not: library-wide or of its teams.
 	Total    int               `json:"total"`
 	Patterns []matchPatternHit `json:"patterns"`
 }

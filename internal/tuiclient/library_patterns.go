@@ -157,7 +157,7 @@ type MatchPatternHit struct {
 	Rounds  []tacticalplan.PatternRound `json:"rounds"`
 }
 
-// MatchPatterns is how many saved patterns a match's map has and the ones its rounds meet.
+// MatchPatterns is how many saved patterns apply to a match and the ones its rounds meet.
 type MatchPatterns struct {
 	Map      string            `json:"map"`
 	Total    int               `json:"total"`

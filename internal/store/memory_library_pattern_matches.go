@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sort"
 
 	"github.com/google/uuid"
@@ -62,8 +63,8 @@ func (r *MemoryLibraryRepository) ListPatternMatches(ctx context.Context, filter
 	r.mu.RLock()
 	out := []library.PatternMatchRow{}
 	for key, row := range r.libreta.patternRows {
-		if (filter.PatternID != nil && key.pattern != *filter.PatternID) || (filter.MatchID != nil && key.match != *filter.MatchID) ||
-			(filter.MatchedOnly && row.Matched() == 0) {
+		if (len(filter.PatternIDs) > 0 && !slices.Contains(filter.PatternIDs, key.pattern)) ||
+			(len(filter.MatchIDs) > 0 && !slices.Contains(filter.MatchIDs, key.match)) || (filter.MatchedOnly && row.Matched() == 0) {
 			continue
 		}
 		out = append(out, copyPatternRow(row))

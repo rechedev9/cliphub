@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/rechedev9/cliphub/internal/library"
 )
 
@@ -45,7 +47,7 @@ func TestLibraryPatternDetectionIsStoredAndFollowsEdits(t *testing.T) {
 	if rounds.Result.Matched == 0 {
 		t.Fatalf("library rounds = %+v", rounds.Result)
 	}
-	rows, err := f.env.repo.ListPatternMatches(ctx, library.PatternMatchFilter{PatternID: &saved.ID})
+	rows, err := f.env.repo.ListPatternMatches(ctx, library.PatternMatchFilter{PatternIDs: []uuid.UUID{saved.ID}})
 	if err != nil || len(rows) != 6 || rows[0].Revision != library.PatternRevision(saved) {
 		t.Fatalf("stored rows = %d %+v, %v; want two teams of three matches", len(rows), rows, err)
 	}
@@ -91,8 +93,12 @@ func TestLibraryPatternDetectionIsStoredAndFollowsEdits(t *testing.T) {
 	f.env.json(http.MethodPost, "/api/library/patterns", team, http.StatusCreated, &mine)
 	var other matchPatternsResponse
 	f.env.json(http.MethodGet, "/api/library/matches/"+f.other.ID.String()+"/patterns", nil, http.StatusOK, &other)
+	// Nor does it count in the total of a match the team did not play.
+	if other.Total != 1 {
+		t.Fatalf("a match Vitality did not play counts %d patterns, want 1", other.Total)
+	}
 	for _, hit := range other.Patterns {
-		if hit.Pattern.ID == mine.ID || other.Total != 2 {
+		if hit.Pattern.ID == mine.ID {
 			t.Fatalf("a match Vitality did not play = %+v", other)
 		}
 	}
@@ -102,7 +108,7 @@ func TestLibraryPatternDetectionIsStoredAndFollowsEdits(t *testing.T) {
 	for _, hit := range home.Patterns {
 		found = found || (hit.Pattern.ID == mine.ID && hit.Team == "Vitality")
 	}
-	if !found {
+	if !found || home.Total != 2 {
 		t.Fatalf("Vitality's own pattern in its match = %+v", home)
 	}
 }

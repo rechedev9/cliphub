@@ -3,6 +3,7 @@ package tacticalplan
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -83,6 +84,23 @@ func TestPatternMinPlayersCountsTogether(t *testing.T) {
 	late := runOne(t, inputs, Pattern{Side: SideT, Blocks: []PatternBlock{{Kind: PatternPlayer, MinPlayers: 3, Area: &siteA, To: 2}}})
 	if late.Matched != 0 {
 		t.Fatalf("three in A by 2 s = %d rounds, want none", late.Matched)
+	}
+}
+
+func TestPatternMinPlayersSkipsRoundsWithoutEnoughNamedPlayers(t *testing.T) {
+	m := crowdMatch(t)
+	// Round 3 is played without the third named player, so "the three of them" cannot hold in it.
+	m.Document.Rounds[2].Players = slices.DeleteFunc(slices.Clone(m.Document.Rounds[2].Players), func(p PlayerRound) bool { return p.Slot == 2 })
+	inputs := []PatternInput{{Match: m}}
+	siteA := PatternArea{MinX: 250, MinY: -50, MaxX: 350, MaxY: 50}
+	named := []string{"76561198000000010", "76561198000000011", "76561198000000012"}
+	got := runOne(t, inputs, Pattern{Side: SideT, Blocks: []PatternBlock{{Kind: PatternPlayer, Players: named, MinPlayers: 3, Area: &siteA}}})
+	if got.Rounds != 2 || !equalInts(matchedRounds(got), []int{1}) {
+		t.Fatalf("three named in A = %d rounds read, matched %v; want 2 read, round 1", got.Rounds, matchedRounds(got))
+	}
+	inverted := runOne(t, inputs, Pattern{Side: SideT, Blocks: []PatternBlock{{Kind: PatternPlayer, Players: named, MinPlayers: 3, Area: &siteA, Invert: true}}})
+	if !equalInts(matchedRounds(inverted), []int{2}) {
+		t.Fatalf("inverted = %v, want round 2 only", matchedRounds(inverted))
 	}
 }
 

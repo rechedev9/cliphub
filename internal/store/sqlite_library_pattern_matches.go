@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -70,13 +71,14 @@ func (r *SQLiteLibraryRepository) SavePatternMatches(ctx context.Context, set li
 func (r *SQLiteLibraryRepository) ListPatternMatches(ctx context.Context, filter library.PatternMatchFilter) ([]library.PatternMatchRow, error) {
 	query := libraryPatternMatchColumns + ` WHERE 1 = 1`
 	args := []any{}
-	if filter.PatternID != nil {
-		query += ` AND pattern_id = ?`
-		args = append(args, filter.PatternID.String())
-	}
-	if filter.MatchID != nil {
-		query += ` AND match_id = ?`
-		args = append(args, filter.MatchID.String())
+	for column, ids := range map[string][]uuid.UUID{"pattern_id": filter.PatternIDs, "match_id": filter.MatchIDs} {
+		if len(ids) == 0 {
+			continue
+		}
+		query += ` AND ` + column + ` IN (` + strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", ") + `)`
+		for _, id := range ids {
+			args = append(args, id.String())
+		}
 	}
 	if filter.MatchedOnly {
 		query += ` AND matched > 0`
