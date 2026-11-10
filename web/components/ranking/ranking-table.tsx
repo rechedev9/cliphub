@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowDown, ArrowUp, Pin, PinOff, Play, TriangleAlert } from 'lucide-react';
 import type { LeaderboardMetric, LeaderboardRow } from '@/lib/api/baseline';
 import { playerHref } from '@/lib/clips/routes';
-import { RANKING_COLUMNS, breakdownText, libraryRoleText, rolesText } from '@/lib/ranking/columns';
+import { RANKING_COLUMNS, libraryRoleText, roleChips } from '@/lib/ranking/columns';
 import {
   LOW_SAMPLE_ROUNDS,
   cellValue,
@@ -17,12 +17,13 @@ import {
   type RankingSort,
   type RankingState,
 } from '@/lib/ranking/ranking';
+import { PlayerAvatar } from '@/components/players/player-avatar';
+import { RoleChip } from '@/components/ui/role-chip';
 import { cn } from '@/lib/utils';
 
-function subtitle(row: LeaderboardRow, roles: string): string {
+function subtitle(row: LeaderboardRow): string {
   const matches = `${row.matches} ${row.matches === 1 ? 'partida' : 'partidas'}`;
-  if (row.team !== undefined) return [row.team, roles, matches].filter((part) => part !== '').join(' · ');
-  return roles !== '' ? roles : matches;
+  return row.team === undefined ? matches : `${row.team} · ${matches}`;
 }
 
 function ariaSort(active: boolean, dir: 'asc' | 'desc'): 'ascending' | 'descending' | 'none' {
@@ -86,10 +87,8 @@ function PlayerRow({
   const pin: PinnedPlayer = entry.pinned ?? { steamid64: row?.steamid64 ?? '', name: row?.name ?? '' };
   const name = row?.name ?? pin.name;
   const steamId = row?.steamid64 ?? pin.steamid64;
-  const detail = row === null ? '' : breakdownText(row, state.scope.side);
-  const mapRoles = row === null || detail !== '' ? detail : rolesText(row.roles, state.scope.side);
+  const chips = row === null ? [] : roleChips(row, state.scope.side);
   const libraryRole = row === null ? '' : libraryRoleText(row.library_role);
-  const roles = [mapRoles, libraryRole].filter((part) => part !== '').join(' · ');
   const href = row === null ? null : playerRoundsHref(row, name);
   return (
     <tr className={cn('border-t border-border-subtle', entry.pinned && 'bg-surface-2')}>
@@ -97,7 +96,8 @@ function PlayerRow({
       <td className="max-w-80 px-2 py-1">
         <div className="flex items-center gap-1">
           <PinButton pin={{ steamid64: steamId, name }} pinned={entry.pinned !== null} onToggle={onPin} />
-          <div className="flex min-w-0 flex-col">
+          <PlayerAvatar nickname={name} playerID={steamId} size={28} />
+          <div className="flex min-w-0 flex-col gap-0.5">
             {row?.team === undefined ? (
               <Link href={playerHref(steamId)} className="truncate font-medium text-fg-1 hover:underline">
                 {name}
@@ -108,8 +108,16 @@ function PlayerRow({
             {row === null ? (
               <span className="text-meta text-fg-3">Bajo el mínimo de rondas con este filtro</span>
             ) : (
-              <span className="truncate text-meta text-fg-2" title={subtitle(row, roles)}>
-                {subtitle(row, roles)}
+              <span className="truncate text-meta text-fg-2" title={subtitle(row)}>
+                {subtitle(row)}
+              </span>
+            )}
+            {chips.length === 0 && libraryRole === '' ? null : (
+              <span className="flex flex-wrap items-center gap-1">
+                {chips.map((chip) => (
+                  <RoleChip key={chip.side} side={chip.side} label={chip.label} breakdown={chip.breakdown} />
+                ))}
+                {libraryRole === '' ? null : <RoleChip label={libraryRole} />}
               </span>
             )}
           </div>

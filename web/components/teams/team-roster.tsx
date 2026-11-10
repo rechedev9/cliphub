@@ -11,6 +11,7 @@ import { ROLE_LABEL } from '@/lib/library/partidas';
 import { PlayerAvatar } from '@/components/players/player-avatar';
 import { EmptyCell } from '@/components/records/empty-cell';
 import { DeltaValue } from '@/components/ui/delta-value';
+import { RoleChip } from '@/components/ui/role-chip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useReferences } from '@/hooks/use-references';
 
@@ -25,7 +26,7 @@ const SHORT_LABEL: Partial<Record<BaselineMetric, string>> = {
 /** A role too thin to read is a quiet dash, so a short roster is not a column of the same words. */
 function RoleCell({ role }: { role: LibraryRole | undefined }): ReactNode {
   if (role === undefined) return null;
-  return role === 'unknown' ? <EmptyCell label={ROLE_LABEL.unknown} /> : ROLE_LABEL[role];
+  return role === 'unknown' ? <EmptyCell label={ROLE_LABEL.unknown} /> : <RoleChip label={ROLE_LABEL[role]} />;
 }
 
 /** The roster as one dense row per player, most recent first: role and key numbers against the chosen reference. */

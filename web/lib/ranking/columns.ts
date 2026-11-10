@@ -39,9 +39,47 @@ export const RANKING_COLUMNS: readonly RankingColumn[] = [
   { sort: 'rounds', header: 'Rondas', title: 'Rondas jugadas dentro del filtro', format: decimals(0) },
 ];
 
-function roleName(key: string): string {
-  for (const [role, label] of Object.entries(ROLE_LABEL)) if (role === key) return label.toLowerCase();
+function roleLabel(key: string): string {
+  for (const [role, label] of Object.entries(ROLE_LABEL)) if (role === key) return label;
   return key;
+}
+
+function roleName(key: string): string {
+  return roleLabel(key).toLowerCase();
+}
+
+export type RoleChipData = { side: 'ct' | 't'; label: string; breakdown: string };
+
+function chipLabel(options: { breakdown: SideBreakdown | undefined; role: LeaderboardRole | undefined }): string {
+  const { breakdown, role } = options;
+  if (breakdown?.map_role === ALLROUND) return 'Todoterreno';
+  const place = breakdown?.places.find((share) => share.key === breakdown.map_role);
+  const named = place?.label ?? breakdown?.map_role ?? '';
+  if (named !== '') return named;
+  const known = role ?? breakdown?.role;
+  return known === undefined ? '' : ROLE_LABEL[known];
+}
+
+function breakdownShares(breakdown: SideBreakdown | undefined): string {
+  if (breakdown === undefined) return '';
+  const roles = breakdown.roles.filter((share) => share.pct >= 1).map((share) => `${share.label ?? roleLabel(share.key)} ${Math.round(share.pct)} %`);
+  const places = breakdown.places.map((share) => `${share.label ?? share.key} ${Math.round(share.pct)} %`);
+  return [...roles, ...places].join(' · ');
+}
+
+/** One chip per side asked, T first, such as {t, "Lurk de B", "Lurk de B 62 % · Canal 21 %"}; a side without a role is left out. */
+export function roleChips(row: LeaderboardRow, side: '' | 'CT' | 'T'): RoleChipData[] {
+  const chips: RoleChipData[] = [];
+  const sides = [
+    { key: 't', asked: side !== 'CT', breakdown: row.breakdown?.t, role: row.roles?.t },
+    { key: 'ct', asked: side !== 'T', breakdown: row.breakdown?.ct, role: row.roles?.ct },
+  ] as const;
+  for (const entry of sides) {
+    if (!entry.asked) continue;
+    const label = chipLabel({ breakdown: entry.breakdown, role: entry.role });
+    if (label !== '') chips.push({ side: entry.key, label, breakdown: breakdownShares(entry.breakdown) });
+  }
+  return chips;
 }
 
 function sideText(side: 'CT' | 'T', breakdown: SideBreakdown | undefined): string {
