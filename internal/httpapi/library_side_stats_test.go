@@ -42,7 +42,13 @@ func TestLibraryTeamSideStatsComparesWithTheLibraryOrChosenTeams(t *testing.T) {
 		t.Fatalf("nuke = %d matches, rounds won %v", resp.Matches, resp.Overall.RoundsWon.Value)
 	}
 
-	for _, bad := range []string{"?side=mid", "?buy=rich", "?opponent_buy=x", "?compare_team=nope"} {
+	// The team scope keys apply as on every team view: the last match only, its rounds from 2 on.
+	f.env.json(http.MethodGet, base+"?max_matches=1&round_from=2", nil, http.StatusOK, &resp)
+	if resp.Matches != 1 || resp.Rounds != 1 {
+		t.Fatalf("last match from round 2 = %d matches, %d rounds", resp.Matches, resp.Rounds)
+	}
+
+	for _, bad := range []string{"?side=mid", "?max_matches=0", "?whose=mine", "?buy=rich", "?opponent_buy=x", "?compare_team=nope"} {
 		if rw := f.env.do(http.MethodGet, base+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Fatalf("side stats%s = %d, want 400", bad, rw.Code)
 		}

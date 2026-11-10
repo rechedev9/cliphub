@@ -110,7 +110,7 @@ func barBuy(key string, list []string) (string, error) {
 	if slices.Equal(slices.Sorted(slices.Values(list)), []string{"force", "semi"}) {
 		return "half", nil
 	}
-	return "", fmt.Errorf("the team Replay holds one %s, or semi with force as half buys", key)
+	return "", fmt.Errorf("the team scope bar holds one %s, or semi with force as half buys", key)
 }
 
 func registerTeamRoundsTool(server *mcp.Server, s *studio) {

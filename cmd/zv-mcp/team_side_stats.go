@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -16,10 +17,8 @@ import (
 const maxCompareTeams = 20
 
 type teamSideStatsIn struct {
-	TeamID      string   `json:"team_id" jsonschema:"team id from list_teams"`
-	Buy         string   `json:"buy,omitempty" jsonschema:"only rounds with this buy of the team: pistol, eco, semi, force or full"`
-	OpponentBuy string   `json:"opponent_buy,omitempty" jsonschema:"only rounds with this buy of the rival: pistol, eco, semi, force or full"`
-	CompareTo   []string `json:"compare_to,omitempty" jsonschema:"team ids from list_teams to compare with, at most 20; empty compares with every other team of the library"`
+	TeamID    string   `json:"team_id" jsonschema:"team id from list_teams"`
+	CompareTo []string `json:"compare_to,omitempty" jsonschema:"team ids from list_teams to compare with, at most 20; empty compares with every other team of the library"`
 	analysisFilterIn
 	teamScopeIn
 }
@@ -54,6 +53,7 @@ type teamSideStatsOut struct {
 	GroupTeams     int                 `json:"group_teams" jsonschema:"comparison teams with rounds in the same map, side, dates and buys"`
 	GroupMatches   int                 `json:"group_matches" jsonschema:"comparison matches read, at most 20 per team"`
 	GroupCapped    bool                `json:"group_capped" jsonschema:"true when a team had more matches than the cap, so only its newest count"`
+	AWPEstimated   int                 `json:"awp_estimated,omitempty" jsonschema:"matches whose AWP filter was estimated from AWP kills and hits: their analysis predates the AWP flag"`
 	GroupMinRounds int                 `json:"group_min_rounds" jsonschema:"a team enters a figure's mean only with this many rounds behind it; each figure's group_teams says how many did"`
 	Overall        tuiclient.SideStats `json:"overall" jsonschema:"each figure: value (percent for rates, per round for utility damage and flash assists, a count for rounds_played; null without data) and group_avg, the plain mean of the comparison teams"`
 	CT             tuiclient.SideStats `json:"ct" jsonschema:"the figures on CT; maps_won is null on a side"`
@@ -61,16 +61,8 @@ type teamSideStatsOut struct {
 	Players        []sidePlayerOut     `json:"players"`
 	MatchList      []sideMatchOut      `json:"match_list" jsonschema:"the matches the figures stand on, newest first"`
 	RatingFormula  string              `json:"rating_formula"`
-	StudioPath     string              `json:"studio_path" jsonschema:"the path that opens the team's Estadísticas tab with this scope in Studio"`
+	StudioPath     string              `json:"studio_path" jsonschema:"the path that opens the team's Estadísticas tab in Studio with the filters it shows: map, side, dates, rival, lineup and buys"`
 	SkippedMatches int                 `json:"skipped_matches,omitempty"`
-}
-
-func checkBuy(field, raw string) (string, error) {
-	buy := strings.ToLower(strings.TrimSpace(raw))
-	if buy != "" && !slices.Contains(buyTypes, buy) {
-		return "", fmt.Errorf("%s must be one of %s, not %q", field, strings.Join(buyTypes, ", "), cleanName(raw))
-	}
-	return buy, nil
 }
 
 func (in teamSideStatsIn) query() (tuiclient.SideStatsQuery, error) {
@@ -80,12 +72,6 @@ func (in teamSideStatsIn) query() (tuiclient.SideStatsQuery, error) {
 		return q, err
 	}
 	q.Scope = scope
-	if q.Buy, err = checkBuy("buy", in.Buy); err != nil {
-		return q, err
-	}
-	if q.OpponentBuy, err = checkBuy("opponent_buy", in.OpponentBuy); err != nil {
-		return q, err
-	}
 	if len(in.CompareTo) > maxCompareTeams {
 		return q, fmt.Errorf("at most %d compare_to teams", maxCompareTeams)
 	}
@@ -97,32 +83,46 @@ func (in teamSideStatsIn) query() (tuiclient.SideStatsQuery, error) {
 	return q, nil
 }
 
-// sideStatsPath is the team's Estadísticas tab with the call's scope, as the web writes it.
-func sideStatsPath(in teamSideStatsIn, q tuiclient.SideStatsQuery) string {
+// sideStatsPath is the team's Estadísticas tab with the call's scope, as the web writes it;
+// the tab's bar holds one buy per side (or half), so other buy lists have no path.
+func sideStatsPath(q tuiclient.SideStatsQuery) (string, error) {
 	v := url.Values{"tab": {"estadisticas"}, "lineup": {"all"}}
-	for key, value := range map[string]string{
-		"map": q.Scope.Map, "side": q.Scope.Side, "from": in.From, "to": in.To, "buy": q.Buy, "opponent_buy": q.OpponentBuy,
-	} {
+	for key, value := range map[string]string{"map": q.Scope.Map, "side": q.Scope.Side} {
 		if value != "" {
 			v.Set(key, value)
 		}
 	}
-	if len(in.OpponentID) == 1 {
-		v.Set("opponent", in.OpponentID[0])
+	if !q.Scope.From.IsZero() {
+		v.Set("from", q.Scope.From.Format(time.DateOnly))
+	}
+	if !q.Scope.To.IsZero() {
+		v.Set("to", q.Scope.To.Format(time.DateOnly))
+	}
+	if len(q.Scope.Opponents) == 1 {
+		v.Set("opponent", q.Scope.Opponents[0])
 	}
 	if len(q.Scope.Lineup) > 0 {
 		v.Set("lineup", strings.Join(slices.Compact(slices.Sorted(slices.Values(q.Scope.Lineup))), ","))
 	}
+	for _, key := range []string{"buy", "opponent_buy"} {
+		if list := q.Scope.Scope[key]; len(list) > 0 {
+			buy, err := barBuy(key, list)
+			if err != nil {
+				return "", err
+			}
+			v.Set(key, buy)
+		}
+	}
 	if len(q.CompareTo) > 0 {
 		v.Set("comparar", strings.Join(slices.Compact(slices.Sorted(slices.Values(q.CompareTo))), ","))
 	}
-	return "/equipos/" + url.PathEscape(q.TeamID) + "?" + v.Encode()
+	return "/equipos/" + url.PathEscape(q.TeamID) + "?" + v.Encode(), nil
 }
 
 func summarizeSideStats(r tuiclient.TeamSideStatsReport, path string) teamSideStatsOut {
 	out := teamSideStatsOut{
 		Team: cleanName(r.TeamName), Matches: r.Matches, Rounds: r.Rounds, CompareTo: []string{}, CompareSkipped: cleanNames(r.CompareSkipped),
-		GroupTeams: r.GroupTeams, GroupMatches: r.GroupMatches, GroupCapped: r.GroupCapped, GroupMinRounds: r.GroupMinRounds,
+		GroupTeams: r.GroupTeams, GroupMatches: r.GroupMatches, GroupCapped: r.GroupCapped, GroupMinRounds: r.GroupMinRounds, AWPEstimated: r.AWPEstimated,
 		Overall: r.Overall, CT: r.CT, T: r.T, Players: []sidePlayerOut{}, MatchList: []sideMatchOut{}, RatingFormula: r.RatingFormula,
 		StudioPath: path, SkippedMatches: len(r.Skipped),
 	}
@@ -148,9 +148,14 @@ func registerTeamSideStatsTool(server *mcp.Server, s *studio) {
 		Description: "Read a team's statistics, overall and per side, as the team's Estadísticas tab shows them: maps, rounds and pistols won, " +
 			"opening kills, 5v4 and 4v5 rounds won, trades, utility damage and flash assists per round and rounds played, each with group_avg, " +
 			"the mean of the comparison teams (compare_to, or the whole library) over the same map, side, dates and buys; and one card per player " +
-			"(role, ClipHub rating, K/D, ADR, KPR, DPR). Narrow with map, side, dates, opponent_id, match_id, lineup, buy and opponent_buy."},
+			"(role, ClipHub rating, K/D, ADR, KPR, DPR). Narrow with map, side, dates, opponent_id, match_id, lineup and the team scope: buy and opponent_buy " +
+				"(lists; semi with force is a half buy), max_matches, last_days, opponent_top, whose, awp, opponent_awp, advantage and round_from/round_to."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamSideStatsIn) (*mcp.CallToolResult, teamSideStatsOut, error) {
 			q, err := in.query()
+			if err != nil {
+				return nil, teamSideStatsOut{}, err
+			}
+			path, err := sideStatsPath(q)
 			if err != nil {
 				return nil, teamSideStatsOut{}, err
 			}
@@ -162,6 +167,6 @@ func registerTeamSideStatsTool(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, teamSideStatsOut{}, toolError(err)
 			}
-			return nil, summarizeSideStats(report, sideStatsPath(in, q)), nil
+			return nil, summarizeSideStats(report, path), nil
 		})
 }

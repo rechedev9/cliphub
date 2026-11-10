@@ -49,6 +49,7 @@ type TeamSideStatsReport struct {
 	} `json:"compare_teams"`
 	CompareSkipped []string `json:"compare_skipped"`
 	GroupCapped    bool     `json:"group_capped"`
+	AWPEstimated   int      `json:"awp_estimated"`
 	GroupMatches   int      `json:"group_matches"`
 	GroupMinRounds int      `json:"group_min_rounds"`
 	MatchList      []struct {
@@ -69,26 +70,18 @@ type TeamSideStatsReport struct {
 	RatingFormula string            `json:"rating_formula"`
 }
 
-// SideStatsQuery is a side stats read: the team scope, both buys and the
+// SideStatsQuery is a side stats read: the team scope, buys included, and the
 // comparison teams (none compares with every other team of the library).
 type SideStatsQuery struct {
-	TeamID      string
-	Scope       AnalysisQuery
-	Buy         string
-	OpponentBuy string
-	CompareTo   []string
+	TeamID    string
+	Scope     AnalysisQuery
+	CompareTo []string
 }
 
 // TeamSideStats returns a team's figures per side against a comparison group.
 func (c *Client) TeamSideStats(ctx context.Context, q SideStatsQuery) (TeamSideStatsReport, error) {
 	q.Scope.Limit = 0
 	values := q.Scope.values()
-	if q.Buy != "" {
-		values.Set("buy", q.Buy)
-	}
-	if q.OpponentBuy != "" {
-		values.Set("opponent_buy", q.OpponentBuy)
-	}
 	for _, id := range q.CompareTo {
 		values.Add("compare_team", id)
 	}
