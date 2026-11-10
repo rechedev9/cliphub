@@ -159,7 +159,8 @@ func registerTeamSideStatsTool(server *mcp.Server, s *studio) {
 			"opening kills, 5v4 and 4v5 rounds won, trades, utility damage and flash assists per round and rounds played, each with group_avg, " +
 			"the mean of the comparison teams (compare_to, or the whole library) over the same map, side, dates and buys; and one card per player " +
 			"(library role, with one map the role per side as the Ranking reads it in map_roles, ClipHub rating, K/D, ADR, KPR, DPR). Narrow with map, side, dates, opponent_id, match_id, lineup and the team scope: buy and opponent_buy " +
-			"(lists; semi with force is a half buy), max_matches, last_days, opponent_top, whose, awp, opponent_awp, advantage and round_from/round_to."},
+			"(lists; semi with force is a half buy), max_matches, last_days, opponent_top, whose, awp, opponent_awp, advantage and round_from/round_to. "+
+			"With side set, the ct and t blocks ignore the side filter (the other side keeps its real figures) while overall honours it."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamSideStatsIn) (*mcp.CallToolResult, teamSideStatsOut, error) {
 			q, err := in.query()
 			if err != nil {

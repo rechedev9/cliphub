@@ -66,7 +66,7 @@ the window did it, and when it did not it returns the full http://127.0.0.1:<por
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
 team_side_stats is the team's Estadísticas tab: figures overall and per side, each with group_avg over the
 compare_to teams (empty: the whole library) in the same map, side, dates and buys (buy, opponent_buy), and
-one card per player; its rating is ClipHub's own (rating_formula), never call it an HLTV rating.
+one card per player (with side set, the ct and t blocks ignore the side filter while overall honours it); its rating is ClipHub's own (rating_formula), never call it an HLTV rating.
 Player cards carry the library role (awp, entry, support, rifler); with one map they also give the role on the map as the
 Ranking reads it: map_roles (one per side) in team_side_stats, map_role in team_prep (ct_players and first_death) and in
 each side of player_positions, with a label such as "Lurk de B", "Ancla A" or "Todoterreno" (no site role and no callout
