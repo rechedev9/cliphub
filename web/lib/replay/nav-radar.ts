@@ -6,8 +6,8 @@ import type { RadarLevel, TacticalGeometry } from '../api/tactical.ts';
  * walkable area, toned by height so higher floors read lighter.
  */
 
-/** One nav area: flat world x,y pairs, its mean height and its centre. */
-export type NavPolygon = { points: Float64Array; z: number; cx: number; cy: number };
+/** One nav area: flat world x,y pairs, its mean height, the lowest and highest of its corners, and its centre. */
+export type NavPolygon = { points: Float64Array; z: number; lowZ: number; highZ: number; cx: number; cy: number };
 
 export type NavRadarModel = {
   /** Lowest floor first, so higher floors paint over the ones under them. */
@@ -31,6 +31,8 @@ function polygonOf(vertices: Float32Array, indices: readonly number[]): NavPolyg
   if (indices.length < 3) return null;
   const points = new Float64Array(indices.length * 2);
   let z = 0;
+  let lowZ = Number.POSITIVE_INFINITY;
+  let highZ = Number.NEGATIVE_INFINITY;
   let cx = 0;
   let cy = 0;
   for (let i = 0; i < indices.length; i += 1) {
@@ -40,8 +42,10 @@ function polygonOf(vertices: Float32Array, indices: readonly number[]): NavPolyg
     cx += vertices[at];
     cy += vertices[at + 1];
     z += vertices[at + 2];
+    lowZ = Math.min(lowZ, vertices[at + 2]);
+    highZ = Math.max(highZ, vertices[at + 2]);
   }
-  return { points, z: z / indices.length, cx: cx / indices.length, cy: cy / indices.length };
+  return { points, z: z / indices.length, lowZ, highZ, cx: cx / indices.length, cy: cy / indices.length };
 }
 
 /** The radar model of a nav mesh, or null when it has nothing to draw. */
@@ -148,9 +152,15 @@ export function placeTints(model: NavRadarModel, callouts: Callouts, lowerAltitu
   return tints;
 }
 
-/** The nav areas on one floor of a two-floor map; a one-floor map answers all of them. */
+/**
+ * The nav areas on one floor of a two-floor map; a one-floor map answers all of
+ * them. A long ramp area whose corners lie on both sides of the cut belongs to
+ * both floors, so a player on its low part has ground under them on the lower
+ * pane and one on its high part on the upper pane.
+ */
 export function floorPolygons(model: NavRadarModel, lowerAltitudeMax: number | undefined, level: RadarLevel): NavPolygon[] {
-  return lowerAltitudeMax === undefined ? model.polygons : model.polygons.filter((polygon) => polygonLevel(polygon.z, lowerAltitudeMax) === level);
+  if (lowerAltitudeMax === undefined) return model.polygons;
+  return model.polygons.filter((polygon) => (level === 'lower' ? polygon.lowZ <= lowerAltitudeMax : polygon.highZ > lowerAltitudeMax));
 }
 
 /** The world rectangle one floor's walkable areas cover, or null when it has none. */

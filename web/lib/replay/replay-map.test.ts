@@ -133,10 +133,21 @@ test('nav radar: one floor of a two-floor map is its own polygons and its own ex
   assert.equal(floorPolygons(model, undefined, 'lower').length, 2);
 });
 
+test('nav radar: a ramp area across the cut is on both floors, and bounds both', () => {
+  // The long ramp of Nuke's T side: corners from -548 to -412 and a mean of -480, so the mean alone puts it on the upper floor.
+  const vertices = Float32Array.from([1296, -2445, -412, 1503, -2445, -548, 1503, -2386, -548, 1296, -2386, -412, 0, 0, 0, 10, 0, 0, 10, 10, 0]);
+  const model = navRadarModel({ vertices, triangles: new Uint32Array(), areas: [{ id: 1, polygon: [0, 1, 2, 3] }, { id: 2, polygon: [4, 5, 6] }] });
+  assert.ok(model !== null);
+  assert.equal(floorPolygons(model, -495, 'default').length, 2);
+  const lower = floorPolygons(model, -495, 'lower');
+  assert.equal(lower.length, 1);
+  assert.deepEqual(floorBounds(lower), { minX: 1296, minY: -2445, maxX: 1503, maxY: -2386 });
+});
+
 test('nav radar: the greys are flat, the same range on any floor', () => {
   const [low, high] = [NAV_RADAR_PALETTE.low, NAV_RADAR_PALETTE.high];
   assert.ok(high[0] - low[0] <= 24);
-  const flat = [{ points: new Float64Array(), z: 5, cx: 0, cy: 0 }, { points: new Float64Array(), z: 5, cx: 0, cy: 0 }];
+  const flat = [{ points: new Float64Array(), z: 5, lowZ: 5, highZ: 5, cx: 0, cy: 0 }, { points: new Float64Array(), z: 5, lowZ: 5, highZ: 5, cx: 0, cy: 0 }];
   assert.deepEqual(toneRange(flat), { minZ: 5, maxZ: 5 });
 });
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DENSITY_THRESHOLDS, SMOOTHING_MAX, SMOOTHING_MIN, densityPicture, heatBandwidth, heatDensity } from './heat-density.ts';
+import { DENSITY_FLOOR, SMOOTHING_MAX, SMOOTHING_MIN, densityPicture, heatBandwidth, heatDensity, heatTone } from './heat-density.ts';
 import type { DensityPicture, HeatDensity } from './heat-density.ts';
 import { heatRgb } from './tactical-spatial.ts';
 
@@ -50,21 +50,49 @@ test('a wider kernel spreads the same marks lower and further', () => {
   assert.ok(at(wide, 75, 40) > at(tight, 75, 40));
 });
 
-test('the contours come in bands of the heat scale and the map shows through', () => {
+test('the wash runs from blue to pink with the density and the map shows through', () => {
   const density = heatDensity({ grid: GRID, bins: [[50, 50, 9], [90, 50, 1]], bandwidth: 2 });
   assert.ok(density);
   const picture = densityPicture(density);
   assert.ok(picture);
   const busy = pixel(picture, 50, 50);
-  assert.deepEqual(busy?.slice(0, 3), heatRgb(1), 'the densest spot is the top of the scale');
-  assert.ok(busy && busy[3] < 255 && busy[3] > 200, 'even the top band stays translucent');
+  const pink = heatRgb(1);
+  assert.ok(busy && busy.slice(0, 3).every((channel, i) => Math.abs(channel - pink[i]) <= 6), 'the densest spot is pink');
+  assert.ok(busy && busy[3] < 255 && busy[3] > 200, 'even the top stays translucent');
   const quiet = pixel(picture, 90, 50);
-  assert.ok(quiet && quiet[3] > 0 && quiet[3] < busy[3], 'the quiet spot shows in a lower band');
+  assert.ok(quiet && quiet[3] > 0 && quiet[3] < busy[3], 'the quiet spot is fainter');
+  assert.ok(quiet && quiet[2] > quiet[0] && quiet[0] < 160, 'and blue to purple, not pink');
   assert.equal(pixel(picture, 70, 50)?.[3], 0, 'between them the radar stays clear');
-  const colours = new Set<string>();
-  for (let i = 0; i < picture.rgba.length; i += 4) if (picture.rgba[i + 3] > 0) colours.add(picture.rgba.slice(i, i + 3).join(','));
-  assert.ok(colours.size <= DENSITY_THRESHOLDS, `${colours.size} colours, at most one per band`);
   assert.ok(picture.x <= 47 && picture.x + picture.width >= 93, 'the picture holds both spots');
+});
+
+test('the wash is continuous: no band edges, and the alpha falls off evenly towards the clear', () => {
+  const density = heatDensity({ grid: GRID, bins: [[75, 75, 20]], bandwidth: 3 });
+  assert.ok(density);
+  const picture = densityPicture(density);
+  assert.ok(picture);
+  const colours = new Set<string>();
+  const width = picture.width * picture.scale;
+  const row = Math.floor((75.5 - picture.y) * picture.scale);
+  const from = Math.floor((75.5 - picture.x) * picture.scale);
+  let last = -1;
+  let jump = 0;
+  for (let px = from; px < width; px++) {
+    const i = (row * width + px) * 4;
+    colours.add(`${picture.rgba[i]},${picture.rgba[i + 1]},${picture.rgba[i + 2]}`);
+    if (last >= 0) jump = Math.max(jump, Math.abs(last - picture.rgba[i + 3]));
+    last = picture.rgba[i + 3];
+  }
+  assert.ok(colours.size >= 30, `${colours.size} colours along the slope, want a smooth run and not a few bands`);
+  assert.ok(jump <= 24, `alpha steps by at most ${jump} between neighbouring pixels`);
+});
+
+test('the tone curve lifts the quiet end and keeps the ends', () => {
+  assert.equal(heatTone(0), 0);
+  assert.equal(heatTone(1), 1);
+  assert.ok(heatTone(0.25) > 0.4 && heatTone(0.25) < 0.5, 'a quarter of the peak is already purple-blue');
+  assert.equal(heatTone(3), 1);
+  assert.ok(DENSITY_FLOOR > 0 && DENSITY_FLOOR < 0.1);
 });
 
 test('a shared peak keeps both floors on one scale', () => {
@@ -86,7 +114,7 @@ test('timing colours by the arrival tone smoothed by weight, not by the count', 
   const late = heatDensity({ grid: GRID, bins: [[40, 40, 50]], bandwidth: 1.5, tone: [0] });
   assert.ok(late);
   const picture = densityPicture(late);
-  assert.deepEqual(pixel(picture ?? assert.fail('no picture'), 40, 40)?.slice(0, 3), heatRgb(0), 'a crowded but late spot is the cold end');
+  assert.deepEqual(pixel(picture ?? assert.fail('no picture'), 40, 40)?.slice(0, 3), heatRgb(0), 'a crowded but late spot is the blue end');
 });
 
 test('nothing to paint gives no density', () => {

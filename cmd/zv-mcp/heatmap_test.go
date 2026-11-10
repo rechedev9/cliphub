@@ -36,6 +36,7 @@ func TestHeatmapViewReadsAsTheOrchestratorAndTheReplayURL(t *testing.T) {
 		"a grenade outside utility":   {Kind: "position", Grenade: []string{"smoke"}},
 		"a window that ends too soon": {ClockFrom: 30, ClockTo: 10},
 		"too many cells":              {Limit: 51},
+		"a floor that does not exist": {Floor: "roof"},
 	} {
 		if _, err := bad.query(); err == nil {
 			t.Errorf("%s: no error", name)
@@ -153,5 +154,32 @@ func TestSummarizeHeatmapNamesAndSumsTheHottestCells(t *testing.T) {
 	}
 	if len(out.Zones) != 2 || out.Zones[0].Callout != "Outside" || out.Zones[0].Count != 8 || out.Zones[0].Cells != 2 || out.Zones[1].Callout != "Ramp" {
 		t.Fatalf("zones = %+v, want Outside with both near cells, then Ramp", out.Zones)
+	}
+}
+
+func TestFloorNarrowsTheCellsAndTotalsAndOpensTheSameFloorInStudio(t *testing.T) {
+	got := tuiclient.SpatialHeatmap{Heatmap: &tacticalplan.Heatmap{
+		Cells: []tacticalplan.HeatmapCell{{X: 1, Y: 1, Count: 3}, {X: 1, Y: 1, Level: "lower", Count: 2}},
+		Sides: []tacticalplan.HeatmapSide{{Side: tacticalplan.SideCT, Level: "default", Total: 3}, {Side: tacticalplan.SideCT, Level: "lower", Total: 2}},
+	}}
+	lower := restrictToFloor(got, "Lower")
+	if len(lower.Heatmap.Cells) != 1 || lower.Heatmap.Cells[0].Count != 2 || len(lower.Heatmap.Sides) != 1 || lower.Heatmap.Sides[0].Total != 2 {
+		t.Fatalf("lower = %+v, want the lower floor's cell and total only", lower.Heatmap)
+	}
+	if upper := restrictToFloor(got, "upper"); len(upper.Heatmap.Cells) != 1 || upper.Heatmap.Cells[0].Count != 3 || len(upper.Heatmap.Sides) != 1 {
+		t.Fatalf("upper = %+v, want the upper floor's cell and total only", upper.Heatmap)
+	}
+	if both := restrictToFloor(got, "both"); len(both.Heatmap.Cells) != 2 || len(got.Heatmap.Cells) != 2 {
+		t.Fatalf("both = %+v, want everything, and the answer read from untouched", both.Heatmap)
+	}
+	page := url.Values{}
+	heatmapViewIn{Floor: "lower"}.studioQuery(page)
+	if page.Get("piso") != "inferior" {
+		t.Fatalf("studio query = %s, want piso=inferior", page.Encode())
+	}
+	page = url.Values{}
+	heatmapViewIn{Floor: "upper", Kind: "death"}.studioQuery(page)
+	if page.Get("piso") != "superior" || page.Get("cuenta") != "death" {
+		t.Fatalf("studio query = %s, want piso=superior on deaths", page.Encode())
 	}
 }

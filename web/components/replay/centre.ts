@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
 import type { Stroke } from '@/lib/api/spatial';
+import type { TacticalEvent } from '@/lib/api/tactical';
 import type { ReplayClock } from '@/lib/replay/clock';
 import type { MapSettings } from '@/lib/replay/map-settings';
 import type { PlayerFocus } from '@/lib/replay/player-focus';
@@ -34,6 +35,8 @@ export type ReplayCentreProps = {
   onHoverSlot: (slot: number | null) => void;
   /** A right-click on a player: copy their setpos, as S does. */
   onCopySlot: (slot: number) => void;
+  /** A click on a grenade's throw point: copy that throw's setpos. */
+  onCopyThrow?: (event: TacticalEvent) => void;
   settings: MapSettings;
   /** Where the map puts its zoom buttons: the bar over it. */
   barSlot: HTMLElement | null;

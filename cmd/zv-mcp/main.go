@@ -178,8 +178,8 @@ round range, phase, AWP of each side, numeric advantage); its studio_path opens 
 Its focus (SteamID64s) puts players in the foreground of every form without dropping rounds, as a click on a player does.
 replay_overlay superposes those rounds from the end of freeze time, as Superponer does, with the same scope and focus.
 match_heatmap is the Mapa de calor of those rounds: kind position, death, kill (kill_at killer or victim), utility or timing,
-in a clock window (clock_from and clock_to, seconds after the round went live, or from_plant); it lists the hottest cells
-with their callout and counts. team_heatmap reads a team's matches on one map the same way, with players (SteamID64s) as the focus; by_player adds one heatmap per player (at most 5), and area (a zone in world units) keeps the cells inside it.
+in a clock window (clock_from and clock_to, seconds after the round went live, or from_plant) and on one floor of Nuke or Vertigo (floor upper or lower, as Piso does); it lists the hottest cells
+with their callout and counts. A position count is time: count times sample_seconds is the seconds the players spent there, read every sample_seconds of the window. team_heatmap reads a team's matches on one map the same way, with players (SteamID64s) as the focus; by_player adds one heatmap per player (at most 5), and area (a zone in world units) keeps the cells inside it.
 Buscador de patrones (the 2D tool with the Granadas, Jugadores and Patrón panels, opened at /patrones/<team id>): its Granadas panel is team_grenades with players and the clock window; its Jugadores panel is team_heatmap (players, by_player for one heat per player, clock_from and clock_to for the time window, area for the box) plus team_first_movement, the Primer movimiento list and histogram: when each player first leaves the spot the round starts on, over the newest 40 rounds of the scope, with players, a clock window and an area the player must pass through; its Patrón panel and the Tácticas tab are find_pattern_rounds, find_player_pattern and the saved-pattern tools.
 Replay > Patrones of a team: find_player_pattern finds the rounds in which a player passes through a zone in a clock window,
 or does not with invert; find_pattern_rounds adds up blocks (player, utility, plant), each with its own count. A zone is a world
@@ -193,7 +193,8 @@ pattern_rounds runs one (without a team, from its stored detection over the newe
 and delete_pattern removes it. Studio keeps each saved pattern's detection stored and refreshes it when a demo is analysed or the
 pattern is edited. match_patterns lists the saved patterns a match's rounds meet (round for one), as the Replay's Patrones panel does;
 get_play lists the patterns linked to a play.
-player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay).
+player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay); with grenades it
+also lists the player's grenades of the round, each with the setpos of its throw (the button on a grenade's row in the Replay's Eventos list).
 export_replay_gif saves a round's tramo as a looping GIF with the radar, players, utility, clock and saved drawings, as Exportar GIF (G) does.
 export_replay_video saves the tramo of one round, or of several rounds one after another, as an H.264 MP4 (Exportar MP4), with layers
 to pick what is drawn, include_voice for the synced team voice cut to the same moments and freeze_only for its freeze-time comms only.

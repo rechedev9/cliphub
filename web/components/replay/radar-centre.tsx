@@ -10,6 +10,7 @@ import type { FloorTimeline } from '@/lib/replay/floor-assign';
 import {
   BOTH_FLOORS,
   WHOLE_FLOORS,
+  floorExtent,
   floorRectsOf,
   followFloors,
   isWholeView,
@@ -34,7 +35,10 @@ import type { FrameCursor, TrailPoint } from '@/lib/tactical-replay';
 import type { RadarProjection } from '@/lib/tactical-spatial';
 import type { MapPane } from './gif-export';
 import { timelineSeconds } from '@/lib/tactical-timeline';
-import { isCalibrationUsable, levelForAltitude, radarViewRect, worldRectToRadarRect, worldToRendered } from '@/lib/tactical-transform';
+import { throwAt, throwMarkers } from '@/lib/replay/throw-hit';
+import type { ThrowMarker } from '@/lib/replay/throw-hit';
+import { utilityVisuals } from '@/lib/replay/three/utility-visuals';
+import { isCalibrationUsable, levelForAltitude, occupancyBounds, radarViewRect, worldRectToRadarRect, worldToRendered } from '@/lib/tactical-transform';
 import type { RadarRect } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { readRadarStyle } from '@/components/tactical/radar-style';
@@ -59,6 +63,8 @@ const OVERLAY_ALPHA = 0.42;
 const VIEW_MARGIN = 0.03;
 /** A press that moves less than this is a click on a player, not a drag. */
 const CLICK_SLOP = 4;
+/** How close a click lands to a throw point to copy it, in CSS pixels. */
+const THROW_REACH = 9;
 /** How far back the trails reach. */
 const TRAIL_SECONDS = 2;
 
@@ -69,7 +75,7 @@ type Readers = {
 
 /** Where one view puts each floor's pane, and the window of the radar each pane's plate covers. */
 type Framing = { projections: RadarProjection[]; shown: RadarRect[] };
-type Painted = { drawn: DrawnPlayer[]; samples: TacticalSample[]; levels: ReadonlyMap<number, RadarLevel>; view: FloorView; panes: MapPane[] };
+type Painted = { drawn: DrawnPlayer[]; throws: ThrowMarker[]; samples: TacticalSample[]; levels: ReadonlyMap<number, RadarLevel>; view: FloorView; panes: MapPane[] };
 
 const GRID: MapArt = { kind: 'grid' };
 const NO_FOCUS: readonly number[] = [];
@@ -101,10 +107,10 @@ function directionTo(from: FloorPane, to: FloorPane): { dx: number; dy: number }
  * radar image when Studio has it), the players, their names and the grenades.
  * On a two-floor map each floor has its own block, cropped to its extent.
  * The wheel zooms on the cursor, a drag pans, a click highlights a player and
- * a right-click copies their setpos.
+ * a right-click copies their setpos; a click on a throw point copies the throw's.
  * The canvas mirrors the clock and is `aria-hidden`; the panels say the same in text.
  */
-export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, focus, onPickSlot, onHoverSlot, onCopySlot, followSlot, onFollowSlot, settings, barSlot, captureRef, speakingAt }: ReplayCentreProps): ReactNode {
+export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, focus, onPickSlot, onHoverSlot, onCopySlot, onCopyThrow, followSlot, onFollowSlot, settings, barSlot, captureRef, speakingAt }: ReplayCentreProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLCanvasElement | null>(null);
@@ -113,6 +119,8 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
   const plateRef = useRef(new Map<RadarLevel, { key: string; canvas: HTMLCanvasElement }>());
   /** Where each player was drawn, in the container's CSS pixels. */
   const drawnRef = useRef<DrawnPlayer[]>([]);
+  /** Where each throw point of the focused round was drawn, in the container's CSS pixels. */
+  const throwsRef = useRef<ThrowMarker[]>([]);
   const spotsRef = useRef(new Map<RadarLevel, Map<number, number>>());
   const samplesRef = useRef<TacticalSample[]>([]);
   const dominantRef = useRef<RadarLevel>(RADAR_LEVELS.default);
@@ -124,6 +132,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
   const show = settings.show;
   const [zoomState, setZoomState] = useState<{ map: string; view: FloorView } | null>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const [overThrow, setOverThrow] = useState(false);
   const [grabbing, setGrabbing] = useState(false);
 
   const focused = rounds.find((round) => round.focused) ?? rounds.at(-1);
@@ -175,9 +184,9 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
     if (art.kind !== 'nav') return fallback;
     const { calibration } = geometry;
     const of = (level: RadarLevel): RadarRect => {
-      const bounds = floorBounds(floorPolygons(art.model, calibration.lower_altitude_max, level));
-      if (bounds === null) return fallback[level];
-      return paddedView(worldRectToRadarRect(calibration, bounds, 1), VIEW_MARGIN);
+      const played = occupancyBounds({ ...geometry, levels: geometry.levels.filter((entry) => entry.name === level) });
+      const nav = floorBounds(floorPolygons(art.model, calibration.lower_altitude_max, level));
+      return floorExtent({ calibration, nav, played }) ?? fallback[level];
     };
     return { default: of(RADAR_LEVELS.default), lower: of(RADAR_LEVELS.lower) };
   }, [art, base, bothFloors, drawable, geometry]);
@@ -215,6 +224,24 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
     for (const round of rounds) out.set(round.key, createFloorTimeline(geometry.calibration, round.frames));
     return out;
   }, [geometry, rounds]);
+
+  // The floor each thrower stood on when a grenade left the hand, by the grenade's place in its round's events.
+  const throwLevels = useMemo(() => {
+    const out = new Map<string, ReadonlyMap<number, RadarLevel>>();
+    for (const round of rounds) {
+      const timeline = timelines.get(round.key);
+      const levels = new Map<number, RadarLevel>();
+      round.events.forEach((entry, index) => {
+        const { actor_slot: slot, throw: thrown } = entry.event;
+        const cursor = thrown === undefined || slot === undefined ? undefined : frameCursor(round.frames, thrown.tick);
+        if (timeline === undefined || cursor === undefined || slot === undefined) return;
+        const level = timeline.levelAt(slot, cursor.index, RADAR_LEVELS.default);
+        levels.set(index, level);
+      });
+      out.set(round.key, levels);
+    }
+    return out;
+  }, [rounds, timelines]);
 
   const readers = useMemo(() => {
     const out = new Map<string, Readers>();
@@ -297,6 +324,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
           samples: drawn,
           everyone: layered,
           levels,
+          throwLevels: throwLevels.get(round.key),
           across,
           trails: reader.trails(cursor),
           events: round.events,
@@ -318,7 +346,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
         round.focused ? { visible, spots: spotsOf(spotsRef.current, level) } : null,
       );
     },
-    [bothFloors, dotScale, focus, focusByMatch, geometry, levelsOf, nameScale, readers, show, speakingAt, tickOf],
+    [bothFloors, dotScale, focus, focusByMatch, geometry, levelsOf, nameScale, readers, show, speakingAt, throwLevels, tickOf],
   );
 
   // With Seguir on, the view that keeps the followed player in it, on the pane of the floor they stand on.
@@ -359,6 +387,9 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       const others = rounds.filter((round) => round !== focused);
       const drawn: DrawnPlayer[] = [];
+      const throws: ThrowMarker[] = [];
+      // The throw points are drawn with the arcs, so they exist only while trajectories show.
+      const visuals = show.trajectories ? utilityVisuals(focused.events, timelineSeconds(focused.timeline, tickOf(focused, seconds)), (at) => timelineSeconds(focused.timeline, at)) : [];
       panes.forEach((pane, index) => {
         const level = bothFloors ? pane.level : dominant;
         const paneAtView = at.projections[index];
@@ -392,12 +423,14 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
         }
         ctx.setTransform(dpr, 0, 0, dpr, paneAtView.offsetX * dpr, paneAtView.offsetY * dpr);
         for (const player of drawRound(ctx, focused, { seconds, style, level, at, index, away })) drawn.push({ ...player, x: player.x + paneAtView.offsetX, y: player.y + paneAtView.offsetY });
+        const markers = throwMarkers({ visuals, calibration: geometry.calibration, size: paneAtView.size, level, offFloorAlpha: bothFloors ? 0 : OFF_FLOOR_ALPHA, throwLevels: throwLevels.get(focused.key) });
+        for (const marker of markers) throws.push({ ...marker, x: marker.x + paneAtView.offsetX, y: marker.y + paneAtView.offsetY });
         ctx.restore();
       });
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      return { drawn, samples, levels, view: frameView, panes: panes.map((pane, index) => ({ level: bothFloors ? pane.level : undefined, projection: at.projections[index] })) };
+      return { drawn, throws, samples, levels, view: frameView, panes: panes.map((pane, index) => ({ level: bothFloors ? pane.level : undefined, projection: at.projections[index] })) };
     },
-    [bothFloors, box, drawRound, drawable, followFrom, focused, framing, framingOf, geometry, levelsOf, panes, plate, readers, rounds, tickOf, view],
+    [bothFloors, box, drawRound, drawable, followFrom, focused, framing, framingOf, geometry, levelsOf, panes, plate, readers, rounds, show.trajectories, throwLevels, tickOf, view],
   );
 
   const render = useCallback(
@@ -408,6 +441,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
       if (painted === null) return;
       const { drawn } = painted;
       drawnRef.current = drawn;
+      throwsRef.current = painted.throws;
       samplesRef.current = painted.samples;
 
       const tip = tipRef.current;
@@ -533,6 +567,8 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
     return best?.slot ?? null;
   };
 
+  const throwAtPoint = (x: number, y: number): number | null => throwAt({ markers: throwsRef.current, x, y, reach: THROW_REACH });
+
   useEffect(() => onHoverSlot(hover), [hover, onHoverSlot]);
 
   const dragRef = useRef<{ x: number; y: number; moved: boolean; id: number; level: RadarLevel } | null>(null);
@@ -548,7 +584,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
 
   let cursorClass = 'cursor-grab';
   if (grabbing) cursorClass = 'cursor-grabbing';
-  else if (hover !== null) cursorClass = 'cursor-pointer';
+  else if (hover !== null || overThrow) cursorClass = 'cursor-pointer';
   const floorsNote = bothFloors ? ' Piso superior a la izquierda e inferior a la derecha.' : '';
   const label = mode === 'multi' ? `${rounds.length} rondas superpuestas desde el final del tiempo de compra${floorsNote}` : `Mapa de la ronda ${focused?.round.number ?? ''}${floorsNote}`;
   const hovered = hover === null ? null : drawnRef.current.find((player) => player.slot === hover);
@@ -580,6 +616,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
             if (followSlot !== null) onFollowSlot(null);
             setGrabbing(true);
             setHover(null);
+            setOverThrow(false);
             drag.x = at.x;
             drag.y = at.y;
             const pane = panes.find((entry) => entry.level === drag.level) ?? panes[0];
@@ -588,6 +625,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
           }
           const slot = playerAt(at.x, at.y);
           setHover((current) => (current === slot ? current : slot));
+          setOverThrow(slot === null && onCopyThrow !== undefined && throwAtPoint(at.x, at.y) !== null);
         }}
         onPointerUp={(event) => {
           const drag = dragRef.current;
@@ -596,9 +634,18 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
           if (drag === null || drag.moved) return;
           const at = local(event);
           const slot = playerAt(at.x, at.y);
-          if (slot !== null) onPickSlot(slot, event.shiftKey);
+          if (slot !== null) {
+            onPickSlot(slot, event.shiftKey);
+            return;
+          }
+          const thrown = throwAtPoint(at.x, at.y);
+          const entry = thrown === null ? undefined : focused?.events[thrown];
+          if (entry !== undefined && onCopyThrow !== undefined) onCopyThrow(entry.event);
         }}
-        onPointerLeave={() => setHover(null)}
+        onPointerLeave={() => {
+          setHover(null);
+          setOverThrow(false);
+        }}
         onContextMenu={(event) => {
           const at = local(event);
           const slot = playerAt(at.x, at.y);

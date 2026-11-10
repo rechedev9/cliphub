@@ -5,7 +5,7 @@ import { ChevronLeft, Maximize, Minimize } from 'lucide-react';
 import Link from 'next/link';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import type { Stroke } from '@/lib/api/spatial';
-import type { TacticalSource } from '@/lib/api/tactical';
+import type { TacticalEvent, TacticalSource } from '@/lib/api/tactical';
 import { matchHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { DEMO_DETAILS_ID, MATCH_SUMMARY_TAB, MATCH_TAB_QUERY } from '@/lib/library/rounds';
@@ -15,7 +15,7 @@ import type { CentreRound } from '@/lib/replay/centre-round';
 import { ReplayClock } from '@/lib/replay/clock';
 import { pickPlayer } from '@/lib/replay/player-focus';
 import { roundOutcome } from '@/lib/replay/round-outcome';
-import { playerSetpos } from '@/lib/replay/setpos';
+import { grenadeSetpos, playerSetpos } from '@/lib/replay/setpos';
 import { isMultiLevelMap } from '@/lib/tactical-transform';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
@@ -369,6 +369,15 @@ export function ReplayWorkspace({
     const { frames, doc, timeline } = focused;
     const copied = playerSetpos({ frames, players: doc.players, round: focused.round.number, timeline, slot, tick: tickOf(focused, clock.seconds) });
     if (copied !== null) setpos.copy(copied);
+    else setpos.unavailable('Esta ronda no guardó la posición de ese jugador');
+  };
+
+  // The throw's own setpos, from the Eventos list: where the thrower stood and looked as the grenade left the hand.
+  const copyGrenadeSetpos = (event: TacticalEvent): void => {
+    if (focused === null) return;
+    const copied = grenadeSetpos({ event, players: focused.doc.players, round: focused.round.number, timeline: focused.timeline });
+    if (copied !== null) setpos.copy(copied);
+    else setpos.unavailable('La demo no mostró este lanzamiento: no hay setpos');
   };
 
   // A click on a player or a roster name puts them in the foreground and copies their setpos, as EDGE does.
@@ -603,6 +612,7 @@ export function ReplayWorkspace({
               onPickSlot={pickSlot}
               onHoverSlot={onHoverSlot}
               onCopySlot={copyPlayerSetpos}
+              onCopyThrow={copyGrenadeSetpos}
               settings={mapSettings}
               barSlot={zoomSlot}
               captureRef={captureRef}
@@ -618,6 +628,7 @@ export function ReplayWorkspace({
               showScore={mapSettings.show.scoreline}
               scoreCentred={stack !== undefined}
               onToggleEvents={() => setEventsOpen((value) => !value)}
+              onCopyThrow={copyGrenadeSetpos}
               onSeek={(seconds) => {
                 setPlaying(false);
                 seekTo(clockSecondsOf(focused.timeline, timelineTick(focused.timeline, seconds)));

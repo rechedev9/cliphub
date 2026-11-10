@@ -3,7 +3,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { ChevronDown, ListOrdered } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
-import type { TacticalSide } from '@/lib/api/tactical';
+import type { TacticalEvent, TacticalSide } from '@/lib/api/tactical';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import { docNames } from '@/lib/replay/centre-round';
 import { BOMB_SECONDS, aliveCounts, bombState, hudClock, killFeed, killMarks, teamNamesFor } from '@/lib/replay/map-hud';
@@ -32,6 +32,7 @@ export function MapHud({
   roundSeconds,
   eventsOpen,
   onToggleEvents,
+  onCopyThrow,
   onSeek,
   showFeed,
   showScore,
@@ -48,6 +49,8 @@ export function MapHud({
   roundSeconds: number;
   eventsOpen: boolean;
   onToggleEvents: () => void;
+  /** Copies the setpos of a grenade's throw, from its row in the list of events. */
+  onCopyThrow: (event: TacticalEvent) => void;
   /** Seeks to a moment given in seconds on the round's own bar. */
   onSeek: (roundSeconds: number) => void;
 }): ReactNode {
@@ -89,7 +92,7 @@ export function MapHud({
         </button>
         {eventsOpen ? (
           <div className="pointer-events-auto min-h-0 w-full overflow-y-auto overscroll-contain rounded-md border border-border-strong bg-surface-1/95 shadow-[var(--elev-4)] [scrollbar-width:thin] motion-safe:animate-in motion-safe:slide-in-from-top-1">
-            <TacticalEventList timeline={focused.timeline} events={focused.events} names={names} onSeek={onSeek} />
+            <TacticalEventList timeline={focused.timeline} events={focused.events} names={names} onSeek={onSeek} onCopyThrow={onCopyThrow} />
           </div>
         ) : (
           <ol aria-label="Últimas bajas" className="flex flex-col items-end gap-1">

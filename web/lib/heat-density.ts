@@ -1,7 +1,7 @@
 import { heatRgb } from './tactical-spatial.ts';
 
 // The heatmap as cs2lens paints it: the server's bins on a 150 grid over the radar, a Gaussian
-// kernel per map times Suavizado, and filled contours at 24 thresholds. Picking stays on the cells.
+// kernel per map times Suavizado, and a continuous blue to pink wash. Picking stays on the cells.
 
 /** Kernel width per map, in grid squares: tight maps get a narrower kernel. */
 const MAP_BANDWIDTH: Record<string, number> = {
@@ -23,8 +23,15 @@ export const SMOOTHING_MIN = 0.33;
 export const SMOOTHING_MAX = 1.5;
 export const SMOOTHING_DEFAULT = 1;
 
-/** Contour thresholds between nothing and the peak. */
-export const DENSITY_THRESHOLDS = 24;
+/** Under this share of the peak a pixel stays clear, so the radar shows through the empty parts. */
+export const DENSITY_FLOOR = 0.04;
+/** The wash fades in over this many floors above `DENSITY_FLOOR`, so the edge is soft and never a rim. */
+const EDGE_FLOORS = 3;
+/** Below 1, so a path a player ran once still reads beside a spot they held for half a minute. */
+const TONE_CURVE = 0.6;
+/** How opaque the wash is at its faintest and at the peak; the plate always shows a little through it. */
+const ALPHA_LOW = 0.4;
+const ALPHA_HIGH = 0.88;
 
 /** Pixels of the picture per grid square, so the contour edges stay smooth on a large plate. */
 const PICTURE_SCALE = 6;
@@ -85,11 +92,16 @@ function sampler(values: Float32Array, grid: number): (gx: number, gy: number) =
   };
 }
 
-/** Filled contours of the density against `peak`; pass the larger peak of two floors so both read on one scale. */
+/** The colour position of a share of the peak, from 0 (blue) to 1 (pink). */
+export function heatTone(share: number): number {
+  return Math.min(1, Math.max(0, share)) ** TONE_CURVE;
+}
+
+/** The wash of the density against `peak`; pass the larger peak of two floors so both read on one scale. */
 export function densityPicture(density: HeatDensity, peak: number = density.peak): DensityPicture | null {
   const { grid, mass, tone } = density;
   if (!(peak > 0)) return null;
-  const floor = peak / DENSITY_THRESHOLDS;
+  const floor = peak * DENSITY_FLOOR;
   let left = grid;
   let top = grid;
   let right = -1;
@@ -117,18 +129,17 @@ export function densityPicture(density: HeatDensity, peak: number = density.peak
     const gy = y + (py + 0.5) / PICTURE_SCALE;
     for (let px = 0; px < columns; px++) {
       const gx = x + (px + 0.5) / PICTURE_SCALE;
-      // Thresholds at k/24 of the peak: under the first stays clear, over the last is the top band.
-      const band = Math.min(DENSITY_THRESHOLDS - 1, Math.floor((massAt(gx, gy) / peak) * DENSITY_THRESHOLDS));
-      if (band < 1) continue;
-      const level = band / (DENSITY_THRESHOLDS - 1);
-      // Timing colours each band by how early its players got there; the rest by the density itself.
-      const strength = toneAt ? Math.round(toneAt(gx, gy) * DENSITY_THRESHOLDS) / DENSITY_THRESHOLDS : level;
-      const [r, g, b] = heatRgb(strength);
+      const share = massAt(gx, gy) / peak;
+      if (share < DENSITY_FLOOR) continue;
+      const edge = Math.min(1, (share - DENSITY_FLOOR) / (DENSITY_FLOOR * EDGE_FLOORS));
+      const level = heatTone(share);
+      // Timing colours each spot by how early its players got there; the rest by the density itself.
+      const [r, g, b] = heatRgb(toneAt ? toneAt(gx, gy) : level);
       const i = (py * columns + px) * 4;
       rgba[i] = r;
       rgba[i + 1] = g;
       rgba[i + 2] = b;
-      rgba[i + 3] = Math.round(255 * (0.3 + 0.55 * level));
+      rgba[i + 3] = Math.round(255 * edge * (ALPHA_LOW + (ALPHA_HIGH - ALPHA_LOW) * level));
     }
   }
   return { rgba, x, y, width, height, scale: PICTURE_SCALE };

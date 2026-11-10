@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { BOTH_FLOORS, PANE_GAP, WHOLE_FLOORS, floorWindow, followFloors, layoutFloors, localProjection, nearestPane, paneAt, paneProjection, panFloors, rememberFloorView, rememberedFloorView, viewOfWindow, zoomFloors } from './floor-split.ts';
+import { BOTH_FLOORS, PANE_GAP, WHOLE_FLOORS, floorExtent, floorWindow, followFloors, layoutFloors, localProjection, nearestPane, paneAt, paneProjection, panFloors, rememberFloorView, rememberedFloorView, viewOfWindow, zoomFloors } from './floor-split.ts';
 import type { FloorRects } from './floor-split.ts';
+import type { RadarCalibration } from '../api/tactical.ts';
+import { worldToRendered } from '../tactical-transform.ts';
 
 /** A wide upper floor and a narrower, taller lower one, as on Nuke. */
 const RECTS: FloorRects = { default: { x: 0.1, y: 0.3, width: 0.6, height: 0.3 }, lower: { x: 0.55, y: 0.2, width: 0.2, height: 0.4 } };
@@ -88,13 +90,28 @@ test('zooming keeps the point under the cursor on the pane the cursor is in', ()
 
 test('a pan moves both floors by the same world distance', () => {
   const layout = layoutFloors({ box: { width: 1200, height: 600 }, rects: RECTS, levels: BOTH_FLOORS });
-  const zoomed = zoomFloors({ pane: layout.panes[0], view: WHOLE_FLOORS, cursor: { x: layout.panes[0].width / 2, y: layout.panes[0].height / 2 }, factor: 3 });
-  const moved = panFloors({ pane: layout.panes[0], view: zoomed, dx: -30, dy: 0 });
+  // A world point both extents hold (x from 0.55 to 0.7), so neither window is held back by its edge.
+  const at = { x: 0.62, y: 0.4 };
+  const zoomed = followFloors({ pane: layout.panes[0], view: { zoom: 3, panX: 0, panY: 0 }, point: at });
+  const moved = panFloors({ pane: layout.panes[0], view: zoomed, dx: -4, dy: 0 });
   assert.ok(moved.panX > zoomed.panX);
   assert.equal(moved.panY, zoomed.panY);
   const [a, b] = layout.panes.map((pane) => floorWindow(pane.rect, moved).x - floorWindow(pane.rect, zoomed).x);
   assert.ok(a > 0);
   assert.ok(Math.abs(a - b) < 1e-9);
+});
+
+test('following a player who changes floor leaves the view where it is', () => {
+  const layout = layoutFloors({ box: { width: 1200, height: 600 }, rects: RECTS, levels: BOTH_FLOORS });
+  const at = { x: 0.62, y: 0.4 };
+  const onUpper = followFloors({ pane: layout.panes[0], view: { zoom: 3, panX: 0, panY: 0 }, point: at });
+  // The same world point seen from the other pane: the player is already in sight there, so nothing moves.
+  assert.deepEqual(followFloors({ pane: layout.panes[1], view: onUpper, point: at }), onUpper);
+  const windows = layout.panes.map((pane) => floorWindow(pane.rect, onUpper));
+  for (const window of windows) {
+    assert.ok(at.x >= window.x && at.x <= window.x + window.width);
+    assert.ok(at.y >= window.y && at.y <= window.y + window.height);
+  }
 });
 
 test('following a player on the lower pane references that pane, not the first', () => {
@@ -122,4 +139,20 @@ test('the framing is remembered per map until it is back to the whole map', () =
   assert.deepEqual(rememberedFloorView('de_vertigo'), WHOLE_FLOORS);
   rememberFloorView('de_nuke', WHOLE_FLOORS);
   assert.deepEqual(rememberedFloorView('de_nuke'), WHOLE_FLOORS);
+});
+
+test('a floor extent holds the nav mesh and the ground played beyond it, with room for a dot on the edge', () => {
+  const nuke: RadarCalibration = { map: 'de_nuke', source: 'overview', pos_x: -3453, pos_y: 2887, scale: 7, size: 1024, lower_altitude_max: -495 };
+  // The lower floor of a real Nuke demo: the mesh ends at y -2444 and y 620, players walked to y -2480 and y 678.
+  const nav = { minX: 22.5, minY: -2444.5, maxX: 1653, maxY: 620 };
+  const played = { min_x: 64, min_y: -2496, max_x: 1664, max_y: 678 };
+  const rect = floorExtent({ calibration: nuke, nav, played });
+  assert.ok(rect !== null);
+  const low = worldToRendered(nuke, 1664, -2496, 1);
+  const high = worldToRendered(nuke, 22.5, 678, 1);
+  assert.ok(rect.y + rect.height - low.y >= 0.025 - 1e-9);
+  assert.ok(high.y - rect.y >= 0.025 - 1e-9);
+  assert.ok(low.x <= rect.x + rect.width && high.x >= rect.x);
+  assert.deepEqual(floorExtent({ calibration: nuke, nav, played: null }), floorExtent({ calibration: nuke, nav, played: { min_x: 100, min_y: -2000, max_x: 200, max_y: 0 } }));
+  assert.equal(floorExtent({ calibration: nuke, nav: null, played: null }), null);
 });

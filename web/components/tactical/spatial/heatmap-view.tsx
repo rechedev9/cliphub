@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Flame } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { getSpatialHeatmap } from '@/lib/api/library';
 import type { SpatialScope } from '@/lib/api/library';
 import { HEATMAP_GRENADES, HEATMAP_KINDS, KILL_SPOTS } from '@/lib/api/spatial';
@@ -11,12 +12,11 @@ import type { RadarLevel, TacticalGeometry, TacticalSide } from '@/lib/api/tacti
 import { eventKindLabel, placeLabel } from '@/lib/tactical-labels';
 import {
   HEATMAP_KIND_LABEL,
-  HEATMAP_LEGEND_LABEL,
-  HEATMAP_UNIT_LABEL,
   KILL_SPOT_LABEL,
   LEVEL_LABEL,
-  HEAT_GRADIENT,
   arrivalStrength,
+  emptyMessage,
+  heatAmount,
   heatmapCellAt,
   heatmapLayer,
   heatmapLevels,
@@ -31,7 +31,7 @@ import type { DensityPicture } from '@/lib/heat-density';
 import { worldRectToRadarRect } from '@/lib/tactical-transform';
 import type { WorldMark } from '@/lib/tactical-transform';
 import { DEFAULT_HEAT } from '@/lib/replay/heat-choice';
-import type { HeatChoice } from '@/lib/replay/heat-choice';
+import type { HeatChoice, HeatFloor } from '@/lib/replay/heat-choice';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptySample } from '@/components/analysis/empty-sample';
 import { cn } from '@/lib/utils';
@@ -39,16 +39,18 @@ import { RadarSurface } from './radar-surface';
 import type { RadarFrame } from './radar-surface';
 import { Segmented } from '@/components/ui/segmented';
 import { EvidenceChips } from './spatial-controls';
+import { HeatLegend } from './heat-legend';
 import { TramoBar, useTramo } from '@/components/replay/tramo-bar';
 import type { TramoControl } from '@/components/replay/tramo-bar';
 import { isWholeRound } from '@/lib/replay/tramo';
 
 const TOP_CELLS = 8;
 
-type Load = { kind: 'loading' } | { kind: 'ready'; data: SpatialResponse } | { kind: 'failed' };
+/** `ready` keeps the scope its answer belongs to: a new window or kind keeps the old picture up meanwhile, a new scope does not. */
+type Load = { kind: 'loading' } | { kind: 'ready'; data: SpatialResponse; scopeKey: string } | { kind: 'failed' };
 
-/** One floor or both side by side, on a two-floor map. */
-type FloorChoice = RadarLevel | 'both';
+/** Waits this long after the last change before asking again, so dragging the tramo asks once. */
+const RUN_DELAY_MS = 180;
 
 /** The owner's heat choice, kept in its URL; without it the view keeps its own. */
 export type HeatControl = { choice: HeatChoice; onChange: (next: HeatChoice) => void };
@@ -93,14 +95,17 @@ export function HeatmapView({
   const tramoTo = whole ? 0 : tramo.to;
   const fromPlant = tramo.fromPlant === true;
   const [side, setSide] = useState<TacticalSide | ''>(sideHint);
-  const [floor, setFloor] = useState<FloorChoice>('both');
+  const floor: HeatFloor = choice.floor;
   const [smoothing, setSmoothing] = useState(SMOOTHING_DEFAULT);
   const [selected, setSelected] = useState<string | null>(null);
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
+  const [attempt, setAttempt] = useState(0);
+  const [busy, setBusy] = useState(false);
   const scopeKey = JSON.stringify(scope);
   const scopeRef = useRef(scope);
   const imagesRef = useRef(new WeakMap<Uint8ClampedArray<ArrayBuffer>, HTMLCanvasElement>());
   const grenadeKey = grenades.join(',');
+  const loadedScope = useRef('');
 
   useEffect(() => {
     scopeRef.current = scope;
@@ -110,35 +115,46 @@ export function HeatmapView({
 
   useEffect(() => {
     let active = true;
-    setLoad({ kind: 'loading' });
-    getSpatialHeatmap(scopeRef.current, {
-      kind,
-      killAt,
-      from: tramoFrom,
-      to: tramoTo,
-      fromPlant,
-      grenades: kind === 'utility' && grenadeKey !== '' ? grenadeKey.split(',').filter(isGrenade) : [],
-    })
-      .then((data) => {
-        if (!active) return;
-        setLoad({ kind: 'ready', data });
-        onLoaded?.(data);
-      })
-      .catch(() => {
-        if (active) setLoad({ kind: 'failed' });
-      });
+    // The first answer of a scope asks at once; a new window or kind waits for the drag to settle.
+    setBusy(loadedScope.current === scopeKey);
+    const timer = window.setTimeout(
+      () => {
+        getSpatialHeatmap(scopeRef.current, {
+          kind,
+          killAt,
+          from: tramoFrom,
+          to: tramoTo,
+          fromPlant,
+          grenades: kind === 'utility' && grenadeKey !== '' ? grenadeKey.split(',').filter(isGrenade) : [],
+        })
+          .then((answer) => {
+            if (!active) return;
+            loadedScope.current = scopeKey;
+            setBusy(false);
+            setLoad({ kind: 'ready', data: answer, scopeKey });
+            onLoaded?.(answer);
+          })
+          .catch(() => {
+            if (!active) return;
+            setBusy(false);
+            setLoad({ kind: 'failed' });
+          });
+      },
+      loadedScope.current === scopeKey ? RUN_DELAY_MS : 0,
+    );
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
-  }, [scopeKey, kind, killAt, tramoFrom, tramoTo, fromPlant, grenadeKey, onLoaded]);
+  }, [scopeKey, kind, killAt, tramoFrom, tramoTo, fromPlant, grenadeKey, onLoaded, attempt]);
 
-  const data = load.kind === 'ready' ? load.data : null;
+  const data = load.kind === 'ready' && load.scopeKey === scopeKey ? load.data : null;
   const heatmap = data?.heatmap;
   const geometry = data?.geometry ?? null;
   const levels = useMemo(() => (heatmap ? heatmapLevels(heatmap) : []), [heatmap]);
   const twoFloors = levels.length > 1;
   const shownSide = heatmap ? heatmapSide(heatmap, side) : TACTICAL_SIDES.ct;
-  const shownFloor: FloorChoice = twoFloors && (floor === 'both' || levels.includes(floor)) ? floor : (levels[0] ?? RADAR_LEVELS.default);
+  const shownFloor: HeatFloor = twoFloors && (floor === 'both' || levels.includes(floor)) ? floor : (levels[0] ?? RADAR_LEVELS.default);
   const shownLevels = useMemo<RadarLevel[]>(() => (shownFloor === 'both' ? levels : [shownFloor]), [levels, shownFloor]);
   const layers = useMemo(
     () => (heatmap ? shownLevels.map((level) => ({ level, layer: heatmapLayer(heatmap, shownSide, level) })) : []),
@@ -195,11 +211,16 @@ export function HeatmapView({
     },
     [densities, geometry, heatmap, selectedCell],
   );
-  // Every side and level, so switching between them keeps the framing.
+  // Every side and level, so switching between them keeps the framing. Each mark carries an altitude
+  // on its own floor's side of the cut, so a floor's crop only grows for the cells that stand on it.
   const marks = useMemo(() => {
     const cs = heatmap?.cell_size ?? 0;
-    return (heatmap?.cells ?? []).flatMap((cell): WorldMark[] => [[cell.x * cs, cell.y * cs], [(cell.x + 1) * cs, (cell.y + 1) * cs]]);
-  }, [heatmap]);
+    const cut = geometry?.calibration.lower_altitude_max;
+    return (heatmap?.cells ?? []).flatMap((cell): WorldMark[] => {
+      const z = cut === undefined ? [] : [cell.level === RADAR_LEVELS.lower ? cut - 1 : cut + 1];
+      return [[cell.x * cs, cell.y * cs, ...z], [(cell.x + 1) * cs, (cell.y + 1) * cs, ...z]];
+    });
+  }, [heatmap, geometry]);
 
   const onPoint = useCallback(
     (world: { x: number; y: number }, level: RadarLevel) => {
@@ -218,15 +239,21 @@ export function HeatmapView({
   const toggleGrenade = (grenade: HeatmapGrenade): void =>
     setChoice({ ...choice, grenades: grenades.includes(grenade) ? grenades.filter((g) => g !== grenade) : [...grenades, grenade] });
 
+  const otherSide = shownSide === TACTICAL_SIDES.ct ? TACTICAL_SIDES.t : TACTICAL_SIDES.ct;
+  const otherSideTotal = heatmap ? heatmap.sides.filter((entry) => entry.side === otherSide).reduce((sum, entry) => sum + entry.total, 0) : 0;
+
   const body = (): ReactNode => {
     if (load.kind === 'failed') {
       return (
-        <p role="alert" className="text-body-sm text-destructive">
-          No se pudo calcular el mapa de calor. Comprueba que ClipHub Studio sigue abierto.
-        </p>
+        <div role="alert" className="flex flex-wrap items-center gap-3">
+          <p className="text-body-sm text-destructive">No se pudo calcular el mapa de calor. Comprueba que ClipHub Studio sigue abierto.</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+            Reintentar
+          </Button>
+        </div>
       );
     }
-    if (load.kind === 'loading') {
+    if (data === null) {
       return (
         <div role="status" aria-label="Calculando el mapa de calor" className="grid gap-4 @[56rem]:grid-cols-[minmax(0,1fr)_300px]">
           <Skeleton className="aspect-square w-full" />
@@ -234,15 +261,23 @@ export function HeatmapView({
         </div>
       );
     }
-    if (!geometry || !heatmap || !layer) {
+    if (!geometry || !heatmap) {
       return (
         <EmptySample>
           <p className="text-body-sm text-fg-3">No hay partidas analizadas con este filtro.</p>
         </EmptySample>
       );
     }
+    if (!layer) {
+      // The scope has rounds but nothing counted in them: say what the filters left, not that matches are missing.
+      return (
+        <EmptySample>
+          <p className="text-body-sm text-fg-2">{emptyMessage({ kind: heatmap.kind, rounds: heatmap.rounds, missing: heatmap.missing_positions, matches: heatmap.matches })}</p>
+        </EmptySample>
+      );
+    }
     return (
-      <div className="grid gap-4 @[56rem]:grid-cols-[minmax(0,1fr)_300px]">
+      <div className={cn('grid gap-4 transition-opacity @[56rem]:grid-cols-[minmax(0,1fr)_300px]', busy && 'opacity-60')} aria-busy={busy}>
         <RadarSurface
           geometry={geometry}
           level={shownLevels[0] ?? RADAR_LEVELS.default}
@@ -259,11 +294,16 @@ export function HeatmapView({
           matchCount={heatmap.matches}
           missing={heatmap.missing_positions}
           cellSize={heatmap.cell_size}
-          samplesPerRound={heatmap.samples_per_round}
+          sampleSeconds={heatmap.sample_seconds}
           geometry={geometry}
           matches={matches}
           selected={selectedCell}
           bothFloors={shownLevels.length > 1}
+          otherSide={otherSideTotal > 0 ? otherSide : null}
+          onOtherSide={() => {
+            setSide(otherSide);
+            setSelected(null);
+          }}
           onSelect={(cell) => setSelected(cellKey(cell))}
         />
       </div>
@@ -292,12 +332,12 @@ export function HeatmapView({
           }}
         />
         {twoFloors ? (
-          <Segmented<FloorChoice>
+          <Segmented<HeatFloor>
             label="Piso"
             value={shownFloor}
             options={[{ value: 'both', label: 'Los dos' }, ...levels.map((value) => ({ value, label: LEVEL_LABEL[value] }))]}
             onChange={(next) => {
-              setFloor(next);
+              setChoice({ ...choice, floor: next });
               setSelected(null);
             }}
           />
@@ -383,11 +423,13 @@ function HeatmapSidebar({
   matchCount,
   missing,
   cellSize,
-  samplesPerRound,
+  sampleSeconds,
   geometry,
   matches,
   selected,
   bothFloors,
+  otherSide,
+  onOtherSide,
   onSelect,
 }: {
   kind: HeatmapKind;
@@ -396,14 +438,17 @@ function HeatmapSidebar({
   matchCount: number;
   missing: number;
   cellSize: number;
-  samplesPerRound: number;
+  sampleSeconds: number;
   geometry: TacticalGeometry;
   matches: ReadonlyMap<string, SpatialMatchRef>;
   selected: HeatmapCell | undefined;
   bothFloors: boolean;
+  /** The other side when it has data and this one is empty, so the empty list can offer it. */
+  otherSide: TacticalSide | null;
+  onOtherSide: () => void;
   onSelect: (cell: HeatmapCell) => void;
 }): ReactNode {
-  const unit = HEATMAP_UNIT_LABEL[kind];
+  const amount = (count: number): string => heatAmount({ kind, count, sampleSeconds });
   const zone = (cell: HeatmapCell): string => {
     const name =
       placeLabel(nearestCallout(geometry, cell.level, (cell.x + 0.5) * cellSize, (cell.y + 0.5) * cellSize, cell.z)) || `Celda ${cell.x}, ${cell.y}`;
@@ -414,15 +459,15 @@ function HeatmapSidebar({
   return (
     <aside className="flex min-w-0 flex-col gap-3 rounded-lg border border-border-strong bg-surface-1 p-3">
       <p className="text-body-sm text-fg-2">
-        {layer.total} {unit} en {layer.rounds} de {rounds} rondas ({matchCount} {matchCount === 1 ? 'partida' : 'partidas'}).
+        {amount(layer.total)} en {layer.rounds} de {rounds} rondas ({matchCount} {matchCount === 1 ? 'partida' : 'partidas'}).
         {missing > 0 ? ` ${missing} sin posiciones guardadas.` : ''}
       </p>
-      <Legend kind={kind} maxCount={layer.maxCount} maxSeconds={layer.maxSeconds} />
+      <HeatLegend kind={kind} maxCount={layer.maxCount} maxSeconds={layer.maxSeconds} sampleSeconds={sampleSeconds} />
       {selected ? (
         <div className="flex flex-col gap-1.5 rounded-md border border-border p-2.5">
           <span className="text-body-sm font-medium text-fg-1">{zone(selected)}</span>
           <span className="text-meta tabular-nums text-fg-2">
-            {selected.count} {unit} · {selected.rounds} {selected.rounds === 1 ? 'ronda' : 'rondas'}
+            {amount(selected.count)} · {selected.rounds} {selected.rounds === 1 ? 'ronda' : 'rondas'}
             {timing ? ` · mediana ${selected.seconds} s` : ''}
           </span>
           <EvidenceChips examples={selected.examples} matches={matches} />
@@ -431,10 +476,17 @@ function HeatmapSidebar({
         <p className="text-meta text-fg-3">Pulsa una zona del radar para ver de qué rondas sale.</p>
       )}
       {top.length === 0 ? (
-        <p className="flex items-center gap-2 text-body-sm text-fg-3">
-          <Flame className="size-4" aria-hidden />
-          {bothFloors ? 'Nada que contar en este lado.' : 'Nada que contar en este lado y piso.'}
-        </p>
+        <div className="flex flex-col items-start gap-2">
+          <p className="flex items-center gap-2 text-body-sm text-fg-3">
+            <Flame className="size-4" aria-hidden />
+            {bothFloors ? 'Nada que contar en este lado.' : 'Nada que contar en este lado y piso.'}
+          </p>
+          {otherSide === null ? null : (
+            <Button type="button" variant="outline" size="xs" onClick={onOtherSide}>
+              Ver el lado {otherSide}
+            </Button>
+          )}
+        </div>
       ) : (
         <table className="w-full text-body-sm">
           <caption className="pb-1 text-left text-meta text-fg-3">{timing ? 'Primeras llegadas' : 'Zonas con más actividad'}</caption>
@@ -453,7 +505,7 @@ function HeatmapSidebar({
                     {zone(cell)}
                   </button>
                 </td>
-                <td className="py-1 text-right tabular-nums text-fg-2">{cell.count}</td>
+                <td className="py-1 text-right tabular-nums text-fg-2">{amount(cell.count)}</td>
                 {timing ? <td className="py-1 pl-2 text-right tabular-nums text-fg-3">{cell.seconds} s</td> : null}
               </tr>
             ))}
@@ -462,31 +514,10 @@ function HeatmapSidebar({
       )}
       <p className="text-meta text-fg-3">
         Zonas de {cellSize} unidades; el radar las suaviza.
-        {kind === 'position' ? ` Cada ronda se lee en ${samplesPerRound} instantes del tramo, una muestra por jugador vivo en cada uno.` : ''}
+        {kind === 'position' ? ` El tiempo es el de los jugadores vivos, medido cada ${String(sampleSeconds).replace('.', ',')} s del tramo: una ronda larga pesa más que una corta.` : ''}
         {kind === 'kill' ? ' Las bajas a compañeros no cuentan.' : ''}
         {timing ? ' Cada jugador cuenta su primera llegada a cada zona en cada ronda.' : ''}
       </p>
     </aside>
-  );
-}
-
-/** The heat scale, dark green to yellow, with ends in what the map counts; timing runs reversed. */
-function Legend({ kind, maxCount, maxSeconds }: { kind: HeatmapKind; maxCount: number; maxSeconds: number }): ReactNode {
-  const timing = kind === 'timing';
-  const unit = HEATMAP_UNIT_LABEL[kind];
-  return (
-    <div className="flex flex-col gap-1" aria-label={`Leyenda: ${HEATMAP_LEGEND_LABEL[kind]}`}>
-      <span className="text-meta text-fg-2">{HEATMAP_LEGEND_LABEL[kind]}</span>
-      <div className="h-2 rounded-sm" style={{ background: HEAT_GRADIENT }} aria-hidden />
-      <div className="flex justify-between text-meta tabular-nums text-fg-3">
-        <span>{timing ? `${maxSeconds} s, más tarde` : `Menos ${unit}`}</span>
-        <span>{timing ? '0 s, antes' : `Más ${unit}`}</span>
-      </div>
-      {timing ? null : (
-        <span className="text-meta tabular-nums text-fg-2">
-          Zona más activa: {maxCount} {unit}
-        </span>
-      )}
-    </div>
   );
 }

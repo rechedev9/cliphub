@@ -152,8 +152,9 @@ type Heatmap struct {
 	Window   SpatialWindow `json:"window"`
 	Grenades []EventKind   `json:"grenades,omitempty"`
 	CellSize float64       `json:"cell_size"`
-	// SamplesPerRound is how many instants of each round the position kind reads.
-	SamplesPerRound int `json:"samples_per_round"`
+	// SampleSeconds is the time one count of the position kind stands for: every
+	// round is read at this step, so a cell's count times it is the time spent there.
+	SampleSeconds float64 `json:"sample_seconds"`
 	ExampleLimit    int `json:"example_limit"`
 	Matches         int `json:"matches"`
 	Rounds          int `json:"rounds"`
@@ -232,8 +233,10 @@ func cellIndex(v float64) int {
 	return int(math.Floor(v / HeatmapCellSize))
 }
 
-func (b *heatmapBuilder) add(cal radarmap.Calibration, side Side, pos [3]float64, seconds float64, ev Evidence) {
-	key := heatKey{side: side, level: cal.Level(pos[2]), x: cellIndex(pos[0]), y: cellIndex(pos[1])}
+// add counts one mark on the floor `level`, which the caller settles: by the player's floor
+// timeline for positions, by altitude for what has no player over time.
+func (b *heatmapBuilder) add(side Side, pos [3]float64, level string, seconds float64, ev Evidence) {
+	key := heatKey{side: side, level: level, x: cellIndex(pos[0]), y: cellIndex(pos[1])}
 	if column, row, ok := b.densityCell(pos); ok {
 		square := densityKey{side: side, level: key.level, column: column, row: row}
 		bin := b.bins[square]
@@ -327,7 +330,7 @@ func (b *heatmapBuilder) addEvents(m SpatialMatch, r Round, team map[uint8]Side)
 				continue
 			}
 			if side, ok := team[*ev.TargetSlot]; ok {
-				b.add(cal, side, ev.TargetPos, seconds, e)
+				b.add(side, ev.TargetPos, cal.Level(ev.TargetPos[2]), seconds, e)
 			}
 		case HeatKill:
 			if ev.Kind != EventKill || ev.ActorSlot == nil || ev.TargetSlot == nil {
@@ -342,13 +345,13 @@ func (b *heatmapBuilder) addEvents(m SpatialMatch, r Round, team map[uint8]Side)
 			if b.opts.KillAt == KillAtVictim {
 				pos = ev.TargetPos
 			}
-			b.add(cal, side, pos, seconds, e)
+			b.add(side, pos, cal.Level(pos[2]), seconds, e)
 		case HeatUtility:
 			if !b.grenade(ev.Kind) || ev.ActorSlot == nil {
 				continue
 			}
 			if side, ok := team[*ev.ActorSlot]; ok {
-				b.add(cal, side, ev.Pos, seconds, e)
+				b.add(side, ev.Pos, cal.Level(ev.Pos[2]), seconds, e)
 			}
 		}
 	}
@@ -366,7 +369,8 @@ func (b *heatmapBuilder) addArrivals(m SpatialMatch, r Round, team map[uint8]Sid
 		cell heatKey
 	}
 	arrived := map[arrival]bool{}
-	for _, frame := range frames {
+	floors := newFloorTimeline(cal, frames)
+	for index, frame := range frames {
 		if end > 0 && frame.Tick > end {
 			break
 		}
@@ -375,17 +379,18 @@ func (b *heatmapBuilder) addArrivals(m SpatialMatch, r Round, team map[uint8]Sid
 			continue
 		}
 		e := Evidence{MatchID: m.MatchID, Round: r.Number, Tick: frame.Tick}
-		for _, s := range frame.Samples {
+		for i, s := range frame.Samples {
 			side, ok := team[s.Slot]
 			if !ok || !s.Flags.Has(FlagAlive) {
 				continue
 			}
-			key := arrival{slot: s.Slot, cell: heatKey{side: side, level: cal.Level(s.Z), x: cellIndex(s.X), y: cellIndex(s.Y)}}
+			level := floors.at(index, i)
+			key := arrival{slot: s.Slot, cell: heatKey{side: side, level: level, x: cellIndex(s.X), y: cellIndex(s.Y)}}
 			if arrived[key] {
 				continue
 			}
 			arrived[key] = true
-			b.add(cal, side, [3]float64{s.X, s.Y, s.Z}, seconds, e)
+			b.add(side, [3]float64{s.X, s.Y, s.Z}, level, seconds, e)
 		}
 	}
 }
@@ -414,7 +419,7 @@ func BuildHeatmap(matches []SpatialMatch, opts HeatmapOptions) (Heatmap, error) 
 	}
 	out := Heatmap{
 		Kind: opts.Kind, KillAt: opts.KillAt, Window: opts.Window, Grenades: opts.Grenades, CellSize: HeatmapCellSize,
-		SamplesPerRound: HeatmapSamplesPerRound, ExampleLimit: HeatmapExampleLimit, Matches: len(matches),
+		SampleSeconds: HeatmapSampleSeconds, ExampleLimit: HeatmapExampleLimit, Matches: len(matches),
 		Sides: []HeatmapSide{}, Cells: []HeatmapCell{}, DensityGrid: HeatDensityGrid,
 	}
 	positional := opts.Kind == HeatPosition || opts.Kind == HeatTiming

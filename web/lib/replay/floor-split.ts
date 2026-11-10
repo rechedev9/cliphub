@@ -1,8 +1,8 @@
 import { RADAR_LEVELS } from '../api/tactical.ts';
-import type { RadarLevel, TacticalGeometry } from '../api/tactical.ts';
+import type { RadarBounds, RadarCalibration, RadarLevel, TacticalGeometry } from '../api/tactical.ts';
 import type { RadarProjection } from '../tactical-spatial.ts';
-import { isMultiLevelMap, levelForAltitude, radarViewRect } from '../tactical-transform.ts';
-import type { RadarRect, WorldMark } from '../tactical-transform.ts';
+import { isMultiLevelMap, levelForAltitude, radarViewRect, worldRectToRadarRect } from '../tactical-transform.ts';
+import type { RadarRect, WorldMark, WorldRect } from '../tactical-transform.ts';
 import { followView, panView, zoomViewAt } from './map-view.ts';
 
 /**
@@ -72,10 +72,18 @@ export function layoutFloors(options: { box: { width: number; height: number }; 
   return { panes: [one, two], scale, stacked };
 }
 
-/** Zoom and pan shared by every pane; `pan` is in radar-square fractions, so both floors move by the same world distance. */
+/**
+ * Zoom and pan shared by every pane. `pan` is in radar-square fractions from the
+ * square's centre, so every pane's window is centred on the same world point
+ * (kept inside its own extent): following a player across floors never moves the
+ * view, and both floors move by the same world distance.
+ */
 export type FloorView = { zoom: number; panX: number; panY: number };
 
 export const WHOLE_FLOORS: FloorView = { zoom: 1, panX: 0, panY: 0 };
+
+/** The point of the radar square a pan of zero centres every window on. */
+const VIEW_ORIGIN = 0.5;
 
 export function isWholeView(view: FloorView): boolean {
   return view.zoom <= 1;
@@ -87,8 +95,8 @@ export function floorWindow(rect: RadarRect, view: FloorView): RadarRect {
   if (zoom === 1) return rect;
   const width = rect.width / zoom;
   const height = rect.height / zoom;
-  const cx = Math.min(rect.x + rect.width, Math.max(rect.x, rect.x + rect.width / 2 + view.panX));
-  const cy = Math.min(rect.y + rect.height, Math.max(rect.y, rect.y + rect.height / 2 + view.panY));
+  const cx = Math.min(rect.x + rect.width, Math.max(rect.x, VIEW_ORIGIN + view.panX));
+  const cy = Math.min(rect.y + rect.height, Math.max(rect.y, VIEW_ORIGIN + view.panY));
   return { x: cx - width / 2, y: cy - height / 2, width, height };
 }
 
@@ -96,7 +104,7 @@ export function floorWindow(rect: RadarRect, view: FloorView): RadarRect {
 export function viewOfWindow(rect: RadarRect, window: RadarRect): FloorView {
   const zoom = rect.width / window.width;
   if (!(zoom > 1)) return WHOLE_FLOORS;
-  return { zoom, panX: window.x + window.width / 2 - (rect.x + rect.width / 2), panY: window.y + window.height / 2 - (rect.y + rect.height / 2) };
+  return { zoom, panX: window.x + window.width / 2 - VIEW_ORIGIN, panY: window.y + window.height / 2 - VIEW_ORIGIN };
 }
 
 /** Where the view puts a pane's floor, in canvas coordinates; the size is the same for every pane. */
@@ -194,4 +202,29 @@ export function floorRectsOf(geometry: TacticalGeometry, marks: readonly WorldMa
       }),
     );
   return { default: of(RADAR_LEVELS.default), lower: of(RADAR_LEVELS.lower) };
+}
+
+/** Air round a floor's extent as a share of its longer side, and its floor in radar-square fractions: a dot on the edge keeps its ring. */
+const EXTENT_MARGIN = 0.03;
+const EXTENT_ROOM = 0.025;
+
+/**
+ * One floor's crop on the radar square: the nav mesh's areas on it together with
+ * the ground the demo was played on, which the mesh can miss (the ramp's
+ * foot, stairs), plus room for the dots standing on the edge. Null when neither is known.
+ */
+export function floorExtent(options: { calibration: RadarCalibration; nav: WorldRect | null; played: RadarBounds | null }): RadarRect | null {
+  const { calibration, nav, played } = options;
+  const parts: WorldRect[] = nav === null ? [] : [nav];
+  if (played !== null) parts.push({ minX: played.min_x, minY: played.min_y, maxX: played.max_x, maxY: played.max_y });
+  if (parts.length === 0) return null;
+  const world: WorldRect = {
+    minX: Math.min(...parts.map((part) => part.minX)),
+    minY: Math.min(...parts.map((part) => part.minY)),
+    maxX: Math.max(...parts.map((part) => part.maxX)),
+    maxY: Math.max(...parts.map((part) => part.maxY)),
+  };
+  const rect = worldRectToRadarRect(calibration, world, 1);
+  const pad = Math.max(Math.max(rect.width, rect.height) * EXTENT_MARGIN, EXTENT_ROOM);
+  return { x: rect.x - pad, y: rect.y - pad, width: rect.width + 2 * pad, height: rect.height + 2 * pad };
 }

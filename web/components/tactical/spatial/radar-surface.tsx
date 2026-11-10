@@ -131,8 +131,10 @@ export function RadarSurface({
   const rects = useMemo(() => shown.map((plateLevel) => (split ? floorRects[plateLevel] : whole)), [floorRects, shown, split, whole]);
   const zoom = useFloorZoom({ enabled: settled });
   const { reset } = zoom;
-  // A different map, or different marks, is a different framing: the whole map again.
-  useEffect(() => reset(), [reset, rects]);
+  // A different map, or different marks that move the crop, is a different framing: the whole map again.
+  // Compared by value, so a refreshed answer with the same crop (a dragged time window) keeps the zoom.
+  const framing = rects.map((rect) => `${rect.x.toFixed(4)},${rect.y.toFixed(4)},${rect.width.toFixed(4)},${rect.height.toFixed(4)}`).join('|');
+  useEffect(() => reset(), [reset, framing]);
 
   useEffect(() => {
     if (handleRef === undefined) return;

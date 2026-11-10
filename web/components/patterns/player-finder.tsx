@@ -13,12 +13,13 @@ import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { heatBandwidth, heatDensity, SMOOTHING_DEFAULT, type HeatDensity } from '@/lib/heat-density';
 import { prettyMapName } from '@/lib/format';
 import { WHOLE_ROUND, isWholeRound } from '@/lib/replay/tramo';
-import { heatmapSide, LEVEL_LABEL } from '@/lib/tactical-spatial';
+import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap } from '@/lib/tactical-transform';
 import { CAPS_LABEL } from '@/components/analysis/scope-field-style';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { EmptyState } from '@/components/records/empty-state';
 import { TramoBar, useTramo, type TramoControl } from '@/components/replay/tramo-bar';
+import { HeatLegend } from '@/components/tactical/spatial/heat-legend';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -146,14 +147,14 @@ export function PlayerFinder({ frame, teamId, scope, lineup, criteria, roster, t
     return heat.data.flatMap((response, index) => {
       const heatmap = response.heatmap;
       if (heatmap === undefined) return [];
-      const shown = heatmapSide(heatmap, side);
       const byLevel = new Map<RadarLevel, HeatDensity>();
       for (const level of [RADAR_LEVELS.default, RADAR_LEVELS.lower]) {
-        const source = heatmap.density.find((entry) => entry.side === shown && entry.level === level);
-        if (source === undefined) continue;
+        // Without a side in the scope a player's CT and T rounds both count: the heat is where they were, not where one half put them.
+        const sources = heatmap.density.filter((entry) => entry.level === level && (side === '' || entry.side === side));
+        if (sources.length === 0) continue;
         const otherFloor = multiLevel && boxLevel !== level;
-        let bins: readonly (readonly [number, number, number])[] = source.bins;
-        if (box !== null) bins = otherFloor ? [] : binsInBox({ bins: source.bins, grid: heatmap.density_grid, calibration, box });
+        let bins: readonly (readonly [number, number, number])[] = sources.flatMap((source) => source.bins);
+        if (box !== null) bins = otherFloor ? [] : binsInBox({ bins, grid: heatmap.density_grid, calibration, box });
         const density = heatDensity({ grid: heatmap.density_grid, bins, bandwidth });
         if (density !== null) byLevel.set(level, density);
       }
@@ -282,7 +283,7 @@ export function PlayerFinder({ frame, teamId, scope, lineup, criteria, roster, t
             if (next !== null) setBoxLevel(next.level);
           }}
         />
-        {heats.length === 0 && heat.kind === 'ready' ? <p className="text-body-sm text-fg-2">Sin posiciones guardadas en estas rondas.</p> : null}
+        {heat.kind === 'ready' ? <HeatNote heats={heats} boxed={box !== null} /> : null}
       </div>
     ),
     rounds: (
@@ -319,4 +320,19 @@ export function PlayerFinder({ frame, teamId, scope, lineup, criteria, roster, t
     count: { matched: refs.length, total },
   };
   return <FramedParts frame={frame} parts={parts} />;
+}
+
+/** Under the map: what the empty heat means, the scale of a single series, or what several colours stand for. */
+function HeatNote({ heats, boxed }: { heats: readonly PlayerHeat[]; boxed: boolean }): ReactNode {
+  if (!heats.some((entry) => entry.byLevel.size > 0)) {
+    return (
+      <p className="text-body-sm text-fg-2">
+        {boxed
+          ? 'Nadie pasa por esa zona en este tramo. Ensancha el tramo o quita la zona.'
+          : 'Ningún jugador vivo en este tramo, o sin posiciones guardadas en estas rondas. Ensancha el tramo o cambia los filtros.'}
+      </p>
+    );
+  }
+  if (heats.length === 1) return <HeatLegend kind="position" maxCount={0} maxSeconds={0} sampleSeconds={0} />;
+  return <p className="text-meta text-fg-3">Cada color es un jugador; cuanto más opaco, más tiempo pasó en la zona.</p>;
 }

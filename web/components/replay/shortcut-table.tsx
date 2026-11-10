@@ -20,6 +20,7 @@ const MAP: readonly Shortcut[] = [
   { keys: ['Mayús', 'Clic'], does: 'Sumar otro jugador al primer plano' },
   { keys: ['F'], does: 'Centrar el mapa en el jugador elegido; otra vez para soltarlo' },
   { keys: ['S'], or: ['Clic derecho'], does: 'Copiar el setpos del jugador bajo el cursor (un clic en un jugador también lo copia)' },
+  { keys: ['Eventos'], does: 'La mira de cada granada de la lista copia el setpos del lanzamiento, desde donde y hacia donde miraba el jugador' },
   { keys: ['G'], does: 'Abrir la grabación del tramo; otra vez para grabar el GIF' },
   { keys: ['Esc'], does: 'Dejar de seguir y volver a todo el equipo' },
   { keys: ['Rueda'], does: 'Acercar o alejar' },

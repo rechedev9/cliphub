@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/url"
 	"slices"
 	"strconv"
@@ -132,38 +133,45 @@ func scopedTeam(doc tacticalplan.Document, key string) *tacticalplan.Team {
 }
 
 type playerSetposIn struct {
-	MatchID string  `json:"match_id" jsonschema:"match id from list_matches"`
-	Round   int     `json:"round" jsonschema:"round number, as in a round ref"`
-	SteamID string  `json:"steamid" jsonschema:"the player's SteamID64"`
-	Second  float64 `json:"second,omitempty" jsonschema:"seconds after the round went live (the end of freeze time); 0 by default"`
+	MatchID  string  `json:"match_id" jsonschema:"match id from list_matches"`
+	Round    int     `json:"round" jsonschema:"round number, as in a round ref"`
+	SteamID  string  `json:"steamid" jsonschema:"the player's SteamID64"`
+	Second   float64 `json:"second,omitempty" jsonschema:"seconds after the round went live (the end of freeze time); 0 by default"`
+	Grenades bool    `json:"grenades,omitempty" jsonschema:"also list the grenades the player threw in the round, each with the setpos of its throw: where they stood and looked as it left the hand"`
 }
 
 type playerSetposOut struct {
-	Player string  `json:"player"`
-	Round  int     `json:"round"`
-	Second float64 `json:"second" jsonschema:"the sampled moment the line was read at, in seconds after the round went live"`
-	Tick   int     `json:"tick"`
-	Alive  bool    `json:"alive"`
-	Setpos string  `json:"setpos" jsonschema:"the console line for CS2 with sv_cheats 1: setpos x y z;setang pitch yaw 0"`
+	Player string           `json:"player"`
+	Round  int              `json:"round"`
+	Second float64          `json:"second" jsonschema:"the sampled moment the line was read at, in seconds after the round went live"`
+	Tick   int              `json:"tick"`
+	Alive  bool             `json:"alive"`
+	Setpos string           `json:"setpos" jsonschema:"the console line for CS2 with sv_cheats 1: setpos x y z;setang pitch yaw 0"`
+	Throws []playerThrowOut `json:"throws,omitempty" jsonschema:"with grenades: the player's grenades of the round in the order thrown, as the throw buttons of the Replay's Eventos list copy them"`
 }
 
-// setposAt reads the setpos of one slot from the frame nearest to a tick.
+// playerThrowOut is one grenade and the setpos of its throw, as recorded on the tick it left the hand.
+type playerThrowOut struct {
+	Second float64 `json:"second" jsonschema:"seconds after the round went live that the grenade was thrown"`
+	Tick   int     `json:"tick"`
+	Kind   string  `json:"kind"`
+	From   string  `json:"from,omitempty" jsonschema:"the place the thrower stood in"`
+	Setpos string  `json:"setpos" jsonschema:"the console line that puts you where the thrower stood, looking where they looked"`
+}
+
+// setposAt reads the setpos of one slot from the nearest frame that holds it; a tie takes the earlier
+// frame. The reading is never interpolated, and the web's playerSetpos picks the same sample.
 func setposAt(frames []tacticalplan.Frame, slot uint8, tick int) (tacticalplan.Frame, tacticalplan.Sample, bool) {
-	best := -1
-	for i, f := range frames {
-		if best < 0 || abs(f.Tick-tick) < abs(frames[best].Tick-tick) {
-			best = i
+	best, found := tacticalplan.Frame{}, tacticalplan.Sample{}
+	ok := false
+	for _, f := range frames {
+		i := slices.IndexFunc(f.Samples, func(s tacticalplan.Sample) bool { return s.Slot == slot })
+		if i < 0 || (ok && abs(f.Tick-tick) >= abs(best.Tick-tick)) {
+			continue
 		}
+		best, found, ok = f, f.Samples[i], true
 	}
-	if best < 0 {
-		return tacticalplan.Frame{}, tacticalplan.Sample{}, false
-	}
-	for _, sample := range frames[best].Samples {
-		if sample.Slot == slot {
-			return frames[best], sample, true
-		}
-	}
-	return tacticalplan.Frame{}, tacticalplan.Sample{}, false
+	return best, found, ok
 }
 
 func abs(v int) int {
@@ -173,9 +181,34 @@ func abs(v int) int {
 	return v
 }
 
-// setposLine writes a sample as the lineups' setpos: z is the feet origin in both.
-func setposLine(s tacticalplan.Sample) string {
-	return setposCommand(tuiclient.Lineup{Origin: [3]float64{s.X, s.Y, s.Z}, Pitch: tacticalplan.SetangPitch(s.Pitch), Yaw: tacticalplan.SetangYaw(s.Yaw)})
+// setposFor writes a feet origin and demo angles as the console line; ok is false when a number is not
+// finite, so "NaN" never reaches the console. Both z values of a player are feet: CS2's setpos takes the origin.
+func setposFor(origin [3]float64, pitch, yaw float64) (string, bool) {
+	for _, v := range [...]float64{origin[0], origin[1], origin[2], pitch, yaw} {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return "", false
+		}
+	}
+	return setposCommand(tuiclient.Lineup{Origin: origin, Pitch: tacticalplan.SetangPitch(pitch), Yaw: tacticalplan.SetangYaw(yaw)}), true
+}
+
+// playerThrows lists the grenades a slot threw in a round, in throw order, each with the setpos of the
+// thrower's recorded state on the throw tick. A grenade whose throw the demo never showed is left out.
+func playerThrows(r tacticalplan.Round, slot uint8, rate float64) []playerThrowOut {
+	var out []playerThrowOut
+	for _, ev := range r.Events {
+		if ev.Throw == nil || ev.ActorSlot == nil || *ev.ActorSlot != slot || !slices.Contains(tacticalplan.GrenadeKinds, ev.Kind) {
+			continue
+		}
+		line, ok := setposFor(ev.Throw.Pos, ev.Throw.Pitch, ev.Throw.Yaw)
+		if !ok {
+			continue
+		}
+		out = append(out, playerThrowOut{Second: math.Round(float64(ev.Throw.Tick-r.TickFreezeEnd)/rate*100) / 100, Tick: ev.Throw.Tick,
+			Kind: cleanName(string(ev.Kind)), From: cleanName(ev.Place), Setpos: line})
+	}
+	slices.SortStableFunc(out, func(a, b playerThrowOut) int { return a.Tick - b.Tick })
+	return out
 }
 
 type roundGrenadeOut struct {
@@ -380,15 +413,23 @@ func registerReplayTools(server *mcp.Server, s *studio) {
 			if rate <= 0 {
 				rate = 64
 			}
-			frame, sample, ok := setposAt(round.Frames, doc.Players[i].Slot, round.Round.TickFreezeEnd+int(in.Second*rate))
+			frame, sample, ok := setposAt(round.Frames, doc.Players[i].Slot, round.Round.TickFreezeEnd+int(math.Round(in.Second*rate)))
 			if !ok {
 				return nil, playerSetposOut{}, fmt.Errorf("round %d has no saved position for that player", in.Round)
 			}
-			return nil, playerSetposOut{
+			line, ok := setposFor([3]float64{sample.X, sample.Y, sample.Z}, sample.Pitch, sample.Yaw)
+			if !ok {
+				return nil, playerSetposOut{}, fmt.Errorf("round %d has a position for that player that is not a number", in.Round)
+			}
+			out := playerSetposOut{
 				Player: cleanName(doc.Players[i].Name), Round: in.Round, Tick: frame.Tick,
 				Second: float64(int(float64(frame.Tick-round.Round.TickFreezeEnd)/rate*10)) / 10,
-				Alive:  sample.Flags.Has(tacticalplan.FlagAlive), Setpos: setposLine(sample),
-			}, nil
+				Alive:  sample.Flags.Has(tacticalplan.FlagAlive), Setpos: line,
+			}
+			if in.Grenades {
+				out.Throws = playerThrows(round.Round, doc.Players[i].Slot, rate)
+			}
+			return nil, out, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "replay_rounds", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},

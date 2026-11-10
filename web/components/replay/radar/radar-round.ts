@@ -49,6 +49,8 @@ export type RoundFrame = {
   everyone: readonly TacticalSample[];
   /** The floor each player stands on (`lib/replay/floor-assign`), with the dead band applied. */
   levels: ReadonlyMap<number, RadarLevel>;
+  /** The floor each thrower stood on as a grenade left the hand, by the grenade's index in `events`; the arc starts on it. */
+  throwLevels?: ReadonlyMap<number, RadarLevel>;
   /** With one floor per pane: which way the other pane lies, for lines that cross to it. */
   across?: AcrossFloors;
   trails: ReadonlyMap<number, readonly TrailPoint[]>;
@@ -210,12 +212,12 @@ function grenadeBadge(ctx: CanvasRenderingContext2D, kind: TacticalEventKind, at
 }
 
 /** The flight of a throw: each stretch on the pane of its own floor, so it never hops panes mid-air. */
-function drawArc(ctx: CanvasRenderingContext2D, frame: RoundFrame, options: { to: UtilityVisual['at']; from: NonNullable<UtilityVisual['from']>; arc: NonNullable<UtilityVisual['arc']>; landing: RadarLevel }): void {
-  const { to, from, arc, landing } = options;
+function drawArc(ctx: CanvasRenderingContext2D, frame: RoundFrame, options: { to: UtilityVisual['at']; from: NonNullable<UtilityVisual['from']>; fromLevel: RadarLevel; arc: NonNullable<UtilityVisual['arc']>; landing: RadarLevel }): void {
+  const { to, from, fromLevel, arc, landing } = options;
   const { calibration, size } = frame;
   const world = grenadeArc(from, to, 16);
   const path = world.map((point) => worldToRendered(calibration, point.x, point.y, size));
-  const levels = arcLevels(calibration, world, { from: levelForAltitude(calibration, from.z), landing });
+  const levels = arcLevels(calibration, world, { from: fromLevel, landing });
   const reach = Math.max(1, Math.round(arc.progress * (path.length - 1)));
   ctx.strokeStyle = '#e6e9ec';
   ctx.lineWidth = 1.25;
@@ -230,6 +232,18 @@ function drawArc(ctx: CanvasRenderingContext2D, frame: RoundFrame, options: { to
     ctx.stroke();
   }
   ctx.setLineDash([]);
+  // The throw point, which a click on copies the throw's setpos (see `lib/replay/throw-hit`).
+  const originStrength = levelAlpha(frame, levels[0]);
+  if (originStrength > 0) {
+    ctx.globalAlpha = 0.9 * arc.fade * originStrength;
+    ctx.fillStyle = '#e6e9ec';
+    ctx.strokeStyle = '#0b0c0e';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(path[0].x, path[0].y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
   const head = path[reach];
   const headStrength = levelAlpha(frame, levels[reach]);
   if (arc.progress < 1 && headStrength > 0) {
@@ -246,7 +260,7 @@ function drawArc(ctx: CanvasRenderingContext2D, frame: RoundFrame, options: { to
 function drawGrenade(ctx: CanvasRenderingContext2D, frame: RoundFrame, visual: UtilityVisual): void {
   const { calibration, size } = frame;
   const landing = levelForAltitude(calibration, visual.at.z);
-  if (frame.show.trajectories && visual.arc !== null && visual.from !== null) drawArc(ctx, frame, { to: visual.at, from: visual.from, arc: visual.arc, landing });
+  if (frame.show.trajectories && visual.arc !== null && visual.from !== null) drawArc(ctx, frame, { to: visual.at, from: visual.from, fromLevel: frame.throwLevels?.get(visual.index) ?? levelForAltitude(calibration, visual.from.z), arc: visual.arc, landing });
   const effect = visual.effect;
   const alpha = levelAlpha(frame, landing);
   if (effect === null || alpha <= 0) return;

@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { QUICK_TRAMOS, ROUND_CLOCK_SECONDS, WHOLE_ROUND, isWholeRound, moveTramoEdge, quickTramoOf, roundClock, tramoEnd, tramoLabel } from '@/lib/replay/tramo';
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { QUICK_TRAMOS, ROUND_CLOCK_SECONDS, WHOLE_ROUND, edgeBounds, isWholeRound, keyedEdge, moveTramoEdge, nearestEdge, quickTramoOf, roundClock, tramoEnd, tramoLabel } from '@/lib/replay/tramo';
 import type { Tramo } from '@/lib/replay/tramo';
 import { FOCUS_RING } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
@@ -30,17 +30,27 @@ function Handle({
   onChange: (tramo: Tramo) => void;
 }): ReactNode {
   const dragging = useRef(false);
+  // The owner keeps the tramo in the URL, which answers a beat later: a held key or a fast drag must build on the last move, not on the stale prop.
+  const latest = useRef(tramo);
+  useEffect(() => {
+    latest.current = tramo;
+  }, [tramo]);
+  const move = (target: number): void => {
+    const next = moveTramoEdge(latest.current, edge, target);
+    latest.current = next;
+    onChange(next);
+  };
   const seconds = edge === 'from' ? tramo.from : tramoEnd(tramo);
   const secondsAt = (event: PointerEvent<HTMLButtonElement>): number | null => {
     const track = event.currentTarget.parentElement?.getBoundingClientRect();
     if (track === undefined || track.width === 0) return null;
     return ((event.clientX - track.left) / track.width) * duration;
   };
+  const bounds = edgeBounds(tramo, edge);
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
-    const step = event.shiftKey ? 5 : 1;
-    if (event.key === 'ArrowLeft') onChange(moveTramoEdge(tramo, edge, seconds - step));
-    else if (event.key === 'ArrowRight') onChange(moveTramoEdge(tramo, edge, seconds + step));
-    else return;
+    const target = keyedEdge({ tramo: latest.current, edge, key: event.key, shift: event.shiftKey });
+    if (target === null) return;
+    move(target);
     event.preventDefault();
     event.stopPropagation();
   };
@@ -49,10 +59,10 @@ function Handle({
       type="button"
       role="slider"
       aria-label={EDGE_LABEL[edge]}
-      aria-valuemin={0}
-      aria-valuemax={ROUND_CLOCK_SECONDS}
+      aria-valuemin={bounds.min}
+      aria-valuemax={bounds.max}
       aria-valuenow={seconds}
-      aria-valuetext={roundClock(seconds)}
+      aria-valuetext={`${roundClock(seconds)} en el reloj de la ronda`}
       onKeyDown={onKeyDown}
       onPointerDown={(event) => {
         dragging.current = true;
@@ -60,7 +70,7 @@ function Handle({
       }}
       onPointerMove={(event) => {
         const at = dragging.current ? secondsAt(event) : null;
-        if (at !== null) onChange(moveTramoEdge(tramo, edge, at));
+        if (at !== null) move(at);
       }}
       onPointerUp={() => {
         dragging.current = false;
@@ -92,6 +102,18 @@ export function TramoBracket({ tramo, duration, onChange }: { tramo: Tramo; dura
       <div className="absolute inset-y-0 bg-primary/25" style={{ left: `${(from / duration) * 100}%`, width: `${((to - from) / duration) * 100}%` }} aria-hidden />
       <Handle edge="from" tramo={tramo} duration={duration} onChange={onChange} />
       <Handle edge="to" tramo={tramo} duration={duration} onChange={onChange} />
+    </div>
+  );
+}
+
+/** A faint line every 15 seconds of the round clock, so a handle can be read against 1:40, 1:25 and the rest. */
+function ClockTicks(): ReactNode {
+  const ticks = Array.from({ length: Math.floor((ROUND_CLOCK_SECONDS - 1) / 15) }, (_, index) => (index + 1) * 15);
+  return (
+    <div className="pointer-events-none absolute inset-0" aria-hidden>
+      {ticks.map((seconds) => (
+        <span key={seconds} className="absolute inset-y-1.5 w-px bg-border" style={{ left: `${(seconds / ROUND_CLOCK_SECONDS) * 100}%` }} />
+      ))}
     </div>
   );
 }
@@ -136,7 +158,18 @@ export function TramoBar({
   const track = (
     <div className={cn('flex items-center gap-2', compact && 'min-w-[12rem] flex-1')}>
       <span className="font-mono text-meta tabular-nums text-fg-3">{roundClock(0)}</span>
-      <div className={cn('relative min-w-0 flex-1 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]', compact ? 'h-6' : 'h-7')}>
+      <div
+        onPointerDown={(event) => {
+          // A press on the bare track pulls the closer handle there; the handles take their own presses.
+          if (tramo.fromPlant === true || (event.target instanceof Element && event.target.closest('[role="slider"]') !== null)) return;
+          const box = event.currentTarget.getBoundingClientRect();
+          if (box.width === 0) return;
+          const seconds = ((event.clientX - box.left) / box.width) * ROUND_CLOCK_SECONDS;
+          onChange(moveTramoEdge(shown, nearestEdge(shown, seconds), seconds));
+        }}
+        className={cn('relative min-w-0 flex-1 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]', tramo.fromPlant !== true && 'cursor-pointer', compact ? 'h-6' : 'h-7')}
+      >
+        <ClockTicks />
         {marks}
         {tramo.fromPlant === true ? null : <TramoBracket tramo={shown} duration={ROUND_CLOCK_SECONDS} onChange={onChange} />}
       </div>

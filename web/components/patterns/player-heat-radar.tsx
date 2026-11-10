@@ -1,11 +1,13 @@
 'use client';
 
-import { useCallback, useRef, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, type ReactNode } from 'react';
 import type { PatternArea } from '@/lib/api/patterns';
 import { RADAR_LEVELS, type RadarLevel, type TacticalGeometry } from '@/lib/api/tactical';
 import type { WorldBox } from '@/lib/analysis/grenade-patterns';
 import { areaOfBox } from '@/lib/analysis/pattern-finder';
-import type { HeatDensity } from '@/lib/heat-density';
+import { densityPicture } from '@/lib/heat-density';
+import type { DensityPicture, HeatDensity } from '@/lib/heat-density';
+import { densityImage } from '@/components/tactical/spatial/heatmap-view';
 import { RadarSurface, type RadarFrame } from '@/components/tactical/spatial/radar-surface';
 import { DrawLayer } from './pattern-radar';
 
@@ -38,8 +40,10 @@ function maskOf(cache: WeakMap<HeatDensity, HTMLCanvasElement>, density: HeatDen
 }
 
 /**
- * The radar of the Jugadores panel: each chosen player's heat in their own colour, more opaque where they
- * spent more time, over the plate; dragging draws the box that keeps the heat and the rounds inside it.
+ * The radar of the Jugadores panel. One player, or the team, reads on the heat scale of every other
+ * heatmap: blue where they barely are, purple, pink where they stay most. Several players each take
+ * their own colour, more opaque where they spent more time. Dragging draws the box that keeps the heat
+ * and the rounds inside it.
  */
 export function PlayerHeatRadar({
   geometry,
@@ -59,10 +63,35 @@ export function PlayerHeatRadar({
   onBox: (box: { box: WorldBox; level: RadarLevel } | null) => void;
 }): ReactNode {
   const masks = useRef(new WeakMap<HeatDensity, HTMLCanvasElement>());
+  const images = useRef(new WeakMap<Uint8ClampedArray<ArrayBuffer>, HTMLCanvasElement>());
   const scratch = useRef<HTMLCanvasElement | null>(null);
+  // A single series reads on the heat scale, both floors on one peak; several keep their own colours.
+  const scale = useMemo((): ReadonlyMap<RadarLevel, DensityPicture> | null => {
+    const only = heats.length === 1 ? heats[0] : undefined;
+    if (only === undefined) return null;
+    const peak = Math.max(0, ...[...only.byLevel.values()].map((density) => density.peak));
+    const out = new Map<RadarLevel, DensityPicture>();
+    for (const [level, density] of only.byLevel) {
+      const picture = densityPicture(density, peak);
+      if (picture !== null) out.set(level, picture);
+    }
+    return out;
+  }, [heats]);
 
   const paint = useCallback(
     ({ ctx, size, level }: RadarFrame) => {
+      if (scale !== null) {
+        const picture = scale.get(level);
+        const density = heats[0]?.byLevel.get(level);
+        const image = picture === undefined ? null : densityImage(images.current, picture);
+        if (picture === undefined || image === null || density === undefined) return;
+        // The density grid covers the whole radar square, so a square is size / grid pixels.
+        const unit = size / density.grid;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(image, picture.x * unit, picture.y * unit, picture.width * unit, picture.height * unit);
+        return;
+      }
       const side = Math.max(1, Math.ceil(size));
       const canvas = scratch.current ?? document.createElement('canvas');
       scratch.current = canvas;
@@ -88,7 +117,7 @@ export function PlayerHeatRadar({
         ctx.drawImage(canvas, 0, 0, size, size);
       }
     },
-    [heats],
+    [heats, scale],
   );
 
   const zone = (shown: RadarLevel): PatternArea | null =>
