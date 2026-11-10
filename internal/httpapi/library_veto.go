@@ -186,27 +186,40 @@ type teamMapsResponse struct {
 	Maps     []library.MapRecord `json:"maps"`
 }
 
-// teamMapHistory reads the team's most recent matches in the date range and
-// its series. withDocuments also reads each tactical document for the side
-// counts; without it only the scores and vetoes are counted.
-func (h *Handlers) teamMapHistory(ctx context.Context, team library.Team, from, to *time.Time, withDocuments bool) (teamMapsResponse, error) {
+// mapHistoryQuery is a team's map record to read: the date range, and whether
+// the side counts read each tactical document.
+type mapHistoryQuery struct {
+	team          library.Team
+	from, to      *time.Time
+	withDocuments bool
+}
+
+// teamMapHistory reads every match of the team in the date range and every
+// series. Scores and vetoes count them all; the side counts read the analyses
+// of the newest maxTeamDocReads matches and skip the rest as over_read_limit.
+func (h *Handlers) teamMapHistory(ctx context.Context, q mapHistoryQuery) (teamMapsResponse, error) {
+	team := q.team
 	resp := teamMapsResponse{TeamID: team.ID, TeamName: team.Name, Skipped: []scoutSkipped{}}
-	matches, err := h.libraryRepo.ListMatches(ctx, library.MatchFilter{TeamID: &team.ID, From: from, To: to, Limit: library.MaxListLimit})
+	matches, err := h.allLibraryMatches(ctx, library.MatchFilter{TeamID: &team.ID, From: q.from, To: q.to})
 	if err != nil {
 		return resp, err
 	}
-	series, err := h.libraryRepo.ListSeries(ctx, library.SeriesFilter{TeamID: &team.ID, Limit: library.MaxListLimit})
+	series, err := h.allTeamSeries(ctx, team.ID)
 	if err != nil {
 		return resp, err
 	}
 	history := make([]library.MapHistoryMatch, 0, len(matches))
+	reads := maxTeamDocReads
 	for _, m := range matches {
 		c, ok := candidateFor(m, team.ID, nil)
 		if !ok {
 			continue
 		}
 		hm := library.MapHistoryMatch{Match: m, TeamKey: c.scout.TeamKey}
-		if withDocuments {
+		if q.withDocuments && reads <= 0 {
+			resp.Skipped = append(resp.Skipped, scoutSkipped{MatchID: m.ID, Reason: scoutSkipReadLimit})
+		} else if q.withDocuments {
+			reads--
 			doc, err := h.readLibraryDocument(m.DemoID)
 			if err != nil {
 				log.Printf("httpapi: map history of team %s skips the sides of match %s: %v", team.ID, m.ID, err)
@@ -220,6 +233,23 @@ func (h *Handlers) teamMapHistory(ctx context.Context, team library.Team, from, 
 	resp.Matches, resp.Series = len(history), len(series)
 	resp.Maps = library.TeamMapHistory(team.ID, history, series)
 	return resp, nil
+}
+
+// allTeamSeries lists every series of the team, page by page.
+func (h *Handlers) allTeamSeries(ctx context.Context, teamID uuid.UUID) ([]library.Series, error) {
+	filter := library.SeriesFilter{TeamID: &teamID, Limit: library.MaxListLimit}
+	var out []library.Series
+	for {
+		page, err := h.libraryRepo.ListSeries(ctx, filter)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, page...)
+		if len(page) < filter.Limit {
+			return out, nil
+		}
+		filter.Offset += len(page)
+	}
 }
 
 func (h *Handlers) loadLibraryTeam(w http.ResponseWriter, r *http.Request) (library.Team, bool) {
@@ -256,7 +286,7 @@ func (h *Handlers) GetLibraryTeamMaps(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	resp, err := h.teamMapHistory(r.Context(), team, from, to, true)
+	resp, err := h.teamMapHistory(r.Context(), mapHistoryQuery{team: team, from: from, to: to, withDocuments: true})
 	if err != nil {
 		internalError(w, "team map history", err)
 		return
@@ -316,12 +346,12 @@ func (h *Handlers) GetLibraryTeamVeto(w http.ResponseWriter, r *http.Request) {
 		writeLibraryError(w, "get opponent", err)
 		return
 	}
-	ours, err := h.teamMapHistory(r.Context(), team, nil, nil, false)
+	ours, err := h.teamMapHistory(r.Context(), mapHistoryQuery{team: team})
 	if err != nil {
 		internalError(w, "team map history", err)
 		return
 	}
-	theirs, err := h.teamMapHistory(r.Context(), opponent, nil, nil, false)
+	theirs, err := h.teamMapHistory(r.Context(), mapHistoryQuery{team: opponent})
 	if err != nil {
 		internalError(w, "opponent map history", err)
 		return

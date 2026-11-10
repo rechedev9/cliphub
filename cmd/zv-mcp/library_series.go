@@ -115,6 +115,8 @@ type teamMapsOut struct {
 	Series         int            `json:"series"`
 	Maps           []mapRecordOut `json:"maps"`
 	SkippedMatches int            `json:"skipped_matches,omitempty"`
+	// SidesUnread are older matches past the 200 analyses read: in the results, not in the side rounds.
+	SidesUnread int `json:"sides_unread,omitempty" jsonschema:"older matches counted in the results but not in the side rounds, past the 200 analyses one read opens"`
 }
 
 type vetoIn struct {
@@ -455,7 +457,14 @@ func seriesName(se tuiclient.LibrarySeries) string {
 }
 
 func summarizeTeamMaps(tm tuiclient.TeamMaps, counts tuiclient.TeamMapCounts) teamMapsOut {
-	out := teamMapsOut{Team: cleanName(tm.TeamName), Matches: tm.Matches, Series: tm.Series, Maps: []mapRecordOut{}, SkippedMatches: len(tm.Skipped)}
+	out := teamMapsOut{Team: cleanName(tm.TeamName), Matches: tm.Matches, Series: tm.Series, Maps: []mapRecordOut{}}
+	for _, skipped := range tm.Skipped {
+		if skipped.Reason == overReadLimit {
+			out.SidesUnread++
+		} else {
+			out.SkippedMatches++
+		}
+	}
 	inScope := map[string]int{}
 	for _, c := range counts.Maps {
 		inScope[c.Map] = c.Matches

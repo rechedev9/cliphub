@@ -144,7 +144,7 @@ a map name or grenade word in the query narrows it.
 Series of the library (BO1, BO2, BO3, BO5 with teams and veto; a BO2 does not play its map left over): list_library_series, create_library_series,
 update_library_series, delete_library_series and set_match_series. The maps of one FACEIT match
 (files 1-<match id>-<map>-1.dem) join one series on their own once two are analysed. team_maps reads a team's map record
-and, with the scope keys of the bar, the matches per map (scope_matches); simulate_veto recommends a veto against a rival.
+over every match (sides_unread: older ones past 200 analyses count in the results, not the sides) and, with the scope keys of the bar, the matches per map (scope_matches); simulate_veto recommends a veto against a rival.
 FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows,
 follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account).
 Lineups pro are grenades pros repeat in pro matches, served by the ClipHub community server:

@@ -174,4 +174,9 @@ func TestTeamCandidatesReadEveryMatchAndBoundTheDocuments(t *testing.T) {
 	if len(kept) != 3 || opens() != 3 || len(skipped) != len(pending)-3 || skipped[0].Reason != scoutSkipReadLimit {
 		t.Fatalf("a read budget of 3 kept %d, read %d, skipped %d (%+v)", len(kept), opens(), len(skipped), skipped[:1])
 	}
+	env.storage.resetOpenCounts()
+	history, err := env.h.teamMapHistory(t.Context(), mapHistoryQuery{team: team, withDocuments: true})
+	if err != nil || history.Matches != len(seeded) || opens() != maxTeamDocReads || skippedFor(history.Skipped, scoutSkipReadLimit) != len(seeded)-maxTeamDocReads {
+		t.Fatalf("map history = %d matches, %d reads, skipped %+v (%v)", history.Matches, opens(), history.Skipped, err)
+	}
 }
