@@ -14,7 +14,7 @@ func TestLaunchBotReplayAsksThenLaunches(t *testing.T) {
 	rec := &recorder{seen: map[string]string{}}
 	mux := http.NewServeMux()
 	rec.handle(mux, "POST /api/library/matches/{id}/tactical/rounds/{round}/bot-replay", `{"launched":true,"exec_command":"exec cliphub_practice",
-		"keys":{"restart":"KP_ENTER","next":"KP_PLUS","start":"KP_MINUS"},"bots":[{"name":"carl","index":2}],
+		"keys":{"prepare":"KP_INS","restart":"KP_ENTER","next":"KP_PLUS","start":"KP_MINUS","base":"KP_DEL"},"bots":[{"name":"carl","index":2}],
 		"starts":[{"name":"ana","steamid64":"1"}],"current":0,
 		"moments":[{"seconds":0,"label":"Salida","notes":[]},{"seconds":9.4,"label":"Granadas","notes":["Humo de carl"]}],
 		"lineups":[{"seconds":9.4,"kind":"smoke","player":"carl","key":"KP_END"}],"limits":["Los bots no repiten el recorrido."]}`)
@@ -33,7 +33,7 @@ func TestLaunchBotReplayAsksThenLaunches(t *testing.T) {
 	if !strings.Contains(got, "/rounds/3/bot-replay") || !strings.HasSuffix(got, `{"side":"CT","replace_steamid":"76561198000000001"}`) {
 		t.Errorf("request = %s", got)
 	}
-	if !out.Launched || out.StartsAs != "ana" || len(out.Bots) != 1 || len(out.Keys) != 4 || out.Keys[3] != "KP_END: smoke de carl (9.4 s)" {
+	if !out.Launched || out.StartsAs != "ana" || len(out.Bots) != 1 || len(out.Keys) != 6 || out.Keys[5] != "KP_END: smoke de carl (9.4 s)" || !strings.HasPrefix(out.Keys[3], "KP_DEL:") {
 		t.Errorf("out = %+v", out)
 	}
 	if len(out.Moments) != 2 || out.Moments[1] != "9.4 s Granadas: Humo de carl" || len(out.Limits) != 1 {

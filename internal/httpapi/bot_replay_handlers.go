@@ -11,6 +11,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/botreplay"
 	"github.com/rechedev9/cliphub/internal/practice"
+	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
@@ -25,9 +26,11 @@ type botReplayRequest struct {
 }
 
 type botReplayKeys struct {
+	Prepare string `json:"prepare"`
 	Restart string `json:"restart"`
 	Next    string `json:"next"`
 	Start   string `json:"start"`
+	Base    string `json:"base"`
 }
 
 type botReplayResponse struct {
@@ -95,7 +98,10 @@ func (h *Handlers) LaunchLibraryBotReplay(w http.ResponseWriter, r *http.Request
 		Launched: result.Launched, AlreadyRunning: result.AlreadyRunning, CfgPath: result.CfgPath,
 		ExecCommand: practice.ExecCommand, Map: plan.Map, Round: plan.Round,
 		Side: string(plan.UserSide), BotSide: string(plan.BotSide),
-		Keys: botReplayKeys{Restart: botreplay.RestartKey, Next: botreplay.NextKey, Start: botreplay.StartKey},
+		Keys: botReplayKeys{
+			Prepare: botreplay.PrepareKey, Restart: botreplay.RestartKey, Next: botreplay.NextKey,
+			Start: botreplay.StartKey, Base: botreplay.BaseKey,
+		},
 		Bots: plan.Bots, Starts: nonNil(plan.Starts), Current: plan.Current,
 		Moments: plan.Moments, Lineups: nonNil(plan.Lineups), Limits: botreplay.Limits,
 	})
@@ -116,8 +122,11 @@ func (h *Handlers) allRoundFrames(demoID uuid.UUID, doc tacticalplan.Document, r
 		return nil, nil
 	}
 	rc, err := h.storage.Open(artifacts.LibraryTacticalPositionsKey(demoID))
-	if err != nil {
+	if storage.IsNotExist(err) {
 		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("open positions: %w", err)
 	}
 	defer rc.Close()
 	blob, err := io.ReadAll(rc)

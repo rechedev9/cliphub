@@ -32,7 +32,7 @@ export type BotReplayResult = {
   map: string;
   round: number;
   botSide: string;
-  keys: { restart: string; next: string; start: string };
+  keys: { prepare: string; restart: string; next: string; start: string; base: string };
   bots: BotReplayPlayer[];
   startsAs: string;
   moments: BotReplayMoment[];
@@ -108,7 +108,13 @@ export function parseBotReplayResult(body: unknown): BotReplayResult | null {
     map: text(field(body, 'map')),
     round: count(field(body, 'round')),
     botSide: text(field(body, 'bot_side')),
-    keys: { restart: text(field(keys, 'restart')), next: text(field(keys, 'next')), start: text(field(keys, 'start')) },
+    keys: {
+      prepare: text(field(keys, 'prepare')),
+      restart: text(field(keys, 'restart')),
+      next: text(field(keys, 'next')),
+      start: text(field(keys, 'start')),
+      base: text(field(keys, 'base')),
+    },
     bots: list(field(body, 'bots'), (item) => ({ name: text(field(item, 'name')), steamid64: text(field(item, 'steamid64')) })),
     startsAs: starts[current] ?? '',
     moments: moments.map((item) => ({ seconds: count(field(item, 'seconds')), label: text(field(item, 'label')), notes: strings(field(item, 'notes')) })),
@@ -141,7 +147,7 @@ export async function launchBotReplay(input: BotReplayInput): Promise<BotReplayO
   const body: unknown = await res.json().catch(() => null);
   if (res.ok) {
     const result = parseBotReplayResult(body);
-    return result === null ? { kind: 'failed', message: 'respuesta no valida del servicio' } : { kind: 'ok', result };
+    return result === null ? { kind: 'failed', message: 'respuesta no válida del servicio' } : { kind: 'ok', result };
   }
   const code = field(body, 'code');
   if (res.status === 503 && code === SERVICE_UNAVAILABLE_CODE) return { kind: 'offline' };

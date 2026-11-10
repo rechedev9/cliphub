@@ -140,9 +140,11 @@ type BotReplay struct {
 	Side    string `json:"side"`
 	BotSide string `json:"bot_side"`
 	Keys    struct {
+		Prepare string `json:"prepare"`
 		Restart string `json:"restart"`
 		Next    string `json:"next"`
 		Start   string `json:"start"`
+		Base    string `json:"base"`
 	} `json:"keys"`
 	Bots []struct {
 		Name  string `json:"name"`

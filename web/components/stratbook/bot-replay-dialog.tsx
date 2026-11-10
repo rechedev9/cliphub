@@ -44,7 +44,8 @@ export function BotReplayDialog({
         <DialogHeader>
           <DialogTitle>Practicar contra la ronda {round.number}</DialogTitle>
           <DialogDescription>
-            CS2 se abre en un servidor local con un bot por cada jugador del otro equipo, de pie donde estaba en cada momento clave de la ronda.
+            CS2 se abre en un servidor local con un bot por cada jugador del otro equipo. Los bots están quietos y no disparan: en cada momento clave
+            de la ronda aparecen donde estaba cada rival, y el bot de un rival que ya ha muerto espera en su spawn.
           </DialogDescription>
         </DialogHeader>
         {outcome?.kind === 'ok' ? (
@@ -76,7 +77,10 @@ export function BotReplayDialog({
                 ? 'El otro equipo no tiene jugadores en esta ronda.'
                 : `Bots: ${rivals.map((player) => player.name).join(', ')}.`}
             </p>
-            <Limits />
+            <p className="text-body-sm text-fg-2">
+              Los bots no repiten el recorrido, no miran hacia donde miraba el rival y no lanzan granadas: CS2 no lo permite sin un plugin de
+              servidor. Las teclas del teclado numérico sustituyen a lo que tuvieras asignado en ellas.
+            </p>
             {outcome === null ? null : <FailureText outcome={outcome} />}
           </div>
         )}
@@ -95,13 +99,15 @@ export function BotReplayDialog({
   );
 }
 
-function Limits(): ReactNode {
+function Limits({ limits }: { limits: string[] }): ReactNode {
+  if (limits.length === 0) return null;
   return (
     <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-body-sm text-fg-2">
       <p className="text-fg-1">Lo que CS2 no deja hacer sin un plugin de servidor</p>
       <ul className="list-disc pl-5">
-        <li>Los bots no repiten el recorrido: saltan de un momento al siguiente cuando pulsas la tecla.</li>
-        <li>Los bots no lanzan granadas. Tú lanzas las del rival desde el sitio y con la mira de cada una.</li>
+        {limits.map((limit) => (
+          <li key={limit}>{limit}</li>
+        ))}
       </ul>
     </div>
   );
@@ -131,9 +137,11 @@ function FailureText({ outcome }: { outcome: BotReplayOutcome }): ReactNode {
 function LaunchedSummary({ result }: { result: BotReplayResult }): ReactNode {
   const [copied, setCopied] = useState(false);
   const keys = [
-    { key: result.keys.restart, text: 'colocar a los bots y reiniciar' },
+    { key: result.keys.restart, text: 'coloca a los bots en el momento 1 (las dos primeras veces prepara el servidor y crea los bots)' },
     { key: result.keys.next, text: 'siguiente momento de la ronda' },
     { key: result.keys.start, text: 'otra salida' },
+    { key: result.keys.base, text: `si los bots no se colocan, cambia su número y vuelve a pulsar ${result.keys.restart}` },
+    { key: result.keys.prepare, text: 'prepara el servidor otra vez' },
     ...result.lineups.map((lineup) => ({ key: lineup.key, text: `${botReplayGrenadeLabel(lineup.kind)} de ${lineup.player} (${lineup.seconds.toFixed(1)} s)` })),
   ];
   return (
@@ -157,7 +165,16 @@ function LaunchedSummary({ result }: { result: BotReplayResult }): ReactNode {
           </span>
         </div>
       ) : (
-        <p>CS2 se está abriendo en {result.map}. Si Steam pide confirmación, acéptala. Cuando estés dentro, pulsa {result.keys.restart} para colocar a los bots.</p>
+        <p>CS2 se está abriendo en {result.map}. Si Steam pide confirmación, acéptala.</p>
+      )}
+      <p>
+        Cuando estés en el mapa, pulsa {result.keys.restart} tres veces: la primera prepara el servidor, la segunda crea los bots y la tercera
+        los coloca en el momento 1.
+      </p>
+      {result.bots.length === 0 ? null : (
+        <p className="text-fg-2">
+          Bots {result.botSide}, por orden: {result.bots.map((bot) => bot.name).join(', ')}.
+        </p>
       )}
       {result.startsAs === '' ? null : <p className="text-fg-2">Sales como {result.startsAs}.</p>}
       <table className="w-full text-body-sm">
@@ -179,7 +196,7 @@ function LaunchedSummary({ result }: { result: BotReplayResult }): ReactNode {
           </li>
         ))}
       </ol>
-      <Limits />
+      <Limits limits={result.limits} />
     </div>
   );
 }

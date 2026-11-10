@@ -1,12 +1,14 @@
 package httpapi
 
 import (
+	"bytes"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/practice"
 	"github.com/rechedev9/cliphub/internal/store"
 )
@@ -31,7 +33,7 @@ func TestLaunchLibraryBotReplayWritesCfgAndLaunches(t *testing.T) {
 	if !resp.Launched || resp.BotSide != "CT" || len(resp.Bots) != 1 || resp.Bots[0].Name != "one" || resp.Bots[0].Index != 2 {
 		t.Fatalf("response = %+v", resp)
 	}
-	if len(resp.Moments) != 1 || resp.Keys.Restart != "KP_ENTER" || len(resp.Limits) == 0 || resp.Starts == nil {
+	if len(resp.Moments) != 1 || resp.Keys.Restart != "KP_ENTER" || resp.Keys.Base != "KP_DEL" || len(resp.Limits) == 0 || resp.Starts == nil {
 		t.Fatalf("moments %+v keys %+v limits %v", resp.Moments, resp.Keys, resp.Limits)
 	}
 	if len(game.launched) != 1 || game.launched[0] != "de_mirage" {
@@ -41,7 +43,7 @@ func TestLaunchLibraryBotReplayWritesCfgAndLaunches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(cfg), "bot_add_ct") || !strings.Contains(string(cfg), "setpos_player 2 10.00 20.00 30.00") {
+	if !strings.Contains(string(cfg), "bot_add_ct") || !strings.Contains(string(cfg), "setpos_player 2 10.00 20.00 30.00\"") {
 		t.Fatalf("cfg:\n%s", cfg)
 	}
 
@@ -57,6 +59,22 @@ func TestLaunchLibraryBotReplayWritesCfgAndLaunches(t *testing.T) {
 	}
 	if rw := env.do(http.MethodPost, base+"9/bot-replay", []byte(`{"side":"T"}`), "application/json"); rw.Code != http.StatusNotFound {
 		t.Fatalf("missing round = %d", rw.Code)
+	}
+}
+
+func TestLaunchLibraryBotReplayPositionsErrors(t *testing.T) {
+	env := newBotReplayEnv(t, &fakePracticeGame{dir: t.TempDir()})
+	m := env.seedLibraryMatch("botreplay-blob", "Vitality", "MOUZ")
+	path := "/api/library/matches/" + m.ID.String() + "/tactical/rounds/1/bot-replay"
+	key := artifacts.LibraryTacticalPositionsKey(m.DemoID)
+
+	_ = env.storage.Put(key, bytes.NewReader([]byte("not a blob")))
+	if rw := env.do(http.MethodPost, path, []byte(`{"side":"T"}`), "application/json"); rw.Code != http.StatusInternalServerError {
+		t.Fatalf("broken blob = %d, want 500: %s", rw.Code, rw.Body.String())
+	}
+	_ = env.storage.Delete(key)
+	if rw := env.do(http.MethodPost, path, []byte(`{"side":"T"}`), "application/json"); rw.Code != http.StatusConflict || !strings.Contains(rw.Body.String(), codeNoPositions) {
+		t.Fatalf("missing blob = %d: %s", rw.Code, rw.Body.String())
 	}
 }
 

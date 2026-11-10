@@ -105,9 +105,11 @@ recorded) and list_pro_combos (each with clip_url once a round of it is recorded
 one into the Libreta.
 launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades,
 lineup_ids of Libreta lineups or pro_lineup_ids of pro lineups on one map.
-launch_bot_replay (match_id, round, side, replace_steamid) is Practicar contra esta ronda: CS2 opens with bots where
-the other side stood at the round's key moments and keys to restart, step, change spawn and throw their grenades.
-Plain CS2 cannot make bots walk the recorded paths or throw without a server plugin: pass its limits on to the user.
+launch_bot_replay (match_id, round, side, replace_steamid) is Practicar contra esta ronda: CS2 opens with frozen bots
+where the other side stood at the round's key moments. In game, KP_ENTER twice sets the server up and adds the bots,
+then places them; its keys step, change spawn, shift the bot numbers (KP_DEL) and stand the user on the rivals' throws.
+Plain CS2 cannot make bots walk the recorded paths, look where the rival looked or throw without a server plugin:
+pass its keys and limits on to the user.
 One match: get_round (a round ref's buys, patterns, kills and win probability), match_metrics (every
 player and each round's biggest swing) and match_tendencies (one side key's rounds, filtered: the tables of the match's Métricas tab;
 replay_rounds with the same buy, site or shape gives the rounds behind one of its figures).

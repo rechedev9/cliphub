@@ -29,6 +29,8 @@ const (
 	mergeSeconds  = 2.0
 	defaultRate   = 64.0
 	maxSteamIDLen = 20
+	// maxNameRunes keeps every echo and alias of the cfg short.
+	maxNameRunes = 20
 )
 
 // ErrInvalid marks a request the caller must fix; the message says what.
@@ -63,7 +65,8 @@ type Player struct {
 	SteamID64 string `json:"steamid64"`
 }
 
-// Bot is one player of the other side and the player index CS2 gives its bot.
+// Bot is one player of the other side. Index is its setpos_player number at
+// the default base; the user can shift the base in game.
 type Bot struct {
 	Player
 	Index int  `json:"index"`
@@ -157,7 +160,7 @@ func Build(opts Options) (Plan, error) {
 		player := Player{Slot: pr.Slot, Name: displayName(p.Name, int(pr.Slot)), SteamID64: p.SteamID64}
 		switch {
 		case pr.Side == plan.BotSide && len(plan.Bots) < MaxBots:
-			plan.Bots = append(plan.Bots, Bot{Player: player, Index: firstBotIndex + len(plan.Bots), Spawn: spawn})
+			plan.Bots = append(plan.Bots, Bot{Player: player, Index: DefaultBase + len(plan.Bots), Spawn: spawn})
 		case pr.Side == plan.UserSide:
 			plan.Starts = append(plan.Starts, Start{Player: player, Spawn: spawn})
 		}
@@ -195,9 +198,6 @@ func Build(opts Options) (Plan, error) {
 	return plan, nil
 }
 
-// firstBotIndex is the player index of the first bot: the listen server host is 1.
-const firstBotIndex = 2
-
 func sortedPlayers(players []tacticalplan.PlayerRound) []tacticalplan.PlayerRound {
 	out := slices.Clone(players)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Slot < out[j].Slot })
@@ -213,6 +213,9 @@ func otherSide(side tacticalplan.Side) tacticalplan.Side {
 
 func displayName(name string, slot int) string {
 	if clean := practice.SanitizeLabel(name); clean != "" {
+		if runes := []rune(clean); len(runes) > maxNameRunes {
+			clean = strings.TrimSpace(string(runes[:maxNameRunes]))
+		}
 		return clean
 	}
 	return fmt.Sprintf("Jugador %d", slot+1)
@@ -391,7 +394,7 @@ func attachNotes(moments []Moment, grenades []grenade) {
 	}
 	for i, n := range extra {
 		if n > 0 {
-			moments[i].Notes = append(moments[i].Notes, fmt.Sprintf("y %d mas", n))
+			moments[i].Notes = append(moments[i].Notes, fmt.Sprintf("y %d más", n))
 		}
 	}
 }

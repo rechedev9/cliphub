@@ -12,7 +12,7 @@ const BODY = {
   round: 3,
   side: 'CT',
   bot_side: 'T',
-  keys: { restart: 'KP_ENTER', next: 'KP_PLUS', start: 'KP_MINUS' },
+  keys: { prepare: 'KP_INS', restart: 'KP_ENTER', next: 'KP_PLUS', start: 'KP_MINUS', base: 'KP_DEL' },
   bots: [{ name: 'carl', steamid64: '3', index: 2 }],
   starts: [{ name: 'ana', steamid64: '1' }, { name: 'bea', steamid64: '2' }],
   current: 1,
@@ -26,6 +26,7 @@ test('parseBotReplayResult reads the answer and the player the user starts as', 
   assert.ok(result);
   assert.equal(result.startsAs, 'bea');
   assert.equal(result.keys.next, 'KP_PLUS');
+  assert.equal(result.keys.base, 'KP_DEL');
   assert.deepEqual(result.moments[1], { seconds: 9.4, label: 'Granadas', notes: ['Humo de carl'] });
   assert.deepEqual(result.bots, [{ name: 'carl', steamid64: '3' }]);
   assert.equal(result.limits.length, 1);

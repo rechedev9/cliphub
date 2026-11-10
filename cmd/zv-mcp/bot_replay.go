@@ -34,8 +34,10 @@ func registerBotReplayTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "launch_bot_replay", Annotations: &mcp.ToolAnnotations{},
 		Description: "Open CS2 on a local practice server against one library round, as Practicar contra esta ronda does in the Replay's round panel: " +
 			"the user plays side, bots stand where each player of the other side stood at the round's key moments (start, grenades, first contact, plant), " +
-			"and keypad keys restart, step to the next moment, change the spawn (otra salida) and put the user on the rivals' grenade throws. " +
-			"Plain CS2 cannot make bots walk the recorded paths or throw grenades without a server plugin; say so with limits. " +
+			"frozen and not shooting; a dead rival's bot waits at its spawn. In game the user presses KP_ENTER twice to set the server up and add the bots, " +
+			"then KP_ENTER places them at moment 1, KP_PLUS steps, KP_MINUS changes the spawn (otra salida), KP_DEL shifts the bot numbers when they do not move, " +
+			"and the keypad digits put the user on the rivals' grenade throws. The keypad binds replace the user's own. " +
+			"Plain CS2 cannot make bots walk the recorded paths, look where the rival looked or throw grenades without a server plugin; pass limits on to the user. " +
 			"It opens the game on the user's PC, so the user must approve it. " + deleteApprovalHint},
 		func(ctx context.Context, req *mcp.CallToolRequest, in botReplayIn) (*mcp.CallToolResult, botReplayOut, error) {
 			request, err := in.request()
@@ -91,9 +93,11 @@ func botReplayOutOf(res tuiclient.BotReplay, summary string) botReplayOut {
 		out.StartsAs = cleanName(res.Starts[res.Current].Name)
 	}
 	out.Keys = []string{
-		cleanName(res.Keys.Restart) + ": colocar a los bots y reiniciar",
+		cleanName(res.Keys.Restart) + ": dos veces para preparar el servidor y crear los bots; después coloca a los bots en el momento 1",
 		cleanName(res.Keys.Next) + ": siguiente momento",
 		cleanName(res.Keys.Start) + ": otra salida",
+		cleanName(res.Keys.Base) + ": cambia el número del primer bot si no se colocan; vuelve a pulsar " + cleanName(res.Keys.Restart),
+		cleanName(res.Keys.Prepare) + ": prepara el servidor otra vez",
 	}
 	for _, l := range res.Lineups {
 		out.Keys = append(out.Keys, fmt.Sprintf("%s: %s de %s (%.1f s)", cleanName(l.Key), cleanName(l.Kind), cleanName(l.Player), l.Seconds))
