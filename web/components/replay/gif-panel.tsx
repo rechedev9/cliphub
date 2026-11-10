@@ -63,10 +63,13 @@ export function GifPanel({
   if (gif.state.kind === 'recording') percent = gif.state.percent;
   if (video.state.kind === 'rendering') percent = video.state.percent;
   return (
-    <section aria-label="Exportar el tramo" className="flex shrink-0 flex-col gap-2 border-t border-border-subtle bg-surface-1 px-2 py-2">
-      {multi ? null : <TramoBar tramo={tramo.tramo} onChange={tramo.onChange} />}
+    <section
+      aria-label="Exportar el tramo"
+      className="flex min-h-0 flex-col gap-1.5 overflow-y-auto overscroll-contain border-t border-border-subtle bg-surface-1 px-2 py-1.5 [scrollbar-width:thin]"
+    >
+      {multi ? null : <TramoBar compact tramo={tramo.tramo} onChange={tramo.onChange} />}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <p className="min-w-0 flex-1 text-meta text-fg-2">{summary}</p>
+        <p className="min-w-[10rem] flex-1 text-meta text-fg-2">{summary}</p>
         <div className="flex items-center gap-2" title={video.voice.hint ?? undefined}>
           <Switch
             aria-labelledby={voiceId}

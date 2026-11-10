@@ -714,7 +714,7 @@ export function ReplayWorkspace({
           follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
           preferences={{ open: preferences, onOpen: () => setPreferences((value) => !value), triggerRef: preferencesChip }}
         />
-        <div className="relative min-h-0 flex-1">
+        <div className={cn('relative flex-1', gif.open ? 'min-h-[240px]' : 'min-h-0')}>
           {focused === null ? (
             <CentreState state={current} round={entry?.round} onRetry={() => entry !== undefined && retry(entry.matchId)} />
           ) : (

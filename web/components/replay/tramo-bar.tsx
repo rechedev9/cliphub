@@ -117,22 +117,48 @@ export function QuickTramos({ tramo, onChange, plant = true }: { tramo: Tramo; o
  * The tramo of the forms that count rounds instead of playing them: the round
  * clock from 1:55 to 0:00 as a track, the bracket over it and the quick tramos.
  */
-export function TramoBar({ tramo, onChange, marks }: { tramo: Tramo; onChange: (tramo: Tramo) => void; /** Drawn in the track, such as a histogram. */ marks?: ReactNode }): ReactNode {
+export function TramoBar({
+  tramo,
+  onChange,
+  marks,
+  compact = false,
+}: {
+  tramo: Tramo;
+  onChange: (tramo: Tramo) => void;
+  /** Drawn in the track, such as a histogram. */
+  marks?: ReactNode;
+  /** One row (label, track, quick tramos) for a panel under the map, where height is scarce. */
+  compact?: boolean;
+}): ReactNode {
   const shown: Tramo = tramo.fromPlant === true || isWholeRound(tramo) ? { from: 0, to: ROUND_CLOCK_SECONDS } : tramo;
+  const label = <span className="shrink-0 text-body-sm font-medium text-fg-1">{tramoLabel(tramo)}</span>;
+  const quick = <QuickTramos tramo={tramo} onChange={onChange} />;
+  const track = (
+    <div className={cn('flex items-center gap-2', compact && 'min-w-[12rem] flex-1')}>
+      <span className="font-mono text-meta tabular-nums text-fg-3">{roundClock(0)}</span>
+      <div className={cn('relative min-w-0 flex-1 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]', compact ? 'h-6' : 'h-7')}>
+        {marks}
+        {tramo.fromPlant === true ? null : <TramoBracket tramo={shown} duration={ROUND_CLOCK_SECONDS} onChange={onChange} />}
+      </div>
+      <span className="font-mono text-meta tabular-nums text-fg-3">{roundClock(ROUND_CLOCK_SECONDS)}</span>
+    </div>
+  );
+  if (compact) {
+    return (
+      <div role="group" aria-label="Tramo de la ronda" className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        {label}
+        {track}
+        {quick}
+      </div>
+    );
+  }
   return (
     <div role="group" aria-label="Tramo de la ronda" className="flex flex-col gap-2 rounded-md border border-border bg-surface-2 px-3 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-body-sm font-medium text-fg-1">{tramoLabel(tramo)}</span>
-        <QuickTramos tramo={tramo} onChange={onChange} />
+        {label}
+        {quick}
       </div>
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-meta tabular-nums text-fg-3">{roundClock(0)}</span>
-        <div className="relative h-7 min-w-0 flex-1 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]">
-          {marks}
-          {tramo.fromPlant === true ? null : <TramoBracket tramo={shown} duration={ROUND_CLOCK_SECONDS} onChange={onChange} />}
-        </div>
-        <span className="font-mono text-meta tabular-nums text-fg-3">{roundClock(ROUND_CLOCK_SECONDS)}</span>
-      </div>
+      {track}
     </div>
   );
 }
