@@ -24,6 +24,8 @@ type VoiceRepository interface {
 	ListVoiceLines(ctx context.Context, filter library.VoiceLineFilter) ([]library.VoiceLine, error)
 	// ListVoicesByTranscript returns the matches whose transcript is in one of states.
 	ListVoicesByTranscript(ctx context.Context, states []string) ([]uuid.UUID, error)
+	// ListVoiceSummaries returns the sync state and track count of every match with voice, by match id.
+	ListVoiceSummaries(ctx context.Context) ([]library.VoiceSummary, error)
 	// DeleteMatchVoice removes a match's voice; none stored is not an error.
 	DeleteMatchVoice(ctx context.Context, matchID uuid.UUID) error
 }

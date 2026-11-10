@@ -49,7 +49,7 @@ export type PartidaSort = (typeof SORTS)[number];
 export const SORT_LABEL: Record<PartidaSort, string> = { played: 'Fecha de la partida', imported: 'Fecha de importación' };
 
 /** Query keys of the Partidas list view, so a reload or a shared link keeps it. */
-export const LIBRARY_VIEW_QUERY = { sort: 'orden', kind: 'tipo', pov: 'pov', view: 'vista' } as const;
+export const LIBRARY_VIEW_QUERY = { sort: 'orden', kind: 'tipo', pov: 'pov', voice: 'voz', view: 'vista' } as const;
 
 export const LIBRARY_VIEWS = ['series', 'tabla'] as const;
 export type LibraryViewMode = (typeof LIBRARY_VIEWS)[number];
@@ -60,6 +60,7 @@ export type LibraryListView = {
   readonly sort: PartidaSort;
   readonly kind: MatchKind | null;
   readonly pov: boolean;
+  readonly voice: boolean;
   readonly mode: LibraryViewMode;
 };
 
@@ -67,7 +68,7 @@ export function parseListView(search: URLSearchParams): LibraryListView {
   const sort = SORTS.find((entry) => SORT_PARAM[entry] === search.get(LIBRARY_VIEW_QUERY.sort)) ?? 'played';
   const kind = MATCH_KINDS.find((entry) => entry === search.get(LIBRARY_VIEW_QUERY.kind)) ?? null;
   const mode = LIBRARY_VIEWS.find((entry) => entry === search.get(LIBRARY_VIEW_QUERY.view)) ?? 'series';
-  return { sort, kind, pov: search.get(LIBRARY_VIEW_QUERY.pov) === '1', mode };
+  return { sort, kind, pov: search.get(LIBRARY_VIEW_QUERY.pov) === '1', voice: search.get(LIBRARY_VIEW_QUERY.voice) === '1', mode };
 }
 
 /** The query keys of a list view; defaults are left out so a plain /partidas stays plain. */
@@ -76,6 +77,7 @@ export function listViewParams(view: LibraryListView): [string, string][] {
   if (view.sort !== 'played') out.push([LIBRARY_VIEW_QUERY.sort, SORT_PARAM[view.sort]]);
   if (view.kind !== null) out.push([LIBRARY_VIEW_QUERY.kind, view.kind]);
   if (view.pov) out.push([LIBRARY_VIEW_QUERY.pov, '1']);
+  if (view.voice) out.push([LIBRARY_VIEW_QUERY.voice, '1']);
   if (view.mode !== 'series') out.push([LIBRARY_VIEW_QUERY.view, view.mode]);
   return out;
 }

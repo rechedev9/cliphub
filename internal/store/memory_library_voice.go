@@ -170,6 +170,20 @@ func (r *MemoryLibraryRepository) ListVoicesByTranscript(ctx context.Context, st
 	return out, nil
 }
 
+func (r *MemoryLibraryRepository) ListVoiceSummaries(ctx context.Context) ([]library.VoiceSummary, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := []library.VoiceSummary{}
+	for id, v := range r.voices {
+		out = append(out, library.VoiceSummary{MatchID: id, Tracks: len(v.voice.Tracks), Sync: v.voice.Sync})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].MatchID.String() < out[j].MatchID.String() })
+	return out, nil
+}
+
 func (r *MemoryLibraryRepository) DeleteMatchVoice(ctx context.Context, matchID uuid.UUID) error {
 	if err := ctx.Err(); err != nil {
 		return err

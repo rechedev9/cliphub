@@ -322,6 +322,8 @@ test('team voice imports 2 GiB plus the multipart framing, streams a numbered tr
   assert.equal(matchLibraryRoute('GET', ['matches', ID, 'voice', 'tracks', '0', 'audio']), undefined);
   const sync = matchLibraryRoute('PATCH', ['matches', ID, 'voice']);
   assert.deepEqual(sync?.body?.kind === 'json' ? sync.body.fields : [], ['offset_ms', 'auto']);
+  assert.ok(matchLibraryRoute('GET', ['voice', 'summary']));
+  assert.equal(matchLibraryRoute('POST', ['voice', 'summary']), undefined);
   const search = matchLibraryRoute('GET', ['voice', 'search']);
   assert.ok(search);
   assert.equal(libraryUpstreamQuery(search, new URLSearchParams('q=rota+b&team_id=x&phase=dead&steamid=1')), 'q=rota+b&team_id=x&phase=dead');

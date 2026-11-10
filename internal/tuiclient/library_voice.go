@@ -160,6 +160,22 @@ func (c *Client) ImportMatchVoice(ctx context.Context, matchID, audioPath string
 	return out, err
 }
 
+// VoiceSummary is a match's voice as the library list shows it: the sync state, no tracks.
+type VoiceSummary struct {
+	MatchID string    `json:"match_id"`
+	Tracks  int       `json:"tracks"`
+	Sync    VoiceSync `json:"sync"`
+}
+
+// ListVoiceSummaries reads the sync state of every match with team voice.
+func (c *Client) ListVoiceSummaries(ctx context.Context) ([]VoiceSummary, error) {
+	var out struct {
+		Voices []VoiceSummary `json:"voices"`
+	}
+	err := c.doJSON(ctx, http.MethodGet, "/api/library/voice/summary", nil, &out)
+	return out.Voices, err
+}
+
 // GetMatchVoice reads a match's voice; Present is false when it has none.
 func (c *Client) GetMatchVoice(ctx context.Context, matchID string) (MatchVoice, error) {
 	var out MatchVoice

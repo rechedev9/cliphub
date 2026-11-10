@@ -255,6 +255,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/library/matches/{id}/voice/demo", h.GetLibraryMatchDemoVoice)
 	r.Post("/api/library/matches/{id}/voice/demo", h.ExtractLibraryMatchDemoVoice)
 	r.Get("/api/library/matches/{id}/voice/demo/{steamid}/audio", h.GetLibraryMatchDemoVoiceAudio)
+	r.Get("/api/library/voice/summary", h.ListLibraryVoiceSummaries)
 	r.Get("/api/library/voice/search", h.SearchLibraryVoice)
 	r.Get("/api/library/voice/transcriber", h.GetVoiceTranscriber)
 	r.Post("/api/library/voice/transcriber/install", h.InstallVoiceTranscriber)

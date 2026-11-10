@@ -18,6 +18,7 @@ import {
   type LibrarySource,
 } from '@/lib/api/library';
 import type { LibrarySeries } from '@/lib/api/veto';
+import { listVoiceSummaries, type VoiceSummary } from '@/lib/api/voice';
 import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, PRO_MATCHES_HREF, matchHref } from '@/lib/clips/routes';
 import { bulkDeleteSummary, deleteErrorMessage } from '@/lib/delete-error';
 import { formatShortDate, prettyMapName } from '@/lib/format';
@@ -51,6 +52,7 @@ import {
   type PartidaRow,
 } from '@/lib/library/partidas';
 import { loadPovJobs } from '@/lib/library/pov-jobs';
+import { voiceIndex, type VoiceByMatch } from '@/lib/library/voice-summary';
 import type { CountNoun } from '@/lib/records/selection';
 import { FILTER_ANY, SEARCH_FILTER, filterRows, type TableViewState } from '@/lib/records/table-view';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -66,6 +68,7 @@ import { useTableView } from '@/components/records/use-table-view';
 import { DemoImport } from '@/components/matches/demo-import';
 import { LibraryListControls } from '@/components/matches/library-list-controls';
 import { PartidaGroupsList } from '@/components/matches/partida-groups-list';
+import { PartidaVoice } from '@/components/matches/partida-voice';
 import { DemoStatus, RowActions, Scoreline, isPending, removeDemo, type RowHandlers } from '@/components/matches/partida-cells';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
@@ -94,7 +97,9 @@ const IDLE_POLL_MS = 30_000;
 // Radix refuses an empty item value, so "every map" travels as this sentinel inside the chips only.
 const ALL_MAPS = '__all__';
 
-function columns(handlers: RowHandlers): DataTableColumn<PartidaRow>[] {
+type VoiceColumn = { byMatch: VoiceByMatch; onResynced: () => void };
+
+function columns(handlers: RowHandlers, voice: VoiceColumn): DataTableColumn<PartidaRow>[] {
   return [
     {
       id: 'map',
@@ -140,6 +145,15 @@ function columns(handlers: RowHandlers): DataTableColumn<PartidaRow>[] {
       header: 'Rondas',
       cell: ({ match }) => (match ? <span className="tabular-nums">{match.round_count}</span> : null),
       sortValue: ({ match }) => match?.round_count ?? null,
+    },
+    {
+      id: 'voice',
+      header: 'Voz',
+      cell: ({ match }) => {
+        const summary = match ? voice.byMatch.get(match.id) : undefined;
+        return summary ? <PartidaVoice compact summary={summary} onResynced={voice.onResynced} /> : null;
+      },
+      sortValue: ({ match }) => (match && voice.byMatch.has(match.id) ? 1 : 0),
     },
     {
       id: 'source',
@@ -221,18 +235,20 @@ function initialView(search: URLSearchParams): TableViewState {
   };
 }
 
-type Loaded = { rows: PartidaRow[]; series: LibrarySeries[]; unlinkedJobs: number };
+type Loaded = { rows: PartidaRow[]; series: LibrarySeries[]; unlinkedJobs: number; voices: VoiceSummary[] };
 
 async function loadLibrary(): Promise<Loaded> {
-  const [demos, matches, unlinked, series] = await Promise.all([
+  const [demos, matches, unlinked, series, voices] = await Promise.all([
     listLibraryDemos(),
     listLibraryMatches(),
     // The Crear backlog is a hint; the table stands without it.
     listUnlinkedLibraryJobs().catch(() => []),
     // Without series every partida stands alone, as before.
     listLibrarySeries().catch((): LibrarySeries[] => []),
+    // Voice is an icon on the rows; without it they show none.
+    listVoiceSummaries().catch((): VoiceSummary[] => []),
   ]);
-  return { rows: buildPartidaRows(demos, matches), series, unlinkedJobs: unlinked.length };
+  return { rows: buildPartidaRows(demos, matches), series, unlinkedJobs: unlinked.length, voices };
 }
 
 /** Title and page actions. `PartidasSkeleton` passes a placeholder where the live importer goes. */
@@ -302,7 +318,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     } catch (error) {
       if (read !== readRef.current) return;
       setReadError(isLibraryOffline(error) ? 'offline' : 'error');
-      setLoaded((current) => current ?? { rows: [], series: [], unlinkedJobs: 0 });
+      setLoaded((current) => current ?? { rows: [], series: [], unlinkedJobs: 0, voices: [] });
     }
   }, []);
 
@@ -471,6 +487,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
 
   const now = Date.now();
   const seriesById = seriesIndex(loaded.series);
+  const voices = voiceIndex(loaded.voices);
   // Mi equipo comes from the team profile of #411; until it is read here, the scrims decide.
   const ownTeam = ownTeamId({ rows, explicit: null });
   const selectedMap = view.state.filters.map ?? FILTER_ANY;
@@ -488,7 +505,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   })
     .filter((row) => inDateRange(view.state.filters.date ?? FILTER_ANY, partidaDate(row), now))
     .filter((row) => listView.kind === null || rowKind(row, seriesById) === listView.kind)
-    .filter((row) => !listView.pov || hasPov(row, povJobs));
+    .filter((row) => !listView.pov || hasPov(row, povJobs))
+    .filter((row) => !listView.voice || (row.match !== null && voices.has(row.match.id)));
   const shown = selectedMap === FILTER_ANY ? facet : facet.filter(({ match }) => match?.map === selectedMap);
   const chips = mapChips({ library: rows.map(({ match }) => match), listed: facet.map(({ match }) => match), selected: selectedMap });
   const pending = rows.filter(isPending).length;
@@ -556,6 +574,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
                 ownTeam,
                 ownName: ownTeam === null ? '' : ownTeamName(rows, ownTeam),
                 povJobs,
+                voices,
+                onVoiceResynced: () => pollRef.current(),
                 allTags: libraryTags(rows),
                 handlers,
                 selected,
@@ -598,7 +618,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
               </>
             ),
           }}
-          columns={columns(handlers)}
+          columns={columns(handlers, { byMatch: voices, onResynced: () => pollRef.current() })}
           rowKey={(row) => row.demo.id}
           rowHref={(row) => (row.match ? matchHref(row.match.id) : undefined)}
           view={view}

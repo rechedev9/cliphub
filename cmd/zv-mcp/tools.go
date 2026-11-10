@@ -244,7 +244,8 @@ func registerTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "list_matches", Annotations: readOnly,
 		Description: "List the analysed matches in the Studio library as Partidas shows them: newest first by the match date (sort imported: by the import date), " +
 			"each with its tipo (kind), source, tags and, when it belongs to a series, the series format, event, veto and how its map was chosen (pick or decider). " +
-			"kind, has_pov, team, opponent and event are the Tipo de partida, Con POV, Equipo, Rival and Evento controls; every page of the library is read before they apply."},
+			"has_voice and voice_sync say whether the match has team voice and how it is synced (the voice icon of the row; sync_voice with auto true is Volver a sincronizar voz). " +
+			"kind, has_pov, has_voice, team, opponent and event are the Tipo de partida, Con POV, Con voz, Equipo, Rival and Evento controls; every page of the library is read before they apply."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listMatchesIn) (*mcp.CallToolResult, listMatchesOut, error) {
 			if err := in.check(); err != nil {
 				return nil, listMatchesOut{}, err

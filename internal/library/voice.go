@@ -89,6 +89,13 @@ type VoiceTranscript struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// VoiceSummary is what a library list shows of a match's voice, without loading its tracks.
+type VoiceSummary struct {
+	MatchID uuid.UUID `json:"match_id"`
+	Tracks  int       `json:"tracks"`
+	Sync    VoiceSync `json:"sync"`
+}
+
 // MatchVoice is the team voice imported for one match.
 type MatchVoice struct {
 	MatchID    uuid.UUID       `json:"match_id"`

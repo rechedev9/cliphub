@@ -70,12 +70,12 @@ test('a row is official only through its series event', () => {
 });
 
 test('the list view round-trips through the query and leaves other keys alone', () => {
-  const view = parseListView(new URLSearchParams('orden=importacion&tipo=scrim&pov=1&vista=tabla&map=de_nuke'));
-  assert.deepEqual(view, { sort: 'imported', kind: 'scrim', pov: true, mode: 'tabla' });
-  assert.deepEqual(parseListView(new URLSearchParams('tipo=otra&orden=x')), { sort: 'played', kind: null, pov: false, mode: 'series' });
+  const view = parseListView(new URLSearchParams('orden=importacion&tipo=scrim&pov=1&voz=1&vista=tabla&map=de_nuke'));
+  assert.deepEqual(view, { sort: 'imported', kind: 'scrim', pov: true, voice: true, mode: 'tabla' });
+  assert.deepEqual(parseListView(new URLSearchParams('tipo=otra&orden=x')), { sort: 'played', kind: null, pov: false, voice: false, mode: 'series' });
   assert.deepEqual(listViewParams(parseListView(new URLSearchParams())), []);
   assert.equal(withoutListView(new URLSearchParams('orden=importacion&map=de_nuke')), 'map=de_nuke');
-  assert.equal(withListView(new URLSearchParams('map=de_nuke&tipo=scrim'), { sort: 'played', kind: null, pov: true, mode: 'series' }), 'map=de_nuke&pov=1');
+  assert.equal(withListView(new URLSearchParams('map=de_nuke&tipo=scrim'), { sort: 'played', kind: null, pov: true, voice: true, mode: 'series' }), 'map=de_nuke&pov=1&voz=1');
 });
 
 test('a partida has a POV when one of its jobs has a video', () => {

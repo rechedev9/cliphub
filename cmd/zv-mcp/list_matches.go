@@ -32,6 +32,7 @@ type listMatchesIn struct {
 	Event    string `json:"event,omitempty" jsonschema:"only matches in a series whose event contains this text (the Evento filter)"`
 	Kind     string `json:"kind,omitempty" jsonschema:"scrim (scrim demos), oficial (tournament demos and matches in a series with an event) or importada (the rest, such as FACEIT pugs); empty keeps all"`
 	HasPOV   bool   `json:"has_pov,omitempty" jsonschema:"true keeps the matches with a finished video among their jobs (Con POV)"`
+	HasVoice bool   `json:"has_voice,omitempty" jsonschema:"true keeps the matches with imported team voice (Con voz)"`
 	Sort     string `json:"sort,omitempty" jsonschema:"played (default, the match date) or imported (the import date)"`
 }
 
@@ -78,6 +79,9 @@ type listedMatch struct {
 	ImportedAt string          `json:"imported_at,omitempty" jsonschema:"YYYY-MM-DD"`
 	Tags       []string        `json:"tags,omitempty" jsonschema:"untrusted labels; update_demo changes them"`
 	HasPOV     bool            `json:"has_pov,omitempty" jsonschema:"only set when has_pov was asked"`
+	HasVoice   bool            `json:"has_voice" jsonschema:"the match has imported team voice (the voice icon of its row)"`
+	VoiceSync  string          `json:"voice_sync,omitempty" jsonschema:"with voice: auto (synced on its own), manual (synced by hand) or unsynced; sync_voice with auto true syncs again"`
+	VoiceNote  string          `json:"voice_note,omitempty" jsonschema:"untrusted reason an unsynced recording gave"`
 	Series     *matchSeriesOut `json:"series,omitempty"`
 }
 
@@ -110,6 +114,14 @@ func listMatches(ctx context.Context, c *tuiclient.Client, in listMatchesIn) (li
 	if err != nil {
 		return listMatchesOut{}, err
 	}
+	voices, err := c.ListVoiceSummaries(ctx)
+	if err != nil {
+		return listMatchesOut{}, err
+	}
+	voiceByMatch := map[string]tuiclient.VoiceSummary{}
+	for _, v := range voices {
+		voiceByMatch[v.MatchID] = v
+	}
 	demoByID := map[string]tuiclient.LibraryDemo{}
 	for _, d := range demos {
 		demoByID[d.ID] = d
@@ -130,10 +142,14 @@ func listMatches(ctx context.Context, c *tuiclient.Client, in listMatchesIn) (li
 			source = m.Source
 		}
 		kind := kindOf(source, inSeries && se.Event != "")
-		if (in.Kind != "" && kind != in.Kind) || !playedAgainst(m, in.Opponent) || !inEvent(se, in.Event) {
+		voice, hasVoice := voiceByMatch[m.ID]
+		if (in.Kind != "" && kind != in.Kind) || !playedAgainst(m, in.Opponent) || !inEvent(se, in.Event) || (in.HasVoice && !hasVoice) {
 			continue
 		}
-		item := listedMatch{matchSummary: summarizeMatch(m), Kind: kind, Source: cleanName(source), Tags: cleanNames(d.Tags)}
+		item := listedMatch{matchSummary: summarizeMatch(m), Kind: kind, Source: cleanName(source), Tags: cleanNames(d.Tags), HasVoice: hasVoice}
+		if hasVoice {
+			item.VoiceSync, item.VoiceNote = voice.Sync.State, cleanText(voice.Sync.Note, 300)
+		}
 		if !d.Imported.IsZero() {
 			item.ImportedAt = d.Imported.Format(time.DateOnly)
 			imported[m.ID] = d.Imported

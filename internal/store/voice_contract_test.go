@@ -128,8 +128,20 @@ func TestVoiceRepositoryContract(t *testing.T) {
 				if kept, _ := f.repo.ListVoiceLines(f.ctx, library.VoiceLineFilter{MatchIDs: []uuid.UUID{a.ID}}); len(kept) != 2 {
 					t.Fatalf("a state change without lines kept %d lines, want 2", len(kept))
 				}
+				sums, err := f.repo.ListVoiceSummaries(f.ctx)
+				if err != nil || len(sums) != 2 {
+					t.Fatalf("ListVoiceSummaries = %+v, %v; want both matches", sums, err)
+				}
+				for _, s := range sums {
+					if s.Tracks != 1 || s.Sync != guess {
+						t.Fatalf("summary %+v, want one track and the sync %+v", s, guess)
+					}
+				}
 				if err := f.repo.DeleteDemo(f.ctx, d.ID); err != nil {
 					t.Fatal(err)
+				}
+				if sums, err := f.repo.ListVoiceSummaries(f.ctx); err != nil || len(sums) != 1 || sums[0].MatchID != b.ID {
+					t.Fatalf("summaries after the demo went = %+v, %v; want only b", sums, err)
 				}
 				if _, err := f.repo.GetMatchVoice(f.ctx, a.ID); !errors.Is(err, library.ErrNotFound) {
 					t.Fatalf("voice after the demo went = %v, want ErrNotFound", err)
@@ -142,6 +154,9 @@ func TestVoiceRepositoryContract(t *testing.T) {
 				}
 				if _, err := f.repo.GetMatchVoice(f.ctx, b.ID); !errors.Is(err, library.ErrNotFound) {
 					t.Fatalf("voice after DeleteMatchVoice = %v", err)
+				}
+				if sums, err := f.repo.ListVoiceSummaries(f.ctx); err != nil || len(sums) != 0 {
+					t.Fatalf("summaries after DeleteMatchVoice = %+v, %v; want none", sums, err)
 				}
 			},
 		},

@@ -30,6 +30,7 @@ const VIEW_OPTIONS = LIBRARY_VIEWS.map((mode) => ({ value: mode, label: VIEW_LAB
 /** Above the list: how it is shown, what it is sorted by, which kind of partida and whether it needs a POV. */
 export function LibraryListControls({ view, onChange }: { view: LibraryListView; onChange: (next: LibraryListView) => void }): ReactNode {
   const povId = useId();
+  const voiceId = useId();
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
       <Segmented label="Vista" value={view.mode} options={VIEW_OPTIONS} onChange={(mode) => onChange({ ...view, mode })} />
@@ -45,6 +46,10 @@ export function LibraryListControls({ view, onChange }: { view: LibraryListView;
       <span className="flex items-center gap-2">
         <Switch aria-labelledby={povId} checked={view.pov} onCheckedChange={(pov) => onChange({ ...view, pov })} />
         <span id={povId} className="text-body-sm text-fg-2">Con POV</span>
+      </span>
+      <span className="flex items-center gap-2">
+        <Switch aria-labelledby={voiceId} checked={view.voice} onCheckedChange={(voice) => onChange({ ...view, voice })} />
+        <span id={voiceId} className="text-body-sm text-fg-2">Con voz</span>
       </span>
     </div>
   );

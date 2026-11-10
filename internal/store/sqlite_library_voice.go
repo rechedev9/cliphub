@@ -253,6 +253,29 @@ func (r *SQLiteLibraryRepository) ListVoicesByTranscript(ctx context.Context, st
 	return out, nil
 }
 
+func (r *SQLiteLibraryRepository) ListVoiceSummaries(ctx context.Context) ([]library.VoiceSummary, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT v.match_id, v.sync_state, v.sync_method, v.offset_ms, v.auto_offset_ms, v.sync_confidence, v.sync_note, v.team_key,
+		(SELECT COUNT(*) FROM library_voice_tracks t WHERE t.match_id = v.match_id)
+		FROM library_match_voice v ORDER BY v.match_id`)
+	if err != nil {
+		return nil, fmt.Errorf("list voice summaries: %w", err)
+	}
+	defer rows.Close()
+	out := []library.VoiceSummary{}
+	for rows.Next() {
+		var s library.VoiceSummary
+		var id string
+		if err := rows.Scan(&id, &s.Sync.State, &s.Sync.Method, &s.Sync.OffsetMS, &s.Sync.AutoOffsetMS, &s.Sync.Confidence, &s.Sync.Note, &s.Sync.TeamKey, &s.Tracks); err != nil {
+			return nil, err
+		}
+		if s.MatchID, err = uuid.Parse(id); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
 func (r *SQLiteLibraryRepository) DeleteMatchVoice(ctx context.Context, matchID uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM library_match_voice WHERE match_id = ?`, matchID.String())
 	return err
