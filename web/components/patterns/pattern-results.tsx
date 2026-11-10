@@ -4,7 +4,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Play } from 'lucide-react';
 import type { PatternBlockKind, PatternResult } from '@/lib/api/patterns';
-import { TREND_LABEL, entryLabel, matchCountLabel, monthLabel, ofRoundsLabel, patternReplayRefs, percentLabel } from '@/lib/analysis/pattern-finder';
+import { TREND_LABEL, WHOLE_ROUND_ROW, entryLabel, matchCountLabel, monthLabel, ofRoundsLabel, patternReplayRefs, percentLabel, roundCountLabel } from '@/lib/analysis/pattern-finder';
 import { replayHref } from '@/lib/analysis/replay-link';
 import { formatShortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,8 @@ type Props = {
   title: string;
   /** Shown beside the open button, such as the save button. */
   actions?: ReactNode;
+  /** Ways to widen a pattern that kept no round, shown with the empty message. */
+  widen?: ReactNode;
 };
 
 /** What the run could not read, said as the user would: matches, grenades and the library cap. */
@@ -47,7 +49,7 @@ function Figure({ label, value, children }: { label: string; value: string; chil
 }
 
 /** What the pattern found: how many rounds, how they ended, the trend and every round by match. */
-export function PatternResults({ result, timed, title, actions }: Props): ReactNode {
+export function PatternResults({ result, timed, title, actions, widen }: Props): ReactNode {
   const refs = patternReplayRefs(result);
   const shares = result.months.map((month) => (month.rounds === 0 ? 0 : month.matched / month.rounds));
   return (
@@ -85,8 +87,15 @@ export function PatternResults({ result, timed, title, actions }: Props): ReactN
         </p>
       ))}
       {result.matched === 0 ? (
-        <EmptySample>
-          <p className="text-body-sm text-fg-2">Ninguna ronda cumple el patrón. Cambia el tramo, la zona o los bloques.</p>
+        <EmptySample hiddenLocally={result.rounds > 0}>
+          <div className="flex flex-col gap-2">
+            <p className="text-body-sm text-fg-2">
+              {result.rounds > 0
+                ? `Ninguna de las ${roundCountLabel(result.rounds)} del filtro cumple el patrón. Cambia el tramo, la zona o los bloques.`
+                : 'El filtro no deja ninguna ronda de este lado.'}
+            </p>
+            {result.rounds > 0 && widen !== undefined ? <div className="flex flex-wrap gap-2">{widen}</div> : null}
+          </div>
         </EmptySample>
       ) : (
         <ol className="flex flex-col gap-3">
@@ -110,7 +119,7 @@ export function PatternResults({ result, timed, title, actions }: Props): ReactN
                         className="grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-sm px-1.5 py-1 text-body-sm hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                       >
                         <span className="font-mono tabular-nums text-fg-2">R{row.round}</span>
-                        <span className="truncate text-fg-1">{row.seconds === undefined ? `Lado ${row.side}` : entryLabel({ kind: timed, seconds: row.seconds, plant: row.plant_seconds })}</span>
+                        <span className="truncate text-fg-1">{row.seconds === undefined ? WHOLE_ROUND_ROW : entryLabel({ kind: timed, seconds: row.seconds, plant: row.plant_seconds })}</span>
                         <span className={cn('font-medium', row.won ? 'text-outcome-win' : 'text-outcome-loss')}>{row.won ? 'Gana' : 'Pierde'}</span>
                       </Link>
                     </li>

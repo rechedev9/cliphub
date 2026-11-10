@@ -8,6 +8,7 @@ import {
   inArea,
   patternFromQuery,
   patternReplayRefs,
+  timedKind,
   trackInWindow,
   withTramo,
   writePatternQuery,
@@ -46,6 +47,8 @@ test('the block window maps to the tramo and back on the round clock', () => {
   assert.equal(entryLabel({ kind: 'utility', seconds: 120 }), 'La tira a +5s tras el plant');
   assert.equal(entryLabel({ kind: 'plant', seconds: 60, plant: 60 }), 'Planta a +0s tras el plant');
   assert.equal(entryLabel({ kind: 'plant', seconds: 60 }), 'Planta a 0:55');
+  // A player block without a zone has no moment of entry; the next timed block gives the row's time.
+  assert.equal(timedKind({ blocks: [{ kind: 'player', from: 0 }, { kind: 'plant', from: 0 }] }), 'plant');
 });
 
 test('an area keeps the floor it was drawn on only on a two-floor map', () => {

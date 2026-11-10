@@ -161,6 +161,10 @@ func (b PatternBlock) inArea(cal radarmap.Calibration, pos [3]float64) bool {
 // needsFrames reports whether the block reads positions rather than events.
 func (b PatternBlock) needsFrames() bool { return b.Kind == PatternPlayer }
 
+// timed is whether the block's first moment means something: a player block without an area
+// holds from the first frame of every round it plays.
+func (b PatternBlock) timed() bool { return b.Kind != PatternPlayer || b.Area != nil }
+
 // PatternInput is one match a pattern reads, with what its result lists names.
 type PatternInput struct {
 	Match    SpatialMatch
@@ -184,8 +188,8 @@ type PatternRound struct {
 	Buy         BuyType      `json:"buy,omitempty"`
 	OpponentBuy BuyType      `json:"opponent_buy,omitempty"`
 	Hits        []PatternHit `json:"hits"`
-	// Seconds and Tick are when the first timed block first held: when the player
-	// enters the area, the grenade leaves the hand or the bomb goes down.
+	// Seconds and Tick are when the first timed block first held: when the player enters
+	// the area, the grenade leaves the hand or the bomb goes down. A player block without an area has none.
 	Seconds *float64 `json:"seconds,omitempty"`
 	Tick    int      `json:"tick,omitempty"`
 	// PlantSeconds is when the bomb went down, so a moment past it reads as time after the plant.
@@ -363,7 +367,7 @@ func matchRound(in patternRound, p Pattern) roundVerdict {
 			if a.held {
 				at := math.Round(a.seconds*100) / 100
 				v.row.Hits[i].Seconds = &at
-				if v.row.Seconds == nil {
+				if v.row.Seconds == nil && b.timed() {
 					v.row.Seconds, v.row.Tick = &at, a.tick
 				}
 			}

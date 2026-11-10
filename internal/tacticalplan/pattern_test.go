@@ -109,6 +109,11 @@ func TestPatternAreaKeepsItsFloor(t *testing.T) {
 	if row.Seconds == nil || *row.Seconds != 3 || row.Tick != patternFreeze+3*64 {
 		t.Fatalf("entry = %+v, want 3 s after freeze end", row)
 	}
+	// Without a zone there is no moment of entry: the row has no time.
+	anywhere := runOne(t, inputs, Pattern{Blocks: []PatternBlock{{Kind: PatternPlayer, Players: []string{patternWalker}}}})
+	if row := anywhere.Matches[0].Matched[0]; row.Seconds != nil || row.Tick != 0 || row.Hits[0].Seconds == nil {
+		t.Fatalf("zoneless row = %+v, want no moment", row)
+	}
 }
 
 func TestPatternClockWindowAndInversion(t *testing.T) {

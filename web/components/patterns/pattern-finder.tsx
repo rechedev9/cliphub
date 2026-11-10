@@ -7,9 +7,10 @@ import { isLibraryOffline, type LibraryMatch, type LibraryRosterEntry, type Team
 import { runTeamPattern, type PatternBlock, type PatternDefinition, type PatternRunResponse, type PatternScope, type TeamPatternScope } from '@/lib/api/patterns';
 import { RADAR_LEVELS, type RadarLevel, type TacticalSide } from '@/lib/api/tactical';
 import type { WorldBox } from '@/lib/analysis/grenade-patterns';
-import { PATTERN_QUERY, areaOfBox, blockTramo, defaultPattern, patternFromQuery, timedKind, withTramo, writePatternQuery } from '@/lib/analysis/pattern-finder';
-import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
+import { INVERT_LABEL, PATTERN_QUERY, areaOfBox, blockTramo, defaultPattern, patternFromQuery, timedKind, withTramo, writePatternQuery } from '@/lib/analysis/pattern-finder';
+import { busiestMap, inScopePeriod, scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
+import { rivalOf } from '@/lib/library/partidas';
 import { ROUND_CLOCK_SECONDS, WHOLE_ROUND, isWholeRound, tramoLabel, type Tramo } from '@/lib/replay/tramo';
 import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap } from '@/lib/tactical-transform';
@@ -61,7 +62,20 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [saved, setSaved] = useState(0);
-  const { map, opponent, buy, opponentBuy, limit } = scope;
+  const { map, opponent, buy, opponentBuy, limit, period } = scope;
+  // With no map in the scope the finder opens on the team's busiest one, as Granadas does.
+  const defaultMap = useMemo(
+    () =>
+      busiestMap(
+        matches
+          .filter((match) => inScopePeriod(match.played_at, period, now) && (opponent === '' || rivalOf(match, teamId)?.team_id === opponent))
+          .map((match) => match.map),
+      ),
+    [matches, period, now, opponent, teamId],
+  );
+  useEffect(() => {
+    if (map === '' && defaultMap !== '') onMapChange(defaultMap);
+  }, [map, defaultMap, onMapChange]);
 
   // Keyed by the raw text, so the pattern only changes when its JSON does.
   const raw = search.get(PATTERN_QUERY);
@@ -121,6 +135,7 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
     };
   }, [teamId, map, runScope, pattern, attempt, onCounts]);
 
+  if (map === '' && defaultMap !== '') return <FinderSkeleton />;
   if (map === '') {
     const maps = [...new Set(matches.map((match) => match.map))].sort();
     return (
@@ -263,6 +278,36 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
           result={data.result}
           timed={timedKind(pattern)}
           title={`${teamName === '' ? 'Patrón' : teamName} en ${prettyMapName(data.map)}`}
+          widen={
+            block === undefined ? undefined : (
+              <>
+                {block.invert === true ? null : (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setBlock({ ...block, invert: true })}>
+                    {INVERT_LABEL[block.kind]}
+                  </Button>
+                )}
+                {pattern.blocks.some((entry) => entry.area !== undefined) ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setPattern({
+                        ...pattern,
+                        blocks: pattern.blocks.map((entry) => {
+                          const next = { ...entry };
+                          delete next.area;
+                          return next;
+                        }),
+                      })
+                    }
+                  >
+                    Quitar zona
+                  </Button>
+                ) : null}
+              </>
+            )
+          }
           actions={<SavePatternButton map={data.map} teamId={teamId} teamName={teamName} pattern={pattern} scope={saveScope} onSaved={() => setSaved((n) => n + 1)} />}
         />
       </aside>

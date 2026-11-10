@@ -116,10 +116,13 @@ export function entryLabel(entry: PatternEntry): string {
   return `Entra en la zona a ${clock}`;
 }
 
-/** The kind of the block whose time a row shows: the first one that is not inverted. */
+/** The kind of the block whose time a row shows: the first one not inverted, and with a zone for a player. */
 export function timedKind(pattern: PatternDefinition): PatternBlockKind {
-  return pattern.blocks.find((block) => block.invert !== true)?.kind ?? 'player';
+  return pattern.blocks.find((block) => block.invert !== true && (block.kind !== 'player' || block.area !== undefined))?.kind ?? 'player';
 }
+
+/** A row without a moment: the pattern holds the whole round. */
+export const WHOLE_ROUND_ROW = 'Juega la ronda';
 
 export const TREND_LABEL: Record<PatternTrend, string> = { up: 'Sube', down: 'Baja', flat: 'Estable', '': 'Sin datos' };
 

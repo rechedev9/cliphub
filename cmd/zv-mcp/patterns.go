@@ -110,7 +110,7 @@ type patternRoundOut struct {
 	Side  string `json:"side"`
 	Won   bool   `json:"won"`
 	Buy   string `json:"buy,omitempty"`
-	Clock string `json:"clock,omitempty" jsonschema:"when the first block that is not inverted first held, on the round clock (1:42 reads Entra en la zona a 1:42), or +Ns tras el plant past the plant"`
+	Clock string `json:"clock,omitempty" jsonschema:"when the first block that is not inverted first held, on the round clock (1:42 reads Entra en la zona a 1:42), or +Ns tras el plant past the plant; empty when a player block without a zone holds the whole round (Juega la ronda)"`
 }
 
 type patternMatchOut struct {
