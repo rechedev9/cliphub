@@ -55,12 +55,16 @@ function BigSide({ id, tile, stat, empty, dimmed, lit }: BigSideProps): ReactNod
   );
 }
 
-type RowCellProps = { id: SideKey; tile: SideStatTile; stat: SideStat; dimmed: boolean };
+type RowCellProps = { id: SideKey; tile: SideStatTile; stat: SideStat; dimmed: boolean; inline: boolean };
 
-function RowCell({ id, tile, stat, dimmed }: RowCellProps): ReactNode {
+function RowCell({ id, tile, stat, dimmed, inline }: RowCellProps): ReactNode {
   const delta = sideDelta(stat, tile.unit);
   return (
-    <div data-side={id} className="flex min-w-0 flex-col items-center px-2 text-center tabular-nums">
+    <div data-side={id} className={cn(
+        'flex min-w-0 flex-col items-center px-2 text-center tabular-nums',
+        inline && '@3xl:flex-row @3xl:flex-wrap @3xl:items-baseline @3xl:justify-end @3xl:gap-x-2 @3xl:text-end',
+      )}
+    >
       <span className={cn('font-medium', dimmed ? 'text-fg-3' : 'text-fg-1')}>{formatSideValue(stat.value, tile.unit)}</span>
       {delta ? <span className={cn('text-meta', DELTA_TONE_CLASS[delta.tone])}>{delta.text}</span> : null}
       <span className="text-meta text-fg-3">{groupMeanText(stat, tile.unit)}</span>
@@ -80,6 +84,11 @@ function ColumnHead({ id, dimmed, className }: { id: SideKey; dimmed: boolean; c
   );
 }
 
+function headPlace(single: boolean, index: number): string {
+  if (single) return '@3xl:items-end';
+  return index === 0 ? '' : '@3xl:col-start-3';
+}
+
 function cellPlace(single: boolean, index: number): string {
   if (single) return '';
   return index === 0 ? '@3xl:col-start-1 @3xl:row-start-1' : '@3xl:col-start-3 @3xl:row-start-1';
@@ -96,7 +105,7 @@ export function TeamSidesCard({ ct, t, side }: TeamSidesCardProps): ReactNode {
   const columns = (['t', 'ct'] as const).filter((id) => dimmed === null || id === dimmed);
   const stats: Record<SideKey, SideStats> = { t, ct };
   const single = columns.length === 1;
-  const rowGrid = single ? 'grid-cols-1' : 'grid-cols-2 @3xl:grid-cols-[1fr_11rem_1fr]';
+  const rowGrid = single ? 'grid-cols-1 @3xl:grid-cols-[1fr_auto]' : 'grid-cols-2 @3xl:grid-cols-[1fr_11rem_1fr]';
   return (
     <section aria-labelledby="side-stats-sides" className="studio-panel @container flex flex-col gap-3 p-3">
       <h2 id="side-stats-sides" className="text-body font-semibold text-fg-1">
@@ -116,7 +125,7 @@ export function TeamSidesCard({ ct, t, side }: TeamSidesCardProps): ReactNode {
         <div className="order-last flex min-w-0 flex-col @3xl:order-none">
           <div className={cn('grid gap-x-2 border-b border-border-subtle pb-1.5', rowGrid)}>
             {columns.map((id, index) => (
-              <ColumnHead key={id} id={id} dimmed={dimmed === id} className={single || index === 0 ? '' : '@3xl:col-start-3'} />
+              <ColumnHead key={id} id={id} dimmed={dimmed === id} className={headPlace(single, index)} />
             ))}
           </div>
           <ul>
@@ -125,14 +134,14 @@ export function TeamSidesCard({ ct, t, side }: TeamSidesCardProps): ReactNode {
                 <span
                   className={cn(
                     'text-center text-body-sm text-fg-2',
-                    single ? '' : 'order-first col-span-2 @3xl:order-none @3xl:col-span-1 @3xl:col-start-2 @3xl:row-start-1',
+                    single ? '@3xl:text-start' : 'order-first col-span-2 @3xl:order-none @3xl:col-span-1 @3xl:col-start-2 @3xl:row-start-1',
                   )}
                 >
                   {tile.label}
                 </span>
                 {columns.map((id, index) => (
                   <div key={id} className={cellPlace(single, index)}>
-                    <RowCell id={id} tile={tile} stat={stats[id][tile.key]} dimmed={dimmed === id} />
+                    <RowCell id={id} tile={tile} stat={stats[id][tile.key]} dimmed={dimmed === id} inline={single} />
                   </div>
                 ))}
               </li>
