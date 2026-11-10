@@ -10,8 +10,8 @@ import (
 	"github.com/rechedev9/cliphub/internal/library"
 )
 
-// MergeTeams moves every alias, match, report, play, series slot, role sheet and
-// profile of from onto into and deletes from.
+// MergeTeams moves every alias, match, report, play, series slot, role sheet,
+// profile and pattern of from onto into and deletes from.
 func (r *SQLiteLibraryRepository) MergeTeams(ctx context.Context, from, into uuid.UUID) (library.Team, error) {
 	if from == into {
 		return library.Team{}, library.ErrConflict
@@ -35,6 +35,7 @@ func (r *SQLiteLibraryRepository) MergeTeams(ctx context.Context, from, into uui
 			`UPDATE library_team_aliases SET team_id = ? WHERE team_id = ?`,
 			`UPDATE library_reports SET team_id = ? WHERE team_id = ?`,
 			`UPDATE library_plays SET team_id = ? WHERE team_id = ?`,
+			`UPDATE library_patterns SET team_id = ? WHERE team_id = ?`,
 			`UPDATE library_series SET team_a = ? WHERE team_a = ?`,
 			`UPDATE library_series SET team_b = ? WHERE team_b = ?`,
 			// Where both teams have a sheet for a map, into keeps its own.

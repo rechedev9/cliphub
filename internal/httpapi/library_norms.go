@@ -18,6 +18,7 @@ type referenceCaches struct {
 	baselines  baselineCache
 	matchReads matchReadCache
 	norms      normsCache
+	patterns   patternCache
 	community  CommunityDeps
 }
 

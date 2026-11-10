@@ -72,7 +72,7 @@ only the rounds every player of the team played in it, like the Alineación sele
 players of the team's latest match, which team_lineups lists, and an empty lineup keeps every round. team_playbook lists every
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
-Every team tool (team_side_stats too) also takes the rest of the team Replay's filter bar, so all team figures count the same rounds:
+Every team tool (team_side_stats, find_player_pattern and find_pattern_rounds too) also takes the rest of the team Replay's filter bar, so all team figures count the same rounds:
 max_matches (last 3 or 5), last_days (3, 7, 14, 30, 90, 180, 365), opponent_top (HLTV top 5 to 200, by each
 rival's rank today; rivals without a rank come back as unranked), whose (own: matches of the user's own team,
 the one list_teams marks own; others: scouting), buy and opponent_buy (full with full, half is semi and force,
@@ -136,6 +136,13 @@ replay_overlay superposes those rounds from the end of freeze time, as Superpone
 match_heatmap is the Mapa de calor of those rounds: kind position, death, kill (kill_at killer or victim), utility or timing,
 in a clock window (clock_from and clock_to, seconds after the round went live, or from_plant); it lists the hottest cells
 with their callout and counts. team_heatmap reads a team's matches on one map the same way, with players (SteamID64s) as the focus.
+Replay > Patrones of a team: find_player_pattern finds the rounds in which a player passes through a zone (a world rectangle,
+optionally one floor) in a clock window, or does not with invert; find_pattern_rounds adds up blocks (player, utility, plant),
+each with its own count. Both list the matched rounds by match with when the block held (+Ns tras el plant past the plant), the win rate,
+the last 30 days and the trend (only with 10 rounds each side), matches without positions (their rounds are out of scope) and unreadable ones,
+with replay_path (a playlist) and studio_path. save_pattern stores one for a team or the whole library, list_patterns gives each
+saved pattern's figures with its own scope, pattern_rounds runs one (without a team, over the newest 200 analysed matches of its map,
+capped_at says so) and delete_pattern removes it.
 player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay).
 export_replay_gif saves a round's tramo as a looping GIF with the radar, players, utility, clock and saved drawings, as Exportar GIF (G) does.
 record_round_pov is the Replay's "Grabar su POV de esta ronda": one player's first-person video of one round (match_id, round, steamid),
@@ -171,7 +178,7 @@ pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_st
 rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
 delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
-delete_report, delete_play, delete_lineup, delete_call, delete_library_series, delete_playlist, launch_practice,
+delete_report, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, launch_practice,
 launch_bot_replay need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio

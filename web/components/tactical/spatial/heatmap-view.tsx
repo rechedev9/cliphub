@@ -357,7 +357,7 @@ export function HeatmapView({
 }
 
 /** The contours as a bitmap, made once per picture and kept while it lives. */
-function densityImage(cache: WeakMap<Uint8ClampedArray<ArrayBuffer>, HTMLCanvasElement>, picture: DensityPicture): HTMLCanvasElement | null {
+export function densityImage(cache: WeakMap<Uint8ClampedArray<ArrayBuffer>, HTMLCanvasElement>, picture: DensityPicture): HTMLCanvasElement | null {
   const known = cache.get(picture.rgba);
   if (known !== undefined) return known;
   const width = picture.width * picture.scale;

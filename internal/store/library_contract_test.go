@@ -413,12 +413,20 @@ func TestLibraryRepositoryContract(t *testing.T) {
 				if _, err := f.repo.UpdateTeam(f.ctx, vit, library.TeamPatch{Aliases: &aliases}); !errors.Is(err, library.ErrConflict) {
 					t.Fatalf("UpdateTeam with another team's alias = %v, want ErrConflict", err)
 				}
+				saved := &library.Pattern{Name: "Banana", Map: "de_mirage", TeamID: &auto,
+					Pattern: tacticalplan.Pattern{Side: tacticalplan.SideT, Blocks: []tacticalplan.PatternBlock{{Kind: tacticalplan.PatternPlant}}}}
+				if err := f.repo.CreatePattern(f.ctx, saved); err != nil {
+					t.Fatal(err)
+				}
 				merged, err := f.repo.MergeTeams(f.ctx, auto, vit)
 				if err != nil {
 					t.Fatal(err)
 				}
 				if merged.MatchCount != 2 || len(merged.Aliases) != 2 {
 					t.Fatalf("merged = %+v, want 2 matches and both aliases", merged)
+				}
+				if moved, err := f.repo.GetPattern(f.ctx, saved.ID); err != nil || moved.TeamID == nil || *moved.TeamID != vit {
+					t.Fatalf("pattern after merge = %+v, %v, want it on the kept team", moved, err)
 				}
 				if _, err := f.repo.GetTeam(f.ctx, auto); !errors.Is(err, library.ErrNotFound) {
 					t.Fatalf("merged-away team = %v, want ErrNotFound", err)

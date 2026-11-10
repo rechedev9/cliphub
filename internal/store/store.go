@@ -133,6 +133,7 @@ type LibraryRepository interface {
 	DeletePlay(ctx context.Context, id uuid.UUID) error
 	LibretaRepository
 	PlaylistRepository
+	PatternRepository
 }
 
 type Repositories struct {

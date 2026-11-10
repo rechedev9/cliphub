@@ -8,7 +8,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/library"
 )
 
-// MergeTeams moves every alias, match, report, play, series slot and role sheet
+// MergeTeams moves every alias, match, report, play, series slot, role sheet and pattern
 // of from onto into and deletes from.
 func (r *MemoryLibraryRepository) MergeTeams(ctx context.Context, from, into uuid.UUID) (library.Team, error) {
 	if err := ctx.Err(); err != nil {
@@ -62,6 +62,7 @@ func (r *MemoryLibraryRepository) MergeTeams(ctx context.Context, from, into uui
 	r.moveSeriesTeam(from, into)
 	r.libreta.moveTeamRoles(from, into)
 	r.libreta.moveTeamProfile(from, into)
+	r.libreta.moveTeamPatterns(from, into)
 	delete(r.teams, from)
 	target.updatedAt = libraryNow()
 	r.teams[into] = target

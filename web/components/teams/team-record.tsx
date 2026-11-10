@@ -160,6 +160,8 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   playbook: ['lineup', 'map', 'side', 'period', 'opponent'],
   replay: TEAM_REPLAY_FIELDS,
   'replay-granadas': ['lineup', 'map', ...TEAM_REPLAY_FIELDS.filter((field) => field !== 'lineup')],
+  // The pattern carries its own side, so the bar leaves it out.
+  'replay-patrones': ['lineup', 'map', ...TEAM_REPLAY_FIELDS.filter((field) => field !== 'lineup' && field !== 'side')],
 };
 /** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
 const REPORTING_TABS = new Set(['mapas', 'estadisticas', 'sitios', 'preparar', 'playbook', 'replay']);
@@ -259,7 +261,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   else if (tab === 'veto') counts = undefined;
   // Until a map (and for Playbook a side) is picked there is nothing counted yet: no 0 mapas · 0 rondas.
   if (tab === 'playbook' && (scope.map === '' || scope.side === '')) counts = undefined;
-  if (tab === 'replay' && replayForm === 'granadas' && scope.map === '') counts = undefined;
+  if (tab === 'replay' && (replayForm === 'granadas' || replayForm === 'patrones') && scope.map === '') counts = undefined;
   const results = lastResults(
     scoped.map((match) => ({ playedAt: match.played_at, outcome: teamOutcome(match, team.id) })),
     10,
@@ -284,7 +286,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           entity={entity}
           lineups={lineups}
           maps={[...new Set(matches.map((match) => match.map))].sort()}
-          mapRequired={id === 'playbook' || id === 'replay-granadas'}
+          mapRequired={id === 'playbook' || id === 'replay-granadas' || id === 'replay-patrones'}
           opponents={id === 'veto' ? (teams ?? []).map((entry) => ({ value: entry.id, label: entry.name })) : playedRivals}
           limits={id.startsWith('replay') ? TEAM_REPLAY_LIMITS : undefined}
           ownTeams={profile?.own_teams ?? 0}
@@ -424,7 +426,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             id: 'replay',
             label: 'Replay',
             content: withScope(
-              replayForm === 'granadas' ? 'replay-granadas' : 'replay',
+              replayForm === 'granadas' || replayForm === 'patrones' ? `replay-${replayForm}` : 'replay',
               <TeamReplay
                 teamId={team.id}
                 scope={scope}
@@ -437,6 +439,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
                   openReplay(form);
                 }}
                 onMapChange={onMapChange}
+                onScopeChange={setScope}
                 onCounts={onCounts}
               />,
             ),
