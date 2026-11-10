@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -21,10 +20,6 @@ import (
 const (
 	// maxPatternQueryBytes bounds the pattern a query carries as JSON.
 	maxPatternQueryBytes = 8 << 10
-	// patternLibraryMatches caps a library-wide run at the newest matches of a map, to bound its memory.
-	patternLibraryMatches = 200
-	// maxPatternCacheEntries bounds the cached library-wide results; past it the cache starts over.
-	maxPatternCacheEntries = 256
 )
 
 // patternRunResponse is a pattern over a team's matches or the library: what it
@@ -33,17 +28,6 @@ type patternRunResponse struct {
 	spatialResponse
 	Pattern tacticalplan.Pattern       `json:"pattern"`
 	Result  tacticalplan.PatternResult `json:"result"`
-}
-
-// patternCache keeps library-wide results while the matches they read are unchanged.
-type patternCache struct {
-	mu      sync.Mutex
-	entries map[string]patternCacheEntry
-}
-
-type patternCacheEntry struct {
-	version uint64
-	result  tacticalplan.PatternResult
 }
 
 // patternQuery reads the pattern parameter, a JSON pattern.
@@ -104,116 +88,6 @@ func onceBlob(read func() ([]byte, error)) func() ([]byte, error) {
 	return func() ([]byte, error) {
 		once.Do(func() { blob, err = read() })
 		return blob, err
-	}
-}
-
-// libraryRun is some patterns over every analysed match of a map, from both teams' side.
-type libraryRun struct {
-	mapName  string
-	scope    library.PatternScope
-	patterns []tacticalplan.Pattern
-}
-
-func patternCacheKey(run libraryRun, p tacticalplan.Pattern) string {
-	raw, _ := json.Marshal(struct {
-		Map     string               `json:"map"`
-		Scope   library.PatternScope `json:"scope"`
-		Pattern tacticalplan.Pattern `json:"pattern"`
-	}{run.mapName, run.scope, p})
-	return string(raw)
-}
-
-// libraryPatternResults runs patterns over the newest matches of a map one match
-// at a time, reusing a cached result while those matches are unchanged.
-func (h *Handlers) libraryPatternResults(ctx context.Context, run libraryRun) ([]tacticalplan.PatternResult, error) {
-	listed, err := h.allLibraryMatches(ctx, library.MatchFilter{Map: run.mapName})
-	if err != nil {
-		return nil, err
-	}
-	limit, capped := patternLibraryMatches, 0
-	if run.scope.Matches > 0 {
-		limit = min(limit, run.scope.Matches)
-	}
-	if len(listed) > limit {
-		listed = listed[:limit]
-		if run.scope.Matches == 0 {
-			capped = limit
-		}
-	}
-	version := matchesVersion(listed)
-	keys := make([]string, len(run.patterns))
-	results := make([]tacticalplan.PatternResult, len(run.patterns))
-	var missing []int
-	// One run at a time: a library pass holds one match in memory, never several.
-	c := &h.references.patterns
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for i, p := range run.patterns {
-		keys[i] = patternCacheKey(run, p)
-		if e, ok := c.entries[keys[i]]; ok && e.version == version {
-			results[i] = e.result
-		} else {
-			missing = append(missing, i)
-		}
-	}
-	if len(missing) == 0 {
-		return results, nil
-	}
-	patterns := make([]tacticalplan.Pattern, len(missing))
-	for j, i := range missing {
-		patterns[j] = run.patterns[i]
-	}
-	runner := tacticalplan.NewPatternRunner(patterns, time.Now())
-	for _, m := range listed {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		h.addLibraryMatch(runner, libraryMatchRead{match: m, scope: run.scope})
-	}
-	out := runner.Finish()
-	if c.entries == nil || len(c.entries) >= maxPatternCacheEntries {
-		c.entries = map[string]patternCacheEntry{}
-	}
-	for j, i := range missing {
-		out[j].CappedAt = capped
-		results[i] = out[j]
-		c.entries[keys[i]] = patternCacheEntry{version: version, result: out[j]}
-	}
-	return results, nil
-}
-
-type libraryMatchRead struct {
-	match library.Match
-	scope library.PatternScope
-}
-
-// addLibraryMatch reads one match for both of its teams; its document and positions go with the call.
-func (h *Handlers) addLibraryMatch(runner *tacticalplan.PatternRunner, read libraryMatchRead) {
-	m := read.match
-	doc, err := h.readLibraryDocument(m.DemoID)
-	if err != nil {
-		log.Printf("httpapi: patterns skip match %s: %v", m.ID, err)
-		runner.Unreadable()
-		return
-	}
-	var buys, opponentBuys []tacticalplan.BuyType
-	if read.scope.Buy != "" {
-		buys = []tacticalplan.BuyType{read.scope.Buy}
-	}
-	if read.scope.OpponentBuy != "" {
-		opponentBuys = []tacticalplan.BuyType{read.scope.OpponentBuy}
-	}
-	blob := onceBlob(h.positionsReader(m.DemoID))
-	for _, t := range m.Teams {
-		filter := tacticalplan.Filter{TeamKey: t.Key, Buys: buys, OpponentBuys: opponentBuys}
-		input := tacticalplan.PatternInput{Match: tacticalplan.SpatialMatch{MatchID: m.ID, Document: doc, Filter: filter, Blob: blob},
-			PlayedAt: m.PlayedAt, Team: matchTeamName(t)}
-		for _, other := range m.Teams {
-			if other.Key != t.Key {
-				input.Opponent = matchTeamName(other)
-			}
-		}
-		runner.Add(input)
 	}
 }
 
@@ -358,7 +232,7 @@ func (h *Handlers) GetLibraryPatternRounds(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
-	results, err := h.libraryPatternResults(r.Context(), libraryRun{mapName: saved.Map, scope: saved.Scope, patterns: []tacticalplan.Pattern{saved.Pattern}})
+	results, err := h.patternDetector().Results(r.Context(), []library.Pattern{saved})
 	if err != nil {
 		internalError(w, "run pattern", err)
 		return

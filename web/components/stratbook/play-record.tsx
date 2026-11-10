@@ -38,6 +38,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { EditPlayDialog } from '@/components/libreta/edit-play-dialog';
 import { StatusBadge } from '@/components/libreta/status-badge';
+import { PlayPatterns } from './play-patterns';
 import { PlayRadar } from './play-radar';
 import { PlayRoles } from './play-roles';
 import { PlayGrenadeTable, PlayPositionTable } from './play-tables';
@@ -267,6 +268,7 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
                   </>
                 )}
                 <PlayRoles play={play} onSaved={onChanged} />
+                <PlayPatterns play={play} />
               </div>
             ),
           },

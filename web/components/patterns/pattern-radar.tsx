@@ -1,14 +1,14 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import type { Heatmap, Overlay } from '@/lib/api/spatial';
-import type { PatternArea } from '@/lib/api/patterns';
+import { PATTERN_MAX_POLYGON_POINTS, type PatternArea } from '@/lib/api/patterns';
 import { RADAR_LEVELS, type RadarLevel, type TacticalGeometry, type TacticalSide } from '@/lib/api/tactical';
 import { dragWorldBox, type WorldBox } from '@/lib/analysis/grenade-patterns';
-import { boxOfArea, patternPlayerToken, trackInWindow } from '@/lib/analysis/pattern-finder';
+import { areaOfBox, areaOfPolygon, boxOfArea, patternPlayerToken, trackInWindow } from '@/lib/analysis/pattern-finder';
 import { densityPicture, heatBandwidth, heatDensity, SMOOTHING_DEFAULT } from '@/lib/heat-density';
 import type { Tramo } from '@/lib/replay/tramo';
-import { heatmapSide, type RadarProjection } from '@/lib/tactical-spatial';
+import { heatmapSide, renderedToWorld, type RadarProjection } from '@/lib/tactical-spatial';
 import { levelForAltitude, worldToRendered, type RadarPoint } from '@/lib/tactical-transform';
 import { cn } from '@/lib/utils';
 import { RadarSurface, type RadarFrame } from '@/components/tactical/spatial/radar-surface';
@@ -16,6 +16,11 @@ import { densityImage } from '@/components/tactical/spatial/heatmap-view';
 
 /** A drag shorter than this many pixels is a click and clears the zone. */
 const DRAG_MIN = 4;
+/** A click this close to the first corner closes the polygon. */
+const CLOSE_PX = 10;
+
+/** How a drag on the radar draws the zone; `none` when the zone is a set of callouts. */
+export type ZoneTool = 'box' | 'polygon' | 'none';
 
 export type PatternPicture = 'recorridos' | 'calor';
 
@@ -35,11 +40,12 @@ type Props = {
   /** The zone of the block being edited, and the zones of the other blocks drawn fainter. */
   area: PatternArea | null;
   others: readonly PatternArea[];
-  onArea: (box: WorldBox | null, level: RadarLevel) => void;
+  tool: ZoneTool;
+  onArea: (area: PatternArea | null) => void;
 };
 
-/** The matched rounds' paths in the window (focus loud) or their heatmap; dragging draws the edited block's zone. */
-export function PatternRadar({ geometry, levels, multiLevel, picture, overlay, heatmap, side, focus, tramo, area, others, onArea }: Props): ReactNode {
+/** The matched rounds' paths in the window (focus loud) or their heatmap; dragging or clicking draws the edited block's zone. */
+export function PatternRadar({ geometry, levels, multiLevel, picture, overlay, heatmap, side, focus, tramo, area, others, tool, onArea }: Props): ReactNode {
   const split = multiLevel;
   const { calibration } = geometry;
   const images = useRef(new WeakMap<Uint8ClampedArray<ArrayBuffer>, HTMLCanvasElement>());
@@ -111,22 +117,24 @@ export function PatternRadar({ geometry, levels, multiLevel, picture, overlay, h
     [calibration, densities, focus, heatmap, overlay, picture, split, tramo],
   );
 
-  const onLevel = (zone: PatternArea | null, level: RadarLevel): WorldBox | null =>
-    zone === null || (split && zone.level !== undefined && zone.level !== level) ? null : boxOfArea(zone);
+  const onLevel = (zone: PatternArea | null, level: RadarLevel): PatternArea | null =>
+    zone === null || (split && zone.level !== undefined && zone.level !== level) ? null : zone;
 
   return (
     <RadarSurface geometry={geometry} level={levels[0] ?? RADAR_LEVELS.default} levels={levels} paint={paint} label="Radar con las rondas que cumplen el patrón">
       {(projection, zoomed, level) => (
-        <DragLayer
+        <DrawLayer
           geometry={geometry}
           projection={projection}
           zoomed={zoomed}
-          box={onLevel(area, level)}
+          tool={tool}
+          zone={onLevel(area, level)}
           others={others.flatMap((zone) => {
-            const box = onLevel(zone, level);
-            return box === null ? [] : [box];
+            const shown = onLevel(zone, level);
+            return shown === null ? [] : [shown];
           })}
-          onBox={(box) => onArea(box, level)}
+          onBox={(box) => onArea(box === null ? null : areaOfBox({ box, level, twoFloors: multiLevel }))}
+          onPolygon={(points) => onArea(areaOfPolygon({ points, level, twoFloors: multiLevel }))}
         />
       )}
     </RadarSurface>
@@ -135,50 +143,94 @@ export function PatternRadar({ geometry, levels, multiLevel, picture, overlay, h
 
 type Shown = { x: number; y: number; width: number; height: number };
 
-function DragLayer({
-  geometry,
-  projection,
-  zoomed,
-  box,
-  others,
-  onBox,
-}: {
+type DrawProps = {
   geometry: TacticalGeometry;
   projection: RadarProjection;
   zoomed: boolean;
-  box: WorldBox | null;
-  others: readonly WorldBox[];
+  tool: ZoneTool;
+  zone: PatternArea | null;
+  others: readonly PatternArea[];
   onBox: (box: WorldBox | null) => void;
-}): ReactNode {
+  onPolygon: (points: [number, number][]) => void;
+};
+
+function DrawLayer({ geometry, projection, zoomed, tool, zone, others, onBox, onPolygon }: DrawProps): ReactNode {
   const start = useRef<RadarPoint | null>(null);
   const [drag, setDrag] = useState<{ a: RadarPoint; b: RadarPoint } | null>(null);
+  const [corners, setCorners] = useState<RadarPoint[]>([]);
+  const [hover, setHover] = useState<RadarPoint | null>(null);
   const { size, offsetX, offsetY } = projection;
+  const { calibration } = geometry;
+  const drawing = corners.length > 0;
+  useEffect(() => {
+    if (!drawing) return;
+    const cancel = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setCorners([]);
+    };
+    window.addEventListener('keydown', cancel);
+    return () => window.removeEventListener('keydown', cancel);
+  }, [drawing]);
+  useEffect(() => setCorners([]), [tool]);
+
   const local = (event: PointerEvent<HTMLDivElement>): RadarPoint => {
     const rect = event.currentTarget.getBoundingClientRect();
     return { x: event.clientX - rect.left - offsetX, y: event.clientY - rect.top - offsetY };
   };
-  const rendered = (zone: WorldBox): Shown => {
-    const a = worldToRendered(geometry.calibration, zone.minX, zone.maxY, size);
-    const b = worldToRendered(geometry.calibration, zone.maxX, zone.minY, size);
+  const rendered = (world: WorldBox): Shown => {
+    const a = worldToRendered(calibration, world.minX, world.maxY, size);
+    const b = worldToRendered(calibration, world.maxX, world.minY, size);
     return { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y };
   };
+  const place = (at: Shown) => ({ left: at.x + offsetX, top: at.y + offsetY, width: at.width, height: at.height });
+  const svgPoints = (points: readonly RadarPoint[]): string => points.map((point) => `${point.x + offsetX},${point.y + offsetY}`).join(' ');
+  const polygonOf = (area: PatternArea): RadarPoint[] => (area.polygon ?? []).map(([x, y]) => worldToRendered(calibration, x, y, size));
+  const finish = (points: readonly RadarPoint[]): void => {
+    setCorners([]);
+    onPolygon(
+      points.map((point): [number, number] => {
+        const world = renderedToWorld(calibration, point.x, point.y, size);
+        return [world.x, world.y];
+      }),
+    );
+  };
+  const addCorner = (at: RadarPoint): void => {
+    const first = corners[0];
+    const last = corners.at(-1);
+    const closes = first !== undefined && corners.length >= 3 && Math.hypot(at.x - first.x, at.y - first.y) < CLOSE_PX;
+    // The second click of a double click lands on the last corner and closes too.
+    const repeats = last !== undefined && corners.length >= 3 && Math.hypot(at.x - last.x, at.y - last.y) < DRAG_MIN;
+    if (closes || repeats) finish(corners);
+    else if (corners.length < PATTERN_MAX_POLYGON_POINTS) setCorners([...corners, at]);
+  };
+
+  const box = zone === null ? null : boxOfArea(zone);
   let shown: Shown | null = box === null ? null : rendered(box);
   if (drag !== null) {
     shown = { x: Math.min(drag.a.x, drag.b.x), y: Math.min(drag.a.y, drag.b.y), width: Math.abs(drag.a.x - drag.b.x), height: Math.abs(drag.a.y - drag.b.y) };
   }
-  const place = (zone: Shown) => ({ left: zone.x + offsetX, top: zone.y + offsetY, width: zone.width, height: zone.height });
+  const otherBoxes = others.flatMap((entry) => {
+    const other = boxOfArea(entry);
+    return other === null ? [] : [other];
+  });
+  const otherPolygons = others.filter((entry) => entry.polygon !== undefined);
+  const live = hover === null ? corners : [...corners, hover];
 
   return (
     <div
       aria-hidden
-      className={cn('absolute inset-0 touch-none select-none', zoomed ? '' : 'cursor-crosshair')}
+      className={cn('absolute inset-0 touch-none select-none', zoomed || tool === 'none' ? '' : 'cursor-crosshair')}
       onPointerDown={(event) => {
-        if (event.button !== 0 || (zoomed && !event.shiftKey)) return;
+        if (tool === 'none' || event.button !== 0 || (zoomed && !event.shiftKey)) return;
         event.stopPropagation();
+        if (tool === 'polygon') {
+          addCorner(local(event));
+          return;
+        }
         event.currentTarget.setPointerCapture(event.pointerId);
         start.current = local(event);
       }}
       onPointerMove={(event) => {
+        if (tool === 'polygon' && drawing) setHover(local(event));
         if (start.current !== null) setDrag({ a: start.current, b: local(event) });
       }}
       onPointerUp={(event) => {
@@ -188,17 +240,35 @@ function DragLayer({
         if (from === null) return;
         event.stopPropagation();
         const to = local(event);
-        onBox(Math.hypot(to.x - from.x, to.y - from.y) < DRAG_MIN ? null : dragWorldBox(geometry.calibration, size, from, to));
+        onBox(Math.hypot(to.x - from.x, to.y - from.y) < DRAG_MIN ? null : dragWorldBox(calibration, size, from, to));
       }}
       onPointerCancel={() => {
         start.current = null;
         setDrag(null);
       }}
+      onContextMenu={(event) => {
+        if (!drawing) return;
+        event.preventDefault();
+        setCorners([]);
+      }}
     >
-      {others.map((zone) => (
-        <div key={`${zone.minX}:${zone.minY}:${zone.maxX}:${zone.maxY}`} className="pointer-events-none absolute border border-dashed border-fg-3" style={place(rendered(zone))} />
+      {otherBoxes.map((other) => (
+        <div key={`${other.minX}:${other.minY}:${other.maxX}:${other.maxY}`} className="pointer-events-none absolute border border-dashed border-fg-3" style={place(rendered(other))} />
       ))}
       {shown === null ? null : <div className="pointer-events-none absolute border border-dashed border-primary bg-primary/8" style={place(shown)} />}
+      <svg className="pointer-events-none absolute inset-0 size-full overflow-visible">
+        {otherPolygons.map((entry) => (
+          <polygon key={JSON.stringify(entry.polygon)} points={svgPoints(polygonOf(entry))} className="fill-none stroke-fg-3" strokeDasharray="4 3" />
+        ))}
+        {zone?.polygon === undefined || drawing ? null : (
+          <polygon points={svgPoints(polygonOf(zone))} className="fill-primary/10 stroke-primary" strokeDasharray="4 3" />
+        )}
+        {drawing ? <polyline points={svgPoints(live)} className="fill-none stroke-primary" strokeDasharray="4 3" /> : null}
+        {corners.map((corner, index) => (
+          <circle key={index} cx={corner.x + offsetX} cy={corner.y + offsetY} r={index === 0 ? 4 : 2.5} className="fill-primary" />
+        ))}
+      </svg>
     </div>
   );
 }
+

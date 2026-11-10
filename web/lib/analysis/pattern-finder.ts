@@ -1,4 +1,11 @@
-import { PATTERN_BLOCK_KINDS, PATTERN_MAX_BLOCKS, PATTERN_MAX_PLAYERS } from '../api/patterns.ts';
+import {
+  PATTERN_BLOCK_KINDS,
+  PATTERN_MAX_BLOCKS,
+  PATTERN_MAX_CALLOUTS,
+  PATTERN_MAX_MIN_PLAYERS,
+  PATTERN_MAX_PLAYERS,
+  PATTERN_MAX_POLYGON_POINTS,
+} from '../api/patterns.ts';
 import type { PatternArea, PatternBlock, PatternBlockKind, PatternDefinition, PatternResult, PatternTrend } from '../api/patterns.ts';
 import { TEAM_GRENADE_KINDS } from '../api/grenades.ts';
 import type { TeamGrenadeKind } from '../api/grenades.ts';
@@ -71,29 +78,72 @@ export function areaOfBox(drawn: DrawnBox): PatternArea {
   return drawn.twoFloors ? { ...area, level: drawn.level } : area;
 }
 
-export function boxOfArea(area: PatternArea): WorldBox {
-  return { minX: area.min_x, minY: area.min_y, maxX: area.max_x, maxY: area.max_y };
+export type DrawnPolygon = { points: [number, number][]; level: RadarLevel; twoFloors: boolean };
+
+/** A drawn polygon as a block's area, its corners rounded to world units. */
+export function areaOfPolygon(drawn: DrawnPolygon): PatternArea {
+  const polygon = drawn.points.slice(0, PATTERN_MAX_POLYGON_POINTS).map(([x, y]): [number, number] => [Math.round(x), Math.round(y)]);
+  return drawn.twoFloors ? { polygon, level: drawn.level } : { polygon };
 }
 
-/** Whether a world position falls in a block's area, on its floor when it names one. */
-export function inArea(area: PatternArea, x: number, y: number, level: RadarLevel): boolean {
-  if (x < area.min_x || x > area.max_x || y < area.min_y || y > area.max_y) return false;
-  return area.level === undefined || area.level === level;
+export type AreaShape = 'box' | 'polygon' | 'callouts';
+
+export function areaShape(area: PatternArea): AreaShape {
+  if (area.polygon !== undefined) return 'polygon';
+  if (area.callouts !== undefined) return 'callouts';
+  return 'box';
 }
 
-const WHAT_IN_AREA: Record<PatternBlockKind, string> = {
-  player: 'Pasa por la caja dibujada',
-  utility: 'La granada cae en la caja dibujada',
-  plant: 'Planta en la caja dibujada',
-};
+/** The area's box, or null for a polygon or a callout set. */
+export function boxOfArea(area: PatternArea): WorldBox | null {
+  const { min_x: minX, min_y: minY, max_x: maxX, max_y: maxY } = area;
+  if (areaShape(area) !== 'box' || minX === undefined || minY === undefined || maxX === undefined || maxY === undefined) return null;
+  return { minX, minY, maxX, maxY };
+}
+
+function inPolygon(polygon: [number, number][], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i] ?? [0, 0];
+    const [xj, yj] = polygon[j] ?? [0, 0];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** A world position on a floor; `callout` is the map callout it falls in, when known. */
+export type AreaPoint = { x: number; y: number; level: RadarLevel; callout?: string };
+
+/** Whether a position falls in a block's area, on its floor when it names one. */
+export function inArea(area: PatternArea, at: AreaPoint): boolean {
+  if (area.callouts !== undefined) return at.callout !== undefined && area.callouts.includes(at.callout);
+  if (area.level !== undefined && area.level !== at.level) return false;
+  if (area.polygon !== undefined) return inPolygon(area.polygon, at.x, at.y);
+  const box = boxOfArea(area);
+  return box !== null && at.x >= box.minX && at.x <= box.maxX && at.y >= box.minY && at.y <= box.maxY;
+}
+
+const ZONE_LABEL: Record<AreaShape, string> = { box: 'la caja dibujada', polygon: 'la zona dibujada', callouts: 'los callouts elegidos' };
+
+function zoneLabel(area: PatternArea, names?: (token: string) => string): string {
+  if (area.callouts === undefined || area.callouts.length === 0) return ZONE_LABEL[areaShape(area)];
+  const read = area.callouts.map((token) => names?.(token) ?? token);
+  return read.length === 1 ? (read[0] ?? '') : `${read.slice(0, -1).join(', ')} o ${read.at(-1) ?? ''}`;
+}
 
 const ANYWHERE: Record<PatternBlockKind, string> = { player: 'Juega la ronda', utility: 'Tira la granada', plant: 'Planta la bomba' };
 
-/** The block's condition in a sentence, with its window on the round clock. */
-export function blockSentence(block: PatternBlock): string {
-  let what = WHAT_IN_AREA[block.kind];
-  if (block.kind === 'utility' && block.from_throw === true) what = 'La tira desde la caja dibujada';
-  if (block.area === undefined) what = ANYWHERE[block.kind];
+function areaPhrase(block: PatternBlock, zone: string): string {
+  const need = block.min_players ?? 0;
+  if (block.kind === 'player' && need > 1) return `${need} o más a la vez en ${zone}`;
+  if (block.kind === 'player') return `Pasa por ${zone}`;
+  if (block.kind === 'plant') return `Planta en ${zone}`;
+  return block.from_throw === true ? `La tira desde ${zone}` : `La granada cae en ${zone}`;
+}
+
+/** The block's condition in a sentence, with its window on the round clock; `names` reads callout tokens. */
+export function blockSentence(block: PatternBlock, names?: (token: string) => string): string {
+  const what = block.area === undefined ? ANYWHERE[block.kind] : areaPhrase(block, zoneLabel(block.area, names));
   const tramo = blockTramo(block);
   const when = isWholeRound(tramo) ? 'en toda la ronda' : `entre ${roundClock(tramo.from)} y ${roundClock(tramoEnd(tramo))}`;
   return `${what} ${when}`;
@@ -182,17 +232,55 @@ function finite(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function parsePolygon(raw: unknown): [number, number][] | null {
+  if (!Array.isArray(raw) || raw.length < 3 || raw.length > PATTERN_MAX_POLYGON_POINTS) return null;
+  const points: [number, number][] = [];
+  for (const point of raw) {
+    const x = Array.isArray(point) && point.length === 2 ? finite(point[0]) : null;
+    const y = Array.isArray(point) && point.length === 2 ? finite(point[1]) : null;
+    if (x === null || y === null) return null;
+    points.push([x, y]);
+  }
+  return points;
+}
+
+function parseCallouts(raw: unknown): string[] | null {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > PATTERN_MAX_CALLOUTS) return null;
+  const tokens = raw.filter((token): token is string => typeof token === 'string' && token.trim() !== '' && token.length <= 64);
+  return tokens.length === raw.length ? tokens : null;
+}
+
+function parseShape(raw: unknown): PatternArea | null {
+  const polygon = field(raw, 'polygon');
+  const callouts = field(raw, 'callouts');
+  if (polygon !== undefined && callouts !== undefined) return null;
+  if (callouts !== undefined) {
+    const tokens = parseCallouts(callouts);
+    return tokens === null || field(raw, 'level') !== undefined ? null : { callouts: tokens };
+  }
+  if (polygon !== undefined) {
+    const points = parsePolygon(polygon);
+    return points === null ? null : { polygon: points };
+  }
+  return parseBox(raw);
+}
+
 function parseArea(raw: unknown): PatternArea | undefined | null {
   if (raw === undefined) return undefined;
+  const area = parseShape(raw);
+  if (area === null || area.callouts !== undefined) return area;
+  const level = field(raw, 'level');
+  if (level === 'default' || level === 'lower') return { ...area, level };
+  return level === undefined ? area : null;
+}
+
+function parseBox(raw: unknown): PatternArea | null {
   const minX = finite(field(raw, 'min_x'));
   const minY = finite(field(raw, 'min_y'));
   const maxX = finite(field(raw, 'max_x'));
   const maxY = finite(field(raw, 'max_y'));
   if (minX === null || minY === null || maxX === null || maxY === null || minX >= maxX || minY >= maxY) return null;
-  const level = field(raw, 'level');
-  const area: PatternArea = { min_x: minX, min_y: minY, max_x: maxX, max_y: maxY };
-  if (level === 'default' || level === 'lower') return { ...area, level };
-  return level === undefined ? area : null;
+  return { min_x: minX, min_y: minY, max_x: maxX, max_y: maxY };
 }
 
 function isGrenade(value: unknown): value is TeamGrenadeKind {
@@ -213,6 +301,8 @@ function parseBlock(raw: unknown): PatternBlock | null {
     const ids = players.filter((id): id is string => typeof id === 'string' && /^\d{17}$/.test(id)).slice(0, PATTERN_MAX_PLAYERS);
     if (ids.length > 0) block.players = ids;
   }
+  const need = finite(field(raw, 'min_players'));
+  if (kind === 'player' && need !== null && Number.isInteger(need) && need >= 1 && need <= PATTERN_MAX_MIN_PLAYERS) block.min_players = need;
   if (field(raw, 'rival') === true) block.rival = true;
   if (field(raw, 'invert') === true) block.invert = true;
   const grenade = field(raw, 'grenade');

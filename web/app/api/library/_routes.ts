@@ -33,7 +33,14 @@ import { BOT_REPLAY_FIELDS, BOT_REPLAY_KEYS } from '../../../lib/api/bot-replay.
 import { PRO_FOLLOW_KEYS, PRO_IMPORT_KEYS, PRO_MATCH_INFO_KEYS, PRO_MATCH_QUERY, PRO_MATCHES_KEYS } from '../../../lib/api/pro-matches.ts';
 import { ROLE_SHEET_FIELDS, ROLE_SHEET_KEYS, TEAM_ROLES_KEYS } from '../../../lib/api/roles.ts';
 import { CALL_FIELDS, CALL_KEYS, CALL_LIST_QUERY } from '../../../lib/api/calls.ts';
-import { PATTERN_FIELDS, PATTERN_LIST_QUERY, PATTERN_RUN_KEYS, SAVED_PATTERN_KEYS, TEAM_PATTERN_QUERY } from '../../../lib/api/patterns.ts';
+import {
+  MATCH_PATTERNS_KEYS,
+  PATTERN_FIELDS,
+  PATTERN_LIST_QUERY,
+  PATTERN_RUN_KEYS,
+  SAVED_PATTERN_KEYS,
+  TEAM_PATTERN_QUERY,
+} from '../../../lib/api/patterns.ts';
 import {
   PLAYLIST_ADD_FIELDS,
   PLAYLIST_FIELDS,
@@ -187,6 +194,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'PATCH', segments: ['matches', UUID], body: fields(['played_at', 'series_id']), response: json(MATCH_KEYS) },
   { method: 'PUT', segments: ['matches', UUID, 'teams', TEAM_KEY], body: fields(['team_id', 'team_name', 'remember_alias']), response: json(MATCH_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'pro'], response: json(PRO_MATCH_INFO_KEYS) },
+  { method: 'GET', segments: ['matches', UUID, 'patterns'], query: ['round'], response: json(MATCH_PATTERNS_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'tactical'], response: json(TACTICAL_DOCUMENT_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'rounds', ROUND], response: json(TACTICAL_ROUND_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'positions'], response: { kind: 'stream' } },

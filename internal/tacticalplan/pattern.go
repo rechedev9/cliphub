@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/rechedev9/cliphub/internal/radarmap"
 )
 
 // Pattern finder limits and the rules its trend reads.
@@ -44,29 +42,16 @@ const (
 	TrendFlat = "flat"
 )
 
-// PatternArea is a box on the map in world units. Level keeps it to one floor
-// of a two-floor map; empty reads both.
-type PatternArea struct {
-	MinX  float64 `json:"min_x"`
-	MinY  float64 `json:"min_y"`
-	MaxX  float64 `json:"max_x"`
-	MaxY  float64 `json:"max_y"`
-	Level string  `json:"level,omitempty"`
-}
-
-// Contains reports whether a world position is inside the box and on its floor.
-func (a PatternArea) Contains(cal radarmap.Calibration, pos [3]float64) bool {
-	if pos[0] < a.MinX || pos[0] > a.MaxX || pos[1] < a.MinY || pos[1] > a.MaxY {
-		return false
-	}
-	return a.Level == "" || !cal.MultiLevel() || cal.Level(pos[2]) == a.Level
-}
+// PatternMaxMinPlayers is the most players a block can ask for at once: a whole side.
+const PatternMaxMinPlayers = 5
 
 // PatternBlock is one condition of a round. Players are SteamID64s (empty is anyone of the side);
 // From and To are seconds after freeze end, To 0 the end of the round.
 type PatternBlock struct {
 	Kind    PatternBlockKind `json:"kind"`
 	Players []string         `json:"players,omitempty"`
+	// MinPlayers is how many of them a player block needs in the zone at the same moment; 0 is one.
+	MinPlayers int `json:"min_players,omitempty"`
 	// Rival reads the other team's players.
 	Rival   bool      `json:"rival,omitempty"`
 	Grenade EventKind `json:"grenade,omitempty"`
@@ -133,12 +118,19 @@ func (b PatternBlock) check() error {
 	if b.FromThrow && b.Kind != PatternUtility {
 		return errors.New("from_throw only applies to utility")
 	}
-	if a := b.Area; a != nil {
-		if a.MinX >= a.MaxX || a.MinY >= a.MaxY || math.IsNaN(a.MinX+a.MinY+a.MaxX+a.MaxY) {
-			return errors.New("area needs min_x below max_x and min_y below max_y")
+	if b.MinPlayers != 0 {
+		switch {
+		case b.Kind != PatternPlayer:
+			return errors.New("min_players only applies to player")
+		case b.MinPlayers < 1 || b.MinPlayers > PatternMaxMinPlayers:
+			return fmt.Errorf("min_players must be from 1 to %d", PatternMaxMinPlayers)
+		case len(b.Players) > 0 && b.MinPlayers > len(b.Players):
+			return errors.New("min_players cannot ask for more players than the block names")
 		}
-		if a.Level != "" && a.Level != radarmap.LevelDefault && a.Level != radarmap.LevelLower {
-			return errors.New("area level must be default or lower")
+	}
+	if b.Area != nil {
+		if err := b.Area.check(); err != nil {
+			return err
 		}
 	}
 	if b.From < 0 || b.To < 0 || b.From > PatternMaxSeconds || b.To > PatternMaxSeconds {
@@ -152,10 +144,6 @@ func (b PatternBlock) check() error {
 
 func (b PatternBlock) inWindow(seconds float64) bool {
 	return seconds >= b.From && (b.To <= 0 || seconds <= b.To)
-}
-
-func (b PatternBlock) inArea(cal radarmap.Calibration, pos [3]float64) bool {
-	return b.Area == nil || b.Area.Contains(cal, pos)
 }
 
 // needsFrames reports whether the block reads positions rather than events.
@@ -285,12 +273,14 @@ type blockAnswer struct {
 
 func evalBlock(in patternRound, b PatternBlock) blockAnswer {
 	doc := in.m.Document
-	cal, tickrate := doc.Geometry.Calibration, doc.Demo.Tickrate
+	tickrate := doc.Demo.Tickrate
+	zone := newZoneTest(doc.Geometry, b.Area)
 	slots := blockSlots(in, b)
 	if len(slots) == 0 {
 		return blockAnswer{out: len(b.Players) > 0}
 	}
 	if b.Kind == PatternPlayer {
+		need := max(1, b.MinPlayers)
 		end := roundEndTick(in.r)
 		for _, frame := range in.frames {
 			if end > 0 && frame.Tick > end {
@@ -300,10 +290,15 @@ func evalBlock(in patternRound, b PatternBlock) blockAnswer {
 			if !ok || !b.inWindow(seconds) {
 				continue
 			}
+			// The count is of players in the zone at this frame, so "3 in A" means together.
+			count := 0
 			for _, s := range frame.Samples {
-				if slots[s.Slot] && s.Flags.Has(FlagAlive) && b.inArea(cal, [3]float64{s.X, s.Y, s.Z}) {
-					return blockAnswer{held: true, seconds: seconds, tick: frame.Tick}
+				if slots[s.Slot] && s.Flags.Has(FlagAlive) && zone.contains([3]float64{s.X, s.Y, s.Z}) {
+					count++
 				}
+			}
+			if count >= need {
+				return blockAnswer{held: true, seconds: seconds, tick: frame.Tick}
 			}
 		}
 		return blockAnswer{}
@@ -335,7 +330,7 @@ func evalBlock(in patternRound, b PatternBlock) blockAnswer {
 			}
 		}
 		seconds, ok := secondsSince(in.r, tick, tickrate)
-		if ok && b.inWindow(seconds) && b.inArea(cal, pos) {
+		if ok && b.inWindow(seconds) && zone.contains(pos) {
 			a.held, a.seconds, a.tick = true, seconds, tick
 			return a
 		}
@@ -414,213 +409,6 @@ func plantSeconds(r Round, tickrate float64) *float64 {
 		}
 	}
 	return nil
-}
-
-type patternAcc struct {
-	result PatternResult
-	months map[string]*PatternMonth
-	recent struct{ earlierRounds, earlierMatched int }
-}
-
-// PatternRunner reads patterns over matches added one at a time, so a caller
-// can drop each match's document and positions before reading the next.
-type PatternRunner struct {
-	patterns   []Pattern
-	needs      []bool
-	accs       []*patternAcc
-	recentFrom time.Time
-}
-
-// NewPatternRunner starts a run; now anchors the recent window of the trend.
-func NewPatternRunner(patterns []Pattern, now time.Time) *PatternRunner {
-	r := &PatternRunner{patterns: patterns, needs: make([]bool, len(patterns)), accs: make([]*patternAcc, len(patterns)),
-		recentFrom: now.AddDate(0, 0, -PatternRecentDays)}
-	for i, p := range patterns {
-		r.needs[i] = slices.ContainsFunc(p.Blocks, PatternBlock.needsFrames)
-		r.accs[i] = &patternAcc{months: map[string]*PatternMonth{}, result: PatternResult{
-			Blocks: make([]PatternCount, len(p.Blocks)), Months: []PatternMonth{}, Matches: []PatternMatch{},
-		}}
-	}
-	return r
-}
-
-// Unreadable counts a match the caller could not read.
-func (r *PatternRunner) Unreadable() {
-	for _, acc := range r.accs {
-		acc.result.Unreadable++
-	}
-}
-
-// Add reads one match, newest first: the order of the result's matches.
-func (r *PatternRunner) Add(in PatternInput) {
-	m := in.Match
-	scoped := make([]bool, len(r.patterns))
-	frames := false
-	for i, p := range r.patterns {
-		scoped[i] = playersInTeam(m, p)
-		frames = frames || (scoped[i] && r.needs[i])
-	}
-	if !slices.Contains(scoped, true) {
-		return
-	}
-	rounds := m.Filter.Apply(m.Document)
-	byRound := map[int][]Frame{}
-	hasFrames := false
-	if frames {
-		blob, header, ok, err := m.positions()
-		if err != nil {
-			r.Unreadable()
-			return
-		}
-		for _, rd := range rounds {
-			if !ok {
-				break
-			}
-			decoded, err := roundFrames(blob, header, m.Document, rd.Number)
-			if err != nil {
-				r.Unreadable()
-				return
-			}
-			byRound[rd.Number] = decoded
-		}
-		hasFrames = ok
-	}
-	for i, p := range r.patterns {
-		if !scoped[i] {
-			continue
-		}
-		if r.needs[i] && !hasFrames {
-			r.accs[i].result.MissingPositions++
-			continue
-		}
-		r.addMatch(addMatch{in: in, rounds: rounds, frames: byRound, index: i, pattern: p})
-	}
-}
-
-type addMatch struct {
-	in      PatternInput
-	rounds  []Round
-	frames  map[int][]Frame
-	index   int
-	pattern Pattern
-}
-
-func (r *PatternRunner) addMatch(a addMatch) {
-	m, acc, needs := a.in.Match, r.accs[a.index], r.needs[a.index]
-	match := PatternMatch{MatchID: m.MatchID, PlayedAt: a.in.PlayedAt, TeamKey: m.Filter.TeamKey, Team: a.in.Team,
-		Opponent: a.in.Opponent, Matched: []PatternRound{}}
-	earlier := a.in.PlayedAt.Before(r.recentFrom)
-	for _, rd := range a.rounds {
-		side := m.Filter.Perspective(m.Document, rd)
-		// A pattern reads one side, so the other side's rounds are not in its scope.
-		if a.pattern.Side != "" && side != a.pattern.Side {
-			continue
-		}
-		pr := patternRound{m: m, r: rd, frames: a.frames[rd.Number]}
-		if needs && len(pr.frames) == 0 {
-			continue
-		}
-		v := matchRound(pr, a.pattern)
-		if v.out {
-			continue
-		}
-		match.Rounds++
-		acc.result.NoThrow += v.noThrow
-		acc.month(a.in.PlayedAt, false)
-		acc.count(countedRound{row: v.row, matched: v.matched, earlier: earlier})
-		if !v.matched {
-			continue
-		}
-		row := v.row
-		row.Side, row.Won = side, side != "" && rd.Winner == side
-		if side != "" {
-			row.Buy, row.OpponentBuy = rd.Economy.Buy(side), rd.Economy.Buy(side.Opponent())
-		}
-		row.PlantSeconds = plantSeconds(rd, m.Document.Demo.Tickrate)
-		match.Matched = append(match.Matched, row)
-		if row.Won {
-			acc.result.Won++
-		}
-		acc.month(a.in.PlayedAt, true)
-	}
-	if match.Rounds > 0 {
-		acc.result.Matches = append(acc.result.Matches, match)
-	}
-}
-
-// Finish closes the run: one result per pattern, in order.
-func (r *PatternRunner) Finish() []PatternResult {
-	out := make([]PatternResult, len(r.accs))
-	for i, acc := range r.accs {
-		out[i] = acc.finish()
-	}
-	return out
-}
-
-// RunPatterns reads every pattern over inputs already in memory, newest first.
-func RunPatterns(inputs []PatternInput, patterns []Pattern, now time.Time) []PatternResult {
-	r := NewPatternRunner(patterns, now)
-	for _, in := range inputs {
-		r.Add(in)
-	}
-	return r.Finish()
-}
-
-// countedRound is one round in a pattern's scope, as the counts read it.
-type countedRound struct {
-	row     PatternRound
-	matched bool
-	earlier bool
-}
-
-func (a *patternAcc) count(c countedRound) {
-	a.result.Rounds++
-	for i, hit := range c.row.Hits {
-		a.result.Blocks[i].Rounds++
-		if hit.Matched {
-			a.result.Blocks[i].Matched++
-		}
-	}
-	if c.earlier {
-		a.recent.earlierRounds++
-	} else {
-		a.result.RecentRounds++
-	}
-	if !c.matched {
-		return
-	}
-	a.result.Matched++
-	if c.earlier {
-		a.recent.earlierMatched++
-	} else {
-		a.result.RecentMatched++
-	}
-}
-
-// month adds a round to its calendar month: matched rounds once more as matched.
-func (a *patternAcc) month(at time.Time, matched bool) {
-	key := at.UTC().Format("2006-01")
-	m, ok := a.months[key]
-	if !ok {
-		m = &PatternMonth{Month: key}
-		a.months[key] = m
-	}
-	if matched {
-		m.Matched++
-	} else {
-		m.Rounds++
-	}
-}
-
-func (a *patternAcc) finish() PatternResult {
-	r := a.result
-	if r.Matched > 0 {
-		r.WinRate = math.Round(float64(r.Won)/float64(r.Matched)*1000) / 1000
-	}
-	r.Trend = PatternTrend(PatternCount{Matched: r.RecentMatched, Rounds: r.RecentRounds},
-		PatternCount{Matched: a.recent.earlierMatched, Rounds: a.recent.earlierRounds})
-	r.Months = monthSeries(a.months)
-	return r
 }
 
 // monthSeries is every month from the first to the last with rounds, the empty ones at zero.

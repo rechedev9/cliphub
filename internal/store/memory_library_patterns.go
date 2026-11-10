@@ -11,7 +11,10 @@ import (
 )
 
 func patternMatches(p library.Pattern, f library.PatternFilter) bool {
-	if f.Map != "" && p.Map != f.Map {
+	if (f.Map != "" && p.Map != f.Map) || (f.Category != "" && p.Category != f.Category) {
+		return false
+	}
+	if f.PlayID != nil && (p.PlayID == nil || *p.PlayID != *f.PlayID) {
 		return false
 	}
 	return f.TeamID == nil || p.TeamID == nil || *p.TeamID == *f.TeamID
@@ -102,6 +105,7 @@ func (r *MemoryLibraryRepository) DeletePattern(ctx context.Context, id uuid.UUI
 		return library.ErrNotFound
 	}
 	delete(r.libreta.patterns, id)
+	r.libreta.dropPatternRows(func(key patternRowKey) bool { return key.pattern != id })
 	return nil
 }
 

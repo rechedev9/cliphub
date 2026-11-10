@@ -1,6 +1,9 @@
 package library
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -15,9 +18,10 @@ import (
 
 // Saved pattern limits: a name like a play's title, and the scope a pattern keeps.
 const (
-	MaxPatternNameRunes = 80
-	MaxPatternList      = 500
-	MaxPatternMatches   = 50
+	MaxPatternNameRunes     = 80
+	MaxPatternCategoryRunes = 40
+	MaxPatternList          = 500
+	MaxPatternMatches       = 50
 )
 
 var patternMapPattern = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
@@ -33,10 +37,14 @@ type PatternScope struct {
 // Pattern is a saved pattern of the finder: blocks on one map and side,
 // detected over a team's matches or, without a team, over the whole library.
 type Pattern struct {
-	ID        uuid.UUID            `json:"id"`
-	Name      string               `json:"name"`
-	Map       string               `json:"map"`
-	TeamID    *uuid.UUID           `json:"team_id,omitempty"`
+	ID     uuid.UUID  `json:"id"`
+	Name   string     `json:"name"`
+	Map    string     `json:"map"`
+	TeamID *uuid.UUID `json:"team_id,omitempty"`
+	// Category groups patterns in the list, such as Ejecuciones or Defensas; empty is none.
+	Category string `json:"category"`
+	// PlayID links the pattern to a Libreta play, the one it detects.
+	PlayID    *uuid.UUID           `json:"play_id,omitempty"`
 	Pattern   tacticalplan.Pattern `json:"pattern"`
 	Scope     PatternScope         `json:"scope"`
 	CreatedAt time.Time            `json:"created_at"`
@@ -45,19 +53,24 @@ type Pattern struct {
 
 // PatternFilter selects saved patterns; zero fields do not filter.
 type PatternFilter struct {
-	Map    string
-	TeamID *uuid.UUID
-	Limit  int
-	Offset int
+	Map      string
+	TeamID   *uuid.UUID
+	Category string
+	PlayID   *uuid.UUID
+	Limit    int
+	Offset   int
 }
 
 // PatternPatch is a user edit of a saved pattern. Nil fields are left unchanged;
-// ClearTeam detaches it from its team, so it reads the whole library.
+// ClearTeam detaches it from its team, so it reads the whole library; ClearPlay unlinks its play.
 type PatternPatch struct {
 	Name      *string
 	Map       *string
 	TeamID    *uuid.UUID
 	ClearTeam bool
+	Category  *string
+	PlayID    *uuid.UUID
+	ClearPlay bool
 	Pattern   *tacticalplan.Pattern
 	Scope     *PatternScope
 }
@@ -77,6 +90,16 @@ func ApplyPatternPatch(p Pattern, patch PatternPatch) Pattern {
 		id := *patch.TeamID
 		p.TeamID = &id
 	}
+	if patch.Category != nil {
+		p.Category = *patch.Category
+	}
+	if patch.ClearPlay {
+		p.PlayID = nil
+	}
+	if patch.PlayID != nil {
+		id := *patch.PlayID
+		p.PlayID = &id
+	}
 	if patch.Pattern != nil {
 		p.Pattern = *patch.Pattern
 	}
@@ -92,11 +115,17 @@ func PatternCopy(p Pattern) Pattern {
 		id := *p.TeamID
 		p.TeamID = &id
 	}
+	if p.PlayID != nil {
+		id := *p.PlayID
+		p.PlayID = &id
+	}
 	blocks := make([]tacticalplan.PatternBlock, len(p.Pattern.Blocks))
 	for i, b := range p.Pattern.Blocks {
 		b.Players = append([]string{}, b.Players...)
 		if b.Area != nil {
 			area := *b.Area
+			area.Polygon = slices.Clone(area.Polygon)
+			area.Callouts = slices.Clone(area.Callouts)
 			b.Area = &area
 		}
 		blocks[i] = b
@@ -114,10 +143,12 @@ func validScopeBuy(b tacticalplan.BuyType) bool {
 
 // CleanPattern trims the name and checks the map, the blocks and the scope.
 func CleanPattern(p Pattern) (Pattern, error) {
-	p.Name, p.Map = CleanName(p.Name), strings.ToLower(strings.TrimSpace(p.Map))
+	p.Name, p.Map, p.Category = CleanName(p.Name), strings.ToLower(strings.TrimSpace(p.Map)), CleanName(p.Category)
 	switch {
 	case p.Name == "" || len([]rune(p.Name)) > MaxPatternNameRunes:
 		return p, fmt.Errorf("name takes 1 to %d characters", MaxPatternNameRunes)
+	case len([]rune(p.Category)) > MaxPatternCategoryRunes:
+		return p, fmt.Errorf("category takes at most %d characters", MaxPatternCategoryRunes)
 	case !patternMapPattern.MatchString(p.Map):
 		return p, errors.New("map must match ^[a-z0-9_]+$")
 	case p.Pattern.Side == "":
@@ -131,4 +162,48 @@ func CleanPattern(p Pattern) (Pattern, error) {
 		return p, err
 	}
 	return PatternCopy(p), nil
+}
+
+// PatternRevision fingerprints what a pattern's detection reads: its map, blocks and scope.
+// A stored match read of another revision is stale; a rename or a new category is not.
+func PatternRevision(p Pattern) string {
+	raw, err := json.Marshal(struct {
+		Map     string               `json:"map"`
+		Pattern tacticalplan.Pattern `json:"pattern"`
+		Scope   PatternScope         `json:"scope"`
+	}{p.Map, p.Pattern, p.Scope})
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:12])
+}
+
+// PatternMatchRow is a saved pattern's stored detection over one match, from one team's side.
+// Revision and MatchUpdatedAt tell whether it still answers for the pattern and the match.
+type PatternMatchRow struct {
+	PatternID      uuid.UUID                     `json:"pattern_id"`
+	MatchID        uuid.UUID                     `json:"match_id"`
+	TeamKey        string                        `json:"team_key"`
+	Revision       string                        `json:"revision"`
+	MatchUpdatedAt time.Time                     `json:"match_updated_at"`
+	PlayedAt       time.Time                     `json:"played_at"`
+	Read           tacticalplan.PatternMatchRead `json:"read"`
+}
+
+// Matched is how many of the match's rounds the pattern kept.
+func (r PatternMatchRow) Matched() int { return len(r.Read.Match.Matched) }
+
+// PatternMatchSet is every row of one pattern over one match; storing it replaces the old ones.
+type PatternMatchSet struct {
+	PatternID uuid.UUID
+	MatchID   uuid.UUID
+	Rows      []PatternMatchRow
+}
+
+// PatternMatchFilter selects stored rows; nil fields do not filter. MatchedOnly keeps rows with a matched round.
+type PatternMatchFilter struct {
+	PatternID   *uuid.UUID
+	MatchID     *uuid.UUID
+	MatchedOnly bool
 }

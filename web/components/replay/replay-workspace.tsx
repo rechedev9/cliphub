@@ -775,6 +775,7 @@ export function ReplayWorkspace({
           setpos={setpos.list}
           onCopySetpos={setpos.copyAgain}
           pov={library ? { runs: roundPov.runs, onRecord: recordPov } : null}
+          patterns={library}
           notes={
             notesMatchId === undefined || focused === null || focusTimeline === null
               ? null

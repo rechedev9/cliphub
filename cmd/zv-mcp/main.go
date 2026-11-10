@@ -180,13 +180,18 @@ replay_overlay superposes those rounds from the end of freeze time, as Superpone
 match_heatmap is the Mapa de calor of those rounds: kind position, death, kill (kill_at killer or victim), utility or timing,
 in a clock window (clock_from and clock_to, seconds after the round went live, or from_plant); it lists the hottest cells
 with their callout and counts. team_heatmap reads a team's matches on one map the same way, with players (SteamID64s) as the focus.
-Replay > Patrones of a team: find_player_pattern finds the rounds in which a player passes through a zone (a world rectangle,
-optionally one floor) in a clock window, or does not with invert; find_pattern_rounds adds up blocks (player, utility, plant),
-each with its own count. Both list the matched rounds by match with when the block held (+Ns tras el plant past the plant), the win rate,
-the last 30 days and the trend (only with 10 rounds each side), matches without positions (their rounds are out of scope) and unreadable ones,
-with replay_path (a playlist) and studio_path. save_pattern stores one for a team or the whole library, list_patterns gives each
-saved pattern's figures with its own scope, pattern_rounds runs one (without a team, over the newest 200 analysed matches of its map,
-capped_at says so) and delete_pattern removes it.
+Replay > Patrones of a team: find_player_pattern finds the rounds in which a player passes through a zone in a clock window,
+or does not with invert; find_pattern_rounds adds up blocks (player, utility, plant), each with its own count. A zone is a world
+rectangle (optionally one floor), a polygon of world points, or callouts (place tokens from list_callouts); min_players asks a
+player block for that many players in the zone at once ("3 or more T in A": min_players 3). Both list the matched rounds by match
+with when the block held (+Ns tras el plant past the plant), the win rate, the last 30 days and the trend (only with 10 rounds each side),
+matches without positions (their rounds are out of scope) and unreadable ones, with replay_path (a playlist) and studio_path.
+save_pattern stores one for a team or the whole library, with a category and a linked Libreta play; update_pattern edits any of it;
+list_patterns gives each saved pattern's figures with its own scope (filter by category, or play_id for a play's patterns);
+pattern_rounds runs one (without a team, from its stored detection over the newest 200 analysed matches of its map, capped_at says so)
+and delete_pattern removes it. Studio keeps each saved pattern's detection stored and refreshes it when a demo is analysed or the
+pattern is edited. match_patterns lists the saved patterns a match's rounds meet (round for one), as the Replay's Patrones panel does;
+get_play lists the patterns linked to a play.
 player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay).
 export_replay_gif saves a round's tramo as a looping GIF with the radar, players, utility, clock and saved drawings, as Exportar GIF (G) does.
 record_round_pov is the Replay's "Grabar su POV de esta ronda": one player's first-person video of one round (match_id, round, steamid),

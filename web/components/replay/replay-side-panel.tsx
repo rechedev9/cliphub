@@ -16,6 +16,7 @@ import { frameCursor } from '@/lib/tactical-replay';
 import { timelineEvents, timelineSeconds } from '@/lib/tactical-timeline';
 import { AnnotationPanel } from '@/components/tactical/spatial/annotation-panel';
 import { PlayerPanel } from './player-panel';
+import { RoundPatterns } from './round-patterns';
 
 /**
  * The right column: both teams at the playhead, whole, and under them the
@@ -36,6 +37,7 @@ export function ReplaySidePanel({
   onCopySetpos,
   pov,
   notes,
+  patterns,
   folded,
 }: {
   focused: CentreRound | null;
@@ -51,6 +53,8 @@ export function ReplaySidePanel({
   onCopySetpos: (entry: SetposCopy) => void;
   pov: ComponentProps<typeof PlayerPanel>['pov'];
   notes: ComponentProps<typeof AnnotationPanel> | null;
+  /** Library rounds list the saved patterns they meet. */
+  patterns: boolean;
   /** Folded, the panel is a strip with each player's initials. */
   folded: boolean;
 }): ReactNode {
@@ -121,6 +125,7 @@ export function ReplaySidePanel({
           <AnnotationPanel {...notes} tools={false} />
         </section>
       )}
+      {patterns ? <RoundPatterns matchId={focused.matchId} round={focused.round.number} /> : null}
     </div>
   );
 }

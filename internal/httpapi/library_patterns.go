@@ -19,6 +19,8 @@ type patternRepository interface {
 	ListPatterns(ctx context.Context, filter library.PatternFilter) ([]library.Pattern, error)
 	UpdatePattern(ctx context.Context, id uuid.UUID, patch library.PatternPatch) (library.Pattern, error)
 	DeletePattern(ctx context.Context, id uuid.UUID) error
+	SavePatternMatches(ctx context.Context, set library.PatternMatchSet) error
+	ListPatternMatches(ctx context.Context, filter library.PatternMatchFilter) ([]library.PatternMatchRow, error)
 }
 
 // patternStats is what a saved pattern found, as its row in a list shows it.
@@ -41,17 +43,26 @@ func statsOf(r tacticalplan.PatternResult) *patternStats {
 	return &patternStats{Rounds: r.Rounds, Matched: r.Matched, Won: r.Won, WinRate: r.WinRate, RecentMatched: r.RecentMatched, Trend: r.Trend}
 }
 
-// ListLibraryPatterns handles GET /api/library/patterns?map=&team_id=&stats=1: with stats, each
-// pattern runs with its own scope over the team's matches, or the whole library without team_id.
+// ListLibraryPatterns handles GET /api/library/patterns?map=&team_id=&category=&play_id=&stats=1: with
+// stats, each pattern runs with its own scope over the team's matches, or reads its stored detection
+// over the whole library without team_id.
 func (h *Handlers) ListLibraryPatterns(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
 		return
 	}
 	q := r.URL.Query()
-	filter := library.PatternFilter{Map: q.Get("map")}
+	filter := library.PatternFilter{Map: q.Get("map"), Category: library.CleanName(q.Get("category"))}
 	if filter.Map != "" && !mapNamePattern.MatchString(filter.Map) {
 		writeError(w, http.StatusBadRequest, "map must match ^[a-z0-9_]+$")
 		return
+	}
+	if raw := q.Get("play_id"); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "play_id must be a valid UUID")
+			return
+		}
+		filter.PlayID = &id
 	}
 	var team *library.Team
 	if raw := q.Get("team_id"); raw != "" {
@@ -134,33 +145,18 @@ func (h *Handlers) teamPatternStats(ctx context.Context, run teamStats) error {
 	return nil
 }
 
-// libraryPatternStats runs the patterns of each map and scope over the library in one pass.
+// libraryPatternStats reads each pattern's figures over the library from its stored detection.
 func (h *Handlers) libraryPatternStats(ctx context.Context, items []patternListItem) error {
-	type group struct {
-		mapName string
-		scope   library.PatternScope
-	}
-	order := []group{}
-	members := map[group][]int{}
+	patterns := make([]library.Pattern, len(items))
 	for i, item := range items {
-		g := group{item.Map, item.Scope}
-		if _, ok := members[g]; !ok {
-			order = append(order, g)
-		}
-		members[g] = append(members[g], i)
+		patterns[i] = item.Pattern
 	}
-	for _, g := range order {
-		patterns := make([]tacticalplan.Pattern, len(members[g]))
-		for j, i := range members[g] {
-			patterns[j] = items[i].Pattern.Pattern
-		}
-		results, err := h.libraryPatternResults(ctx, libraryRun{mapName: g.mapName, scope: g.scope, patterns: patterns})
-		if err != nil {
-			return err
-		}
-		for j, i := range members[g] {
-			items[i].Stats = statsOf(results[j])
-		}
+	results, err := h.patternDetector().Results(ctx, patterns)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		items[i].Stats = statsOf(results[i])
 	}
 	return nil
 }
@@ -171,21 +167,31 @@ type patternRequest struct {
 	Map       *string               `json:"map"`
 	TeamID    *uuid.UUID            `json:"team_id"`
 	ClearTeam bool                  `json:"clear_team"`
+	Category  *string               `json:"category"`
+	PlayID    *uuid.UUID            `json:"play_id"`
+	ClearPlay bool                  `json:"clear_play"`
 	Pattern   *tacticalplan.Pattern `json:"pattern"`
 	Scope     *library.PatternScope `json:"scope"`
 }
 
 func (req patternRequest) patch() library.PatternPatch {
-	return library.PatternPatch{Name: req.Name, Map: req.Map, TeamID: req.TeamID, ClearTeam: req.ClearTeam, Pattern: req.Pattern, Scope: req.Scope}
+	return library.PatternPatch{Name: req.Name, Map: req.Map, TeamID: req.TeamID, ClearTeam: req.ClearTeam, Category: req.Category,
+		PlayID: req.PlayID, ClearPlay: req.ClearPlay, Pattern: req.Pattern, Scope: req.Scope}
 }
 
-// checkPatternTeam rejects a pattern saved for a team the library does not have.
-func (h *Handlers) checkPatternTeam(ctx context.Context, p library.Pattern) error {
-	if p.TeamID == nil {
-		return nil
+// checkPatternLinks rejects a pattern saved for a team or linked to a play the library does not have.
+func (h *Handlers) checkPatternLinks(ctx context.Context, p library.Pattern) (string, error) {
+	if p.TeamID != nil {
+		if _, err := h.libraryRepo.GetTeam(ctx, *p.TeamID); err != nil {
+			return "get team", err
+		}
 	}
-	_, err := h.libraryRepo.GetTeam(ctx, *p.TeamID)
-	return err
+	if p.PlayID != nil {
+		if _, err := h.libraryRepo.GetPlay(ctx, *p.PlayID); err != nil {
+			return "get play", err
+		}
+	}
+	return "", nil
 }
 
 // CreateLibraryPattern handles POST /api/library/patterns.
@@ -203,14 +209,15 @@ func (h *Handlers) CreateLibraryPattern(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := h.checkPatternTeam(r.Context(), p); err != nil {
-		writeLibraryError(w, "get team", err)
+	if op, err := h.checkPatternLinks(r.Context(), p); err != nil {
+		writeLibraryError(w, op, err)
 		return
 	}
 	if err := h.libraryRepo.CreatePattern(r.Context(), &p); err != nil {
 		writeLibraryError(w, "create pattern", err)
 		return
 	}
+	h.queuePatternDetection(p.ID)
 	writeJSON(w, http.StatusCreated, p)
 }
 
@@ -253,15 +260,19 @@ func (h *Handlers) PatchLibraryPattern(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := h.checkPatternTeam(r.Context(), next); err != nil {
-		writeLibraryError(w, "get team", err)
+	if op, err := h.checkPatternLinks(r.Context(), next); err != nil {
+		writeLibraryError(w, op, err)
 		return
 	}
 	updated, err := h.libraryRepo.UpdatePattern(r.Context(), current.ID, library.PatternPatch{
-		Name: &next.Name, Map: &next.Map, TeamID: next.TeamID, ClearTeam: next.TeamID == nil, Pattern: &next.Pattern, Scope: &next.Scope})
+		Name: &next.Name, Map: &next.Map, TeamID: next.TeamID, ClearTeam: next.TeamID == nil, Category: &next.Category,
+		PlayID: next.PlayID, ClearPlay: next.PlayID == nil, Pattern: &next.Pattern, Scope: &next.Scope})
 	if err != nil {
 		writeLibraryError(w, "update pattern", err)
 		return
+	}
+	if library.PatternRevision(updated) != library.PatternRevision(current) {
+		h.queuePatternDetection(updated.ID)
 	}
 	writeJSON(w, http.StatusOK, updated)
 }

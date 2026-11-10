@@ -12,7 +12,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/library"
 )
 
-const libraryPatternColumns = `SELECT id, name, map, team_id, detail, created_at, updated_at FROM library_patterns`
+const libraryPatternColumns = `SELECT id, name, map, team_id, category, play_id, detail, created_at, updated_at FROM library_patterns`
 
 // patternDetail is the JSON column: the blocks and the scope, which no query filters on.
 type patternDetail struct {
@@ -23,9 +23,9 @@ type patternDetail struct {
 func scanLibraryPattern(row sqlScanner) (library.Pattern, error) {
 	var p library.Pattern
 	var id, detail string
-	var team sql.NullString
+	var team, play sql.NullString
 	var created, updated int64
-	if err := row.Scan(&id, &p.Name, &p.Map, &team, &detail, &created, &updated); err != nil {
+	if err := row.Scan(&id, &p.Name, &p.Map, &team, &p.Category, &play, &detail, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return library.Pattern{}, library.ErrNotFound
 		}
@@ -42,6 +42,13 @@ func scanLibraryPattern(row sqlScanner) (library.Pattern, error) {
 		}
 		p.TeamID = &teamID
 	}
+	if play.Valid {
+		playID, err := uuid.Parse(play.String)
+		if err != nil {
+			return library.Pattern{}, err
+		}
+		p.PlayID = &playID
+	}
 	var d patternDetail
 	if err := json.Unmarshal([]byte(detail), &d); err != nil {
 		return library.Pattern{}, fmt.Errorf("decode pattern %s: %w", id, err)
@@ -54,27 +61,36 @@ func scanLibraryPattern(row sqlScanner) (library.Pattern, error) {
 	return library.PatternCopy(p), nil
 }
 
-func encodePatternDetail(p library.Pattern) (string, sql.NullString, error) {
+// patternRow is a pattern's columns as SQLite stores them.
+type patternRow struct {
+	detail     string
+	team, play sql.NullString
+}
+
+func nullUUID(id *uuid.UUID) sql.NullString {
+	if id == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: id.String(), Valid: true}
+}
+
+func encodePatternDetail(p library.Pattern) (patternRow, error) {
 	blocks, err := json.Marshal(p.Pattern)
 	if err != nil {
-		return "", sql.NullString{}, fmt.Errorf("encode pattern blocks: %w", err)
+		return patternRow{}, fmt.Errorf("encode pattern blocks: %w", err)
 	}
 	detail, err := json.Marshal(patternDetail{Pattern: blocks, Scope: p.Scope})
 	if err != nil {
-		return "", sql.NullString{}, fmt.Errorf("encode pattern: %w", err)
+		return patternRow{}, fmt.Errorf("encode pattern: %w", err)
 	}
-	var team sql.NullString
-	if p.TeamID != nil {
-		team = sql.NullString{String: p.TeamID.String(), Valid: true}
-	}
-	return string(detail), team, nil
+	return patternRow{detail: string(detail), team: nullUUID(p.TeamID), play: nullUUID(p.PlayID)}, nil
 }
 
 func (r *SQLiteLibraryRepository) CreatePattern(ctx context.Context, p *library.Pattern) error {
 	if p.ID == uuid.Nil {
 		p.ID = uuid.New()
 	}
-	detail, team, err := encodePatternDetail(*p)
+	row, err := encodePatternDetail(*p)
 	if err != nil {
 		return err
 	}
@@ -87,8 +103,8 @@ func (r *SQLiteLibraryRepository) CreatePattern(ctx context.Context, p *library.
 		if n > 0 {
 			return library.ErrConflict
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO library_patterns (id, name, map, team_id, detail, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`, p.ID.String(), p.Name, p.Map, team, detail, now, now)
+		_, err := tx.ExecContext(ctx, `INSERT INTO library_patterns (id, name, map, team_id, category, play_id, detail, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, p.ID.String(), p.Name, p.Map, row.team, p.Category, row.play, row.detail, now, now)
 		return err
 	})
 	if err != nil {
@@ -117,6 +133,14 @@ func (r *SQLiteLibraryRepository) ListPatterns(ctx context.Context, filter libra
 		query += ` AND (team_id = ? OR team_id IS NULL)`
 		args = append(args, filter.TeamID.String())
 	}
+	if filter.Category != "" {
+		query += ` AND category = ?`
+		args = append(args, filter.Category)
+	}
+	if filter.PlayID != nil {
+		query += ` AND play_id = ?`
+		args = append(args, filter.PlayID.String())
+	}
 	query += ` ORDER BY ` + sqlLower + `(name) ASC, id ASC LIMIT ? OFFSET ?`
 	args = append(args, clampPatternLimit(filter.Limit), max(filter.Offset, 0))
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -142,12 +166,12 @@ func (r *SQLiteLibraryRepository) UpdatePattern(ctx context.Context, id uuid.UUI
 			return err
 		}
 		next := library.ApplyPatternPatch(current, patch)
-		detail, team, err := encodePatternDetail(next)
+		row, err := encodePatternDetail(next)
 		if err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE library_patterns SET name = ?, map = ?, team_id = ?, detail = ?, updated_at = ? WHERE id = ?`,
-			next.Name, next.Map, team, detail, millis(libraryNow()), id.String())
+		_, err = tx.ExecContext(ctx, `UPDATE library_patterns SET name = ?, map = ?, team_id = ?, category = ?, play_id = ?, detail = ?, updated_at = ? WHERE id = ?`,
+			next.Name, next.Map, row.team, next.Category, row.play, row.detail, millis(libraryNow()), id.String())
 		return err
 	})
 	if err != nil {

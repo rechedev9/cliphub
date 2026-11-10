@@ -101,6 +101,7 @@ type playDetailOut struct {
 	Refs             []string          `json:"refs" jsonschema:"example rounds (match_id/round)"`
 	MissingMatchIDs  []string          `json:"missing_match_ids,omitempty" jsonschema:"example matches no longer in the library"`
 	Roles            []roleOut         `json:"roles,omitempty" jsonschema:"who does what in the play"`
+	Patterns         []savedPatternOut `json:"patterns,omitempty" jsonschema:"get_play only: the saved patterns linked to the play, which detect it; link one with update_pattern play_id"`
 }
 
 type saveRoundPlayIn struct {
@@ -255,7 +256,7 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "get_play", Annotations: readOnly,
-		Description: "Read one stratbook play: its grenades (kind, second, callout, thrower, lineup), where each player stands, its notes and example rounds."},
+		Description: "Read one stratbook play: its grenades (kind, second, callout, thrower, lineup), where each player stands, its notes, example rounds and linked saved patterns."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in playIDIn) (*mcp.CallToolResult, playDetailOut, error) {
 			if err := checkUUID("play_id", in.PlayID); err != nil {
 				return nil, playDetailOut{}, err
@@ -268,7 +269,15 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, playDetailOut{}, toolError(err)
 			}
-			return nil, playDetailOf(p), nil
+			out := playDetailOf(p)
+			linked, err := c.ListPatterns(ctx, tuiclient.PatternListQuery{PlayID: in.PlayID})
+			if err != nil {
+				return nil, playDetailOut{}, toolError(err)
+			}
+			for _, pattern := range linked {
+				out.Patterns = append(out.Patterns, savedPatternOf(pattern))
+			}
+			return nil, out, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "save_round_as_play", Annotations: &mcp.ToolAnnotations{},

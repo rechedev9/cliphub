@@ -162,6 +162,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/library/matches/{id}", h.GetLibraryMatch)
 	r.Patch("/api/library/matches/{id}", h.PatchLibraryMatch)
 	r.Get("/api/library/matches/{id}/pro", h.GetLibraryMatchPro)
+	r.Get("/api/library/matches/{id}/patterns", h.GetLibraryMatchPatterns)
 	r.Put("/api/library/matches/{id}/teams/{key}", h.AssignLibraryMatchTeam)
 	r.Get("/api/library/matches/{id}/tactical", h.GetLibraryMatchTactical)
 	r.Get("/api/library/matches/{id}/tactical/rounds/{round}", h.GetLibraryMatchTacticalRound)
