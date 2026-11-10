@@ -141,3 +141,18 @@ export function writeTramo(current: string, tramo: Tramo): string {
   else params.set(TRAMO_QUERY, `${tramo.from}-${tramoEnd(tramo)}`);
   return params.toString();
 }
+
+/** Where a moment sits on the strip, as a percentage of the round clock. */
+export function clockPercent(seconds: number): number {
+  return Math.min(100, Math.max(0, (seconds / ROUND_CLOCK_SECONDS) * 100));
+}
+
+/**
+ * The seconds a pointer at `clientX` means on a strip that spans `left` to `left + width`.
+ * `grab` is how far inside the handle the press landed, so the handle follows the pointer without jumping.
+ */
+export function dragSeconds(options: { clientX: number; left: number; width: number; grab: number }): number | null {
+  const { clientX, left, width, grab } = options;
+  if (width <= 0) return null;
+  return ((clientX - grab - left) / width) * ROUND_CLOCK_SECONDS;
+}

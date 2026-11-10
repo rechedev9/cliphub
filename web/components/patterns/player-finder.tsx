@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Toggle } from '@/components/ui/toggle';
-import { ClockHistogram, MomentBarcode, type HistogramKey } from './clock-histogram';
+import { ClockHistogram, type HistogramKey } from './clock-histogram';
 import { FramedParts, type FinderFrame, type FinderParts } from './finder-frame';
 import { playerToken } from './grenade-players';
 import { MovementList } from './movement-list';
@@ -305,16 +305,16 @@ export function PlayerFinder({ frame, teamId, scope, lineup, criteria, roster, t
       </div>
     ),
     footer: (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Button asChild variant="outline" size="sm" className={refs.length === 0 ? 'pointer-events-none opacity-50' : undefined}>
-          <Link href={findingHref({ refs, title, focus: picked, tramo })} aria-disabled={refs.length === 0}>
-            <Layers aria-hidden />
-            Reproducir {refs.length}/{total} rondas
-          </Link>
-        </Button>
-        <div className="min-w-[16rem] flex-1">
-          <TramoBar tramo={tramo} onChange={setTramo} compact marks={<MomentBarcode moments={barcode} />} />
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Button asChild variant="outline" size="sm" className={refs.length === 0 ? 'pointer-events-none opacity-50' : undefined}>
+            <Link href={findingHref({ refs, title, focus: picked, tramo })} aria-disabled={refs.length === 0}>
+              <Layers aria-hidden />
+              Reproducir {refs.length}/{total} rondas
+            </Link>
+          </Button>
         </div>
+        <TramoBar tramo={tramo} onChange={setTramo} events={barcode} />
       </div>
     ),
     count: { matched: refs.length, total },

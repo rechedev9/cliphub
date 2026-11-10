@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FOLLOW_ZOOM, MAX_ZOOM, boxWindow, followView, panView, radarImageFits, zoomLevel, zoomViewAt } from './map-view.ts';
 import { radarProjection } from '../tactical-spatial.ts';
-import { NAV_RADAR_PALETTE, floorBounds, floorPolygons, heightTone, navRadarModel, placeTints, polygonLevel, toneColor, toneRange } from './nav-radar.ts';
+import { NAV_RADAR_PALETTE, floorBounds, floorPolygons, heightTone, navRadarModel, placeRegions, polygonLevel, toneColor, toneRange } from './nav-radar.ts';
 import { layoutTags, tagName } from './tag-layout.ts';
 
 const base = { x: 0.1, y: 0.1, width: 0.8, height: 0.8 };
@@ -146,7 +146,7 @@ test('nav radar: a ramp area across the cut is on both floors, and bounds both',
 
 test('nav radar: the greys are flat, the same range on any floor', () => {
   const [low, high] = [NAV_RADAR_PALETTE.low, NAV_RADAR_PALETTE.high];
-  assert.ok(high[0] - low[0] <= 24);
+  assert.ok(high[0] - low[0] <= 48);
   const flat = [{ points: new Float64Array(), z: 5, lowZ: 5, highZ: 5, cx: 0, cy: 0 }, { points: new Float64Array(), z: 5, lowZ: 5, highZ: 5, cx: 0, cy: 0 }];
   assert.deepEqual(toneRange(flat), { minZ: 5, maxZ: 5 });
 });
@@ -162,13 +162,9 @@ test('nav radar: bombsites and the CT spawn are tinted from the ground near them
     { name: 'CTSpawn', level: 'lower' as const, center: [5, 5] as [number, number], samples: 1 },
     { name: 'Hell', level: 'default' as const, center: [5, 5] as [number, number], samples: 1 },
   ];
-  const tints = placeTints(model, callouts, -495);
-  const byZ = (z: number, x: number): string | undefined => [...tints].find(([polygon]) => polygon.z === z && polygon.cx > x && polygon.cx < x + 10)?.[1];
-  assert.equal(byZ(0, 0), NAV_RADAR_PALETTE.site);
-  assert.equal(byZ(0, 30), NAV_RADAR_PALETTE.site);
-  // Too far, at another height (the roof), and on the other floor's tint.
-  assert.equal(byZ(0, 2000), undefined);
-  assert.equal(byZ(300, 10), undefined);
-  assert.equal(byZ(-700, 0), NAV_RADAR_PALETTE.spawn);
-  assert.equal(placeTints(model, callouts, -495), tints);
+  // Each place is one box round its areas on its own floor; the far area (x 2000) stays out.
+  const regions = placeRegions(model, callouts, -495);
+  assert.deepEqual(regions.map((region) => [region.color, region.level]), [[NAV_RADAR_PALETTE.site, 'default'], [NAV_RADAR_PALETTE.spawn, 'lower']]);
+  assert.deepEqual([regions[0].minX, regions[0].maxX], [0, 40]);
+  assert.equal(placeRegions(model, callouts, -495), regions);
 });

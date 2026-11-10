@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { bucketLabel, type Bucket } from '@/lib/analysis/pattern-canvas';
-import { ROUND_CLOCK_SECONDS, roundClock } from '@/lib/replay/tramo';
+import { roundClock } from '@/lib/replay/tramo';
 import { cn } from '@/lib/utils';
 
 /** One colour of the stack: a player or a grenade type. */
@@ -74,20 +74,5 @@ export function ClockHistogram({
         ))}
       </figcaption>
     </figure>
-  );
-}
-
-/** Each moment as a stripe on the time bar, coloured like the histogram: the barcode of the Buscador. */
-export function MomentBarcode({ moments }: { moments: readonly { seconds: number; token: string }[] }): ReactNode {
-  return (
-    <div aria-hidden className="absolute inset-0">
-      {moments.map((moment, index) => (
-        <span
-          key={index}
-          className="absolute inset-y-1 w-px opacity-80"
-          style={{ left: `${Math.min(100, Math.max(0, (moment.seconds / ROUND_CLOCK_SECONDS) * 100))}%`, background: `var(${moment.token})` }}
-        />
-      ))}
-    </div>
   );
 }

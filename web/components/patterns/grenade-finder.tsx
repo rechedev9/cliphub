@@ -36,9 +36,9 @@ import { Segmented } from '@/components/ui/segmented';
 import { Toggle } from '@/components/ui/toggle';
 import { clockHistogram, type Bucket } from '@/lib/analysis/pattern-canvas';
 import { CAPS_LABEL } from '@/components/analysis/scope-field-style';
-import { ClockHistogram, MomentBarcode, type HistogramKey } from './clock-histogram';
+import { ClockHistogram, type HistogramKey } from './clock-histogram';
 import { FramedParts, type FinderFrame, type FinderParts } from './finder-frame';
-import { GrenadeAfterPlant, GrenadeClockMarks } from './grenade-clock';
+import { GrenadeAfterPlant } from './grenade-clock';
 import { GrenadePlayerPicker, playerToken } from './grenade-players';
 import { GRENADE_KIND_TOKEN, GrenadeRadar } from './grenade-radar';
 import { GrenadeRoundList } from './grenade-round-list';
@@ -459,13 +459,13 @@ export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tra
         </div>
       ),
       footer: (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          {replayButton}
-          {practiceButton}
-          {playButton}
-          <div className="min-w-[16rem] flex-1">
-            <TramoBar tramo={tramo} onChange={setTramo} compact marks={<MomentBarcode moments={barcode} />} />
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {replayButton}
+            {practiceButton}
+            {playButton}
           </div>
+          <TramoBar tramo={tramo} onChange={setTramo} events={barcode} />
         </div>
       ),
       count: { matched: matchingRounds, total },
@@ -484,7 +484,7 @@ export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tra
         {playerPicker}
         {boxRow}
         {radar}
-        <TramoBar tramo={tramo} onChange={setTramo} marks={<GrenadeClockMarks bins={clock.bins} stack={stack} />} />
+        <TramoBar tramo={tramo} onChange={setTramo} events={barcode} />
         {afterPlant}
       </section>
 

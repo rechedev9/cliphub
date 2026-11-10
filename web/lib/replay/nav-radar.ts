@@ -114,19 +114,20 @@ export function toneColor(tone: number, low: Rgb8, high: Rgb8): string {
 }
 
 /**
- * The radar's own colours, flat like Skybox EDGE's: a black plate and one mid
- * grey for every walkable floor of both levels. Height only moves the grey
- * within a narrow band, so steps still read without a second colour.
+ * The radar's own colours, sampled from Skybox EDGE's plate: a near-black void,
+ * one mid grey for the walkable floor that only moves a little with height,
+ * a darker grey for obstacles inside it, and muted tints for sites and spawns.
  */
 export const NAV_RADAR_PALETTE = {
-  void: '#0b0c0e',
-  outline: '#050506',
-  low: [90, 90, 90],
-  high: [107, 107, 107],
-  /** Bombsites, and the CT spawn's blue tint. */
-  site: '#4a2323',
-  spawn: '#1f2c44',
-} as const satisfies { void: string; outline: string; low: Rgb8; high: Rgb8; site: string; spawn: string };
+  void: '#161916',
+  low: [84, 84, 84],
+  high: [122, 122, 122],
+  obstacle: [44, 44, 44],
+  /** Bombsites, the CT spawn's blue and the T spawn's brown. */
+  site: '#5e3a37',
+  spawn: '#2f394a',
+  spawnT: '#5a4b3c',
+} as const satisfies { void: string; low: Rgb8; high: Rgb8; obstacle: Rgb8; site: string; spawn: string; spawnT: string };
 
 /** The height range one floor's tone spans, with stray areas trimmed off both ends. */
 export function toneRange(polygons: readonly NavPolygon[]): { minZ: number; maxZ: number } {
@@ -135,29 +136,33 @@ export function toneRange(polygons: readonly NavPolygon[]): { minZ: number; maxZ
 }
 
 /** Walkable ground within this many world units of a bombsite or spawn centre takes its tint. */
-const SITE_REACH = 400;
-const SPAWN_REACH = 460;
+const SITE_REACH = 300;
+const SPAWN_REACH = 380;
 /** Only the ground at the height of the place: the floor above or under it stays grey. */
 const TINT_HEIGHT = 150;
 
 type Callouts = TacticalGeometry['callouts'];
 
-const tintCache = new WeakMap<Callouts, Map<NavPolygon, string>>();
+const regionCache = new WeakMap<Callouts, readonly PlaceRegion[]>();
 
-/**
- * The nav areas that make a bombsite or the CT spawn, each with its tint, found
- * from the places the demo recorded: the areas on the place's floor, near its
- * centre and at the height of the nearest ground.
- */
-export function placeTints(model: NavRadarModel, callouts: Callouts, lowerAltitudeMax: number | undefined): Map<NavPolygon, string> {
-  const known = tintCache.get(callouts);
-  if (known !== undefined) return known;
-  const tints = new Map<NavPolygon, string>();
+/** A bombsite or spawn as one block: the box round its areas and its tint. */
+export type PlaceRegion = { minX: number; minY: number; maxX: number; maxY: number; color: string; level: RadarLevel };
+
+function placeKind(name: string): { color: string; reach: number } | null {
+  const key = name.toLowerCase().replace(/[^a-z]/g, '');
+  if (key === 'bombsitea' || key === 'bombsiteb') return { color: NAV_RADAR_PALETTE.site, reach: SITE_REACH };
+  if (key === 'ctspawn') return { color: NAV_RADAR_PALETTE.spawn, reach: SPAWN_REACH };
+  if (key === 'tspawn') return { color: NAV_RADAR_PALETTE.spawnT, reach: SPAWN_REACH };
+  return null;
+}
+
+type PlaceArea = { color: string; level: RadarLevel; polygons: NavPolygon[] };
+
+function placeAreas(model: NavRadarModel, callouts: Callouts, lowerAltitudeMax: number | undefined): PlaceArea[] {
+  const found: PlaceArea[] = [];
   for (const callout of callouts) {
-    const name = callout.name.toLowerCase().replace(/[^a-z]/g, '');
-    const isSite = name === 'bombsitea' || name === 'bombsiteb';
-    if (!isSite && name !== 'ctspawn') continue;
-    const reach = isSite ? SITE_REACH : SPAWN_REACH;
+    const kind = placeKind(callout.name);
+    if (kind === null) continue;
     const [x, y] = callout.center;
     const onFloor = model.polygons.filter((polygon) => (polygon.pane ?? polygonLevel(polygon.z, lowerAltitudeMax)) === callout.level);
     let nearest: NavPolygon | null = null;
@@ -170,12 +175,24 @@ export function placeTints(model: NavRadarModel, callouts: Callouts, lowerAltitu
       }
     }
     if (nearest === null) continue;
-    for (const polygon of onFloor) {
-      if (Math.hypot(polygon.cx - x, polygon.cy - y) <= reach && Math.abs(polygon.z - nearest.z) <= TINT_HEIGHT) tints.set(polygon, isSite ? NAV_RADAR_PALETTE.site : NAV_RADAR_PALETTE.spawn);
-    }
+    const base = nearest.z;
+    const polygons = onFloor.filter((polygon) => Math.hypot(polygon.cx - x, polygon.cy - y) <= kind.reach && Math.abs(polygon.z - base) <= TINT_HEIGHT);
+    found.push({ color: kind.color, level: callout.level, polygons });
   }
-  tintCache.set(callouts, tints);
-  return tints;
+  return found;
+}
+
+/** Each bombsite and spawn as the box round its areas, so the tint reads as one clean block like EDGE's. */
+export function placeRegions(model: NavRadarModel, callouts: Callouts, lowerAltitudeMax: number | undefined): readonly PlaceRegion[] {
+  const known = regionCache.get(callouts);
+  if (known !== undefined) return known;
+  const regions: PlaceRegion[] = [];
+  for (const area of placeAreas(model, callouts, lowerAltitudeMax)) {
+    const bounds = floorBounds(area.polygons);
+    if (bounds !== null) regions.push({ ...bounds, color: area.color, level: area.level });
+  }
+  regionCache.set(callouts, regions);
+  return regions;
 }
 
 /**

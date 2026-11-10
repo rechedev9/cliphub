@@ -34,12 +34,12 @@ import { REPLAY_MAX_REFS, replayHref } from '@/lib/analysis/replay-link';
 import { busiestMap, inScopePeriod, scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
 import { rivalOf } from '@/lib/library/partidas';
-import { ROUND_CLOCK_SECONDS, WHOLE_ROUND, isWholeRound, tramoLabel, type Tramo } from '@/lib/replay/tramo';
+import { WHOLE_ROUND } from '@/lib/replay/tramo';
 import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap } from '@/lib/tactical-transform';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { EmptyState } from '@/components/records/empty-state';
-import { QuickTramos, TramoBracket } from '@/components/replay/tramo-bar';
+import { TramoBar } from '@/components/replay/tramo-bar';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -236,7 +236,6 @@ export function PatternFinder({ frame, teamId, scope, lineup, criteria, matches,
   };
   const blockShape = block?.area === undefined ? shape : areaShape(block.area);
   const teamName = data.team_name ?? '';
-  const shownTramo: Tramo = isWholeRound(tramo) ? { from: 0, to: ROUND_CLOCK_SECONDS } : tramo;
 
   const sideSegmented = (
     <Segmented<TacticalSide>
@@ -315,17 +314,7 @@ export function PatternFinder({ frame, teamId, scope, lineup, criteria, matches,
     />
   );
   const tramoBlock =
-    block === undefined ? null : (
-      <div role="group" aria-label="Tramo del bloque" className="flex flex-col gap-2 rounded-md border border-border bg-surface-2 px-3 py-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-body-sm font-medium text-fg-1">{tramoLabel(tramo)}</span>
-          <QuickTramos tramo={tramo} plant={false} onChange={(next) => setBlock(withTramo(block, next))} />
-        </div>
-        <div className="relative h-7 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]">
-          <TramoBracket tramo={shownTramo} duration={ROUND_CLOCK_SECONDS} onChange={(next) => setBlock(withTramo(block, next))} />
-        </div>
-      </div>
-    );
+    block === undefined ? null : <TramoBar tramo={tramo} plant={false} onChange={(next) => setBlock(withTramo(block, next))} />;
   const results = (
     <PatternResults
       result={data.result}
@@ -383,22 +372,16 @@ export function PatternFinder({ frame, teamId, scope, lineup, criteria, matches,
       rounds: results,
       tactics: savedList,
       footer: (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <Button asChild variant="outline" size="sm" className={refs.length === 0 ? 'pointer-events-none opacity-50' : undefined}>
-            <Link href={replayHref(refs, `${teamName === '' ? 'Patrón' : teamName} en ${prettyMapName(data.map)}`)} aria-disabled={refs.length === 0}>
-              <Layers aria-hidden />
-              Reproducir {refs.length}/{data.result.rounds} rondas
-            </Link>
-          </Button>
-          {block === undefined ? null : (
-            <div role="group" aria-label="Tramo del bloque" className="flex min-w-[16rem] flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
-              <span className="shrink-0 text-body-sm font-medium text-fg-1">{tramoLabel(tramo)}</span>
-              <div className="relative h-6 min-w-[12rem] flex-1 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]">
-                <TramoBracket tramo={shownTramo} duration={ROUND_CLOCK_SECONDS} onChange={(next) => setBlock(withTramo(block, next))} />
-              </div>
-              <QuickTramos tramo={tramo} plant={false} onChange={(next) => setBlock(withTramo(block, next))} />
-            </div>
-          )}
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Button asChild variant="outline" size="sm" className={refs.length === 0 ? 'pointer-events-none opacity-50' : undefined}>
+              <Link href={replayHref(refs, `${teamName === '' ? 'Patrón' : teamName} en ${prettyMapName(data.map)}`)} aria-disabled={refs.length === 0}>
+                <Layers aria-hidden />
+                Reproducir {refs.length}/{data.result.rounds} rondas
+              </Link>
+            </Button>
+          </div>
+          {tramoBlock}
         </div>
       ),
       count: { matched: data.result.matched, total: data.result.rounds },

@@ -478,7 +478,6 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
               />
             ) : null}
           </div>
-          <TramoBar tramo={tramo} onChange={setTramo} />
           <p className="text-meta text-fg-3">
             Cada ronda empieza en su final del tiempo de compra. Puntos cada {step} s, interpolados.
             {overlay.total > rounds.length ? ` Se muestran ${rounds.length} de ${overlay.total} rondas: afina el filtro para ver otras.` : ''}
@@ -515,6 +514,7 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
           />
         </aside>
       </div>
+      <TramoBar tramo={tramo} onChange={setTramo} />
     </section>
   );
 }

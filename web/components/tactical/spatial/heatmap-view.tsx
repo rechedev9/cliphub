@@ -359,7 +359,6 @@ export function HeatmapView({
           />
         ) : null}
       </div>
-      <TramoBar tramo={tramo} onChange={setTramo} />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {kind === 'kill' ? (
           <Segmented
@@ -408,6 +407,7 @@ export function HeatmapView({
       </div>
 
       {body()}
+      <TramoBar tramo={tramo} onChange={setTramo} />
     </div>
   );
 }

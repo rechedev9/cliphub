@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { QUICK_TRAMOS, ROUND_CLOCK_SECONDS, WHOLE_ROUND, edgeBounds, isWholeRound, keyedEdge, moveTramoEdge, nearestEdge, quickTramoOf, roundClock, tramoEnd, tramoLabel } from '@/lib/replay/tramo';
+import { Check, SlidersHorizontal, Timer } from 'lucide-react';
+import { QUICK_TRAMOS, ROUND_CLOCK_SECONDS, WHOLE_ROUND, clockPercent, dragSeconds, edgeBounds, isWholeRound, keyedEdge, moveTramoEdge, nearestEdge, quickTramoOf, roundClock, tramoEnd } from '@/lib/replay/tramo';
 import type { Tramo } from '@/lib/replay/tramo';
 import { FOCUS_RING } from '@/components/ui/button';
-import { Segmented } from '@/components/ui/segmented';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 /** A tramo and how to change it; the Replay keeps it in the URL and hands it to each form. */
@@ -30,6 +31,8 @@ function Handle({
   onChange: (tramo: Tramo) => void;
 }): ReactNode {
   const dragging = useRef(false);
+  // How far inside the handle the press landed, so a drag does not jump to the pointer.
+  const grab = useRef(0);
   // The owner keeps the tramo in the URL, which answers a beat later: a held key or a fast drag must build on the last move, not on the stale prop.
   const latest = useRef(tramo);
   useEffect(() => {
@@ -41,10 +44,12 @@ function Handle({
     onChange(next);
   };
   const seconds = edge === 'from' ? tramo.from : tramoEnd(tramo);
+  const trackOf = (event: PointerEvent<HTMLButtonElement>): DOMRect | undefined => event.currentTarget.parentElement?.getBoundingClientRect();
   const secondsAt = (event: PointerEvent<HTMLButtonElement>): number | null => {
-    const track = event.currentTarget.parentElement?.getBoundingClientRect();
-    if (track === undefined || track.width === 0) return null;
-    return ((event.clientX - track.left) / track.width) * duration;
+    const track = trackOf(event);
+    if (track === undefined) return null;
+    const at = dragSeconds({ clientX: event.clientX, left: track.left, width: track.width, grab: grab.current });
+    return at === null ? null : (at / ROUND_CLOCK_SECONDS) * duration;
   };
   const bounds = edgeBounds(tramo, edge);
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
@@ -66,6 +71,8 @@ function Handle({
       onKeyDown={onKeyDown}
       onPointerDown={(event) => {
         dragging.current = true;
+        const track = trackOf(event);
+        grab.current = track === undefined ? 0 : event.clientX - (track.left + (seconds / duration) * track.width);
         event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerMove={(event) => {
@@ -80,118 +87,106 @@ function Handle({
       }}
       style={{ left: `${(seconds / duration) * 100}%` }}
       className={cn(
-        'pointer-events-auto absolute inset-y-0 z-10 w-3 -translate-x-1/2 cursor-ew-resize touch-none outline-none',
-        'after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 after:rounded-[1px] after:bg-primary',
+        'pointer-events-auto absolute inset-y-0 z-10 flex w-3 cursor-ew-resize touch-none items-center justify-center bg-primary outline-none',
+        edge === 'from' ? 'rounded-l-sm' : '-translate-x-full rounded-r-sm',
         FOCUS_RING,
       )}
-    />
+    >
+      <span aria-hidden className="h-4 w-0.5 rounded-full bg-primary-foreground/70" />
+    </button>
   );
 }
 
-/**
- * The tramo over a track: a translucent violet bracket with a handle at each
- * end. `duration` is the track's length in seconds since freeze end. It lays
- * itself over its positioned parent and lets clicks through, except on the handles.
- */
-export function TramoBracket({ tramo, duration, onChange }: { tramo: Tramo; duration: number; onChange: (tramo: Tramo) => void }): ReactNode {
-  if (tramo.fromPlant === true || duration <= 0) return null;
-  const from = Math.min(tramo.from, duration);
-  const to = Math.min(tramoEnd(tramo), duration);
-  return (
-    <div className="pointer-events-none absolute inset-0">
-      <div className="absolute inset-y-0 bg-primary/25" style={{ left: `${(from / duration) * 100}%`, width: `${((to - from) / duration) * 100}%` }} aria-hidden />
-      <Handle edge="from" tramo={tramo} duration={duration} onChange={onChange} />
-      <Handle edge="to" tramo={tramo} duration={duration} onChange={onChange} />
-    </div>
-  );
-}
+/** A moment of the matched rounds on the strip: its second on the round clock and the token of its player's colour. */
+export type TramoEvent = { seconds: number; token: string };
 
-/** A faint line every 15 seconds of the round clock, so a handle can be read against 1:40, 1:25 and the rest. */
-function ClockTicks(): ReactNode {
-  const ticks = Array.from({ length: Math.floor((ROUND_CLOCK_SECONDS - 1) / 15) }, (_, index) => (index + 1) * 15);
-  return (
-    <div className="pointer-events-none absolute inset-0" aria-hidden>
-      {ticks.map((seconds) => (
-        <span key={seconds} className="absolute inset-y-1.5 w-px bg-border" style={{ left: `${(seconds / ROUND_CLOCK_SECONDS) * 100}%` }} />
-      ))}
-    </div>
-  );
-}
+/** The clock box and the strip every time control shares: the Tramo bar and the Replay's transport. */
+export const CLOCK_BOX = 'flex h-10 shrink-0 items-center gap-1.5 rounded-sm border border-border bg-surface-1 px-2 font-mono text-body-sm tabular-nums text-fg-1';
+export const STRIP = 'relative h-10 min-w-0 flex-1 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]';
 
-/** The quick tramos, the same four wherever a tramo is chosen. */
-export function QuickTramos({ tramo, onChange, plant = true }: { tramo: Tramo; onChange: (tramo: Tramo) => void; /** Offer "Desde el plant"; off where every round shares one clock. */ plant?: boolean }): ReactNode {
+/** The quick tramos in a small menu beside the start clock, so the strip carries no buttons. */
+function TramoPresets({ tramo, onChange, plant }: { tramo: Tramo; onChange: (tramo: Tramo) => void; plant: boolean }): ReactNode {
   const chosen = quickTramoOf(tramo);
-  const quicks = QUICK_TRAMOS.filter((quick) => plant || quick.id !== 'plant');
   return (
-    <Segmented
-      label="Tramo"
-      value={chosen ?? 'custom'}
-      options={[...quicks.map((quick) => ({ value: quick.id, label: quick.label })), ...(chosen === null ? [{ value: 'custom' as const, label: 'A medida' }] : [])]}
-      onChange={(id) => {
-        const quick = QUICK_TRAMOS.find((entry) => entry.id === id);
-        if (quick !== undefined) onChange(quick.tramo);
-      }}
-    />
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Tramos rápidos"
+        className={cn('-mr-1 flex size-7 shrink-0 items-center justify-center rounded-xs text-fg-3 outline-none hover:bg-surface-3 hover:text-fg-1', FOCUS_RING)}
+      >
+        <SlidersHorizontal aria-hidden className="size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top">
+        {QUICK_TRAMOS.filter((quick) => plant || quick.id !== 'plant').map((quick) => (
+          <DropdownMenuItem key={quick.id} onSelect={() => onChange(quick.tramo)}>
+            <Check aria-hidden className={cn('size-3.5 text-fg-1', chosen !== quick.id && 'invisible')} />
+            {quick.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
 /**
- * The tramo of the forms that count rounds instead of playing them: the round
- * clock from 1:55 to 0:00 as a track, the bracket over it and the quick tramos.
+ * The time window of the finders and exports, as Skybox EDGE draws it: a clock box with
+ * the start, one strip with a line per event in its player's colour and a grip at each
+ * end of the window (the strip dims outside it), and a box with the end. The quick
+ * tramos sit in the menu beside the start box.
  */
 export function TramoBar({
   tramo,
   onChange,
-  marks,
-  compact = false,
+  events = [],
+  plant = true,
 }: {
   tramo: Tramo;
   onChange: (tramo: Tramo) => void;
-  /** Drawn in the track, such as a histogram. */
-  marks?: ReactNode;
-  /** One row (label, track, quick tramos) for a panel under the map, where height is scarce. */
-  compact?: boolean;
+  events?: readonly TramoEvent[];
+  /** Offer "Desde el plant"; off where every round shares one clock. */
+  plant?: boolean;
 }): ReactNode {
-  const shown: Tramo = tramo.fromPlant === true || isWholeRound(tramo) ? { from: 0, to: ROUND_CLOCK_SECONDS } : tramo;
-  const label = <span className="shrink-0 text-body-sm font-medium text-fg-1">{tramoLabel(tramo)}</span>;
-  const quick = <QuickTramos tramo={tramo} onChange={onChange} />;
-  const track = (
-    <div className={cn('flex items-center gap-2', compact && 'min-w-[12rem] flex-1')}>
-      <span className="font-mono text-meta tabular-nums text-fg-3">{roundClock(0)}</span>
+  const fromPlant = tramo.fromPlant === true;
+  const shown: Tramo = fromPlant || isWholeRound(tramo) ? { from: 0, to: ROUND_CLOCK_SECONDS } : tramo;
+  const start = clockPercent(shown.from);
+  const end = clockPercent(tramoEnd(shown));
+  return (
+    <div role="group" aria-label="Tramo de la ronda" className="flex w-full items-center gap-1.5">
+      <div className={CLOCK_BOX}>
+        <Timer aria-hidden className="size-4 text-fg-3" />
+        <span aria-label="Inicio del tramo en el reloj">{fromPlant ? 'Plant' : roundClock(shown.from)}</span>
+        <TramoPresets tramo={tramo} onChange={onChange} plant={plant} />
+      </div>
       <div
         onPointerDown={(event) => {
-          // A press on the bare track pulls the closer handle there; the handles take their own presses.
-          if (tramo.fromPlant === true || (event.target instanceof Element && event.target.closest('[role="slider"]') !== null)) return;
+          // A press on the bare strip pulls the closer grip there; the grips take their own presses.
+          if (fromPlant || (event.target instanceof Element && event.target.closest('[role="slider"]') !== null)) return;
           const box = event.currentTarget.getBoundingClientRect();
-          if (box.width === 0) return;
-          const seconds = ((event.clientX - box.left) / box.width) * ROUND_CLOCK_SECONDS;
-          onChange(moveTramoEdge(shown, nearestEdge(shown, seconds), seconds));
+          const seconds = dragSeconds({ clientX: event.clientX, left: box.left, width: box.width, grab: 0 });
+          if (seconds !== null) onChange(moveTramoEdge(shown, nearestEdge(shown, seconds), seconds));
         }}
-        className={cn('relative min-w-0 flex-1 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]', tramo.fromPlant !== true && 'cursor-pointer', compact ? 'h-6' : 'h-7')}
+        className={cn(STRIP, !fromPlant && 'cursor-pointer')}
       >
-        <ClockTicks />
-        {marks}
-        {tramo.fromPlant === true ? null : <TramoBracket tramo={shown} duration={ROUND_CLOCK_SECONDS} onChange={onChange} />}
+        {fromPlant ? null : (
+          <>
+            <div aria-hidden className="pointer-events-none absolute inset-0">
+              {events.map((event, index) => (
+                <span key={index} className="absolute inset-y-0 w-px opacity-80" style={{ left: `${clockPercent(event.seconds)}%`, background: `var(${event.token})` }} />
+              ))}
+            </div>
+            <div className="pointer-events-none absolute inset-0">
+              <div aria-hidden className="absolute inset-y-0 left-0 bg-surface-0/75" style={{ width: `${start}%` }} />
+              <div aria-hidden className="absolute inset-y-0 right-0 bg-surface-0/75" style={{ left: `${end}%` }} />
+              <div aria-hidden className="absolute inset-y-0 border-y-2 border-primary" style={{ left: `${start}%`, width: `${end - start}%` }} />
+              <Handle edge="from" tramo={shown} duration={ROUND_CLOCK_SECONDS} onChange={onChange} />
+              <Handle edge="to" tramo={shown} duration={ROUND_CLOCK_SECONDS} onChange={onChange} />
+            </div>
+          </>
+        )}
       </div>
-      <span className="font-mono text-meta tabular-nums text-fg-3">{roundClock(ROUND_CLOCK_SECONDS)}</span>
-    </div>
-  );
-  if (compact) {
-    return (
-      <div role="group" aria-label="Tramo de la ronda" className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        {label}
-        {track}
-        {quick}
+      <div className={CLOCK_BOX}>
+        <Timer aria-hidden className="size-4 text-fg-3" />
+        <span aria-label="Final del tramo en el reloj">{roundClock(tramoEnd(shown))}</span>
       </div>
-    );
-  }
-  return (
-    <div role="group" aria-label="Tramo de la ronda" className="flex flex-col gap-2 rounded-md border border-border bg-surface-2 px-3 py-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {label}
-        {quick}
-      </div>
-      {track}
     </div>
   );
 }

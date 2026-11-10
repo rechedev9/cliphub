@@ -46,7 +46,7 @@ export function GifPanel({
       aria-label="Exportar el tramo"
       className="flex shrink-0 flex-col gap-1.5 border-t border-border-subtle bg-surface-1 px-2 py-1.5"
     >
-      {multi ? null : <TramoBar compact tramo={tramo.tramo} onChange={tramo.onChange} />}
+      {multi ? null : <TramoBar tramo={tramo.tramo} onChange={tramo.onChange} />}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <p className="min-w-[10rem] flex-1 text-meta text-fg-2">{summary}</p>
         <div className="flex items-center gap-1.5">

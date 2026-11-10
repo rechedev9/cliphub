@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { QUICK_TRAMOS, WHOLE_ROUND, edgeBounds, inTramo, keyedEdge, moveTramoEdge, nearestEdge, quickTramoOf, roundClock, tramoFromQuery, tramoLabel, writeTramo } from './tramo.ts';
+import { QUICK_TRAMOS, ROUND_CLOCK_SECONDS, WHOLE_ROUND, clockPercent, dragSeconds, edgeBounds, inTramo, keyedEdge, moveTramoEdge, nearestEdge, quickTramoOf, roundClock, tramoFromQuery, tramoLabel, writeTramo } from './tramo.ts';
 
 test('tramo: seconds since freeze end read as the round clock', () => {
   assert.equal(roundClock(0), '1:55');
@@ -77,4 +77,18 @@ test('a click on the track moves the closer handle', () => {
   assert.equal(nearestEdge({ from: 15, to: 45 }, 40), 'to');
   assert.equal(nearestEdge({ from: 15, to: 45 }, 30), 'from', 'a tie goes to the start');
   assert.equal(nearestEdge(WHOLE_ROUND, 100), 'to');
+});
+
+test('an event sits at its share of the round clock, kept on the strip', () => {
+  assert.equal(clockPercent(0), 0);
+  assert.equal(clockPercent(ROUND_CLOCK_SECONDS / 2), 50);
+  assert.equal(clockPercent(-5), 0);
+  assert.equal(clockPercent(500), 100);
+});
+
+test('a drag maps the pointer to seconds, minus where the handle was grabbed', () => {
+  assert.equal(dragSeconds({ clientX: 100, left: 100, width: 230, grab: 0 }), 0);
+  assert.equal(dragSeconds({ clientX: 215, left: 100, width: 230, grab: 0 }), 57.5);
+  assert.equal(dragSeconds({ clientX: 215, left: 100, width: 230, grab: 15 }), 50);
+  assert.equal(dragSeconds({ clientX: 215, left: 100, width: 0, grab: 0 }), null);
 });
