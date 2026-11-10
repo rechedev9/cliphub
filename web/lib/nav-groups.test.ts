@@ -24,7 +24,7 @@ test('rail: the analysis side holds EDGE\'s eleven tools, and every entry has a 
 test('rail: each page lights exactly one entry, the tools inside a section light their own row', () => {
   const at = (pathname: string, tab: string | null = null) => activeEntryId({ pathname, tab });
   assert.equal(at('/replay'), 'replay');
-  assert.equal(at('/replay/playlists'), 'replay');
+  assert.equal(at('/replay/playlists'), 'partidas');
   assert.equal(at('/patrones'), 'buscador-de-patrones');
   assert.equal(at('/tacticas/nueva'), 'editor-de-tacticas');
   assert.equal(at('/equipos'), 'estadisticas-de-equipo');

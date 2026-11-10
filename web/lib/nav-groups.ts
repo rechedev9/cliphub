@@ -117,6 +117,8 @@ const TEAM_TAB_ENTRY: Readonly<Record<string, SidebarEntryId>> = {
  */
 export function activeEntryId(where: { pathname: string; tab: string | null }): SidebarEntryId | null {
   const { pathname, tab } = where;
+  // Playlists is a Partidas tab that happens to live under /replay.
+  if (under(pathname, '/replay/playlists')) return 'partidas';
   if (under(pathname, '/replay')) return 'replay';
   if (under(pathname, '/patrones')) return 'buscador-de-patrones';
   if (under(pathname, '/tacticas')) return 'editor-de-tacticas';
