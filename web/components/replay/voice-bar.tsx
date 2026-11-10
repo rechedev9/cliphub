@@ -8,6 +8,7 @@ import { ADJUST_RANGE_MS, NUDGE_STEPS_MS, clampOffset, deltaLabel, formatVoiceMs
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ReplayVoice } from './use-replay-voice';
+import { VoicePluginMenu } from './voice-plugin-menu';
 
 const AUDIO_ACCEPT = 'audio/*,.wav,.ogg,.opus,.mp3,.m4a,.flac';
 
@@ -187,6 +188,7 @@ export function VoiceRow({ voice }: { voice: ReplayVoice }): ReactNode {
         <Mic className="size-3.5 text-fg-3" aria-hidden />
         <span className="text-meta text-fg-3">Escucha la voz del equipo con la ronda: importa la grabación de TeamSpeak.</span>
         <ImportButton voice={voice} label="Importar voz" />
+        <VoicePluginMenu voice={voice} />
         <div className="ml-auto">
           <DemoVoiceToggle voice={voice} />
         </div>
