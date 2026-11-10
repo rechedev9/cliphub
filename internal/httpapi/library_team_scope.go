@@ -29,6 +29,29 @@ func (h *Handlers) teamProfiles(ctx context.Context) (teamProfiles, error) {
 	return out, nil
 }
 
+// withProfiles fills each team's own flag and HLTV rank from its profile.
+func (h *Handlers) withProfiles(ctx context.Context, teams []library.Team) error {
+	profiles, err := h.teamProfiles(ctx)
+	if err != nil {
+		return err
+	}
+	for i := range teams {
+		p := profiles[teams[i].ID]
+		teams[i].Own, teams[i].HLTVRank = p.Own, p.HLTVRank
+	}
+	return nil
+}
+
+// writeTeam answers one team with its profile fields.
+func (h *Handlers) writeTeam(w http.ResponseWriter, r *http.Request, team library.Team) {
+	one := []library.Team{team}
+	if err := h.withProfiles(r.Context(), one); err != nil {
+		internalError(w, "read team profile", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, one[0])
+}
+
 // selectTeamMatches applies the scout filter; the matches the opponent level
 // could not rate come back as skipped, so the view can say how many.
 func selectTeamMatches(f tacticalplan.ScoutFilter, pending []tacticalplan.ScoutMatch) ([]tacticalplan.ScoutMatch, []scoutSkipped) {
@@ -40,14 +63,38 @@ func selectTeamMatches(f tacticalplan.ScoutFilter, pending []tacticalplan.ScoutM
 	return kept, skipped
 }
 
+// skippedOnMap keeps the skips of matches played on mapName, so a one-map view
+// counts only what it could have drawn.
+func skippedOnMap(skipped []scoutSkipped, pending []tacticalplan.ScoutMatch, mapName string) []scoutSkipped {
+	maps := make(map[uuid.UUID]string, len(pending))
+	for _, m := range pending {
+		maps[m.MatchID] = m.Document.Demo.Map
+	}
+	out := make([]scoutSkipped, 0, len(skipped))
+	for _, s := range skipped {
+		if maps[s.MatchID] == mapName {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// awpEstimated is 1 when the scope filters by AWP and the match's analysis predates the AWP flag.
+func awpEstimated(f tacticalplan.ScoutFilter, m tacticalplan.ScoutMatch) int {
+	if f.Rounds.ReadsAWP() && tacticalplan.AWPEstimated(m.Document) {
+		return 1
+	}
+	return 0
+}
+
 // teamScopeQuery reads what every team view adds to the scout filter: the
 // match cap, the opponent level, whose matches, and the round criteria.
 func teamScopeQuery(q url.Values, f *tacticalplan.ScoutFilter) error {
 	var err error
-	if f.MaxMatches, err = intQuery(q, "max_matches", library.MaxReportMatches); err != nil {
+	if f.MaxMatches, err = intQuery(intParam{q: q, name: "max_matches", limit: library.MaxReportMatches}); err != nil {
 		return err
 	}
-	top, err := intQuery(q, "opponent_top", library.MaxHLTVRank)
+	top, err := intQuery(intParam{q: q, name: "opponent_top", limit: library.MaxHLTVRank})
 	if err != nil {
 		return err
 	}
@@ -74,14 +121,21 @@ var teamRoundKeys = []string{
 	"awp", "opponent_awp", "advantage",
 }
 
-func intQuery(q url.Values, name string, limit int) (int, error) {
-	raw := strings.TrimSpace(q.Get(name))
+// intParam names an optional query integer from 1 to limit.
+type intParam struct {
+	q     url.Values
+	name  string
+	limit int
+}
+
+func intQuery(p intParam) (int, error) {
+	raw := strings.TrimSpace(p.q.Get(p.name))
 	if raw == "" {
 		return 0, nil
 	}
 	n, err := strconv.Atoi(raw)
-	if err != nil || n < 1 || n > limit {
-		return 0, fmt.Errorf("%s must be an integer from 1 to %d", name, limit)
+	if err != nil || n < 1 || n > p.limit {
+		return 0, fmt.Errorf("%s must be an integer from 1 to %d", p.name, p.limit)
 	}
 	return n, nil
 }

@@ -161,6 +161,20 @@ func TestLibretaRepositoryContract(t *testing.T) {
 						t.Fatalf("Vitality after merge = %+v, want its own profile", p)
 					}
 				}
+				// One own team: marking FaZe takes the flag from Vitality.
+				if err := f.repo.SetTeamProfile(f.ctx, &library.TeamProfile{TeamID: faze.ID, Own: true, HLTVRank: 9}); err != nil {
+					t.Fatal(err)
+				}
+				if got, _ = f.repo.ListTeamProfiles(f.ctx); got[0].Own == got[1].Own {
+					t.Fatalf("profiles = %+v, want one own team", got)
+				}
+				// Merging the own team into another makes that one own, with its own rank.
+				if _, err := f.repo.MergeTeams(f.ctx, faze.ID, vit.ID); err != nil {
+					t.Fatal(err)
+				}
+				if got, err = f.repo.ListTeamProfiles(f.ctx); err != nil || len(got) != 1 || !got[0].Own || got[0].HLTVRank != 1 {
+					t.Fatalf("after merging the own team = %+v, %v; want Vitality own, rank 1", got, err)
+				}
 			},
 		},
 		{

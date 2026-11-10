@@ -69,11 +69,13 @@ players of the team's latest match, which team_lineups lists, and an empty lineu
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
 Every team tool (team_side_stats too) also takes the rest of the team Replay's filter bar, so all team figures count the same rounds:
-max_matches (last 3 or 5), last_days (3, 7, 14, 30, 90, 180), opponent_top (HLTV top 5 to 200; rivals without
-a rank come back as unranked), whose (own: matches of the user's own team; others: scouting), buy and
-opponent_buy (full with full, half is semi and force, pistol with pistol), awp and opponent_awp (with or
-without), advantage (4v5, 5v4 at some moment) and round_from/round_to. team_rounds lists those rounds over
-the matches, with the Replay's studio_path and a playlist_path to play them one after another.
+max_matches (last 3 or 5), last_days (3, 7, 14, 30, 90, 180, 365), opponent_top (HLTV top 5 to 200, by each
+rival's rank today; rivals without a rank come back as unranked), whose (own: matches of the user's own team,
+the one list_teams marks own; others: scouting), buy and opponent_buy (full with full, half is semi and force,
+pistol with pistol), awp and opponent_awp (with or without; awp_estimated counts older analyses read from AWP
+kills), advantage (4v5, 5v4 at some moment) and round_from/round_to. team_rounds lists those rounds over
+the matches, with the Replay's studio_path and a playlist_path to play them one after another. The Replay
+holds one buy (or half) and one advantage per side, so studio_path refuses longer lists.
 For a player: player_positions; leaderboard is the Ranking page: it ranks the library's players on one metric (rating, kd or a get_baseline one),
 filtered by map, side, role (such as b_lurk on de_anubis), map_role (a callout held on the map and side, or allround; the answer's
 map_roles lists them), dates and demo source, with each player's metrics, roles, breakdown (percent of rounds per role and per
@@ -81,7 +83,7 @@ position) and round refs. The rating is the Rating de ClipHub. Without from and 
 (last 90 days unless days says otherwise) by side, role, map_role, the HLTV rank of the rival (top) and of the player's own team
 (team_top) and event (the answer's events lists them); those rows carry a team and no refs.
 Fix the library's teams: update_team renames or replaces the aliases (start from get_team) and sets
-own (Mi equipo) and hltv_rank,
+own (Mi equipo, one team at most: setting it moves the mark) and hltv_rank,
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.
 Scouting reports (Informes): list_reports, get_report (sections and players), create_report,

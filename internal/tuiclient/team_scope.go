@@ -32,6 +32,8 @@ type TeamRounds struct {
 	Matches  []TeamRoundsMatch `json:"matches"`
 	Rounds   int               `json:"rounds"`
 	Skipped  []AnalysisSkipped `json:"skipped"`
+	// AWPEstimated counts the matches whose AWP filter read kills and hits.
+	AWPEstimated int `json:"awp_estimated"`
 }
 
 // TeamRounds reads the rounds a team scope keeps over its matches, newest match first.

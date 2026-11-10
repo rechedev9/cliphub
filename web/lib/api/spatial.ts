@@ -117,7 +117,15 @@ export type Overlay = {
   rounds: OverlayRound[];
 };
 
-export type SpatialMatchRef = { match_id: string; map: string; played_at: string; team_key?: string; opponent?: string };
+export type SpatialMatchRef = {
+  match_id: string;
+  map: string;
+  played_at: string;
+  team_key?: string;
+  opponent?: string;
+  /** A team view's kept round numbers, for a playlist of them. */
+  rounds?: number[];
+};
 
 export type SpatialSkipped = { match_id: string; reason: string };
 
@@ -132,11 +140,14 @@ export type SpatialResponse = {
   geometry: TacticalGeometry | null;
   heatmap?: Heatmap;
   overlay?: Overlay;
+  /** Matches whose AWP filter read kills and hits: their analysis predates the AWP flag. */
+  awp_estimated?: number;
 };
 
 /** Response keys the proxy lets through for a heatmap or an overlay. */
 export const SPATIAL_RESPONSE_KEYS = [
   'team_id', 'team_name', 'map', 'maps', 'matches', 'skipped', 'reference_match_id', 'geometry', 'heatmap', 'overlay',
+  'awp_estimated',
 ] as const;
 
 /** Query names of the team views: the scout filter, the round filter and the view's own. */

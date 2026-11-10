@@ -3,6 +3,8 @@ package httpapi
 import (
 	"net/http"
 	"testing"
+
+	"github.com/rechedev9/cliphub/internal/library"
 )
 
 func skippedFor(skipped []scoutSkipped, reason string) int {
@@ -54,6 +56,25 @@ func TestTeamScopeFiltersByLevelWhoseMatchesAndMatchCount(t *testing.T) {
 	if !got.Own || got.HLTVRank != 0 {
 		t.Fatalf("GET profile = %+v", got)
 	}
+	// The teams list says which team is own and each rank, so a view finds them in one read.
+	var list struct {
+		Teams []library.Team `json:"teams"`
+	}
+	f.env.json(http.MethodGet, "/api/library/teams", nil, http.StatusOK, &list)
+	for _, team := range list.Teams {
+		if (team.ID == f.spirit) != team.Own || (team.ID == f.mouz) != (team.HLTVRank == 12) {
+			t.Fatalf("teams list = %+v, want Spirit own and MOUZ ranked 12", list.Teams)
+		}
+	}
+	// One own team: marking MOUZ takes the mark from Spirit.
+	if got := profile(f.mouz.String(), map[string]any{"own": true}); !got.Own || got.OwnTeams != 1 || got.HLTVRank != 12 {
+		t.Fatalf("PUT own on MOUZ = %+v", got)
+	}
+	var spirit library.Team
+	f.env.json(http.MethodGet, "/api/library/teams/"+f.spirit.String(), nil, http.StatusOK, &spirit)
+	if spirit.Own {
+		t.Fatalf("Spirit = %+v, still own after MOUZ took the mark", spirit)
+	}
 	for _, bad := range []string{"?opponent_top=10", "?whose=mine", "?max_matches=0", "?advantage=9v9", "?awp=yes"} {
 		if rw := f.env.do(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/scout"+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Errorf("scout%s = %d, want 400", bad, rw.Code)
@@ -75,6 +96,11 @@ func TestTeamScopeRoundCriteriaReachEveryTeamFigure(t *testing.T) {
 	f.env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/heatmap?round_from=1&round_to=1", nil, http.StatusOK, &heat)
 	if heat.Heatmap == nil || heat.Heatmap.Rounds != len(heat.Matches) {
 		t.Fatalf("heatmap of round 1 = %+v, want one round per match read", heat.Heatmap)
+	}
+	for _, m := range heat.Matches {
+		if len(m.Rounds) != 1 || m.Rounds[0] != 1 {
+			t.Fatalf("heatmap match %+v, want its kept round 1 listed for the playlist", m)
+		}
 	}
 	var rounds teamRoundsResponse
 	f.env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/rounds?round_from=1&round_to=1&max_matches=50", nil, http.StatusOK, &rounds)

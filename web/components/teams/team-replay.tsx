@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ListVideo } from 'lucide-react';
 import { getTeamRounds, type LibraryMatch, type LibraryRosterEntry, type TeamCriterion } from '@/lib/api/library';
-import { replayHref, type ReplayRef } from '@/lib/analysis/replay-link';
+import { REPLAY_MAX_REFS, replayHref, type ReplayRef } from '@/lib/analysis/replay-link';
 import { scopeDateRange, type AnalysisScope, type ScopeField } from '@/lib/analysis/scope';
 import { teamScopeEntries } from '@/lib/analysis/team-scope';
 import type { ReplayForm } from '@/lib/replay/forms';
@@ -25,41 +25,51 @@ export const TEAM_REPLAY_FIELDS: readonly ScopeField[] = [
 /** The match counts the Replay offers; with none in the URL it reads the server's cap. */
 export const TEAM_REPLAY_LIMITS = { options: [3, 5, 10, 20, 50], fallback: 50 } as const;
 
-type RoundsLink = { href: string; count: number } | null;
+/** "Ver 42 rondas en Repetición": the rounds the figure on screen counts, as one playlist, newest match first. */
+function RoundsLink({ refs }: { refs: readonly ReplayRef[] | null }): ReactNode {
+  if (refs === null || refs.length === 0) return null;
+  const count = refs.length;
+  let label = `Ver ${count} ${count === 1 ? 'ronda' : 'rondas'} en Repetición`;
+  if (count > REPLAY_MAX_REFS) label = `Ver las ${REPLAY_MAX_REFS} primeras de ${count} rondas`;
+  return (
+    <Button asChild variant="ghost" size="xs" className="mb-1">
+      <Link href={replayHref(refs, 'Rondas del equipo')}>
+        <ListVideo aria-hidden />
+        {label}
+      </Link>
+    </Button>
+  );
+}
 
-/** "Ver 42 rondas en Repetición": the kept rounds of every match as one playlist, newest match first. */
-function TeamRoundsLink({ teamId, scope, lineup, criteria }: { teamId: string; scope: AnalysisScope; lineup: readonly string[]; criteria: readonly TeamCriterion[] }): ReactNode {
+/** The grenades form reads one map, so its playlist asks the rounds endpoint for that map alone. */
+function useGrenadeRounds({ teamId, scope, lineup, criteria, active }: {
+  teamId: string;
+  scope: AnalysisScope;
+  lineup: readonly string[];
+  criteria: readonly TeamCriterion[];
+  active: boolean;
+}): ReplayRef[] | null {
   const [now] = useState(() => Date.now());
-  const [link, setLink] = useState<RoundsLink>(null);
+  const [refs, setRefs] = useState<ReplayRef[] | null>(null);
   const { from, to } = scopeDateRange(scope.period, now);
   const { map, side, opponent } = scope;
 
   useEffect(() => {
-    let active = true;
-    setLink(null);
-    getTeamRounds(teamId, { maps: map === '' ? [] : [map], side, from, to, opponent_ids: opponent === '' ? [] : [opponent], lineup, criteria })
+    setRefs(null);
+    if (!active || map === '') return;
+    let live = true;
+    getTeamRounds(teamId, { maps: [map], side, from, to, opponent_ids: opponent === '' ? [] : [opponent], lineup, criteria })
       .then((data) => {
-        if (!active) return;
-        const refs: ReplayRef[] = data.matches.flatMap((match) => match.rounds.map((round) => ({ matchId: match.match_id, round: round.round })));
-        setLink(refs.length === 0 ? null : { href: replayHref(refs, `Rondas de ${data.team_name}`), count: refs.length });
+        if (live) setRefs(data.matches.flatMap((match) => match.rounds.map((round) => ({ matchId: match.match_id, round: round.round }))));
       })
       .catch(() => {
-        if (active) setLink(null);
+        if (live) setRefs(null);
       });
     return () => {
-      active = false;
+      live = false;
     };
-  }, [teamId, map, side, from, to, opponent, lineup, criteria]);
-
-  if (link === null) return null;
-  return (
-    <Button asChild variant="ghost" size="xs" className="mb-1">
-      <Link href={link.href}>
-        <ListVideo aria-hidden />
-        Ver {link.count} {link.count === 1 ? 'ronda' : 'rondas'} en Repetición
-      </Link>
-    </Button>
-  );
+  }, [teamId, map, side, from, to, opponent, lineup, criteria, active]);
+  return refs;
 }
 
 /** The team's Replay: its rounds as a heatmap, as paths or as grenades, through the page's scope. */
@@ -87,6 +97,9 @@ export function TeamReplay({
   onCounts: (counts: ScopeCounts | null) => void;
 }): ReactNode {
   const criteria = useMemo(() => teamScopeEntries(scope, TEAM_REPLAY_FIELDS), [scope]);
+  const [spatialRefs, setSpatialRefs] = useState<readonly ReplayRef[] | null>(null);
+  const onRounds = useCallback((refs: readonly ReplayRef[]) => setSpatialRefs(refs), []);
+  const grenadeRefs = useGrenadeRounds({ teamId, scope, lineup, criteria, active: form === 'granadas' });
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-end gap-2">
@@ -100,7 +113,7 @@ export function TeamReplay({
             }}
           />
         </div>
-        <TeamRoundsLink teamId={teamId} scope={scope} lineup={lineup} criteria={criteria} />
+        <RoundsLink refs={form === 'granadas' ? grenadeRefs : spatialRefs} />
       </div>
       {form === 'granadas' ? (
         <TeamGrenades
@@ -122,6 +135,7 @@ export function TeamReplay({
           roster={roster}
           onMapChange={onMapChange}
           onCounts={onCounts}
+          onRounds={onRounds}
         />
       )}
     </div>

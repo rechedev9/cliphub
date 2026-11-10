@@ -72,7 +72,7 @@ func TestUpdateTeamSetsTheProfileWithoutARename(t *testing.T) {
 	if got := rec.get("PUT /api/library/teams/{id}/profile"); !strings.Contains(got, `"own":true`) || !strings.Contains(got, `"hltv_rank":3`) {
 		t.Fatalf("profile request = %q", got)
 	}
-	if out.Name != "Vitality" || out.Own == nil || !*out.Own || out.HLTVRank == nil || *out.HLTVRank != 3 {
+	if out.Name != "Vitality" || !out.Own || out.HLTVRank != 3 {
 		t.Fatalf("out = %+v", out)
 	}
 	toolFails(t, cs, "update_team", map[string]any{"team_id": testTeamID, "hltv_rank": 1001}, "hltv_rank must be")
@@ -80,8 +80,17 @@ func TestUpdateTeamSetsTheProfileWithoutARename(t *testing.T) {
 
 func TestTeamReplayPathWritesHalfBuys(t *testing.T) {
 	q := tuiclient.AnalysisQuery{Scope: url.Values{"buy": {"semi", "force"}, "opponent_buy": {"full"}}}
-	path, _ := url.Parse(teamReplayPath(testTeamID, "", q))
-	if got := path.Query(); got.Get("buy") != "half" || got.Get("opponent_buy") != "full" || got.Get("forma") != "" {
-		t.Fatalf("path query = %v, want buy=half and the default form", got)
+	raw, err := teamReplayPath(replayPathIn{TeamID: testTeamID, Map: "de_nuke", Query: q})
+	path, _ := url.Parse(raw)
+	if got := path.Query(); err != nil || got.Get("buy") != "half" || got.Get("opponent_buy") != "full" || got.Get("forma") != "" || got.Get("map") != "de_nuke" {
+		t.Fatalf("path query = %v, %v; want buy=half, the resolved map and the default form", got, err)
+	}
+	for name, scope := range map[string]url.Values{
+		"two buys the bar cannot hold": {"buy": {"eco", "full"}},
+		"two advantages":               {"advantage": {"4v5", "5v4"}},
+	} {
+		if _, err := teamReplayPath(replayPathIn{TeamID: testTeamID, Query: tuiclient.AnalysisQuery{Scope: scope}}); err == nil {
+			t.Errorf("%s: no error", name)
+		}
 	}
 }

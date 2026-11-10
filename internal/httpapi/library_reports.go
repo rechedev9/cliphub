@@ -142,10 +142,8 @@ type keepQuery struct {
 	limit int
 }
 
-// keepTeamMatches reads the selected matches' documents and keeps those the
-// lineup played, up to the user's limit or MaxReportMatches kept: a match the
-// lineup drops or one that cannot be read never takes a slot. Matches past
-// MaxReportMatches come back as skipped; past the user's limit they are not read.
+// keepTeamMatches keeps the selected matches the lineup played, up to the user's limit or
+// MaxReportMatches; only matches past MaxReportMatches come back as skipped.
 func (h *Handlers) keepTeamMatches(q keepQuery) ([]keptMatch, []scoutSkipped) {
 	kept := make([]keptMatch, 0, min(len(q.selected), library.MaxReportMatches))
 	var skipped []scoutSkipped

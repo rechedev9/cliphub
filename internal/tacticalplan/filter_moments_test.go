@@ -6,22 +6,37 @@ import (
 	"testing"
 )
 
-func TestFilterAWPReadsTheFlagAndOlderKills(t *testing.T) {
+func TestFilterAWPReadsTheFlagOnNewAnalyses(t *testing.T) {
 	d := scoutDocument() // round 3: slot 0 (Alpha, T) kills with an AWP
+	d.AnalysisVersion = AWPFlagVersion
 	d.Rounds[0].Players[2].AWP = true // round 1: slot 2 (Beta, T) bought one
 	alpha := "ct-start"
 
-	if got := roundNumbers(Filter{TeamKey: alpha, AWP: PresenceWith}.Apply(d)); !reflect.DeepEqual(got, []int{3}) {
-		t.Fatalf("Alpha with an AWP = %v, want [3] from the kill", got)
+	if got := roundNumbers(Filter{TeamKey: alpha, AWP: PresenceWith}.Apply(d)); len(got) != 0 {
+		t.Fatalf("Alpha with an AWP = %v, want none: the flag alone counts, not the kill", got)
 	}
 	if got := roundNumbers(Filter{TeamKey: alpha, OpponentAWP: PresenceWith}.Apply(d)); !reflect.DeepEqual(got, []int{1}) {
 		t.Fatalf("rival with an AWP = %v, want [1] from the flag", got)
 	}
-	if got := roundNumbers(Filter{TeamKey: alpha, AWP: PresenceWithout, OpponentAWP: PresenceWithout}.Apply(d)); !reflect.DeepEqual(got, []int{2, 4}) {
-		t.Fatalf("no AWP on either side = %v, want [2 4]", got)
+	if got := roundNumbers(Filter{AWP: PresenceWith}.Apply(d)); !reflect.DeepEqual(got, []int{1}) {
+		t.Fatalf("side-agnostic AWP = %v, want [1]", got)
 	}
-	if got := roundNumbers(Filter{AWP: PresenceWith}.Apply(d)); !reflect.DeepEqual(got, []int{1, 3}) {
-		t.Fatalf("side-agnostic AWP = %v, want [1 3]", got)
+}
+
+func TestFilterAWPEstimatesOlderAnalysesFromKills(t *testing.T) {
+	d := scoutDocument()
+	d.AnalysisVersion = AWPFlagVersion - 1
+	d.Rounds[0].Players[2].AWP = true // a stale flag an older scan never set; it is ignored
+	alpha := "ct-start"
+
+	if !AWPEstimated(d) {
+		t.Fatal("an older analysis is not marked as estimated")
+	}
+	if got := roundNumbers(Filter{TeamKey: alpha, AWP: PresenceWith}.Apply(d)); !reflect.DeepEqual(got, []int{3}) {
+		t.Fatalf("Alpha with an AWP = %v, want [3] from the kill", got)
+	}
+	if got := roundNumbers(Filter{TeamKey: alpha, AWP: PresenceWithout, OpponentAWP: PresenceWithout}.Apply(d)); !reflect.DeepEqual(got, []int{1, 2, 4}) {
+		t.Fatalf("no AWP on either side = %v, want [1 2 4]", got)
 	}
 }
 

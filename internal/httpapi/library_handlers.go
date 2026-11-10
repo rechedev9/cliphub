@@ -748,6 +748,9 @@ func (h *Handlers) ListLibraryTeams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teams, err := h.libraryRepo.ListTeams(r.Context(), library.TeamFilter{Query: q.Get("q"), Limit: limit, Offset: offset})
+	if err == nil {
+		err = h.withProfiles(r.Context(), teams)
+	}
 	if err != nil {
 		internalError(w, "list library teams", err)
 		return
@@ -822,7 +825,7 @@ func (h *Handlers) GetLibraryTeam(w http.ResponseWriter, r *http.Request) {
 		writeLibraryError(w, "get team", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, team)
+	h.writeTeam(w, r, team)
 }
 
 // PatchLibraryTeam handles PATCH /api/library/teams/{id}: rename, or replace
@@ -850,7 +853,7 @@ func (h *Handlers) PatchLibraryTeam(w http.ResponseWriter, r *http.Request) {
 		writeLibraryError(w, "update team", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, team)
+	h.writeTeam(w, r, team)
 }
 
 type mergeLibraryTeamRequest struct {
@@ -877,7 +880,7 @@ func (h *Handlers) MergeLibraryTeam(w http.ResponseWriter, r *http.Request) {
 		writeLibraryError(w, "merge teams", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, team)
+	h.writeTeam(w, r, team)
 }
 
 // ListLibraryPlayers handles GET /api/library/players.

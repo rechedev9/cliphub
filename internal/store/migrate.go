@@ -772,15 +772,20 @@ func migrateV16LibraryPlaylists(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV17LibraryTeamProfiles stores whether a team is the user's own and its HLTV rank.
+// migrateV17LibraryTeamProfiles stores the user's own team (one at most) and each team's HLTV rank.
 func migrateV17LibraryTeamProfiles(tx *sql.Tx) error {
-	if _, err := tx.Exec(`CREATE TABLE library_team_profiles (
-		team_id    TEXT    PRIMARY KEY REFERENCES library_teams(id) ON DELETE CASCADE,
-		own        INTEGER NOT NULL DEFAULT 0,
-		hltv_rank  INTEGER NOT NULL DEFAULT 0,
-		updated_at INTEGER NOT NULL
-	)`); err != nil {
-		return fmt.Errorf("library team profiles: %w", err)
+	for _, stmt := range []string{
+		`CREATE TABLE library_team_profiles (
+			team_id    TEXT    PRIMARY KEY REFERENCES library_teams(id) ON DELETE CASCADE,
+			own        INTEGER NOT NULL DEFAULT 0,
+			hltv_rank  INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL
+		)`,
+		`CREATE UNIQUE INDEX library_team_profiles_own ON library_team_profiles(own) WHERE own = 1`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("library team profiles: %w", err)
+		}
 	}
 	return nil
 }

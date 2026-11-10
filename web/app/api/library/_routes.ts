@@ -117,7 +117,7 @@ const MATCH_KEYS = [
   'teams', 'players', 'created_at', 'updated_at',
 ];
 const SCOUT_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup'];
-const TEAM_KEYS = ['id', 'name', 'aliases', 'match_count', 'roster', 'created_at', 'updated_at'];
+const TEAM_KEYS = ['id', 'name', 'aliases', 'match_count', 'roster', 'own', 'hltv_rank', 'created_at', 'updated_at'];
 const PLAYER_KEYS = [
   'steamid64', 'nick', 'nicks', 'faceit_player_id', 'faceit_nickname', 'match_count', 'teams', 'created_at', 'updated_at',
 ];

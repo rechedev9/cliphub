@@ -115,6 +115,10 @@ export type LibraryTeam = {
   aliases: string[];
   match_count: number;
   roster?: LibraryRosterEntry[];
+  /** Mi equipo: at most one team is the user's own. */
+  own?: boolean;
+  /** The team's HLTV rank today; 0 when not ranked. */
+  hltv_rank?: number;
   created_at: string;
   updated_at: string;
 };

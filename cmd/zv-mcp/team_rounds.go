@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -35,6 +36,7 @@ type teamRoundsOut struct {
 	Rounds       int                  `json:"rounds" jsonschema:"rounds the scope keeps over every match, the count the team Replay shows"`
 	Matches      []teamRoundsMatchOut `json:"matches" jsonschema:"newest match first"`
 	Unranked     int                  `json:"unranked,omitempty" jsonschema:"matches opponent_top left out because the rival has no HLTV rank"`
+	AWPEstimated int                  `json:"awp_estimated,omitempty" jsonschema:"matches whose AWP filter was estimated from AWP kills and hits: their analysis predates the AWP flag"`
 	Skipped      int                  `json:"skipped,omitempty" jsonschema:"other matches that could not be read"`
 	StudioPath   string               `json:"studio_path" jsonschema:"the path that opens the team's Replay in Studio with this scope"`
 	PlaylistPath string               `json:"playlist_path,omitempty" jsonschema:"the path that plays the kept rounds one after another in the Replay, at most 200"`
@@ -43,13 +45,28 @@ type teamRoundsOut struct {
 // teamReplayForms are the forms of the team's Replay, as the URL names them.
 var teamReplayForms = []string{"calor", "recorridos", "granadas"}
 
+// replayPathIn is the team's Replay a studio_path opens; Map, when set, is the map
+// the answer resolved and wins over the query's.
+type replayPathIn struct {
+	TeamID string
+	Form   string
+	Map    string
+	Query  tuiclient.AnalysisQuery
+}
+
 // teamReplayPath is the team's Replay tab with the scope the web's scope bar writes.
-func teamReplayPath(teamID, form string, q tuiclient.AnalysisQuery) string {
+// The bar holds one buy (or half: semi and force) and one advantage; more is an error.
+func teamReplayPath(p replayPathIn) (string, error) {
+	q := p.Query
 	v := url.Values{"tab": {"replay"}, "lineup": {"all"}}
-	if form != "" && form != teamReplayForms[0] {
-		v.Set("forma", form)
+	if p.Form != "" && p.Form != teamReplayForms[0] {
+		v.Set("forma", p.Form)
 	}
-	for key, value := range map[string]string{"map": q.Map, "side": q.Side} {
+	mapName := q.Map
+	if p.Map != "" {
+		mapName = p.Map
+	}
+	for key, value := range map[string]string{"map": mapName, "side": q.Side} {
 		if value != "" {
 			v.Set(key, value)
 		}
@@ -70,16 +87,30 @@ func teamReplayPath(teamID, form string, q tuiclient.AnalysisQuery) string {
 		switch {
 		case key == "max_matches":
 			v.Set("limit", list[0])
-		case (key == "buy" || key == "opponent_buy") && len(list) > 1:
-			// The bar holds one buy, or half buys: semi and force together.
-			if sorted := slices.Sorted(slices.Values(list)); slices.Equal(sorted, []string{"force", "semi"}) {
-				v.Set(key, "half")
+		case key == "buy" || key == "opponent_buy":
+			buy, err := barBuy(key, list)
+			if err != nil {
+				return "", err
 			}
+			v.Set(key, buy)
+		case key == "advantage" && len(list) > 1:
+			return "", errors.New("the team Replay holds one advantage: pass one, such as 4v5")
 		default:
 			v.Set(key, list[0])
 		}
 	}
-	return "/equipos/" + url.PathEscape(teamID) + "?" + v.Encode()
+	return "/equipos/" + url.PathEscape(p.TeamID) + "?" + v.Encode(), nil
+}
+
+// barBuy is the one buy the scope bar holds for a list: a single buy, or half for semi and force.
+func barBuy(key string, list []string) (string, error) {
+	if len(list) == 1 {
+		return list[0], nil
+	}
+	if slices.Equal(slices.Sorted(slices.Values(list)), []string{"force", "semi"}) {
+		return "half", nil
+	}
+	return "", fmt.Errorf("the team Replay holds one %s, or semi with force as half buys", key)
 }
 
 func registerTeamRoundsTool(server *mcp.Server, s *studio) {
@@ -100,6 +131,10 @@ func registerTeamRoundsTool(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, teamRoundsOut{}, err
 			}
+			studioPath, err := teamReplayPath(replayPathIn{TeamID: in.TeamID, Form: form, Query: q})
+			if err != nil {
+				return nil, teamRoundsOut{}, err
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, teamRoundsOut{}, toolError(err)
@@ -108,12 +143,12 @@ func registerTeamRoundsTool(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, teamRoundsOut{}, toolError(err)
 			}
-			return nil, teamRoundsOutOf(got, teamReplayPath(in.TeamID, form, q)), nil
+			return nil, teamRoundsOutOf(got, studioPath), nil
 		})
 }
 
 func teamRoundsOutOf(got tuiclient.TeamRounds, studioPath string) teamRoundsOut {
-	out := teamRoundsOut{Team: cleanName(got.TeamName), Rounds: got.Rounds, Matches: []teamRoundsMatchOut{}, StudioPath: studioPath}
+	out := teamRoundsOut{Team: cleanName(got.TeamName), Rounds: got.Rounds, Matches: []teamRoundsMatchOut{}, StudioPath: studioPath, AWPEstimated: got.AWPEstimated}
 	for _, s := range got.Skipped {
 		if s.Reason == "opponent_unranked" {
 			out.Unranked++

@@ -121,13 +121,30 @@ export type TeamRoundsMatch = {
 };
 
 /** The rounds the team scope keeps per match, newest match first. */
-export type TeamRounds = { team_id: string; team_name: string; matches: TeamRoundsMatch[]; rounds: number; skipped: Skipped[] };
-export const TEAM_ROUNDS_KEYS = ['team_id', 'team_name', 'matches', 'rounds', 'skipped'] as const;
+export type TeamRounds = {
+  team_id: string;
+  team_name: string;
+  matches: TeamRoundsMatch[];
+  rounds: number;
+  skipped: Skipped[];
+  /** Matches whose AWP filter read kills and hits: their analysis predates the AWP flag. */
+  awp_estimated?: number;
+};
+export const TEAM_ROUNDS_KEYS = ['team_id', 'team_name', 'matches', 'rounds', 'skipped', 'awp_estimated'] as const;
 
 /** The skip reason of a match the opponent level could not rate. */
 export const OPPONENT_UNRANKED = 'opponent_unranked';
 
-/** How many matches the opponent level left out for lack of a rank. */
-export function unrankedCount(skipped: readonly Skipped[]): number {
-  return skipped.filter((entry) => entry.reason === OPPONENT_UNRANKED).length;
+/** The skip reason of a match past the server's cap of 50 (`library.MaxReportMatches`). */
+export const OVER_MATCH_LIMIT = 'over_match_limit';
+
+/** What the sample box adds to a team figure's count: unrated rivals, the 50 match cap and estimated AWP. */
+export type SampleNotes = { unrated: number; capped: number; awpEstimated: number };
+
+export function sampleNotes(skipped: readonly Skipped[], awpEstimated: number | undefined): SampleNotes {
+  return {
+    unrated: skipped.filter((entry) => entry.reason === OPPONENT_UNRANKED).length,
+    capped: skipped.filter((entry) => entry.reason === OVER_MATCH_LIMIT).length,
+    awpEstimated: awpEstimated ?? 0,
+  };
 }

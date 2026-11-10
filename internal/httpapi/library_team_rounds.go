@@ -38,6 +38,8 @@ type teamRoundsResponse struct {
 	Matches  []teamRoundsMatch `json:"matches"`
 	Rounds   int               `json:"rounds"`
 	Skipped  []scoutSkipped    `json:"skipped"`
+	// AWPEstimated counts the matches whose AWP filter read kills and hits (older analyses).
+	AWPEstimated int `json:"awp_estimated,omitempty"`
 }
 
 // GetLibraryTeamRounds handles GET /api/library/teams/{id}/rounds.
@@ -70,6 +72,7 @@ func (h *Handlers) GetLibraryTeamRounds(w http.ResponseWriter, r *http.Request) 
 	for _, k := range kept {
 		resp.Matches = append(resp.Matches, teamRoundsOf(filter, k.scout))
 		resp.Rounds += len(resp.Matches[len(resp.Matches)-1].Rounds)
+		resp.AWPEstimated += awpEstimated(filter, k.scout)
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

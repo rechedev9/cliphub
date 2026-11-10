@@ -254,27 +254,15 @@ type teamHeatmapIn struct {
 	TeamID string `json:"team_id" jsonschema:"team id from list_teams"`
 	analysisFilterIn
 	teamScopeIn
-	Buy         string   `json:"buy,omitempty" jsonschema:"the team's buy: pistol, eco, semi, force or full"`
-	OpponentBuy string   `json:"opponent_buy,omitempty" jsonschema:"the rival's buy, same values"`
-	Players     []string `json:"players,omitempty" jsonschema:"SteamID64s to count alone, as Jugador does on the team's heatmap; every round of the team stays in the scope"`
+	Players []string `json:"players,omitempty" jsonschema:"SteamID64s to count alone, as Jugador does on the team's heatmap; every round of the team stays in the scope"`
 	heatmapViewIn
 }
 
-// teamValues is the round filter and focus of a team heatmap; the scope travels in the AnalysisQuery.
+// teamValues is the focus and view of a team heatmap; the scope, buys included, travels in the AnalysisQuery.
 func (in teamHeatmapIn) teamValues() (url.Values, error) {
 	v, err := in.heatmapViewIn.query()
 	if err != nil {
 		return nil, err
-	}
-	for key, buy := range map[string]string{"buy": in.Buy, "opponent_buy": in.OpponentBuy} {
-		buy = strings.ToLower(strings.TrimSpace(buy))
-		if buy == "" {
-			continue
-		}
-		if !slices.Contains([]string{"pistol", "eco", "semi", "force", "full"}, buy) {
-			return nil, fmt.Errorf("%s must be pistol, eco, semi, force or full", key)
-		}
-		v.Set(key, buy)
 	}
 	for _, id := range in.Players {
 		if err := checkSteamID(id); err != nil {
@@ -285,26 +273,23 @@ func (in teamHeatmapIn) teamValues() (url.Values, error) {
 	return v, nil
 }
 
-// teamHeatmapPath opens the team's Replay on Mapa de calor with the page's scope, as the web reads it.
-func teamHeatmapPath(in teamHeatmapIn, mapName string, heat url.Values) string {
-	v := url.Values{"tab": {"replay"}}
-	if mapName != "" {
-		v.Set("map", mapName)
+// teamHeatmapPath opens the team's Replay on Mapa de calor on the resolved map with the
+// full team scope, as teamReplayPath writes it, plus the focus and the heatmap's view.
+func teamHeatmapPath(in teamHeatmapIn, mapName string, q tuiclient.AnalysisQuery) (string, error) {
+	base, err := teamReplayPath(replayPathIn{TeamID: in.TeamID, Map: mapName, Query: q})
+	if err != nil {
+		return "", err
 	}
-	side, _ := parseSide(in.Side)
-	for key, value := range map[string]string{"side": side, "from": in.From, "to": in.To, "buy": heat.Get("buy"), "opponent_buy": heat.Get("opponent_buy")} {
-		if value != "" {
-			v.Set(key, value)
-		}
-	}
-	if len(in.OpponentID) == 1 {
-		v.Set("opponent", in.OpponentID[0])
+	path, query, _ := strings.Cut(base, "?")
+	v, err := url.ParseQuery(query)
+	if err != nil {
+		return "", err
 	}
 	for _, id := range in.Players {
 		v.Add("jugador", id)
 	}
 	in.heatmapViewIn.studioQuery(v)
-	return "/equipos/" + url.PathEscape(in.TeamID) + "?" + v.Encode()
+	return path + "?" + v.Encode(), nil
 }
 
 func registerHeatmapTools(server *mcp.Server, s *studio) {
@@ -353,7 +338,7 @@ func registerHeatmapTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "team_heatmap", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Read a team's Mapa de calor over its matches on one map (the most played when map is empty), as the team's Replay shows it: " +
-			"the same kinds, clock window and kill_at as match_heatmap, filtered by side, dates, rivals (opponent_id), matches (match_id) and buys. " +
+			"the same kinds, clock window and kill_at as match_heatmap, filtered by side, dates, rivals (opponent_id), matches (match_id) and the whole team scope of team_rounds (buys, AWP, advantage, last N matches...). " +
 			"players counts only those players (SteamID64s), across demos where their slots change. The answer lists the hottest cells with their " +
 			"callout and counts, the same cells summed by callout, and studio_path to open it in Studio."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamHeatmapIn) (*mcp.CallToolResult, heatmapOut, error) {
@@ -368,6 +353,9 @@ func registerHeatmapTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, heatmapOut{}, err
 			}
+			if _, err := teamHeatmapPath(in, "", q); err != nil {
+				return nil, heatmapOut{}, err
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, heatmapOut{}, toolError(err)
@@ -377,7 +365,9 @@ func registerHeatmapTools(server *mcp.Server, s *studio) {
 				return nil, heatmapOut{}, toolError(err)
 			}
 			out := summarizeHeatmap(got, heatLimit(in.Limit))
-			out.StudioPath = teamHeatmapPath(in, got.Map, heat)
+			if out.StudioPath, err = teamHeatmapPath(in, got.Map, q); err != nil {
+				return nil, heatmapOut{}, err
+			}
 			return nil, out, nil
 		})
 }

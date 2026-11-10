@@ -31,6 +31,8 @@ type spatialMatchRef struct {
 	PlayedAt time.Time `json:"played_at"`
 	TeamKey  string    `json:"team_key,omitempty"`
 	Opponent string    `json:"opponent,omitempty"`
+	// Rounds are the round numbers a team view keeps, so the UI can play them without another read.
+	Rounds []int `json:"rounds,omitempty"`
 }
 
 // spatialMapCount is a map the selection holds and how many matches it has there.
@@ -52,6 +54,8 @@ type spatialResponse struct {
 	Geometry         *tacticalplan.MapGeometry `json:"geometry"`
 	Heatmap          *tacticalplan.Heatmap     `json:"heatmap,omitempty"`
 	Overlay          *tacticalplan.Overlay     `json:"overlay,omitempty"`
+	// AWPEstimated counts the matches whose AWP filter read kills and hits (older analyses).
+	AWPEstimated int `json:"awp_estimated,omitempty"`
 }
 
 // spatialRequest is what to build: a heatmap of one kind, or an overlay.
@@ -308,11 +312,11 @@ func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Val
 	asked := scout.Maps
 	scout.Maps = nil
 	selected, unrated := selectTeamMatches(scout, pending)
-	skipped = append(skipped, unrated...)
 	mapName, maps, err := chooseSpatialMap(selected, asked)
 	if err != nil {
 		return spatialResponse{}, nil, errBadSpatialQuery{err}
 	}
+	skipped = append(skipped, skippedOnMap(unrated, pending, mapName)...)
 	teamID := team.ID
 	resp := spatialResponse{
 		TeamID: &teamID, TeamName: team.Name, Map: mapName, Maps: maps,
@@ -329,12 +333,18 @@ func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Val
 	matches := make([]tacticalplan.SpatialMatch, 0, len(kept))
 	for _, k := range kept {
 		sm := k.scout
+		filter := scout.RoundFilter(sm)
 		matches = append(matches, tacticalplan.SpatialMatch{
-			MatchID: sm.MatchID, Document: sm.Document, Filter: scout.RoundFilter(sm), Focus: focus, Blob: h.positionsReader(k.demoID),
+			MatchID: sm.MatchID, Document: sm.Document, Filter: filter, Focus: focus, Blob: h.positionsReader(k.demoID),
 		})
+		rounds := []int{}
+		for _, r := range filter.Apply(sm.Document) {
+			rounds = append(rounds, r.Number)
+		}
 		resp.Matches = append(resp.Matches, spatialMatchRef{
-			MatchID: sm.MatchID, Map: mapName, PlayedAt: sm.PlayedAt, TeamKey: sm.TeamKey, Opponent: sm.Opponent,
+			MatchID: sm.MatchID, Map: mapName, PlayedAt: sm.PlayedAt, TeamKey: sm.TeamKey, Opponent: sm.Opponent, Rounds: rounds,
 		})
+		resp.AWPEstimated += awpEstimated(scout, sm)
 	}
 	return resp, matches, nil
 }

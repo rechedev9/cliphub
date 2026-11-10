@@ -22,6 +22,14 @@ func (r *MemoryLibraryRepository) SetTeamProfile(ctx context.Context, p *library
 		r.libreta.teamProfiles = map[uuid.UUID]library.TeamProfile{}
 	}
 	p.UpdatedAt = libraryNow()
+	if p.Own {
+		for id, other := range r.libreta.teamProfiles {
+			if other.Own && id != p.TeamID {
+				other.Own, other.UpdatedAt = false, p.UpdatedAt
+				r.libreta.teamProfiles[id] = other
+			}
+		}
+	}
 	r.libreta.teamProfiles[p.TeamID] = *p
 	return nil
 }
@@ -42,15 +50,20 @@ func (r *MemoryLibraryRepository) ListTeamProfiles(ctx context.Context) ([]libra
 	return out, nil
 }
 
-// moveTeamProfile hands from's profile to into, which keeps its own when it has one.
+// moveTeamProfile hands from's profile to into, which keeps its own rank when it
+// has a profile; into is the own team after the merge when either one was.
 func (l *memoryLibreta) moveTeamProfile(from, into uuid.UUID) {
 	p, ok := l.teamProfiles[from]
 	if !ok {
 		return
 	}
 	delete(l.teamProfiles, from)
-	if _, taken := l.teamProfiles[into]; !taken {
+	kept, taken := l.teamProfiles[into]
+	if !taken {
 		p.TeamID = into
 		l.teamProfiles[into] = p
+		return
 	}
+	kept.Own = kept.Own || p.Own
+	l.teamProfiles[into] = kept
 }

@@ -168,7 +168,7 @@ func registerTeamTools(server *mcp.Server, s *studio) {
 				if err != nil {
 					return nil, teamOut{}, toolError(err)
 				}
-				out.Own, out.HLTVRank = &p.Own, &p.HLTVRank
+				out.Own, out.HLTVRank = p.Own, p.HLTVRank
 			}
 			return nil, out, nil
 		})
@@ -334,7 +334,7 @@ func rosterOf(entries []tuiclient.RosterEntry) []rosterOut {
 }
 
 func teamOf(t tuiclient.LibraryTeam) teamOut {
-	return teamOut{ID: t.ID, Name: cleanName(t.Name), Aliases: cleanNames(t.Aliases), Matches: t.MatchCount}
+	return teamOut{ID: t.ID, Name: cleanName(t.Name), Aliases: cleanNames(t.Aliases), Matches: t.MatchCount, Own: t.Own, HLTVRank: t.HLTVRank}
 }
 
 func sidesOf(m tuiclient.LibraryMatch) []sideOut {

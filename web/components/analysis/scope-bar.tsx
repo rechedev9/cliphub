@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { SlidersHorizontal, X } from 'lucide-react';
 import type { ReportSide } from '@/lib/api/scout';
 import { BASELINE_SCOPES, type Baseline } from '@/lib/api/baseline';
-import type { TeamLineups } from '@/lib/api/team-insights';
+import type { SampleNotes, TeamLineups } from '@/lib/api/team-insights';
 import { switchEntityHref, resultRecord, type ResultDot } from '@/lib/analysis/context-bar';
 import { buyIcon } from '@/lib/analysis/icons';
 import { SCOPE_LABEL, proReferenceShort, proSourceText } from '@/lib/analysis/reference';
@@ -13,6 +13,7 @@ import {
   HALF_BUY,
   PERIOD_PRESETS,
   SCOPE_BUYS,
+  SCOPE_LIMIT_MAX,
   parseScopeBuy,
   scopeCountText,
   scopeFieldActive,
@@ -55,8 +56,8 @@ const SIDES: readonly { value: ReportSide; label: string }[] = [
   { value: 'T', label: 'T' },
 ];
 
-/** `unrated` counts the matches the opponent level left out because the rival has no HLTV rank. */
-export type ScopeCounts = { readonly maps: number; readonly rounds: number; readonly unrated?: number };
+/** `notes` says what the count leaves out or estimates: unrated rivals, the match cap, AWP from kills. */
+export type ScopeCounts = { readonly maps: number; readonly rounds: number; readonly notes?: SampleNotes };
 
 export type ScopeOption = { readonly value: string; readonly label: string };
 
@@ -320,6 +321,23 @@ function EntityPicker({ entity }: { entity: ScopeEntity }): ReactNode {
 const DOT: Record<ResultDot, string> = { win: 'bg-outcome-win', loss: 'bg-outcome-loss', draw: 'bg-fg-3' };
 const DOT_WORD: Record<ResultDot, string> = { win: 'Victoria', loss: 'Derrota', draw: 'Empate' };
 
+function SampleNoteList({ notes }: { notes: SampleNotes }): ReactNode {
+  const items = [
+    { count: notes.unrated, text: `${notes.unrated} sin ranking`, title: 'Partidas fuera porque el rival no tiene ranking HLTV' },
+    { count: notes.capped, text: `${notes.capped} fuera por el tope de ${SCOPE_LIMIT_MAX}`, title: `Se leen como mucho las ${SCOPE_LIMIT_MAX} partidas más recientes` },
+    {
+      count: notes.awpEstimated,
+      text: `AWP estimado en ${notes.awpEstimated} ${notes.awpEstimated === 1 ? 'partida' : 'partidas'}`,
+      title: 'Su análisis es anterior al registro de AWP: se deduce de las bajas y los daños con AWP. Vuelve a analizarlas para el dato exacto.',
+    },
+  ].filter((item) => item.count > 0);
+  return items.map((item) => (
+    <p key={item.text} className="text-meta whitespace-nowrap text-fg-3 tabular-nums" title={item.title}>
+      {item.text}
+    </p>
+  ));
+}
+
 function SampleBox({ counts, results }: { counts: ScopeCounts | null | undefined; results: readonly ResultDot[] | undefined }): ReactNode {
   if (counts === undefined) return null;
   const dots = (results ?? []).slice(-MAX_DOTS);
@@ -328,11 +346,7 @@ function SampleBox({ counts, results }: { counts: ScopeCounts | null | undefined
       <p className="text-meta whitespace-nowrap text-fg-2 tabular-nums">
         {counts === null ? <span className="text-fg-3">Contando</span> : scopeCountText(counts.maps, counts.rounds)}
       </p>
-      {counts !== null && (counts.unrated ?? 0) > 0 ? (
-        <p className="text-meta whitespace-nowrap text-fg-3 tabular-nums" title="Partidas fuera porque el rival no tiene ranking HLTV">
-          {counts.unrated} sin ranking
-        </p>
-      ) : null}
+      {counts !== null && counts.notes !== undefined ? <SampleNoteList notes={counts.notes} /> : null}
       {dots.length > 0 ? (
         <p className="flex items-center gap-1" title={`Últimos resultados: ${resultRecord(dots)}`}>
           <span className="sr-only">Últimos resultados: {resultRecord(dots)}</span>

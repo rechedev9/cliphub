@@ -39,11 +39,13 @@ func (r *SQLiteLibraryRepository) MergeTeams(ctx context.Context, from, into uui
 			`UPDATE library_series SET team_b = ? WHERE team_b = ?`,
 			// Where both teams have a sheet for a map, into keeps its own.
 			`UPDATE OR IGNORE library_team_roles SET team_id = ? WHERE team_id = ?`,
-			`UPDATE OR IGNORE library_team_profiles SET team_id = ? WHERE team_id = ?`,
 		} {
 			if _, err := tx.ExecContext(ctx, stmt, into.String(), from.String()); err != nil {
 				return fmt.Errorf("merge team: %w", err)
 			}
+		}
+		if err := mergeTeamProfiles(ctx, tx, from, into); err != nil {
+			return err
 		}
 		// A series between the two teams keeps one slot of the merged team.
 		if _, err := tx.ExecContext(ctx, `UPDATE library_series SET team_b = NULL WHERE team_a = team_b`); err != nil {

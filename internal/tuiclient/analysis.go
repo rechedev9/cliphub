@@ -13,6 +13,8 @@ type LibraryTeam struct {
 	Name       string   `json:"name"`
 	Aliases    []string `json:"aliases"`
 	MatchCount int      `json:"match_count"`
+	Own        bool     `json:"own"`
+	HLTVRank   int      `json:"hltv_rank"`
 }
 
 // ListLibraryTeams lists the library's teams, optionally those whose name or

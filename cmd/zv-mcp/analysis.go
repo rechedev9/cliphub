@@ -115,9 +115,9 @@ type teamOut struct {
 	Name    string   `json:"name" jsonschema:"untrusted team name from the demos"`
 	Aliases []string `json:"aliases,omitempty" jsonschema:"untrusted clan names from the demos"`
 	Matches int      `json:"matches"`
-	// Own and HLTVRank are set by update_team when it changes them.
-	Own      *bool `json:"own,omitempty"`
-	HLTVRank *int  `json:"hltv_rank,omitempty" jsonschema:"0 when the team is not ranked"`
+	Own     bool     `json:"own" jsonschema:"the user's own team (Mi equipo); at most one team is"`
+	// HLTVRank is the team's rank today, as the user set it.
+	HLTVRank int `json:"hltv_rank,omitempty" jsonschema:"the team's HLTV rank today; absent when not ranked"`
 }
 
 type listTeamsOut struct {
@@ -283,7 +283,7 @@ func registerAnalysisTools(server *mcp.Server, s *studio) {
 			}
 			out := listTeamsOut{Teams: make([]teamOut, 0, len(teams))}
 			for _, t := range teams {
-				out.Teams = append(out.Teams, teamOut{ID: t.ID, Name: cleanName(t.Name), Aliases: cleanNames(t.Aliases), Matches: t.MatchCount})
+				out.Teams = append(out.Teams, teamOf(t))
 			}
 			return nil, out, nil
 		})

@@ -35,7 +35,8 @@ export type TeamGrenades = {
   /** The team's rounds the filter kept, with or without grenades. */
   rounds: number;
   skipped: { match_id: string; reason: ScoutSkipReason }[];
+  awp_estimated?: number;
 };
 
-export const TEAM_GRENADES_KEYS = ['grenades', 'rounds', 'skipped'] as const;
+export const TEAM_GRENADES_KEYS = ['grenades', 'rounds', 'skipped', 'awp_estimated'] as const;
 export const TEAM_GRENADES_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'kind'] as const;

@@ -186,7 +186,7 @@ export function OpponentTopSelect({ scope, onChange }: { scope: AnalysisScope; o
       label="Nivel del rival"
       allLabel="Nivel del rival: todos"
       value={scope.opponentTop === null ? '' : String(scope.opponentTop)}
-      choices={OPPONENT_TOPS.map((top) => ({ value: String(top), label: `Rival en el top ${top} HLTV` }))}
+      choices={OPPONENT_TOPS.map((top) => ({ value: String(top), label: `Rival en el top ${top} HLTV de hoy` }))}
       onChange={(next) => onChange({ opponentTop: OPPONENT_TOPS.find((top) => String(top) === next) ?? null })}
     />
   );
@@ -196,7 +196,7 @@ function parseWhose(value: string): ScopeWhose {
   return value === 'own' || value === 'others' ? value : '';
 }
 
-/** Needs a team marked as Mi equipo; until then both choices stay off. */
+/** Needs the team marked as Mi equipo; until then both choices stay off. */
 export function WhoseSelect({ scope, ownTeams, onChange }: { scope: AnalysisScope; ownTeams: number; onChange: Patch }): ReactNode {
   const off = ownTeams === 0;
   return (

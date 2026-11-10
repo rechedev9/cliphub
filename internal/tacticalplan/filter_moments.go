@@ -28,15 +28,33 @@ type Advantage struct {
 // String writes the advantage the way the query names it.
 func (a Advantage) String() string { return fmt.Sprintf("%dv%d", a.Own, a.Rival) }
 
-// sideHadAWP reports whether a player of the side held an AWP in the round.
-// Analyses before the AWP flag existed fall back to an AWP kill or hit.
-func sideHadAWP(r Round, side Side) bool {
+// AWPEstimated reports that the document predates the AWP flag, so an AWP
+// filter reads it from AWP kills and hits instead.
+func AWPEstimated(d Document) bool { return d.AnalysisVersion < AWPFlagVersion }
+
+// ReadsAWP reports whether the filter asks about either side's AWP.
+func (f Filter) ReadsAWP() bool { return f.AWP != "" || f.OpponentAWP != "" }
+
+// presenceQuery asks whether Side had an AWP in Round; Estimate reads kills
+// and hits, for analyses older than AWPFlagVersion.
+type presenceQuery struct {
+	Want     Presence
+	Round    Round
+	Side     Side
+	Estimate bool
+}
+
+func (q presenceQuery) sideHadAWP(side Side) bool {
+	r := q.Round
 	sides := make(map[uint8]Side, len(r.Players))
 	for _, pr := range r.Players {
 		sides[pr.Slot] = pr.Side
-		if pr.AWP && pr.Side == side {
+		if !q.Estimate && pr.AWP && pr.Side == side {
 			return true
 		}
+	}
+	if !q.Estimate {
+		return false
 	}
 	for _, e := range r.Events {
 		if e.Kind == EventKill && e.Weapon == awpWeapon && e.ActorSlot != nil && sides[*e.ActorSlot] == side {
@@ -51,14 +69,14 @@ func sideHadAWP(r Round, side Side) bool {
 	return false
 }
 
-func matchPresence(want Presence, r Round, side Side) bool {
+func matchPresence(q presenceQuery) bool {
 	var had bool
-	if side == "" {
-		had = sideHadAWP(r, SideCT) || sideHadAWP(r, SideT)
+	if q.Side == "" {
+		had = q.sideHadAWP(SideCT) || q.sideHadAWP(SideT)
 	} else {
-		had = sideHadAWP(r, side)
+		had = q.sideHadAWP(q.Side)
 	}
-	return had == (want == PresenceWith)
+	return had == (q.Want == PresenceWith)
 }
 
 // aliveCounts lists every CT and T count the round went through, from the
@@ -93,12 +111,18 @@ func aliveCounts(r Round) [][2]int {
 	return out
 }
 
-// matchAdvantage reports whether the round reached one of the counts. Without
-// a perspective either side may be the one counted first.
-func matchAdvantage(r Round, side Side, want []Advantage) bool {
-	for _, c := range aliveCounts(r) {
-		for _, a := range want {
-			switch side {
+// advantageQuery asks whether Round reached one of Want, counted from Side;
+// without a side either one may be counted first.
+type advantageQuery struct {
+	Round Round
+	Side  Side
+	Want  []Advantage
+}
+
+func matchAdvantage(q advantageQuery) bool {
+	for _, c := range aliveCounts(q.Round) {
+		for _, a := range q.Want {
+			switch q.Side {
 			case SideCT:
 				if c[0] == a.Own && c[1] == a.Rival {
 					return true

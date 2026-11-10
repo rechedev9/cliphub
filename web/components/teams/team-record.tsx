@@ -604,7 +604,7 @@ function EditTeamDialog({
             />
           </label>
           <div className="flex items-center justify-between gap-3 text-body-sm text-fg-2">
-            <span id="team-own-label">Es mi equipo: el Replay separa sus partidas de las de otros equipos</span>
+            <span id="team-own-label">Es mi equipo: el Replay separa sus partidas de las de otros equipos. Solo hay uno; marcarlo lo quita del anterior.</span>
             <Switch checked={own} onCheckedChange={setOwn} aria-labelledby="team-own-label" />
           </div>
           {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}

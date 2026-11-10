@@ -30,9 +30,13 @@ const SchemaVersion = "1.0"
 // 8: Cache uses its shipped radar calibration instead of a derived one;
 // 9: dropped bombs, utility end ticks, no freeze time deaths, halftime and
 // pre-live waits cut from the round start; 10: timeouts, which keep their part
-// of the freeze time, and kills from the air).
+// of the freeze time, and kills from the air;
+// 11: each player's AWP once the buy window closes).
 // The library scans a stored analysis below it again; bump it with each change.
-const AnalysisVersion = 10
+const AnalysisVersion = 11
+
+// AWPFlagVersion is the first AnalysisVersion whose PlayerRound.AWP is trustworthy.
+const AWPFlagVersion = 11
 
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string

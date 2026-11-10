@@ -38,9 +38,8 @@ const (
 // OpponentTops are the HLTV rank bands the opponent level offers.
 var OpponentTops = []int{5, 15, 30, 100, 200}
 
-// ScoutFilter selects matches by map, date, rival, rival level and whose they
-// are, and rounds by the side the scouted team played, its lineup and the round
-// criteria of Rounds. Zero fields do not filter; From and To are inclusive.
+// ScoutFilter selects matches (map, date, rival, rival level, whose) and rounds (side,
+// lineup, the criteria of Rounds). Zero fields do not filter; From and To are inclusive.
 type ScoutFilter struct {
 	Maps      []string   `json:"maps,omitempty"`
 	Side      Side       `json:"side,omitempty"`

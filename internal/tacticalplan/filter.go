@@ -131,13 +131,14 @@ func (f Filter) Match(d Document, r Round) bool {
 	if len(f.Slots) > 0 && !matchSlots(r, f.Slots, side) {
 		return false
 	}
-	if f.AWP != "" && !matchPresence(f.AWP, r, side) {
+	estimate := AWPEstimated(d)
+	if f.AWP != "" && !matchPresence(presenceQuery{Want: f.AWP, Round: r, Side: side, Estimate: estimate}) {
 		return false
 	}
-	if f.OpponentAWP != "" && !matchPresence(f.OpponentAWP, r, side.Opponent()) {
+	if f.OpponentAWP != "" && !matchPresence(presenceQuery{Want: f.OpponentAWP, Round: r, Side: side.Opponent(), Estimate: estimate}) {
 		return false
 	}
-	if len(f.Advantages) > 0 && !matchAdvantage(r, side, f.Advantages) {
+	if len(f.Advantages) > 0 && !matchAdvantage(advantageQuery{Round: r, Side: side, Want: f.Advantages}) {
 		return false
 	}
 	return f.Lineup.Keeps(LineupRound{Document: d, Round: r, Side: side})
