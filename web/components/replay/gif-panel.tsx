@@ -19,7 +19,7 @@ function stateLine(state: GifState): string | null {
 }
 
 /**
- * The GIF row under the map bar: which tramo goes in (on its own track while
+ * The GIF row under the map, over its tools: which tramo goes in (on its own track while
  * one round plays; superposed rounds take the timeline's), how long it lasts,
  * and the export with its progress.
  */
@@ -28,7 +28,7 @@ export function GifPanel({ gif, tramo, multi, speed, onClose }: { gif: ReplayGif
   let summary = gif.blocked ?? `GIF de ${Math.max(1, Math.round(gif.seconds))} s${speed === 1 ? '' : ` a ${formatRate(speed)}`}, con el encuadre, las capas y el dibujo que ves.`;
   if (multi && gif.blocked === null) summary = `${tramoLabel(tramo.tramo)} · ${summary}`;
   return (
-    <section aria-label="GIF del tramo" className="flex shrink-0 flex-col gap-2 border-b border-border-subtle bg-surface-1 px-2 py-2">
+    <section aria-label="GIF del tramo" className="flex shrink-0 flex-col gap-2 border-t border-border-subtle bg-surface-1 px-2 py-2">
       {multi ? null : <TramoBar tramo={tramo.tramo} onChange={tramo.onChange} />}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <p className="min-w-0 flex-1 text-meta text-fg-2">{summary}</p>

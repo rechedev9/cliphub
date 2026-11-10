@@ -10,7 +10,7 @@ import type { LibraryDemo, LibraryMatch } from '@/lib/api/library';
 import { MATCHES_HREF, librarySeriesHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { SOURCE_LABEL, matchTitle, scoreline } from '@/lib/library/partidas';
-import { LEGACY_REPLAY_TAB, MATCH_REPLAY_TAB } from '@/lib/library/rounds';
+import { LEGACY_REPLAY_TAB, MATCH_REPLAY_TAB, MATCH_SUMMARY_TAB } from '@/lib/library/rounds';
 import { useRecordTab } from '@/hooks/use-record-tab';
 import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
@@ -24,7 +24,7 @@ import { TacticalAnalysis } from '@/components/tactical/tactical-analysis';
 import { MatchTendencies } from '@/components/metrics/match-tendencies';
 import { Button } from '@/components/ui/button';
 
-const TABS = ['resumen', 'rondas', MATCH_REPLAY_TAB, 'metricas', 'videos'] as const;
+const TABS = [MATCH_SUMMARY_TAB, 'rondas', MATCH_REPLAY_TAB, 'metricas', 'videos'] as const;
 type MatchTab = (typeof TABS)[number];
 const QUERY_TABS = [...TABS, LEGACY_REPLAY_TAB] as const;
 
@@ -74,8 +74,8 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
   const [match, setMatch] = useState(loadedMatch);
   const [demo, setDemo] = useState(loadedDemo);
   // The open tab lives in `?tab=`, so a reload or an evidence link lands on it.
-  const [tabValue, setTab] = useRecordTab(QUERY_TABS, 'resumen');
-  const tab = tabFromQuery(tabValue) ?? 'resumen';
+  const [tabValue, setTab] = useRecordTab(QUERY_TABS, MATCH_SUMMARY_TAB);
+  const tab = tabFromQuery(tabValue) ?? MATCH_SUMMARY_TAB;
   // `undefined` while loading, `null` when the list could not be read.
   const [videos, setVideos] = useState<Video[] | null | undefined>(undefined);
   const jobKey = demo.job_ids.join(',');
@@ -125,7 +125,7 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
         onValueChange={setTab}
         tabs={[
           {
-            id: 'resumen',
+            id: MATCH_SUMMARY_TAB,
             label: 'Resumen',
             content: (
               <MatchSummary

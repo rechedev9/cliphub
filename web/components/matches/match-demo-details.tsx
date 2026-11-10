@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, RefreshCw, Trash2 } from 'lucide-react';
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/library';
 import { MATCHES_HREF } from '@/lib/clips/routes';
 import { formatShortDate } from '@/lib/format';
+import { DEMO_DETAILS_ID } from '@/lib/library/rounds';
 import { PARSE_STATE_LABEL, SOURCE_LABEL, demoErrorLabel, withoutDemo, withoutDemoReason } from '@/lib/library/partidas';
 import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
@@ -42,6 +43,26 @@ export function MatchDemoDetails({ demo, onDemoChange }: { demo: LibraryDemo; on
     setTags(demo.tags.join(', '));
   }, [demo.tags]);
 
+  // The Replay's "Detalles de la demo" link lands here with the hash, so the fold opens in view.
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    let unpin = (): void => {};
+    const reveal = (): void => {
+      const details = detailsRef.current;
+      if (details === null || window.location.hash !== `#${DEMO_DETAILS_ID}`) return;
+      details.open = true;
+      details.scrollIntoView({ block: 'start' });
+      unpin();
+      unpin = pinInView(details);
+    };
+    reveal();
+    window.addEventListener('hashchange', reveal);
+    return () => {
+      window.removeEventListener('hashchange', reveal);
+      unpin();
+    };
+  }, []);
+
   async function act(run: () => Promise<void>, failure: string): Promise<void> {
     setBusy(true);
     setError(null);
@@ -59,7 +80,7 @@ export function MatchDemoDetails({ demo, onDemoChange }: { demo: LibraryDemo; on
   const hint = demo.cs2_build === undefined ? 'Archivo, fuente y etiquetas' : `Archivo, build ${demo.cs2_build}, fuente y etiquetas`;
 
   return (
-    <details className="group/demo studio-panel overflow-hidden">
+    <details ref={detailsRef} id={DEMO_DETAILS_ID} className="group/demo studio-panel scroll-mt-[calc(var(--shell-strip-height)+1rem)] overflow-hidden">
       <summary
         className={`flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden ${FOCUS_RING}`}
       >
@@ -173,6 +194,27 @@ export function MatchDemoDetails({ demo, onDemoChange }: { demo: LibraryDemo; on
       </Dialog>
     </details>
   );
+}
+
+const PIN_MS = 2000;
+const USER_SCROLL_EVENTS = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
+
+/**
+ * Keeps `element` scrolled into view while the blocks above it finish rendering
+ * and grow, until the user scrolls, touches or types, or PIN_MS pass.
+ */
+function pinInView(element: HTMLElement): () => void {
+  const content = element.closest('main') ?? document.body;
+  const observer = new ResizeObserver(() => element.scrollIntoView({ block: 'start' }));
+  const stop = (): void => {
+    observer.disconnect();
+    window.clearTimeout(timer);
+    for (const type of USER_SCROLL_EVENTS) window.removeEventListener(type, stop, true);
+  };
+  const timer = window.setTimeout(stop, PIN_MS);
+  observer.observe(content);
+  for (const type of USER_SCROLL_EVENTS) window.addEventListener(type, stop, { capture: true, passive: true });
+  return stop;
 }
 
 function Fact({ label, children }: { label: string; children: ReactNode }): ReactNode {
