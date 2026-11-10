@@ -85,6 +85,8 @@ export type SavedPlaylistsControl = {
   toggleIn: (id: string, ref: ReplayRef) => void;
   /** Starts a playlist with this round, which becomes the target; answers whether it was saved. */
   create: (input: NewPlaylist) => Promise<boolean>;
+  /** Swaps in a playlist saved elsewhere, such as a round's comment. */
+  replace: (next: SavedPlaylist) => void;
 };
 
 type NewPlaylist = { name: string; folder: string; author: string; ref: ReplayRef };
@@ -170,7 +172,8 @@ export function useSavedPlaylists({ enabled, openId }: { enabled: boolean; openI
     },
     [busy, create, playlists, targetId, toggleIn],
   );
-  return { playlists, target, busy, error, toggle, toggleIn, create };
+  const replace = useCallback((next: SavedPlaylist) => setPlaylists((list) => (list ?? []).map((p) => (p.id === next.id ? next : p))), []);
+  return { playlists, target, busy, error, toggle, toggleIn, create, replace };
 }
 
 /** One saved playlist, read again whenever a playlist changes in this window. `undefined` while loading, `null` when it is gone. */

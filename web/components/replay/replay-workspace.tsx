@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ChevronLeft, Maximize, Minimize } from 'lucide-react';
 import Link from 'next/link';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
+import { holdsRound } from '@/lib/replay/saved-playlist';
 import type { Stroke } from '@/lib/api/spatial';
 import type { TacticalEvent, TacticalSource } from '@/lib/api/tactical';
 import { matchHref } from '@/lib/clips/routes';
@@ -52,7 +53,8 @@ import type { MapCapture } from './gif-export';
 import { GifPanel } from './gif-panel';
 import { PlaylistBookmark } from './playlist-bookmark';
 import { useReplayGif } from './use-replay-gif';
-import { useSavedPlaylists } from './use-saved-playlists';
+import { useSavedPlaylists, type SavedPlaylistsControl } from './use-saved-playlists';
+import { PlaylistRoundCard } from './playlist-round-card';
 import type { FocusControl } from './replay-players';
 import { useMapSettings } from './use-map-settings';
 import { ReplayPreferences } from './replay-preferences';
@@ -114,6 +116,13 @@ export type ReplayWorkspaceProps = {
  * the strip of rounds and the timeline with its event marks. The rounds may come
  * from several matches; each match's analysis loads when the strip reaches it.
  */
+/** The comment card of the playlist holding the round on screen, the target one first, as EDGE shows it in any replay. */
+function heldCard(control: SavedPlaylistsControl, entry: ReplayRef): ReactNode {
+  const holding = (control.playlists ?? []).filter((p) => holdsRound(p, entry));
+  const held = holding.find((p) => p.id === control.target?.id) ?? holding[0];
+  return held === undefined ? undefined : <PlaylistRoundCard playlist={held} current={entry} onChange={control.replace} />;
+}
+
 export function ReplayWorkspace({
   source,
   entries,
@@ -637,7 +646,7 @@ export function ReplayWorkspace({
             />
           )}
           {stack === undefined || fullscreen.active ? null : <ReplayStackOverlay stack={stack} />}
-          {library && focused !== null && entry !== undefined && !multi ? <PlaylistBookmark control={playlist} entry={entry} card={roundCard} /> : null}
+          {library && focused !== null && entry !== undefined ? <PlaylistBookmark control={playlist} entry={entry} card={roundCard ?? heldCard(playlist, entry)} /> : null}
           <SetposNotice note={setpos.note} />
         </div>
         {gif.open ? <GifPanel gif={gif} tramo={{ tramo, onChange: setTramo }} multi={multi} speed={speed} onClose={gif.toggle} /> : null}

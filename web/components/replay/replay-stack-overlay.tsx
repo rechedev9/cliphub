@@ -11,11 +11,11 @@ export type ReplayStack = {
 };
 
 /**
- * The scope controls over the top left of the map. They open folded into one button, so the
- * players under them stay in sight; the button names the scope in use.
+ * The scope controls over the top left of the map, open as in EDGE. They fold into one button that
+ * names the scope in use when the players under them need the room.
  */
 export function ReplayStackOverlay({ stack }: { stack: ReplayStack }): ReactNode {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   if (!open) {
     return (
       <Button

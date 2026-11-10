@@ -11,6 +11,7 @@ import { MenuField } from '@/components/analysis/scope-menu-field';
 import { BuyMatchupSelect } from '@/components/analysis/scope-round-controls';
 import { BuySwapButton } from '@/components/analysis/scope-replay-controls';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +35,11 @@ function groupActive(scope: AnalysisScope, group: FilterGroup, fields: readonly 
   return groupFields(group, fields).some((field) => scopeFieldActive(scope, field));
 }
 
+/** Lower case without accents, so "prorroga" finds "Prórroga". */
+function folded(text: string): string {
+  return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('es');
+}
+
 function triggerLabel(count: number): string {
   if (count === 0) return 'Filtros';
   return count === 1 ? '1 filtro' : `${count} filtros`;
@@ -48,9 +54,11 @@ export function FilterMenu(props: FilterMenuProps): ReactNode {
   const { scope, fields, onChange, onReset } = props;
   const groups = visibleGroups(fields);
   const [picked, setPicked] = useState('');
+  const [term, setTerm] = useState('');
   if (groups.length === 0) return null;
   const active = menuActiveFields(scope, fields);
-  const current = groups.find((group) => group.id === picked) ?? groups.find((group) => groupActive(scope, group, fields)) ?? groups[0];
+  const shown = term.trim() === '' ? groups : groups.filter((group) => folded(group.label).includes(folded(term.trim())));
+  const current = shown.find((group) => group.id === picked) ?? shown.find((group) => groupActive(scope, group, fields)) ?? shown[0];
   const body = current === undefined ? [] : groupFields(current, fields);
   return (
     <Popover>
@@ -61,8 +69,13 @@ export function FilterMenu(props: FilterMenuProps): ReactNode {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" aria-label="Filtros" className="flex max-h-[28rem] w-[min(36rem,92vw)] p-0">
-        <ul className="w-48 shrink-0 overflow-y-auto border-r border-border p-1">
-          {groups.map((group) => (
+        <div className="flex w-48 shrink-0 flex-col border-r border-border">
+          <div className="p-1">
+            <Input type="search" aria-label="Buscar un filtro" placeholder="Buscar un filtro" value={term} onChange={(event) => setTerm(event.target.value)} className="h-7 text-body-sm" />
+          </div>
+          <ul className="min-h-0 flex-1 overflow-y-auto p-1 pt-0">
+            {shown.length === 0 ? <li className="px-2 py-1 text-meta text-fg-3">Ningún filtro con ese nombre</li> : null}
+            {shown.map((group) => (
             <li key={group.id}>
               <button
                 type="button"
@@ -78,7 +91,8 @@ export function FilterMenu(props: FilterMenuProps): ReactNode {
               </button>
             </li>
           ))}
-        </ul>
+          </ul>
+        </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
           {current === undefined ? null : (
             <>

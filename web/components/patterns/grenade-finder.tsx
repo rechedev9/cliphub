@@ -220,7 +220,7 @@ export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tra
     setChosen((current) => (current.includes(key) ? current.filter((entry) => entry !== key) : [...current, key].slice(0, PRACTICE_MAX_SPOTS)));
 
   let content: ReactNode;
-  if (results === 'rounds' || invert) content = <GrenadeRoundList rows={rows} matchLabel={matchLabel} />;
+  if (results === 'rounds' || invert) content = <GrenadeRoundList rows={rows} matchLabel={matchLabel} tokenOf={(id) => tokens.get(id) ?? playerToken(-1)} />;
   else if (openSpot !== undefined && followUp !== null) {
     content = (
       <GrenadeSpotPanel

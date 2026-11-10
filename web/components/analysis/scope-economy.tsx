@@ -14,13 +14,22 @@ import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
-type BuyChoice = { readonly value: ScopeBuy; readonly label: string };
+type BuyChoice = { readonly value: ScopeBuy; readonly label: string; readonly hint?: string };
+
+/** Equipment per player as `classifySideEconomy` (internal/tactical/classify.go) reads it. */
+const BUY_HINT: Readonly<Record<string, string>> = {
+  pistol: 'Ronda de pistolas',
+  eco: '$0 a $1.000',
+  semi: '$1.000 a $4.000 (T) o $4.500 (CT)',
+  force: 'Tras perder, sin dinero',
+  full: '$4.000+ (T), $4.500+ (CT)',
+};
 
 /** Every buy a person can ask for; `half` stands for a semi or a force. */
 export const BUY_CHOICES: readonly BuyChoice[] = [
   { value: '', label: 'Todas las compras' },
-  ...SCOPE_BUYS.map((buy): BuyChoice => ({ value: buy, label: buyLabel(buy) })),
-  { value: HALF_BUY, label: 'Media (semi o force)' },
+  ...SCOPE_BUYS.map((buy): BuyChoice => ({ value: buy, label: buyLabel(buy), hint: BUY_HINT[buy] })),
+  { value: HALF_BUY, label: 'Media (semi o force)', hint: '$1.000 a $4.500' },
 ];
 
 function choiceLabel(buy: ScopeBuy): string {
@@ -67,7 +76,7 @@ export function EconomyField({ scope, onChange, rival, name, showBuy, showEquip 
           <span className="truncate">{label}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-0">
+      <PopoverContent className="w-96 max-w-[92vw] p-0">
         <h3 className="truncate border-b border-border px-2 py-1.5 text-meta font-medium tracking-wider text-fg-3">{header}</h3>
         {showBuy ? (
           <ul aria-label={title} className="p-1">
@@ -84,6 +93,7 @@ export function EconomyField({ scope, onChange, rival, name, showBuy, showEquip 
                 >
                   <BuyGlyph buy={choice.value} />
                   <span className="flex-1">{choice.label}</span>
+                  {choice.hint === undefined ? null : <span className="text-meta text-fg-3 tabular-nums">{choice.hint}</span>}
                   {buy === choice.value ? <Check aria-hidden className="size-4" /> : null}
                 </button>
               </li>
