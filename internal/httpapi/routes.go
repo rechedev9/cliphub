@@ -253,6 +253,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/library/matches/{id}/voice/tracks/{track}/audio", h.GetLibraryMatchVoiceAudio)
 	r.Post("/api/library/matches/{id}/replay-video", h.CreateLibraryReplayVideo)
 	r.Get("/api/library/replay-videos/{video}", h.GetLibraryReplayVideo)
+	r.Head("/api/library/replay-videos/{video}", h.GetLibraryReplayVideo)
 	r.Post("/api/library/matches/{id}/voice/transcribe", h.TranscribeLibraryMatchVoice)
 	r.Get("/api/library/matches/{id}/voice/comms", h.GetLibraryMatchVoiceComms)
 	r.Get("/api/library/matches/{id}/voice/demo", h.GetLibraryMatchDemoVoice)

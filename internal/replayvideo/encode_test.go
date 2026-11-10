@@ -3,16 +3,18 @@ package replayvideo
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/jpeg"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// TestEncodeRealFFmpeg encodes two seconds of frames with a generated voice track and reads the MP4 back.
+// TestEncodeRealFFmpeg encodes three stretches at speed 2 with a generated voice track and reads the MP4 back.
 func TestEncodeRealFFmpeg(t *testing.T) {
 	if testing.Short() {
 		t.Skip("encodes with FFmpeg")
@@ -31,16 +33,26 @@ func TestEncodeRealFFmpeg(t *testing.T) {
 		"-ac", "1", "-c:a", "libopus", "-b:a", "32k", voice).CombinedOutput(); err != nil {
 		t.Fatalf("make voice: %v: %s", err, out)
 	}
-	p := Plan{FPS: 24, Width: 64, Height: 64, Speed: 1, Out: filepath.Join(dir, "out.mp4"),
-		// The second second falls before the recording, so it is a silent segment in the concat.
-		Segments: []Segment{{Frames: 24, Voice: &Range{FromTick: 640, ToTick: 704}}, {Frames: 24, Voice: &Range{FromTick: 0, ToTick: 64}}},
-		Sync:     Sync{Tickrate: 64, OffsetMS: 5000}, Tracks: []Track{{Path: voice, DurationMS: 30_000}}}
+	// At speed 2 each 4 s of demo is 2 s of video; the middle stretch falls before the recording,
+	// and the graph goes through its file, as a long playlist's does.
+	defer func(limit int) { inlineGraphLimit = limit }(inlineGraphLimit)
+	inlineGraphLimit = 0
+	p := Plan{FPS: 24, Width: 64, Height: 64, Speed: 2, Out: filepath.Join(dir, "out.mp4"),
+		Segments: []Segment{
+			{Frames: 48, Voice: &Range{FromTick: 640, ToTick: 896}},
+			{Frames: 48, Voice: &Range{FromTick: 0, ToTick: 256}},
+			{Frames: 48, Voice: &Range{FromTick: 1280, ToTick: 1536}},
+		},
+		Sync: Sync{Tickrate: 64, OffsetMS: 5000}, Tracks: []Track{{Path: voice, DurationMS: 30_000}}}
 	sink, err := Encoder{FFmpeg: ffmpeg}.Start(context.Background(), p)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := sink.Frame(bytes.NewReader(jpegOf(t, image.NewRGBA(image.Rect(0, 0, 32, 32))))); !errors.Is(err, ErrFrameSize) {
+		t.Fatalf("a 32 px frame = %v, want ErrFrameSize", err)
+	}
 	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
-	for i := range 48 {
+	for i := range 144 {
 		for px := range img.Pix {
 			img.Pix[px] = uint8(i * 10)
 		}
@@ -61,9 +73,21 @@ func TestEncodeRealFFmpeg(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := strings.Fields(strings.ReplaceAll(string(out), ",", " "))
-	if len(got) < 3 || got[0] != "h264" || got[1] != "aac" || !strings.HasPrefix(got[2], "2.0") {
-		t.Fatalf("ffprobe = %q, want h264, aac and about 2 s", out)
+	if len(got) < 3 || got[0] != "h264" || got[1] != "aac" || !strings.HasPrefix(got[2], "6.0") {
+		t.Fatalf("ffprobe = %q, want h264, aac and about 6 s", out)
 	}
+	if _, err := os.Stat(p.Out + ".filter"); !os.IsNotExist(err) {
+		t.Fatalf("the graph file stayed: %v", err)
+	}
+}
+
+func jpegOf(t *testing.T, img image.Image) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, nil); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
 }
 
 func TestFrameRefusesNonJPEG(t *testing.T) {

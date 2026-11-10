@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -22,7 +20,7 @@ const (
 // FrameRates and Speeds are the values a plan takes.
 var (
 	FrameRates = []int{24, 30, 60}
-	Speeds     = []float64{0.5, 1, 2, 4}
+	Speeds     = []float64{0.25, 0.5, 1, 2, 4}
 )
 
 // Track is one stored voice recording and its length.
@@ -99,6 +97,8 @@ type Plan struct {
 	Sync     Sync
 	Tracks   []Track
 	Out      string
+	// GraphFile holds the filter graph when it is too long for the command line.
+	GraphFile string
 }
 
 // Frames is how many frames the plan's segments take.
@@ -124,7 +124,7 @@ func (p Plan) Validate() error {
 		return errors.New("fps must be 24, 30 or 60")
 	}
 	if !slices.Contains(Speeds, p.Speed) {
-		return errors.New("speed must be 0.5, 1, 2 or 4")
+		return errors.New("speed must be 0.25, 0.5, 1, 2 or 4")
 	}
 	if p.Width < MinSide || p.Height < MinSide || p.Width > MaxSide || p.Height > MaxSide || p.Width%2 != 0 || p.Height%2 != 0 {
 		return fmt.Errorf("width and height must be even, from %d to %d", MinSide, MaxSide)
@@ -160,82 +160,4 @@ func (p Plan) Voices() []SegmentVoice {
 		return nil
 	}
 	return out
-}
-
-// localProtocols keeps FFmpeg on local files and the frames pipe.
-const localProtocols = "file,pipe"
-
-// Args is the FFmpeg command line for a plan: JPEG frames from stdin, the voice cuts as inputs
-// after it, and an MP4 at Out. voice says whether the video carries an audio track.
-func Args(p Plan) (args []string, voice bool, err error) {
-	if err := p.Validate(); err != nil {
-		return nil, false, err
-	}
-	fps := strconv.Itoa(p.FPS)
-	args = []string{"-hide_banner", "-loglevel", "error", "-y", "-protocol_whitelist", localProtocols,
-		"-f", "image2pipe", "-framerate", fps, "-c:v", "mjpeg", "-i", "pipe:0"}
-	voices := p.Voices()
-	if voices != nil {
-		var graph []string
-		input := 1
-		for i, v := range voices {
-			labels := make([]string, 0, len(v.Cuts))
-			for _, c := range v.Cuts {
-				args = append(args, "-ss", msSeconds(c.SeekMS), "-t", msSeconds(c.LengthMS), "-i", p.Tracks[c.Track].Path)
-				labels = append(labels, fmt.Sprintf("[%d:a]", input))
-				input++
-			}
-			seconds := float64(p.Segments[i].Frames) / float64(p.FPS)
-			graph = append(graph, segmentGraph(segmentAudio{inputs: labels, lead: v.LeadMS, speed: p.Speed, seconds: seconds, out: fmt.Sprintf("a%d", i)}))
-		}
-		if len(voices) == 1 {
-			graph[0] = strings.TrimSuffix(graph[0], "[a0]") + "[aout]"
-		} else {
-			var concat strings.Builder
-			for i := range voices {
-				fmt.Fprintf(&concat, "[a%d]", i)
-			}
-			fmt.Fprintf(&concat, "concat=n=%d:v=0:a=1[aout]", len(voices))
-			graph = append(graph, concat.String())
-		}
-		args = append(args, "-filter_complex", strings.Join(graph, ";"), "-map", "0:v", "-map", "[aout]")
-	} else {
-		args = append(args, "-map", "0:v")
-	}
-	args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-r", fps)
-	if voices != nil {
-		args = append(args, "-c:a", "aac", "-b:a", "160k", "-ar", strconv.Itoa(sampleRate), "-ac", "2")
-	}
-	args = append(args, "-t", strconv.FormatFloat(p.Seconds(), 'f', 3, 64), "-movflags", "+faststart", "-f", "mp4", p.Out)
-	return args, voices != nil, nil
-}
-
-type segmentAudio struct {
-	inputs  []string
-	lead    int64
-	speed   float64
-	seconds float64
-	out     string
-}
-
-// segmentGraph is one segment's audio: its cuts mixed, played at the video's speed, after the
-// lead of silence, then padded or trimmed to the segment's length so the segments line up.
-func segmentGraph(s segmentAudio) string {
-	length := strconv.FormatFloat(s.seconds, 'f', 3, 64)
-	tail := fmt.Sprintf("aresample=%d,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=duration=%s[%s]", sampleRate, length, s.out)
-	if len(s.inputs) == 0 {
-		return fmt.Sprintf("anullsrc=r=%d:cl=stereo,%s", sampleRate, tail)
-	}
-	chain := []string{fmt.Sprintf("%samix=inputs=%d:duration=longest:normalize=0", strings.Join(s.inputs, ""), len(s.inputs))}
-	if s.speed != 1 {
-		chain = append(chain, "atempo="+strconv.FormatFloat(s.speed, 'f', -1, 64))
-	}
-	if lead := int64(math.Round(float64(s.lead) / s.speed)); lead > 0 {
-		chain = append(chain, fmt.Sprintf("adelay=%d:all=1", lead))
-	}
-	return strings.Join(append(chain, tail), ",")
-}
-
-func msSeconds(ms int64) string {
-	return strconv.FormatFloat(float64(ms)/1000, 'f', 3, 64)
 }

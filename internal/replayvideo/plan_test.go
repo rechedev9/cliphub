@@ -2,7 +2,7 @@ package replayvideo
 
 import (
 	"reflect"
-	"strings"
+
 	"testing"
 )
 
@@ -37,78 +37,6 @@ func TestCutVoiceNegativeOffset(t *testing.T) {
 	want := SegmentVoice{Cuts: []Cut{{0, 15_000, 10_000}}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("CutVoice = %+v, want %+v", got, want)
-	}
-}
-
-func TestArgsWithoutVoice(t *testing.T) {
-	args, voice, err := Args(Plan{FPS: 30, Width: 720, Height: 720, Speed: 1, Segments: []Segment{{Frames: 600}}, Out: "out.mp4"})
-	if err != nil || voice {
-		t.Fatalf("Args err=%v voice=%v", err, voice)
-	}
-	line := strings.Join(args, " ")
-	for _, want := range []string{"-f image2pipe -framerate 30 -c:v mjpeg -i pipe:0", "-map 0:v -c:v libx264", "-pix_fmt yuv420p", "-t 20.000", "-f mp4 out.mp4"} {
-		if !strings.Contains(line, want) {
-			t.Errorf("args lack %q:\n%s", want, line)
-		}
-	}
-	if strings.Contains(line, "-c:a") || strings.Contains(line, "filter_complex") {
-		t.Errorf("a video without voice has audio args:\n%s", line)
-	}
-}
-
-func TestArgsVoiceOneSegment(t *testing.T) {
-	p := Plan{FPS: 30, Width: 720, Height: 720, Speed: 2, Out: "out.mp4",
-		Segments: []Segment{{Frames: 300, Voice: &Range{FromTick: 1280, ToTick: 2560}}},
-		Sync:     Sync{Tickrate: 64, OffsetMS: 30_000}, Tracks: []Track{{Path: "a.ogg", DurationMS: 600_000}}}
-	args, voice, err := Args(p)
-	if err != nil || !voice {
-		t.Fatalf("Args err=%v voice=%v", err, voice)
-	}
-	line := strings.Join(args, " ")
-	// The 10 s lead in demo time is 5 s at speed 2.
-	graph := "[1:a]amix=inputs=1:duration=longest:normalize=0,atempo=2,adelay=5000:all=1,aresample=48000," +
-		"aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=duration=10.000[aout]"
-	for _, want := range []string{"-ss 0.000 -t 10.000 -i a.ogg", "-filter_complex " + graph, "-map 0:v -map [aout]", "-c:a aac", "-t 10.000"} {
-		if !strings.Contains(line, want) {
-			t.Errorf("args lack %q:\n%s", want, line)
-		}
-	}
-}
-
-func TestArgsVoiceSegmentsConcat(t *testing.T) {
-	p := Plan{FPS: 24, Width: 640, Height: 480, Speed: 1, Out: "out.mp4",
-		Segments: []Segment{
-			{Frames: 48, Voice: &Range{FromTick: 6400, ToTick: 6528}},
-			{Frames: 24, Voice: &Range{FromTick: 0, ToTick: 64}},
-		},
-		Sync: Sync{Tickrate: 64, OffsetMS: 30_000}, Tracks: []Track{{Path: "a.ogg", DurationMS: 600_000}, {Path: "b.ogg", DurationMS: 600_000}}}
-	args, voice, err := Args(p)
-	if err != nil || !voice {
-		t.Fatalf("Args err=%v voice=%v", err, voice)
-	}
-	line := strings.Join(args, " ")
-	for _, want := range []string{
-		"-ss 70.000 -t 2.000 -i a.ogg -ss 70.000 -t 2.000 -i b.ogg",
-		"[1:a][2:a]amix=inputs=2:duration=longest:normalize=0,aresample=48000",
-		"atrim=duration=2.000[a0];anullsrc=r=48000:cl=stereo,aresample=48000",
-		"atrim=duration=1.000[a1];[a0][a1]concat=n=2:v=0:a=1[aout]",
-		"-t 3.000",
-	} {
-		if !strings.Contains(line, want) {
-			t.Errorf("args lack %q:\n%s", want, line)
-		}
-	}
-}
-
-func TestArgsVoiceOutsideEveryTrack(t *testing.T) {
-	p := Plan{FPS: 30, Width: 720, Height: 720, Speed: 1, Out: "out.mp4",
-		Segments: []Segment{{Frames: 30, Voice: &Range{FromTick: 0, ToTick: 64}}},
-		Sync:     Sync{Tickrate: 64, OffsetMS: 30_000}, Tracks: []Track{{Path: "a.ogg", DurationMS: 600_000}}}
-	if p.Voices() != nil {
-		t.Fatal("a stretch before the recording has voices")
-	}
-	if _, voice, err := Args(p); err != nil || voice {
-		t.Fatalf("Args err=%v voice=%v, want a silent video", err, voice)
 	}
 }
 

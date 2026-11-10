@@ -5,20 +5,32 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image/jpeg"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
 )
 
-// ErrNotJPEG is a frame that does not start like a JPEG.
-var ErrNotJPEG = errors.New("replayvideo: a frame is not a JPEG")
+// maxFrameBytes bounds one JPEG frame: a 2560 px frame at top quality stays well under it.
+const maxFrameBytes = 32 << 20
+
+var (
+	// ErrNotJPEG is a frame that does not decode as a JPEG.
+	ErrNotJPEG = errors.New("replayvideo: a frame is not a JPEG")
+	// ErrFrameSize is a frame whose size is not the plan's.
+	ErrFrameSize = errors.New("replayvideo: a frame does not have the video's size")
+	// ErrFrameRead is an upload that broke inside a frame, such as a client that went away.
+	ErrFrameRead = errors.New("replayvideo: a frame could not be read")
+)
 
 // Sink takes a running encode's frames in order.
 type Sink interface {
 	Frame(src io.Reader) error
 	// Finish waits for FFmpeg once every frame went in; voice says whether the MP4 has audio.
 	Finish() (voice bool, err error)
+	// Abort stops FFmpeg and removes what it wrote.
 	Abort()
 }
 
@@ -32,57 +44,71 @@ func (e Encoder) Start(ctx context.Context, p Plan) (Sink, error) {
 	if e.FFmpeg == "" {
 		return nil, errors.New("replayvideo: FFmpeg is not configured")
 	}
-	args, voice, err := Args(p)
+	if p.GraphFile == "" {
+		p.GraphFile = p.Out + ".filter"
+	}
+	cmdLine, err := Args(p)
 	if err != nil {
 		return nil, err
+	}
+	run := &run{plan: p}
+	if cmdLine.Graph != "" {
+		if err := os.WriteFile(p.GraphFile, []byte(cmdLine.Graph), 0o600); err != nil {
+			return nil, err
+		}
+		run.graphFile = p.GraphFile
 	}
 	ctx, cancel := context.WithCancel(ctx)
+	run.cancel = cancel
 	// #nosec G204 -- the configured FFmpeg receives generated local paths as argv values.
-	cmd := exec.CommandContext(ctx, e.FFmpeg, args...)
-	stdin, err := cmd.StdinPipe()
+	run.cmd = exec.CommandContext(ctx, e.FFmpeg, cmdLine.Args...)
+	run.voice = cmdLine.Voice
+	run.cmd.Stderr = &run.stderr
+	if run.stdin, err = run.cmd.StdinPipe(); err == nil {
+		err = run.cmd.Start()
+	}
 	if err != nil {
 		cancel()
-		return nil, err
-	}
-	run := &run{cmd: cmd, stdin: stdin, cancel: cancel, voice: voice}
-	cmd.Stderr = &run.stderr
-	if err := cmd.Start(); err != nil {
-		cancel()
+		run.removeGraph()
 		return nil, fmt.Errorf("start ffmpeg: %w", err)
 	}
 	return run, nil
 }
 
 type run struct {
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	cancel context.CancelFunc
-	stderr bytes.Buffer
-	voice  bool
-	once   sync.Once
-	err    error
+	plan      Plan
+	cmd       *exec.Cmd
+	stdin     io.WriteCloser
+	cancel    context.CancelFunc
+	stderr    bytes.Buffer
+	voice     bool
+	graphFile string
+	once      sync.Once
+	err       error
 }
 
 func (r *run) Frame(src io.Reader) error {
-	head := make([]byte, 2)
-	if _, err := io.ReadFull(src, head); err != nil || head[0] != 0xff || head[1] != 0xd8 {
+	raw, err := io.ReadAll(io.LimitReader(src, maxFrameBytes+1))
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFrameRead, err)
+	}
+	if len(raw) > maxFrameBytes {
 		return ErrNotJPEG
 	}
-	if _, err := r.stdin.Write(head); err != nil {
-		return r.failed(err)
+	cfg, err := jpeg.DecodeConfig(bytes.NewReader(raw))
+	if err != nil {
+		return ErrNotJPEG
 	}
-	if _, err := io.Copy(r.stdin, src); err != nil {
-		return r.failed(err)
+	if cfg.Width != r.plan.Width || cfg.Height != r.plan.Height {
+		return fmt.Errorf("%w: %dx%d, not %dx%d", ErrFrameSize, cfg.Width, cfg.Height, r.plan.Width, r.plan.Height)
+	}
+	if _, err := r.stdin.Write(raw); err != nil {
+		if werr := r.wait(); werr != nil {
+			return werr
+		}
+		return err
 	}
 	return nil
-}
-
-// failed is a write FFmpeg refused: its own error says why.
-func (r *run) failed(err error) error {
-	if werr := r.wait(); werr != nil {
-		return werr
-	}
-	return err
 }
 
 func (r *run) wait() error {
@@ -92,8 +118,15 @@ func (r *run) wait() error {
 			r.err = fmt.Errorf("ffmpeg: %w: %s", err, strings.TrimSpace(r.stderr.String()))
 		}
 		r.cancel()
+		r.removeGraph()
 	})
 	return r.err
+}
+
+func (r *run) removeGraph() {
+	if r.graphFile != "" {
+		_ = os.Remove(r.graphFile)
+	}
 }
 
 func (r *run) Finish() (bool, error) {
@@ -103,4 +136,5 @@ func (r *run) Finish() (bool, error) {
 func (r *run) Abort() {
 	r.cancel()
 	_ = r.wait()
+	_ = os.Remove(r.plan.Out)
 }

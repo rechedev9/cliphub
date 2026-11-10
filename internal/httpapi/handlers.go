@@ -172,6 +172,7 @@ type Handlers struct {
 	practiceGame        practice.Game
 	references          referenceCaches
 	voice               *voiceService
+	replayVideo         *ReplayVideoDeps
 	// labBundleMu serializes bundle writes: bundles of one job share a directory.
 	labBundleMu sync.Mutex
 }
@@ -242,21 +243,6 @@ func WithCapabilities(c Capabilities) Option {
 func WithPublishAssistantTrends(trends YouTubeTrends) Option {
 	return func(h *Handlers) {
 		h.youtubeTrends = trends
-	}
-}
-
-func WithFaceit(client *faceit.Client, follows *faceit.FollowStore) Option {
-	return func(h *Handlers) {
-		h.faceit = client
-		h.faceitFollows = follows
-	}
-}
-
-// WithFaceitSeeds supplies the refreshable default roster. A nil store still
-// projects the embedded zone rosters: SeedStore.Document degrades to DefaultSeed.
-func WithFaceitSeeds(seeds *faceit.SeedStore) Option {
-	return func(h *Handlers) {
-		h.faceitSeeds = seeds
 	}
 }
 
