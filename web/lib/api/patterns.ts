@@ -4,6 +4,7 @@ import type { SpatialResponse } from './spatial.ts';
 import { SPATIAL_RESPONSE_KEYS } from './spatial.ts';
 import type { TacticalBuyType, TacticalSide } from './tactical.ts';
 import type { TeamGrenadeKind } from './grenades.ts';
+import { TEAM_SCOPE_QUERY } from './team-insights.ts';
 
 // The pattern finder's contract (`tacticalplan.Pattern`, `library.Pattern`): blocks that must all
 // hold in a round, run over a team's matches or saved and detected over the whole library.
@@ -90,7 +91,9 @@ export type PatternResult = {
 
 export type PatternRunResponse = SpatialResponse & { pattern: PatternDefinition; result: PatternResult };
 
-export type PatternScope = { matches?: number; buy?: TacticalBuyType; opponent_buy?: TacticalBuyType };
+/** A saved pattern's own scope; `half` is a semi or a force buy, as the scope bar holds it. */
+export type PatternScopeBuy = TacticalBuyType | 'half';
+export type PatternScope = { matches?: number; buy?: PatternScopeBuy; opponent_buy?: PatternScopeBuy };
 
 export type PatternStats = { rounds: number; matched: number; won: number; win_rate: number; recent_matched: number; trend: PatternTrend };
 
@@ -115,17 +118,14 @@ export const SAVED_PATTERN_KEYS = [
 ] as const satisfies readonly (keyof SavedPattern)[];
 export const PATTERN_FIELDS = ['name', 'map', 'team_id', 'clear_team', 'pattern', 'scope'] as const;
 /** The team view's scope, its N most recent matches and the pattern as JSON. */
-export const TEAM_PATTERN_QUERY = [
-  'map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'buy', 'opponent_buy', 'matches', 'pattern',
-] as const;
-export const PATTERN_LIST_QUERY = ['map', 'team_id', 'stats', 'side', 'from', 'to', 'opponent_id', 'lineup', 'buy', 'opponent_buy', 'matches'] as const;
+export const TEAM_PATTERN_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', ...TEAM_SCOPE_QUERY, 'pattern'] as const;
+export const PATTERN_LIST_QUERY = ['map', 'team_id', 'stats', 'side', 'from', 'to', 'opponent_id', 'lineup', ...TEAM_SCOPE_QUERY] as const;
 
-export type TeamPatternScope = TeamSpatialQuery & { matches?: number };
+/** The team scope a run reads; the bar's other filters, the last N matches among them, travel as `criteria`. */
+export type TeamPatternScope = TeamSpatialQuery;
 
 function scopeParams(scope: TeamPatternScope): URLSearchParams {
-  const params = teamSpatialParams(scope);
-  if (scope.matches !== undefined && scope.matches > 0) params.set('matches', String(scope.matches));
-  return params;
+  return teamSpatialParams(scope);
 }
 
 export type TeamPatternRun = { teamId: string; scope: TeamPatternScope; pattern: PatternDefinition };

@@ -72,7 +72,7 @@ only the rounds every player of the team played in it, like the Alineación sele
 players of the team's latest match, which team_lineups lists, and an empty lineup keeps every round. team_playbook lists every
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
-Every team tool (team_side_stats too) also takes the rest of the team Replay's filter bar, so all team figures count the same rounds:
+Every team tool (team_side_stats, find_player_pattern and find_pattern_rounds too) also takes the rest of the team Replay's filter bar, so all team figures count the same rounds:
 max_matches (last 3 or 5), last_days (3, 7, 14, 30, 90, 180, 365), opponent_top (HLTV top 5 to 200, by each
 rival's rank today; rivals without a rank come back as unranked), whose (own: matches of the user's own team,
 the one list_teams marks own; others: scouting), buy and opponent_buy (full with full, half is semi and force,

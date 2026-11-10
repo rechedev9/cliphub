@@ -119,7 +119,7 @@ export function TeamReplay({
         {form === 'patrones' ? null : <RoundsLink refs={form === 'granadas' ? grenadeRefs : spatialRefs} />}
       </div>
       {form === 'patrones' ? (
-        <PatternFinder teamId={teamId} scope={scope} lineup={lineup} matches={matches} roster={roster} onMapChange={onMapChange} onScopeChange={onScopeChange} onCounts={onCounts} />
+        <PatternFinder teamId={teamId} scope={scope} lineup={lineup} criteria={criteria} matches={matches} roster={roster} onMapChange={onMapChange} onScopeChange={onScopeChange} onCounts={onCounts} />
       ) : null}
       {form === 'granadas' ? (
         <TeamGrenades

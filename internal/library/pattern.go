@@ -23,7 +23,7 @@ const (
 var patternMapPattern = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
 
 // PatternScope is which rounds a saved pattern reads besides its map and side:
-// the most recent Matches (0 is every one) and both teams' buys.
+// the most recent Matches (0 is every one) and both teams' buys, half for semi and force.
 type PatternScope struct {
 	Matches     int                  `json:"matches,omitempty"`
 	Buy         tacticalplan.BuyType `json:"buy,omitempty"`
@@ -105,8 +105,11 @@ func PatternCopy(p Pattern) Pattern {
 	return p
 }
 
+// ScopeBuyHalf is the scope bar's half buy: a semi or a force buy.
+const ScopeBuyHalf tacticalplan.BuyType = "half"
+
 func validScopeBuy(b tacticalplan.BuyType) bool {
-	return b == "" || (b != tacticalplan.BuyUnknown && slices.Contains(tacticalplan.BuyTypes, b))
+	return b == "" || b == ScopeBuyHalf || (b != tacticalplan.BuyUnknown && slices.Contains(tacticalplan.BuyTypes, b))
 }
 
 // CleanPattern trims the name and checks the map, the blocks and the scope.
@@ -122,7 +125,7 @@ func CleanPattern(p Pattern) (Pattern, error) {
 	case p.Scope.Matches < 0 || p.Scope.Matches > MaxPatternMatches:
 		return p, fmt.Errorf("matches must be from 0 to %d", MaxPatternMatches)
 	case !validScopeBuy(p.Scope.Buy) || !validScopeBuy(p.Scope.OpponentBuy):
-		return p, errors.New("buy and opponent_buy must be pistol, eco, semi, force or full")
+		return p, errors.New("buy and opponent_buy must be pistol, eco, semi, force, full or half")
 	}
 	if err := p.Pattern.Check(); err != nil {
 		return p, err

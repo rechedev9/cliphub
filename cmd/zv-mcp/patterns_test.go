@@ -41,13 +41,14 @@ func TestFindPlayerPatternSendsOneBlockAndOpensTheFinder(t *testing.T) {
 	var out patternRunOut
 	callTool(t, cs, "find_player_pattern", map[string]any{
 		"team_id": testPatternTeam, "map": "de_inferno", "side": "t", "players": []string{"76561198000000001"},
-		"area": map[string]any{"min_x": -100, "min_y": 0, "max_x": 300, "max_y": 200}, "clock_from": 5, "clock_to": 30, "invert": true, "matches": 10,
+		"area": map[string]any{"min_x": -100, "min_y": 0, "max_x": 300, "max_y": 200}, "clock_from": 5, "clock_to": 30, "invert": true, "max_matches": 10,
+		"buy": []string{"semi", "force"}, "awp": "with",
 	}, &out)
 	got, err := url.QueryUnescape(rec.get("GET /api/library/teams/{id}/pattern"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"map=de_inferno", "matches=10", `"side":"T"`, `"kind":"player"`, `"players":["76561198000000001"]`, `"min_x":-100`, `"from":5`, `"to":30`, `"invert":true`} {
+	for _, want := range []string{"map=de_inferno", "max_matches=10", "buy=semi", "buy=force", "awp=with", `"side":"T"`, `"kind":"player"`, `"players":["76561198000000001"]`, `"min_x":-100`, `"from":5`, `"to":30`, `"invert":true`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("request %s lacks %s", got, want)
 		}
@@ -63,6 +64,7 @@ func TestFindPlayerPatternSendsOneBlockAndOpensTheFinder(t *testing.T) {
 	}
 	studio, err := url.Parse(out.StudioPath)
 	if err != nil || studio.Path != "/equipos/"+testPatternTeam || studio.Query().Get("forma") != "patrones" || studio.Query().Get("limit") != "10" ||
+		studio.Query().Get("buy") != "half" || studio.Query().Get("awp") != "with" ||
 		!strings.Contains(studio.Query().Get("patron"), `"invert":true`) {
 		t.Errorf("studio_path = %s", out.StudioPath)
 	}

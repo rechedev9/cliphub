@@ -26,7 +26,8 @@ const (
 	maxPatternRows = 200
 )
 
-var patternBuys = []string{"pistol", "eco", "semi", "force", "full"}
+// patternBuys are a saved scope's buys; half is semi or force, as the scope bar holds it.
+var patternBuys = []string{"pistol", "eco", "semi", "force", "full", "half"}
 
 type patternAreaIn struct {
 	MinX  float64 `json:"min_x" jsonschema:"west edge of the zone in world units, as player_positions and team_heatmap give positions"`
@@ -48,9 +49,10 @@ type patternBlockIn struct {
 	Invert    bool           `json:"invert,omitempty" jsonschema:"keep the rounds in which the block does not hold (Rondas en que no pasa)"`
 }
 
+// patternScopeIn is the scope a saved pattern keeps; a run takes the full team scope instead.
 type patternScopeIn struct {
 	Matches     int    `json:"matches,omitempty" jsonschema:"only the team's (or the library's) most recent N matches on the map, at most 50; 0 reads them all"`
-	Buy         string `json:"buy,omitempty" jsonschema:"the team's buy: pistol, eco, semi, force or full"`
+	Buy         string `json:"buy,omitempty" jsonschema:"the team's buy: pistol, eco, semi, force, full, or half for semi and force"`
 	OpponentBuy string `json:"opponent_buy,omitempty" jsonschema:"the rival's buy, same values"`
 }
 
@@ -61,7 +63,6 @@ type findPatternIn struct {
 	From   string `json:"from,omitempty" jsonschema:"first day the matches were played, YYYY-MM-DD"`
 	To     string `json:"to,omitempty" jsonschema:"last day the matches were played, YYYY-MM-DD, included"`
 	teamScopeIn
-	patternScopeIn
 	Blocks []patternBlockIn `json:"blocks" jsonschema:"1 to 6 blocks; a round is kept when every block holds in it"`
 }
 
@@ -72,7 +73,6 @@ type findPlayerPatternIn struct {
 	From   string `json:"from,omitempty" jsonschema:"first day the matches were played, YYYY-MM-DD"`
 	To     string `json:"to,omitempty" jsonschema:"last day, YYYY-MM-DD, included"`
 	teamScopeIn
-	patternScopeIn
 	Players   []string       `json:"players,omitempty" jsonschema:"the player or players to follow, SteamID64s; empty is anyone of the team"`
 	Rival     bool           `json:"rival,omitempty" jsonschema:"follow the rival team's players instead"`
 	Area      *patternAreaIn `json:"area,omitempty" jsonschema:"the zone they pass through; without it every round they played counts"`
@@ -223,25 +223,11 @@ func (in patternScopeIn) scope() (tuiclient.PatternScope, error) {
 	for _, buy := range []*string{&in.Buy, &in.OpponentBuy} {
 		*buy = strings.ToLower(strings.TrimSpace(*buy))
 		if *buy != "" && !slices.Contains(patternBuys, *buy) {
-			return out, errors.New("buy and opponent_buy must be pistol, eco, semi, force or full")
+			return out, errors.New("buy and opponent_buy must be pistol, eco, semi, force, full or half")
 		}
 	}
 	out.Buy, out.OpponentBuy = in.Buy, in.OpponentBuy
 	return out, nil
-}
-
-func patternScopeValues(s tuiclient.PatternScope) url.Values {
-	v := url.Values{}
-	if s.Matches > 0 {
-		v.Set("matches", strconv.Itoa(s.Matches))
-	}
-	if s.Buy != "" {
-		v.Set("buy", s.Buy)
-	}
-	if s.OpponentBuy != "" {
-		v.Set("opponent_buy", s.OpponentBuy)
-	}
-	return v
 }
 
 // clockLabel is seconds after the round went live on CS2's round clock; past the plant
@@ -304,12 +290,11 @@ func summarizePattern(run tuiclient.PatternRun, title string) patternRunOut {
 	return out
 }
 
-// patternLink is what a studio_path to the finder carries.
+// patternLink is what a saved pattern's studio_path to the finder carries.
 type patternLink struct {
 	teamID, mapName string
 	pattern         tacticalplan.Pattern
 	scope           tuiclient.PatternScope
-	from, to        string
 }
 
 // patternStudioPath opens the pattern in the team's Replay > Patrones with its scope, as the web reads it.
@@ -319,7 +304,7 @@ func patternStudioPath(l patternLink) string {
 	if mapName != "" {
 		v.Set("map", mapName)
 	}
-	for key, value := range map[string]string{"from": l.from, "to": l.to, "buy": scope.Buy, "opponent_buy": scope.OpponentBuy} {
+	for key, value := range map[string]string{"buy": scope.Buy, "opponent_buy": scope.OpponentBuy} {
 		if value != "" {
 			v.Set(key, value)
 		}
@@ -350,7 +335,8 @@ func (s *studio) runTeamPattern(ctx context.Context, run teamPatternRun) (patter
 	if err != nil {
 		return patternRunOut{}, err
 	}
-	scope, err := run.scope.scope()
+	// The finder's link holds what the scope bar holds; a scope it cannot hold fails before the run.
+	path, err := teamReplayPath(replayPathIn{TeamID: run.teamID, Form: "patrones", Query: q})
 	if err != nil {
 		return patternRunOut{}, err
 	}
@@ -358,19 +344,24 @@ func (s *studio) runTeamPattern(ctx context.Context, run teamPatternRun) (patter
 	if err != nil {
 		return patternRunOut{}, toolError(err)
 	}
-	got, err := c.TeamPattern(ctx, tuiclient.TeamPatternQuery{TeamID: run.teamID, Scope: q, Extra: patternScopeValues(scope), Pattern: run.pattern})
+	got, err := c.TeamPattern(ctx, tuiclient.TeamPatternQuery{TeamID: run.teamID, Scope: q, Pattern: run.pattern})
 	if err != nil {
 		return patternRunOut{}, toolError(err)
 	}
+	if path, err = teamReplayPath(replayPathIn{TeamID: run.teamID, Form: "patrones", Map: got.Map, Query: q}); err != nil {
+		return patternRunOut{}, err
+	}
 	out := summarizePattern(got, "Patrón en "+cleanName(got.Map))
-	out.StudioPath = patternStudioPath(patternLink{teamID: run.teamID, mapName: got.Map, pattern: run.pattern, scope: scope, from: run.from, to: run.to})
+	out.StudioPath = path
+	if raw, err := json.Marshal(run.pattern); err == nil {
+		out.StudioPath += "&" + url.Values{"patron": {string(raw)}}.Encode()
+	}
 	return out, nil
 }
 
 type teamPatternRun struct {
 	teamID, mapName, from, to string
 	teamScope                 teamScopeIn
-	scope                     patternScopeIn
 	pattern                   tacticalplan.Pattern
 }
 
@@ -379,7 +370,8 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "find_player_pattern", Annotations: readOnly,
 		Description: "Find the rounds in which a team's player (or players) passes through a zone in a clock window, as Replay > Patrones does with one Jugador block: " +
-			"over the team's matches on one map and side, its most recent N with matches. invert keeps the rounds in which they do not pass. " +
+			"over the team's matches on one map and side, with the team scope every team tool takes (max_matches, buys, AWP, advantage, round range, opponent level, whose). " +
+			"invert keeps the rounds in which they do not pass. " +
 			"The answer lists the matched rounds by match with when they entered the zone, the win rate, the last 30 days and the trend, " +
 			"replay_path to open them as a playlist and studio_path to open the finder with its paths and heatmap."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in findPlayerPatternIn) (*mcp.CallToolResult, patternRunOut, error) {
@@ -388,7 +380,7 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, patternRunOut{}, err
 			}
-			out, err := s.runTeamPattern(ctx, teamPatternRun{teamID: in.TeamID, mapName: in.Map, from: in.From, to: in.To, teamScope: in.teamScopeIn, scope: in.patternScopeIn, pattern: p})
+			out, err := s.runTeamPattern(ctx, teamPatternRun{teamID: in.TeamID, mapName: in.Map, from: in.From, to: in.To, teamScope: in.teamScopeIn, pattern: p})
 			return nil, out, err
 		})
 
@@ -402,7 +394,7 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, patternRunOut{}, err
 			}
-			out, err := s.runTeamPattern(ctx, teamPatternRun{teamID: in.TeamID, mapName: in.Map, from: in.From, to: in.To, teamScope: in.teamScopeIn, scope: in.patternScopeIn, pattern: p})
+			out, err := s.runTeamPattern(ctx, teamPatternRun{teamID: in.TeamID, mapName: in.Map, from: in.From, to: in.To, teamScope: in.teamScopeIn, pattern: p})
 			return nil, out, err
 		})
 

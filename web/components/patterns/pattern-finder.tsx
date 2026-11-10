@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Map as MapIcon, PlugZap } from 'lucide-react';
-import { isLibraryOffline, type LibraryMatch, type LibraryRosterEntry } from '@/lib/api/library';
+import { isLibraryOffline, type LibraryMatch, type LibraryRosterEntry, type TeamCriterion } from '@/lib/api/library';
 import { runTeamPattern, type PatternBlock, type PatternDefinition, type PatternRunResponse, type PatternScope, type TeamPatternScope } from '@/lib/api/patterns';
 import { RADAR_LEVELS, type RadarLevel, type TacticalSide } from '@/lib/api/tactical';
 import type { WorldBox } from '@/lib/analysis/grenade-patterns';
@@ -38,6 +38,8 @@ type Props = {
   teamId: string;
   scope: AnalysisScope;
   lineup: readonly string[];
+  /** The bar's other filters as team scope keys (last N matches, buys, AWP, advantage, range, rival level, whose). */
+  criteria: readonly TeamCriterion[];
   matches: readonly LibraryMatch[];
   roster: readonly LibraryRosterEntry[];
   onMapChange: (map: string) => void;
@@ -47,7 +49,7 @@ type Props = {
 };
 
 /** A team's pattern finder on one map: blocks that add up, the rounds meeting them all, and their radar. */
-export function PatternFinder({ teamId, scope, lineup, matches, roster, onMapChange, onScopeChange, onCounts }: Props): ReactNode {
+export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster, onMapChange, onScopeChange, onCounts }: Props): ReactNode {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
@@ -85,11 +87,9 @@ export function PatternFinder({ teamId, scope, lineup, matches, roster, onMapCha
       to,
       opponent_ids: opponent === '' ? [] : [opponent],
       lineup: lineupKey === '' ? [] : lineupKey.split(','),
-      buys: buy === '' ? [] : [buy],
-      opponent_buys: opponentBuy === '' ? [] : [opponentBuy],
-      matches: limit ?? undefined,
+      criteria,
     }),
-    [map, from, to, opponent, lineupKey, buy, opponentBuy, limit],
+    [map, from, to, opponent, lineupKey, criteria],
   );
   const saveScope = useMemo<PatternScope>(() => {
     const out: PatternScope = {};

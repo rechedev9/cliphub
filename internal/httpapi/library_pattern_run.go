@@ -59,19 +59,6 @@ func patternQuery(q url.Values) (tacticalplan.Pattern, error) {
 	return p, p.Check()
 }
 
-// matchesQuery reads matches, how many of the most recent matches to keep; 0 keeps every one.
-func matchesQuery(q url.Values) (int, error) {
-	raw := q.Get("matches")
-	if raw == "" {
-		return 0, nil
-	}
-	n, err := strconv.Atoi(raw)
-	if err != nil || n < 1 || n > library.MaxPatternMatches {
-		return 0, fmt.Errorf("matches must be an integer from 1 to %d", library.MaxPatternMatches)
-	}
-	return n, nil
-}
-
 // teamPatternRead is a team's matches as a pattern reads them; a side narrows the rounds.
 type teamPatternRead struct {
 	team library.Team
@@ -81,9 +68,6 @@ type teamPatternRead struct {
 
 // teamPatternInputs reads a team's matches on one map through the team view's scope, newest first.
 func (h *Handlers) teamPatternInputs(ctx context.Context, read teamPatternRead) (spatialResponse, []tacticalplan.PatternInput, error) {
-	if _, err := matchesQuery(read.q); err != nil {
-		return spatialResponse{}, nil, errBadSpatialQuery{err}
-	}
 	q := read.q
 	if read.side != "" {
 		q = cloneValues(q)
@@ -412,13 +396,17 @@ func (h *Handlers) patternTeam(ctx context.Context, ask patternTeamAsk) (library
 
 // applyPatternScope writes a saved pattern's own scope into a team query where the query leaves it open.
 func applyPatternScope(q url.Values, s library.PatternScope) {
-	if s.Matches > 0 && q.Get("matches") == "" {
-		q.Set("matches", strconv.Itoa(s.Matches))
+	if s.Matches > 0 && q.Get("max_matches") == "" {
+		q.Set("max_matches", strconv.Itoa(s.Matches))
 	}
-	if s.Buy != "" && q.Get("buy") == "" {
-		q.Set("buy", string(s.Buy))
-	}
-	if s.OpponentBuy != "" && q.Get("opponent_buy") == "" {
-		q.Set("opponent_buy", string(s.OpponentBuy))
+	for key, buy := range map[string]tacticalplan.BuyType{"buy": s.Buy, "opponent_buy": s.OpponentBuy} {
+		if buy == "" || q.Has(key) {
+			continue
+		}
+		if buy == library.ScopeBuyHalf {
+			q[key] = []string{string(tacticalplan.BuySemi), string(tacticalplan.BuyForce)}
+		} else {
+			q.Set(key, string(buy))
+		}
 	}
 }

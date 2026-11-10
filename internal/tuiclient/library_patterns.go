@@ -59,12 +59,10 @@ type PatternListQuery struct {
 	Extra  url.Values
 }
 
-// TeamPatternQuery is a pattern over a team's matches on one map: Scope is the
-// team's scope, Extra the buys and matches (the most recent N).
+// TeamPatternQuery is a pattern over a team's matches on one map, read through the team scope.
 type TeamPatternQuery struct {
 	TeamID  string
 	Scope   AnalysisQuery
-	Extra   url.Values
 	Pattern tacticalplan.Pattern
 }
 
@@ -72,9 +70,6 @@ type TeamPatternQuery struct {
 func (c *Client) TeamPattern(ctx context.Context, q TeamPatternQuery) (PatternRun, error) {
 	q.Scope.Limit = 0
 	values := q.Scope.values()
-	for key, list := range q.Extra {
-		values[key] = list
-	}
 	raw, err := json.Marshal(q.Pattern)
 	if err != nil {
 		return PatternRun{}, err

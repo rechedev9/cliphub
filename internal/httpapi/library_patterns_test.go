@@ -30,7 +30,7 @@ func TestLibraryTeamPatternRunsSavesAndDetectsAcrossTheLibrary(t *testing.T) {
 	if inverted.Result.Rounds != run.Result.Rounds || inverted.Result.Matched+run.Result.Matched != run.Result.Rounds {
 		t.Fatalf("invert kept %d of %d, the block %d", inverted.Result.Matched, inverted.Result.Rounds, run.Result.Matched)
 	}
-	for _, bad := range []string{"", url.QueryEscape(`{"blocks":[]}`), url.QueryEscape(`{"blocks":[{"kind":"kill","from":0}]}`), anyone + "&matches=99"} {
+	for _, bad := range []string{"", url.QueryEscape(`{"blocks":[]}`), url.QueryEscape(`{"blocks":[{"kind":"kill","from":0}]}`), anyone + "&max_matches=99"} {
 		if rw := f.env.do(http.MethodGet, base+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Fatalf("GET pattern %s = %d, want 400", bad, rw.Code)
 		}
@@ -86,6 +86,18 @@ func TestLibraryTeamPatternRunsSavesAndDetectsAcrossTheLibrary(t *testing.T) {
 	for _, p := range listed.Patterns {
 		if p.ID == newest.ID && (p.Stats.Rounds != rounds.Result.Rounds || len(rounds.Result.Matches) > 1) {
 			t.Fatalf("one-match pattern: list %+v, rounds %d of the run's %d over %d matches", p.Stats, rounds.Result.Rounds, run.Result.Rounds, len(rounds.Result.Matches))
+		}
+	}
+	// A half buy is semi or force, as the scope bar holds it.
+	var half library.Pattern
+	body["name"], body["scope"] = "Media", map[string]any{"buy": "half"}
+	f.env.json(http.MethodPost, "/api/library/patterns", body, http.StatusCreated, &half)
+	f.env.json(http.MethodGet, "/api/library/patterns/"+half.ID.String()+"/rounds", nil, http.StatusOK, &rounds)
+	for _, m := range rounds.Result.Matches {
+		for _, r := range m.Matched {
+			if r.Buy != "semi" && r.Buy != "force" {
+				t.Fatalf("a half buy pattern kept a %s round", r.Buy)
+			}
 		}
 	}
 	f.env.json(http.MethodDelete, "/api/library/patterns/"+saved.ID.String(), nil, http.StatusNoContent, nil)
