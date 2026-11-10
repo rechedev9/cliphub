@@ -54,6 +54,7 @@ import {
   TEAM_BOMBSITES_QUERY,
   TEAM_LINEUPS_KEYS,
 } from '../../../lib/api/team-insights.ts';
+import { TEAM_SIDE_STATS_KEYS, TEAM_SIDE_STATS_QUERY } from '../../../lib/api/side-stats.ts';
 
 /**
  * The `/api/library/*` routes the browser may reach, as a whitelist. A request
@@ -170,6 +171,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['teams', UUID, 'maps'], query: ['from', 'to'], response: json(TEAM_MAPS_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'veto'], query: VETO_QUERY, response: json(VETO_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'bombsites'], query: TEAM_BOMBSITES_QUERY, response: json(TEAM_BOMBSITES_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'side-stats'], query: TEAM_SIDE_STATS_QUERY, response: json(TEAM_SIDE_STATS_KEYS) },
   { method: 'GET', segments: ['series'], query: ['team_id', ...PAGING], response: json(['series']) },
   { method: 'POST', segments: ['series'], body: fields(SERIES_FIELDS), response: json(SERIES_KEYS) },
   { method: 'GET', segments: ['series', UUID], response: json(SERIES_KEYS) },

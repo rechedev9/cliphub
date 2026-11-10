@@ -193,6 +193,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/library/teams/{id}/maps", h.GetLibraryTeamMaps)
 	r.Get("/api/library/teams/{id}/veto", h.GetLibraryTeamVeto)
 	r.Get("/api/library/teams/{id}/bombsites", h.GetLibraryTeamBombsites)
+	r.Get("/api/library/teams/{id}/side-stats", h.GetLibraryTeamSideStats)
 	r.Get("/api/library/plays", h.ListLibraryPlays)
 	r.Post("/api/library/plays", h.CreateLibraryPlay)
 	r.Get("/api/library/plays/export", h.ExportLibraryPlays)

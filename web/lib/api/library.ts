@@ -20,6 +20,7 @@ import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites, TeamLineups 
 import type { Baseline, BaselineQuery, Leaderboard, LeaderboardQuery } from './baseline.ts';
 import type { LibraryNorms, LibraryNormsQuery } from './norms.ts';
 import type { TeamPlaybook, TeamPlaybookQuery, TeamPrep, TeamPrepQuery } from './playbook.ts';
+import type { TeamSideStats } from './side-stats.ts';
 
 /**
  * Browser-side contract of the shared demo library (`internal/library`). Every
@@ -702,6 +703,29 @@ export function getTeamBombsites(teamId: string, query: TeamScoutQuery = {}): Pr
   for (const steamId of query.lineup ?? []) params.append('lineup', steamId);
   const search = params.toString();
   return request<TeamBombsites>(`/teams/${id(teamId)}/bombsites${search === '' ? '' : `?${search}`}`);
+}
+
+export type TeamSideStatsQuery = TeamScoutQuery & {
+  buy?: TacticalBuyType | '';
+  opponent_buy?: TacticalBuyType | '';
+  /** Team ids to compare with; empty compares with every other team of the library. */
+  compare?: readonly string[];
+};
+
+/** A team's figures overall and per side, each with the mean of the comparison group. */
+export function getTeamSideStats(teamId: string, query: TeamSideStatsQuery = {}): Promise<TeamSideStats> {
+  const params = new URLSearchParams();
+  for (const map of query.maps ?? []) params.append('map', map);
+  if (query.side) params.set('side', query.side);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
+  for (const steamId of query.lineup ?? []) params.append('lineup', steamId);
+  if (query.buy) params.set('buy', query.buy);
+  if (query.opponent_buy) params.set('opponent_buy', query.opponent_buy);
+  for (const team of query.compare ?? []) params.append('compare_team', team);
+  const search = params.toString();
+  return request<TeamSideStats>(`/teams/${id(teamId)}/side-stats${search === '' ? '' : `?${search}`}`);
 }
 
 export function playerPositionsPath(steamId: string, query: PlayerPositionsQuery): string {

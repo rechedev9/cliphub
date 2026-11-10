@@ -31,8 +31,10 @@ import {
 import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
 import { lastResults } from '@/lib/analysis/context-bar';
+import { COMPARE_PARAM, parseCompareTeams, writeCompareTeams } from '@/lib/analysis/side-stats';
 import { SampleLineupProvider } from '@/components/analysis/empty-sample';
 import { MapLabel } from '@/components/analysis/map-thumb';
+import { CompareGroupPicker } from '@/components/analysis/compare-group-picker';
 import { ScopeBar, type ScopeCounts, type ScopeEntity } from '@/components/analysis/scope-bar';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
@@ -67,6 +69,7 @@ import { TeamPlaybook } from '@/components/playbook/team-playbook';
 import { TeamSeries } from './team-series';
 import { TeamVeto } from './team-veto';
 import { TeamTrend } from './team-trend';
+import { TeamSideStats } from './team-side-stats';
 
 /** `lineups` is null when they could not be read; the views then count every round. */
 type Loaded = { team: LibraryTeam; matches: LibraryMatch[]; lineups: TeamLineups | null };
@@ -142,6 +145,7 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   series: [],
   partidas: ['map', 'period', 'opponent'],
   mapas: ['map', 'period'],
+  estadisticas: ['lineup', 'map', 'side', 'period', 'buy', 'opponentBuy', 'opponent'],
   veto: ['opponent'],
   sitios: ['lineup', 'map', 'period', 'opponent'],
   preparar: ['lineup', 'map', 'side', 'period', 'opponent'],
@@ -150,8 +154,8 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   'replay-granadas': ['lineup', 'map', 'side', 'period', 'buy', 'opponent'],
 };
 /** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
-const REPORTING_TABS = new Set(['mapas', 'sitios', 'preparar', 'playbook', 'replay']);
-const TEAM_TABS = ['plantilla', 'partidas', 'mapas', 'series', 'veto', 'sitios', 'preparar', 'playbook', 'replay'];
+const REPORTING_TABS = new Set(['mapas', 'estadisticas', 'sitios', 'preparar', 'playbook', 'replay']);
+const TEAM_TABS = ['plantilla', 'partidas', 'mapas', 'estadisticas', 'series', 'veto', 'sitios', 'preparar', 'playbook', 'replay'];
 /** Tabs of older links: Scouting is in Preparar, and the radar and the grenades are forms of the Replay. */
 const LEGACY_TABS: Readonly<Record<string, string>> = { scouting: 'preparar', radar: 'replay', granadas: 'replay' };
 const QUERY_TABS = [...TEAM_TABS, ...Object.keys(LEGACY_TABS)];
@@ -189,6 +193,18 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   const lineupKey = lineupSteamIds(scope.lineup, lineups).join(',');
   const lineup = useMemo(() => (lineupKey === '' ? [] : lineupKey.split(',')), [lineupKey]);
   const showEveryone = useCallback(() => setScope({ lineup: { kind: 'all' } }), [setScope]);
+  const compareKey = parseCompareTeams(search.get(COMPARE_PARAM)).join(',');
+  // A stale or own id in the URL drops out: the picker lists only the other library teams.
+  const compare = useMemo(() => {
+    const ids = compareKey === '' ? [] : compareKey.split(',').filter((id) => id !== team.id);
+    if (teams === null) return ids;
+    const known = new Set(teams.map((entry) => entry.id));
+    return ids.filter((id) => known.has(id));
+  }, [compareKey, team.id, teams]);
+  const setCompare = useCallback(
+    (ids: readonly string[]) => router.replace(`${pathname}?${writeCompareTeams(search.toString(), ids)}`, { scroll: false }),
+    [pathname, router, search],
+  );
   useRouteTitle(team.name);
   useDocumentTitle(`${team.name} · Equipo · ClipHub`);
 
@@ -260,6 +276,11 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           opponents={id === 'veto' ? (teams ?? []).map((entry) => ({ value: entry.id, label: entry.name })) : playedRivals}
           counts={counts}
           results={id === 'veto' || id === 'series' ? undefined : results}
+          comparison={
+            id === 'estadisticas' ? (
+              <CompareGroupPicker value={compare} teams={(teams ?? []).map((entry) => ({ value: entry.id, label: entry.name }))} onChange={setCompare} />
+            ) : undefined
+          }
         />
         <SampleLineupProvider showEveryone={fields.includes('lineup') && lineup.length > 0 ? showEveryone : null}>{content}</SampleLineupProvider>
       </div>
@@ -335,6 +356,14 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             label: 'Mapas',
             count: maps.length,
             content: withScope('mapas', <TeamMapHistory teamId={team.id} matches={matches} scope={scope} onCounts={onCounts} />),
+          },
+          {
+            id: 'estadisticas',
+            label: 'Estadísticas',
+            content: withScope(
+              'estadisticas',
+              <TeamSideStats teamId={team.id} scope={scope} lineup={lineup} compare={compare} onCounts={onCounts} />,
+            ),
           },
           {
             id: 'series',
