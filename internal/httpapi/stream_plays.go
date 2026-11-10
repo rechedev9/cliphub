@@ -40,12 +40,16 @@ const (
 	voiceOff     = "off"
 	voiceDone    = "done"
 	voiceNoAudio = "no_audio"
+	// voiceNoVoice means the audio held no voice to measure, even after trying the mix.
+	voiceNoVoice = "no_voice"
 	voiceFailed  = "failed"
 )
 
 type voiceScan struct {
 	vodplays.VoiceSettings
 	Status string `json:"status"`
+	// Mix is true when no mic track was found and the detection ran on the game mix.
+	Mix bool `json:"mix,omitempty"`
 	// Peaks is how many voice peaks the scan found, in plays or alone.
 	Peaks int `json:"peaks"`
 }
@@ -196,12 +200,20 @@ func (h *Handlers) scanVoice(run streamPlayScanRun) ([]vodplays.VoicePeak, voice
 		out.Status = voiceNoAudio
 		return nil, out
 	}
-	levels, err := vodplays.MeasureLoudness(context.Background(), vodplays.LoudnessOptions{
-		FFmpeg: h.streamFFmpeg, Input: run.source, Track: vodplays.VoiceTrack(run.probe.AudioStreams),
-	})
+	track, mic := vodplays.VoiceTrack(run.probe.AudioTitles, run.probe.AudioStreams)
+	levels, err := h.measureTrack(run, track)
+	if err == nil && track != 0 && !vodplays.VoicedEnough(levels) {
+		track, mic = 0, false
+		levels, err = h.measureTrack(run, track)
+	}
 	if err != nil {
 		log.Printf("httpapi: stream %s voice scan: %v", run.id, err)
 		out.Status = voiceFailed
+		return nil, out
+	}
+	out.Mix = !mic
+	if !vodplays.VoicedEnough(levels) {
+		out.Status = voiceNoVoice
 		return nil, out
 	}
 	peaks := vodplays.DetectVoicePeaks(levels, run.voice.Sensitivity)
@@ -209,9 +221,23 @@ func (h *Handlers) scanVoice(run streamPlayScanRun) ([]vodplays.VoicePeak, voice
 	return peaks, out
 }
 
+func (h *Handlers) measureTrack(run streamPlayScanRun, track int) ([]float64, error) {
+	return vodplays.MeasureLoudness(context.Background(), vodplays.LoudnessOptions{FFmpeg: h.streamFFmpeg, Input: run.source, Track: track})
+}
+
+type voiceResult struct {
+	peaks []vodplays.VoicePeak
+	scan  voiceScan
+}
+
 func (h *Handlers) runStreamPlayScan(run streamPlayScanRun) {
 	id, source, duration := run.id, run.source, run.probe.DurationSeconds
-	peaks, voice := h.scanVoice(run)
+	// The audio decode runs beside the video scan, so the progress bar moves from the start.
+	voiceDone := make(chan voiceResult, 1)
+	go func() {
+		peaks, scan := h.scanVoice(run)
+		voiceDone <- voiceResult{peaks: peaks, scan: scan}
+	}()
 	lastReport := 0.0
 	kills, err := vodplays.FindKills(context.Background(), vodplays.FindOptions{
 		FFmpeg:          h.streamFFmpeg,
@@ -224,17 +250,18 @@ func (h *Handlers) runStreamPlayScan(run streamPlayScanRun) {
 			}
 		},
 	})
+	voice := <-voiceDone
 	if err != nil {
 		log.Printf("httpapi: stream %s play scan: %v", id, err)
 		h.playScans.set(id, streamPlayScan{Status: playScanFailed, Plays: []vodplays.Play{}, Error: "No pudimos leer el vídeo para buscar jugadas."})
 		return
 	}
 	now := time.Now().UTC()
-	plays := vodplays.AddVoicePeaks(vodplays.GroupPlays(kills, duration), peaks, duration)
+	plays := vodplays.AddVoicePeaks(vodplays.GroupPlays(kills, duration), voice.peaks, duration)
 	if plays == nil {
 		plays = []vodplays.Play{}
 	}
-	done := streamPlayScan{Status: playScanDone, Progress: 1, Plays: plays, ScannedAt: &now, Voice: &voice}
+	done := streamPlayScan{Status: playScanDone, Progress: 1, Plays: plays, ScannedAt: &now, Voice: &voice.scan}
 	if err := h.writeStreamPlays(id, done); err != nil {
 		log.Printf("httpapi: stream %s write plays: %v", id, err)
 		h.playScans.set(id, streamPlayScan{Status: playScanFailed, Plays: []vodplays.Play{}, Error: "No pudimos guardar las jugadas encontradas."})

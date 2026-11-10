@@ -28,14 +28,25 @@ const (
 	SilenceFloorDB = -60.0
 	// minVoicedWindows is how much non-silent audio a baseline needs.
 	minVoicedWindows = 20
+	// minVoicedShare is how much of the track must be non-silent for it to carry a voice.
+	minVoicedShare = 0.02
+	// The baseline is the median of the voiced windows within this many windows of the
+	// current one (about 5 minutes), so a quiet hour and a loud hour each have their own.
+	baselineRadiusWindows = 300
+	baselineStepWindows   = 20
 	// A peak lasts at least minPeakWindows, unless one window is far above the threshold.
 	minPeakWindows    = 2
 	singleWindowBoost = 6.0
 	// Peaks closer than this are one moment.
 	voiceMergeGapSeconds = 4.0
-	// markedExcessDB is how far over the baseline a deliberate shout goes,
-	// whatever the sensitivity; such a moment always stays in the list.
-	markedExcessDB = 15.0
+	// A shout on purpose is far over the local baseline and over almost everything
+	// else in the video, held for markedHoldWindows (1 s). Only a few per hour stay marked.
+	markedExcessDB      = 27.0
+	markedPercentile    = 0.999
+	markedHoldWindows   = 2
+	maxMarkedPerHour    = 3
+	maxVoiceOnlyPerHour = 6
+	secondsPerHour      = 3600.0
 	// Reactions come after the kill, so the window around a play is lopsided.
 	voiceBeforeKillSeconds = 2.0
 	voiceAfterKillSeconds  = 6.0
@@ -43,7 +54,10 @@ const (
 	voiceTailSeconds       = 3.0
 	voiceKillBonus         = 15
 	minVoicePlaySeconds    = 2.0
-	markedScoreFloor       = 70
+	// A voice-only play scores under a 1-kill play with a shout (20 + the bonus).
+	voiceOnlyBaseScore = 10
+	voiceOnlyMaxScore  = 28
+	voiceMarkedScore   = 30
 	// VoiceKind and KillKind tell the two kinds of play apart.
 	VoiceKind = "voice_peak"
 	KillKind  = "kill"
@@ -80,49 +94,101 @@ func thresholdDB(sensitivity int) float64 {
 type VoicePeak struct {
 	StartSeconds float64 `json:"start_seconds"`
 	EndSeconds   float64 `json:"end_seconds"`
-	// ExcessDB is how far the loudest window rose over the streamer's median.
+	// ExcessDB is how far the loudest window rose over the local baseline.
 	ExcessDB float64 `json:"excess_db"`
 	Marked   bool    `json:"marked,omitempty"`
 }
 
+// VoicedEnough tells whether a loudness series holds a voice at all: a mix
+// that is silent most of the way, or a muted mic, does not.
+func VoicedEnough(levels []float64) bool {
+	voiced := 0
+	for _, l := range levels {
+		if l > SilenceFloorDB {
+			voiced++
+		}
+	}
+	return voiced >= minVoicedWindows && float64(voiced) >= minVoicedShare*float64(len(levels))
+}
+
+// rollingBaselines returns the median voiced level around every window.
+func rollingBaselines(levels []float64) []float64 {
+	var all []float64
+	for _, l := range levels {
+		if l > SilenceFloorDB {
+			all = append(all, l)
+		}
+	}
+	sort.Float64s(all)
+	global := all[len(all)/2]
+	out := make([]float64, len(levels))
+	for start := 0; start < len(levels); start += baselineStepWindows {
+		end := min(start+baselineStepWindows, len(levels))
+		centre := (start + end) / 2
+		var near []float64
+		for _, l := range levels[max(0, centre-baselineRadiusWindows):min(len(levels), centre+baselineRadiusWindows)] {
+			if l > SilenceFloorDB {
+				near = append(near, l)
+			}
+		}
+		base := global
+		if len(near) >= minVoicedWindows {
+			sort.Float64s(near)
+			base = near[len(near)/2]
+		}
+		for i := start; i < end; i++ {
+			out[i] = base
+		}
+	}
+	return out
+}
+
 // DetectVoicePeaks finds the stretches of a loudness series (dBFS per
-// VoiceWindowSeconds window) that clearly exceed the series' own median.
+// VoiceWindowSeconds window) that clearly exceed the level around them.
 func DetectVoicePeaks(levels []float64, sensitivity int) []VoicePeak {
-	var voiced []float64
+	if !VoicedEnough(levels) {
+		return nil
+	}
+	voiced := make([]float64, 0, len(levels))
 	for _, l := range levels {
 		if l > SilenceFloorDB {
 			voiced = append(voiced, l)
 		}
 	}
-	if len(voiced) < minVoicedWindows {
-		return nil
-	}
 	sort.Float64s(voiced)
-	baseline := voiced[len(voiced)/2]
-	threshold := baseline + thresholdDB(sensitivity)
+	extreme := voiced[min(int(markedPercentile*float64(len(voiced))), len(voiced)-1)]
+	bases := rollingBaselines(levels)
+	delta := thresholdDB(sensitivity)
 
 	var peaks []VoicePeak
 	for i := 0; i < len(levels); {
-		if levels[i] < threshold {
+		if levels[i] < bases[i]+delta {
 			i++
 			continue
 		}
-		j, top := i, levels[i]
-		for j < len(levels) && levels[j] >= threshold {
+		j, top, topExcess, held, run := i, levels[i], 0.0, 0, 0
+		for j < len(levels) && levels[j] >= bases[j]+delta {
 			top = math.Max(top, levels[j])
+			topExcess = math.Max(topExcess, levels[j]-bases[j])
+			if levels[j]-bases[j] >= markedExcessDB && levels[j] >= extreme {
+				run++
+				held = max(held, run)
+			} else {
+				run = 0
+			}
 			j++
 		}
-		if j-i >= minPeakWindows || top >= threshold+singleWindowBoost {
+		if j-i >= minPeakWindows || topExcess >= delta+singleWindowBoost {
 			peaks = append(peaks, VoicePeak{
 				StartSeconds: round3(float64(i) * VoiceWindowSeconds),
 				EndSeconds:   round3(float64(j) * VoiceWindowSeconds),
-				ExcessDB:     math.Round((top-baseline)*10) / 10,
-				Marked:       top-baseline >= markedExcessDB,
+				ExcessDB:     math.Round(topExcess*10) / 10,
+				Marked:       held >= markedHoldWindows,
 			})
 		}
 		i = j
 	}
-	return mergePeaks(peaks)
+	return limitMarked(mergePeaks(peaks))
 }
 
 func mergePeaks(peaks []VoicePeak) []VoicePeak {
@@ -140,9 +206,29 @@ func mergePeaks(peaks []VoicePeak) []VoicePeak {
 	return out
 }
 
+// limitMarked keeps the loudest maxMarkedPerHour marked peaks of each hour of
+// video; the rest stay peaks but are no longer marked.
+func limitMarked(peaks []VoicePeak) []VoicePeak {
+	byHour := map[int][]int{}
+	for i, p := range peaks {
+		if p.Marked {
+			hour := int(p.StartSeconds / secondsPerHour)
+			byHour[hour] = append(byHour[hour], i)
+		}
+	}
+	for _, idx := range byHour {
+		sort.SliceStable(idx, func(a, b int) bool { return peaks[idx[a]].ExcessDB > peaks[idx[b]].ExcessDB })
+		for _, i := range idx[min(maxMarkedPerHour, len(idx)):] {
+			peaks[i].Marked = false
+		}
+	}
+	return peaks
+}
+
 // AddVoicePeaks ties peaks to plays: a peak next to a kill raises that play's
-// score and a peak alone becomes a play of its own. Plays are returned in time
-// order with fresh ids.
+// score and a peak alone becomes a play of its own (at most maxVoiceOnlyPerHour
+// per hour of video, the loudest). Kill plays keep their ids; voice plays are
+// numbered voice-001 on. The result is in time order.
 func AddVoicePeaks(plays []Play, peaks []VoicePeak, durationSeconds float64) []Play {
 	out := make([]Play, len(plays))
 	copy(out, plays)
@@ -160,15 +246,16 @@ func AddVoicePeaks(plays []Play, peaks []VoicePeak, durationSeconds float64) []P
 		p.VoiceSeconds = append(p.VoiceSeconds, peak.StartSeconds)
 		p.VoiceDB = math.Max(p.VoiceDB, peak.ExcessDB)
 		p.Marked = p.Marked || peak.Marked
-		p.EndSeconds = math.Max(p.EndSeconds, peak.EndSeconds+1)
+		end := math.Max(p.EndSeconds, peak.EndSeconds+1)
 		if durationSeconds > 0 {
-			p.EndSeconds = math.Min(p.EndSeconds, durationSeconds)
+			end = math.Min(end, durationSeconds)
 		}
-		if peak.Marked {
-			p.Score = max(p.Score, markedScoreFloor)
+		if idx+1 < len(out) {
+			end = math.Min(end, math.Max(p.EndSeconds, out[idx+1].StartSeconds))
 		}
+		p.EndSeconds = end
 	}
-	return renumber(fitAlone(out, alone))
+	return numberVoicePlays(fitAlone(out, capVoiceOnly(alone)))
 }
 
 func nearKillPlay(plays []Play, peak VoicePeak) int {
@@ -189,9 +276,9 @@ func voicePlay(peak VoicePeak, durationSeconds float64) Play {
 	if durationSeconds > 0 {
 		end = math.Min(end, durationSeconds)
 	}
-	score := min(25+int(peak.ExcessDB), 60)
+	score := min(voiceOnlyBaseScore+int(peak.ExcessDB), voiceOnlyMaxScore)
 	if peak.Marked {
-		score = markedScoreFloor
+		score = voiceMarkedScore
 	}
 	return Play{
 		Label:        VoiceLabel,
@@ -204,6 +291,27 @@ func voicePlay(peak VoicePeak, durationSeconds float64) Play {
 		Marked:       peak.Marked,
 		Score:        score,
 	}
+}
+
+// capVoiceOnly keeps the maxVoiceOnlyPerHour loudest voice-only plays of each
+// hour of video, marked ones first, and returns them in time order.
+func capVoiceOnly(alone []Play) []Play {
+	byHour := map[int][]Play{}
+	for _, p := range alone {
+		hour := int(p.VoiceSeconds[0] / secondsPerHour)
+		byHour[hour] = append(byHour[hour], p)
+	}
+	var kept []Play
+	for _, group := range byHour {
+		sort.SliceStable(group, func(a, b int) bool {
+			if group[a].Marked != group[b].Marked {
+				return group[a].Marked
+			}
+			return group[a].VoiceDB > group[b].VoiceDB
+		})
+		kept = append(kept, group[:min(maxVoiceOnlyPerHour, len(group))]...)
+	}
+	return kept
 }
 
 // fitAlone adds the peak-only plays, trimmed so they do not overlap the
@@ -232,9 +340,13 @@ func fitAlone(plays, alone []Play) []Play {
 	return kept
 }
 
-func renumber(plays []Play) []Play {
+func numberVoicePlays(plays []Play) []Play {
+	n := 0
 	for i := range plays {
-		plays[i].ID = fmt.Sprintf("play-%03d", i+1)
+		if plays[i].Kind == VoiceKind {
+			n++
+			plays[i].ID = fmt.Sprintf("voice-%03d", n)
+		}
 	}
 	return plays
 }
@@ -248,13 +360,20 @@ type LoudnessOptions struct {
 	Track int
 }
 
-// VoiceTrack picks the audio stream to measure. A recording with several audio
-// tracks usually keeps the mix on the first and the mic on the second.
-func VoiceTrack(audioStreams int) int {
-	if audioStreams >= 2 {
-		return 1
+// VoiceTrack picks the audio stream to measure and says whether it is a mic
+// track rather than the mix. A track titled "mic" wins; otherwise a recording
+// with several tracks usually keeps the mix on the first and the mic on the
+// second; a single track is the mix.
+func VoiceTrack(audioTitles []string, audioStreams int) (track int, mic bool) {
+	for i, title := range audioTitles {
+		if strings.Contains(strings.ToLower(title), "mic") {
+			return i, true
+		}
 	}
-	return 0
+	if audioStreams >= 2 {
+		return 1, true
+	}
+	return 0, false
 }
 
 // MeasureLoudness decodes one audio track to mono and returns its level in
@@ -264,9 +383,11 @@ func MeasureLoudness(ctx context.Context, opts LoudnessOptions) ([]float64, erro
 	if ffmpeg == "" {
 		ffmpeg = "ffmpeg"
 	}
+	// aresample fills timestamp gaps with silence so later peaks do not shift earlier.
 	// #nosec G204 -- ffmpeg path and input are local configuration; no shell.
 	cmd := exec.CommandContext(ctx, ffmpeg, "-hide_banner", "-nostdin", "-v", "error",
 		"-i", opts.Input, "-map", fmt.Sprintf("0:a:%d", opts.Track), "-vn", "-sn",
+		"-af", "aresample=async=1:first_pts=0",
 		"-ac", "1", "-ar", fmt.Sprint(voiceSampleRate), "-f", "s16le", "pipe:1")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

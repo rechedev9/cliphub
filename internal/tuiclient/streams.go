@@ -117,6 +117,7 @@ type StreamVoiceScan struct {
 	Enabled     bool   `json:"enabled"`
 	Sensitivity int    `json:"sensitivity"`
 	Status      string `json:"status"`
+	Mix         bool   `json:"mix,omitempty"`
 	Peaks       int    `json:"peaks"`
 }
 

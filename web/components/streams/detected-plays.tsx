@@ -12,25 +12,28 @@ import { StreamSummaryCard } from '@/components/streams/stream-summary';
 
 const POLL_MS = 2000;
 const DEFAULT_VOICE: StreamVoiceSettings = { enabled: true, sensitivity: 3 };
-const SENSITIVITY_OPTIONS = [
+const PRESETS = [
   { value: '1', label: 'Baja' },
   { value: '3', label: 'Media' },
   { value: '5', label: 'Alta' },
-] as const;
+];
 
-/** The preset closest to a sensitivity, since the assistant can set 2 and 4 too. */
-function nearestSensitivity(sensitivity: number): string {
-  if (sensitivity <= 2) return '1';
-  if (sensitivity >= 4) return '5';
-  return '3';
+/** The presets, plus the level itself when the assistant set a 2 or a 4. */
+function sensitivityOptions(sensitivity: number): { value: string; label: string }[] {
+  if (PRESETS.some((preset) => preset.value === String(sensitivity))) return PRESETS;
+  return [...PRESETS, { value: String(sensitivity), label: `Nivel ${sensitivity}` }].sort((a, b) => Number(a.value) - Number(b.value));
 }
 
 function voiceNote(scan: StreamPlayScan): string | null {
   switch (scan.voice?.status) {
     case 'no_audio':
       return 'El vídeo no tiene audio, así que no hemos buscado picos de voz.';
+    case 'no_voice':
+      return 'No hemos oído voz en el audio, así que no hay picos de voz.';
     case 'failed':
       return 'No pudimos leer el audio para buscar picos de voz.';
+    case 'done':
+      return scan.voice.mix ? 'Sin pista de micro: se usa la mezcla. La detección de picos de voz es menos precisa.' : null;
     default:
       return null;
   }
@@ -64,13 +67,45 @@ function VoiceSettingsRow({
           <span className="text-body-sm text-fg-3">Sensibilidad</span>
           <Segmented
             label="Sensibilidad de los picos de voz"
-            value={nearestSensitivity(value.sensitivity)}
-            options={SENSITIVITY_OPTIONS}
+            value={String(value.sensitivity)}
+            options={sensitivityOptions(value.sensitivity)}
             onChange={(next) => onChange({ ...value, sensitivity: Number(next) })}
           />
         </div>
       ) : null}
     </div>
+  );
+}
+
+function PlayRow({
+  play,
+  covered,
+  disabled,
+  onAdd,
+  onSeek,
+}: {
+  play: StreamPlay;
+  covered: boolean;
+  disabled: boolean;
+  onAdd: (plays: StreamPlay[]) => void;
+  onSeek: (seconds: number) => void;
+}): ReactNode {
+  return (
+    <li className="flex items-center justify-between gap-2 py-2">
+      <button type="button" className="min-h-11 flex-1 rounded text-left text-body-sm hover:text-fg-1" onClick={() => onSeek(play.start_seconds)}>
+        <span className="font-semibold">{play.label}</span>
+        <span className="text-fg-3 tabular-nums"> · {formatStreamClock(playMoment(play))}</span>
+        {play.marked ? <span className="text-fg-3"> · Marcado a propósito</span> : null}
+        {!isVoiceOnly(play) && play.voice_seconds?.length ? <span className="text-fg-3"> · con voz alzada</span> : null}
+      </button>
+      {covered ? (
+        <span className="text-meta text-fg-3">Añadida</span>
+      ) : (
+        <Button variant="ghost" size="sm" disabled={disabled} onClick={() => onAdd([play])}>
+          Añadir
+        </Button>
+      )}
+    </li>
   );
 }
 
@@ -142,9 +177,12 @@ export function StreamDetectedPlays({
   });
 
   const ranked = rankPlays(scan?.plays ?? []);
-  const open = ranked.filter((play) => !playIsCovered(clips, play));
+  const killPlays = ranked.filter((play) => !isVoiceOnly(play));
+  const voicePlays = ranked.filter(isVoiceOnly);
+  const open = killPlays.filter((play) => !playIsCovered(clips, play));
   const scanned = scan?.voice;
-  const voiceChanged = scanned !== undefined && (scanned.enabled !== voice.enabled || (voice.enabled && scanned.sensitivity !== voice.sensitivity));
+  // A scan saved before voice peaks has no settings, so it can always be redone with them.
+  const voiceChanged = scanned === undefined || scanned.enabled !== voice.enabled || (voice.enabled && scanned.sensitivity !== voice.sensitivity);
   const note = scan ? voiceNote(scan) : null;
 
   return (
@@ -203,33 +241,24 @@ export function StreamDetectedPlays({
         <StreamSummaryCard jobId={jobId} plays={scan.plays} disabled={disabled} />
       ) : null}
 
-      {scan?.status === 'done' && ranked.length > 0 ? (
+      {scan?.status === 'done' && killPlays.length > 0 ? (
         <ul className="flex flex-col divide-y divide-border-subtle">
-          {ranked.map((play) => {
-            const covered = playIsCovered(clips, play);
-            return (
-              <li key={play.id} className="flex items-center justify-between gap-2 py-2">
-                <button
-                  type="button"
-                  className="min-h-11 flex-1 rounded text-left text-body-sm hover:text-fg-1"
-                  onClick={() => onSeek(play.start_seconds)}
-                >
-                  <span className="font-semibold">{play.label}</span>
-                  <span className="text-fg-3 tabular-nums"> · {formatStreamClock(playMoment(play))}</span>
-                  {play.marked ? <span className="text-fg-3"> · Marcado a propósito</span> : null}
-                  {!isVoiceOnly(play) && play.voice_seconds?.length ? <span className="text-fg-3"> · con voz alzada</span> : null}
-                </button>
-                {covered ? (
-                  <span className="text-meta text-fg-3">Añadida</span>
-                ) : (
-                  <Button variant="ghost" size="sm" disabled={disabled} onClick={() => onAdd([play])}>
-                    Añadir
-                  </Button>
-                )}
-              </li>
-            );
-          })}
+          {killPlays.map((play) => (
+            <PlayRow key={play.id} play={play} covered={playIsCovered(clips, play)} disabled={disabled} onAdd={onAdd} onSeek={onSeek} />
+          ))}
         </ul>
+      ) : null}
+
+      {scan?.status === 'done' && voicePlays.length > 0 ? (
+        <div className="flex flex-col gap-1">
+          <h4 className="text-body-sm font-semibold text-fg-2">Picos de voz</h4>
+          <p className="text-body-sm text-fg-3">Momentos en que subiste la voz sin una kill cerca. No entran en Añadir todas.</p>
+          <ul className="flex flex-col divide-y divide-border-subtle">
+            {voicePlays.map((play) => (
+              <PlayRow key={play.id} play={play} covered={playIsCovered(clips, play)} disabled={disabled} onAdd={onAdd} onSeek={onSeek} />
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {scan?.status === 'failed' || requestError ? (

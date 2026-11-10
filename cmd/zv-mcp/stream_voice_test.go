@@ -7,31 +7,46 @@ import (
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
-func TestDescribePlayScanListsVoicePeaksAndKeepsMarkedOnes(t *testing.T) {
+func TestDescribePlayScanListsVoicePeaksAndNeverExceedsTheLimit(t *testing.T) {
 	scan := tuiclient.StreamPlayScan{
 		Status: playScanDone,
 		Plays: []tuiclient.StreamPlay{
 			{ID: "play-001", Label: "Doble kill", Kind: "kill", KillSeconds: []float64{10, 12}, Score: 60, VoiceSeconds: []float64{13}, VoiceDB: 11},
 			{ID: "play-002", Label: "1 kill", Kind: "kill", KillSeconds: []float64{40}, Score: 20},
-			{ID: "play-003", Label: "Pico de voz", Kind: "voice_peak", KillSeconds: []float64{}, Score: 70, Marked: true, VoiceSeconds: []float64{90}, VoiceDB: 17},
-			{ID: "play-004", Label: "Pico de voz", Kind: "voice_peak", KillSeconds: []float64{}, Score: 70, Marked: true, VoiceSeconds: []float64{200}, VoiceDB: 16},
+			{ID: "voice-001", Label: "Pico de voz", Kind: "voice_peak", KillSeconds: []float64{}, Score: 30, Marked: true, VoiceSeconds: []float64{90}, VoiceDB: 31},
+			{ID: "voice-002", Label: "Pico de voz", Kind: "voice_peak", KillSeconds: []float64{}, Score: 30, Marked: true, VoiceSeconds: []float64{200}, VoiceDB: 30},
 		},
-		Voice: &tuiclient.StreamVoiceScan{Enabled: true, Sensitivity: 3, Status: "done", Peaks: 2},
+		Voice: &tuiclient.StreamVoiceScan{Enabled: true, Sensitivity: 3, Status: "done", Peaks: 2, Mix: true},
 	}
 	out := describePlayScan(scan, 1)
-	if out.Total != 4 || len(out.Plays) != 2 {
-		t.Fatalf("plays = %+v, want both marked peaks past the limit of 1", out.Plays)
+	if out.Total != 4 || len(out.Plays) != 1 {
+		t.Fatalf("plays = %+v, want exactly the limit of 1", out.Plays)
 	}
-	first := out.Plays[0]
-	if first.PlayID != "play-003" || first.Kind != "voice_peak" || !first.Marked || first.Kills != 0 || !strings.Contains(first.Note, "no kill") {
-		t.Fatalf("marked peak = %+v", first)
+	if out.Plays[0].PlayID != "play-001" || !out.Plays[0].VoicePeak || !strings.Contains(out.Plays[0].Note, "raised the score") {
+		t.Fatalf("best play = %+v", out.Plays[0])
 	}
-	out = describePlayScan(scan, 3)
-	if len(out.Plays) != 3 || out.Plays[2].PlayID != "play-001" || !out.Plays[2].VoicePeak || out.Plays[2].Kind != "kill" || !strings.Contains(out.Plays[2].Note, "raised the score") {
-		t.Fatalf("kill with shout = %+v", out.Plays)
+	out = describePlayScan(scan, 4)
+	voice := out.Plays[1]
+	if voice.PlayID != "voice-001" || voice.Kind != "voice_peak" || !voice.Marked || voice.Kills != 0 || !strings.Contains(voice.Note, "no kill") {
+		t.Fatalf("marked peak = %+v", voice)
 	}
-	if out.Voice != "done: 2 voice peaks at sensitivity 3" {
+	if !strings.Contains(out.Voice, "2 voice peaks at sensitivity 3") || !strings.Contains(out.Voice, "game mix") {
 		t.Fatalf("voice = %q", out.Voice)
+	}
+}
+
+func TestStreamPlayIDPatternAcceptsKillAndVoicePlays(t *testing.T) {
+	for id, want := range map[string]bool{"play-001": true, "voice-012": true, "voice-": false, "../x": false, "other-001": false} {
+		if got := streamPlayIDPattern.MatchString(id); got != want {
+			t.Errorf("%q matches = %v, want %v", id, got, want)
+		}
+	}
+}
+
+func TestFindStreamPlaysSchemaBoundsTheSensitivity(t *testing.T) {
+	prop := findStreamPlaysSchema().Properties["voice_sensitivity"]
+	if prop.Minimum == nil || *prop.Minimum != 1 || prop.Maximum == nil || *prop.Maximum != 5 {
+		t.Fatalf("voice_sensitivity schema = %+v", prop)
 	}
 }
 

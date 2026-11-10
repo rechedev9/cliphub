@@ -132,8 +132,8 @@ where J and K walk its rounds; the notes and drawings drawn there stay with the 
 real_map_status checks that the Replay can draw a map as CS2 does, as its Mapa real floor plan, and says how to open it and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills and voice peaks (kind voice_peak,
-the streamer raising their voice; voice and voice_sensitivity 1 to 5 set the scan; a marked peak is a shout on
-purpose and always comes first). render_stream_summary
+the streamer raising their voice; voice and voice_sensitivity 1 to 5 set the scan; a few voice-only plays per
+hour are kept, and a marked one is a shout far over the streamer's own level, rare). Voice play ids start with voice-. render_stream_summary
 makes one 16:9 video of the plays (all, or play_ids); render_stream makes one video per moment in a
 layout from list_stream_variants (9:16 Shorts or 16:9). To edit before rendering, get_stream_edit_plan
 reads the moments and their speed, audio, fades and text, the banners, music, kill feed and effects;

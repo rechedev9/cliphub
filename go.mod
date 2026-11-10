@@ -39,7 +39,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/golang/snappy v1.0.0 // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
+	github.com/google/jsonschema-go v0.4.3
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/markus-wa/go-unassert v0.1.3 // indirect
 	github.com/markus-wa/gobitread v0.2.5-0.20241202000432-3c3e0bc797c6 // indirect

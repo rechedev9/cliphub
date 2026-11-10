@@ -83,10 +83,54 @@ func TestDetectVoicePeaksSkipsBlipsAndMergesNearPeaks(t *testing.T) {
 }
 
 func TestDetectVoicePeaksMarksDeliberateShouts(t *testing.T) {
-	levels := series(120, -30, map[[2]float64]float64{{20, 22}: -18, {80, 83}: -10})
+	// -10 is 20 dB over the usual level: loud, but gunfire and music get there; only -1 is a shout.
+	levels := series(120, -30, map[[2]float64]float64{{20, 22}: -18, {50, 53}: -10, {80, 83}: -1})
 	peaks := DetectVoicePeaks(levels, DefaultVoiceSensitivity)
-	if len(peaks) != 2 || peaks[0].Marked || !peaks[1].Marked {
-		t.Fatalf("peaks = %+v, want only the second marked", peaks)
+	if len(peaks) != 3 || peaks[0].Marked || peaks[1].Marked || !peaks[2].Marked {
+		t.Fatalf("peaks = %+v, want only the last marked", peaks)
+	}
+}
+
+func TestDetectVoicePeaksNeedsAHeldShoutToMark(t *testing.T) {
+	// One window at -1 is a blip, not a held shout.
+	levels := series(120, -30, map[[2]float64]float64{{80, 80.5}: -1, {40, 42}: -18})
+	for _, p := range DetectVoicePeaks(levels, 5) {
+		if p.Marked {
+			t.Fatalf("a single loud window was marked: %+v", p)
+		}
+	}
+}
+
+func TestDetectVoicePeaksBaselineFollowsTheStreamerOverTime(t *testing.T) {
+	quiet := series(1000, -45, map[[2]float64]float64{{500, 503}: -25})
+	loud := series(1000, -20, nil)
+	got := DetectVoicePeaks(append(quiet, loud...), DefaultVoiceSensitivity)
+	found := false
+	for _, p := range got {
+		if p.StartSeconds >= 1200 {
+			t.Fatalf("a normal level of the loud hour is a peak: %+v", p)
+		}
+		found = found || (p.StartSeconds >= 500 && p.StartSeconds < 503)
+	}
+	if !found {
+		t.Fatalf("the shout in the quiet part was missed: %+v", got)
+	}
+}
+
+func TestDetectVoicePeaksKeepsFewMarkedPerHour(t *testing.T) {
+	loud := map[[2]float64]float64{}
+	for i := 0; i < 8; i++ {
+		start := float64(100 + 300*i)
+		loud[[2]float64{start, start + 2}] = -1
+	}
+	marked := 0
+	for _, p := range DetectVoicePeaks(series(3000, -30, loud), DefaultVoiceSensitivity) {
+		if p.Marked {
+			marked++
+		}
+	}
+	if marked != maxMarkedPerHour {
+		t.Fatalf("marked = %d, want %d", marked, maxMarkedPerHour)
 	}
 }
 
@@ -111,17 +155,40 @@ func TestAddVoicePeaksRaisesAKillPlayAndAddsAReactionPlay(t *testing.T) {
 	if reaction.StartSeconds != 115 || reaction.EndSeconds != 126 {
 		t.Fatalf("reaction window = %v to %v, want 115 to 126", reaction.StartSeconds, reaction.EndSeconds)
 	}
-	for i, p := range got {
-		if want := "play-00" + string(rune('1'+i)); p.ID != want {
-			t.Fatalf("id %d = %q, want %q", i, p.ID, want)
+	if withVoice.ID != "play-001" || killOnly.ID != "play-002" || reaction.ID != "voice-001" {
+		t.Fatalf("ids = %q %q %q, want kill ids kept and a voice sequence", withVoice.ID, killOnly.ID, reaction.ID)
+	}
+}
+
+func TestAddVoicePeaksScoresVoiceOnlyBelowAKillWithAShout(t *testing.T) {
+	oneKill := AddVoicePeaks(GroupPlays([]Kill{{Seconds: 50}}, 200), []VoicePeak{{StartSeconds: 52, EndSeconds: 53, ExcessDB: 9}}, 200)[0]
+	for _, peak := range []VoicePeak{{StartSeconds: 130, EndSeconds: 132, ExcessDB: 40}, {StartSeconds: 130, EndSeconds: 132, ExcessDB: 40, Marked: true}} {
+		got := AddVoicePeaks(nil, []VoicePeak{peak}, 200)
+		if len(got) != 1 || got[0].Score >= oneKill.Score {
+			t.Fatalf("voice-only %+v must score under a kill with a shout (%d)", got, oneKill.Score)
+		}
+		if got[0].Marked != peak.Marked {
+			t.Fatalf("marked = %v, want %v", got[0].Marked, peak.Marked)
 		}
 	}
 }
 
-func TestAddVoicePeaksMarkedPeakScoresHigh(t *testing.T) {
-	got := AddVoicePeaks(nil, []VoicePeak{{StartSeconds: 30, EndSeconds: 32, ExcessDB: 16, Marked: true}}, 100)
-	if len(got) != 1 || !got[0].Marked || got[0].Score < markedScoreFloor {
-		t.Fatalf("plays = %+v", got)
+func TestAddVoicePeaksKeepsTheLoudestVoiceOnlyPlaysPerHour(t *testing.T) {
+	var peaks []VoicePeak
+	for i := 0; i < 10; i++ {
+		start := float64(100 + 200*i)
+		peaks = append(peaks, VoicePeak{StartSeconds: start, EndSeconds: start + 2, ExcessDB: float64(10 + i)})
+	}
+	// The ten peaks sit in the first hour; a lone peak in the second hour is kept on its own.
+	peaks = append(peaks, VoicePeak{StartSeconds: 4000, EndSeconds: 4002, ExcessDB: 9})
+	got := AddVoicePeaks(nil, peaks, 5000)
+	if len(got) != maxVoiceOnlyPerHour+1 {
+		t.Fatalf("plays = %d, want %d", len(got), maxVoiceOnlyPerHour+1)
+	}
+	for _, p := range got[:maxVoiceOnlyPerHour] {
+		if p.VoiceDB < 14 {
+			t.Fatalf("kept a quiet peak (%v dB) over a louder one", p.VoiceDB)
+		}
 	}
 }
 
@@ -168,7 +235,26 @@ func TestVoiceSettingsNormalizedAndTrack(t *testing.T) {
 	if got := (VoiceSettings{Sensitivity: 99}).Normalized().Sensitivity; got != MaxVoiceSensitivity {
 		t.Fatalf("clamped sensitivity = %d", got)
 	}
-	if VoiceTrack(1) != 0 || VoiceTrack(0) != 0 || VoiceTrack(3) != 1 {
-		t.Fatal("track pick")
+	if track, mic := VoiceTrack(nil, 1); track != 0 || mic {
+		t.Fatalf("single track = %d, %v", track, mic)
+	}
+	if track, mic := VoiceTrack([]string{"", ""}, 2); track != 1 || !mic {
+		t.Fatalf("two untitled tracks = %d, %v", track, mic)
+	}
+	if track, mic := VoiceTrack([]string{"Game", "Chat", "Microphone"}, 3); track != 2 || !mic {
+		t.Fatalf("titled mic = %d, %v", track, mic)
+	}
+}
+
+func TestVoicedEnoughNeedsRealAudio(t *testing.T) {
+	silent := make([]float64, 400)
+	for i := range silent {
+		silent[i] = -90
+	}
+	if VoicedEnough(silent) || VoicedEnough(nil) {
+		t.Fatal("silence has no voice")
+	}
+	if !VoicedEnough(series(120, -30, nil)) {
+		t.Fatal("steady speech has a voice")
 	}
 }

@@ -220,7 +220,9 @@ export type StreamPlay = {
 export type StreamVoiceSettings = { enabled: boolean; sensitivity: number };
 
 export type StreamVoiceScan = StreamVoiceSettings & {
-  status: 'off' | 'done' | 'no_audio' | 'failed';
+  status: 'off' | 'done' | 'no_audio' | 'no_voice' | 'failed';
+  /** The detection ran on the game mix because no mic track was found. */
+  mix?: boolean;
   peaks: number;
 };
 

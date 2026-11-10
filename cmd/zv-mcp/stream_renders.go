@@ -11,9 +11,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/rechedev9/cliphub/internal/tuiclient"
+	"github.com/rechedev9/cliphub/internal/vodplays"
 )
 
 // Play scan and summary states (internal/httpapi stream_plays.go).
@@ -26,8 +28,8 @@ const (
 
 const defaultStreamPlaysLimit = 20
 
-// Plays are numbered "play-001" in time order (internal/vodplays).
-var streamPlayIDPattern = regexp.MustCompile(`^play-[0-9]{1,6}$`)
+// Kill plays are numbered "play-001" and voice peak plays "voice-001", each in time order (internal/vodplays).
+var streamPlayIDPattern = regexp.MustCompile(`^(play|voice)-[0-9]{1,6}$`)
 
 type findStreamPlaysIn struct {
 	ID          string `json:"id" jsonschema:"stream_id from import_stream or list_streams"`
@@ -35,7 +37,6 @@ type findStreamPlaysIn struct {
 	Rescan      bool   `json:"rescan,omitempty" jsonschema:"scan the video again even if it was scanned before"`
 	WaitSeconds int    `json:"wait_seconds,omitempty" jsonschema:"how long to wait for the scan, at most 55; call again while status is running"`
 	Voice       *bool  `json:"voice,omitempty" jsonschema:"look for voice peaks (the streamer raising their voice) as well as kills; default true. Changing it on a scanned stream scans again"`
-	// VoiceSensitivity is 1 to 5.
 	VoiceSensitivity int `json:"voice_sensitivity,omitempty" jsonschema:"1 (only big shouts) to 5 (any raised voice); default 3. Changing it on a scanned stream scans again"`
 }
 
@@ -46,7 +47,7 @@ type streamPlayOut struct {
 	Kills        int     `json:"kills"`
 	Score        int     `json:"score" jsonschema:"0 to 100, from the number of kills and how fast they came; a voice peak next to a kill adds 15"`
 	VoicePeak    bool    `json:"voice_peak,omitempty" jsonschema:"the streamer raised their voice in this play"`
-	Marked       bool    `json:"marked,omitempty" jsonschema:"a shout loud enough to be on purpose; marked plays always come first in the list, whatever limit says"`
+	Marked       bool    `json:"marked,omitempty" jsonschema:"a shout loud enough to be on purpose, rare (a few per hour at most)"`
 	Note         string  `json:"note,omitempty"`
 	StartSeconds float64 `json:"start_seconds"`
 	EndSeconds   float64 `json:"end_seconds"`
@@ -125,8 +126,20 @@ type streamRenderRequest struct {
 	PlanUpdatedAt string     `json:"plan_updated_at"`
 }
 
+// findStreamPlaysSchema is the inferred input schema with voice_sensitivity bounded to 1 to 5.
+func findStreamPlaysSchema() *jsonschema.Schema {
+	schema, err := jsonschema.For[findStreamPlaysIn](nil)
+	if err != nil {
+		panic(err)
+	}
+	low, high := float64(vodplays.MinVoiceSensitivity), float64(vodplays.MaxVoiceSensitivity)
+	schema.Properties["voice_sensitivity"].Minimum = &low
+	schema.Properties["voice_sensitivity"].Maximum = &high
+	return schema
+}
+
 func registerStreamRenderTools(server *mcp.Server, s *studio) {
-	mcp.AddTool(server, &mcp.Tool{Name: "find_stream_plays",
+	mcp.AddTool(server, &mcp.Tool{Name: "find_stream_plays", InputSchema: findStreamPlaysSchema(),
 		Description: "Find the streamer's kills in a ready stream (the kill feed highlight of CS2) and list each run of kills as a play, best first: the Jugadas list of a stream in Studio. " +
 			"It also finds voice peaks, where the streamer raises their voice over their own usual level (a reaction, or a shout on purpose to mark a clip): a peak next to a kill raises that play's score, and one alone is a play of kind voice_peak. " +
 			"voice and voice_sensitivity are the Studio's switch and slider. The first call starts the scan; call again while status is running."},
@@ -142,7 +155,11 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, streamPlaysOut{}, toolError(err)
 			}
-			opts := tuiclient.StreamPlayScanOptions{Voice: in.Voice, VoiceSensitivity: in.VoiceSensitivity}
+			// Clamped like the server does, so a value past the range is not a new setting on every call.
+			opts := tuiclient.StreamPlayScanOptions{Voice: in.Voice}
+			if in.VoiceSensitivity != 0 {
+				opts.VoiceSensitivity = vodplays.VoiceSettings{Sensitivity: in.VoiceSensitivity}.Normalized().Sensitivity
+			}
 			if scan.Status == playScanIdle || ((in.Rescan || voiceChanged(scan, opts)) && scan.Status != playScanRunning) {
 				if scan, err = c.StartStreamPlayScan(ctx, in.ID, opts); err != nil {
 					return nil, streamPlaysOut{}, toolError(err)
@@ -376,18 +393,12 @@ func describePlayScan(scan tuiclient.StreamPlayScan, limit int) streamPlaysOut {
 	out.Voice = describeVoiceScan(scan.Voice)
 	ranked := slices.Clone(scan.Plays)
 	slices.SortStableFunc(ranked, func(a, b tuiclient.StreamPlay) int {
-		return cmp.Or(cmp.Compare(boolRank(b.Marked), boolRank(a.Marked)), cmp.Compare(b.Score, a.Score), cmp.Compare(a.StartSeconds, b.StartSeconds))
+		return cmp.Or(cmp.Compare(b.Score, a.Score), cmp.Compare(boolRank(b.Marked), boolRank(a.Marked)), cmp.Compare(a.StartSeconds, b.StartSeconds))
 	})
 	if limit <= 0 {
 		limit = defaultStreamPlaysLimit
 	}
-	marked := 0
-	for _, p := range ranked {
-		if p.Marked {
-			marked++
-		}
-	}
-	for _, p := range ranked[:min(max(limit, marked), len(ranked))] {
+	for _, p := range ranked[:min(limit, len(ranked))] {
 		kind := "kill"
 		if p.Kind == "voice_peak" {
 			kind = "voice_peak"
@@ -426,6 +437,8 @@ func describeVoiceScan(v *tuiclient.StreamVoiceScan) string {
 	switch {
 	case v == nil:
 		return ""
+	case v.Status == "done" && v.Mix:
+		return fmt.Sprintf("done: %d voice peaks at sensitivity %d, measured on the game mix because no mic track was found (less precise)", v.Peaks, v.Sensitivity)
 	case v.Status == "done":
 		return fmt.Sprintf("done: %d voice peaks at sensitivity %d", v.Peaks, v.Sensitivity)
 	default:

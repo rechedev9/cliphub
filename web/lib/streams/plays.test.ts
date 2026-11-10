@@ -15,12 +15,12 @@ test('rankPlays puts the best play first and breaks ties by time', () => {
   );
 });
 
-test('rankPlays keeps a marked shout on top and a kill with a shout over the same kill alone', () => {
-  const marked: StreamPlay = { ...play('shout', 90, 100, 70), kind: 'voice_peak', kill_seconds: [], voice_seconds: [92], marked: true };
+test('rankPlays puts a marked voice-only play below a kill with a shout, not above every ace', () => {
+  const marked: StreamPlay = { ...play('shout', 90, 100, 30), kind: 'voice_peak', kill_seconds: [], voice_seconds: [92], marked: true };
   const ranked = rankPlays([play('ace', 10, 20, 100), marked, play('plain', 30, 40, 20), play('loud', 50, 60, 35)]);
   assert.deepEqual(
     ranked.map((p) => p.id),
-    ['shout', 'ace', 'loud', 'plain'],
+    ['ace', 'loud', 'shout', 'plain'],
   );
 });
 
