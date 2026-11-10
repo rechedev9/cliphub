@@ -296,7 +296,7 @@ func chooseSpatialMap(selected []tacticalplan.ScoutMatch, asked []string) (strin
 // teamSpatial reads a team's matches on one map with the scout filter, and
 // follows the team through each with the scout's round filter.
 func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Values) (spatialResponse, []tacticalplan.SpatialMatch, error) {
-	scout, matchIDs, err := scoutQuery(q)
+	scout, matchIDs, err := h.teamScope(ctx, q)
 	if err != nil {
 		return spatialResponse{}, nil, errBadSpatialQuery{err}
 	}

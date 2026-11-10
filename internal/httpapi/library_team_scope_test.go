@@ -1,10 +1,14 @@
 package httpapi
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 func skippedFor(skipped []scoutSkipped, reason string) int {
@@ -106,5 +110,37 @@ func TestTeamScopeRoundCriteriaReachEveryTeamFigure(t *testing.T) {
 	f.env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/rounds?round_from=1&round_to=1&max_matches=50", nil, http.StatusOK, &rounds)
 	if rounds.Rounds != pistols.Tendencies.RoundCount || len(rounds.Matches) != 2 || rounds.Matches[0].Rounds[0].Round != 1 || rounds.Matches[0].Total != 2 {
 		t.Fatalf("rounds = %+v, want round 1 of both matches, as the scout counts", rounds)
+	}
+}
+
+func TestTeamScopeTacticKeepsThePlayRounds(t *testing.T) {
+	f := newScoutFixture(t)
+	play := library.Play{Title: "Exec A", TeamID: &f.vitality, Map: "de_mirage", Side: "T", Kind: "execute", Origin: "manual",
+		Examples: []tacticalplan.Evidence{{MatchID: f.away.ID, Round: 2}}}
+	if err := f.env.repo.CreatePlay(t.Context(), &play); err != nil {
+		t.Fatal(err)
+	}
+	var rounds teamRoundsResponse
+	f.env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/rounds?tactic="+play.ID.String(), nil, http.StatusOK, &rounds)
+	if rounds.Rounds != 1 || len(rounds.Matches) != 1 || rounds.Matches[0].MatchID != f.away.ID || rounds.Matches[0].Rounds[0].Round != 2 {
+		t.Fatalf("tactic rounds = %+v, want round 2 of the away match", rounds)
+	}
+	for _, bad := range []string{"?tactic=nope", "?tactic=" + uuid.NewString(), "?weapon=knife", "?equip_to=0", "?end_reason=surrender"} {
+		if rw := f.env.do(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/rounds"+bad, nil, ""); rw.Code != http.StatusBadRequest {
+			t.Errorf("rounds%s = %d, want 400", bad, rw.Code)
+		}
+	}
+}
+
+func TestTeamCandidatesReadEveryMatch(t *testing.T) {
+	env := newLibraryTestEnv(t)
+	first := env.seedLibraryMatch("m0", "Vitality", "MOUZ")
+	team := *teamOfMatch(t, first, "ct-start").TeamID
+	for i := 1; i <= library.MaxListLimit; i++ {
+		env.seedLibraryMatch(fmt.Sprintf("m%d", i), "Vitality", "MOUZ")
+	}
+	got, err := env.h.allMatches(t.Context(), library.MatchFilter{TeamID: &team})
+	if err != nil || len(got) != library.MaxListLimit+1 {
+		t.Fatalf("listed %d matches (%v), want all %d", len(got), err, library.MaxListLimit+1)
 	}
 }

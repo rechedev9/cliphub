@@ -11,6 +11,7 @@ import {
   isLibraryNotFound,
   isLibraryOffline,
   listLibraryMatches,
+  listLibraryPlays,
   listLibraryTeams,
   mergeLibraryTeam,
   patchLibraryTeam,
@@ -37,7 +38,7 @@ import { COMPARE_PARAM, parseCompareTeams, writeCompareTeams } from '@/lib/analy
 import { SampleLineupProvider } from '@/components/analysis/empty-sample';
 import { MapLabel } from '@/components/analysis/map-thumb';
 import { CompareGroupPicker } from '@/components/analysis/compare-group-picker';
-import { ScopeBar, type ScopeCounts, type ScopeEntity } from '@/components/analysis/scope-bar';
+import { ScopeBar, type ScopeCounts, type ScopeEntity, type ScopeOption } from '@/components/analysis/scope-bar';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
@@ -195,6 +196,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   );
   const [reported, setReported] = useState<ScopeCounts | null>(null);
   const [teams, setTeams] = useState<LibraryTeam[] | null>(null);
+  const [tactics, setTactics] = useState<readonly ScopeOption[]>([]);
   const [now] = useState(() => Date.now());
   const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'team', id: team.id });
   const references = useReferences(scope.map);
@@ -241,6 +243,20 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
       })
       .catch(() => {
         if (active) setTeams([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [team.id]);
+
+  useEffect(() => {
+    let active = true;
+    listLibraryPlays({ team_id: team.id })
+      .then((plays) => {
+        if (active) setTactics(plays.map((play) => ({ value: play.id, label: play.title })).sort((a, b) => a.label.localeCompare(b.label, 'es')));
+      })
+      .catch(() => {
+        if (active) setTactics([]);
       });
     return () => {
       active = false;
@@ -296,6 +312,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           mapRequired={id === 'playbook' || id === 'replay-granadas' || id === 'replay-patrones'}
           opponents={id === 'veto' ? (teams ?? []).map((entry) => ({ value: entry.id, label: entry.name })) : playedRivals}
           limits={id.startsWith('replay') ? TEAM_REPLAY_LIMITS : undefined}
+          tactics={tactics}
           ownTeams={profile?.own_teams ?? 0}
           counts={counts}
           results={id === 'veto' || id === 'series' ? undefined : results}

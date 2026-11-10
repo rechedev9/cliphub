@@ -20,6 +20,7 @@ import {
   type ScopeField,
 } from '@/lib/analysis/scope';
 import type { MapCounts } from '@/lib/analysis/map-counts';
+import { scopeChips } from '@/lib/analysis/scope-chips';
 import { buyLabel } from '@/lib/tactical-labels';
 import { EntityPicker } from '@/components/analysis/entity-picker';
 import { LineupPicker } from '@/components/analysis/lineup-picker';
@@ -32,6 +33,17 @@ import {
   RoundRangeControl,
   WhoseSelect,
 } from '@/components/analysis/scope-round-controls';
+import {
+  BuySwapButton,
+  EndReasonSelect,
+  EquipRangeControl,
+  FlagToggle,
+  OutcomeSelect,
+  PhaseSelect,
+  SiteSelect,
+  TacticSelect,
+  WeaponSelect,
+} from '@/components/analysis/scope-replay-controls';
 import { Button } from '@/components/ui/button';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { Input } from '@/components/ui/input';
@@ -45,7 +57,8 @@ const RANGE = '__range__';
 const TRIGGER = 'h-8 gap-1.5 px-2.5 text-body-sm';
 /** Filters most views rarely change; they open under a "Filtros" button unless one is set. */
 const SECONDARY: ReadonlySet<ScopeField> = new Set([
-  'buy', 'opponentBuy', 'opponent', 'awp', 'opponentAwp', 'advantage', 'rounds', 'opponentTop', 'whose',
+  'buy', 'opponentBuy', 'opponent', 'awp', 'opponentAwp', 'advantage', 'rounds', 'opponentTop', 'whose', 'site', 'outcome',
+  'postPlant', 'phase', 'secondRound', 'endReason', 'weapon', 'opponentWeapon', 'equip', 'opponentEquip', 'tactic',
 ]);
 const MAX_DOTS = 10;
 const MAX_INLINE = 4;
@@ -86,6 +99,8 @@ export type ScopeBarProps = {
   mapCounts?: MapCounts | null;
   /** Rival teams for the opponent control. */
   opponents?: readonly ScopeOption[];
+  /** The team's Libreta plays for the tactic control. */
+  tactics?: readonly ScopeOption[];
   /** The match limits offered, and the one the view uses while the URL names none. */
   limits?: { readonly options: readonly number[]; readonly fallback: number };
   /** Sample size of the answer on screen; null while it is being counted, absent to hide it. */
@@ -258,6 +273,7 @@ function FieldControl({ field, props }: { field: ScopeField; props: ScopeBarProp
           icon={(value) => <BuyGlyph value={value} />}
           onChange={(buy) => onChange({ buy: parseScopeBuy(buy) })}
           />
+          {props.fields.includes('opponentBuy') ? <BuySwapButton scope={scope} onChange={onChange} /> : null}
         </>
       );
     case 'opponentBuy':
@@ -293,6 +309,28 @@ function FieldControl({ field, props }: { field: ScopeField; props: ScopeBarProp
       return <OpponentTopSelect scope={scope} onChange={onChange} />;
     case 'whose':
       return <WhoseSelect scope={scope} ownTeams={props.ownTeams ?? 0} onChange={onChange} />;
+    case 'site':
+      return <SiteSelect scope={scope} onChange={onChange} />;
+    case 'outcome':
+      return <OutcomeSelect scope={scope} onChange={onChange} />;
+    case 'postPlant':
+      return <FlagToggle label="Post-plant" pressed={scope.postPlant} onPressedChange={(postPlant) => onChange({ postPlant })} />;
+    case 'phase':
+      return <PhaseSelect scope={scope} onChange={onChange} />;
+    case 'secondRound':
+      return <FlagToggle label="Segunda ronda" pressed={scope.secondRound} onPressedChange={(secondRound) => onChange({ secondRound })} />;
+    case 'endReason':
+      return <EndReasonSelect scope={scope} onChange={onChange} />;
+    case 'weapon':
+      return <WeaponSelect rival={false} scope={scope} onChange={onChange} />;
+    case 'opponentWeapon':
+      return <WeaponSelect rival scope={scope} onChange={onChange} />;
+    case 'equip':
+      return <EquipRangeControl rival={false} scope={scope} onChange={onChange} />;
+    case 'opponentEquip':
+      return <EquipRangeControl rival scope={scope} onChange={onChange} />;
+    case 'tactic':
+      return <TacticSelect scope={scope} tactics={props.tactics ?? []} onChange={onChange} />;
     default:
       return null;
   }
@@ -300,6 +338,39 @@ function FieldControl({ field, props }: { field: ScopeField; props: ScopeBarProp
 
 const DOT: Record<ResultDot, string> = { win: 'bg-outcome-win', loss: 'bg-outcome-loss', draw: 'bg-fg-3' };
 const DOT_WORD: Record<ResultDot, string> = { win: 'Victoria', loss: 'Derrota', draw: 'Empate' };
+
+/** Each active filter as a chip with its own X, beside the reset of them all. */
+function ActiveChips({ props, active }: { props: ScopeBarProps; active: readonly ScopeField[] }): ReactNode {
+  const shown = props.mapRequired === true ? active.filter((field) => field !== 'map') : active;
+  const names = {
+    opponents: new Map((props.opponents ?? []).map((option) => [option.value, option.label])),
+    tactics: new Map((props.tactics ?? []).map((option) => [option.value, option.label])),
+  };
+  const chips = scopeChips({ scope: props.scope, fields: shown, names });
+  return (
+    <ul aria-label="Filtros activos" className="flex flex-wrap items-center gap-1.5">
+      {chips.map((chip) => (
+        <li key={chip.field}>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            aria-label={`Quitar el filtro ${chip.label}`}
+            onClick={() => props.onReset([chip.field])}
+          >
+            {chip.label}
+            <X aria-hidden />
+          </Button>
+        </li>
+      ))}
+      <li>
+        <Button type="button" variant="ghost" size="xs" onClick={() => props.onReset(active)}>
+          Quitar filtros
+        </Button>
+      </li>
+    </ul>
+  );
+}
 
 function SampleNoteList({ notes }: { notes: SampleNotes }): ReactNode {
   const items = [
@@ -346,7 +417,7 @@ function SampleBox({ counts, results }: { counts: ScopeCounts | null | undefined
  * the command strip so the context stays in sight while scrolling.
  */
 export function ScopeBar(props: ScopeBarProps): ReactNode {
-  const { scope, fields, counts, results, entity, context, lineups, onReset, onChange, className } = props;
+  const { scope, fields, counts, results, entity, context, lineups, onChange, className } = props;
   const [more, setMore] = useState(false);
   // The lineup sits by the entity it belongs to and keeps its own reset, like the reference.
   const filters = fields.filter((field) => field !== 'reference' && field !== 'lineup');
@@ -382,12 +453,6 @@ export function ScopeBar(props: ScopeBarProps): ReactNode {
             Más filtros
           </Button>
         ) : null}
-        {active.length > 0 ? (
-          <Button type="button" variant="ghost" size="xs" onClick={() => onReset(active)}>
-            <X aria-hidden />
-            Quitar filtros
-          </Button>
-        ) : null}
         <div className="ml-auto flex items-center gap-2">
           {props.comparison}
           {fields.includes('reference') ? (
@@ -416,6 +481,7 @@ export function ScopeBar(props: ScopeBarProps): ReactNode {
           ))}
         </div>
       ) : null}
+      {active.length > 0 ? <ActiveChips props={props} active={active} /> : null}
     </div>
   );
 }

@@ -86,7 +86,7 @@ func (h *Handlers) GetLibraryTeamMapCounts(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	filter, _, err := scoutQuery(r.URL.Query())
+	filter, _, err := h.teamScope(r.Context(), r.URL.Query())
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

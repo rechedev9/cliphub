@@ -92,9 +92,14 @@ max_matches (last 3 or 5), last_days (3, 7, 14, 30, 90, 180, 365), opponent_top 
 rival's rank today, or its rank on the day for a Partidas pro import; rivals without a rank come back as unranked), whose (own: matches of the user's own team,
 the one list_teams marks own; others: scouting), buy and opponent_buy (full with full, half is semi and force,
 pistol with pistol), awp and opponent_awp (with or without; awp_estimated counts older analyses read from AWP
-kills), advantage (4v5, 5v4 at some moment) and round_from/round_to. team_rounds lists those rounds over
+kills), advantage (4v5, 5v4 at some moment), round_from/round_to, site, outcome (win or loss), post_plant, phase
+(regulation or overtime), second_round, end_reason (elimination, bomb_exploded, bomb_defused, time_expired), weapon
+and opponent_weapon (scout, no_scout, hero_ak, hero_awp; docs/studio-mcp.md has each rule), a custom buy range per
+player (equip_from/equip_to, opponent_equip_from/opponent_equip_to, in dollars of equipment) and tactic (a Libreta
+play id: only its example rounds). Team views read every match the team played and keep the newest 50; older ones come
+back as over_match_limit skips, so say when more_matches is true. team_rounds lists those rounds over
 the matches, with the Replay's studio_path and a playlist_path to play them one after another. The Replay
-holds one buy (or half) and one advantage per side, so studio_path refuses longer lists.
+holds one buy (or half), one advantage, one site and one end_reason, so studio_path refuses longer lists.
 team_attack (one map, T side) is the match prep read: sites and Bombsite Tempo (rush, set strat, mid round, no site)
 crossed with buy matchups, the preferred defaults, the executes per buy and per-player T windows, with stale,
 few-rounds, roster and capped warnings to repeat to the user; prepare_team includes it. Its rows give rounds and example refs;

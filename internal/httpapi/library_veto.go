@@ -191,7 +191,7 @@ type teamMapsResponse struct {
 // counts; without it only the scores and vetoes are counted.
 func (h *Handlers) teamMapHistory(ctx context.Context, team library.Team, from, to *time.Time, withDocuments bool) (teamMapsResponse, error) {
 	resp := teamMapsResponse{TeamID: team.ID, TeamName: team.Name, Skipped: []scoutSkipped{}}
-	matches, err := h.libraryRepo.ListMatches(ctx, library.MatchFilter{TeamID: &team.ID, From: from, To: to, Limit: scoutCandidateLimit})
+	matches, err := h.libraryRepo.ListMatches(ctx, library.MatchFilter{TeamID: &team.ID, From: from, To: to, Limit: library.MaxListLimit})
 	if err != nil {
 		return resp, err
 	}

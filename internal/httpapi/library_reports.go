@@ -18,13 +18,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
-// Report limits. The notes cap is library.MaxReportNotesRunes, a whole match prep in Markdown.
-const (
-	// scoutCandidateLimit is how many of a team's most recent matches a scout
-	// without explicit match ids considers before its filter picks from them.
-	scoutCandidateLimit = library.MaxListLimit
-)
-
 // Why a requested match was left out of a scout.
 const (
 	scoutSkipNotFound     = "not_found"
@@ -82,8 +75,25 @@ func candidateFor(m library.Match, teamID uuid.UUID, profiles teamProfiles) (sco
 	return c, found
 }
 
-// teamCandidates reads the team's matches (the given ids, or its most recent
-// ones) and the side the team played in each. Matches it cannot use are skipped.
+// allMatches lists every match the filter selects, page by page, so no team view drops old matches.
+func (h *Handlers) allMatches(ctx context.Context, filter library.MatchFilter) ([]library.Match, error) {
+	filter.Limit = library.MaxListLimit
+	var out []library.Match
+	for offset := 0; ; offset += library.MaxListLimit {
+		filter.Offset = offset
+		page, err := h.libraryRepo.ListMatches(ctx, filter)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, page...)
+		if len(page) < library.MaxListLimit {
+			return out, nil
+		}
+	}
+}
+
+// teamCandidates reads the team's matches (the given ids, or every one it
+// played) and the side the team played in each. Matches it cannot use are skipped.
 func (h *Handlers) teamCandidates(ctx context.Context, team library.Team, matchIDs []uuid.UUID) (map[uuid.UUID]scoutCandidate, []tacticalplan.ScoutMatch, []scoutSkipped, error) {
 	skipped := []scoutSkipped{}
 	var matches []library.Match
@@ -100,7 +110,7 @@ func (h *Handlers) teamCandidates(ctx context.Context, team library.Team, matchI
 			matches = append(matches, m)
 		}
 	} else {
-		listed, err := h.libraryRepo.ListMatches(ctx, library.MatchFilter{TeamID: &team.ID, Limit: scoutCandidateLimit})
+		listed, err := h.allMatches(ctx, library.MatchFilter{TeamID: &team.ID})
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -319,7 +329,7 @@ func (h *Handlers) GetLibraryTeamScout(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	filter, matchIDs, err := scoutQuery(r.URL.Query())
+	filter, matchIDs, err := h.teamScope(r.Context(), r.URL.Query())
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

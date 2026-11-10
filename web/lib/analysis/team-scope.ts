@@ -1,4 +1,5 @@
 import { SCOPE_PARAMS, scopeBuyTypes, type AnalysisScope, type ScopeField } from './scope.ts';
+import { DEFAULT_REPLAY_FILTERS, orderedEquip, replayFilterEntries, type ReplayFilters } from './scope-replay-filters.ts';
 
 export type TeamScopeEntry = readonly [string, string];
 
@@ -19,5 +20,24 @@ export function teamScopeEntries(scope: AnalysisScope, fields: readonly ScopeFie
   add('rounds', SCOPE_PARAMS.roundTo, scope.rounds.to);
   add('opponentTop', SCOPE_PARAMS.opponentTop, scope.opponentTop);
   add('whose', SCOPE_PARAMS.whose, scope.whose);
+  out.push(...replayFilterEntries(readFilters(scope, reads)));
   return out;
+}
+
+/** The scope's Replay filters, those the view does not read back at their defaults. */
+function readFilters(scope: AnalysisScope, reads: ReadonlySet<ScopeField>): ReplayFilters {
+  const pick = <K extends keyof ReplayFilters>(field: K): ReplayFilters[K] => (reads.has(field) ? scope[field] : DEFAULT_REPLAY_FILTERS[field]);
+  return {
+    site: pick('site'),
+    outcome: pick('outcome'),
+    postPlant: pick('postPlant'),
+    phase: pick('phase'),
+    secondRound: pick('secondRound'),
+    endReason: pick('endReason'),
+    weapon: pick('weapon'),
+    opponentWeapon: pick('opponentWeapon'),
+    equip: orderedEquip(pick('equip')),
+    opponentEquip: orderedEquip(pick('opponentEquip')),
+    tactic: pick('tactic'),
+  };
 }

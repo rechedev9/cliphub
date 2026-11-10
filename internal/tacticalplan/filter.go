@@ -3,6 +3,7 @@ package tacticalplan
 import (
 	"fmt"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -57,6 +58,17 @@ type Filter struct {
 	OpponentAWP Presence `json:"opponent_awp,omitempty"`
 	// Advantages keeps the rounds that reached one of these counts at some moment.
 	Advantages []Advantage `json:"advantages,omitempty"`
+	// SecondRound keeps the round after each regulation half's pistol round.
+	SecondRound bool        `json:"second_round,omitempty"`
+	EndReasons  []EndReason `json:"end_reasons,omitempty"`
+	// Weapon and OpponentWeapon keep the rounds in which that side met one weapon rule.
+	Weapon         WeaponRule `json:"weapon,omitempty"`
+	OpponentWeapon WeaponRule `json:"opponent_weapon,omitempty"`
+	// Equip and OpponentEquip keep a range of equipment value per player, next to the buy types.
+	Equip         EquipRange `json:"equip,omitempty"`
+	OpponentEquip EquipRange `json:"opponent_equip,omitempty"`
+	// Numbers, when not nil, keeps only these round numbers: a Libreta play's rounds in one match.
+	Numbers []int `json:"numbers,omitempty"`
 }
 
 // Empty reports whether the filter selects everything.
@@ -64,7 +76,9 @@ func (f Filter) Empty() bool {
 	return f.TeamKey == "" && f.Side == "" && len(f.Buys) == 0 && len(f.OpponentBuys) == 0 &&
 		len(f.Sites) == 0 && f.Outcome == "" && len(f.TPatterns) == 0 && len(f.CTPatterns) == 0 &&
 		len(f.Tags) == 0 && len(f.Slots) == 0 && f.RoundFrom == 0 && f.RoundTo == 0 && f.Phase == "" &&
-		len(f.Lineup) == 0 && f.AWP == "" && f.OpponentAWP == "" && len(f.Advantages) == 0
+		len(f.Lineup) == 0 && f.AWP == "" && f.OpponentAWP == "" && len(f.Advantages) == 0 &&
+		!f.SecondRound && len(f.EndReasons) == 0 && f.Weapon == "" && f.OpponentWeapon == "" &&
+		f.Equip.Empty() && f.OpponentEquip.Empty() && f.Numbers == nil
 }
 
 // Perspective returns the side the filter looks from in a given round, or the
@@ -93,6 +107,15 @@ func (f Filter) Match(d Document, r Round) bool {
 		if r.Overtime == 0 {
 			return false
 		}
+	}
+	if f.Numbers != nil && !slices.Contains(f.Numbers, r.Number) {
+		return false
+	}
+	if f.SecondRound && !IsSecondRound(d, r) {
+		return false
+	}
+	if len(f.EndReasons) > 0 && !matchEndReason(r, f.EndReasons) {
+		return false
 	}
 
 	side := f.Perspective(d, r)
@@ -139,6 +162,18 @@ func (f Filter) Match(d Document, r Round) bool {
 		return false
 	}
 	if len(f.Advantages) > 0 && !matchAdvantage(advantageQuery{Round: r, Side: side, Want: f.Advantages}) {
+		return false
+	}
+	if f.Weapon != "" && !matchWeapon(weaponQuery{Rule: f.Weapon, Round: r, Side: side, Estimate: estimate}) {
+		return false
+	}
+	if f.OpponentWeapon != "" && !matchWeapon(weaponQuery{Rule: f.OpponentWeapon, Round: r, Side: side.Opponent(), Estimate: estimate}) {
+		return false
+	}
+	if !f.Equip.Empty() && !matchEquip(equipQuery{Round: r, Side: side, Want: f.Equip}) {
+		return false
+	}
+	if !f.OpponentEquip.Empty() && !matchEquip(equipQuery{Round: r, Side: side.Opponent(), Want: f.OpponentEquip}) {
 		return false
 	}
 	return f.Lineup.Keeps(LineupRound{Document: d, Round: r, Side: side})
@@ -279,6 +314,24 @@ func FilterFromValues(values url.Values) (Filter, error) {
 		return Filter{}, err
 	}
 	if f.Advantages, err = parseAdvantages(multi(values, "advantage")); err != nil {
+		return Filter{}, err
+	}
+	if f.SecondRound, err = parseSecondRound(values.Get("second_round")); err != nil {
+		return Filter{}, err
+	}
+	if f.EndReasons, err = parseEndReasons(multi(values, "end_reason")); err != nil {
+		return Filter{}, err
+	}
+	if f.Weapon, err = parseWeaponRule(values.Get("weapon"), "weapon"); err != nil {
+		return Filter{}, err
+	}
+	if f.OpponentWeapon, err = parseWeaponRule(values.Get("opponent_weapon"), "opponent_weapon"); err != nil {
+		return Filter{}, err
+	}
+	if f.Equip, err = parseEquipRange(values, "equip"); err != nil {
+		return Filter{}, err
+	}
+	if f.OpponentEquip, err = parseEquipRange(values, "opponent_equip"); err != nil {
 		return Filter{}, err
 	}
 	if f.RoundFrom > 0 && f.RoundTo > 0 && f.RoundFrom > f.RoundTo {

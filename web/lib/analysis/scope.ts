@@ -1,6 +1,14 @@
 import type { BaselineScope } from '../api/baseline.ts';
 import type { ReportSide } from '../api/scout.ts';
 import { TACTICAL_BUY_TYPES, TACTICAL_FILTER_PARAMS, type TacticalBuyType } from '../api/tactical.ts';
+import {
+  DEFAULT_REPLAY_FILTERS,
+  REPLAY_FILTER_PARAMS,
+  equipActive,
+  parseReplayFilters,
+  replayFilterEntries,
+  type ReplayFilters,
+} from './scope-replay-filters.ts';
 
 /**
  * The analysis scope: the one filter an analysis page (team, player, report)
@@ -69,13 +77,14 @@ export type AnalysisScope = {
   /** Only rivals in this HLTV top; null for every rival. */
   readonly opponentTop: number | null;
   readonly whose: ScopeWhose;
-};
+} & ReplayFilters;
 
 export type ScopeField = keyof AnalysisScope;
 
 export const SCOPE_FIELDS: readonly ScopeField[] = [
   'map', 'side', 'period', 'limit', 'buy', 'opponentBuy', 'opponent', 'reference', 'lineup', 'awp', 'opponentAwp', 'advantage',
-  'rounds', 'opponentTop', 'whose',
+  'rounds', 'opponentTop', 'whose', 'site', 'outcome', 'postPlant', 'phase', 'secondRound', 'endReason', 'weapon', 'opponentWeapon',
+  'equip', 'opponentEquip', 'tactic',
 ];
 
 /** Query names. Side and buys share the tactical filter's names; the round filters share the server's. */
@@ -98,6 +107,7 @@ export const SCOPE_PARAMS = {
   roundTo: TACTICAL_FILTER_PARAMS.roundTo,
   opponentTop: 'opponent_top',
   whose: 'whose',
+  ...REPLAY_FILTER_PARAMS,
 } as const;
 
 export const SCOPE_LIMIT_MAX = 50;
@@ -137,6 +147,7 @@ export const DEFAULT_SCOPE: AnalysisScope = {
   rounds: { from: null, to: null },
   opponentTop: null,
   whose: '',
+  ...DEFAULT_REPLAY_FILTERS,
 };
 
 const MAP_RE = /^[a-z0-9_]{1,64}$/;
@@ -147,7 +158,7 @@ const ADVANTAGE_RE = /^([1-5])v([1-5])$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The read surface of a query string, satisfied by `URLSearchParams` and Next's readonly one. */
-export type ScopeQuery = Pick<URLSearchParams, 'get'>;
+export type ScopeQuery = Pick<URLSearchParams, 'get' | 'getAll'>;
 
 function validDay(value: string | null): string {
   if (value === null || !DAY_RE.test(value)) return '';
@@ -249,6 +260,7 @@ export function parseAnalysisScope(query: ScopeQuery): AnalysisScope {
     rounds: parseRounds(query),
     opponentTop: parseOpponentTop(query.get(SCOPE_PARAMS.opponentTop)),
     whose: parseWhose(query.get(SCOPE_PARAMS.whose)),
+    ...parseReplayFilters(query),
   };
 }
 
@@ -291,6 +303,7 @@ export function writeAnalysisScope(scope: AnalysisScope, current: string | URLSe
   set(SCOPE_PARAMS.roundTo, countParam(scope.rounds.to));
   set(SCOPE_PARAMS.opponentTop, countParam(scope.opponentTop));
   set(SCOPE_PARAMS.whose, scope.whose);
+  for (const [name, value] of replayFilterEntries(scope)) set(name, value);
   return params.toString();
 }
 
@@ -299,6 +312,7 @@ export function scopeFieldActive(scope: AnalysisScope, field: ScopeField): boole
   if (field === 'period') return scope.period.kind !== 'all';
   if (field === 'lineup') return scope.lineup.kind !== 'latest';
   if (field === 'rounds') return scope.rounds.from !== null || scope.rounds.to !== null;
+  if (field === 'equip' || field === 'opponentEquip') return equipActive(scope[field]);
   return scope[field] !== DEFAULT_SCOPE[field];
 }
 
@@ -322,7 +336,23 @@ export function resetScopeFields(scope: AnalysisScope, fields: readonly ScopeFie
     rounds: pick('rounds'),
     opponentTop: pick('opponentTop'),
     whose: pick('whose'),
+    site: pick('site'),
+    outcome: pick('outcome'),
+    postPlant: pick('postPlant'),
+    phase: pick('phase'),
+    secondRound: pick('secondRound'),
+    endReason: pick('endReason'),
+    weapon: pick('weapon'),
+    opponentWeapon: pick('opponentWeapon'),
+    equip: pick('equip'),
+    opponentEquip: pick('opponentEquip'),
+    tactic: pick('tactic'),
   };
+}
+
+/** The one-click swap of the buy filters: own and rival trade buys and equipment ranges. */
+export function swappedBuys(scope: AnalysisScope): Pick<AnalysisScope, 'buy' | 'opponentBuy' | 'equip' | 'opponentEquip'> {
+  return { buy: scope.opponentBuy, opponentBuy: scope.buy, equip: scope.opponentEquip, opponentEquip: scope.equip };
 }
 
 /**

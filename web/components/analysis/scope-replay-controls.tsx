@@ -1,0 +1,171 @@
+'use client';
+
+import type { ReactNode } from 'react';
+import { ArrowLeftRight } from 'lucide-react';
+import { END_REASON_LABEL, SITE_LABEL, WEAPON_LABEL } from '@/lib/analysis/scope-chips';
+import { swappedBuys, type AnalysisScope } from '@/lib/analysis/scope';
+import {
+  EQUIP_MAX,
+  SCOPE_END_REASONS,
+  SCOPE_SITES,
+  SCOPE_WEAPONS,
+  equipEnd,
+  type ScopeEquip,
+  type ScopeWeapon,
+} from '@/lib/analysis/scope-replay-filters';
+import { ChoiceSelect } from '@/components/analysis/scope-round-controls';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Toggle } from '@/components/ui/toggle';
+
+type Patch = (patch: Partial<AnalysisScope>) => void;
+type Props = { scope: AnalysisScope; onChange: Patch };
+export type TacticOption = { readonly value: string; readonly label: string };
+
+const TOGGLE = 'h-8 px-2.5 text-body-sm';
+
+export function SiteSelect({ scope, onChange }: Props): ReactNode {
+  return (
+    <ChoiceSelect
+      label="Sitio atacado"
+      allLabel="Sitio: cualquiera"
+      value={scope.site}
+      choices={SCOPE_SITES.map((site) => ({ value: site, label: SITE_LABEL[site] }))}
+      onChange={(next) => onChange({ site: SCOPE_SITES.find((site) => site === next) ?? '' })}
+    />
+  );
+}
+
+export function OutcomeSelect({ scope, onChange }: Props): ReactNode {
+  return (
+    <ChoiceSelect
+      label="Resultado de la ronda"
+      allLabel="Ganadas y perdidas"
+      value={scope.outcome}
+      choices={[
+        { value: 'win', label: 'Ganadas' },
+        { value: 'loss', label: 'Perdidas' },
+      ]}
+      onChange={(next) => onChange({ outcome: next === 'win' || next === 'loss' ? next : '' })}
+    />
+  );
+}
+
+export function PhaseSelect({ scope, onChange }: Props): ReactNode {
+  return (
+    <ChoiceSelect
+      label="Prórroga"
+      allLabel="Prórroga: da igual"
+      value={scope.phase}
+      choices={[
+        { value: 'overtime', label: 'Solo prórroga' },
+        { value: 'regulation', label: 'Sin prórroga' },
+      ]}
+      onChange={(next) => onChange({ phase: next === 'overtime' || next === 'regulation' ? next : '' })}
+    />
+  );
+}
+
+export function EndReasonSelect({ scope, onChange }: Props): ReactNode {
+  return (
+    <ChoiceSelect
+      label="Motivo del final de la ronda"
+      allLabel="Motivo: cualquiera"
+      value={scope.endReason}
+      choices={SCOPE_END_REASONS.map((reason) => ({ value: reason, label: END_REASON_LABEL[reason] }))}
+      onChange={(next) => onChange({ endReason: SCOPE_END_REASONS.find((reason) => reason === next) ?? '' })}
+    />
+  );
+}
+
+function weaponOf(value: string): ScopeWeapon {
+  return SCOPE_WEAPONS.find((weapon) => weapon === value) ?? '';
+}
+
+export function WeaponSelect({ rival, scope, onChange }: Props & { rival: boolean }): ReactNode {
+  const whose = rival ? 'rival' : 'propia';
+  return (
+    <ChoiceSelect
+      label={`Arma ${whose}`}
+      allLabel={`Arma ${whose}: cualquiera`}
+      value={rival ? scope.opponentWeapon : scope.weapon}
+      choices={SCOPE_WEAPONS.map((weapon) => ({ value: weapon, label: `${WEAPON_LABEL[weapon]} ${whose}` }))}
+      onChange={(next) => onChange(rival ? { opponentWeapon: weaponOf(next) } : { weapon: weaponOf(next) })}
+    />
+  );
+}
+
+export function FlagToggle({ label, pressed, onPressedChange }: { label: string; pressed: boolean; onPressedChange: (pressed: boolean) => void }): ReactNode {
+  return (
+    <Toggle variant="outline" size="sm" className={TOGGLE} pressed={pressed} onPressedChange={onPressedChange}>
+      {label}
+    </Toggle>
+  );
+}
+
+/** The custom buy: equipment value per player, from and to, next to the fixed buy types. */
+export function EquipRangeControl({ rival, scope, onChange }: Props & { rival: boolean }): ReactNode {
+  const range = rival ? scope.opponentEquip : scope.equip;
+  const whose = rival ? 'rival' : 'propio';
+  const set = (next: ScopeEquip): void => onChange(rival ? { opponentEquip: next } : { equip: next });
+  return (
+    <span className="flex items-center gap-1 text-body-sm text-fg-2" title="Valor del equipo por jugador al acabar las compras">
+      Equipo {whose} $
+      <Input
+        type="number"
+        inputMode="numeric"
+        aria-label={`Equipo ${whose} por jugador desde`}
+        placeholder="0"
+        min={1}
+        max={EQUIP_MAX}
+        step={50}
+        value={range.from ?? ''}
+        onChange={(event) => set({ from: equipEnd(event.target.value), to: range.to })}
+        className="h-8 w-20 px-2"
+      />
+      a
+      <Input
+        type="number"
+        inputMode="numeric"
+        aria-label={`Equipo ${whose} por jugador hasta`}
+        placeholder="sin tope"
+        min={1}
+        max={EQUIP_MAX}
+        step={50}
+        value={range.to ?? ''}
+        onChange={(event) => set({ from: range.from, to: equipEnd(event.target.value) })}
+        className="h-8 w-20 px-2"
+      />
+    </span>
+  );
+}
+
+export function BuySwapButton({ scope, onChange }: Props): ReactNode {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      aria-label="Intercambiar compra propia y rival"
+      title="Intercambiar compra propia y rival"
+      onClick={() => onChange(swappedBuys(scope))}
+    >
+      <ArrowLeftRight aria-hidden />
+    </Button>
+  );
+}
+
+/** The Libreta plays of the team; one keeps only the rounds it was read from. */
+export function TacticSelect({ scope, tactics, onChange }: Props & { tactics: readonly TacticOption[] }): ReactNode {
+  const known = tactics.some((option) => option.value === scope.tactic);
+  const choices = known || scope.tactic === '' ? tactics : [...tactics, { value: scope.tactic, label: 'Jugada que ya no está en la Libreta' }];
+  return (
+    <ChoiceSelect
+      label="Táctica de la Libreta"
+      allLabel={tactics.length === 0 ? 'Táctica: la Libreta no tiene jugadas' : 'Táctica: cualquiera'}
+      value={scope.tactic}
+      choices={choices}
+      onChange={(tactic) => onChange({ tactic })}
+    />
+  );
+}

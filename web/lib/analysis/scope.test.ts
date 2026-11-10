@@ -13,6 +13,7 @@ import {
   scopeDateRange,
   scopeBuyTypes,
   scopeFieldActive,
+  swappedBuys,
   writeAnalysisScope,
   type AnalysisScope,
 } from './scope.ts';
@@ -51,6 +52,17 @@ test('a full scope survives a round trip through the URL', () => {
     rounds: { from: 13, to: 24 },
     opponentTop: 30,
     whose: 'others',
+    site: 'B',
+    outcome: 'loss',
+    postPlant: true,
+    phase: 'overtime',
+    secondRound: true,
+    endReason: 'bomb_defused',
+    weapon: 'hero_awp',
+    opponentWeapon: 'no_scout',
+    equip: { from: 1000, to: 3250 },
+    opponentEquip: { from: 3250, to: null },
+    tactic: TEAM,
   };
   assert.deepEqual(parseAnalysisScope(new URLSearchParams(writeAnalysisScope(scope))), scope);
   const half: AnalysisScope = { ...DEFAULT_SCOPE, buy: 'half', period: { kind: 'preset', preset: '14d' }, limit: 3 };
@@ -178,4 +190,30 @@ test('a team view sends only the scope fields it reads, with the limit as max_ma
     ['whose', 'own'],
   ]);
   assert.deepEqual(teamScopeEntries(scope, ['side', 'awp']), [['awp', 'with']]);
+});
+
+test('the Replay filters read what the server and the MCP write, and drop the rest', () => {
+  const scope = parseAnalysisScope(
+    new URLSearchParams('site=a&outcome=draw&tag=ace&tag=postplant&phase=ot&second_round=1&end_reason=time_expired&weapon=knife&equip_from=0&equip_to=25000&opponent_equip_to=1000&tactic=exec-a'),
+  );
+  assert.deepEqual(scope, { ...DEFAULT_SCOPE, site: 'A', postPlant: true, endReason: 'time_expired', opponentEquip: { from: null, to: 1000 } });
+  assert.equal(scopeFieldActive(scope, 'opponentEquip'), true);
+  assert.equal(scopeFieldActive(resetScopeFields(scope, ['opponentEquip']), 'opponentEquip'), false);
+});
+
+test('a team view sends the Replay filters it reads, with a reversed equipment range in order', () => {
+  const scope: AnalysisScope = { ...DEFAULT_SCOPE, site: 'mid', postPlant: true, equip: { from: 3000, to: 1000 }, tactic: TEAM };
+  assert.deepEqual(teamScopeEntries(scope, ['site', 'postPlant', 'equip', 'tactic']), [
+    ['site', 'mid'],
+    ['tag', 'postplant'],
+    ['equip_from', '1000'],
+    ['equip_to', '3000'],
+    ['tactic', TEAM],
+  ]);
+  assert.deepEqual(teamScopeEntries(scope, ['site']), [['site', 'mid']]);
+});
+
+test('the buy swap trades own and rival buys and equipment ranges', () => {
+  const scope: AnalysisScope = { ...DEFAULT_SCOPE, buy: 'eco', opponentBuy: 'full', equip: { from: null, to: 1000 } };
+  assert.deepEqual(swappedBuys(scope), { buy: 'full', opponentBuy: 'eco', equip: { from: null, to: null }, opponentEquip: { from: null, to: 1000 } });
 });

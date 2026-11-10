@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -93,8 +92,8 @@ func teamReplayPath(p replayPathIn) (string, error) {
 				return "", err
 			}
 			v.Set(key, buy)
-		case key == "advantage" && len(list) > 1:
-			return "", errors.New("the team Replay holds one advantage: pass one, such as 4v5")
+		case (key == "advantage" || key == "site" || key == "end_reason") && len(list) > 1:
+			return "", fmt.Errorf("the team Replay holds one %s: pass one", key)
 		default:
 			v.Set(key, list[0])
 		}
@@ -116,7 +115,8 @@ func barBuy(key string, list []string) (string, error) {
 func registerTeamRoundsTool(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "team_rounds", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Read the rounds a team's Replay keeps over several matches with the scope bar's filters: map, side, period (from, to or last_days), " +
-			"last N matches, rival, lineup, opponent level, whose matches, buys of both sides, AWP of both sides, numeric advantage and a round range. " +
+			"last N matches, rival, lineup, opponent level, whose matches, buys and equipment ranges of both sides, AWP and weapons of both sides, numeric advantage, " +
+			"site, outcome, post-plant, overtime, second round, win reason, a Libreta tactic and a round range. " +
 			"Every team tool (scout_team, team_bombsites, team_playbook, team_prep, team_grenades, detect_team_plays) takes the same filters and counts these rounds. " +
 			"studio_path opens the Replay on this scope; playlist_path plays the rounds one after another."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamRoundsIn) (*mcp.CallToolResult, teamRoundsOut, error) {

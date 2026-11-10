@@ -23,7 +23,7 @@ func (h *Handlers) GetLibraryTeamBombsites(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	filter, matchIDs, err := scoutQuery(r.URL.Query())
+	filter, matchIDs, err := h.teamScope(r.Context(), r.URL.Query())
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

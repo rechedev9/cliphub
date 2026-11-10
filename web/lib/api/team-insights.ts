@@ -103,6 +103,8 @@ export const TEAM_LINEUPS_KEYS = ['team_id', 'team_name', 'latest_match', 'lates
 /** The team scope keys every team endpoint takes beyond the scout filter (`httpapi.teamScopeQuery`). */
 export const TEAM_SCOPE_QUERY = [
   'max_matches', 'opponent_top', 'whose', 'buy', 'opponent_buy', 'awp', 'opponent_awp', 'advantage', 'round_from', 'round_to',
+  'site', 'outcome', 'tag', 'phase', 'second_round', 'end_reason', 'weapon', 'opponent_weapon', 'equip_from', 'equip_to',
+  'opponent_equip_from', 'opponent_equip_to', 'tactic',
 ] as const;
 
 /** Mi equipo and the HLTV rank of a team (`library.TeamProfile`); `own_teams` counts the teams marked as own. */

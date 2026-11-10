@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -118,7 +119,37 @@ func teamScopeQuery(q url.Values, f *tacticalplan.ScoutFilter) error {
 // slots and lineup are the scout's own.
 var teamRoundKeys = []string{
 	"buy", "opponent_buy", "site", "outcome", "t_pattern", "ct_pattern", "tag", "round_from", "round_to", "phase",
-	"awp", "opponent_awp", "advantage",
+	"awp", "opponent_awp", "advantage", "second_round", "end_reason", "weapon", "opponent_weapon",
+	"equip_from", "equip_to", "opponent_equip_from", "opponent_equip_to",
+}
+
+// teamScope reads the scout filter of a team view plus its tactic, a Libreta
+// play id whose example rounds become the only rounds the scope keeps.
+func (h *Handlers) teamScope(ctx context.Context, q url.Values) (tacticalplan.ScoutFilter, []uuid.UUID, error) {
+	f, matchIDs, err := scoutQuery(q)
+	if err != nil {
+		return f, nil, err
+	}
+	raw := strings.TrimSpace(q.Get("tactic"))
+	if raw == "" {
+		return f, matchIDs, nil
+	}
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return f, nil, errors.New("tactic must be a Libreta play id")
+	}
+	play, err := h.libraryRepo.GetPlay(ctx, id)
+	if errors.Is(err, library.ErrNotFound) {
+		return f, nil, errors.New("tactic names no Libreta play")
+	}
+	if err != nil {
+		return f, nil, fmt.Errorf("read tactic: %w", err)
+	}
+	f.PlayRounds = make(map[uuid.UUID][]int, len(play.Examples))
+	for _, e := range play.Examples {
+		f.PlayRounds[e.MatchID] = append(f.PlayRounds[e.MatchID], e.Round)
+	}
+	return f, matchIDs, nil
 }
 
 // intParam names an optional query integer from 1 to limit.
