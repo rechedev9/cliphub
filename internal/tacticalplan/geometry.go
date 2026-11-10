@@ -351,3 +351,38 @@ func cellOwner(g MapGeometry, level string, cx, cy int, z float64) string {
 	}
 	return ""
 }
+
+// NearestCallout names the place CS2 reported most in the grid cell of a world
+// position; off the grid, the callout whose centre of play is closest on the
+// same level, or "" when the geometry has no callouts.
+func NearestCallout(g MapGeometry, pos [3]float64) string {
+	return NearestCalloutOn(g, g.Calibration.Level(pos[2]), pos)
+}
+
+// NearestCalloutOn is NearestCallout on a floor settled elsewhere, such as a heatmap cell's level;
+// an empty level is the upper floor.
+func NearestCalloutOn(g MapGeometry, level string, pos [3]float64) string {
+	if level == "" {
+		level = radarmap.LevelDefault
+	}
+	if name := calloutAt(g, level, pos[0], pos[1], pos[2]); name != "" {
+		return name
+	}
+	for _, sameLevel := range []bool{true, false} {
+		best, bestDist := "", math.Inf(1)
+		for _, c := range g.Callouts {
+			if sameLevel && c.Level != level {
+				continue
+			}
+			dx, dy := c.Center[0]-pos[0], c.Center[1]-pos[1]
+			d := dx*dx + dy*dy
+			if d < bestDist || (d == bestDist && c.Name < best) {
+				best, bestDist = c.Name, d
+			}
+		}
+		if best != "" {
+			return best
+		}
+	}
+	return ""
+}

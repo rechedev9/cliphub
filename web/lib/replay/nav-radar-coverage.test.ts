@@ -1,13 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { NAV_GROW, floorPolygons, isPainted, navRadarModel } from './nav-radar.ts';
+import { NAV_GROW, floorPolygons, navRadarModel } from './nav-radar.ts';
 import type { NavPolygon } from './nav-radar.ts';
 import { NAV_PATCHES } from './nav-patches.ts';
 
-// Real alive samples of one analysed Nuke demo (round, x, y, z), with the nav polygons next to them.
-// Measured over all 193k alive samples of its 23 rounds: on the plate 87.5% (upper floor) and 73.9%
-// (lower floor) before the outlines grew and the patches were added, 99.97% and 99.92% after.
+// Real alive samples of one Nuke demo; over all 193k of them the plate covers 99.97% (upper) and 99.92% (lower).
 const CUT = -495;
+
+function segmentDistance(options: { x: number; y: number; ax: number; ay: number; bx: number; by: number }): number {
+  const { x, y, ax, ay, bx, by } = options;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const length = dx * dx + dy * dy;
+  const t = length > 0 ? Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / length)) : 0;
+  return Math.hypot(x - ax - t * dx, y - ay - t * dy);
+}
+
+// Inside a polygon or within NAV_GROW of its edge: how far paintFloors grows each outline.
+function isPainted(options: { polygons: readonly NavPolygon[]; x: number; y: number }): boolean {
+  const { polygons, x, y } = options;
+  return polygons.some(({ points }) => {
+    let inside = false;
+    for (let i = 0, j = points.length - 2; i < points.length; j = i, i += 2) {
+      if (segmentDistance({ x, y, ax: points[j], ay: points[j + 1], bx: points[i], by: points[i + 1] }) <= NAV_GROW) return true;
+      if (points[i + 1] > y !== points[j + 1] > y && x < ((points[j] - points[i]) * (y - points[i + 1])) / (points[j + 1] - points[i + 1]) + points[i]) inside = !inside;
+    }
+    return inside;
+  });
+}
 
 function polygon(points: readonly number[], z: number): NavPolygon {
   return { points: Float64Array.from(points), z, lowZ: z, highZ: z, cx: points[0], cy: points[1] };

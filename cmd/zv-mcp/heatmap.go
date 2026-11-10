@@ -286,7 +286,7 @@ func summarizeHeatmap(got tuiclient.SpatialHeatmap, limit int) heatmapOut {
 		center := [3]float64{(float64(c.X) + 0.5) * h.CellSize, (float64(c.Y) + 0.5) * h.CellSize, float64(c.Z)}
 		callout := ""
 		if got.Geometry != nil {
-			callout = cleanName(tacticalplan.NearestCallout(*got.Geometry, center))
+			callout = cleanName(tacticalplan.NearestCalloutOn(*got.Geometry, c.Level, center))
 		}
 		total := totals[string(c.Side)+"|"+c.Level]
 		place := heatPlaceName(c, callout, bothFloors)

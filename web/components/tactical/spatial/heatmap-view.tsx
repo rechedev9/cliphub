@@ -166,12 +166,20 @@ export function HeatmapView({
     (cell: HeatmapCell): string => {
       if (!heatmap || !geometry) return '';
       const cellSize = heatmap.cell_size;
-      const name = placeLabel(nearestCallout(geometry, cell.level, (cell.x + 0.5) * cellSize, (cell.y + 0.5) * cellSize, cell.z)) || `Celda ${cell.x}, ${cell.y}`;
-      return bothFloors && cell.level === RADAR_LEVELS.lower ? `${name} (piso inferior)` : name;
+      return placeLabel(nearestCallout(geometry, cell.level, (cell.x + 0.5) * cellSize, (cell.y + 0.5) * cellSize, cell.z)) || `Celda ${cell.x}, ${cell.y}`;
     },
-    [bothFloors, geometry, heatmap],
+    [geometry, heatmap],
   );
-  const places = useMemo(() => (layer === null ? [] : heatPlaces({ cells: layer.cells, nameOf: placeOf })), [layer, placeOf]);
+  // The floor suffix is only shown, never part of the key, so a selection survives a floor switch.
+  const places = useMemo(
+    () =>
+      layer === null
+        ? []
+        : heatPlaces({ cells: layer.cells, nameOf: placeOf }).map((place) =>
+            bothFloors && place.level === RADAR_LEVELS.lower ? { ...place, name: `${place.name} (piso inferior)` } : place,
+          ),
+    [bothFloors, layer, placeOf],
+  );
   const selectedPlace = places.find((place) => place.key === selected);
 
   const densities = useMemo<FloorDensity[]>(() => {

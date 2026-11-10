@@ -105,10 +105,13 @@ export function RadarSurface({
   const model = settled ? navArt.model : null;
   const art = useMemo<MapArt>(() => (model === null ? GRID : { kind: 'nav', model }), [model]);
   // Each floor is cropped to its walkable ground and where people played on it, with the marks: the replay's layout.
-  const whole = useMemo(() => radarViewRect(geometry, marks), [geometry, marks]);
-  const floorRects = useMemo(() => floorRectsOf(geometry, marks), [geometry, marks]);
-  const navRects = useMemo(() => (model === null || !drawable ? null : navFloorRects({ geometry, model, marks })), [drawable, geometry, marks, model]);
-  const rects = useMemo(() => shown.map((plateLevel) => navRects?.[plateLevel] ?? (split ? floorRects[plateLevel] : whole)), [floorRects, navRects, shown, split, whole]);
+  const rects = useMemo(() => {
+    const navRects = model === null || !drawable ? null : navFloorRects({ geometry, model, marks });
+    if (navRects !== null) return shown.map((plateLevel) => navRects[plateLevel]);
+    if (!split) return shown.map(() => radarViewRect(geometry, marks));
+    const floorRects = floorRectsOf(geometry, marks);
+    return shown.map((plateLevel) => floorRects[plateLevel]);
+  }, [drawable, geometry, marks, model, shown, split]);
   const zoom = useFloorZoom({ enabled: settled });
   const { reset } = zoom;
   // A different map, or different marks that move the crop, is a different framing: the whole map again.

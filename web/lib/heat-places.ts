@@ -1,11 +1,7 @@
 import type { ScoutEvidence } from './api/scout.ts';
 import type { HeatmapCell } from './api/spatial.ts';
 
-/**
- * The heatmap's list of zones: one line per named place and floor. The map counts in 64 unit
- * cells and CS2 names a place by many of them, so listing cells repeated a place (Rafters three
- * times, BombsiteA three times) and split what a coach reads as one spot.
- */
+/** One line of the heatmap's zone list: a named place on one floor, summing its 64 unit cells. */
 export type HeatPlace = {
   /** The floor and the name, so a place is picked and highlighted as one. */
   key: string;

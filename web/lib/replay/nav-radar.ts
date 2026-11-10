@@ -192,31 +192,6 @@ export function floorPolygons(model: NavRadarModel, lowerAltitudeMax: number | u
   });
 }
 
-function segmentDistance(options: { x: number; y: number; ax: number; ay: number; bx: number; by: number }): number {
-  const { x, y, ax, ay, bx, by } = options;
-  const dx = bx - ax;
-  const dy = by - ay;
-  const length = dx * dx + dy * dy;
-  const t = length > 0 ? Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / length)) : 0;
-  return Math.hypot(x - ax - t * dx, y - ay - t * dy);
-}
-
-/**
- * Whether the plate paints ground at a world point: inside one of `polygons`, or
- * within `NAV_GROW` of its edge, which is how far `paintFloors` grows each outline.
- */
-export function isPainted(options: { polygons: readonly NavPolygon[]; x: number; y: number }): boolean {
-  const { polygons, x, y } = options;
-  return polygons.some(({ points }) => {
-    let inside = false;
-    for (let i = 0, j = points.length - 2; i < points.length; j = i, i += 2) {
-      if (segmentDistance({ x, y, ax: points[j], ay: points[j + 1], bx: points[i], by: points[i + 1] }) <= NAV_GROW) return true;
-      if (points[i + 1] > y !== points[j + 1] > y && x < ((points[j] - points[i]) * (y - points[i + 1])) / (points[j + 1] - points[i + 1]) + points[i]) inside = !inside;
-    }
-    return inside;
-  });
-}
-
 /** The world rectangle one floor's walkable areas cover, or null when it has none. */
 export function floorBounds(polygons: readonly NavPolygon[]): NavRadarModel['bounds'] | null {
   if (polygons.length === 0) return null;

@@ -2,17 +2,8 @@ import { RADAR_LEVELS, TACTICAL_SAMPLE_FLAGS, hasSampleFlags } from '../api/tact
 import type { RadarCalibration, RadarLevel, TacticalFrame } from '../api/tactical.ts';
 import { isMultiLevelMap, levelForAltitude } from '../tactical-transform.ts';
 
-/**
- * Which floor of a two-floor map a player is on, over time. The calibration's
- * altitude is a hard cut, and a ramp or a stair crosses it slowly: a player must
- * get clearly past it before the floor changes, so nobody flickers between
- * panes. A player who stands still takes the floor of the cut again, so the
- * dead band never leaves a camper on the wrong block. Measured on a real Nuke
- * demo (23 rounds, 8 Hz): without the band 48 of 213 changes came within 2 s of
- * the one before; with band and standing rule 2 of 126, no one stood on the
- * wrong block (the band alone held one player there for 58 s), and the longest
- * wrong stretch on the move is 3.8 s.
- */
+// A player's floor over time: a dead band round the altitude cut stops ramp and stair flicker,
+// and standing still drops the band so a camper never stays on the wrong block.
 
 /** World units either side of the altitude cut that keep the floor a player was on. */
 export const FLOOR_BAND = 48;

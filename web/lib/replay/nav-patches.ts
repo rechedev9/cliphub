@@ -1,14 +1,7 @@
 import type { RadarLevel } from '../api/tactical.ts';
 
-/**
- * Ground the nav mesh lacks, painted with the rest of the plate: ramp feet,
- * stairs and the spots the mesh's polygons stop short of. Each patch is a
- * convex outline of world x,y pairs on one floor's pane, at its mean height.
- * They were fitted once to the positions of one analysed Nuke demo (23 rounds,
- * every alive sample the floor rule puts more than `NAV_GROW` off the plate,
- * kept where at least 3 samples cluster), so the plate never depends on the
- * round that is loaded.
- */
+// Ground the nav mesh lacks (ramp feet, stairs), as convex world x,y outlines on one pane, fitted once
+// to where players stood in one Nuke demo, so the plate never depends on the loaded round.
 export type NavPatch = { level: RadarLevel; z: number; points: readonly number[] };
 
 export const NAV_PATCHES: Readonly<Record<string, readonly NavPatch[]>> = {
