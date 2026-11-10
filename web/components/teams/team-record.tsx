@@ -59,6 +59,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { useRecordTab } from '@/hooks/use-record-tab';
+import { useTeamMapCounts } from '@/hooks/use-team-map-counts';
 import { useReferences } from '@/hooks/use-references';
 import { cn } from '@/lib/utils';
 import { TeamBombsites } from './team-bombsites';
@@ -270,8 +271,11 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
     noun: 'Equipo',
     id: team.id,
     options: [{ value: team.id, label: team.name }, ...(teams ?? []).map((entry) => ({ value: entry.id, label: entry.name }))],
+    recents: true,
     hrefFor: teamHref,
   };
+  const activeScopeId = tab === 'replay' && (replayForm === 'granadas' || replayForm === 'patrones') ? `replay-${replayForm}` : tab;
+  const mapCounts = useTeamMapCounts({ teamId: team.id, scope, fields: TAB_FIELDS[activeScopeId] ?? [], lineup });
 
   function withScope(id: string, content: ReactNode): ReactNode {
     const fields = TAB_FIELDS[id] ?? [];
@@ -286,6 +290,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           entity={entity}
           lineups={lineups}
           maps={[...new Set(matches.map((match) => match.map))].sort()}
+          mapCounts={id === activeScopeId ? mapCounts : null}
           mapRequired={id === 'playbook' || id === 'replay-granadas' || id === 'replay-patrones'}
           opponents={id === 'veto' ? (teams ?? []).map((entry) => ({ value: entry.id, label: entry.name })) : playedRivals}
           limits={id.startsWith('replay') ? TEAM_REPLAY_LIMITS : undefined}

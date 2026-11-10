@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { SlidersHorizontal, X } from 'lucide-react';
 import type { ReportSide } from '@/lib/api/scout';
 import { BASELINE_SCOPES, type Baseline } from '@/lib/api/baseline';
 import type { SampleNotes, TeamLineups } from '@/lib/api/team-insights';
-import { switchEntityHref, resultRecord, type ResultDot } from '@/lib/analysis/context-bar';
+import { resultRecord, type ResultDot } from '@/lib/analysis/context-bar';
 import { buyIcon } from '@/lib/analysis/icons';
 import { SCOPE_LABEL, proReferenceShort, proSourceText } from '@/lib/analysis/reference';
 import {
@@ -20,10 +19,11 @@ import {
   type AnalysisScope,
   type ScopeField,
 } from '@/lib/analysis/scope';
-import { prettyMapName } from '@/lib/format';
+import type { MapCounts } from '@/lib/analysis/map-counts';
 import { buyLabel } from '@/lib/tactical-labels';
+import { EntityPicker } from '@/components/analysis/entity-picker';
 import { LineupPicker } from '@/components/analysis/lineup-picker';
-import { MapThumb } from '@/components/analysis/map-thumb';
+import { ScopeMapSelect } from '@/components/analysis/scope-map-select';
 import {
   AdvantageSelect,
   AwpSelect,
@@ -67,6 +67,8 @@ export type ScopeEntity = {
   readonly noun: string;
   readonly id: string;
   readonly options: readonly ScopeOption[];
+  /** Keep the last four opened in the picker's "Recientes" group. */
+  readonly recents?: boolean;
   readonly hrefFor: (id: string) => string;
 };
 
@@ -80,6 +82,8 @@ export type ScopeBarProps = {
   maps?: readonly string[];
   /** The view reads one map at a time, so the empty choice asks for one instead of offering all. */
   mapRequired?: boolean;
+  /** Matches per map in the scope, shown as "N partidas"; a map with 0 cannot be chosen. */
+  mapCounts?: MapCounts | null;
   /** Rival teams for the opponent control. */
   opponents?: readonly ScopeOption[];
   /** The match limits offered, and the one the view uses while the URL names none. */
@@ -210,12 +214,11 @@ function FieldControl({ field, props }: { field: ScopeField; props: ScopeBarProp
   switch (field) {
     case 'map':
       return (
-        <OptionSelect
-          label="Mapa"
-          allLabel={props.mapRequired === true ? 'Elige un mapa' : 'Todos los mapas'}
+        <ScopeMapSelect
           value={scope.map}
-          options={(props.maps ?? []).map((map) => ({ value: map, label: prettyMapName(map) }))}
-          icon={(map) => <MapThumb map={map} className="h-4 w-6" crop={1.6} />}
+          maps={props.maps ?? []}
+          required={props.mapRequired === true}
+          counts={props.mapCounts ?? null}
           onChange={(map) => onChange({ map })}
         />
       );
@@ -293,29 +296,6 @@ function FieldControl({ field, props }: { field: ScopeField; props: ScopeBarProp
     default:
       return null;
   }
-}
-
-function EntityPicker({ entity }: { entity: ScopeEntity }): ReactNode {
-  const router = useRouter();
-  const query = useSearchParams().toString();
-  if (entity.options.length < 2) {
-    const current = entity.options.find((option) => option.value === entity.id);
-    return current ? <span className="px-1 text-body-sm font-semibold text-fg-1">{current.label}</span> : null;
-  }
-  return (
-    <Select value={entity.id} onValueChange={(id) => router.push(switchEntityHref(entity.hrefFor(id), query))}>
-      <SelectTrigger aria-label={entity.noun} className={cn(TRIGGER, 'max-w-56 font-semibold text-fg-1')}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {entity.options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
 }
 
 const DOT: Record<ResultDot, string> = { win: 'bg-outcome-win', loss: 'bg-outcome-loss', draw: 'bg-fg-3' };
