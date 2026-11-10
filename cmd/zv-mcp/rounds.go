@@ -66,6 +66,9 @@ type findRoundsOut struct {
 	MoreMatches    bool          `json:"more_matches,omitempty" jsonschema:"true when older matches past match_cap were not read; narrow the period, map, rivals or match_id to reach them"`
 	MatchesSkipped int           `json:"matches_skipped,omitempty" jsonschema:"matches whose analysis is not ready or that the scope could not rate"`
 	Truncated      bool          `json:"truncated,omitempty" jsonschema:"true when more rounds match; raise limit or narrow the filter"`
+	linkOut
+	// team names the link of a team's rounds.
+	team string
 }
 
 // roundSubject is whose rounds find_rounds reads in one match: the team key
@@ -137,7 +140,8 @@ func registerRoundTools(server *mcp.Server, s *studio) {
 		Description: "Find rounds of a team or a player in the library by map, side, buys of both sides, result and a play. Returns round refs " +
 			"(match_id/round) with the buys, the site and the round shape, newest match first. With team_id it takes every team scope key " +
 			"(lineup, rivals, period, last N matches, opponent level, whose, AWP, advantage, round range), so it lists the rounds the team tools count. " +
-			"play_id keeps the rounds of a Libreta play or a detected play. Reads at most 50 matches; match_cap and more_matches say when older ones were left out."},
+			"play_id keeps the rounds of a Libreta play or a detected play. Reads at most 50 matches; match_cap and more_matches say when older ones were left out. " +
+			"studio_path opens the rounds listed (at most 200) in the 2D Replay as one playlist, with the player in focus for a steamid."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in findRoundsIn) (*mcp.CallToolResult, findRoundsOut, error) {
 			if in.PlayID != "" && in.TeamID == "" && in.SteamID == "" {
 				if err := checkUUID("play_id", in.PlayID); err != nil {
@@ -172,6 +176,9 @@ func registerRoundTools(server *mcp.Server, s *studio) {
 			if play != nil {
 				out.Play = cleanName(play.title)
 				out.PlayRounds, out.PlayCapped = play.rounds, play.rounds > len(play.keys)
+			}
+			if err == nil {
+				out.linkOut = in.roundsLink(out)
 			}
 			return nil, out, err
 		})
@@ -248,6 +255,7 @@ func (in findRoundsIn) teamRounds(call roundsCall) (findRoundsOut, error) {
 	if err != nil {
 		return out, toolError(err)
 	}
+	out.team = cleanName(got.TeamName)
 	for _, skipped := range got.Skipped {
 		if skipped.Reason == overMatchLimit {
 			out.MoreMatches = true

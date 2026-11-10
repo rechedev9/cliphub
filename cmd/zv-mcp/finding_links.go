@@ -31,10 +31,10 @@ type findingLink struct {
 // maxExampleRefs is the round refs a row lists in place of a link, as team_prep does.
 const maxExampleRefs = 5
 
-// linkOut is a studio_path and, when its rounds were cut at maxPlaylistRounds, how many it opens.
+// linkOut is a studio_path and, when it opens fewer rounds than its row counts, how many it opens.
 type linkOut struct {
 	StudioPath   string `json:"studio_path,omitempty"`
-	RoundsLinked int    `json:"rounds_linked,omitempty" jsonschema:"set only when studio_path was cut: the rounds it opens, fewer than rounds"`
+	RoundsLinked int    `json:"rounds_linked,omitempty" jsonschema:"set only when studio_path opens fewer rounds than the row counts (cut at 200, or only the example rounds were read): the rounds it opens"`
 }
 
 // roundKeys is the link's valid rounds as match:round, once each, in order.
@@ -52,11 +52,13 @@ func (l findingLink) roundKeys() []string {
 	return out
 }
 
-func (l findingLink) out() linkOut {
-	keys := l.roundKeys()
+func (l findingLink) out() linkOut { return l.outFor(len(l.roundKeys())) }
+
+// outFor is out for a row of total rounds: rounds_linked says when the path opens fewer than that.
+func (l findingLink) outFor(total int) linkOut {
 	o := linkOut{StudioPath: l.path()}
-	if len(keys) > maxPlaylistRounds {
-		o.RoundsLinked = maxPlaylistRounds
+	if linked := min(len(l.roundKeys()), maxPlaylistRounds); linked > 0 && linked < total {
+		o.RoundsLinked = linked
 	}
 	return o
 }

@@ -34,8 +34,8 @@ func addTeamReportRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/library/teams/"+testTeamID+"/bombsites", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"team_name":"Vitality","skipped":[],"match_count":1,"maps":[{"map":"de_nuke","matches":1,"ct_rounds":12,"t_rounds":10,
 			"sites":[{"site":"A","ct":{"hit":{"count":6,"pct":50},"held":{"count":4,"pct":66.7,"reliable":true},"plants_allowed":{"pct":33.3},"won":{"pct":66.7},
-			"retakes_attempted":{"count":2},"retakes_won":{"pct":50},"examples":` + refs("1") + `},
-			"t":{"attacks":{"count":5,"pct":50},"plants":{"pct":80},"won":{"pct":60},"post_plant_won":{"pct":75},"examples":[]}}]}]}`))
+			"retakes_attempted":{"count":2},"retakes_won":{"pct":50},"examples":` + refs("1") + `,"refs":` + refs("1", "2", "3", "4", "5", "6") + `},
+			"t":{"attacks":{"count":5,"pct":50},"plants":{"pct":80},"won":{"pct":60},"post_plant_won":{"pct":75},"examples":[],"refs":` + refs("2", "3") + `}}]}]}`))
 	})
 	mux.HandleFunc("GET /api/library/teams/"+testTeamID+"/playbook", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("side") != "T" || r.URL.Query().Get("map") != "de_nuke" {

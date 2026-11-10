@@ -85,6 +85,9 @@ func TestBombsitesCountsEachSiteFromBothSides(t *testing.T) {
 	if len(a.CT.Examples) != 3 || a.CT.Examples[0].Round != 1 || len(b.T.Examples) != 2 {
 		t.Fatalf("examples = %+v / %+v", a.CT.Examples, b.T.Examples)
 	}
+	if len(a.CT.Refs) != a.CT.Hit.Count || len(b.T.Refs) != b.T.Attacks.Count {
+		t.Fatalf("refs = %d / %d, want every hit and attacked round (%d / %d)", len(a.CT.Refs), len(b.T.Refs), a.CT.Hit.Count, b.T.Attacks.Count)
+	}
 
 	ct := Bombsites(matches, ScoutFilter{Side: SideCT}).Maps[0]
 	if ct.CTRounds != 5 || ct.TRounds != 0 || ct.Sites[1].T.Attacks.Total != 0 {

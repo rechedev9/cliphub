@@ -137,6 +137,7 @@ type shareOut struct {
 	SharePct float64 `json:"share_pct"`
 	WinPct   float64 `json:"win_pct"`
 	Reliable bool    `json:"reliable" jsonschema:"false when the sample is too small to trust"`
+	linkOut
 }
 
 type scoutMapOut struct {
@@ -162,6 +163,7 @@ type scoutExecuteOut struct {
 	Rounds   int     `json:"rounds"`
 	WinPct   float64 `json:"win_pct"`
 	PlantPct float64 `json:"plant_pct"`
+	linkOut
 }
 
 type scoutAWPOut struct {
@@ -290,7 +292,8 @@ func registerAnalysisTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "scout_team", Annotations: readOnly,
 		Description: "Summarize a team's scouting report from its library matches: record per map, buys, bombsites, " +
-			"T and CT round shapes, opening duels, executes, AWP use and players. Filter by map, side, dates, rivals (opponent_id) and matches (match_id)."},
+			"T and CT round shapes, opening duels, executes, AWP use and players. Filter by map, side, dates, rivals (opponent_id) and matches (match_id). " +
+			"Each buy, site, round shape and execute row has a studio_path that opens its rounds in the 2D Replay (rounds_linked when cut at 200)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in scoutTeamIn) (*mcp.CallToolResult, scoutTeamOut, error) {
 			if err := checkUUID("team_id", in.TeamID); err != nil {
 				return nil, scoutTeamOut{}, err
@@ -307,7 +310,13 @@ func registerAnalysisTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, scoutTeamOut{}, toolError(err)
 			}
-			return nil, summarizeScout(report), nil
+			rounds, err := c.TeamRounds(ctx, in.TeamID, q)
+			if err != nil {
+				return nil, scoutTeamOut{}, toolError(err)
+			}
+			out := summarizeScout(report)
+			addScoutLinks(&out, rounds)
+			return nil, out, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "player_metrics", Annotations: readOnly,

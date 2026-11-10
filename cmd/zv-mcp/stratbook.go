@@ -134,6 +134,7 @@ type detectedPlayOut struct {
 	Reliable    bool             `json:"reliable"`
 	GrenadeList []playGrenadeOut `json:"grenade_list"`
 	Refs        []string         `json:"refs" jsonschema:"first rounds of the group, at most 5"`
+	linkOut
 }
 
 type detectPlaysOut struct {
@@ -310,7 +311,8 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "detect_team_plays", Annotations: readOnly,
 		Description: "Find the plays a team repeats: its rounds grouped by shared utility and positions, per map and side, with how often and how well each runs. " +
-			"Filter like scout_team. save_detected_play stores one in the stratbook."},
+			"Filter like scout_team. save_detected_play stores one in the stratbook. " +
+			"Each play has a studio_path that opens its example rounds in the 2D Replay (rounds_linked when they are fewer than rounds)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in detectPlaysListIn) (*mcp.CallToolResult, detectPlaysOut, error) {
 			if in.Limit < 0 || in.Limit > maxDetectedPlays {
 				return nil, detectPlaysOut{}, fmt.Errorf("limit must be from 1 to %d", maxDetectedPlays)
@@ -325,7 +327,8 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 			for _, p := range det.Plays[:min(len(det.Plays), limit)] {
 				out.Plays = append(out.Plays, detectedPlayOut{Ref: refString(p.Seed), Map: cleanName(p.Map), Side: p.Side, Kind: cleanName(p.Kind),
 					Site: cleanName(p.Site), Rounds: p.Rounds, SharePct: p.Share.Pct, WinPct: p.WinRate.Pct, Reliable: p.WinRate.Reliable,
-					GrenadeList: grenadesOf(p.Grenades), Refs: refStrings(p.Examples)})
+					GrenadeList: grenadesOf(p.Grenades), Refs: refStrings(p.Examples),
+					linkOut: findingLink{title: joinTitle(out.Team, p.Map, p.Side, p.Kind, p.Site), refs: p.Examples}.outFor(p.Rounds)})
 			}
 			return nil, out, nil
 		})

@@ -60,6 +60,7 @@ func teamsStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	rec.handle(mux, "POST /api/library/teams/{id}/merge", `{"id":"`+testRivalID+`","name":"MOUZ","aliases":["VIT"],"match_count":7}`)
 	rec.handle(mux, "PUT /api/library/matches/{id}/teams/{key}", `{"id":"`+testMatchID+`","teams":[{"key":"ct-start","start_side":"ct","clan_name":"VIT","team_id":"`+testTeamID+`","team_name":"Vitality","assignment":"manual"}]}`)
 	rec.handle(mux, "GET /api/library/teams/{id}/scout", `{"team_name":"Vitality"}`)
+	rec.handle(mux, "GET /api/library/teams/{id}/rounds", `{"team_name":"Vitality","rounds":0,"matches":[],"skipped":[]}`)
 	rec.handle(mux, "GET /api/library/teams/{id}/lineups", `{"latest_match":{"match_id":"`+testMatchID+`","map":"de_mirage","played_at":"2026-10-12T18:00:00Z"},
 		"latest":[{"steamid64":"`+testSteamID+`","nick":"ZywOo","first_played_at":"2026-01-02T00:00:00Z","last_played_at":"2026-10-12T00:00:00Z","matches":3}],"others":[]}`)
 	rec.handle(mux, "GET /api/library/baseline", `{"scope":"library","min_rounds":200,"metrics":{}}`)

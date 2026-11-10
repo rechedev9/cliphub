@@ -42,6 +42,7 @@ type defenseOut struct {
 	RetakeWinPct     float64  `json:"retake_win_pct" jsonschema:"over the retake attempts"`
 	Reliable         bool     `json:"reliable" jsonschema:"false when the hit rounds are too few to trust"`
 	Refs             []string `json:"refs" jsonschema:"first round refs (match_id/round)"`
+	linkOut
 }
 
 type attackOut struct {
@@ -52,6 +53,7 @@ type attackOut struct {
 	PostPlantWinPct float64  `json:"post_plant_win_pct" jsonschema:"over the plants"`
 	Reliable        bool     `json:"reliable" jsonschema:"false when the attacks are too few to trust"`
 	Refs            []string `json:"refs" jsonschema:"first round refs (match_id/round)"`
+	linkOut
 }
 
 type bombsiteOut struct {
@@ -82,7 +84,8 @@ type groupOut struct {
 	SharePct float64  `json:"share_pct"`
 	WinPct   float64  `json:"win_pct"`
 	Reliable bool     `json:"reliable" jsonschema:"false when the sample is too small to trust"`
-	Refs     []string `json:"refs" jsonschema:"first round refs (match_id/round), at most 5; find_rounds lists more"`
+	Refs     []string `json:"refs" jsonschema:"first round refs (match_id/round), at most 5; studio_path opens all the rounds"`
+	linkOut
 }
 
 type tempoOut struct {
@@ -129,6 +132,7 @@ type spotOut struct {
 	Rounds   int      `json:"rounds"`
 	SharePct float64  `json:"share_pct" jsonschema:"over the player's rounds in the window"`
 	Refs     []string `json:"refs" jsonschema:"first round refs (match_id/round)"`
+	linkOut
 }
 
 type prepWindowOut struct {
@@ -165,7 +169,8 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "team_bombsites", Annotations: readOnly,
 		Description: "Read a team's record on each bombsite of each map: as CT how often the site is hit, held and retaken; " +
-			"as T how often the team attacks it, plants and wins. Filter by map, side, dates, rivals (opponent_id) and matches (match_id)."},
+			"as T how often the team attacks it, plants and wins. Filter by map, side, dates, rivals (opponent_id) and matches (match_id). " +
+			"Each CT and T row has a studio_path that opens its rounds in the 2D Replay with the site marked."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamReportIn) (*mcp.CallToolResult, teamBombsitesOut, error) {
 			q, err := in.check(false)
 			if err != nil {
@@ -187,7 +192,8 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 			"(rush, execute, fake, stack, retake...), the tempo, the sites, the zones it takes early and every tactic its rounds show " +
 			"(buys, opening duel spot and result, AWP spot, key smokes and molotovs). Combine tactics as Combina tácticas does: " +
 			"with keeps the rounds that show every key, without drops those that show any, and every count is over the kept rounds. " +
-			"map and side are required; opponent_id and match_id narrow the matches."},
+			"map and side are required; opponent_id and match_id narrow the matches. " +
+			"Every category, site, zone and tactic row has a studio_path that opens all its rounds in the 2D Replay (refs lists the first 5)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamPlaybookIn) (*mcp.CallToolResult, teamPlaybookOut, error) {
 			pb, err := in.read(ctx, s)
 			if err != nil {
@@ -200,7 +206,8 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 		Description: "Prepare a match against a team on one map: how it fares in each buy matchup, how fast it plays per buy, " +
 			"where each CT player stands in each time window, each player's library role and map_role (the role on the map as the Ranking reads it), and the data warnings Preparar shows on top (stale, lineup, small_sample), " +
 			"counted on side when given. With side (T or CT), t_from, t_to and movement it also gives first_death: each player's 5 zones " +
-			"with most seconds until the round's first death, as Posiciones hasta la primera muerte. map is required; the prep reads both sides."},
+			"with most seconds until the round's first death, as Posiciones hasta la primera muerte. map is required; the prep reads both sides. " +
+			"Each matchup, CT spot and first_death zone has a studio_path that opens its rounds in the 2D Replay."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamPrepIn) (*mcp.CallToolResult, teamPrepOut, error) {
 			q, err := teamReportIn{TeamID: in.TeamID, analysisFilterIn: analysisFilterIn{Map: in.Map, From: in.From, To: in.To},
 				teamScopeIn: in.teamScopeIn}.check(false)
@@ -254,6 +261,10 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, prepareTeamOut{}, toolError(err)
 			}
+			scoutRounds, err := c.TeamRounds(ctx, in.TeamID, scoped)
+			if err != nil {
+				return nil, prepareTeamOut{}, toolError(err)
+			}
 			prep, err := c.TeamPrepReport(ctx, in.TeamID, q)
 			if err != nil {
 				return nil, prepareTeamOut{}, toolError(err)
@@ -266,7 +277,9 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, prepareTeamOut{}, err
 			}
-			return nil, prepareTeamOut{Scouting: summarizeScout(scout), Prep: out, Attack: summarizeAttack(attack), StudioPath: preparePath(in.TeamID, q)}, nil
+			scouting := summarizeScout(scout)
+			addScoutLinks(&scouting, scoutRounds)
+			return nil, prepareTeamOut{Scouting: scouting, Prep: out, Attack: summarizeAttack(attack), StudioPath: preparePath(in.TeamID, q)}, nil
 		})
 }
 
@@ -308,18 +321,21 @@ func (in teamReportIn) check(playbook bool) (tuiclient.AnalysisQuery, error) {
 }
 
 func summarizeBombsites(r tuiclient.BombsiteReport) teamBombsitesOut {
-	out := teamBombsitesOut{Team: cleanName(r.TeamName), Matches: r.MatchCount, Maps: []bombsiteMapOut{}, SkippedMatches: len(r.Skipped)}
+	team := cleanName(r.TeamName)
+	out := teamBombsitesOut{Team: team, Matches: r.MatchCount, Maps: []bombsiteMapOut{}, SkippedMatches: len(r.Skipped)}
 	for _, m := range r.Maps {
 		mo := bombsiteMapOut{Map: cleanName(m.Map), Matches: m.Matches, CTRounds: m.CTRounds, TRounds: m.TRounds, Sites: []bombsiteOut{}}
 		for _, site := range m.Sites {
 			ct, t := site.CT, site.T
+			ctLink := findingLink{title: joinTitle(team, mo.Map, "defensa del sitio "+site.Site), refs: firstNonEmpty(ct.Refs, ct.Examples), zones: siteZone(site.Site)}
+			tLink := findingLink{title: joinTitle(team, mo.Map, "ataque al sitio "+site.Site), refs: firstNonEmpty(t.Refs, t.Examples), zones: siteZone(site.Site)}
 			mo.Sites = append(mo.Sites, bombsiteOut{
 				Site: cleanName(site.Site),
 				CT: defenseOut{HitRounds: ct.Hit.Count, HitPct: ct.Hit.Pct, HeldPct: ct.Held.Pct, PlantsAllowedPct: ct.PlantsAllowed.Pct,
 					WinPct: ct.Won.Pct, RetakeAttempts: ct.RetakesAttempted.Count, RetakeWinPct: ct.RetakesWon.Pct,
-					Reliable: ct.Held.Reliable, Refs: refStrings(ct.Examples)},
+					Reliable: ct.Held.Reliable, Refs: refStrings(ct.Examples), linkOut: ctLink.outFor(ct.Hit.Count)},
 				T: attackOut{Attacks: t.Attacks.Count, AttackPct: t.Attacks.Pct, PlantPct: t.Plants.Pct, WinPct: t.Won.Pct,
-					PostPlantWinPct: t.PostPlantWon.Pct, Reliable: t.Plants.Reliable, Refs: refStrings(t.Examples)},
+					PostPlantWinPct: t.PostPlantWon.Pct, Reliable: t.Plants.Reliable, Refs: refStrings(t.Examples), linkOut: tLink.outFor(t.Attacks.Count)},
 			})
 		}
 		out.Maps = append(out.Maps, mo)
@@ -333,22 +349,23 @@ func summarizePlaybook(pb tuiclient.TeamPlaybook) teamPlaybookOut {
 		WinPct: pb.WinRate.Pct, FramedRounds: pb.Framed, Tempo: tempoOf(pb.Tempo),
 		Categories: []groupOut{}, Sites: []groupOut{}, Zones: []groupOut{}, SkippedMatches: len(pb.Skipped),
 	}
+	scope := joinTitle(out.Team, out.Map, out.Side)
 	for _, g := range pb.Categories {
 		if g.Rounds > 0 {
-			out.Categories = append(out.Categories, groupOf(g.Category, g.ReportGroup))
+			out.Categories = append(out.Categories, groupOf(groupSpec{title: joinTitle(scope, g.Category), name: g.Category, group: g.ReportGroup}))
 		}
 	}
 	for _, g := range pb.Sites {
-		out.Sites = append(out.Sites, groupOf(g.Site, g.ReportGroup))
+		out.Sites = append(out.Sites, groupOf(groupSpec{title: joinTitle(scope, "sitio "+g.Site), name: g.Site, group: g.ReportGroup, zones: siteZone(g.Site)}))
 	}
 	for _, g := range pb.Zones {
 		name := g.Label
 		if name == "" {
 			name = g.Zone
 		}
-		out.Zones = append(out.Zones, groupOf(name, g.ReportGroup))
+		out.Zones = append(out.Zones, groupOf(groupSpec{title: joinTitle(scope, name), name: name, group: g.ReportGroup, zones: []string{g.Zone}}))
 	}
-	out.Tactics, out.With, out.Without = tacticsOf(pb)
+	out.Tactics, out.With, out.Without = tacticsOf(pb, scope)
 	return out
 }
 
@@ -357,9 +374,11 @@ func summarizePrep(p tuiclient.TeamPrep) teamPrepOut {
 		Team: cleanName(p.TeamName), Map: cleanName(p.Map), Matches: p.Matches, Rounds: p.RoundCount, FramedRounds: p.Framed,
 		Matchups: []matchupOut{}, Tempo: []prepTempoOut{}, CTPlayers: []prepPlayerOut{}, SkippedMatches: len(p.Skipped),
 	}
+	scope := joinTitle(out.Team, out.Map)
 	for _, m := range p.Matchups {
+		name := m.Buy + " vs " + m.OpponentBuy
 		out.Matchups = append(out.Matchups, matchupOut{Side: cleanName(m.Side), Buy: cleanName(m.Buy), OpponentBuy: cleanName(m.OpponentBuy),
-			groupOut: groupOf(m.Buy+" vs "+m.OpponentBuy, m.ReportGroup)})
+			groupOut: groupOf(groupSpec{title: joinTitle(scope, m.Side, name), name: name, group: m.ReportGroup})})
 	}
 	for _, t := range p.Tempo {
 		out.Tempo = append(out.Tempo, prepTempoOut{Side: cleanName(t.Side), Buy: cleanName(t.Buy), Rounds: t.Rounds, WinPct: t.WinRate.Pct,
@@ -370,7 +389,9 @@ func summarizePrep(p tuiclient.TeamPrep) teamPrepOut {
 		for _, w := range pl.Windows {
 			wo := prepWindowOut{Window: windowName(w.FromSeconds, w.ToSeconds), Rounds: w.Rounds, Spots: []spotOut{}}
 			for _, sp := range w.Spots {
-				wo.Spots = append(wo.Spots, spotOut{Callout: cleanName(sp.Callout), Rounds: sp.Share.Count, SharePct: sp.Share.Pct, Refs: refStrings(sp.Refs)})
+				link := findingLink{title: joinTitle(scope, po.Name, sp.Callout), refs: sp.Refs, focus: []string{pl.SteamID64}, tramo: windowTramo(w.FromSeconds, w.ToSeconds), zones: []string{sp.Callout}}
+				wo.Spots = append(wo.Spots, spotOut{Callout: cleanName(sp.Callout), Rounds: sp.Share.Count, SharePct: sp.Share.Pct, Refs: refStrings(sp.Refs),
+					linkOut: link.outFor(sp.Share.Count)})
 			}
 			po.Windows = append(po.Windows, wo)
 		}
@@ -379,13 +400,20 @@ func summarizePrep(p tuiclient.TeamPrep) teamPrepOut {
 	return out
 }
 
-func groupOf(name string, g tuiclient.ReportGroup) groupOut {
-	refs := g.Refs
-	if len(refs) == 0 {
-		refs = g.Examples
-	}
-	return groupOut{Name: cleanName(name), Rounds: g.Rounds, SharePct: g.Share.Pct, WinPct: g.WinRate.Pct,
-		Reliable: g.WinRate.Reliable, Refs: refStrings(refs)}
+// groupSpec is a report group to list: its name, the title and the zones of its link.
+type groupSpec struct {
+	title string
+	name  string
+	group tuiclient.ReportGroup
+	zones []string
+}
+
+func groupOf(s groupSpec) groupOut {
+	g := s.group
+	refs := firstNonEmpty(g.Refs, g.Examples)
+	link := findingLink{title: s.title, refs: refs, zones: s.zones}
+	return groupOut{Name: cleanName(s.name), Rounds: g.Rounds, SharePct: g.Share.Pct, WinPct: g.WinRate.Pct,
+		Reliable: g.WinRate.Reliable, Refs: refStrings(refs), linkOut: link.outFor(g.Rounds)}
 }
 
 func tempoOf(h tuiclient.Histogram) tempoOut {

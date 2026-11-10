@@ -38,6 +38,8 @@ type BombsiteDefense struct {
 	RetakesAttempted Rate       `json:"retakes_attempted"`
 	RetakesWon       Rate       `json:"retakes_won"`
 	Examples         []Evidence `json:"examples"`
+	// Refs holds every hit round, Examples only the first ones.
+	Refs []Evidence `json:"refs"`
 }
 
 // BombsiteAttack is the team attacking a site. Attacks is over the team's T
@@ -49,6 +51,8 @@ type BombsiteAttack struct {
 	Won          Rate       `json:"won"`
 	PostPlantWon Rate       `json:"post_plant_won"`
 	Examples     []Evidence `json:"examples"`
+	// Refs holds every attacked round, Examples only the first ones.
+	Refs []Evidence `json:"refs"`
 }
 
 // targetSite is the bombsite the attackers went for: the plant site when the
@@ -68,7 +72,7 @@ func bombPlanted(r Round) bool { return r.Bomb != nil && r.Bomb.PlantTick > 0 }
 
 type siteCounts struct {
 	rounds, planted, won, plantedWon, retakes, retakesWon int
-	examples                                              []Evidence
+	examples, refs                                        []Evidence
 }
 
 type bombsiteMapAcc struct {
@@ -94,7 +98,9 @@ func (a *bombsiteMapAcc) add(m ScoutMatch, r Round, side Side) {
 	c := a.perSiteSide[side][site]
 	won := r.Winner == side
 	c.rounds++
-	c.examples = appendExample(c.examples, evidence(m, r, 0))
+	e := evidence(m, r, 0)
+	c.examples = appendExample(c.examples, e)
+	c.refs = append(c.refs, e)
 	if won {
 		c.won++
 	}
@@ -127,6 +133,7 @@ func (a *bombsiteMapAcc) finish(name string) BombsiteMap {
 				RetakesAttempted: newRate(ct.retakes, ct.planted),
 				RetakesWon:       newRate(ct.retakesWon, ct.retakes),
 				Examples:         nonNilEvidence(ct.examples),
+				Refs:             nonNilEvidence(ct.refs),
 			},
 			T: BombsiteAttack{
 				Attacks:      newRate(t.rounds, out.TRounds),
@@ -134,6 +141,7 @@ func (a *bombsiteMapAcc) finish(name string) BombsiteMap {
 				Won:          newRate(t.won, t.rounds),
 				PostPlantWon: newRate(t.plantedWon, t.planted),
 				Examples:     nonNilEvidence(t.examples),
+				Refs:         nonNilEvidence(t.refs),
 			},
 		})
 	}

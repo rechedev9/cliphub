@@ -101,6 +101,10 @@ few-rounds, roster and capped warnings to repeat to the user; prepare_team inclu
 all_rounds, default_rounds, execute_rounds and each list's top row carry a studio_path, as do
 team_grenades zones and player_positions places: it opens the 2D Replay on those rounds
 with the focus, tramo and zones in the URL; show_zones draws a map with zones marked in hosts with MCP Apps.
+Every finding leads to its rounds: find_rounds, each row of team_bombsites, team_playbook (categories, sites, zones, tactics),
+team_prep (matchups, CT spots, first_death zones), scout_team (buys, sites, round shapes, executes) and detect_team_plays carry a
+studio_path to /replay?r=... with the player, tramo and zone in the URL, and rounds_linked when it opens fewer rounds than the row
+counts (cut at 200, or a detected play's example rounds). Rows keep up to 5 refs to read; the path opens them all.
 The match_prep prompt guides a match prep: rival and maps, the analysis, find_rounds for each finding's rounds,
 then create_report with Markdown notes and one named round list per finding.
 For a player: player_positions; leaderboard is the Ranking page: it ranks the library's players on one metric (rating, kd or a get_baseline one),

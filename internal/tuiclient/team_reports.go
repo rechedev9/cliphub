@@ -41,6 +41,8 @@ type BombsiteDefense struct {
 	RetakesAttempted Rate       `json:"retakes_attempted"`
 	RetakesWon       Rate       `json:"retakes_won"`
 	Examples         []Evidence `json:"examples"`
+	// Refs holds every hit round, Examples only the first ones.
+	Refs []Evidence `json:"refs"`
 }
 
 // BombsiteAttack is the team attacking one site.
@@ -50,6 +52,8 @@ type BombsiteAttack struct {
 	Won          Rate       `json:"won"`
 	PostPlantWon Rate       `json:"post_plant_won"`
 	Examples     []Evidence `json:"examples"`
+	// Refs holds every attacked round, Examples only the first ones.
+	Refs []Evidence `json:"refs"`
 }
 
 // BombsiteMap is a team's record on both sites of one map.
