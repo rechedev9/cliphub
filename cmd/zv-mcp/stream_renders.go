@@ -33,7 +33,7 @@ var streamPlayIDPattern = regexp.MustCompile(`^(play|voice)-[0-9]{1,6}$`)
 
 type findStreamPlaysIn struct {
 	ID          string `json:"id" jsonschema:"stream_id from import_stream or list_streams"`
-	Limit       int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 20"`
+	Limit       int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 20. Marked shouts are always listed, past this limit"`
 	Rescan      bool   `json:"rescan,omitempty" jsonschema:"scan the video again even if it was scanned before"`
 	WaitSeconds int    `json:"wait_seconds,omitempty" jsonschema:"how long to wait for the scan, at most 55; call again while status is running"`
 	Voice       *bool  `json:"voice,omitempty" jsonschema:"look for voice peaks (the streamer raising their voice) as well as kills; default true. Changing it on a scanned stream scans again"`
@@ -57,7 +57,7 @@ type streamPlaysOut struct {
 	Status   string          `json:"status" jsonschema:"idle, running, done or failed"`
 	Percent  int             `json:"percent,omitempty"`
 	Plays    []streamPlayOut `json:"plays"`
-	Total    int             `json:"total" jsonschema:"plays found; raise limit to see more"`
+	Total    int             `json:"total" jsonschema:"plays found; raise limit to see more (marked shouts are always listed)"`
 	Error    string          `json:"error,omitempty"`
 	Note     string          `json:"note,omitempty"`
 	Duration float64         `json:"plays_seconds,omitempty" jsonschema:"length of every play together, which is about the length of the 16:9 summary"`
@@ -398,7 +398,11 @@ func describePlayScan(scan tuiclient.StreamPlayScan, limit int) streamPlaysOut {
 	if limit <= 0 {
 		limit = defaultStreamPlaysLimit
 	}
-	for _, p := range ranked[:min(limit, len(ranked))] {
+	// A marked shout is a streamer's order to clip that moment: it stays in the list past the limit.
+	for i, p := range ranked {
+		if i >= limit && !p.Marked {
+			continue
+		}
 		kind := "kill"
 		if p.Kind == "voice_peak" {
 			kind = "voice_peak"

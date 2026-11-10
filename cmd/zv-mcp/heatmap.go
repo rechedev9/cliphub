@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"net/url"
 	"slices"
@@ -162,6 +163,38 @@ type heatmapOut struct {
 	StudioPath       string        `json:"studio_path" jsonschema:"the path that opens this heatmap in Studio with its scope, kind and tramo"`
 }
 
+// teamHeatmapOut is the team heatmap: the whole answer and, with by_player, one more per player.
+type teamHeatmapOut struct {
+	heatmapOut
+	ByPlayer []playerHeat `json:"by_player,omitempty" jsonschema:"with by_player: the same answer for each player counted alone"`
+}
+
+type playerHeat struct {
+	SteamID64 string     `json:"steamid64"`
+	Heatmap   heatmapOut `json:"heatmap"`
+}
+
+// restrictToArea drops the cells whose centre lies outside the zone or its floor; the sides keep their full totals.
+func restrictToArea(got tuiclient.SpatialHeatmap, area *tacticalplan.PatternArea) tuiclient.SpatialHeatmap {
+	if area == nil || got.Heatmap == nil {
+		return got
+	}
+	h := *got.Heatmap
+	h.Cells = nil
+	// A one-floor map has no floors to pick, as PatternArea.Contains reads it.
+	twoFloors := got.Geometry != nil && got.Geometry.Calibration.MultiLevel()
+	for _, c := range got.Heatmap.Cells {
+		x, y := (float64(c.X)+0.5)*h.CellSize, (float64(c.Y)+0.5)*h.CellSize
+		inside := x >= area.MinX && x <= area.MaxX && y >= area.MinY && y <= area.MaxY
+		floor := area.Level == "" || !twoFloors || (area.Level == "lower") == (c.Level == "lower")
+		if inside && floor {
+			h.Cells = append(h.Cells, c)
+		}
+	}
+	got.Heatmap = &h
+	return got
+}
+
 // summarizeHeatmap names the hottest cells with their callout, sums them by callout and lists each side's total.
 func summarizeHeatmap(got tuiclient.SpatialHeatmap, limit int) heatmapOut {
 	out := heatmapOut{Map: cleanName(got.Map), Matches: len(got.Matches), SkippedMatches: len(got.Skipped), Sides: []heatSideOut{}, Zones: []heatZoneOut{}, Cells: []heatCellOut{}}
@@ -254,9 +287,14 @@ type teamHeatmapIn struct {
 	TeamID string `json:"team_id" jsonschema:"team id from list_teams"`
 	analysisFilterIn
 	teamScopeIn
-	Players []string `json:"players,omitempty" jsonschema:"SteamID64s to count alone, as Jugador does on the team's heatmap; every round of the team stays in the scope"`
+	Players  []string       `json:"players,omitempty" jsonschema:"SteamID64s to count alone, as Jugador does on the team's heatmap; every round of the team stays in the scope"`
+	ByPlayer bool           `json:"by_player,omitempty" jsonschema:"with players: also answer one heatmap per player in by_player, each counting that player alone; at most 5 players"`
+	Area     *patternAreaIn `json:"area,omitempty" jsonschema:"keep only the cells whose centre lies in this zone (world units, as player_positions give them); shares stay over the whole side. For the rounds in which a player passes through a zone use find_player_pattern"`
 	heatmapViewIn
 }
+
+// maxHeatPlayers is a team's five: by_player asks the orchestrator once per player.
+const maxHeatPlayers = 5
 
 // teamValues is the focus and view of a team heatmap; the scope, buys included, travels in the AnalysisQuery.
 func (in teamHeatmapIn) teamValues() (url.Values, error) {
@@ -264,13 +302,34 @@ func (in teamHeatmapIn) teamValues() (url.Values, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, id := range in.Players {
+	for _, id := range in.playerIDs() {
 		if err := checkSteamID(id); err != nil {
 			return nil, err
 		}
 		v.Add("player", id)
 	}
+	if n := len(in.playerIDs()); in.ByPlayer && (n == 0 || n > maxHeatPlayers) {
+		return nil, fmt.Errorf("by_player needs 1 to %d different players", maxHeatPlayers)
+	}
 	return v, nil
+}
+
+// playerIDs are the focus players without repeats, in the order given.
+func (in teamHeatmapIn) playerIDs() []string {
+	var ids []string
+	for _, id := range in.Players {
+		if !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// playerHeatValues is the heatmap query with one player as the whole focus.
+func playerHeatValues(heat url.Values, id string) url.Values {
+	one := maps.Clone(heat)
+	one["player"] = []string{id}
+	return one
 }
 
 // teamHeatmapPath opens the team's Replay on Mapa de calor on the resolved map with the
@@ -339,34 +398,55 @@ func registerHeatmapTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "team_heatmap", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Read a team's Mapa de calor over its matches on one map (the most played when map is empty), as the team's Replay shows it: " +
 			"the same kinds, clock window and kill_at as match_heatmap, filtered by side, dates, rivals (opponent_id), matches (match_id) and the whole team scope of team_rounds (buys, AWP, advantage, last N matches...). " +
-			"players counts only those players (SteamID64s), across demos where their slots change. The answer lists the hottest cells with their " +
+			"players counts only those players (SteamID64s), across demos where their slots change; by_player adds one heatmap per player and area keeps the cells inside a zone. The answer lists the hottest cells with their " +
 			"callout and counts, the same cells summed by callout, and studio_path to open it in Studio."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in teamHeatmapIn) (*mcp.CallToolResult, heatmapOut, error) {
+		func(ctx context.Context, _ *mcp.CallToolRequest, in teamHeatmapIn) (*mcp.CallToolResult, teamHeatmapOut, error) {
 			if err := checkUUID("team_id", in.TeamID); err != nil {
-				return nil, heatmapOut{}, err
+				return nil, teamHeatmapOut{}, err
 			}
 			q, err := teamQuery(in.analysisFilterIn, in.teamScopeIn)
 			if err != nil {
-				return nil, heatmapOut{}, err
+				return nil, teamHeatmapOut{}, err
 			}
 			heat, err := in.teamValues()
 			if err != nil {
-				return nil, heatmapOut{}, err
+				return nil, teamHeatmapOut{}, err
 			}
 			if _, err := teamHeatmapPath(in, "", q); err != nil {
-				return nil, heatmapOut{}, err
+				return nil, teamHeatmapOut{}, err
+			}
+			var area *tacticalplan.PatternArea
+			if in.Area != nil {
+				if area, err = in.Area.area(); err != nil {
+					return nil, teamHeatmapOut{}, err
+				}
 			}
 			c, err := s.client(ctx)
 			if err != nil {
-				return nil, heatmapOut{}, toolError(err)
+				return nil, teamHeatmapOut{}, toolError(err)
 			}
 			got, err := c.LibraryTeamHeatmap(ctx, in.TeamID, q, heat)
 			if err != nil {
-				return nil, heatmapOut{}, toolError(err)
+				return nil, teamHeatmapOut{}, toolError(err)
 			}
-			out := summarizeHeatmap(got, heatLimit(in.Limit))
+			out := teamHeatmapOut{heatmapOut: summarizeHeatmap(restrictToArea(got, area), heatLimit(in.Limit))}
+			if in.ByPlayer {
+				// Every player is read on the map the main answer resolved, so a tie between maps cannot split them.
+				pinned := q
+				pinned.Map = got.Map
+				ids := in.playerIDs()
+				for _, id := range ids {
+					alone := got
+					if len(ids) > 1 {
+						if alone, err = c.LibraryTeamHeatmap(ctx, in.TeamID, pinned, playerHeatValues(heat, id)); err != nil {
+							return nil, teamHeatmapOut{}, fmt.Errorf("heatmap of player %s: %w", id, toolError(err))
+						}
+					}
+					out.ByPlayer = append(out.ByPlayer, playerHeat{SteamID64: id, Heatmap: summarizeHeatmap(restrictToArea(alone, area), heatLimit(in.Limit))})
+				}
+			}
 			if out.StudioPath, err = teamHeatmapPath(in, got.Map, q); err != nil {
-				return nil, heatmapOut{}, err
+				return nil, teamHeatmapOut{}, err
 			}
 			return nil, out, nil
 		})
