@@ -2,15 +2,11 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Info } from 'lucide-react';
-import { LIBRARY_ROLES, getTeamSideStats } from '@/lib/api/library';
-import type { ReportSide } from '@/lib/api/scout';
-import type { SideStat, SideStats, SideStatsPlayer, TeamSideStats as TeamSideStatsReport } from '@/lib/api/side-stats';
+import { getTeamSideStats } from '@/lib/api/library';
+import type { SideStat, SideStats, TeamSideStats as TeamSideStatsReport } from '@/lib/api/side-stats';
 import type { DeltaTone } from '@/lib/analysis/compare';
-import { mapRolesText } from '@/lib/analysis/map-role';
 import { scopeDateRange, type AnalysisScope, type ScopeField } from '@/lib/analysis/scope';
 import { teamScopeEntries } from '@/lib/analysis/team-scope';
-import { RATING_FORMULA_TEXT, RATING_LABEL } from '@/lib/analysis/rating';
 import {
   SIDE_STAT_TILES,
   formatSideValue,
@@ -19,35 +15,19 @@ import {
   type SideStatTile,
 } from '@/lib/analysis/side-stats';
 import { matchHref } from '@/lib/clips/routes';
-import { formatDecimal, formatShortDate, prettyMapName } from '@/lib/format';
-import { ROLE_LABEL } from '@/lib/library/partidas';
+import { formatShortDate, prettyMapName } from '@/lib/format';
 import { EmptySample } from '@/components/analysis/empty-sample';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
-import { PlayerAvatar } from '@/components/players/player-avatar';
+import { InfoTip } from '@/components/analysis/info-tip';
 import { FOCUS_RING } from '@/components/ui/button';
 import { DELTA_TONE_CLASS } from '@/components/ui/delta-value';
 import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { PlayerStatCard } from './player-stat-card';
 
 const BORDER: Record<DeltaTone, string> = { better: 'border-l-outcome-win', worse: 'border-l-outcome-loss', even: 'border-l-border' };
 const SIDE_TILES = SIDE_STAT_TILES.filter((tile) => tile.key !== 'maps_won');
-
-function InfoTip({ label, text }: { label: string; text: string }): ReactNode {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button type="button" aria-label={`Cómo se calcula: ${label}`} className={cn('inline-flex rounded-sm text-fg-3 hover:text-fg-1', FOCUS_RING)}>
-          <Info aria-hidden className="size-3.5" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        {text}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
 
 function StatTile({ tile, stat }: { tile: SideStatTile; stat: SideStat }): ReactNode {
   const delta = sideDelta(stat, tile.unit);
@@ -110,64 +90,6 @@ function SidesTable({ ct, t }: { ct: SideStats; t: SideStats }): ReactNode {
         </tbody>
       </table>
     </section>
-  );
-}
-
-function SideLabel({ side }: { side: ReportSide }): ReactNode {
-  if (side === 'CT') return <span className="font-semibold text-side-ct">CT</span>;
-  if (side === 'T') return <span className="font-semibold text-side-t">T</span>;
-  return (
-    <span className="font-semibold">
-      <span className="text-side-ct">CT</span> y <span className="text-side-t">T</span>
-    </span>
-  );
-}
-
-function roleText(role: string): string {
-  const known = LIBRARY_ROLES.find((entry) => entry === role);
-  return known === undefined ? ROLE_LABEL.unknown : ROLE_LABEL[known];
-}
-
-function PlayerCard({ player, side }: { player: SideStatsPlayer; side: ReportSide }): ReactNode {
-  const name = player.name || player.steamid64;
-  // With one map the card names the role per side, such as "T · Lurk de B".
-  const mapRoles = mapRolesText(player.map_roles, side);
-  const lines = [
-    { label: 'K/D', value: formatDecimal(player.kd, 2) },
-    { label: 'ADR', value: formatDecimal(player.adr, 1) },
-    { label: 'KPR', value: formatDecimal(player.kpr, 2) },
-    { label: 'DPR', value: formatDecimal(player.dpr, 2) },
-  ];
-  return (
-    <li className="studio-panel flex min-w-0 flex-col gap-2 p-3">
-      <div className="flex min-w-0 items-center gap-2">
-        <PlayerAvatar nickname={name} playerID={player.steamid64} size={32} />
-        <div className="min-w-0">
-          <p className="truncate text-body font-semibold text-fg-1">{name}</p>
-          {mapRoles === '' ? (
-            <p className="text-meta text-fg-2">
-              <SideLabel side={side} /> · {roleText(player.role)}
-            </p>
-          ) : (
-            <p className="text-meta text-fg-2">{player.role === 'unknown' ? mapRoles : `${mapRoles}, ${roleText(player.role)}`}</p>
-          )}
-        </div>
-      </div>
-      <p className="flex items-baseline gap-1.5">
-        <span className="text-title font-semibold text-fg-1 tabular-nums">{formatDecimal(player.rating, 2)}</span>
-        <span className="text-meta text-fg-3">{RATING_LABEL}</span>
-        <InfoTip label={RATING_LABEL} text={RATING_FORMULA_TEXT} />
-      </p>
-      <dl className="grid grid-cols-4 gap-2">
-        {lines.map((line) => (
-          <div key={line.label} className="flex flex-col">
-            <dt className="text-meta text-fg-3">{line.label}</dt>
-            <dd className="text-body-sm font-medium text-fg-1 tabular-nums">{line.value}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="text-meta text-fg-3 tabular-nums">{player.rounds === 1 ? '1 ronda' : `${player.rounds} rondas`}</p>
-    </li>
   );
 }
 
@@ -294,7 +216,7 @@ export function TeamSideStats({ teamId, scope, lineup, compare, onCounts }: Team
         </h2>
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2">
           {data.players.map((player) => (
-            <PlayerCard key={player.steamid64} player={player} side={side} />
+            <PlayerStatCard key={player.steamid64} player={player} side={side} />
           ))}
         </ul>
       </section>

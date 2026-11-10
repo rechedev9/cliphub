@@ -10,11 +10,12 @@ export function cardRoleText(options: { side: 'CT' | 'T'; mapRole: SideMapRole |
   return [mapRoleText(options.side, options.mapRole), options.role].filter((part) => part !== '').join(', ');
 }
 
-/** The roles of the sides asked, T first: "T · Lurk de B, CT · Ancla A"; empty without any. */
-export function mapRolesText(roles: PlayerMapRoles | undefined, side: '' | 'CT' | 'T'): string {
-  if (roles === undefined) return '';
-  const parts: string[] = [];
-  if (side !== 'CT') parts.push(mapRoleText('T', roles.t));
-  if (side !== 'T') parts.push(mapRoleText('CT', roles.ct));
-  return parts.filter((part) => part !== '').join(', ');
+export type MapRoleChip = { side: 't' | 'ct'; label: string };
+
+/** The chips of the sides asked, T first; a side without a role is left out. */
+export function mapRoleChips(roles: PlayerMapRoles | undefined, side: '' | 'CT' | 'T'): MapRoleChip[] {
+  const chips: MapRoleChip[] = [];
+  if (side !== 'CT' && roles?.t !== undefined && roles.t.label !== '') chips.push({ side: 't', label: roles.t.label });
+  if (side !== 'T' && roles?.ct !== undefined && roles.ct.label !== '') chips.push({ side: 'ct', label: roles.ct.label });
+  return chips;
 }

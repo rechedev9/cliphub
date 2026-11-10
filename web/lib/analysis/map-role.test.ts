@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cardRoleText, mapRoleText, mapRolesText } from './map-role.ts';
+import { cardRoleText, mapRoleText, mapRoleChips } from './map-role.ts';
 
 const lurk = { role: 'b_lurk', map_role: 'Canal', label: 'Lurk de B' } as const;
 const anchor = { role: 'a_anchor', map_role: 'BombsiteA', label: 'Ancla A' } as const;
@@ -17,8 +17,11 @@ test('a card reads the map role before the library role, either alone without th
 });
 
 test('both sides read T first and the side filter keeps one', () => {
-  assert.equal(mapRolesText({ t: lurk, ct: anchor }, ''), 'T · Lurk de B, CT · Ancla A');
-  assert.equal(mapRolesText({ t: lurk, ct: anchor }, 'CT'), 'CT · Ancla A');
-  assert.equal(mapRolesText({ ct: anchor }, 'T'), '');
-  assert.equal(mapRolesText(undefined, ''), '');
+  assert.deepEqual(mapRoleChips({ t: lurk, ct: anchor }, ''), [
+    { side: 't', label: 'Lurk de B' },
+    { side: 'ct', label: 'Ancla A' },
+  ]);
+  assert.deepEqual(mapRoleChips({ t: lurk, ct: anchor }, 'CT'), [{ side: 'ct', label: 'Ancla A' }]);
+  assert.deepEqual(mapRoleChips({ ct: anchor }, 'T'), []);
+  assert.deepEqual(mapRoleChips(undefined, ''), []);
 });
