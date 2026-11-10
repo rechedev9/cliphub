@@ -40,6 +40,24 @@ type deleteVoiceIn struct {
 	Approve string `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
 }
 
+type demoVoiceIn struct {
+	MatchID string `json:"match_id" jsonschema:"library match id"`
+	Extract bool   `json:"extract,omitempty" jsonschema:"true to read the voice from the demo when it was not read yet"`
+}
+
+type demoVoiceTrackOut struct {
+	SteamID64 string `json:"steamid64"`
+	Name      string `json:"name,omitempty"`
+	TeamKey   string `json:"team_key" jsonschema:"side key of the player's team, as get_match gives it"`
+}
+
+type demoVoiceOut struct {
+	MatchID    string              `json:"match_id"`
+	State      string              `json:"state" jsonschema:"none, extracting, ready, failed or unavailable"`
+	Tracks     []demoVoiceTrackOut `json:"tracks"`
+	StudioPath string              `json:"studio_path" jsonschema:"opens the match in the Replay, where Voz de la demo plays these tracks"`
+}
+
 type voiceTrackOut struct {
 	Track      int    `json:"track"`
 	Label      string `json:"label"`
@@ -181,6 +199,32 @@ func registerVoiceTools(server *mcp.Server, s *studio) {
 			return call(ctx, in.MatchID, func(c *tuiclient.Client) (tuiclient.MatchVoice, error) {
 				return c.UpdateVoiceTrack(ctx, tuiclient.VoiceTrackEdit{MatchID: in.MatchID, Track: in.Track, Label: in.Label, SteamID64: in.SteamID64})
 			})
+		})
+
+	mcp.AddTool(server, &mcp.Tool{Name: "demo_voice",
+		Description: "Read the in-game voice a match's demo carries, one track per speaking player, which the Replay plays with Voz de la demo. " +
+			"extract true reads it from the demo file in the background (once per demo, under a minute); call again until state is ready. " +
+			"States: none (not read yet), extracting, ready (tracks lists who speaks; empty when the demo has no voice), failed, unavailable (no demo file on this PC)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in demoVoiceIn) (*mcp.CallToolResult, demoVoiceOut, error) {
+			if err := checkUUID("match_id", in.MatchID); err != nil {
+				return nil, demoVoiceOut{}, err
+			}
+			c, err := s.client(ctx)
+			if err != nil {
+				return nil, demoVoiceOut{}, toolError(err)
+			}
+			v, err := c.GetDemoVoice(ctx, in.MatchID)
+			if err == nil && in.Extract && (v.State == "none" || v.State == "failed") {
+				v, err = c.ExtractDemoVoice(ctx, in.MatchID)
+			}
+			if err != nil {
+				return nil, demoVoiceOut{}, toolError(err)
+			}
+			out := demoVoiceOut{MatchID: v.MatchID, State: v.State, Tracks: []demoVoiceTrackOut{}, StudioPath: "/replay?r=" + in.MatchID + ":1"}
+			for _, t := range v.Tracks {
+				out.Tracks = append(out.Tracks, demoVoiceTrackOut{SteamID64: t.SteamID64, Name: cleanName(t.Name), TeamKey: t.TeamKey})
+			}
+			return nil, out, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "delete_voice", Annotations: &mcp.ToolAnnotations{DestructiveHint: new(true)},

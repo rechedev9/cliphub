@@ -15,6 +15,7 @@ import {
   transcribeMatchVoice,
 } from '@/lib/api/voice';
 import type { MatchVoice, VoiceComms } from '@/lib/api/voice';
+import { voiceErrorText } from '@/lib/replay/voice-errors';
 
 /** How often a running transcription or install is read again. */
 const POLL_MS = 3000;
@@ -36,8 +37,9 @@ export type MatchVoiceControl = {
   transcribe: (language: string) => void;
 };
 
+/** The Spanish text of a failed request: its error code's, else the action's own. */
 function failure(error: unknown, fallback: string): string {
-  return error instanceof LibraryApiError ? error.message : fallback;
+  return voiceErrorText(error instanceof LibraryApiError ? error.code : undefined, fallback);
 }
 
 /** A library match's team voice and its comms, with what the voice bar and the comms panel change. */
@@ -51,10 +53,7 @@ export function useMatchVoice(matchId: string | null): MatchVoiceControl {
       const comms = voice.present ? await getVoiceComms(id).catch(() => null) : null;
       setState({ kind: 'ready', voice, comms });
     } catch (error) {
-      const reason = error instanceof LibraryApiError && error.code === 'voice_unavailable'
-        ? 'La voz del equipo necesita FFmpeg, que esta instalación de Studio no tiene.'
-        : 'No se pudo leer la voz de esta partida.';
-      setState({ kind: 'unavailable', reason });
+      setState({ kind: 'unavailable', reason: failure(error, 'No se pudo leer la voz de esta partida.') });
     }
   }, []);
 
@@ -98,7 +97,7 @@ export function useMatchVoice(matchId: string | null): MatchVoiceControl {
       void run(async (id) => {
         const result = await importMatchVoice(id, files);
         const refused = result.files.filter((file) => file.status !== 'imported');
-        for (const file of refused) toast.error(`${file.file_name}: ${file.error ?? 'no se pudo importar'}`);
+        for (const file of refused) toast.error(`${file.file_name}: ${voiceErrorText(file.error_code, 'no se pudo importar.')}`);
         if (result.sync.state === 'unsynced') toast.warning('La voz aún no está sincronizada: ajústala con Sincronizar.');
       }, 'No se pudo importar la voz.');
     },

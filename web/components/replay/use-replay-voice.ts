@@ -1,12 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { demoVoiceAudioUrl, voiceTrackAudioUrl } from '@/lib/api/voice';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { ReplayClock } from '@/lib/replay/clock';
-import { demoMsOfTick } from '@/lib/replay/voice-sync';
+import { demoMsOfTick, silentOutsideFreeze } from '@/lib/replay/voice-sync';
+import { useDemoVoice } from './use-demo-voice';
+import type { DemoVoiceControl } from './use-demo-voice';
 import { useMatchVoice } from './use-match-voice';
 import type { MatchVoiceControl } from './use-match-voice';
 import { useVoicePlayback } from './use-voice-playback';
+import type { PlaybackTrack } from './use-voice-playback';
 
 const VOLUME_KEY = 'cliphub.replay.voice-volume';
 
@@ -25,6 +29,11 @@ export type ReplayVoice = MatchVoiceControl & {
   setMuted: (muted: boolean) => void;
   mutedTracks: ReadonlySet<number>;
   toggleTrack: (track: number) => void;
+  /** Only freeze time: the comms list keeps its phrases and playback goes quiet once the round is live. */
+  freezeOnly: boolean;
+  setFreezeOnly: (on: boolean) => void;
+  /** The demo's own in-game voice, which plays at offset 0. */
+  demoVoice: DemoVoiceControl;
 };
 
 function storedVolume(): number {
@@ -47,10 +56,12 @@ export function useReplayVoice(options: {
 }): ReplayVoice {
   const { matchId, clock, focused, tickOf, playing, speed } = options;
   const control = useMatchVoice(matchId);
+  const demoVoice = useDemoVoice(matchId);
   const [draft, setDraft] = useState<number | null>(null);
   const [volume, setVolumeState] = useState(0.8);
   const [muted, setMuted] = useState(false);
   const [mutedTracks, setMutedTracks] = useState<ReadonlySet<number>>(new Set());
+  const [freezeOnly, setFreezeOnly] = useState(false);
   useEffect(() => setVolumeState(storedVolume()), []);
   useEffect(() => {
     setDraft(null);
@@ -82,22 +93,54 @@ export function useReplayVoice(options: {
     },
     [tickAt, tickrate],
   );
+  const freezeEndTick = focused?.round.tick_freeze_end ?? null;
+  const silentAt = useCallback((tick: number) => silentOutsideFreeze({ tick, freezeOnly, freezeEndTick }), [freezeEndTick, freezeOnly]);
   const voice = control.state.kind === 'ready' && control.state.voice.present ? control.state.voice : null;
   const offsetMs = draft ?? voice?.sync.offset_ms ?? 0;
-  const tracks = useMemo(() => voice?.tracks ?? [], [voice]);
-  useVoicePlayback({
-    matchId: voice === null ? null : matchId,
-    tracks,
-    clock,
-    tickAt,
-    tickrate,
-    offsetMs,
-    playing,
-    speed,
-    volume,
-    muted,
-    mutedTracks,
-  });
+  const teamTracks = useMemo<PlaybackTrack[]>(
+    () =>
+      voice === null || matchId === null
+        ? []
+        : voice.tracks.map((track) => ({
+            id: `team-${track.track}`,
+            url: voiceTrackAudioUrl(matchId, track.track),
+            durationMs: track.duration_ms,
+            muted: mutedTracks.has(track.track),
+          })),
+    [matchId, mutedTracks, voice],
+  );
+  const demoTracks = useMemo<PlaybackTrack[]>(
+    () =>
+      !demoVoice.on || demoVoice.demo === null || matchId === null
+        ? []
+        : demoVoice.demo.tracks.map((track) => ({
+            id: `demo-${track.steamid64}`,
+            url: demoVoiceAudioUrl(matchId, track.steamid64),
+            durationMs: Number.POSITIVE_INFINITY,
+            muted: false,
+          })),
+    [demoVoice.demo, demoVoice.on, matchId],
+  );
+  const shared = { clock, tickAt, tickrate, playing, speed, volume, muted, silentAt };
+  useVoicePlayback({ ...shared, tracks: teamTracks, offsetMs });
+  useVoicePlayback({ ...shared, tracks: demoTracks, offsetMs: 0 });
 
-  return { ...control, matchId, clock, demoMsAt, offsetMs, draft, setDraft, volume, setVolume, muted, setMuted, mutedTracks, toggleTrack };
+  return {
+    ...control,
+    matchId,
+    clock,
+    demoMsAt,
+    offsetMs,
+    draft,
+    setDraft,
+    volume,
+    setVolume,
+    muted,
+    setMuted,
+    mutedTracks,
+    toggleTrack,
+    freezeOnly,
+    setFreezeOnly,
+    demoVoice,
+  };
 }

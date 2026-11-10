@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -65,8 +66,30 @@ type TranscriberStatus struct {
 	Model         string `json:"model"`
 	DownloadBytes int64  `json:"download_bytes"`
 	DoneBytes     int64  `json:"done_bytes,omitempty"`
+	ErrorCode     string `json:"error_code,omitempty"`
 	Error         string `json:"error,omitempty"`
 }
+
+// Install failure codes the UI words on its own.
+const (
+	TranscriberRuntimeMissing = "runtime_missing"
+	TranscriberStartFailed    = "start_failed"
+	TranscriberDownloadFailed = "download_failed"
+)
+
+// installError is an install failure with the code the UI words and a Spanish message for MCP.
+type installError struct {
+	code, msg string
+	err       error
+}
+
+func (e *installError) Error() string { return e.msg }
+func (e *installError) Unwrap() error { return e.err }
+
+// statusDLLNotFound is Windows' STATUS_DLL_NOT_FOUND: whisper-cli without the VC++ runtime.
+const statusDLLNotFound = 0xc0000135
+
+const vcRuntimeHint = "Instala Microsoft Visual C++ Redistributable 2015-2022 (x64) desde https://aka.ms/vs/17/release/vc_redist.x64.exe y vuelve a intentarlo."
 
 // TranscriberOptions configures a Transcriber; CLI and Model override the fetched install.
 type TranscriberOptions struct {
@@ -84,7 +107,10 @@ type Transcriber struct {
 	mu         sync.Mutex
 	installing bool
 	done       int64
-	lastErr    string
+	lastErr    *installError
+	// checked is the whisper-cli that last ran its smoke test; checkErr is that test's result.
+	checked  string
+	checkErr *installError
 }
 
 func NewTranscriber(opts TranscriberOptions) *Transcriber {
@@ -123,19 +149,55 @@ func (t *Transcriber) Status() TranscriberStatus {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	s := TranscriberStatus{Version: t.spec.Version, Model: t.spec.ModelName, DownloadBytes: t.spec.BinBytes + t.spec.ModelBytes}
-	switch cli, _ := t.paths(); {
+	cli, _ := t.paths()
+	switch {
 	case !t.supported():
 		s.State = TranscriberUnsupported
 	case t.installing:
 		s.State, s.DoneBytes = TranscriberInstalling, t.done
-	case cli != "":
+	case cli != "" && t.smokeLocked(cli) == nil:
 		s.State = TranscriberInstalled
-	case t.lastErr != "":
-		s.State, s.Error = TranscriberFailed, t.lastErr
+	case cli != "":
+		s.State, s.ErrorCode, s.Error = TranscriberFailed, t.checkErr.code, t.checkErr.msg
+	case t.lastErr != nil:
+		s.State, s.ErrorCode, s.Error = TranscriberFailed, t.lastErr.code, t.lastErr.msg
 	default:
 		s.State = TranscriberMissing
 	}
 	return s
+}
+
+// smokeLocked runs whisper-cli --help once per binary, so a build that cannot start never reads as installed.
+func (t *Transcriber) smokeLocked(cli string) *installError {
+	if t.checked == cli {
+		return t.checkErr
+	}
+	t.checked, t.checkErr = cli, smokeTest(cli)
+	return t.checkErr
+}
+
+func smokeTest(cli string) *installError {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	// #nosec G204 -- the pinned whisper-cli, run with a fixed flag.
+	cmd := exec.CommandContext(ctx, cli, "--help")
+	cmd.Dir = filepath.Dir(cli)
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	tail := strings.TrimSpace(string(out))
+	if len(tail) > 400 {
+		tail = tail[len(tail)-400:]
+	}
+	log.Printf("teamvoice: whisper-cli smoke test failed: %v: %s", err, tail)
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && uint32(exit.ExitCode()) == statusDLLNotFound {
+		return &installError{code: TranscriberRuntimeMissing, err: err,
+			msg: "La transcripción no arranca en este PC porque falta el runtime de Visual C++. " + vcRuntimeHint}
+	}
+	return &installError{code: TranscriberStartFailed, err: err,
+		msg: "La transcripción no arranca en este PC; suele faltar el runtime de Visual C++. " + vcRuntimeHint}
 }
 
 // ErrTranscriberUnsupported is a PC the pinned build does not run on.
@@ -151,15 +213,25 @@ func (t *Transcriber) Install(ctx context.Context) error {
 		t.mu.Unlock()
 		return nil
 	}
-	t.installing, t.done, t.lastErr = true, 0, ""
+	t.installing, t.done, t.lastErr, t.checked, t.checkErr = true, 0, nil, "", nil
 	t.mu.Unlock()
 	go func() {
 		err := t.install(ctx)
+		cli, _ := t.paths()
+		var smoke *installError
+		if err == nil && cli != "" {
+			smoke = smokeTest(cli)
+		}
 		t.mu.Lock()
 		defer t.mu.Unlock()
 		t.installing = false
+		if err == nil && cli != "" {
+			t.checked, t.checkErr = cli, smoke
+		}
 		if err != nil {
-			t.lastErr = err.Error()
+			log.Printf("teamvoice: install whisper.cpp: %v", err)
+			t.lastErr = &installError{code: TranscriberDownloadFailed, err: err,
+				msg: "No se pudo descargar la transcripción local; comprueba la conexión y vuelve a intentarlo."}
 		}
 	}()
 	return nil
@@ -228,6 +300,12 @@ func (t *Transcriber) Transcribe(ctx context.Context, job TranscribeJob) ([]Line
 	cli, model := t.paths()
 	if cli == "" {
 		return nil, ErrTranscriberMissing
+	}
+	t.mu.Lock()
+	smoke := t.smokeLocked(cli)
+	t.mu.Unlock()
+	if smoke != nil {
+		return nil, smoke
 	}
 	dir, err := os.MkdirTemp("", "cliphub-voice-")
 	if err != nil {

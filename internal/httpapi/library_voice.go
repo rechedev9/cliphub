@@ -50,12 +50,13 @@ type VoiceDeps struct {
 	Dir         string
 	Media       VoiceMedia
 	Transcriber VoiceTranscriber
+	DemoVoice   DemoVoiceExtractor
 }
 
 // WithVoice enables the team voice routes of the library.
 func WithVoice(deps VoiceDeps) Option {
 	return func(h *Handlers) {
-		h.voice = &voiceService{deps: deps, queue: make(chan voiceJob, 64), progress: map[uuid.UUID]float64{}}
+		h.voice = &voiceService{deps: deps, queue: make(chan voiceJob, 64), progress: map[uuid.UUID]float64{}, demoJobs: map[uuid.UUID]string{}}
 	}
 }
 
@@ -69,8 +70,20 @@ type voiceService struct {
 	queue    chan voiceJob
 	mu       sync.Mutex
 	progress map[uuid.UUID]float64
-	// installCtx outlives the request that asked for the install.
+	// demoJobs is the extraction state of each demo's in-game voice while it runs or after it failed.
+	demoJobs map[uuid.UUID]string
+	// installCtx outlives the request that asked for an install or a demo voice extraction.
 	installCtx context.Context
+}
+
+// lifetime is the context background voice work runs under: Studio's, once StartVoice ran.
+func (v *voiceService) lifetime() context.Context {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.installCtx == nil {
+		return context.Background()
+	}
+	return v.installCtx
 }
 
 func (v *voiceService) setProgress(id uuid.UUID, share float64) {
@@ -109,6 +122,8 @@ const (
 	codeNotAudio         = "not_audio"
 	codeTooManyTracks    = "too_many_tracks"
 	codeNoTranscriber    = "transcriber_not_installed"
+	codeQueueFull        = "queue_full"
+	codeNoDemoFile       = "no_demo_file"
 )
 
 func (h *Handlers) voiceReady(w http.ResponseWriter) bool {
@@ -181,8 +196,15 @@ func (h *Handlers) voiceStatusOf(matchID uuid.UUID, v *library.MatchVoice) voice
 	return out
 }
 
+// voiceReply is the match whose voice answers a request, and the status to answer with.
+type voiceReply struct {
+	matchID uuid.UUID
+	status  int
+}
+
 // writeVoice answers with a match's voice, or its absence.
-func (h *Handlers) writeVoice(w http.ResponseWriter, r *http.Request, matchID uuid.UUID, status int) {
+func (h *Handlers) writeVoice(w http.ResponseWriter, r *http.Request, reply voiceReply) {
+	matchID, status := reply.matchID, reply.status
 	v, err := h.libraryRepo.GetMatchVoice(r.Context(), matchID)
 	switch {
 	case errors.Is(err, library.ErrNotFound):
@@ -200,7 +222,7 @@ func (h *Handlers) GetLibraryMatchVoice(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	h.writeVoice(w, r, m.ID, http.StatusOK)
+	h.writeVoice(w, r, voiceReply{matchID: m.ID, status: http.StatusOK})
 }
 
 // DeleteLibraryMatchVoice handles DELETE /api/library/matches/{id}/voice: the tracks, sync and transcript go.
@@ -272,7 +294,7 @@ func (h *Handlers) PatchLibraryMatchVoice(w http.ResponseWriter, r *http.Request
 		writeLibraryError(w, "set voice sync", err)
 		return
 	}
-	h.writeVoice(w, r, m.ID, http.StatusOK)
+	h.writeVoice(w, r, voiceReply{matchID: m.ID, status: http.StatusOK})
 }
 
 type voiceTrackRequest struct {
@@ -316,7 +338,7 @@ func (h *Handlers) PatchLibraryMatchVoiceTrack(w http.ResponseWriter, r *http.Re
 		writeLibraryError(w, "update voice track", err)
 		return
 	}
-	h.writeVoice(w, r, m.ID, http.StatusOK)
+	h.writeVoice(w, r, voiceReply{matchID: m.ID, status: http.StatusOK})
 }
 
 func matchHasPlayer(m library.Match, steamID string) bool {

@@ -8,11 +8,13 @@ import type { TacticalDocument } from '@/lib/api/tactical';
 import { searchVoice } from '@/lib/api/voice';
 import type { MatchVoice, VoiceCommsLine, VoiceSearchHit } from '@/lib/api/voice';
 import { prettyMapName } from '@/lib/format';
+import { voiceErrorText } from '@/lib/replay/voice-errors';
 import { formatVoiceMs } from '@/lib/replay/voice-sync';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Segmented } from '@/components/ui/segmented';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { MatchTalkSummary, TalkBars, VoiceTracks } from './comms-talk';
@@ -25,6 +27,40 @@ const MIN_SEARCH = 2;
 
 function mib(bytes: number): string {
   return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
+/** The languages whisper is asked for, as the MCP's transcribe_voice takes them. */
+const LANGUAGES = [
+  { value: 'es', label: 'Español' },
+  { value: 'en', label: 'Inglés' },
+  { value: 'pt', label: 'Portugués' },
+  { value: 'fr', label: 'Francés' },
+  { value: 'de', label: 'Alemán' },
+  { value: 'auto', label: 'Detectar' },
+] as const;
+
+function TranscribeButton({ voice, saved }: { voice: ReplayVoice; saved: MatchVoice }): ReactNode {
+  const [language, setLanguage] = useState(saved.transcript.language ?? 'es');
+  return (
+    <div className="flex items-center gap-1.5">
+      <Select value={language} onValueChange={setLanguage}>
+        <SelectTrigger aria-label="Idioma de la voz" className="h-7 w-28 text-meta">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {LANGUAGES.map((entry) => (
+            <SelectItem key={entry.value} value={entry.value}>
+              {entry.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button type="button" size="xs" variant="outline" loading={voice.busy} onClick={() => voice.transcribe(language)}>
+        <Captions aria-hidden />
+        {saved.transcript.state === 'failed' ? 'Transcribir otra vez' : 'Transcribir'}
+      </Button>
+    </div>
+  );
 }
 
 /** Local transcription: install it once, transcribe a match, follow its progress. */
@@ -55,10 +91,12 @@ function TranscriptState({ voice, saved }: { voice: ReplayVoice; saved: MatchVoi
         <p className="text-meta text-fg-3">
           Transcribe la voz en este PC, sin enviarla a ningún sitio. Se descarga una vez ({mib(transcriber.download_bytes)}).
         </p>
-        {transcriber.error ? <p className="text-meta text-destructive">{transcriber.error}</p> : null}
+        {transcriber.state === 'failed' ? (
+          <p className="text-meta text-destructive">{voiceErrorText(transcriber.error_code, 'La descarga no terminó. Vuelve a intentarlo.')}</p>
+        ) : null}
         <Button type="button" size="xs" variant="outline" loading={voice.busy} onClick={voice.install} className="self-start">
           <Download aria-hidden />
-          Instalar transcripción
+          {transcriber.state === 'failed' ? 'Instalar otra vez' : 'Instalar transcripción'}
         </Button>
       </div>
     );
@@ -66,11 +104,8 @@ function TranscriptState({ voice, saved }: { voice: ReplayVoice; saved: MatchVoi
   if (transcript.state === 'ready') return null;
   return (
     <div className="flex flex-col gap-1.5">
-      {transcript.error ? <p className="text-meta text-destructive">{transcript.error}</p> : null}
-      <Button type="button" size="xs" variant="outline" loading={voice.busy} onClick={() => voice.transcribe('es')} className="self-start">
-        <Captions aria-hidden />
-        {transcript.state === 'failed' ? 'Transcribir otra vez' : 'Transcribir'}
-      </Button>
+      {transcript.state === 'failed' ? <p className="text-meta text-destructive">La transcripción falló en este PC; studio.log tiene el detalle.</p> : null}
+      <TranscribeButton voice={voice} saved={saved} />
     </div>
   );
 }
@@ -137,7 +172,7 @@ export function CommsPanel({
 }): ReactNode {
   const [scope, setScope] = useState<Scope>('round');
   const [query, setQuery] = useState('');
-  const [freezeOnly, setFreezeOnly] = useState(false);
+  const { freezeOnly, setFreezeOnly } = voice;
   const [hits, setHits] = useState<VoiceSearchHit[] | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const state = voice.state;
@@ -150,8 +185,8 @@ export function CommsPanel({
       return;
     }
     const timer = window.setTimeout(() => {
-      searchVoice({ q: words, limit: 100 })
-        .then((found) => setHits(found.hits.filter((hit) => !freezeOnly || hit.phase === 'freezetime')))
+      searchVoice({ q: words, limit: 100, phase: freezeOnly ? 'freezetime' : undefined })
+        .then((found) => setHits(found.hits))
         .catch(() => setHits([]));
     }, 300);
     return () => window.clearTimeout(timer);
@@ -220,8 +255,8 @@ export function CommsPanel({
               ]}
             />
             <label className="flex items-center gap-1.5 text-meta text-fg-2">
-              <Switch checked={freezeOnly} onCheckedChange={setFreezeOnly} aria-label="Solo tiempo de compra" />
-              Compra
+              <Switch checked={freezeOnly} onCheckedChange={setFreezeOnly} aria-label="Solo tiempo de compra: también silencia la voz durante la ronda" />
+              Solo compra
             </label>
           </div>
           {results}

@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -19,8 +20,8 @@ import (
 	"github.com/rechedev9/cliphub/internal/voicecomms"
 )
 
-// maxVoiceUploadBytes is one import request: a two hour TeamSpeak WAV with room to spare.
-const maxVoiceUploadBytes = 2 << 30
+// maxVoiceUploadBytes is one import request: 2 GiB of audio plus 1 MiB of multipart framing.
+const maxVoiceUploadBytes = 2<<30 + 1<<20
 
 // voiceImportResult is the outcome of one uploaded file.
 type voiceImportResult struct {
@@ -31,9 +32,8 @@ type voiceImportResult struct {
 	Error     string `json:"error,omitempty"`
 }
 
-// ImportLibraryMatchVoice handles POST /api/library/matches/{id}/voice: "audio" file parts, each a
-// TeamSpeak export or one speaker's track. A file with more than two channels gives a track per channel.
-// The first import of a match places the recording on the demo on its own.
+// ImportLibraryMatchVoice handles POST /api/library/matches/{id}/voice: "audio" parts, one track per
+// channel past two. The first import of a match places the recording on the demo on its own.
 func (h *Handlers) ImportLibraryMatchVoice(w http.ResponseWriter, r *http.Request) {
 	m, ok := h.voiceMatch(w, r)
 	if !ok {
@@ -162,33 +162,67 @@ func (h *Handlers) importVoiceFile(ctx context.Context, up voiceUpload) (voiceIm
 		return res, nil, nil
 	}
 	base := strings.TrimSuffix(name, filepath.Ext(name))
-	var made []library.VoiceTrack
+	stored := make([]string, len(channels))
+	dsts := make([]string, len(channels))
+	for i := range channels {
+		stored[i] = uuid.NewString() + ".ogg"
+		dsts[i] = filepath.Join(dir, stored[i])
+	}
+	removeAll := func() {
+		for _, d := range dsts {
+			_ = os.Remove(d)
+		}
+	}
+	if err := h.voice.deps.Media.Encode(ctx, teamvoice.EncodeJob{Src: tmp.Name(), Dsts: dsts}); err != nil {
+		removeAll()
+		return res, nil, err
+	}
+	speech, err := h.trackSpeech(ctx, dsts)
+	if err != nil {
+		removeAll()
+		return res, nil, err
+	}
+	made := make([]library.VoiceTrack, 0, len(channels))
 	for i, c := range channels {
-		stored := uuid.NewString() + ".ogg"
-		dst := filepath.Join(dir, stored)
-		if err := h.voice.deps.Media.Encode(ctx, teamvoice.EncodeJob{Src: tmp.Name(), Dst: dst, Channel: c}); err != nil {
-			_ = os.Remove(dst)
-			return res, made, err
-		}
-		spans, duration, err := h.voice.deps.Media.Speech(ctx, dst)
-		if err != nil {
-			_ = os.Remove(dst)
-			return res, made, err
-		}
 		label := base
 		if c >= 0 {
 			label = fmt.Sprintf("Pista %d", i+1)
 		}
 		var encoded int64
-		if info, err := os.Stat(dst); err == nil {
+		if info, err := os.Stat(dsts[i]); err == nil {
 			encoded = info.Size()
 		}
 		made = append(made, library.VoiceTrack{Label: truncateRunes(label, library.MaxVoiceLabelRunes), FileName: name, Channel: c,
-			StoredKey: path.Join(up.matchID.String(), stored), DurationMS: max(duration, probe.DurationMS), SizeBytes: encoded,
-			Source: library.VoiceSourceUpload, Speech: spans})
+			StoredKey: path.Join(up.matchID.String(), stored[i]), DurationMS: max(speech[i].durationMS, probe.DurationMS), SizeBytes: encoded,
+			Source: library.VoiceSourceUpload, Speech: speech[i].spans})
 	}
 	res.Status, res.Tracks = libraryImportImported, len(made)
 	return res, made, nil
+}
+
+type trackSpeech struct {
+	spans      []library.VoiceSpan
+	durationMS int64
+}
+
+// trackSpeech finds the speech of each encoded track at once; the first failure cancels the rest.
+func (h *Handlers) trackSpeech(ctx context.Context, paths []string) ([]trackSpeech, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	out := make([]trackSpeech, len(paths))
+	errs := make([]error, len(paths))
+	var wg sync.WaitGroup
+	for i, p := range paths {
+		wg.Go(func() {
+			spans, duration, err := h.voice.deps.Media.Speech(ctx, p)
+			out[i], errs[i] = trackSpeech{spans: spans, durationMS: duration}, err
+			if err != nil {
+				cancel()
+			}
+		})
+	}
+	wg.Wait()
+	return out, errors.Join(errs...)
 }
 
 func (h *Handlers) discardVoiceTracks(tracks []library.VoiceTrack) {
@@ -246,28 +280,15 @@ func (h *Handlers) estimateVoiceSync(ctx context.Context, s voiceSyncSubject) (t
 	return res, nil
 }
 
-// localPathResolver is a storage whose keys are files on this PC.
-type localPathResolver interface {
-	ResolvePath(key string) (string, error)
-}
-
 // demoTeamSpeech reads each team's in-game voice from the match's demo, in demo time;
 // a demo without voice, or one Studio cannot read, gives none.
 func (h *Handlers) demoTeamSpeech(ctx context.Context, m library.Match) map[string][]library.VoiceSpan {
 	out := map[string][]library.VoiceSpan{}
-	resolver, ok := h.storage.(localPathResolver)
+	demoPath, ok := h.matchDemoPath(ctx, m)
 	if !ok || len(m.Players) == 0 {
 		return out
 	}
-	d, err := h.libraryRepo.GetDemo(ctx, m.DemoID)
-	if err != nil || d.Source == library.SourceShared {
-		return out
-	}
-	demoPath, err := resolver.ResolvePath(d.Path)
-	if err != nil {
-		return out
-	}
-	_, packets, _, err := voicecomms.CollectFile(demoPath, m.Players[0].SteamID64)
+	_, packets, _, err := voicecomms.CollectDemo(ctx, voicecomms.DemoRequest{Path: demoPath, Target: m.Players[0].SteamID64})
 	if err != nil {
 		log.Printf("httpapi: read the in-game voice of match %s: %v", m.ID, err)
 		return out

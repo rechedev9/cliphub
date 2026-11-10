@@ -847,9 +847,8 @@ func migrateV19LibraryProMatches(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV20LibraryVoice stores a match's team voice: one row per match with its
-// sync and transcript state, its tracks with the speech found on import, and the
-// transcribed lines in audio time, which a read places on the demo by the offset.
+// migrateV20LibraryVoice stores a match's team voice: its sync and transcript state, its tracks
+// with their speech, and the transcribed lines in audio time, placed on the demo by the offset.
 func migrateV20LibraryVoice(tx *sql.Tx) error {
 	for _, stmt := range []string{
 		`CREATE TABLE library_match_voice (

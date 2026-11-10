@@ -39,7 +39,12 @@ func (fakeVoiceMedia) Encode(_ context.Context, job teamvoice.EncodeJob) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(job.Dst, b, 0o600)
+	for _, dst := range job.Dsts {
+		if err := os.WriteFile(dst, b, 0o600); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (fakeVoiceMedia) Speech(context.Context, string) ([]library.VoiceSpan, int64, error) {

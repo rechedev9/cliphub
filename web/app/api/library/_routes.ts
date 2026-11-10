@@ -51,6 +51,7 @@ import { SHARE_IMPORT_KEYS } from '../../../lib/library/share.ts';
 import { SEARCH_QUERY_KEYS, SEARCH_RESPONSE_KEYS } from '../../../lib/api/search.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
 import {
+  DEMO_VOICE_KEYS,
   TRANSCRIBER_KEYS,
   VOICE_COMMS_KEYS,
   VOICE_COMMS_QUERY,
@@ -197,6 +198,9 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['matches', UUID, 'voice', 'tracks', VOICE_TRACK, 'audio'], response: { kind: 'stream' } },
   { method: 'POST', segments: ['matches', UUID, 'voice', 'transcribe'], body: fields(VOICE_TRANSCRIBE_FIELDS), response: json(VOICE_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'voice', 'comms'], query: VOICE_COMMS_QUERY, response: json(VOICE_COMMS_KEYS) },
+  { method: 'GET', segments: ['matches', UUID, 'voice', 'demo'], response: json(DEMO_VOICE_KEYS) },
+  { method: 'POST', segments: ['matches', UUID, 'voice', 'demo'], response: json(DEMO_VOICE_KEYS) },
+  { method: 'GET', segments: ['matches', UUID, 'voice', 'demo', STEAM_ID, 'audio'], response: { kind: 'stream' } },
   { method: 'GET', segments: ['voice', 'search'], query: VOICE_SEARCH_QUERY, response: json(VOICE_SEARCH_KEYS) },
   { method: 'GET', segments: ['voice', 'transcriber'], response: json(TRANSCRIBER_KEYS) },
   { method: 'POST', segments: ['voice', 'transcriber', 'install'], response: json(TRANSCRIBER_KEYS) },

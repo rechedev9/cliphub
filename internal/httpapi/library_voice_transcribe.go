@@ -91,7 +91,7 @@ func (h *Handlers) TranscribeLibraryMatchVoice(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if v.Transcript.State == library.TranscriptQueued || v.Transcript.State == library.TranscriptRunning {
-		h.writeVoice(w, r, m.ID, http.StatusAccepted)
+		h.writeVoice(w, r, voiceReply{matchID: m.ID, status: http.StatusAccepted})
 		return
 	}
 	if err := h.libraryRepo.SetVoiceTranscript(r.Context(), library.VoiceTranscriptUpdate{MatchID: m.ID,
@@ -100,10 +100,13 @@ func (h *Handlers) TranscribeLibraryMatchVoice(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if !h.enqueueTranscript(voiceJob{matchID: m.ID, language: req.Language}) {
-		writeCodedError(w, http.StatusServiceUnavailable, "queue_full", "too many transcriptions are waiting; try again later")
+		if err := h.libraryRepo.SetVoiceTranscript(r.Context(), library.VoiceTranscriptUpdate{MatchID: m.ID, Transcript: v.Transcript}); err != nil {
+			log.Printf("httpapi: restore transcript state of match %s: %v", m.ID, err)
+		}
+		writeCodedError(w, http.StatusServiceUnavailable, codeQueueFull, "too many transcriptions are waiting; try again later")
 		return
 	}
-	h.writeVoice(w, r, m.ID, http.StatusAccepted)
+	h.writeVoice(w, r, voiceReply{matchID: m.ID, status: http.StatusAccepted})
 }
 
 // transcribeMatch transcribes every track of a match and replaces its lines; a failure keeps the old ones.
@@ -138,7 +141,7 @@ func (h *Handlers) transcribeMatch(ctx context.Context, job voiceJob) {
 				return
 			}
 			log.Printf("httpapi: transcribe track %d of match %s: %v", t.Track, job.matchID, err)
-			state.State, state.Error = library.TranscriptFailed, "La transcripción falló: "+truncateRunes(err.Error(), 300)
+			state.State, state.Error = library.TranscriptFailed, "La transcripción falló en este PC; studio.log tiene el detalle."
 			if err := h.libraryRepo.SetVoiceTranscript(context.WithoutCancel(ctx), library.VoiceTranscriptUpdate{MatchID: job.matchID, Transcript: state}); err != nil {
 				log.Printf("httpapi: mark transcript of match %s failed: %v", job.matchID, err)
 			}
@@ -172,13 +175,7 @@ func (h *Handlers) InstallVoiceTranscriber(w http.ResponseWriter, _ *http.Reques
 		writeCodedError(w, http.StatusServiceUnavailable, codeVoiceUnavailable, "local transcription is not available in this Studio")
 		return
 	}
-	h.voice.mu.Lock()
-	ctx := h.voice.installCtx
-	h.voice.mu.Unlock()
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := h.voice.deps.Transcriber.Install(ctx); err != nil {
+	if err := h.voice.deps.Transcriber.Install(h.voice.lifetime()); err != nil {
 		writeCodedError(w, http.StatusConflict, "unsupported", err.Error())
 		return
 	}

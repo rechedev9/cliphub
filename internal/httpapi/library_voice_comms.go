@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -92,7 +93,7 @@ func (h *Handlers) GetLibraryMatchVoiceComms(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	for _, l := range lines {
-		line := placeVoiceLine(v, timeline, l)
+		line := placeVoiceLine(voiceLinePlace{voice: v, timeline: timeline, line: l})
 		if round == 0 || line.Round == round {
 			out.Lines = append(out.Lines, line)
 		}
@@ -100,15 +101,24 @@ func (h *Handlers) GetLibraryMatchVoiceComms(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, out)
 }
 
-func placeVoiceLine(v library.MatchVoice, timeline teamvoice.Timeline, l library.VoiceLine) voiceCommsLine {
-	at := teamvoice.Locate(timeline, l.StartMS, v.Sync.OffsetMS)
-	line := voiceCommsLine{Track: l.Track, StartMS: l.StartMS, EndMS: l.EndMS, Tick: at.Tick, Round: at.Round, RoundMS: at.RoundMS, Phase: at.Phase, Text: l.Text}
-	for _, t := range v.Tracks {
+// voiceLinePlace is a transcribed line and what places it: its match's voice and demo timeline.
+type voiceLinePlace struct {
+	voice    library.MatchVoice
+	timeline teamvoice.Timeline
+	line     library.VoiceLine
+}
+
+func placeVoiceLine(p voiceLinePlace) voiceCommsLine {
+	l := p.line
+	out := voiceCommsLine{Track: l.Track, StartMS: l.StartMS, EndMS: l.EndMS, Text: l.Text}
+	for _, t := range p.voice.Tracks {
 		if t.Track == l.Track {
-			line.Label, line.SteamID64 = t.Label, t.SteamID64
+			out.Label, out.SteamID64 = t.Label, t.SteamID64
 		}
 	}
-	return line
+	at := teamvoice.Locate(teamvoice.LocateInput{Timeline: p.timeline, AudioMS: l.StartMS, OffsetMS: p.voice.Sync.OffsetMS, SteamID64: out.SteamID64})
+	out.Tick, out.Round, out.RoundMS, out.Phase = at.Tick, at.Round, at.RoundMS, at.Phase
+	return out
 }
 
 // voiceSearchHit is a phrase found in a match's comms, with the round and moment it was said.
@@ -127,7 +137,7 @@ const (
 )
 
 // SearchLibraryVoice handles GET /api/library/voice/search: q in every transcript, narrowed by
-// match_id, team_id and the from/to dates of the matches.
+// match_id, team_id, the from/to dates of the matches and the round phase.
 func (h *Handlers) SearchLibraryVoice(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
 		return
@@ -147,6 +157,11 @@ func (h *Handlers) SearchLibraryVoice(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = n
 	}
+	phase := q.Get("phase")
+	if phase != "" && !slices.Contains(teamvoice.Phases, phase) {
+		writeError(w, http.StatusBadRequest, "phase must be freezetime, midround, post_plant, dead or after_round")
+		return
+	}
 	matchIDs, err := h.voiceSearchMatches(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -160,14 +175,22 @@ func (h *Handlers) SearchLibraryVoice(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, out)
 		return
 	}
-	lines, err := h.libraryRepo.ListVoiceLines(r.Context(), library.VoiceLineFilter{MatchIDs: matchIDs, Query: query, Limit: limit + 1})
+	// A phase is known only once a line is placed, so a phase search reads every hit and cuts after it.
+	read := limit + 1
+	if phase != "" {
+		read = library.MaxVoiceLineList
+	}
+	lines, err := h.libraryRepo.ListVoiceLines(r.Context(), library.VoiceLineFilter{MatchIDs: matchIDs, Query: query, Limit: read})
 	if err != nil {
 		internalError(w, "search voice lines", err)
 		return
 	}
-	out.Truncated = len(lines) > limit
 	placed := map[uuid.UUID]*voiceSearchMatch{}
-	for _, l := range lines[:min(len(lines), limit)] {
+	for _, l := range lines {
+		if len(out.Hits) == limit {
+			out.Truncated = true
+			break
+		}
 		pm, ok := placed[l.MatchID]
 		if !ok {
 			pm = h.loadVoiceSearchMatch(r, l.MatchID)
@@ -176,8 +199,11 @@ func (h *Handlers) SearchLibraryVoice(w http.ResponseWriter, r *http.Request) {
 		if pm == nil {
 			continue
 		}
-		out.Hits = append(out.Hits, voiceSearchHit{MatchID: pm.match.ID, Map: pm.match.Map, PlayedAt: pm.match.PlayedAt, Teams: pm.teams,
-			voiceCommsLine: placeVoiceLine(pm.voice, pm.timeline, l)})
+		hit := voiceSearchHit{MatchID: pm.match.ID, Map: pm.match.Map, PlayedAt: pm.match.PlayedAt, Teams: pm.teams,
+			voiceCommsLine: placeVoiceLine(voiceLinePlace{voice: pm.voice, timeline: pm.timeline, line: l})}
+		if phase == "" || hit.Phase == phase {
+			out.Hits = append(out.Hits, hit)
+		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }

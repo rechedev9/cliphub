@@ -163,7 +163,8 @@ where J and K walk its rounds; the notes and drawings drawn there stay with the 
 Team voice (a TeamSpeak recording per library match, played in the Replay): import_voice places it on the demo on its own and
 returns the sync state; while it says unsynced or the user hears it off, sync_voice sets offset_ms (or auto again).
 voice_status reads tracks, sync and transcript; set_voice_track names a track or ties it to a player.
-install_transcriber (ask first, about 200 MB, local whisper.cpp) then transcribe_voice; voice_status follows it.
+install_transcriber (about 200 MB, local whisper.cpp) then transcribe_voice; voice_status follows it.
+demo_voice reads the demo's own in-game voice (extract true, then call again until ready), which the Replay plays as Voz de la demo.
 get_round_comms gives one round's talk time by phase and phrases, match_talk_time every round's talk time, and
 search_comms finds a phrase by team, dates and period (round phase); each phrase has a studio_path to its moment.
 real_map_status checks that the Replay can draw a map as CS2 does, as its Mapa real floor plan, and says how to open it and full screen.
@@ -190,7 +191,7 @@ rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captu
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
 delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
 delete_report, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
-launch_practice, launch_bot_replay need the user's approval.
+install_transcriber, launch_practice, launch_bot_replay need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
 version, support code and studio.log path the report needs.

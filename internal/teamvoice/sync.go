@@ -28,6 +28,9 @@ const (
 	// A peak counts when it stands this many deviations over the other offsets and over the runner-up.
 	minPeakZ    = 6.0
 	minPeakLead = 1.5
+	// Below both, the best offset is no better than noise.
+	weakPeakZ    = 5.0
+	weakPeakLead = 1.2
 	// The runner-up is the best offset farther than this from the peak.
 	runnerUpMS     = 5000
 	minDemoVoiceMS = 60_000
@@ -60,24 +63,36 @@ func Estimate(in SyncInput) SyncResult {
 		}
 	}
 	if best != nil {
-		return SyncResult{Sync: acceptedSync(*best, library.VoiceMethodDemoVoice, prior)}
+		return SyncResult{Sync: acceptedSync(syncPick{peak: *best, method: library.VoiceMethodDemoVoice, prior: prior})}
 	}
-	if strongVoice {
-		note := "La voz de la grabación no coincide con la voz que trae la demo: ¿es de otra partida?"
-		prior.Note = note
-		return SyncResult{Sync: prior, Mismatch: note}
-	}
+	// Teams talk on TeamSpeak, not in game, so a demo voice that does not match still leaves the kills.
 	p := findPeak(audio, eventSignal(in.Timeline))
 	if p.ok() {
-		return SyncResult{Sync: acceptedSync(p, library.VoiceMethodKills, prior)}
+		return SyncResult{Sync: acceptedSync(syncPick{peak: p, method: library.VoiceMethodKills, prior: prior})}
 	}
-	return SyncResult{Sync: prior}
+	switch {
+	case strongVoice:
+		prior.Note = "La voz de la grabación no coincide con la voz que trae la demo ni con sus kills: ¿es de otra partida?"
+	case p.weak():
+		prior.Note = fmt.Sprintf("No se pudo emparejar la grabación con esta partida (señal %.1f frente a %.1f): compruébala o ajústala a mano.", p.z, minPeakZ)
+	default:
+		return SyncResult{Sync: prior}
+	}
+	return SyncResult{Sync: prior, Mismatch: prior.Note}
 }
 
-func acceptedSync(p peak, method string, prior library.VoiceSync) library.VoiceSync {
-	return library.VoiceSync{State: library.VoiceAuto, Method: method, OffsetMS: p.offsetMS, AutoOffsetMS: p.offsetMS,
+// syncPick is a peak taken as the offset, how it was found and the guess it replaces.
+type syncPick struct {
+	peak   peak
+	method string
+	prior  library.VoiceSync
+}
+
+func acceptedSync(s syncPick) library.VoiceSync {
+	p := s.peak
+	return library.VoiceSync{State: library.VoiceAuto, Method: s.method, OffsetMS: p.offsetMS, AutoOffsetMS: p.offsetMS,
 		Confidence: math.Round(min(1, (p.z-3)/9)*100) / 100, TeamKey: p.teamKey,
-		Note: fmt.Sprintf("Ajustada sola; sin ella habría empezado en %s.", Clock(prior.OffsetMS))}
+		Note: fmt.Sprintf("Ajustada sola; sin ella habría empezado en %s.", Clock(s.prior.OffsetMS))}
 }
 
 // roundStartGuess plays audio 0 at round 1's freeze time, where teams usually press record.
@@ -154,6 +169,9 @@ type peak struct {
 }
 
 func (p peak) ok() bool { return p.z >= minPeakZ && p.lead >= minPeakLead }
+
+// weak is a peak no better than chance: the recording does not follow this match's kills.
+func (p peak) weak() bool { return p.z < weakPeakZ && p.lead < weakPeakLead }
 
 // findPeak correlates the audio with the demo signal over every offset that overlaps half the
 // shorter one, coarse first, then refines around the best coarse offset.

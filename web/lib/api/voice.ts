@@ -10,8 +10,7 @@ export type VoiceTranscriptState = 'none' | 'queued' | 'running' | 'ready' | 'fa
 export type TranscriberState = 'not_installed' | 'installing' | 'installed' | 'failed' | 'unsupported';
 export type VoicePhase = 'freezetime' | 'midround' | 'post_plant' | 'dead' | 'after_round';
 
-/** The server's caps (`library.MaxVoice*`). */
-export const MAX_VOICE_LABEL = 60;
+/** The server's cap on an offset (`library.MaxVoiceOffsetMS`). */
 export const MAX_VOICE_OFFSET_MS = 6 * 3600 * 1000;
 
 export type VoiceTrack = {
@@ -44,6 +43,8 @@ export type VoiceTranscriber = {
   model: string;
   download_bytes: number;
   done_bytes?: number;
+  /** runtime_missing or start_failed: whisper-cli cannot start; download_failed: the fetch failed. */
+  error_code?: string;
   error?: string;
 };
 
@@ -99,6 +100,13 @@ export type VoiceComms = {
 
 export type VoiceSearchHit = VoiceCommsLine & { match_id: string; map: string; played_at: string; teams: string[] };
 
+export type DemoVoiceState = 'none' | 'extracting' | 'ready' | 'failed' | 'unavailable';
+
+/** One player's in-game voice from the demo; its audio starts at demo time 0. */
+export type DemoVoiceTrack = { steamid64: string; name?: string; team_key: string; packets: number };
+
+export type DemoVoice = { match_id: string; state: DemoVoiceState; tracks: DemoVoiceTrack[] };
+
 export const VOICE_KEYS = [
   'match_id', 'present', 'tracks', 'duration_ms', 'speech_ms', 'sync', 'transcript', 'transcriber',
 ] as const satisfies readonly (keyof MatchVoice)[];
@@ -110,13 +118,14 @@ export const VOICE_COMMS_KEYS = [
   'match_id', 'sync', 'transcript', 'tracks', 'rounds', 'totals', 'lines',
 ] as const satisfies readonly (keyof VoiceComms)[];
 export const VOICE_COMMS_QUERY = ['round'] as const;
-export const VOICE_SEARCH_QUERY = ['q', 'match_id', 'team_id', 'from', 'to', 'limit'] as const;
+export const VOICE_SEARCH_QUERY = ['q', 'match_id', 'team_id', 'from', 'to', 'phase', 'limit'] as const;
 export const VOICE_SEARCH_KEYS = ['hits', 'truncated'] as const;
 export const TRANSCRIBER_KEYS = [
-  'state', 'version', 'model', 'download_bytes', 'done_bytes', 'error',
+  'state', 'version', 'model', 'download_bytes', 'done_bytes', 'error_code', 'error',
 ] as const satisfies readonly (keyof VoiceTranscriber)[];
-/** One import request: a two hour TeamSpeak WAV with room to spare, as the orchestrator reads. */
-export const VOICE_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
+export const DEMO_VOICE_KEYS = ['match_id', 'state', 'tracks'] as const satisfies readonly (keyof DemoVoice)[];
+/** One import request: 2 GiB of audio plus 1 MiB of multipart framing, as the orchestrator reads. */
+export const VOICE_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024 + 1024 * 1024;
 
 function voicePath(matchId: string): string {
   return `/matches/${encodeURIComponent(matchId)}/voice`;
@@ -162,17 +171,29 @@ export function getVoiceComms(matchId: string): Promise<VoiceComms> {
   return request<VoiceComms>(`${voicePath(matchId)}/comms`);
 }
 
-export function searchVoice(query: { q: string; teamId?: string; limit?: number }): Promise<{ hits: VoiceSearchHit[]; truncated: boolean }> {
+/** Finds a phrase in every transcript; `phase` keeps one round phase before the limit. */
+export function searchVoice(query: { q: string; teamId?: string; phase?: VoicePhase; limit?: number }): Promise<{ hits: VoiceSearchHit[]; truncated: boolean }> {
   const params = new URLSearchParams({ q: query.q });
   if (query.teamId) params.set('team_id', query.teamId);
+  if (query.phase) params.set('phase', query.phase);
   if (query.limit !== undefined) params.set('limit', String(query.limit));
   return request(`/voice/search?${params.toString()}`);
 }
 
-export function getTranscriber(): Promise<VoiceTranscriber> {
-  return request<VoiceTranscriber>('/voice/transcriber');
-}
-
 export function installTranscriber(): Promise<VoiceTranscriber> {
   return request<VoiceTranscriber>('/voice/transcriber/install', { method: 'POST' });
+}
+
+/** Where the Replay reads one player's in-game voice, with ranges. */
+export function demoVoiceAudioUrl(matchId: string, steamId: string): string {
+  return `/api/library${voicePath(matchId)}/demo/${encodeURIComponent(steamId)}/audio`;
+}
+
+export function getDemoVoice(matchId: string): Promise<DemoVoice> {
+  return request<DemoVoice>(`${voicePath(matchId)}/demo`);
+}
+
+/** Reads both teams' in-game voice from the demo file, in the background and once per demo. */
+export function extractDemoVoice(matchId: string): Promise<DemoVoice> {
+  return request<DemoVoice>(`${voicePath(matchId)}/demo`, { method: 'POST' });
 }

@@ -103,7 +103,15 @@ func TestTranscriberStatusFollowsTheInstall(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if s := NewTranscriber(TranscriberOptions{CLI: cli, Model: model}).Status(); s.State != TranscriberInstalled || s.DownloadBytes != Pinned.BinBytes+Pinned.ModelBytes {
+	if s := NewTranscriber(TranscriberOptions{CLI: cli, Model: model}).Status(); s.State != TranscriberFailed || s.ErrorCode != TranscriberStartFailed || !strings.Contains(s.Error, "Visual C++") {
+		t.Fatalf("status of a whisper-cli that cannot start = %+v, want failed with the runtime hint", s)
+	}
+	// The test binary answers --help with exit 0, as a working whisper-cli does.
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := NewTranscriber(TranscriberOptions{CLI: self, Model: model}).Status(); s.State != TranscriberInstalled || s.DownloadBytes != Pinned.BinBytes+Pinned.ModelBytes {
 		t.Fatalf("status with an override = %+v", s)
 	}
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, Mic, RotateCcw, Upload, Volume2, VolumeX, Wand2, X } from 'lucide-react';
+import { Check, Mic, Radio, RotateCcw, Upload, Volume2, VolumeX, Wand2, X } from 'lucide-react';
 import { MAX_VOICE_OFFSET_MS } from '@/lib/api/voice';
 import type { MatchVoice } from '@/lib/api/voice';
 import { ADJUST_RANGE_MS, NUDGE_STEPS_MS, clampOffset, deltaLabel, formatVoiceMs } from '@/lib/replay/voice-sync';
@@ -132,6 +132,30 @@ function SyncState({ saved }: { saved: MatchVoice }): ReactNode {
   );
 }
 
+/** Plays the demo's own in-game voice; the first press reads it from the demo file. */
+function DemoVoiceToggle({ voice }: { voice: ReplayVoice }): ReactNode {
+  const { demo, busy, on, toggle } = voice.demoVoice;
+  if (demo === null || demo.state === 'unavailable') return null;
+  if (demo.state === 'ready' && demo.tracks.length === 0) {
+    return <span className="text-meta text-fg-3">La demo no trae voz</span>;
+  }
+  const extracting = demo.state === 'extracting';
+  return (
+    <Button
+      type="button"
+      size="xs"
+      variant={on ? 'outline-primary' : 'ghost'}
+      aria-pressed={on}
+      loading={busy || extracting}
+      onClick={toggle}
+      title="La voz que los jugadores hablaron dentro del juego, si la demo la guardó"
+    >
+      <Radio aria-hidden />
+      {extracting ? 'Leyendo la voz de la demo…' : 'Voz de la demo'}
+    </Button>
+  );
+}
+
 /** The Replay's voice row: import, volume and mute, the sync state and the adjust bar. */
 export function VoiceBar({ voice }: { voice: ReplayVoice }): ReactNode {
   const { state } = voice;
@@ -146,6 +170,9 @@ export function VoiceBar({ voice }: { voice: ReplayVoice }): ReactNode {
         <Mic className="size-3.5 text-fg-3" aria-hidden />
         <span className="text-meta text-fg-3">Escucha la voz del equipo con la ronda: importa la grabación de TeamSpeak.</span>
         <ImportButton voice={voice} label="Importar voz" />
+        <div className="ml-auto">
+          <DemoVoiceToggle voice={voice} />
+        </div>
       </div>
     );
   }
@@ -175,6 +202,7 @@ export function VoiceBar({ voice }: { voice: ReplayVoice }): ReactNode {
       <span className="text-meta text-fg-2">Voz del equipo</span>
       <SyncState saved={saved} />
       <div className="ml-auto flex items-center gap-1">
+        <DemoVoiceToggle voice={voice} />
         <Button type="button" size="xs" variant={saved.sync.state === 'unsynced' ? 'outline-primary' : 'outline'} onClick={() => voice.setDraft(saved.sync.offset_ms)}>
           Sincronizar
         </Button>

@@ -48,6 +48,7 @@ type VoiceTranscriber struct {
 	Model         string `json:"model"`
 	DownloadBytes int64  `json:"download_bytes"`
 	DoneBytes     int64  `json:"done_bytes,omitempty"`
+	ErrorCode     string `json:"error_code,omitempty"`
 	Error         string `json:"error,omitempty"`
 }
 
@@ -136,6 +137,7 @@ type VoiceSearchQuery struct {
 	TeamID  string
 	From    string
 	To      string
+	Phase   string
 	Limit   int
 }
 
@@ -212,7 +214,7 @@ func (c *Client) MatchVoiceComms(ctx context.Context, matchID string, round int)
 // SearchVoice finds a phrase in the library's transcripts.
 func (c *Client) SearchVoice(ctx context.Context, q VoiceSearchQuery) ([]VoiceSearchHit, bool, error) {
 	v := url.Values{"q": {q.Query}}
-	for k, s := range map[string]string{"match_id": q.MatchID, "team_id": q.TeamID, "from": q.From, "to": q.To} {
+	for k, s := range map[string]string{"match_id": q.MatchID, "team_id": q.TeamID, "from": q.From, "to": q.To, "phase": q.Phase} {
 		if s != "" {
 			v.Set(k, s)
 		}
@@ -239,5 +241,34 @@ func (c *Client) VoiceTranscriberStatus(ctx context.Context) (VoiceTranscriber, 
 func (c *Client) InstallVoiceTranscriber(ctx context.Context) (VoiceTranscriber, error) {
 	var out VoiceTranscriber
 	err := c.doJSON(ctx, http.MethodPost, "/api/library/voice/transcriber/install", nil, &out)
+	return out, err
+}
+
+// DemoVoice is the in-game voice a match's demo carries, one track per speaking player.
+type DemoVoice struct {
+	MatchID string           `json:"match_id"`
+	State   string           `json:"state"`
+	Tracks  []DemoVoiceTrack `json:"tracks"`
+}
+
+// DemoVoiceTrack is one player's in-game voice.
+type DemoVoiceTrack struct {
+	SteamID64 string `json:"steamid64"`
+	Name      string `json:"name,omitempty"`
+	TeamKey   string `json:"team_key"`
+	Packets   int    `json:"packets"`
+}
+
+// GetDemoVoice reads whether a match's in-game voice was read from its demo.
+func (c *Client) GetDemoVoice(ctx context.Context, matchID string) (DemoVoice, error) {
+	var out DemoVoice
+	err := c.getJSON(ctx, voicePath(matchID)+"/demo", &out)
+	return out, err
+}
+
+// ExtractDemoVoice starts reading a match's in-game voice from its demo.
+func (c *Client) ExtractDemoVoice(ctx context.Context, matchID string) (DemoVoice, error) {
+	var out DemoVoice
+	err := c.doJSON(ctx, http.MethodPost, voicePath(matchID)+"/demo", nil, &out)
 	return out, err
 }

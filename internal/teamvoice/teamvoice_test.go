@@ -127,11 +127,29 @@ func TestEstimateFollowsTheCallsAfterKills(t *testing.T) {
 	}
 }
 
-func TestEstimateGuessesRoundOneWithoutEvidence(t *testing.T) {
+func TestEstimateWarnsWhenTheRecordingFollowsNothingOfTheMatch(t *testing.T) {
 	audioMS := int64(35 * 60_000)
 	res := Estimate(SyncInput{Speech: chatter(11, audioMS), AudioMS: audioMS, Timeline: timeline(40 * 60_000)})
-	if res.Sync.State != library.VoiceUnsynced || res.Sync.OffsetMS != 30_000 || res.Mismatch != "" {
-		t.Fatalf("result = %+v; want the round 1 guess with no mismatch", res)
+	if res.Sync.State != library.VoiceUnsynced || res.Sync.OffsetMS != 30_000 || !strings.Contains(res.Mismatch, "No se pudo emparejar") {
+		t.Fatalf("result = %+v; want the round 1 guess with a could-not-match note", res)
+	}
+}
+
+func TestEstimateFallsBackToTheKillsWhenTheDemoVoiceDiffers(t *testing.T) {
+	demoMS := int64(40 * 60_000)
+	tl := timeline(demoMS)
+	offset := int64(28_700)
+	var talk []library.VoiceSpan
+	for _, r := range tl.Rounds {
+		for _, k := range r.KillMS {
+			at := k - offset + 300
+			talk = append(talk, library.VoiceSpan{StartMS: at, EndMS: at + 1500})
+		}
+	}
+	res := Estimate(SyncInput{Speech: talk, AudioMS: demoMS - offset, Timeline: tl,
+		DemoVoice: map[string][]library.VoiceSpan{"ct-start": chatter(99, demoMS)}})
+	if res.Sync.State != library.VoiceAuto || res.Sync.Method != library.VoiceMethodKills || res.Mismatch != "" {
+		t.Fatalf("result = %+v; want the kills to place it despite the unrelated in-game voice", res)
 	}
 }
 
@@ -162,10 +180,13 @@ func TestTalkTimeSplitsByPhaseAndDeath(t *testing.T) {
 	if totals[0].TotalMS() != 73_000 || totals[1].Label != "mopoz" {
 		t.Fatalf("totals = %+v", totals)
 	}
-	if m := Locate(tl, 60_000, 5_000); m.Round != 4 || m.Phase != PhaseMidround || m.RoundMS != 55_000 || m.Tick != 4160 {
+	if m := Locate(LocateInput{Timeline: tl, AudioMS: 60_000, OffsetMS: 5_000}); m.Round != 4 || m.Phase != PhaseMidround || m.RoundMS != 55_000 || m.Tick != 4160 {
 		t.Fatalf("Locate = %+v", m)
 	}
-	if m := Locate(tl, 0, 5_000); m.Round != 0 {
+	if m := Locate(LocateInput{Timeline: tl, AudioMS: 80_000, OffsetMS: 5_000, SteamID64: "7656"}); m.Phase != PhaseDead {
+		t.Fatalf("Locate after the speaker died = %+v, want dead", m)
+	}
+	if m := Locate(LocateInput{Timeline: tl, AudioMS: 0, OffsetMS: 5_000}); m.Round != 0 {
 		t.Fatalf("Locate before round 1 = %+v, want no round", m)
 	}
 }

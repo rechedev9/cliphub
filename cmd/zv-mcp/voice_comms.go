@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,12 +42,18 @@ type searchCommsIn struct {
 	Limit   int    `json:"limit,omitempty" jsonschema:"at most this many hits, 1 to 200; default 50"`
 }
 
+type installTranscriberIn struct {
+	Approve string `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
+}
+
 type transcriberOut struct {
+	pendingOut
 	State         string `json:"state" jsonschema:"not_installed, installing, installed, failed or unsupported"`
 	Version       string `json:"version"`
 	Model         string `json:"model"`
 	DownloadBytes int64  `json:"download_bytes"`
 	DoneBytes     int64  `json:"done_bytes,omitempty"`
+	ErrorCode     string `json:"error_code,omitempty" jsonschema:"runtime_missing (install the Visual C++ runtime), start_failed or download_failed"`
 	Error         string `json:"error,omitempty"`
 }
 
@@ -105,7 +112,7 @@ type searchCommsOut struct {
 }
 
 func transcriberOutOf(t tuiclient.VoiceTranscriber) transcriberOut {
-	return transcriberOut{State: t.State, Version: t.Version, Model: t.Model, DownloadBytes: t.DownloadBytes, DoneBytes: t.DoneBytes, Error: cleanText(t.Error, maxErrorRunes)}
+	return transcriberOut{State: t.State, Version: t.Version, Model: t.Model, DownloadBytes: t.DownloadBytes, DoneBytes: t.DoneBytes, ErrorCode: t.ErrorCode, Error: cleanText(t.Error, maxErrorRunes)}
 }
 
 func speakersOf(talk []tuiclient.VoiceSpeakerTalk) []speakerTalkOut {
@@ -126,13 +133,30 @@ func commsLineOf(matchID string, l tuiclient.VoiceLine) commsLineOut {
 func registerVoiceCommsTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 
-	mcp.AddTool(server, &mcp.Tool{Name: "install_transcriber",
+	mcp.AddTool(server, &mcp.Tool{Name: "install_transcriber", Annotations: &mcp.ToolAnnotations{},
 		Description: "Install local transcription (whisper.cpp with its small multilingual model, about 200 MB, fetched once into Studio's folder) as Instalar transcripción does. " +
-			"Ask the user first. It runs in the background: read voice_status or this tool's state until installed. Nothing leaves the PC when it transcribes."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, transcriberOut, error) {
+			"It downloads about 200 MB, so the user must approve it. " + deleteApprovalHint + " It runs in the background: read voice_status or this tool's state until installed. Nothing leaves the PC when it transcribes."},
+		func(ctx context.Context, req *mcp.CallToolRequest, in installTranscriberIn) (*mcp.CallToolResult, transcriberOut, error) {
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, transcriberOut{}, toolError(err)
+			}
+			now, err := c.VoiceTranscriberStatus(ctx)
+			if err != nil {
+				return nil, transcriberOut{}, toolError(err)
+			}
+			if now.State == "installed" || now.State == "installing" || now.State == "unsupported" {
+				return nil, transcriberOutOf(now), nil
+			}
+			summary := fmt.Sprintf("Descargar la transcripción local (whisper.cpp %s, unos %d MB) en la carpeta de Studio.", now.Version, max(1, now.DownloadBytes>>20))
+			ask, pending, err := gate(req, approvalSpec{Tool: "install_transcriber", JobID: now.Version, Request: now.Model, Summary: summary, Given: in.Approve, Question: "¿Descargar ahora?"})
+			if err != nil || ask != nil {
+				return ask, transcriberOut{}, err
+			}
+			if pending != nil {
+				out := transcriberOutOf(now)
+				out.pendingOut = *pending
+				return nil, out, nil
 			}
 			t, err := c.InstallVoiceTranscriber(ctx)
 			if err != nil {
@@ -246,16 +270,12 @@ func registerVoiceCommsTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, searchCommsOut{}, toolError(err)
 			}
-			query := tuiclient.VoiceSearchQuery{Query: text, TeamID: in.TeamID, MatchID: in.MatchID, Limit: limit}
+			query := tuiclient.VoiceSearchQuery{Query: text, TeamID: in.TeamID, MatchID: in.MatchID, Phase: in.Period, Limit: limit}
 			if !from.IsZero() {
 				query.From = from.Format(time.RFC3339)
 			}
 			if !to.IsZero() {
 				query.To = to.Format(time.RFC3339)
-			}
-			if in.Period != "" {
-				// The phase is known only once a hit is placed, so read the most the server gives.
-				query.Limit = 200
 			}
 			hits, truncated, err := c.SearchVoice(ctx, query)
 			if err != nil {
@@ -263,13 +283,6 @@ func registerVoiceCommsTools(server *mcp.Server, s *studio) {
 			}
 			out := searchCommsOut{Hits: []commsHitOut{}, Truncated: truncated}
 			for _, h := range hits {
-				if in.Period != "" && h.Phase != in.Period {
-					continue
-				}
-				if len(out.Hits) == limit {
-					out.Truncated = true
-					break
-				}
 				teams := make([]string, 0, len(h.Teams))
 				for _, t := range h.Teams {
 					teams = append(teams, cleanName(t))

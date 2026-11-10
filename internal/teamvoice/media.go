@@ -55,7 +55,7 @@ func (m Media) Probe(ctx context.Context, path string) (Probe, error) {
 		return Probe{}, ErrNoFFmpeg
 	}
 	// #nosec G204 -- the configured ffprobe receives a stored upload path as an argv value.
-	out, err := exec.CommandContext(ctx, probe, "-v", "error", "-select_streams", "a:0",
+	out, err := exec.CommandContext(ctx, probe, "-v", "error", "-protocol_whitelist", localProtocols, "-select_streams", "a:0",
 		"-show_entries", "stream=channels,codec_name,duration:format=duration", "-of", "json", path).Output()
 	if err != nil {
 		return Probe{}, fmt.Errorf("%w: %v", ErrNotAudio, err)
@@ -84,25 +84,42 @@ func (m Media) Probe(ctx context.Context, path string) (Probe, error) {
 	return Probe{Channels: s.Channels, DurationMS: int64(seconds * 1000), Codec: s.Codec}, nil
 }
 
-// EncodeJob turns one channel of a recording (-1 mixes them) into the mono Opus file the Replay plays.
+// localProtocols keeps FFmpeg on local files and pipes: an upload cannot make it open a URL.
+const localProtocols = "file,pipe"
+
+// EncodeJob turns a recording into the mono Opus files the Replay plays: one Dst mixes every
+// channel, several take one channel each, in order, from a single decode.
 type EncodeJob struct {
-	Src     string
-	Dst     string
-	Channel int
+	Src  string
+	Dsts []string
 }
 
-// Encode writes a job's track as Ogg Opus at a voice bitrate.
+var opusArgs = []string{"-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg"}
+
+// Encode writes a job's tracks as Ogg Opus at a voice bitrate.
 func (m Media) Encode(ctx context.Context, job EncodeJob) error {
 	if m.FFmpeg == "" {
 		return ErrNoFFmpeg
 	}
-	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", job.Src, "-map", "0:a:0", "-vn"}
-	if job.Channel >= 0 {
-		args = append(args, "-af", fmt.Sprintf("pan=mono|c0=c%d", job.Channel))
-	} else {
-		args = append(args, "-ac", "1")
+	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-protocol_whitelist", localProtocols, "-i", job.Src}
+	switch len(job.Dsts) {
+	case 0:
+		return errors.New("teamvoice: an encode needs an output")
+	case 1:
+		args = append(append(append(args, "-map", "0:a:0", "-vn", "-ac", "1"), opusArgs...), job.Dsts[0])
+		return m.run(ctx, args)
 	}
-	args = append(args, "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", job.Dst)
+	graph := fmt.Sprintf("[0:a:0]asplit=%d", len(job.Dsts))
+	for c := range job.Dsts {
+		graph += fmt.Sprintf("[s%d]", c)
+	}
+	for c := range job.Dsts {
+		graph += fmt.Sprintf(";[s%d]pan=mono|c0=c%d[o%d]", c, c, c)
+	}
+	args = append(args, "-filter_complex", graph)
+	for c, dst := range job.Dsts {
+		args = append(append(append(args, "-map", fmt.Sprintf("[o%d]", c)), opusArgs...), dst)
+	}
 	return m.run(ctx, args)
 }
 
@@ -111,7 +128,7 @@ func (m Media) WAV(ctx context.Context, src, dst string) error {
 	if m.FFmpeg == "" {
 		return ErrNoFFmpeg
 	}
-	return m.run(ctx, []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", src, "-map", "0:a:0",
+	return m.run(ctx, []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-protocol_whitelist", localProtocols, "-i", src, "-map", "0:a:0",
 		"-ac", "1", "-ar", strconv.Itoa(SampleRate), "-c:a", "pcm_s16le", "-f", "wav", dst})
 }
 
@@ -121,7 +138,7 @@ func (m Media) Speech(ctx context.Context, path string) ([]library.VoiceSpan, in
 		return nil, 0, ErrNoFFmpeg
 	}
 	// #nosec G204 -- the configured FFmpeg receives a stored track path as an argv value.
-	cmd := exec.CommandContext(ctx, m.FFmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-i", path, "-map", "0:a:0",
+	cmd := exec.CommandContext(ctx, m.FFmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", localProtocols, "-i", path, "-map", "0:a:0",
 		"-ac", "1", "-ar", strconv.Itoa(SampleRate), "-f", "s16le", "-")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

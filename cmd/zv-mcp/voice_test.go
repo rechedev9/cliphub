@@ -29,6 +29,10 @@ func voiceStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	rec.handle(mux, "PATCH /api/library/matches/{id}/voice", testVoiceJSON)
 	rec.handle(mux, "DELETE /api/library/matches/{id}/voice", ``)
 	rec.handle(mux, "GET /api/library/matches/{id}/voice/comms", testCommsJSON)
+	rec.handle(mux, "GET /api/library/matches/{id}/voice/demo", `{"match_id":"`+testMatchID+`","state":"none","tracks":[]}`)
+	rec.handle(mux, "POST /api/library/matches/{id}/voice/demo", `{"match_id":"`+testMatchID+`","state":"extracting","tracks":[]}`)
+	rec.handle(mux, "GET /api/library/voice/transcriber", `{"state":"not_installed","version":"1.9.5","model":"ggml-small-q5_1.bin","download_bytes":199014127}`)
+	rec.handle(mux, "POST /api/library/voice/transcriber/install", `{"state":"installing","version":"1.9.5","model":"ggml-small-q5_1.bin","download_bytes":199014127}`)
 	rec.handle(mux, "GET /api/library/voice/search", `{"hits":[{"match_id":"`+testMatchID+`","map":"de_mirage","played_at":"2026-11-01T18:00:00Z","teams":["FUT","OG"],`+
 		`"track":1,"label":"IGL","round":3,"round_ms":65000,"phase":"midround","tick":9000,"text":"rotamos a B"},`+
 		`{"match_id":"`+testMatchID+`","map":"de_mirage","played_at":"2026-11-01T18:00:00Z","teams":[],"round":4,"phase":"freezetime","tick":9500,"text":"rotamos ya"}],"truncated":false}`)
@@ -95,12 +99,38 @@ func TestVoiceCommsToolsRoundTalkAndSearch(t *testing.T) {
 	var found searchCommsOut
 	callTool(t, cs, "search_comms", map[string]any{"text": " rotamos ", "team_id": testTeamID, "from": "2026-11-01", "period": "midround"}, &found)
 	got := rec.get("GET /api/library/voice/search")
-	if !strings.Contains(got, "q=rotamos") || !strings.Contains(got, "team_id="+testTeamID) || !strings.Contains(got, "from=2026-11-01T00%3A00%3A00Z") || !strings.Contains(got, "limit=200") {
+	if !strings.Contains(got, "q=rotamos") || !strings.Contains(got, "team_id="+testTeamID) || !strings.Contains(got, "from=2026-11-01T00%3A00%3A00Z") || !strings.Contains(got, "phase=midround") || !strings.Contains(got, "limit=50") {
 		t.Errorf("search query = %s", got)
 	}
-	if len(found.Hits) != 1 || found.Hits[0].Round != 3 || found.Hits[0].PlayedAt != "2026-11-01" {
+	// The server filters by phase; the tool keeps what it returns.
+	if len(found.Hits) != 2 || found.Hits[0].Round != 3 || found.Hits[0].PlayedAt != "2026-11-01" {
 		t.Fatalf("search = %+v", found)
 	}
 	toolFails(t, cs, "search_comms", map[string]any{"text": "eco", "period": "lunch"}, "period must be")
 	toolFails(t, cs, "search_comms", map[string]any{"text": ""}, "text must be")
+}
+
+func TestInstallTranscriberWaitsForApproval(t *testing.T) {
+	cs, rec := voiceStudio(t)
+	var out transcriberOut
+	callTool(t, cs, "install_transcriber", map[string]any{}, &out)
+	if !out.NeedsApproval || out.ApprovalCode == "" || !strings.Contains(out.Summary, "189 MB") || rec.get("POST /api/library/voice/transcriber/install") != "" {
+		t.Fatalf("install without approval = %+v", out)
+	}
+	callTool(t, cs, "install_transcriber", map[string]any{"approve": out.ApprovalCode}, &out)
+	if out.State != "installing" || rec.get("POST /api/library/voice/transcriber/install") == "" {
+		t.Fatalf("approved install = %+v", out)
+	}
+}
+func TestDemoVoiceReadsAndStartsTheExtraction(t *testing.T) {
+	cs, rec := voiceStudio(t)
+	var out demoVoiceOut
+	callTool(t, cs, "demo_voice", map[string]any{"match_id": testMatchID}, &out)
+	if out.State != "none" || rec.get("POST /api/library/matches/{id}/voice/demo") != "" {
+		t.Fatalf("read only = %+v", out)
+	}
+	callTool(t, cs, "demo_voice", map[string]any{"match_id": testMatchID, "extract": true}, &out)
+	if out.State != "extracting" || rec.get("POST /api/library/matches/{id}/voice/demo") == "" {
+		t.Fatalf("extract = %+v", out)
+	}
 }

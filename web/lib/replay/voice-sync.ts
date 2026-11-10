@@ -31,8 +31,13 @@ export function tickOfAudioMs(audioMs: number, sync: { offsetMs: number; tickrat
 }
 
 /** Whether an element at `current` seconds must jump to `target`. */
-export function needsSeek(current: number, target: number, playing: boolean): boolean {
-  return Math.abs(current - target) > (playing ? PLAYING_DRIFT_SECONDS : PAUSED_DRIFT_SECONDS);
+export function needsSeek(at: { current: number; target: number; playing: boolean }): boolean {
+  return Math.abs(at.current - at.target) > (at.playing ? PLAYING_DRIFT_SECONDS : PAUSED_DRIFT_SECONDS);
+}
+
+/** Whether the freeze-time filter silences the voice at a tick: everything after the round went live. */
+export function silentOutsideFreeze(at: { tick: number; freezeOnly: boolean; freezeEndTick: number | null }): boolean {
+  return at.freezeOnly && at.freezeEndTick !== null && at.tick >= at.freezeEndTick;
 }
 
 export function playbackRate(speed: number): number {

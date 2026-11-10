@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { audioSecondsAt, clampOffset, deltaLabel, formatVoiceMs, needsSeek, playbackRate, tickOfAudioMs, trackVolume } from './voice-sync.ts';
+import { audioSecondsAt, clampOffset, deltaLabel, formatVoiceMs, needsSeek, playbackRate, silentOutsideFreeze, tickOfAudioMs, trackVolume } from './voice-sync.ts';
 
 test('the recording plays at demo time minus the offset, and is silent outside it', () => {
   const at = { tickrate: 64, offsetMs: 10_000, durationMs: 60_000 };
@@ -16,9 +16,16 @@ test('a phrase lands on the demo tick its audio time plus the offset gives', () 
 });
 
 test('the audio moves only past the drift a playing or paused element allows', () => {
-  assert.equal(needsSeek(10, 10.2, true), false);
-  assert.equal(needsSeek(10, 10.4, true), true);
-  assert.equal(needsSeek(10, 10.2, false), true);
+  assert.equal(needsSeek({ current: 10, target: 10.2, playing: true }), false);
+  assert.equal(needsSeek({ current: 10, target: 10.4, playing: true }), true);
+  assert.equal(needsSeek({ current: 10, target: 10.2, playing: false }), true);
+});
+
+test('the freeze-time filter silences the voice once the round goes live', () => {
+  assert.equal(silentOutsideFreeze({ tick: 900, freezeOnly: true, freezeEndTick: 1000 }), false);
+  assert.equal(silentOutsideFreeze({ tick: 1000, freezeOnly: true, freezeEndTick: 1000 }), true);
+  assert.equal(silentOutsideFreeze({ tick: 5000, freezeOnly: false, freezeEndTick: 1000 }), false);
+  assert.equal(silentOutsideFreeze({ tick: 5000, freezeOnly: true, freezeEndTick: null }), false);
 });
 
 test('the playback rate follows the replay speed within what audio can play', () => {
