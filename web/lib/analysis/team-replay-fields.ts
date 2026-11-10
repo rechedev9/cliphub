@@ -1,4 +1,5 @@
 import type { AnalysisScope, ScopeField } from './scope.ts';
+import { MATCH_SAMPLE_OPTIONS } from './match-sample.ts';
 import { teamScopeEntries, type TeamScopeEntry } from './team-scope.ts';
 
 /** The filters bar of a team's Replay, in the order it shows them; every one is applied by the server. */
@@ -8,7 +9,7 @@ export const TEAM_REPLAY_FIELDS: readonly ScopeField[] = [
 ];
 
 /** The match counts the Replay offers; with none in the URL it reads the last 3, where a rival's habits show cleanest. */
-export const TEAM_REPLAY_LIMITS = { options: [3, 5, 10, 20, 50], fallback: 3 } as const;
+export const TEAM_REPLAY_LIMITS = { options: MATCH_SAMPLE_OPTIONS, fallback: 3 } as const;
 
 /** The query of a team's Replay, its heatmaps and the pattern finder: the scope with the 3-match default filled in. */
 export function teamReplayEntries(scope: AnalysisScope): TeamScopeEntry[] {

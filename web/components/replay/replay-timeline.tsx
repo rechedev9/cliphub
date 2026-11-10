@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { Pause, Play, Repeat, Timer } from 'lucide-react';
+import { Pause, Play, Repeat, Scissors, Timer } from 'lucide-react';
 import { TACTICAL_EVENT_KINDS, TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalEvent, TacticalTimeout } from '@/lib/api/tactical';
 import { isBombKind } from '@/lib/replay/event-kinds';
+import { isWholeRound } from '@/lib/replay/tramo';
 import { postPlantSpan, timeoutSpans } from '@/lib/replay/map-hud';
 import { SCRUB_STEP_SECONDS } from '@/lib/replay/playback';
 import { roundClockLabelFor } from '@/lib/tactical-timeline';
@@ -63,6 +64,9 @@ export function ReplayTimeline({
   tramo?: TramoControl;
 }): ReactNode {
   const releaseRef = useRef<(() => void) | null>(null);
+  // The tramo bar stays folded under its button until asked for, or while a tramo is set.
+  const [tramoAsked, setTramoAsked] = useState(false);
+  const tramoOpen = tramo !== undefined && (tramoAsked || !isWholeRound(tramo.tramo));
   const scrubbingChangeRef = useRef(onScrubbingChange);
   scrubbingChangeRef.current = onScrubbingChange;
   useEffect(() => () => releaseRef.current?.(), []);
@@ -137,8 +141,23 @@ export function ReplayTimeline({
         <Button type="button" size="icon-xs" variant={loop ? 'outline-primary' : 'ghost'} onClick={onToggleLoop} aria-pressed={loop} aria-label="Repetir en bucle" className="size-8">
           <Repeat aria-hidden />
         </Button>
+        {tramo === undefined ? null : (
+          <Button
+            type="button"
+            size="icon-xs"
+            variant={tramoOpen ? 'outline-primary' : 'ghost'}
+            onClick={() => setTramoAsked((asked) => !asked)}
+            aria-pressed={tramoOpen}
+            disabled={!isWholeRound(tramo.tramo)}
+            aria-label="Elegir un tramo de la ronda"
+            title="Tramo: el trozo de ronda que superponen las rondas"
+            className="size-8"
+          >
+            <Scissors aria-hidden />
+          </Button>
+        )}
       </div>
-      {tramo === undefined ? null : (
+      {tramo === undefined || !tramoOpen ? null : (
         <div className="col-span-full">
           <TramoBar tramo={tramo.tramo} onChange={tramo.onChange} plant={false} />
         </div>

@@ -60,6 +60,7 @@ import { RadarCentre } from './radar-centre';
 import { ReplaySidePanel } from './replay-side-panel';
 import { ReplayTransport, superposeCopy } from './replay-transport';
 import { SetposNotice } from './setpos-notice';
+import { ReplayStackOverlay, type ReplayStack } from './replay-stack-overlay';
 import { ShortcutHelp } from './shortcut-help';
 import { useFullscreen } from './use-fullscreen';
 import { useSetposCopies } from './use-setpos-copies';
@@ -105,7 +106,7 @@ export type ReplayWorkspaceProps = {
   /** A Volver link over the map, such as the single match's way back to the library. */
   back?: { href: string; label: string };
   /** The scope controls floating over the top left of the map, for a team's rounds. */
-  stack?: ReactNode;
+  stack?: ReplayStack;
 };
 
 /**
@@ -635,9 +636,7 @@ export function ReplayWorkspace({
               }}
             />
           )}
-          {stack === undefined || fullscreen.active ? null : (
-            <div className="absolute top-2 left-2 z-20 max-h-[calc(100%-1rem)] overflow-y-auto rounded-md border border-border bg-surface-1/95 p-2 [scrollbar-width:thin]">{stack}</div>
-          )}
+          {stack === undefined || fullscreen.active ? null : <ReplayStackOverlay stack={stack} />}
           {library && focused !== null && entry !== undefined && !multi ? <PlaylistBookmark control={playlist} entry={entry} card={roundCard} /> : null}
           <SetposNotice note={setpos.note} />
         </div>

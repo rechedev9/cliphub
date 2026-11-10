@@ -16,6 +16,7 @@ import { CounterWidget, HeaderWidget, ReferenceWidget } from '@/components/analy
 import { ScopeMapSelect } from '@/components/analysis/scope-map-select';
 import { PeriodField } from '@/components/analysis/scope-period';
 import { BuySwapButton } from '@/components/analysis/scope-replay-controls';
+import { MATCH_SAMPLE_OPTIONS } from '@/lib/analysis/match-sample';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
@@ -56,7 +57,7 @@ function SideToggle({ value, onChange }: { value: ReportSide; onChange: (side: R
 
 function LimitField({ props }: { props: ScopeBarProps }): ReactNode {
   const { scope, onChange } = props;
-  const limits = props.limits ?? { options: [10, 20, 50], fallback: 20 };
+  const limits = props.limits ?? { options: MATCH_SAMPLE_OPTIONS, fallback: 20 };
   return (
     <Select
       value={String(scope.limit ?? limits.fallback)}

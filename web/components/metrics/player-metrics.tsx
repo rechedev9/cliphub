@@ -9,13 +9,14 @@ import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { matchHref } from '@/lib/clips/routes';
 import { ecoText, roleText } from '@/lib/metrics/advanced';
 import { EmptyState } from '@/components/records/empty-state';
+import { MATCH_SAMPLE_OPTIONS } from '@/lib/analysis/match-sample';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MetricsView } from './metrics-view';
 
 /** The matches read when the URL names no limit; the API's own default. */
 export const PLAYER_METRICS_LIMIT = 20;
-export const PLAYER_METRICS_LIMITS = [10, 20, 50] as const;
+export const PLAYER_METRICS_LIMITS = MATCH_SAMPLE_OPTIONS;
 
 /** Sections the player page shows as their own tabs. */
 const OWN_TABS = ['metricas-compra', 'metricas-mapas'] as const;

@@ -97,6 +97,9 @@ function TeamReplayReady({ analysis, teams, onTeam }: { analysis: TeamAnalysis; 
   const sampleMatches = useMemo(() => matches.filter((match) => matchIds.has(match.id)), [matches, matchIds]);
   const counts = read.refs === null || read.loading ? null : { maps: read.refs.matchIds.length, rounds: read.refs.total, notes: sampleNotes(read.skipped, read.awpEstimated) };
   const capped = read.refs !== null && read.refs.total > REPLAY_MAX_REFS;
+  const stackSummary = [team.name, scope.map === '' ? null : prettyMapName(scope.map), `${entries.length} ${entries.length === 1 ? 'ronda' : 'rondas'}`]
+    .filter((part) => part !== null)
+    .join(' · ');
 
   const stack = (
     <div className="flex w-72 max-w-full flex-col gap-2">
@@ -146,7 +149,7 @@ function TeamReplayReady({ analysis, teams, onTeam }: { analysis: TeamAnalysis; 
       groupLabel={groupLabel}
       matchDate={matchDate}
       title={team.name}
-      stack={stack}
+      stack={{ summary: stackSummary, content: stack }}
     />
   );
 }

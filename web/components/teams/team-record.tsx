@@ -42,6 +42,7 @@ import { DataTable, type DataTableColumn } from '@/components/records/data-table
 import { DOCUMENT_COLUMN } from '@/components/records/document-page';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
+import { SlashTitle } from '@/components/records/document-page';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { useTableView } from '@/components/records/use-table-view';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
@@ -144,7 +145,6 @@ export function TeamRecord({ teamId }: { teamId: string }): ReactNode {
 /** The scope controls each tab reads, in the order the bar shows them. */
 const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   plantilla: ['map', 'reference'],
-  series: [],
   partidas: ['map', 'period', 'opponent'],
   mapas: ['map', 'period'],
   estadisticas: ['lineup', 'map', 'side', 'period', 'buy', 'opponentBuy', 'opponent'],
@@ -162,13 +162,13 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
 const REPORTING_TABS = new Set(['mapas', 'estadisticas', 'sitios', 'preparar', 'playbook', 'replay']);
 /** Tabs whose view reads the matches through the server scope pipeline, the one the map counts follow. */
 const COUNTED_TABS = new Set(['estadisticas', 'posiciones', 'sitios', 'preparar', 'playbook', 'replay']);
-const TEAM_TABS = ['estadisticas', 'plantilla', 'posiciones', 'sitios', 'veto', 'partidas', 'mapas', 'series', 'preparar', 'playbook', 'replay'];
+const TEAM_TABS = ['estadisticas', 'plantilla', 'posiciones', 'sitios', 'veto', 'partidas', 'mapas', 'preparar', 'playbook', 'replay'];
 /** The tab a team opens on, the EDGE Overview; a link without `?tab=` lands here. */
 const DEFAULT_TAB = 'estadisticas';
 /** Tabs of the statistics pages: their content sits in the centred document column under the full-width header. */
-const COLUMN_TABS = new Set(['estadisticas', 'plantilla', 'posiciones', 'sitios', 'veto', 'partidas', 'mapas', 'series']);
-/** Tabs of older links: Scouting is in Preparar, and the radar and the grenades are forms of the Replay. */
-const LEGACY_TABS: Readonly<Record<string, string>> = { scouting: 'preparar', radar: 'replay', granadas: 'replay' };
+const COLUMN_TABS = new Set(['estadisticas', 'plantilla', 'posiciones', 'sitios', 'veto', 'partidas', 'mapas']);
+/** Tabs of older links: Scouting is in Preparar, the series are under Partidas, and the radar and the grenades are forms of the Replay. */
+const LEGACY_TABS: Readonly<Record<string, string>> = { scouting: 'preparar', series: 'partidas', radar: 'replay', granadas: 'replay' };
 const QUERY_TABS = [...TEAM_TABS, ...Object.keys(LEGACY_TABS)];
 
 function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => void }): ReactNode {
@@ -443,18 +443,22 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             id: 'partidas',
             label: 'Partidas',
             count: matches.length,
-            content: withScope('partidas', <TeamMatches team={team} matches={scoped} />),
+            content: withScope(
+              'partidas',
+              <div className="flex flex-col gap-6">
+                <TeamMatches team={team} matches={scoped} />
+                <section className="flex flex-col gap-2">
+                  <SlashTitle>Series</SlashTitle>
+                  <TeamSeries team={team} />
+                </section>
+              </div>,
+            ),
           },
           {
             id: 'mapas',
             label: 'Mapas',
             count: maps.length,
             content: withScope('mapas', <TeamMapHistory teamId={team.id} matches={matches} scope={scope} onCounts={onCounts} />),
-          },
-          {
-            id: 'series',
-            label: 'Series',
-            content: withScope('series', <TeamSeries team={team} />),
           },
           {
             id: 'preparar',
