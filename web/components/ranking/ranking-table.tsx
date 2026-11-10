@@ -35,7 +35,7 @@ function SortHeader({ column, state, onSort }: { column: (typeof RANKING_COLUMNS
   const dir = state.dir ?? naturalDir(column.sort);
   const Arrow = dir === 'asc' ? ArrowUp : ArrowDown;
   return (
-    <th scope="col" aria-sort={ariaSort(active, dir)} className="px-2 py-1.5 text-right font-medium">
+    <th scope="col" aria-sort={ariaSort(active, dir)} className="px-2 py-1.5 text-right font-medium whitespace-nowrap">
       <button
         type="button"
         title={column.title}
@@ -92,7 +92,7 @@ function PlayerRow({
   return (
     <tr className={cn('border-t border-border-subtle', entry.pinned && 'bg-surface-2')}>
       <td className="w-10 px-2 py-1.5 text-right text-fg-3 tabular-nums">{entry.place ?? ''}</td>
-      <td className="px-2 py-1">
+      <td className="max-w-80 px-2 py-1">
         <div className="flex items-center gap-1">
           <PinButton pin={{ steamid64: steamId, name }} pinned={entry.pinned !== null} onToggle={onPin} />
           <div className="flex min-w-0 flex-col">
@@ -106,7 +106,7 @@ function PlayerRow({
             {row === null ? (
               <span className="text-meta text-fg-3">Bajo el mínimo de rondas con este filtro</span>
             ) : (
-              <span className="truncate text-meta text-fg-2" title={roles}>
+              <span className="truncate text-meta text-fg-2" title={subtitle(row, roles)}>
                 {subtitle(row, roles)}
               </span>
             )}
@@ -116,7 +116,7 @@ function PlayerRow({
       {RANKING_COLUMNS.map((column) => {
         const value = row === null ? null : cellValue({ row, sort: column.sort, boardMetric });
         return (
-          <td key={column.sort} className={cn('px-2 py-1.5 text-right tabular-nums', state.sort === column.sort ? 'text-fg-1' : 'text-fg-2')}>
+          <td key={column.sort} className={cn('px-2 py-1.5 text-right whitespace-nowrap tabular-nums', state.sort === column.sort ? 'text-fg-1' : 'text-fg-2')}>
             {value === null ? <span className="text-fg-4">-</span> : column.format(value)}
             {column.sort === 'rounds' && row !== null && lowSample(row) ? (
               <TriangleAlert

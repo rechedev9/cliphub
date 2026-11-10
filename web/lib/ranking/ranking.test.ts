@@ -53,6 +53,13 @@ test('the minimum of rounds is any whole number from 1 to 10000', () => {
   assert.equal(parse(writeRanking(parse('min=137'))).minRounds, 137);
 });
 
+test('the side is read in any case and written in one', () => {
+  for (const [raw, side] of [['t', 'T'], ['T', 'T'], ['ct', 'CT'], ['Ct', 'CT'], ['x', '']] as const) {
+    assert.equal(parse(`side=${raw}`).scope.side, side);
+  }
+  assert.equal(writeRanking(parse('side=ct')), 'side=CT');
+});
+
 test('a position needs a map and a side and follows them', () => {
   assert.equal(parse('map=de_anubis&posicion=Canal').mapRole, '');
   assert.equal(parse('side=T&posicion=Canal').mapRole, '');

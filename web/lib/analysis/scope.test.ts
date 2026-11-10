@@ -50,7 +50,7 @@ test('values the URL cannot hold are dropped one by one', () => {
   const scope = parseAnalysisScope(
     new URLSearchParams('map=Mirage!&side=ct&limit=500&buy=unknown&opponent_buy=force&opponent=nope&from=2026-02-30'),
   );
-  assert.deepEqual(scope, { ...DEFAULT_SCOPE, opponentBuy: 'force' });
+  assert.deepEqual(scope, { ...DEFAULT_SCOPE, side: 'CT', opponentBuy: 'force' });
 });
 
 test('the reference is the library unless the URL says pro', () => {

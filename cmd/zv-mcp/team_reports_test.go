@@ -81,6 +81,10 @@ func addTeamReportRoutes(mux *http.ServeMux) {
 			http.Error(w, `{"error":"unexpected query `+r.URL.RawQuery+`"}`, http.StatusBadRequest)
 			return
 		}
+		if q.Get("scope") == "pro" {
+			_, _ = w.Write([]byte(`{"scope":"pro","map":"","metric":"adr","higher_is_better":true,"min_rounds":50,"matches":0,"rounds":0,"skipped":0,"players":[]}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"scope":"library","map":"","metric":"adr","higher_is_better":true,"min_rounds":50,"matches":40,"rounds":900,"skipped":1,
 			"map_roles":[{"key":"Canal","label":"Canal","players":3},{"key":"allround","label":"Todoterreno","players":1}],"events":["IEM Cologne"],
 			"players":[{"rank":1,"steamid64":"` + testSteamID + `","name":"ZywOo\u0007","rounds":400,"matches":18,"value":92.4,
@@ -192,6 +196,11 @@ func TestPlayerPositionsAndLeaderboard(t *testing.T) {
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "team_top": 15}, "days, top, team_top and event are for scope pro")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "event": "IEM"}, "days, top, team_top and event are for scope pro")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "team_top": 20}, "team_top must be")
+	var proBoard leaderboardOut
+	callTool(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro"}, &proBoard)
+	if len(proBoard.Players) != 0 || !strings.Contains(proBoard.Note, "not available yet") {
+		t.Fatalf("empty pro board = %+v, want a note that the pro data is not available", proBoard)
+	}
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "nope"}, "metric must be one of")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "role": "b_lurk"}, "role needs a map")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map": "de_anubis", "role": "boss"}, "role must be")

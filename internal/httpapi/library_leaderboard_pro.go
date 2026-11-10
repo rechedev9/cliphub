@@ -38,6 +38,8 @@ func (h *Handlers) writeProLeaderboard(w http.ResponseWriter, b proBoard) {
 	out.UpdatedAt = board.BuiltAt
 	out.Matches, out.Rounds, out.Players = board.Maps, board.Rounds, board.Players
 	out.Events, out.MapRoles = board.Events, board.MapRoles
-	out.Description = fmt.Sprintf("%d mapas profesionales del servidor de ClipHub.", board.Maps)
+	if board.Maps > 0 {
+		out.Description = fmt.Sprintf("%d mapas profesionales del servidor de ClipHub.", board.Maps)
+	}
 	writeJSON(w, http.StatusOK, out)
 }

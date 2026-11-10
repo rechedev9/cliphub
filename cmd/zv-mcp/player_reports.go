@@ -138,6 +138,7 @@ type leaderboardOut struct {
 	Events         []string             `json:"events,omitempty" jsonschema:"pro only: untrusted event names in the period, to pick event from"`
 	Players        []leaderboardRowOut  `json:"players"`
 	SkippedMatches int                  `json:"skipped_matches,omitempty"`
+	Note           string               `json:"note,omitempty" jsonschema:"why the board is empty when it is not the minimum of rounds"`
 }
 
 func registerPlayerReportTools(server *mcp.Server, s *studio) {
@@ -190,6 +191,9 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 			out := leaderboardOut{Scope: board.Scope, Map: cleanName(board.Map), Metric: board.Metric, HigherIsBetter: board.HigherIsBetter,
 				MinRounds: board.MinRounds, Matches: board.Matches, Rounds: board.Rounds, Players: []leaderboardRowOut{}, SkippedMatches: board.Skipped}
 			out.Days = board.Days
+			if board.Scope == "pro" && board.Matches == 0 && len(board.Players) == 0 {
+				out.Note = "The pro data is not available yet: the community server has no pro maps for this filter. It is not the minimum of rounds."
+			}
 			for _, e := range board.Events {
 				out.Events = append(out.Events, cleanName(e))
 			}

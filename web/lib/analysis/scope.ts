@@ -111,7 +111,8 @@ function validDay(value: string | null): string {
 }
 
 function parseSide(value: string | null): ReportSide {
-  if (value === 'CT' || value === 'T') return value;
+  const side = value?.toUpperCase();
+  if (side === 'CT' || side === 'T') return side;
   return '';
 }
 

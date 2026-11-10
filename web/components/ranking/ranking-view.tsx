@@ -68,6 +68,15 @@ function RankingBody({
       </p>
     );
   }
+  if (pro && load.board.source !== 'bundled' && load.board.matches === 0) {
+    return (
+      <EmptyState
+        icon={Trophy}
+        title="Los datos pro aún no están disponibles"
+        description="El servidor de ClipHub todavía no tiene mapas profesionales para este filtro. Prueba más adelante o usa los datos de tu biblioteca."
+      />
+    );
+  }
   if (entries.length === 0 && pro && load.board.source === 'bundled') {
     return (
       <EmptyState
