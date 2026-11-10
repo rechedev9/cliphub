@@ -114,7 +114,7 @@ function CellView({
     <td
       className={cn(
         'px-2.5 py-1.5 whitespace-nowrap',
-        column.align === 'end' && 'text-right tabular-nums',
+        column.align === 'end' && 'font-num text-right tabular-nums',
         low ? 'text-fg-3' : 'text-fg-1',
         cell.tone && !low && TONE[cell.tone],
         first ? sticky : tint(level),

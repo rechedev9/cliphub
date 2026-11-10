@@ -38,7 +38,7 @@ export function EdgeTile({
         {info}
       </dt>
       <dd className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-stat leading-tight font-bold text-fg-1 tabular-nums">{value}</span>
+        <span className="truncate font-num text-stat leading-tight font-bold text-fg-1 tabular-nums">{value}</span>
         {note ? <span className="truncate text-meta text-fg-3">{note}</span> : null}
         {detail ? <span className="truncate text-meta text-fg-3">{detail}</span> : null}
       </dd>

@@ -233,7 +233,8 @@ function DetectedPlayCard({ play, labels, onSave }: { play: DetectedPlay; labels
   );
 }
 
-function SaveDetectedDialog({
+/** The dialog that stores a detected play in the Libreta. */
+export function SaveDetectedDialog({
   play,
   teamId,
   teamName,

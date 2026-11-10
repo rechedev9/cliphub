@@ -33,6 +33,8 @@ export type ScopeEntity = {
   /** Keep the last four opened in the picker's "Recientes" group. */
   readonly recents?: boolean;
   readonly hrefFor: (id: string) => string;
+  /** Picks without navigating, for a page whose team is not in its path (the tools keep it in `equipo`). */
+  readonly onSelect?: (id: string) => void;
   /** `team` paints the picker in the dark red of a team select. */
   readonly tone?: 'team';
 };

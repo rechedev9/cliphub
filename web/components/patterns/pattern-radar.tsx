@@ -143,7 +143,7 @@ export function PatternRadar({ geometry, levels, multiLevel, picture, overlay, h
 
 type Shown = { x: number; y: number; width: number; height: number };
 
-type DrawProps = {
+export type DrawProps = {
   geometry: TacticalGeometry;
   projection: RadarProjection;
   zoomed: boolean;
@@ -154,7 +154,7 @@ type DrawProps = {
   onPolygon: (points: [number, number][]) => void;
 };
 
-function DrawLayer({ geometry, projection, zoomed, tool, zone, others, onBox, onPolygon }: DrawProps): ReactNode {
+export function DrawLayer({ geometry, projection, zoomed, tool, zone, others, onBox, onPolygon }: DrawProps): ReactNode {
   const start = useRef<RadarPoint | null>(null);
   const [drag, setDrag] = useState<{ a: RadarPoint; b: RadarPoint } | null>(null);
   const [corners, setCorners] = useState<RadarPoint[]>([]);

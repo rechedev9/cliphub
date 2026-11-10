@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ChevronLeft, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Maximize, Minimize } from 'lucide-react';
 import Link from 'next/link';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import type { TacticalSource } from '@/lib/api/tactical';
@@ -40,15 +40,14 @@ import {
 import type { RoundTimeline } from '@/lib/tactical-timeline';
 import { noteVisibleAt } from '@/lib/tactical-spatial';
 import { useMatchAnalyses } from '@/hooks/use-match-analyses';
-import type { MatchAnalysis } from '@/hooks/use-match-analyses';
 import { RoundPlayActions } from '@/components/stratbook/round-play-actions';
 import { chooseDrawMode, useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import type { DrawMode, TelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import { useAnnotations } from '@/components/tactical/spatial/annotation-panel';
 import type { AnnotationStore, NoteItem } from '@/components/tactical/spatial/annotation-panel';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { CentreState } from './centre-state';
 import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
 import { MapHud } from './map-hud';
 import { MapFooter } from './map-footer';
@@ -122,6 +121,8 @@ export type ReplayWorkspaceProps = {
   zones?: readonly string[];
   /** A Volver link over the map, such as the single match's way back to the library. */
   back?: { href: string; label: string };
+  /** The scope controls floating over the top left of the map, for a team's rounds; they take the place of `filters` in the left column. */
+  stack?: ReactNode;
 };
 
 const NO_MATCHES: readonly string[] = [];
@@ -150,6 +151,7 @@ export function ReplayWorkspace({
   superpose = false,
   zones,
   back,
+  stack,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
   const clock = useMemo(() => new ReplayClock(), []);
@@ -741,12 +743,16 @@ export function ReplayWorkspace({
               eventsOpen={eventsOpen}
               showFeed={mapSettings.show.killfeed}
               showScore={mapSettings.show.scoreline}
+              scoreCentred={stack !== undefined}
               onToggleEvents={() => setEventsOpen((value) => !value)}
               onSeek={(seconds) => {
                 setPlaying(false);
                 seekTo(clockSecondsOf(focused.timeline, timelineTick(focused.timeline, seconds)));
               }}
             />
+          )}
+          {stack === undefined || fullscreen.active ? null : (
+            <div className="absolute top-2 left-2 z-20 max-h-[calc(100%-1rem)] overflow-y-auto rounded-md border border-border bg-surface-1/95 p-2 [scrollbar-width:thin]">{stack}</div>
           )}
           <SetposNotice note={setpos.note} />
         </div>
@@ -768,7 +774,7 @@ export function ReplayWorkspace({
         <ReplayLeftPanel
           focused={focused}
           actions={roundActions}
-          filters={filters}
+          filters={stack === undefined ? filters : undefined}
           moments={layers.moments && focused !== null ? { count: moments.length, list: <KeyMomentList moments={moments} /> } : null}
           comms={hasVoice && focused !== null ? <CommsPanel voice={voice} doc={focused.doc} round={focused.round.number} currentTick={tickOf(focused, nowSeconds)} onJump={jumpToLine} /> : null}
         />
@@ -901,35 +907,4 @@ function drawShortcut(draft: TelestratorDraft, shortcut: ReplayShortcut): void {
   if (mode !== undefined) chooseDrawMode(draft, mode);
   else if (shortcut === 'tool-timed') draft.setTool({ ...draft.tool, timed: !draft.tool.timed });
   else if (shortcut === 'undo-stroke') draft.undo();
-}
-
-function CentreState({
-  state,
-  round,
-  onRetry,
-}: {
-  state: MatchAnalysis | undefined;
-  round: number | undefined;
-  onRetry: () => void;
-}): ReactNode {
-  if (state === undefined || state.state === 'loading') {
-    return <Skeleton role="status" aria-label="Cargando la partida" className="absolute inset-3" />;
-  }
-  if (state.state === 'failed') {
-    return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
-        <p className="text-body-sm text-fg-2">{state.message}</p>
-        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-          <RefreshCw aria-hidden />
-          Reintentar
-        </Button>
-      </div>
-    );
-  }
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
-      <Radar className="size-6 text-fg-3" aria-hidden />
-      <p className="text-body-sm text-fg-2">La ronda {round} no está en el análisis de esta partida.</p>
-    </div>
-  );
 }

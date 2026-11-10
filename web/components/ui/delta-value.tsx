@@ -54,7 +54,7 @@ export function DeltaValue({
     arrowMark = <span aria-hidden className="invisible text-[0.7em]">▲</span>;
   }
   return (
-    <span className={cn('inline-flex items-baseline gap-1 whitespace-nowrap tabular-nums', className)} title={title}>
+    <span className={cn('inline-flex items-baseline gap-1 font-num whitespace-nowrap tabular-nums', className)} title={title}>
       <span className="font-medium text-fg-1">{format(value)}</span>
       {arrowMark}
       {n === undefined ? null : <span className="text-meta text-fg-3">({n})</span>}

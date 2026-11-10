@@ -13,7 +13,7 @@ import { ThemeMenu } from '@/components/shell/theme-menu';
 import { useCurrentRouteTitle } from '@/components/shell/route-title';
 import { FULL_SERIES_SEGMENT, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
-import { sectionForPath, type NavSection } from '@/lib/nav';
+import { isToolPage, sectionForPath, type NavSection } from '@/lib/nav';
 
 const TRAIL = {
   newShort: 'Nuevo Short',
@@ -31,6 +31,7 @@ export function CommandStrip(): ReactElement {
   const section = sectionForPath(pathname);
   const routeTitle = useCurrentRouteTitle();
   const trail = routeTitle ?? trailForPath(pathname, section);
+  const showTrail = !isToolPage(pathname);
 
   return (
     <header
@@ -44,24 +45,26 @@ export function CommandStrip(): ReactElement {
 
       {/* 6px inside the label, 14px across the level break, so the breadcrumb
           reads as two levels. */}
-      <nav aria-label="Ruta actual" className="flex min-w-0 items-baseline gap-1.5">
-        <span className="flex min-w-0 items-baseline gap-1.5 truncate text-body-sm font-semibold text-fg-1">
-          <span aria-hidden className="text-slash">
-            /
+      {showTrail ? (
+        <nav aria-label="Ruta actual" className="flex min-w-0 items-baseline gap-1.5">
+          <span className="flex min-w-0 items-baseline gap-1.5 truncate text-body-sm font-semibold text-fg-1">
+            <span aria-hidden className="text-slash">
+              /
+            </span>
+            {section?.label ?? 'ClipHub'}
           </span>
-          {section?.label ?? 'ClipHub'}
-        </span>
-        {trail === null ? null : (
-          <>
-            <span className="shrink-0 px-1 text-fg-4" aria-hidden>
-              ›
-            </span>
-            <span title={trail} className="max-w-[32ch] truncate text-body-sm text-fg-2">
-              {trail}
-            </span>
-          </>
-        )}
-      </nav>
+          {trail === null ? null : (
+            <>
+              <span className="shrink-0 px-1 text-fg-4" aria-hidden>
+                ›
+              </span>
+              <span title={trail} className="max-w-[32ch] truncate text-body-sm text-fg-2">
+                {trail}
+              </span>
+            </>
+          )}
+        </nav>
+      ) : null}
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <GlobalSearch />

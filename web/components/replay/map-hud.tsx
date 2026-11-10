@@ -35,10 +35,13 @@ export function MapHud({
   onSeek,
   showFeed,
   showScore,
+  scoreCentred = false,
 }: {
   focused: CentreRound;
   /** Marcador arriba in the replay preferences. */
   showScore: boolean;
+  /** The score bug sits at the top centre when the filter stack floats over the top left. */
+  scoreCentred?: boolean;
   /** Feed de bajas in Ajustes del mapa. */
   showFeed: boolean;
   /** The playhead in seconds on the focused round's own bar. */
@@ -61,7 +64,7 @@ export function MapHud({
   return (
     <>
       {showScore ? (
-        <div className={cn(HUD_SCOPE, 'pointer-events-none absolute top-2 left-2 flex h-11 items-stretch overflow-hidden rounded-md text-body-sm', HUD_SURFACE)}>
+        <div className={cn(HUD_SCOPE, 'pointer-events-none absolute top-2 flex h-11 items-stretch overflow-hidden rounded-md text-body-sm', scoreCentred ? 'left-1/2 -translate-x-1/2' : 'left-2', HUD_SURFACE)}>
           <TeamCell side={TACTICAL_SIDES.ct} name={teams.CT} score={score.CT} alive={alive.CT} />
           <ClockCell bomb={bomb} clock={hudClock(roundClockSeconds(focused.timeline, roundSeconds))} />
           <TeamCell side={TACTICAL_SIDES.t} name={teams.T} score={score.T} alive={alive.T} mirrored />

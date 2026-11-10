@@ -1,4 +1,4 @@
-import { sectionForPath, type NavHref } from './nav.ts';
+import { sectionForPath } from './nav.ts';
 
 export type SidebarEntryId =
   | 'demo-completa'
@@ -24,17 +24,22 @@ export type SidebarEntryId =
   | 'almacenamiento'
   | 'ajustes';
 
+/** How an entry keeps the team and the analysis scope of the page the user is on (see `sidebarHref`). */
+export type ScopeCarry = 'replay' | 'patrones' | 'tacticas' | 'team-stats' | 'playbook' | 'prep' | 'veto';
+
 export type SidebarEntry = {
   id: SidebarEntryId;
   label: string;
+  /** Where the entry goes while no team is in scope. */
   href: `/${string}`;
-  /** True while the screen has no route of its own: the entry opens the closest screen and never lights up. */
-  temporary?: true;
+  /** Shows the NUEVO pill. */
+  isNew?: true;
+  carry?: ScopeCarry;
 };
 
 export type SidebarGroup = { id: string; label: string; entries: readonly SidebarEntry[] };
 
-/** Rail groups in order. Group labels render as `/ LABEL`; every NAV_SECTIONS destination appears once as a real entry. */
+/** Rail groups in order. Group labels render as `/ LABEL`. */
 export const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
   {
     id: 'crear',
@@ -57,16 +62,16 @@ export const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
     id: 'herramientas-2d',
     label: 'Herramientas 2D',
     entries: [
-      { id: 'replay', label: 'Replay 2D', href: '/replay' },
-      { id: 'buscador-de-patrones', label: 'Buscador de patrones', href: '/equipos', temporary: true },
+      { id: 'replay', label: 'Replay 2D', href: '/replay', carry: 'replay' },
+      { id: 'buscador-de-patrones', label: 'Buscador de patrones', href: '/patrones', isNew: true, carry: 'patrones' },
     ],
   },
   {
     id: 'estadisticas',
     label: 'Estadísticas',
     entries: [
-      { id: 'estadisticas-de-equipo', label: 'Estadísticas de equipo', href: '/equipos' },
-      { id: 'estadisticas-de-jugador', label: 'Estadísticas de jugador', href: '/jugadores', temporary: true },
+      { id: 'estadisticas-de-equipo', label: 'Estadísticas de equipo', href: '/equipos', carry: 'team-stats' },
+      { id: 'estadisticas-de-jugador', label: 'Estadísticas de jugador', href: '/jugadores' },
       { id: 'ranking', label: 'Ranking', href: '/ranking' },
     ],
   },
@@ -74,8 +79,8 @@ export const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
     id: 'playbook',
     label: 'Playbook',
     entries: [
-      { id: 'editor-de-tacticas', label: 'Editor de tácticas', href: '/libreta', temporary: true },
-      { id: 'playbook', label: 'Playbook', href: '/equipos', temporary: true },
+      { id: 'editor-de-tacticas', label: 'Editor de tácticas', href: '/tacticas/nueva', isNew: true, carry: 'tacticas' },
+      { id: 'playbook', label: 'Playbook', href: '/equipos?tab=playbook', carry: 'playbook' },
       { id: 'libreta', label: 'Libreta', href: '/libreta' },
       { id: 'lineups-pro', label: 'Lineups pro', href: '/lineups' },
     ],
@@ -84,8 +89,8 @@ export const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
     id: 'otras-herramientas',
     label: 'Otras herramientas',
     entries: [
-      { id: 'simulacion-de-veto', label: 'Simulación de veto', href: '/partidas/series', temporary: true },
-      { id: 'preparar-rival', label: 'Preparar rival', href: '/equipos', temporary: true },
+      { id: 'simulacion-de-veto', label: 'Simulación de veto', href: '/equipos?tab=veto', carry: 'veto' },
+      { id: 'preparar-rival', label: 'Preparar rival', href: '/equipos?tab=preparar', carry: 'prep' },
       { id: 'informes', label: 'Informes', href: '/informes' },
       { id: 'integridad', label: 'Integridad', href: '/integridad' },
     ],
@@ -101,11 +106,32 @@ export const SIDEBAR_FOOTER_ENTRIES: readonly SidebarEntry[] = [
 /** Where the Voz button goes: TeamSpeak recordings are set up in Ajustes; the Replay voice row imports per match. */
 export const VOICE_HREF = '/settings';
 
-/** The rail section a pathname lives in, so only a real entry of that section is active. */
-export function activeSidebarHref(pathname: string): NavHref | null {
-  return sectionForPath(pathname)?.href ?? null;
+function under(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
-export function isSidebarEntryActive(entry: SidebarEntry, activeHref: NavHref | null): boolean {
-  return entry.temporary === undefined && entry.href === activeHref;
+/** The team record's tabs that are tools of their own in the rail; `scouting` is the old name of Preparar. */
+const TEAM_TAB_ENTRY: Readonly<Record<string, SidebarEntryId>> = {
+  playbook: 'playbook',
+  preparar: 'preparar-rival',
+  scouting: 'preparar-rival',
+  veto: 'simulacion-de-veto',
+};
+
+/**
+ * The one entry of the rail that lights for a page. A tool that lives inside a section
+ * (the team record's Playbook, Preparar and Veto tabs, the player stats) lights its own row;
+ * every other page lights the entry of its section.
+ */
+export function activeEntryId(where: { pathname: string; tab: string | null }): SidebarEntryId | null {
+  const { pathname, tab } = where;
+  if (under(pathname, '/replay')) return 'replay';
+  if (under(pathname, '/patrones')) return 'buscador-de-patrones';
+  if (under(pathname, '/tacticas')) return 'editor-de-tacticas';
+  if (under(pathname, '/equipos')) return (tab === null ? undefined : TEAM_TAB_ENTRY[tab]) ?? 'estadisticas-de-equipo';
+  if (under(pathname, '/jugadores') && !under(pathname, '/jugadores/faceit')) return 'estadisticas-de-jugador';
+  const section = sectionForPath(pathname);
+  if (section === null) return null;
+  const all = [...SIDEBAR_GROUPS.flatMap((group) => group.entries), ...SIDEBAR_FOOTER_ENTRIES];
+  return all.find((entry) => entry.href === section.href)?.id ?? null;
 }

@@ -34,7 +34,7 @@ export function SelectionBar({ count, noun, busy, detail, confirmDescription, ac
       className="studio-panel studio-panel-raised sticky bottom-4 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2"
     >
       {result ? <DeleteResult result={result} className="basis-full" /> : null}
-      <span aria-live="polite" className="text-body-sm font-medium text-fg-1 tabular-nums">
+      <span aria-live="polite" className="font-num text-body-sm font-medium text-fg-1 tabular-nums">
         {selectedCount(count, noun)}
         {detail ? <span className="font-normal text-fg-2">{` · ${detail}`}</span> : null}
       </span>

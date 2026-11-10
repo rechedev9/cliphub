@@ -70,7 +70,9 @@ export function EntityPicker({ entity }: { entity: ScopeEntity }): ReactNode {
 
   function pick(id: string): void {
     setOpen(false);
-    if (id !== entity.id) router.push(switchEntityHref(entity.hrefFor(id), query));
+    if (id === entity.id) return;
+    if (entity.onSelect) entity.onSelect(id);
+    else router.push(switchEntityHref(entity.hrefFor(id), query));
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {

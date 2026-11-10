@@ -34,6 +34,10 @@ import { Button } from '@/components/ui/button';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { Segmented } from '@/components/ui/segmented';
 import { Toggle } from '@/components/ui/toggle';
+import { clockHistogram, type Bucket } from '@/lib/analysis/pattern-canvas';
+import { CAPS_LABEL } from '@/components/analysis/scope-field-style';
+import { ClockHistogram, MomentBarcode, type HistogramKey } from './clock-histogram';
+import { FramedParts, type FinderFrame, type FinderParts } from './finder-frame';
 import { GrenadeAfterPlant, GrenadeClockMarks } from './grenade-clock';
 import { GrenadePlayerPicker, playerToken } from './grenade-players';
 import { GRENADE_KIND_TOKEN, GrenadeRadar } from './grenade-radar';
@@ -54,7 +58,15 @@ const RESULTS: readonly { value: ResultsView; label: string }[] = [
   { value: 'rounds', label: 'Por ronda' },
 ];
 
+type StackBy = 'player' | 'kind';
+const STACKS: readonly { value: StackBy; label: string }[] = [
+  { value: 'player', label: 'Jugador' },
+  { value: 'kind', label: 'Tipo de granada' },
+];
+
 type Props = {
+  /** Set when the Buscador's canvas hosts the finder: its parts go to the canvas slots instead of the tab's own layout. */
+  frame?: FinderFrame;
   map: string;
   geometry: TacticalGeometry;
   data: TeamGrenades;
@@ -75,8 +87,9 @@ type Props = {
 };
 
 /** The Pattern Finder on one map: radar with tracers, box filter, players, the round clock and the spots or rounds. */
-export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tramoControl, plantSeconds, players: pagePlayers, pick, rivals, teamId }: Props): ReactNode {
+export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tramo: tramoControl, plantSeconds, players: pagePlayers, pick, rivals, teamId }: Props): ReactNode {
   const { tramo, onChange: setTramo } = useTramo(tramoControl);
+  const [stackBy, setStackBy] = useState<StackBy>('player');
   const [kinds, setKinds] = useState<ReadonlySet<TeamGrenadeKind>>(() => new Set(TEAM_GRENADE_KINDS));
   const [area, setArea] = useState<GrenadeArea>('landing');
   const [box, setBox] = useState<WorldBox | null>(null);
@@ -165,6 +178,25 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
   const rows = useMemo(() => roundRows(scopeRounds, shown, invert), [scopeRounds, shown, invert]);
   const followUp = useMemo(() => (openSpot === undefined ? null : followUpOf(openSpot.spot.grenades, scopeRounds)), [openSpot, scopeRounds]);
   const clock = useMemo(() => clockBins(ofKinds, plantOf), [ofKinds, plantOf]);
+  // The canvas's histogram and barcode count every throw of the box over the whole round, so a window never empties them.
+  const boxed = useMemo(
+    () => (box === null ? ofKinds : ofKinds.filter((grenade) => grenadeInBox({ grenade, box, area, floor: { calibration, level: boxLevel } }))),
+    [ofKinds, box, area, calibration, boxLevel],
+  );
+  const stackKeyOf = useCallback((grenade: TeamGrenade): string => (stackBy === 'player' ? grenade.thrower_steamid64 : grenade.kind), [stackBy]);
+  const histogram = useMemo(() => clockHistogram({ items: boxed, secondsOf: (grenade) => grenade.seconds, keyOf: stackKeyOf }), [boxed, stackKeyOf]);
+  const histogramKeys = useMemo((): HistogramKey[] => {
+    const all: HistogramKey[] =
+      stackBy === 'player'
+        ? order.map((thrower) => ({ key: thrower.steamid64, label: thrower.name, token: tokens.get(thrower.steamid64) ?? '--fg-3' }))
+        : TEAM_GRENADE_KINDS.map((kind) => ({ key: kind, label: GRENADE_KIND_LABEL[kind], token: GRENADE_KIND_TOKEN[kind] }));
+    return all.filter((entry) => histogram.buckets.some((bucket) => bucket.byKey.has(entry.key)));
+  }, [stackBy, order, tokens, histogram]);
+  const barcode = useMemo(
+    () => boxed.map((grenade) => ({ seconds: grenade.seconds, token: stackBy === 'player' ? (tokens.get(grenade.thrower_steamid64) ?? '--fg-3') : GRENADE_KIND_TOKEN[grenade.kind] })),
+    [boxed, stackBy, tokens],
+  );
+  const pickBucket = (bucket: Bucket): void => setTramo({ from: bucket.start, to: bucket.end });
   const stack = picked.map((steamid64) => ({ steamid64, token: tokens.get(steamid64) ?? '--fg-3' }));
   const byPlayer = useCallback((grenade: TeamGrenade) => tokens.get(grenade.thrower_steamid64) ?? GRENADE_KIND_TOKEN[grenade.kind], [tokens]);
   const replayRefs = (invert ? rows.map(({ round }) => ({ matchId: round.match_id, round: round.round, tick: round.tick })) : spotReplayRefs(shown)).slice(0, REPLAY_MAX_REFS);
@@ -233,140 +265,124 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
     );
   }
 
-  return (
-    <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(22rem,1fr)]">
-      <section aria-label="Radar" className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label="Tipos de granada" className="flex flex-wrap gap-1.5">
-            {TEAM_GRENADE_KINDS.map((kind) => (
-              <Toggle key={kind} variant="filter" size="sm" pressed={kinds.has(kind)} onPressedChange={() => toggleKind(kind)}>
-                <span aria-hidden className="flex" style={{ color: `var(${GRENADE_KIND_TOKEN[kind]})` }}>
-                  <EquipmentIcon name={grenadeIcon(kind)} height={14} />
-                </span>
-                {GRENADE_KIND_LABEL[kind]}
-                <span className="tabular-nums opacity-80">{counts.get(kind) ?? 0}</span>
-              </Toggle>
-            ))}
-          </div>
-          {rivals === undefined ? null : (
-            <Toggle variant="filter" size="sm" pressed={rivals.on} onPressedChange={rivals.onChange}>
-              {rivals.label}
-            </Toggle>
-          )}
-          {multiLevel ? (
-            <Segmented<RadarLevel | 'both'>
-              label="Piso"
-              value={floor}
-              options={[
-                { value: 'both', label: 'Los dos' },
-                ...[RADAR_LEVELS.default, RADAR_LEVELS.lower].map((value) => ({ value, label: LEVEL_LABEL[value] })),
-              ]}
-              onChange={(next) => {
-                setFloor(next);
-                setBox(null);
-              }}
-            />
-          ) : null}
-        </div>
-        {pagePlayers === undefined ? <GrenadePlayerPicker players={throwers} picked={ownPlayers} onChange={setOwnPlayers} /> : null}
-        <div className="flex flex-wrap items-center gap-2">
-          <Segmented label="La caja acota" value={area} options={AREAS} onChange={setArea} />
-          {box === null ? (
-            <span className="text-body-sm text-fg-3">Arrastra sobre el radar para dibujar la caja; con zoom, Mayús + arrastrar.</span>
-          ) : (
-            <Button type="button" variant="ghost" size="xs" onClick={() => setBox(null)}>
-              <X aria-hidden />
-              Quitar caja
-            </Button>
-          )}
-        </div>
-        <GrenadeRadar
-          geometry={geometry}
-          levels={levels}
-          grenades={drawn}
-          spotOf={spotOf}
-          selected={selected}
-          highlight={open ?? hover}
-          box={box === null ? null : { box, level: boxLevel }}
-          onBox={(next) => {
-            setBox(next?.box ?? null);
-            if (next !== null) setBoxLevel(next.level);
-          }}
-          onHover={setHover}
-          tokenOf={picked.length === 0 ? undefined : byPlayer}
-          badge={
-            openSpot === undefined
-              ? null
-              : {
-                  at: openSpot.spot.landing,
-                  level: levelForAltitude(calibration, openSpot.spot.grenades[0]?.landing[2] ?? 0),
-                  text: `${openSpot.spot.rounds} ${openSpot.spot.rounds === 1 ? 'ronda' : 'rondas'}`,
-                }
-          }
-        />
-        <TramoBar tramo={tramo} onChange={setTramo} marks={<GrenadeClockMarks bins={clock.bins} stack={stack} />} />
-        <GrenadeAfterPlant bin={clock.afterPlant} stack={stack} names={names} />
-      </section>
-
-      <section aria-labelledby="granadas-posiciones" className="flex flex-col gap-2 lg:sticky lg:top-[calc(var(--shell-strip-height)+3.5rem)] lg:max-h-[calc(100dvh-var(--shell-strip-height)-4.5rem)] lg:overflow-y-auto">
-        <header className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="granadas-posiciones" className="text-body font-semibold text-fg-1 tabular-nums">
-              {counter}
-              <span className="ml-2 text-body-sm font-normal text-fg-2">{invert ? 'sin la granada' : `con ${matching.length} ${matching.length === 1 ? 'lanzamiento' : 'lanzamientos'}`}</span>
-            </h2>
-            {openSpot === undefined ? null : (
-              <Button type="button" variant="ghost" size="xs" onClick={() => setOpen(null)}>
-                <X aria-hidden />
-                {openSpot.label}
-              </Button>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Segmented label="Resultados" value={results} options={RESULTS} onChange={setResults} />
-            <Toggle variant="filter" size="sm" pressed={invert} onPressedChange={setInvert} title="Las rondas del alcance en las que no se tiró">
-              Invertir
-            </Toggle>
-            <Button asChild variant="outline" size="sm" className={replayRefs.length === 0 ? 'pointer-events-none opacity-50' : undefined}>
-              <Link href={superposedReplayHref(replayRefs, openSpot?.label ?? counter)} aria-disabled={replayRefs.length === 0}>
-                <Layers aria-hidden />
-                Reproducir {replayRefs.length}/{total} rondas
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={chosenSpots.length === 0 || practice.state.kind === 'busy'}
-              onClick={() => practice.launch(practiceSpotsForSpots(chosenSpots))}
-            >
-              <Crosshair aria-hidden />
-              {chosenSpots.length === 0 ? 'Practicar selección' : `Practicar selección (${chosenSpots.length})`}
-            </Button>
-            {teamId === null || side === '' ? null : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={chosenSpots.length === 0}
-                title="Guarda las granadas elegidas como una jugada de la Libreta"
-                onClick={() => setSavingPlay(chosenSpots)}
-              >
-                <BookPlus aria-hidden />
-                {chosenSpots.length === 0 ? 'Crear táctica' : `Crear táctica (${chosenSpots.length})`}
-              </Button>
-            )}
-          </div>
-        </header>
-        <PracticeResult state={practice.state} onDismiss={practice.dismiss} />
-        {chosenSpots.length >= PRACTICE_MAX_SPOTS ? <p className="text-body-sm text-fg-2">Caben {PRACTICE_MAX_SPOTS} posiciones por práctica.</p> : null}
-        {missingOrigins > 0 ? (
-          <p className="text-body-sm text-fg-2">
-            {missingOrigins} {missingOrigins === 1 ? 'granada no tiene' : 'granadas no tienen'} posición de lanzamiento: son de demos analizadas con una versión
-            anterior. Studio las vuelve a analizar al arrancar.
-          </p>
-        ) : null}
-        {content}
-      </section>
+  const kindToggles = (
+    <div role="group" aria-label="Tipos de granada" className="flex flex-wrap gap-1.5">
+      {TEAM_GRENADE_KINDS.map((kind) => (
+        <Toggle key={kind} variant="filter" size="sm" pressed={kinds.has(kind)} onPressedChange={() => toggleKind(kind)}>
+          <span aria-hidden className="flex" style={{ color: `var(${GRENADE_KIND_TOKEN[kind]})` }}>
+            <EquipmentIcon name={grenadeIcon(kind)} height={14} />
+          </span>
+          {GRENADE_KIND_LABEL[kind]}
+          <span className="tabular-nums opacity-80">{counts.get(kind) ?? 0}</span>
+        </Toggle>
+      ))}
+    </div>
+  );
+  const rivalsToggle =
+    rivals === undefined ? null : (
+      <Toggle variant="filter" size="sm" pressed={rivals.on} onPressedChange={rivals.onChange}>
+        {rivals.label}
+      </Toggle>
+    );
+  const floorSelect = multiLevel ? (
+    <Segmented<RadarLevel | 'both'>
+      label="Piso"
+      value={floor}
+      options={[{ value: 'both', label: 'Los dos' }, ...[RADAR_LEVELS.default, RADAR_LEVELS.lower].map((value) => ({ value, label: LEVEL_LABEL[value] }))]}
+      onChange={(next) => {
+        setFloor(next);
+        setBox(null);
+      }}
+    />
+  ) : null;
+  const playerPicker = pagePlayers === undefined ? <GrenadePlayerPicker players={throwers} picked={ownPlayers} onChange={setOwnPlayers} /> : null;
+  const boxRow = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Segmented label="La caja acota" value={area} options={AREAS} onChange={setArea} />
+      {box === null ? (
+        <span className="text-body-sm text-fg-3">Arrastra sobre el radar para dibujar la caja; con zoom, Mayús + arrastrar.</span>
+      ) : (
+        <Button type="button" variant="ghost" size="xs" onClick={() => setBox(null)}>
+          <X aria-hidden />
+          Quitar caja
+        </Button>
+      )}
+    </div>
+  );
+  const radar = (
+    <GrenadeRadar
+      geometry={geometry}
+      levels={levels}
+      grenades={drawn}
+      spotOf={spotOf}
+      selected={selected}
+      highlight={open ?? hover}
+      box={box === null ? null : { box, level: boxLevel }}
+      onBox={(next) => {
+        setBox(next?.box ?? null);
+        if (next !== null) setBoxLevel(next.level);
+      }}
+      onHover={setHover}
+      tokenOf={picked.length === 0 ? undefined : byPlayer}
+      badge={
+        openSpot === undefined
+          ? null
+          : {
+              at: openSpot.spot.landing,
+              level: levelForAltitude(calibration, openSpot.spot.grenades[0]?.landing[2] ?? 0),
+              text: `${openSpot.spot.rounds} ${openSpot.spot.rounds === 1 ? 'ronda' : 'rondas'}`,
+            }
+      }
+    />
+  );
+  const afterPlant = <GrenadeAfterPlant bin={clock.afterPlant} stack={stack} names={names} />;
+  const invertToggle = (
+    <Toggle variant="filter" size="sm" pressed={invert} onPressedChange={setInvert} title="Las rondas del alcance en las que no se tiró">
+      Invertir
+    </Toggle>
+  );
+  const replayButton = (
+    <Button asChild variant="outline" size="sm" className={replayRefs.length === 0 ? 'pointer-events-none opacity-50' : undefined}>
+      <Link href={superposedReplayHref(replayRefs, openSpot?.label ?? counter)} aria-disabled={replayRefs.length === 0}>
+        <Layers aria-hidden />
+        Reproducir {replayRefs.length}/{total} rondas
+      </Link>
+    </Button>
+  );
+  const practiceButton = (
+    <Button type="button" size="sm" disabled={chosenSpots.length === 0 || practice.state.kind === 'busy'} onClick={() => practice.launch(practiceSpotsForSpots(chosenSpots))}>
+      <Crosshair aria-hidden />
+      {chosenSpots.length === 0 ? 'Practicar selección' : `Practicar selección (${chosenSpots.length})`}
+    </Button>
+  );
+  const playButton =
+    teamId === null || side === '' ? null : (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={chosenSpots.length === 0}
+        title="Guarda las granadas elegidas como una jugada de la Libreta"
+        onClick={() => setSavingPlay(chosenSpots)}
+      >
+        <BookPlus aria-hidden />
+        {chosenSpots.length === 0 ? 'Crear táctica' : `Crear táctica (${chosenSpots.length})`}
+      </Button>
+    );
+  const notes = (
+    <>
+      <PracticeResult state={practice.state} onDismiss={practice.dismiss} />
+      {chosenSpots.length >= PRACTICE_MAX_SPOTS ? <p className="text-body-sm text-fg-2">Caben {PRACTICE_MAX_SPOTS} posiciones por práctica.</p> : null}
+      {missingOrigins > 0 ? (
+        <p className="text-body-sm text-fg-2">
+          {missingOrigins} {missingOrigins === 1 ? 'granada no tiene' : 'granadas no tienen'} posición de lanzamiento: son de demos analizadas con una versión
+          anterior. Studio las vuelve a analizar al arrancar.
+        </p>
+      ) : null}
+    </>
+  );
+  const dialogs = (
+    <>
       {saving ? <SaveLineupDialog from={saving.from} label={saving.label} onClose={() => setSaving(null)} /> : null}
       {savingPlay !== null && savingPlay.length > 0 && savingFollowUp !== null && teamId !== null && side !== '' ? (
         <SaveGrenadePlayDialog
@@ -377,6 +393,121 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
           onClose={() => setSavingPlay(null)}
         />
       ) : null}
+    </>
+  );
+  const heading = (
+    <>
+      {counter}
+      <span className="ml-2 text-body-sm font-normal text-fg-2">{invert ? 'sin la granada' : `con ${matching.length} ${matching.length === 1 ? 'lanzamiento' : 'lanzamientos'}`}</span>
+    </>
+  );
+  const spotChip =
+    openSpot === undefined ? null : (
+      <Button type="button" variant="ghost" size="xs" onClick={() => setOpen(null)}>
+        <X aria-hidden />
+        {openSpot.label}
+      </Button>
+    );
+
+  if (frame !== undefined) {
+    const parts: FinderParts = {
+      panel: (
+        <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col gap-1.5">
+            <span className={CAPS_LABEL}>Granada</span>
+            {kindToggles}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {rivalsToggle}
+            {invertToggle}
+          </div>
+          {floorSelect}
+          {boxRow}
+          <div className="flex flex-col gap-1.5">
+            <span className={CAPS_LABEL}>Jugadores</span>
+            {playerPicker}
+          </div>
+        </div>
+      ),
+      map: (
+        <div className="flex flex-col gap-2">
+          {radar}
+          {afterPlant}
+          {dialogs}
+        </div>
+      ),
+      rounds: (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            <Segmented<StackBy> label="Agrupar por" value={stackBy} options={STACKS} onChange={setStackBy} />
+            <ClockHistogram
+              buckets={histogram.buckets}
+              tallest={histogram.tallest}
+              keys={histogramKeys}
+              noun={{ one: 'granada', many: 'granadas' }}
+              label="Granadas por tramo de 10 segundos de la ronda"
+              onPick={pickBucket}
+            />
+          </div>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-body-sm font-semibold text-fg-1 tabular-nums">{heading}</h3>
+            {spotChip}
+          </div>
+          <Segmented label="Resultados" value={results} options={RESULTS} onChange={setResults} />
+          {notes}
+          {content}
+        </div>
+      ),
+      footer: (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {replayButton}
+          {practiceButton}
+          {playButton}
+          <div className="min-w-[16rem] flex-1">
+            <TramoBar tramo={tramo} onChange={setTramo} compact marks={<MomentBarcode moments={barcode} />} />
+          </div>
+        </div>
+      ),
+      count: { matched: matchingRounds, total },
+    };
+    return <FramedParts frame={frame} parts={parts} />;
+  }
+
+  return (
+    <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(22rem,1fr)]">
+      <section aria-label="Radar" className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {kindToggles}
+          {rivalsToggle}
+          {floorSelect}
+        </div>
+        {playerPicker}
+        {boxRow}
+        {radar}
+        <TramoBar tramo={tramo} onChange={setTramo} marks={<GrenadeClockMarks bins={clock.bins} stack={stack} />} />
+        {afterPlant}
+      </section>
+
+      <section aria-labelledby="granadas-posiciones" className="flex flex-col gap-2 lg:sticky lg:top-[calc(var(--shell-strip-height)+3.5rem)] lg:max-h-[calc(100dvh-var(--shell-strip-height)-4.5rem)] lg:overflow-y-auto">
+        <header className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="granadas-posiciones" className="text-body font-semibold text-fg-1 tabular-nums">
+              {heading}
+            </h2>
+            {spotChip}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Segmented label="Resultados" value={results} options={RESULTS} onChange={setResults} />
+            {invertToggle}
+            {replayButton}
+            {practiceButton}
+            {playButton}
+          </div>
+        </header>
+        {notes}
+        {content}
+      </section>
+      {dialogs}
     </div>
   );
 }

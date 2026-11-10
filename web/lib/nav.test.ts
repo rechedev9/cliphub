@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { NAV_AREA_LABEL, NAV_SECTIONS, RETIRED_ROUTES, retiredHref, sectionForPath } from './nav.ts';
+import { NAV_AREA_LABEL, NAV_SECTIONS, RETIRED_ROUTES, isToolPage, retiredHref, sectionForPath } from './nav.ts';
 
 const RAIL = [
   ['create', 'Demo completa', '/videos-largos'],
@@ -63,4 +63,14 @@ test('nav: a renamed section keeps the nested path and the query of the old URL'
   assert.equal(retiredHref('/tactical', { rest: ['abc'], search: { round: '4' } }), '/partidas/abc?round=4');
   // Segments may arrive still encoded, or malformed; neither is encoded twice nor thrown on.
   assert.equal(retiredHref('/resultados', { rest: ['job%201', '100%'] }), '/mis-videos/job%201/100%25');
+});
+
+test('nav: the tool pages drop the breadcrumb and the record pages keep it', () => {
+  assert.equal(isToolPage('/replay'), true);
+  assert.equal(isToolPage('/patrones'), true);
+  assert.equal(isToolPage('/tacticas/nueva'), true);
+  assert.equal(isToolPage('/replay/playlists'), false);
+  assert.equal(isToolPage('/equipos/abc'), false);
+  assert.equal(isToolPage('/partidas/abc'), false);
+  assert.equal(isToolPage('/replayx'), false);
 });

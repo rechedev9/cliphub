@@ -74,14 +74,14 @@ export function StatCard({
       <dt className="self-end text-meta leading-tight text-balance text-fg-3">{label}</dt>
       <dd className="flex flex-col justify-start gap-0.5">
         <span className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-          <span className={cn('text-title font-semibold whitespace-nowrap text-fg-1 tabular-nums', value === null && 'text-body-sm font-normal text-fg-3')}>
+          <span className={cn('font-num text-title font-semibold whitespace-nowrap text-fg-1 tabular-nums', value === null && 'text-body-sm font-normal text-fg-3')}>
             {value === null ? 'Sin dato' : format(value)}
           </span>
           {trend ? <Sparkline values={trend} label={`${label} por partida`} format={format} width={64} height={20} /> : null}
         </span>
         {result && comparison && comparison.value !== null ? (
           <span
-            className="text-meta text-fg-3 tabular-nums"
+            className="font-num text-meta text-fg-3 tabular-nums"
             title={`${comparison.label}: ${format(comparison.value)}.${reliability ? ` ${reliability.detail}` : ''}`}
           >
             <span className={cn('font-medium whitespace-nowrap', called ? DELTA_TONE_CLASS[result.tone] : 'text-fg-2')}>

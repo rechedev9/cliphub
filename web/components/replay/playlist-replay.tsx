@@ -20,9 +20,9 @@ import { EmptyState } from '@/components/records/empty-state';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ReplayHome } from './replay-home';
 import { ReplayWorkspace } from './replay-workspace';
 import { SavedPlaylistPanel } from './saved-playlist-panel';
+import { TeamReplayHome } from './team-replay-home';
 import { useOpenPlaylist, usePlaylistRoundNotes } from './use-saved-playlists';
 
 function matchLabel(match: LibraryMatch): string {
@@ -187,7 +187,7 @@ function PassingPlaylistReplay(): ReactNode {
   }, [matches]);
   const matchDate = useMatchDate(matches);
 
-  if (refs.length === 0) return <ReplayHome />;
+  if (refs.length === 0) return <TeamReplayHome />;
 
   const filters = matchIds.length < 2 && missing.size === 0 ? undefined : (
     <section className="flex flex-col gap-2" aria-label="Partidas de la lista">

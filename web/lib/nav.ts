@@ -45,6 +45,11 @@ export function sectionForPath(pathname: string): NavSection | null {
   return null;
 }
 
+/** Tool pages bring their own context (the team and the filters), so the strip leaves the breadcrumb off them. */
+export function isToolPage(pathname: string): boolean {
+  return pathname === '/replay' || ['/patrones', '/tacticas'].some((root) => pathname === root || pathname.startsWith(`${root}/`));
+}
+
 /**
  * Retired sections and where they landed. Every old door redirects; the
  * renamed sections also carry their nested paths and query along.

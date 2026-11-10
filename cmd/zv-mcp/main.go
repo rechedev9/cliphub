@@ -74,7 +74,7 @@ holding 40% of the side's rounds).
 team_grenades is the Granadas finder of one map (map required): clock (throws per 10 s of the round clock by player, then
 a Tras la plant bin), spots (repeated throws with what the team does in the 20 s after) and, with spot, one grenade in full: its
 rounds over the scope's rounds, what follows, a setpos and a studio_path that superposes its rounds. players, opponents (the
-rivals' utility; the team scope below still reads the scouted team) and invert (rounds without it) narrow it.
+rivals' utility; the team scope below still reads the scouted team), invert (rounds without it) and a clock window (clock_from and clock_to in seconds after the round went live, or from_plant, the Tramo bar) narrow it.
 prepare_team is the team's Preparar tab in one call: scout_team and team_prep over the same matches of one map;
 team_prep's warnings are the data warnings Preparar shows on top (the team's newest match over 14 days old, the five changed
 in N of M matches, under 30 rounds): say them before the figures. side is the bar's side: the warnings (and prepare_team's
@@ -180,6 +180,7 @@ replay_overlay superposes those rounds from the end of freeze time, as Superpone
 match_heatmap is the Mapa de calor of those rounds: kind position, death, kill (kill_at killer or victim), utility or timing,
 in a clock window (clock_from and clock_to, seconds after the round went live, or from_plant); it lists the hottest cells
 with their callout and counts. team_heatmap reads a team's matches on one map the same way, with players (SteamID64s) as the focus; by_player adds one heatmap per player (at most 5), and area (a zone in world units) keeps the cells inside it.
+Buscador de patrones (the 2D tool with the Granadas, Jugadores and Patrón panels, opened at /patrones/<team id>): its Granadas panel is team_grenades with players and the clock window; its Jugadores panel is team_heatmap (players, by_player for one heat per player, clock_from and clock_to for the time window, area for the box) plus team_first_movement, the Primer movimiento list and histogram: when each player first leaves the spot the round starts on, over the newest 40 rounds of the scope, with players, a clock window and an area the player must pass through; its Patrón panel and the Tácticas tab are find_pattern_rounds, find_player_pattern and the saved-pattern tools.
 Replay > Patrones of a team: find_player_pattern finds the rounds in which a player passes through a zone in a clock window,
 or does not with invert; find_pattern_rounds adds up blocks (player, utility, plant), each with its own count. A zone is a world
 rectangle (optionally one floor), a polygon of world points, or callouts (place tokens from list_callouts); min_players asks a

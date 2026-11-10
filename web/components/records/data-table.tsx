@@ -221,7 +221,7 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
                       {visible.map((column, index) => (
                         <td
                           key={column.id}
-                          className={cn('h-10 px-3 align-middle text-fg-1', column.align === 'end' && 'text-right', column.className)}
+                          className={cn('h-10 px-3 align-middle text-fg-1', column.align === 'end' && 'font-num text-right tabular-nums', column.className)}
                         >
                           {index === 0 && href !== undefined ? (
                             <Link href={href} className="font-medium text-fg-1 underline-offset-4 hover:underline">

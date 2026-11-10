@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { DocumentPage } from '@/components/records/document-page';
 import { TeamLibrary } from '@/components/teams/team-library';
 
@@ -9,7 +9,9 @@ export default function TeamsPage(): ReactNode {
       title="Equipos"
       description="La ficha de cada equipo con su plantilla, sus partidas y su rendimiento por mapa, el punto de partida para preparar un rival."
     >
-      <TeamLibrary />
+      <Suspense>
+        <TeamLibrary />
+      </Suspense>
     </DocumentPage>
   );
 }

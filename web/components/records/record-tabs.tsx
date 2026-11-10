@@ -49,7 +49,7 @@ export function RecordTabs({
             <TabsTrigger key={tab.id} value={tab.id} className="h-9 flex-none rounded-none px-0.5 after:bottom-0! focus-visible:outline-offset-[-2px]">
               {tab.label}
               {tab.count === undefined ? null : (
-                <span className="text-meta font-normal text-fg-3 tabular-nums">{tab.count}</span>
+                <span className="font-num text-meta font-normal text-fg-3 tabular-nums">{tab.count}</span>
               )}
             </TabsTrigger>
           ))}

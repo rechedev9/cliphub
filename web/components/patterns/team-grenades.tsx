@@ -15,13 +15,16 @@ import { useMapGeometry } from '@/components/analysis/use-map-geometry';
 import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { TramoControl } from '@/components/replay/tramo-bar';
+import type { FinderFrame } from './finder-frame';
 import { GrenadeFinder } from './grenade-finder';
 
 const NO_CRITERIA: readonly TeamCriterion[] = [];
 
 type Load = { kind: 'loading' } | { kind: 'ready'; data: TeamGrenadesData } | { kind: 'offline' } | { kind: 'failed' };
 
-function FinderSkeleton(): ReactNode {
+function FinderSkeleton({ compact }: { compact: boolean }): ReactNode {
+  if (compact) return <Skeleton role="status" aria-label="Cargando granadas" className="aspect-square w-full max-w-[44rem]" />;
   return (
     <div role="status" aria-label="Cargando granadas" className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(20rem,1fr)]">
       <div className="flex flex-col gap-3">
@@ -52,6 +55,8 @@ export function TeamGrenades({
   matches,
   onMapChange,
   onCounts,
+  frame,
+  tramo,
 }: {
   teamId: string;
   scope: AnalysisScope;
@@ -62,6 +67,10 @@ export function TeamGrenades({
   matches: readonly LibraryMatch[];
   onMapChange: (map: string) => void;
   onCounts: (counts: ScopeCounts | null) => void;
+  /** Set when the Buscador de patrones hosts the finder on its canvas. */
+  frame?: FinderFrame;
+  /** The window the throws count in, when the page keeps it in its URL. */
+  tramo?: TramoControl;
 }): ReactNode {
   const [now] = useState(() => Date.now());
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
@@ -138,7 +147,7 @@ export function TeamGrenades({
     [matches, teamId],
   );
 
-  if (map === '' && defaultMap !== '') return <FinderSkeleton />;
+  if (map === '' && defaultMap !== '') return <FinderSkeleton compact={frame !== undefined} />;
   if (map === '') {
     const maps = [...new Set(matches.map((match) => match.map))].sort();
     return (
@@ -174,7 +183,7 @@ export function TeamGrenades({
       />
     );
   }
-  if (load.kind === 'loading' || geometry === undefined) return <FinderSkeleton />;
+  if (load.kind === 'loading' || geometry === undefined) return <FinderSkeleton compact={frame !== undefined} />;
   if (geometry === null) {
     return (
       <EmptyState
@@ -186,6 +195,8 @@ export function TeamGrenades({
   }
   return (
     <GrenadeFinder
+      frame={frame}
+      tramo={tramo}
       key={`${map}|${rivals}`}
       map={map}
       geometry={geometry}

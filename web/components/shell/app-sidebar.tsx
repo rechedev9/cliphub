@@ -1,7 +1,7 @@
 'use client';
 
 import Link, { useLinkStatus } from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import type { ReactElement } from 'react';
 import {
   BookMarked,
@@ -50,11 +50,11 @@ import {
   SIDEBAR_FOOTER_ENTRIES,
   SIDEBAR_GROUPS,
   VOICE_HREF,
-  activeSidebarHref,
-  isSidebarEntryActive,
+  activeEntryId,
   type SidebarEntry,
   type SidebarEntryId,
 } from '@/lib/nav-groups';
+import { sidebarHref, type PageLocation } from '@/lib/nav-scope';
 import { cn } from '@/lib/utils';
 
 // The Crear formats tint a small dot with the colour their flow uses; the icon stays neutral.
@@ -86,7 +86,9 @@ const ENTRY_META: Record<SidebarEntryId, { icon: LucideIcon; dot?: string }> = {
 /** Brand lockup, the EDGE rail groups with slash labels, then Demo, Voz, settings and the capture pill in the footer. */
 export function AppSidebar(): ReactElement {
   const pathname = usePathname();
-  const activeHref = activeSidebarHref(pathname);
+  const params = useSearchParams();
+  const activeId = activeEntryId({ pathname, tab: params.get('tab') });
+  const where: PageLocation = { pathname, search: params.toString() };
 
   return (
     <Sidebar collapsible="icon">
@@ -116,7 +118,7 @@ export function AppSidebar(): ReactElement {
             </SidebarGroupLabel>
             <SidebarMenu className="gap-px">
               {group.entries.map((entry) => (
-                <NavRow key={entry.id} entry={entry} active={isSidebarEntryActive(entry, activeHref)} />
+                <NavRow key={entry.id} entry={entry} href={sidebarHref(entry, where)} active={entry.id === activeId} />
               ))}
             </SidebarMenu>
           </SidebarGroup>
@@ -141,7 +143,7 @@ export function AppSidebar(): ReactElement {
         </div>
         <SidebarMenu className="gap-px">
           {SIDEBAR_FOOTER_ENTRIES.map((entry) => (
-            <NavRow key={entry.id} entry={entry} active={isSidebarEntryActive(entry, activeHref)} />
+            <NavRow key={entry.id} entry={entry} href={sidebarHref(entry, where)} active={entry.id === activeId} />
           ))}
         </SidebarMenu>
         <CaptureReadiness />
@@ -153,7 +155,7 @@ export function AppSidebar(): ReactElement {
   );
 }
 
-function NavRow({ entry, active }: { entry: SidebarEntry; active: boolean }): ReactElement {
+function NavRow({ entry, href, active }: { entry: SidebarEntry; href: string; active: boolean }): ReactElement {
   const meta = ENTRY_META[entry.id];
   const Icon = meta.icon;
 
@@ -171,12 +173,17 @@ function NavRow({ entry, active }: { entry: SidebarEntry; active: boolean }): Re
           'group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!',
         )}
       >
-        <Link href={entry.href} aria-current={active ? 'page' : undefined}>
+        <Link href={href} aria-current={active ? 'page' : undefined}>
           <Icon className={cn('size-4 shrink-0 stroke-[1.5]', active ? 'text-fg-1' : 'text-fg-3')} aria-hidden />
           {/* sr-only, not hidden: the icon rail keeps the link's name for screen readers. */}
           <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:sr-only">{entry.label}</span>
           {meta.dot === undefined ? null : (
             <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full group-data-[collapsible=icon]:hidden', meta.dot)} />
+          )}
+          {entry.isNew === undefined ? null : (
+            <span className="shrink-0 rounded-sm border border-primary/60 px-1 text-meta leading-4 font-semibold tracking-wider text-primary uppercase group-data-[collapsible=icon]:hidden">
+              Nuevo
+            </span>
           )}
           <NavPending />
         </Link>
