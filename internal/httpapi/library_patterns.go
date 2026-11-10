@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/url"
 	"time"
@@ -42,9 +41,8 @@ func statsOf(r tacticalplan.PatternResult) *patternStats {
 	return &patternStats{Rounds: r.Rounds, Matched: r.Matched, Won: r.Won, WinRate: r.WinRate, RecentMatched: r.RecentMatched, Trend: r.Trend}
 }
 
-// ListLibraryPatterns handles GET /api/library/patterns?map=&team_id=&stats=1.
-// With stats, each pattern runs over the team's matches with the team view's
-// scope, or over the whole library on its map without team_id.
+// ListLibraryPatterns handles GET /api/library/patterns?map=&team_id=&stats=1: with stats, each
+// pattern runs with its own scope over the team's matches, or the whole library without team_id.
 func (h *Handlers) ListLibraryPatterns(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
 		return
@@ -86,45 +84,57 @@ func (h *Handlers) ListLibraryPatterns(w http.ResponseWriter, r *http.Request) {
 	if stats {
 		var err error
 		if team != nil {
-			err = h.teamPatternStats(r.Context(), *team, q, items)
+			err = h.teamPatternStats(r.Context(), teamStats{team: *team, q: q, items: items})
 		} else {
 			err = h.libraryPatternStats(r.Context(), items)
 		}
-		var bad errBadSpatialQuery
-		if errors.As(err, &bad) {
-			writeError(w, http.StatusBadRequest, bad.Error())
-			return
-		}
 		if err != nil {
-			internalError(w, "run patterns", err)
+			writePatternError(w, err)
 			return
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"patterns": items})
 }
 
-// teamPatternStats runs every pattern of one map over the team's matches in one pass per side.
-func (h *Handlers) teamPatternStats(ctx context.Context, team library.Team, q url.Values, items []patternListItem) error {
-	_, inputs, err := h.teamPatternInputs(ctx, team, q, "")
-	if err != nil {
-		return err
+// teamStats is the saved patterns of one map with figures over a team's matches.
+type teamStats struct {
+	team  library.Team
+	q     url.Values
+	items []patternListItem
+}
+
+// teamPatternStats runs the patterns that share a scope over the team's matches in one pass,
+// each scope written over the query as pattern_rounds reads it.
+func (h *Handlers) teamPatternStats(ctx context.Context, run teamStats) error {
+	groups := map[library.PatternScope][]int{}
+	var order []library.PatternScope
+	for i, item := range run.items {
+		if _, ok := groups[item.Scope]; !ok {
+			order = append(order, item.Scope)
+		}
+		groups[item.Scope] = append(groups[item.Scope], i)
 	}
-	patterns := make([]tacticalplan.Pattern, len(items))
-	for i, item := range items {
-		patterns[i] = item.Pattern.Pattern
-	}
-	results, err := tacticalplan.RunPatterns(inputs, patterns, time.Now())
-	if err != nil {
-		return err
-	}
-	for i := range items {
-		items[i].Stats = statsOf(results[i])
+	for _, scope := range order {
+		q := cloneValues(run.q)
+		applyPatternScope(q, scope)
+		_, inputs, err := h.teamPatternInputs(ctx, teamPatternRead{team: run.team, q: q})
+		if err != nil {
+			return err
+		}
+		members := groups[scope]
+		patterns := make([]tacticalplan.Pattern, len(members))
+		for j, i := range members {
+			patterns[j] = run.items[i].Pattern.Pattern
+		}
+		results := tacticalplan.RunPatterns(inputs, patterns, time.Now())
+		for j, i := range members {
+			run.items[i].Stats = statsOf(results[j])
+		}
 	}
 	return nil
 }
 
-// libraryPatternStats runs each pattern over the whole library, sharing one
-// read of the matches among the patterns of the same map and scope.
+// libraryPatternStats runs the patterns of each map and scope over the library in one pass.
 func (h *Handlers) libraryPatternStats(ctx context.Context, items []patternListItem) error {
 	type group struct {
 		mapName string
@@ -140,15 +150,11 @@ func (h *Handlers) libraryPatternStats(ctx context.Context, items []patternListI
 		members[g] = append(members[g], i)
 	}
 	for _, g := range order {
-		inputs, _, err := h.libraryPatternInputs(ctx, g.mapName, g.scope)
-		if err != nil {
-			return err
-		}
 		patterns := make([]tacticalplan.Pattern, len(members[g]))
 		for j, i := range members[g] {
 			patterns[j] = items[i].Pattern.Pattern
 		}
-		results, err := tacticalplan.RunPatterns(inputs, patterns, time.Now())
+		results, err := h.libraryPatternResults(ctx, libraryRun{mapName: g.mapName, scope: g.scope, patterns: patterns})
 		if err != nil {
 			return err
 		}
@@ -174,15 +180,12 @@ func (req patternRequest) patch() library.PatternPatch {
 }
 
 // checkPatternTeam rejects a pattern saved for a team the library does not have.
-func (h *Handlers) checkPatternTeam(w http.ResponseWriter, ctx context.Context, p library.Pattern) bool {
+func (h *Handlers) checkPatternTeam(ctx context.Context, p library.Pattern) error {
 	if p.TeamID == nil {
-		return true
+		return nil
 	}
-	if _, err := h.libraryRepo.GetTeam(ctx, *p.TeamID); err != nil {
-		writeLibraryError(w, "get team", err)
-		return false
-	}
-	return true
+	_, err := h.libraryRepo.GetTeam(ctx, *p.TeamID)
+	return err
 }
 
 // CreateLibraryPattern handles POST /api/library/patterns.
@@ -200,7 +203,8 @@ func (h *Handlers) CreateLibraryPattern(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !h.checkPatternTeam(w, r.Context(), p) {
+	if err := h.checkPatternTeam(r.Context(), p); err != nil {
+		writeLibraryError(w, "get team", err)
 		return
 	}
 	if err := h.libraryRepo.CreatePattern(r.Context(), &p); err != nil {
@@ -249,7 +253,8 @@ func (h *Handlers) PatchLibraryPattern(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !h.checkPatternTeam(w, r.Context(), next) {
+	if err := h.checkPatternTeam(r.Context(), next); err != nil {
+		writeLibraryError(w, "get team", err)
 		return
 	}
 	updated, err := h.libraryRepo.UpdatePattern(r.Context(), current.ID, library.PatternPatch{

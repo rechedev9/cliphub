@@ -104,3 +104,12 @@ func (r *MemoryLibraryRepository) DeletePattern(ctx context.Context, id uuid.UUI
 	delete(r.libreta.patterns, id)
 	return nil
 }
+
+func (l *memoryLibreta) moveTeamPatterns(from, into uuid.UUID) {
+	for id, p := range l.patterns {
+		if p.TeamID != nil && *p.TeamID == from {
+			p.TeamID = &into
+			l.patterns[id] = p
+		}
+	}
+}

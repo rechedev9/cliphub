@@ -22,6 +22,8 @@ const (
 	PatternRecentDays = 30
 	// PatternTrendMargin is how far the recent share must move from the earlier one to count as a trend.
 	PatternTrendMargin = 0.05
+	// PatternTrendMinRounds is the rounds each side of the cut needs before a trend is read.
+	PatternTrendMinRounds = 10
 )
 
 // PatternBlockKind is what a block looks for in a round.
@@ -60,21 +62,21 @@ func (a PatternArea) Contains(cal radarmap.Calibration, pos [3]float64) bool {
 	return a.Level == "" || !cal.MultiLevel() || cal.Level(pos[2]) == a.Level
 }
 
-// PatternBlock is one condition of a pattern. Players are SteamID64s (empty is
-// anyone of the side); Rival reads the other team's players. From and To are
-// seconds after freeze end, To 0 runs to the end of the round. Invert keeps
-// the rounds in which the block does not hold.
+// PatternBlock is one condition of a round. Players are SteamID64s (empty is anyone of the side);
+// From and To are seconds after freeze end, To 0 the end of the round.
 type PatternBlock struct {
 	Kind    PatternBlockKind `json:"kind"`
 	Players []string         `json:"players,omitempty"`
-	Rival   bool             `json:"rival,omitempty"`
-	Grenade EventKind        `json:"grenade,omitempty"`
+	// Rival reads the other team's players.
+	Rival   bool      `json:"rival,omitempty"`
+	Grenade EventKind `json:"grenade,omitempty"`
 	// FromThrow places a grenade where it was thrown instead of where it landed.
 	FromThrow bool         `json:"from_throw,omitempty"`
 	Area      *PatternArea `json:"area,omitempty"`
 	From      float64      `json:"from"`
 	To        float64      `json:"to,omitempty"`
-	Invert    bool         `json:"invert,omitempty"`
+	// Invert keeps the rounds in which the block does not hold.
+	Invert bool `json:"invert,omitempty"`
 }
 
 // Pattern is a set of blocks that must all hold in a round, read from one side.
@@ -186,6 +188,8 @@ type PatternRound struct {
 	// enters the area, the grenade leaves the hand or the bomb goes down.
 	Seconds *float64 `json:"seconds,omitempty"`
 	Tick    int      `json:"tick,omitempty"`
+	// PlantSeconds is when the bomb went down, so a moment past it reads as time after the plant.
+	PlantSeconds *float64 `json:"plant_seconds,omitempty"`
 }
 
 // PatternMatch is one match of the result, with its rounds in scope and the matched ones.
@@ -219,8 +223,14 @@ type PatternResult struct {
 	Won     int            `json:"won"`
 	WinRate float64        `json:"win_rate"`
 	Blocks  []PatternCount `json:"blocks"`
-	// MissingPositions counts the matches with no position blob, where a player block never holds.
+	// MissingPositions counts the matches without saved positions; a player block leaves them out of scope.
 	MissingPositions int `json:"missing_positions"`
+	// Unreadable counts the matches whose analysis or positions could not be read.
+	Unreadable int `json:"unreadable_matches,omitempty"`
+	// NoThrow counts the grenades a throw-position block could not place, for lack of throw data.
+	NoThrow int `json:"grenades_without_throw,omitempty"`
+	// CappedAt is set when a library run read only the newest CappedAt matches of the map.
+	CappedAt int `json:"capped_at,omitempty"`
 	// RecentRounds and RecentMatched cover the last PatternRecentDays; Trend
 	// compares their share with the earlier rounds', empty when either is missing.
 	RecentRounds  int            `json:"recent_rounds"`
@@ -260,14 +270,21 @@ func blockSlots(in patternRound, b PatternBlock) map[uint8]bool {
 	return out
 }
 
-// evalBlock answers one block in one round, before inversion: whether it held,
-// and the earliest moment and tick it did.
-func evalBlock(in patternRound, b PatternBlock) (bool, float64, int) {
+// blockAnswer is one block in one round before inversion. Out marks a round the
+// block cannot speak for: none of its named players was on the side.
+type blockAnswer struct {
+	held, out bool
+	seconds   float64
+	tick      int
+	noThrow   int
+}
+
+func evalBlock(in patternRound, b PatternBlock) blockAnswer {
 	doc := in.m.Document
 	cal, tickrate := doc.Geometry.Calibration, doc.Demo.Tickrate
 	slots := blockSlots(in, b)
 	if len(slots) == 0 {
-		return false, 0, 0
+		return blockAnswer{out: len(b.Players) > 0}
 	}
 	if b.Kind == PatternPlayer {
 		end := roundEndTick(in.r)
@@ -281,12 +298,13 @@ func evalBlock(in patternRound, b PatternBlock) (bool, float64, int) {
 			}
 			for _, s := range frame.Samples {
 				if slots[s.Slot] && s.Flags.Has(FlagAlive) && b.inArea(cal, [3]float64{s.X, s.Y, s.Z}) {
-					return true, seconds, frame.Tick
+					return blockAnswer{held: true, seconds: seconds, tick: frame.Tick}
 				}
 			}
 		}
-		return false, 0, 0
+		return blockAnswer{}
 	}
+	var a blockAnswer
 	for _, ev := range in.r.Events {
 		if ev.ActorSlot == nil || !slots[*ev.ActorSlot] {
 			continue
@@ -306,6 +324,7 @@ func evalBlock(in patternRound, b PatternBlock) (bool, float64, int) {
 			}
 			if b.FromThrow {
 				if ev.Throw == nil {
+					a.noThrow++
 					continue
 				}
 				pos = ev.Throw.Pos
@@ -313,42 +332,84 @@ func evalBlock(in patternRound, b PatternBlock) (bool, float64, int) {
 		}
 		seconds, ok := secondsSince(in.r, tick, tickrate)
 		if ok && b.inWindow(seconds) && b.inArea(cal, pos) {
-			return true, seconds, tick
+			a.held, a.seconds, a.tick = true, seconds, tick
+			return a
 		}
 	}
-	return false, 0, 0
+	return a
+}
+
+// roundVerdict is a round against a whole pattern.
+type roundVerdict struct {
+	row     PatternRound
+	out     bool
+	matched bool
+	noThrow int
 }
 
 // matchRound answers every block of a pattern in a round. The round matches when all hold.
-func matchRound(in patternRound, p Pattern) (PatternRound, bool) {
-	row := PatternRound{Round: in.r.Number, Hits: make([]PatternHit, len(p.Blocks))}
-	all := true
+func matchRound(in patternRound, p Pattern) roundVerdict {
+	v := roundVerdict{row: PatternRound{Round: in.r.Number, Hits: make([]PatternHit, len(p.Blocks))}, matched: true}
 	for i, b := range p.Blocks {
-		held, seconds, tick := evalBlock(in, b)
+		a := evalBlock(in, b)
+		if a.out {
+			return roundVerdict{out: true}
+		}
+		v.noThrow += a.noThrow
 		if b.Invert {
-			row.Hits[i] = PatternHit{Matched: !held}
+			v.row.Hits[i] = PatternHit{Matched: !a.held}
 		} else {
-			row.Hits[i] = PatternHit{Matched: held}
-			if held {
-				at := math.Round(seconds*100) / 100
-				row.Hits[i].Seconds = &at
-				if row.Seconds == nil {
-					row.Seconds, row.Tick = &at, tick
+			v.row.Hits[i] = PatternHit{Matched: a.held}
+			if a.held {
+				at := math.Round(a.seconds*100) / 100
+				v.row.Hits[i].Seconds = &at
+				if v.row.Seconds == nil {
+					v.row.Seconds, v.row.Tick = &at, a.tick
 				}
 			}
 		}
-		all = all && row.Hits[i].Matched
+		v.matched = v.matched && v.row.Hits[i].Matched
 	}
-	return row, all
+	return v
 }
 
-func patternsNeedFrames(patterns []Pattern) bool {
-	for _, p := range patterns {
-		if slices.ContainsFunc(p.Blocks, PatternBlock.needsFrames) {
-			return true
+// playersInTeam reports whether every block that names players finds one of them
+// on its team in the match; a match without them is out of the pattern's scope.
+func playersInTeam(m SpatialMatch, p Pattern) bool {
+	for _, b := range p.Blocks {
+		if len(b.Players) == 0 {
+			continue
+		}
+		key := m.Filter.TeamKey
+		if b.Rival {
+			key = ""
+			for _, t := range m.Document.Teams {
+				if t.Key != m.Filter.TeamKey {
+					key = t.Key
+				}
+			}
+		}
+		if key == "" {
+			continue
+		}
+		if !slices.ContainsFunc(m.Document.Players, func(pl Player) bool { return pl.TeamKey == key && slices.Contains(b.Players, pl.SteamID64) }) {
+			return false
 		}
 	}
-	return false
+	return true
+}
+
+func plantSeconds(r Round, tickrate float64) *float64 {
+	for _, ev := range r.Events {
+		if ev.Kind != EventPlant {
+			continue
+		}
+		if s, ok := secondsSince(r, ev.Tick, tickrate); ok {
+			at := math.Round(s*100) / 100
+			return &at
+		}
+	}
+	return nil
 }
 
 type patternAcc struct {
@@ -357,102 +418,175 @@ type patternAcc struct {
 	recent struct{ earlierRounds, earlierMatched int }
 }
 
-// RunPatterns reads every pattern over the same rounds in one pass, so each
-// round's frames are decoded once. Inputs come newest first, the order of the
-// result's matches; now anchors the recent window of the trend.
-func RunPatterns(inputs []PatternInput, patterns []Pattern, now time.Time) ([]PatternResult, error) {
-	accs := make([]*patternAcc, len(patterns))
+// PatternRunner reads patterns over matches added one at a time, so a caller
+// can drop each match's document and positions before reading the next.
+type PatternRunner struct {
+	patterns   []Pattern
+	needs      []bool
+	accs       []*patternAcc
+	recentFrom time.Time
+}
+
+// NewPatternRunner starts a run; now anchors the recent window of the trend.
+func NewPatternRunner(patterns []Pattern, now time.Time) *PatternRunner {
+	r := &PatternRunner{patterns: patterns, needs: make([]bool, len(patterns)), accs: make([]*patternAcc, len(patterns)),
+		recentFrom: now.AddDate(0, 0, -PatternRecentDays)}
 	for i, p := range patterns {
-		accs[i] = &patternAcc{months: map[string]*PatternMonth{}, result: PatternResult{
+		r.needs[i] = slices.ContainsFunc(p.Blocks, PatternBlock.needsFrames)
+		r.accs[i] = &patternAcc{months: map[string]*PatternMonth{}, result: PatternResult{
 			Blocks: make([]PatternCount, len(p.Blocks)), Months: []PatternMonth{}, Matches: []PatternMatch{},
 		}}
 	}
-	frames := patternsNeedFrames(patterns)
-	recentFrom := now.AddDate(0, 0, -PatternRecentDays)
-	for _, in := range inputs {
-		m := in.Match
-		var blob []byte
-		var header Positions
-		hasBlob := false
-		if frames {
-			var err error
-			if blob, header, hasBlob, err = m.positions(); err != nil {
-				return nil, err
-			}
-		}
-		rounds := m.Filter.Apply(m.Document)
-		matches := make([]PatternMatch, len(patterns))
-		for i := range patterns {
-			matches[i] = PatternMatch{MatchID: m.MatchID, PlayedAt: in.PlayedAt, TeamKey: m.Filter.TeamKey, Team: in.Team,
-				Opponent: in.Opponent, Matched: []PatternRound{}}
-		}
-		for _, r := range rounds {
-			pr := patternRound{m: m, r: r}
-			if hasBlob {
-				decoded, err := roundFrames(blob, header, m.Document, r.Number)
-				if err != nil {
-					return nil, fmt.Errorf("match %s round %d: %w", m.MatchID, r.Number, err)
-				}
-				pr.frames = decoded
-			}
-			side := m.Filter.Perspective(m.Document, r)
-			for i, p := range patterns {
-				if p.Side != "" && side != p.Side {
-					// A pattern reads one side, so the other side's rounds are not in its scope.
-					continue
-				}
-				row, ok := matchRound(pr, p)
-				matches[i].Rounds++
-				accs[i].month(in.PlayedAt, false)
-				accs[i].count(row, ok, in.PlayedAt.Before(recentFrom))
-				if !ok {
-					continue
-				}
-				row.Side, row.Won = side, side != "" && r.Winner == side
-				if side != "" {
-					row.Buy, row.OpponentBuy = r.Economy.Buy(side), r.Economy.Buy(side.Opponent())
-				}
-				matches[i].Matched = append(matches[i].Matched, row)
-				if row.Won {
-					accs[i].result.Won++
-				}
-				accs[i].month(in.PlayedAt, true)
-			}
-		}
-		for i := range patterns {
-			if frames && !hasBlob {
-				accs[i].result.MissingPositions++
-			}
-			if matches[i].Rounds > 0 {
-				accs[i].result.Matches = append(accs[i].result.Matches, matches[i])
-			}
-		}
-	}
-	out := make([]PatternResult, len(patterns))
-	for i, acc := range accs {
-		out[i] = acc.finish()
-	}
-	return out, nil
+	return r
 }
 
-func (a *patternAcc) count(row PatternRound, matched, earlier bool) {
+// Unreadable counts a match the caller could not read.
+func (r *PatternRunner) Unreadable() {
+	for _, acc := range r.accs {
+		acc.result.Unreadable++
+	}
+}
+
+// Add reads one match, newest first: the order of the result's matches.
+func (r *PatternRunner) Add(in PatternInput) {
+	m := in.Match
+	scoped := make([]bool, len(r.patterns))
+	frames := false
+	for i, p := range r.patterns {
+		scoped[i] = playersInTeam(m, p)
+		frames = frames || (scoped[i] && r.needs[i])
+	}
+	if !slices.Contains(scoped, true) {
+		return
+	}
+	rounds := m.Filter.Apply(m.Document)
+	byRound := map[int][]Frame{}
+	hasFrames := false
+	if frames {
+		blob, header, ok, err := m.positions()
+		if err != nil {
+			r.Unreadable()
+			return
+		}
+		for _, rd := range rounds {
+			if !ok {
+				break
+			}
+			decoded, err := roundFrames(blob, header, m.Document, rd.Number)
+			if err != nil {
+				r.Unreadable()
+				return
+			}
+			byRound[rd.Number] = decoded
+		}
+		hasFrames = ok
+	}
+	for i, p := range r.patterns {
+		if !scoped[i] {
+			continue
+		}
+		if r.needs[i] && !hasFrames {
+			r.accs[i].result.MissingPositions++
+			continue
+		}
+		r.addMatch(addMatch{in: in, rounds: rounds, frames: byRound, index: i, pattern: p})
+	}
+}
+
+type addMatch struct {
+	in      PatternInput
+	rounds  []Round
+	frames  map[int][]Frame
+	index   int
+	pattern Pattern
+}
+
+func (r *PatternRunner) addMatch(a addMatch) {
+	m, acc, needs := a.in.Match, r.accs[a.index], r.needs[a.index]
+	match := PatternMatch{MatchID: m.MatchID, PlayedAt: a.in.PlayedAt, TeamKey: m.Filter.TeamKey, Team: a.in.Team,
+		Opponent: a.in.Opponent, Matched: []PatternRound{}}
+	earlier := a.in.PlayedAt.Before(r.recentFrom)
+	for _, rd := range a.rounds {
+		side := m.Filter.Perspective(m.Document, rd)
+		// A pattern reads one side, so the other side's rounds are not in its scope.
+		if a.pattern.Side != "" && side != a.pattern.Side {
+			continue
+		}
+		pr := patternRound{m: m, r: rd, frames: a.frames[rd.Number]}
+		if needs && len(pr.frames) == 0 {
+			continue
+		}
+		v := matchRound(pr, a.pattern)
+		if v.out {
+			continue
+		}
+		match.Rounds++
+		acc.result.NoThrow += v.noThrow
+		acc.month(a.in.PlayedAt, false)
+		acc.count(countedRound{row: v.row, matched: v.matched, earlier: earlier})
+		if !v.matched {
+			continue
+		}
+		row := v.row
+		row.Side, row.Won = side, side != "" && rd.Winner == side
+		if side != "" {
+			row.Buy, row.OpponentBuy = rd.Economy.Buy(side), rd.Economy.Buy(side.Opponent())
+		}
+		row.PlantSeconds = plantSeconds(rd, m.Document.Demo.Tickrate)
+		match.Matched = append(match.Matched, row)
+		if row.Won {
+			acc.result.Won++
+		}
+		acc.month(a.in.PlayedAt, true)
+	}
+	if match.Rounds > 0 {
+		acc.result.Matches = append(acc.result.Matches, match)
+	}
+}
+
+// Finish closes the run: one result per pattern, in order.
+func (r *PatternRunner) Finish() []PatternResult {
+	out := make([]PatternResult, len(r.accs))
+	for i, acc := range r.accs {
+		out[i] = acc.finish()
+	}
+	return out
+}
+
+// RunPatterns reads every pattern over inputs already in memory, newest first.
+func RunPatterns(inputs []PatternInput, patterns []Pattern, now time.Time) []PatternResult {
+	r := NewPatternRunner(patterns, now)
+	for _, in := range inputs {
+		r.Add(in)
+	}
+	return r.Finish()
+}
+
+// countedRound is one round in a pattern's scope, as the counts read it.
+type countedRound struct {
+	row     PatternRound
+	matched bool
+	earlier bool
+}
+
+func (a *patternAcc) count(c countedRound) {
 	a.result.Rounds++
-	for i, hit := range row.Hits {
+	for i, hit := range c.row.Hits {
 		a.result.Blocks[i].Rounds++
 		if hit.Matched {
 			a.result.Blocks[i].Matched++
 		}
 	}
-	if earlier {
+	if c.earlier {
 		a.recent.earlierRounds++
 	} else {
 		a.result.RecentRounds++
 	}
-	if !matched {
+	if !c.matched {
 		return
 	}
 	a.result.Matched++
-	if earlier {
+	if c.earlier {
 		a.recent.earlierMatched++
 	} else {
 		a.result.RecentMatched++
@@ -481,25 +615,41 @@ func (a *patternAcc) finish() PatternResult {
 	}
 	r.Trend = PatternTrend(PatternCount{Matched: r.RecentMatched, Rounds: r.RecentRounds},
 		PatternCount{Matched: a.recent.earlierMatched, Rounds: a.recent.earlierRounds})
-	for _, m := range a.months {
-		r.Months = append(r.Months, *m)
-	}
-	slices.SortFunc(r.Months, func(x, y PatternMonth) int {
-		switch {
-		case x.Month < y.Month:
-			return -1
-		case x.Month > y.Month:
-			return 1
-		}
-		return 0
-	})
+	r.Months = monthSeries(a.months)
 	return r
 }
 
-// PatternTrend compares the recent share of matched rounds with the earlier
-// one: up or down past PatternTrendMargin, flat inside it, empty without both.
+// monthSeries is every month from the first to the last with rounds, the empty ones at zero.
+func monthSeries(months map[string]*PatternMonth) []PatternMonth {
+	out := []PatternMonth{}
+	if len(months) == 0 {
+		return out
+	}
+	keys := make([]string, 0, len(months))
+	for k := range months {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	at, err := time.Parse("2006-01", keys[0])
+	if err != nil {
+		return out
+	}
+	last := keys[len(keys)-1]
+	for key := keys[0]; key <= last; key = at.Format("2006-01") {
+		if m, ok := months[key]; ok {
+			out = append(out, *m)
+		} else {
+			out = append(out, PatternMonth{Month: key})
+		}
+		at = at.AddDate(0, 1, 0)
+	}
+	return out
+}
+
+// PatternTrend compares the recent share of matched rounds with the earlier one: up or down past
+// PatternTrendMargin, flat inside it, empty under PatternTrendMinRounds on either side.
 func PatternTrend(recent, earlier PatternCount) string {
-	if recent.Rounds == 0 || earlier.Rounds == 0 {
+	if recent.Rounds < PatternTrendMinRounds || earlier.Rounds < PatternTrendMinRounds {
 		return ""
 	}
 	delta := float64(recent.Matched)/float64(recent.Rounds) - float64(earlier.Matched)/float64(earlier.Rounds)

@@ -59,21 +59,29 @@ type PatternListQuery struct {
 	Extra  url.Values
 }
 
-// TeamPattern runs a pattern over a team's matches on one map: q is the team's
-// scope, extra the buys and matches (the most recent N).
-func (c *Client) TeamPattern(ctx context.Context, teamID string, q AnalysisQuery, extra url.Values, p tacticalplan.Pattern) (PatternRun, error) {
-	q.Limit = 0
-	values := q.values()
-	for key, list := range extra {
+// TeamPatternQuery is a pattern over a team's matches on one map: Scope is the
+// team's scope, Extra the buys and matches (the most recent N).
+type TeamPatternQuery struct {
+	TeamID  string
+	Scope   AnalysisQuery
+	Extra   url.Values
+	Pattern tacticalplan.Pattern
+}
+
+// TeamPattern runs a pattern over a team's matches on one map.
+func (c *Client) TeamPattern(ctx context.Context, q TeamPatternQuery) (PatternRun, error) {
+	q.Scope.Limit = 0
+	values := q.Scope.values()
+	for key, list := range q.Extra {
 		values[key] = list
 	}
-	raw, err := json.Marshal(p)
+	raw, err := json.Marshal(q.Pattern)
 	if err != nil {
 		return PatternRun{}, err
 	}
 	values.Set("pattern", string(raw))
 	var out PatternRun
-	err = c.getJSON(ctx, teamPath(teamID, "pattern")+encodeValues(values), &out)
+	err = c.getJSON(ctx, teamPath(q.TeamID, "pattern")+encodeValues(values), &out)
 	return out, err
 }
 

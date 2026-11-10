@@ -41,15 +41,13 @@ type Props = {
   matches: readonly LibraryMatch[];
   roster: readonly LibraryRosterEntry[];
   onMapChange: (map: string) => void;
+  /** Opening a saved pattern sets the bar to its own scope. */
+  onScopeChange: (patch: Partial<AnalysisScope>) => void;
   onCounts: (counts: ScopeCounts | null) => void;
 };
 
-/**
- * The pattern finder of a team on one map: blocks that add up (a player
- * through a zone in a window, a grenade, a plant), the rounds that meet them
- * all by match with how they ended, and their paths or heatmap on the radar.
- */
-export function PatternFinder({ teamId, scope, lineup, matches, roster, onMapChange, onCounts }: Props): ReactNode {
+/** A team's pattern finder on one map: blocks that add up, the rounds meeting them all, and their radar. */
+export function PatternFinder({ teamId, scope, lineup, matches, roster, onMapChange, onScopeChange, onCounts }: Props): ReactNode {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
@@ -107,7 +105,7 @@ export function PatternFinder({ teamId, scope, lineup, matches, roster, onMapCha
     }
     let live = true;
     const timer = window.setTimeout(() => {
-      runTeamPattern(teamId, runScope, pattern)
+      runTeamPattern({ teamId, scope: runScope, pattern })
         .then((data) => {
           if (!live) return;
           setLoad({ kind: 'ready', data });
@@ -175,7 +173,7 @@ export function PatternFinder({ teamId, scope, lineup, matches, roster, onMapCha
     if (block === undefined) return;
     const next: PatternBlock = { ...block };
     if (box === null) delete next.area;
-    else next.area = areaOfBox(box, level, multiLevel);
+    else next.area = areaOfBox({ box, level, twoFloors: multiLevel });
     setBlock(next);
   };
   const teamName = data.team_name ?? '';
@@ -213,6 +211,7 @@ export function PatternFinder({ teamId, scope, lineup, matches, roster, onMapCha
           onOpen={(entry) => {
             setActive(0);
             setPattern(entry.pattern);
+            onScopeChange({ limit: entry.scope.matches ?? null, buy: entry.scope.buy ?? '', opponentBuy: entry.scope.opponent_buy ?? '' });
           }}
         />
       </aside>
@@ -235,6 +234,7 @@ export function PatternFinder({ teamId, scope, lineup, matches, roster, onMapCha
         <PatternRadar
           geometry={geometry}
           levels={levels}
+          multiLevel={multiLevel}
           picture={picture}
           overlay={data.overlay ?? null}
           heatmap={data.heatmap ?? null}

@@ -57,15 +57,18 @@ export function withTramo(block: PatternBlock, tramo: Tramo): PatternBlock {
   return next;
 }
 
+export type DrawnBox = { box: WorldBox; level: RadarLevel; twoFloors: boolean };
+
 /** A dragged box as a block's area; on a two-floor map it keeps the floor it was drawn on. */
-export function areaOfBox(box: WorldBox, level: RadarLevel, twoFloors: boolean): PatternArea {
+export function areaOfBox(drawn: DrawnBox): PatternArea {
+  const { box } = drawn;
   const area: PatternArea = {
     min_x: Math.round(box.minX),
     min_y: Math.round(box.minY),
     max_x: Math.round(box.maxX),
     max_y: Math.round(box.maxY),
   };
-  return twoFloors ? { ...area, level } : area;
+  return drawn.twoFloors ? { ...area, level: drawn.level } : area;
 }
 
 export function boxOfArea(area: PatternArea): WorldBox {
@@ -96,11 +99,20 @@ export function blockSentence(block: PatternBlock): string {
   return `${what} ${when}`;
 }
 
+/** A moment on the round clock; past the plant, or the clock's end without one, the time since then. */
+export function patternClock(seconds: number, plant?: number): string {
+  const from = plant !== undefined && plant < ROUND_CLOCK_SECONDS ? plant : ROUND_CLOCK_SECONDS;
+  if (seconds >= from && (plant !== undefined || seconds > from)) return `+${Math.round(seconds - from)}s tras el plant`;
+  return roundClock(seconds);
+}
+
+export type PatternEntry = { kind: PatternBlockKind; seconds: number; plant?: number };
+
 /** When the round's first timed block held, as its row says it. */
-export function entryLabel(kind: PatternBlockKind, seconds: number): string {
-  const clock = roundClock(seconds);
-  if (kind === 'utility') return `La tira a ${clock}`;
-  if (kind === 'plant') return `Planta a ${clock}`;
+export function entryLabel(entry: PatternEntry): string {
+  const clock = patternClock(entry.seconds, entry.plant);
+  if (entry.kind === 'utility') return `La tira a ${clock}`;
+  if (entry.kind === 'plant') return `Planta a ${clock}`;
   return `Entra en la zona a ${clock}`;
 }
 
@@ -119,6 +131,15 @@ export function roundCountLabel(n: number): string {
   return `${n} ${n === 1 ? 'ronda' : 'rondas'}`;
 }
 
+/** "3 de 12 rondas": matched rounds over the rounds read. */
+export function ofRoundsLabel(matched: number, rounds: number): string {
+  return `${matched} de ${roundCountLabel(rounds)}`;
+}
+
+export function matchCountLabel(n: number): string {
+  return `${n} ${n === 1 ? 'partida' : 'partidas'}`;
+}
+
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 /** `2026-11` as "nov 2026". */
@@ -134,8 +155,11 @@ export function patternReplayRefs(result: PatternResult): ReplayRef[] {
   );
 }
 
+export type TrackWindow = { track: Pick<OverlayTrack, 'start' | 'points'>; step: number; tramo: Tramo };
+
 /** A track's points inside a clock window; `step` is the seconds between points. */
-export function trackInWindow(track: Pick<OverlayTrack, 'start' | 'points'>, step: number, tramo: Tramo): OverlayTrack['points'] {
+export function trackInWindow(w: TrackWindow): OverlayTrack['points'] {
+  const { track, step, tramo } = w;
   if (step <= 0) return [];
   const from = isWholeRound(tramo) ? 0 : tramo.from;
   const to = isWholeRound(tramo) ? Number.POSITIVE_INFINITY : tramoEnd(tramo);

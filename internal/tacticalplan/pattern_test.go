@@ -66,11 +66,7 @@ func runOne(t *testing.T, inputs []PatternInput, p Pattern) PatternResult {
 	if err := p.Check(); err != nil {
 		t.Fatalf("Check: %v", err)
 	}
-	got, err := RunPatterns(inputs, []Pattern{p}, time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return got[0]
+	return RunPatterns(inputs, []Pattern{p}, time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC))[0]
 }
 
 func matchedRounds(r PatternResult) []int {
@@ -175,11 +171,12 @@ func TestPatternWinRateAndTrend(t *testing.T) {
 	if ct := runOne(t, inputs, Pattern{Side: SideCT, Blocks: []PatternBlock{{Kind: PatternPlayer}}}); ct.Rounds != 0 || len(ct.Matches) != 0 {
 		t.Fatalf("a CT pattern over T rounds = %+v, want nothing in scope", ct)
 	}
-	if got.RecentRounds != 3|| got.RecentMatched != 2 || got.Trend != TrendFlat {
+	// Three rounds on each side of the cut are too few to read a trend.
+	if got.RecentRounds != 3 || got.RecentMatched != 2 || got.Trend != "" {
 		t.Fatalf("recent = %d of %d, trend %q", got.RecentMatched, got.RecentRounds, got.Trend)
 	}
-	if len(got.Months) != 2 || got.Months[0] != (PatternMonth{Month: "2026-08", Rounds: 3, Matched: 2}) {
-		t.Fatalf("months = %+v", got.Months)
+	if len(got.Months) != 4 || got.Months[0] != (PatternMonth{Month: "2026-08", Rounds: 3, Matched: 2}) || got.Months[1] != (PatternMonth{Month: "2026-09"}) {
+		t.Fatalf("months = %+v, want August to November with the empty months at zero", got.Months)
 	}
 	if only := OnlyMatched(inputs, got); len(only) != 2 || len(only[0].Document.Rounds) != 2 || len(recent.Document.Rounds) != 3 {
 		t.Fatalf("OnlyMatched kept %+v and must not touch the input", only)
@@ -192,6 +189,7 @@ func TestPatternWinRateAndTrend(t *testing.T) {
 		{PatternCount{Matched: 1, Rounds: 10}, PatternCount{Matched: 4, Rounds: 10}, TrendDown},
 		{PatternCount{Matched: 3, Rounds: 10}, PatternCount{Matched: 3, Rounds: 11}, TrendFlat},
 		{PatternCount{Matched: 3, Rounds: 10}, PatternCount{}, ""},
+		{PatternCount{Matched: 9, Rounds: 9}, PatternCount{Matched: 0, Rounds: 30}, ""},
 	} {
 		if got := PatternTrend(c.recent, c.earlier); got != c.want {
 			t.Errorf("PatternTrend(%+v, %+v) = %q, want %q", c.recent, c.earlier, got, c.want)
@@ -212,5 +210,35 @@ func TestPatternCheckRejectsBadBlocks(t *testing.T) {
 		if err := p.Check(); err == nil {
 			t.Errorf("%s: Check accepted %+v", name, p)
 		}
+	}
+}
+
+func TestPatternNamedPlayersAndPositionsSetTheScope(t *testing.T) {
+	m := patternMatch(t)
+	// Round 3 is played without the walker.
+	m.Document.Rounds[2].Players = []PlayerRound{{Slot: 1, Side: SideCT}}
+	inputs := []PatternInput{{Match: m}}
+	box := PatternArea{MinX: 250, MinY: -50, MaxX: 350, MaxY: 50}
+	notThere := runOne(t, inputs, Pattern{Blocks: []PatternBlock{{Kind: PatternPlayer, Players: []string{patternWalker}, Area: &box, From: 0, To: 2, Invert: true}}})
+	if notThere.Rounds != 2 || notThere.Matched != 2 {
+		t.Fatalf("inverted block = %d of %d, want 2 of 2: the round without the walker is out of scope", notThere.Matched, notThere.Rounds)
+	}
+	stranger := runOne(t, inputs, Pattern{Blocks: []PatternBlock{{Kind: PatternPlayer, Players: []string{patternRival}, Invert: true}}})
+	if stranger.Rounds != 0 || len(stranger.Matches) != 0 {
+		t.Fatalf("a player of the other team = %+v, want the match out of scope", stranger)
+	}
+	blind := m
+	blind.Blob = nil
+	noFrames := runOne(t, []PatternInput{{Match: blind}}, Pattern{Blocks: []PatternBlock{{Kind: PatternPlayer, Invert: true}}})
+	if noFrames.Rounds != 0 || noFrames.MissingPositions != 1 {
+		t.Fatalf("no positions = %+v, want no rounds and one match without positions", noFrames)
+	}
+	if plants := runOne(t, []PatternInput{{Match: blind}}, Pattern{Blocks: []PatternBlock{{Kind: PatternPlant, Invert: true}}}); plants.Rounds != 3 || plants.MissingPositions != 0 {
+		t.Fatalf("an event block without positions = %+v, want every round", plants)
+	}
+	m.Document.Rounds[0].Events[0].Throw = nil
+	lost := runOne(t, inputs, Pattern{Blocks: []PatternBlock{{Kind: PatternUtility, Rival: true, FromThrow: true}}})
+	if lost.NoThrow != 1 || lost.Matched != 0 {
+		t.Fatalf("a smoke without throw data = %+v, want it counted apart", lost)
 	}
 }

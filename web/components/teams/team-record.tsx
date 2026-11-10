@@ -439,6 +439,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
                   openReplay(form);
                 }}
                 onMapChange={onMapChange}
+                onScopeChange={setScope}
                 onCounts={onCounts}
               />,
             ),

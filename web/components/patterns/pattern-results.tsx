@@ -4,7 +4,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Play } from 'lucide-react';
 import type { PatternBlockKind, PatternResult } from '@/lib/api/patterns';
-import { TREND_LABEL, entryLabel, monthLabel, patternReplayRefs, percentLabel, roundCountLabel } from '@/lib/analysis/pattern-finder';
+import { TREND_LABEL, entryLabel, matchCountLabel, monthLabel, ofRoundsLabel, patternReplayRefs, percentLabel } from '@/lib/analysis/pattern-finder';
 import { replayHref } from '@/lib/analysis/replay-link';
 import { formatShortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,19 @@ type Props = {
   /** Shown beside the open button, such as the save button. */
   actions?: ReactNode;
 };
+
+/** What the run could not read, said as the user would: matches, grenades and the library cap. */
+function resultNotes(result: PatternResult): string[] {
+  const notes: string[] = [];
+  const missing = result.missing_positions ?? 0;
+  if (missing > 0) notes.push(`${matchCountLabel(missing)} sin posiciones guardadas: sus rondas no cuentan para los bloques de jugador.`);
+  const unreadable = result.unreadable_matches ?? 0;
+  if (unreadable > 0) notes.push(`${matchCountLabel(unreadable)} no se ${unreadable === 1 ? 'pudo' : 'pudieron'} leer.`);
+  const noThrow = result.grenades_without_throw ?? 0;
+  if (noThrow > 0) notes.push(`${noThrow} ${noThrow === 1 ? 'granada no tiene' : 'granadas no tienen'} el punto desde el que se tiró y no cuentan.`);
+  if (result.capped_at !== undefined && result.capped_at > 0) notes.push(`Solo cuenta las ${result.capped_at} partidas más recientes del mapa.`);
+  return notes;
+}
 
 function Figure({ label, value, children }: { label: string; value: string; children?: ReactNode }): ReactNode {
   return (
@@ -40,11 +53,11 @@ export function PatternResults({ result, timed, title, actions }: Props): ReactN
   return (
     <div className="flex flex-col gap-3">
       <h2 className="text-body font-semibold tabular-nums text-fg-1">
-        {result.matched} de {roundCountLabel(result.rounds)}
+        {ofRoundsLabel(result.matched, result.rounds)}
       </h2>
       <div className="grid grid-cols-2 gap-2">
         <Figure label="Ganan" value={result.matched === 0 ? 'Sin rondas' : percentLabel(result.win_rate)} />
-        <Figure label="Últimos 30 días" value={roundCountLabel(result.recent_matched)} />
+        <Figure label="Últimos 30 días" value={ofRoundsLabel(result.recent_matched, result.recent_rounds)} />
         <Figure label="Tendencia" value={TREND_LABEL[result.trend]}>
           <Sparkline values={shares} label="Parte de las rondas por mes" format={percentLabel} width={64} height={20} />
         </Figure>
@@ -66,11 +79,11 @@ export function PatternResults({ result, timed, title, actions }: Props): ReactN
         )}
         {actions}
       </div>
-      {result.missing_positions > 0 ? (
-        <p className="text-body-sm text-fg-2">
-          {result.missing_positions} {result.missing_positions === 1 ? 'ronda no tiene' : 'rondas no tienen'} posiciones guardadas y no cuentan para los bloques de jugador.
+      {resultNotes(result).map((note) => (
+        <p key={note} className="text-body-sm text-fg-2">
+          {note}
         </p>
-      ) : null}
+      ))}
       {result.matched === 0 ? (
         <EmptySample>
           <p className="text-body-sm text-fg-2">Ninguna ronda cumple el patrón. Cambia el tramo, la zona o los bloques.</p>
@@ -97,7 +110,7 @@ export function PatternResults({ result, timed, title, actions }: Props): ReactN
                         className="grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-sm px-1.5 py-1 text-body-sm hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                       >
                         <span className="font-mono tabular-nums text-fg-2">R{row.round}</span>
-                        <span className="truncate text-fg-1">{row.seconds === undefined ? `Lado ${row.side}` : entryLabel(timed, row.seconds)}</span>
+                        <span className="truncate text-fg-1">{row.seconds === undefined ? `Lado ${row.side}` : entryLabel({ kind: timed, seconds: row.seconds, plant: row.plant_seconds })}</span>
                         <span className={cn('font-medium', row.won ? 'text-outcome-win' : 'text-outcome-loss')}>{row.won ? 'Gana' : 'Pierde'}</span>
                       </Link>
                     </li>

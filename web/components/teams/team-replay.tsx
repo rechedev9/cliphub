@@ -83,6 +83,7 @@ export function TeamReplay({
   form,
   onFormChange,
   onMapChange,
+  onScopeChange,
   onCounts,
 }: {
   teamId: string;
@@ -95,6 +96,7 @@ export function TeamReplay({
   form: TeamReplayForm;
   onFormChange: (form: TeamReplayForm) => void;
   onMapChange: (map: string) => void;
+  onScopeChange: (patch: Partial<AnalysisScope>) => void;
   onCounts: (counts: ScopeCounts | null) => void;
 }): ReactNode {
   const criteria = useMemo(() => teamScopeEntries(scope, TEAM_REPLAY_FIELDS), [scope]);
@@ -117,7 +119,7 @@ export function TeamReplay({
         {form === 'patrones' ? null : <RoundsLink refs={form === 'granadas' ? grenadeRefs : spatialRefs} />}
       </div>
       {form === 'patrones' ? (
-        <PatternFinder teamId={teamId} scope={scope} lineup={lineup} matches={matches} roster={roster} onMapChange={onMapChange} onCounts={onCounts} />
+        <PatternFinder teamId={teamId} scope={scope} lineup={lineup} matches={matches} roster={roster} onMapChange={onMapChange} onScopeChange={onScopeChange} onCounts={onCounts} />
       ) : null}
       {form === 'granadas' ? (
         <TeamGrenades

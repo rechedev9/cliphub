@@ -18,8 +18,14 @@ import (
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
-// maxPatternQueryBytes bounds the pattern a query carries as JSON.
-const maxPatternQueryBytes = 8 << 10
+const (
+	// maxPatternQueryBytes bounds the pattern a query carries as JSON.
+	maxPatternQueryBytes = 8 << 10
+	// patternLibraryMatches caps a library-wide run at the newest matches of a map, to bound its memory.
+	patternLibraryMatches = 200
+	// maxPatternCacheEntries bounds the cached library-wide results; past it the cache starts over.
+	maxPatternCacheEntries = 256
+)
 
 // patternRunResponse is a pattern over a team's matches or the library: what it
 // found, and for the finder the matched rounds' paths and heatmap.
@@ -27,6 +33,17 @@ type patternRunResponse struct {
 	spatialResponse
 	Pattern tacticalplan.Pattern       `json:"pattern"`
 	Result  tacticalplan.PatternResult `json:"result"`
+}
+
+// patternCache keeps library-wide results while the matches they read are unchanged.
+type patternCache struct {
+	mu      sync.Mutex
+	entries map[string]patternCacheEntry
+}
+
+type patternCacheEntry struct {
+	version uint64
+	result  tacticalplan.PatternResult
 }
 
 // patternQuery reads the pattern parameter, a JSON pattern.
@@ -55,27 +72,34 @@ func matchesQuery(q url.Values) (int, error) {
 	return n, nil
 }
 
-// teamPatternInputs reads a team's matches on one map through the team view's
-// scope, newest first and at most matches of them.
-func (h *Handlers) teamPatternInputs(ctx context.Context, team library.Team, q url.Values, side tacticalplan.Side) (spatialResponse, []tacticalplan.PatternInput, error) {
-	limit, err := matchesQuery(q)
-	if err != nil {
+// teamPatternRead is a team's matches as a pattern reads them; a side narrows the rounds.
+type teamPatternRead struct {
+	team library.Team
+	q    url.Values
+	side tacticalplan.Side
+}
+
+// teamPatternInputs reads a team's matches on one map through the team view's scope, newest first.
+func (h *Handlers) teamPatternInputs(ctx context.Context, read teamPatternRead) (spatialResponse, []tacticalplan.PatternInput, error) {
+	if _, err := matchesQuery(read.q); err != nil {
 		return spatialResponse{}, nil, errBadSpatialQuery{err}
 	}
-	if side != "" {
+	q := read.q
+	if read.side != "" {
 		q = cloneValues(q)
-		q.Set("side", string(side))
+		q.Set("side", string(read.side))
 	}
-	resp, matches, err := h.teamSpatial(ctx, team, q)
+	resp, matches, err := h.teamSpatial(ctx, read.team, q)
 	if err != nil {
 		return resp, nil, err
 	}
-	if limit > 0 && len(matches) > limit {
-		matches, resp.Matches = matches[:limit], resp.Matches[:limit]
-	}
 	inputs := make([]tacticalplan.PatternInput, len(matches))
 	for i, m := range matches {
-		inputs[i] = tacticalplan.PatternInput{Match: m, PlayedAt: resp.Matches[i].PlayedAt, Team: team.Name, Opponent: resp.Matches[i].Opponent}
+		// The run, the paths and the heatmap all read the blob: open each file once.
+		if m.Blob != nil {
+			m.Blob = onceBlob(m.Blob)
+		}
+		inputs[i] = tacticalplan.PatternInput{Match: m, PlayedAt: resp.Matches[i].PlayedAt, Team: read.team.Name, Opponent: resp.Matches[i].Opponent}
 	}
 	return resp, inputs, nil
 }
@@ -88,7 +112,7 @@ func cloneValues(q url.Values) url.Values {
 	return out
 }
 
-// onceBlob reads a match's blob once for both of its teams.
+// onceBlob reads a match's blob once for every reader of the request.
 func onceBlob(read func() ([]byte, error)) func() ([]byte, error) {
 	var once sync.Once
 	var blob []byte
@@ -99,46 +123,114 @@ func onceBlob(read func() ([]byte, error)) func() ([]byte, error) {
 	}
 }
 
-// libraryPatternInputs reads every analysed match on a map from both teams'
-// side, newest first: the most recent matches of them when set, with the buys.
-func (h *Handlers) libraryPatternInputs(ctx context.Context, mapName string, scope library.PatternScope) ([]tacticalplan.PatternInput, int, error) {
-	listed, err := h.allLibraryMatches(ctx, library.MatchFilter{Map: mapName})
+// libraryRun is some patterns over every analysed match of a map, from both teams' side.
+type libraryRun struct {
+	mapName  string
+	scope    library.PatternScope
+	patterns []tacticalplan.Pattern
+}
+
+func patternCacheKey(run libraryRun, p tacticalplan.Pattern) string {
+	raw, _ := json.Marshal(struct {
+		Map     string               `json:"map"`
+		Scope   library.PatternScope `json:"scope"`
+		Pattern tacticalplan.Pattern `json:"pattern"`
+	}{run.mapName, run.scope, p})
+	return string(raw)
+}
+
+// libraryPatternResults runs patterns over the newest matches of a map one match
+// at a time, reusing a cached result while those matches are unchanged.
+func (h *Handlers) libraryPatternResults(ctx context.Context, run libraryRun) ([]tacticalplan.PatternResult, error) {
+	listed, err := h.allLibraryMatches(ctx, library.MatchFilter{Map: run.mapName})
 	if err != nil {
-		return nil, 0, err
+		return nil, err
+	}
+	limit, capped := patternLibraryMatches, 0
+	if run.scope.Matches > 0 {
+		limit = min(limit, run.scope.Matches)
+	}
+	if len(listed) > limit {
+		listed = listed[:limit]
+		if run.scope.Matches == 0 {
+			capped = limit
+		}
+	}
+	version := matchesVersion(listed)
+	keys := make([]string, len(run.patterns))
+	results := make([]tacticalplan.PatternResult, len(run.patterns))
+	var missing []int
+	// One run at a time: a library pass holds one match in memory, never several.
+	c := &h.references.patterns
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i, p := range run.patterns {
+		keys[i] = patternCacheKey(run, p)
+		if e, ok := c.entries[keys[i]]; ok && e.version == version {
+			results[i] = e.result
+		} else {
+			missing = append(missing, i)
+		}
+	}
+	if len(missing) == 0 {
+		return results, nil
+	}
+	patterns := make([]tacticalplan.Pattern, len(missing))
+	for j, i := range missing {
+		patterns[j] = run.patterns[i]
+	}
+	runner := tacticalplan.NewPatternRunner(patterns, time.Now())
+	for _, m := range listed {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		h.addLibraryMatch(runner, libraryMatchRead{match: m, scope: run.scope})
+	}
+	out := runner.Finish()
+	if c.entries == nil || len(c.entries) >= maxPatternCacheEntries {
+		c.entries = map[string]patternCacheEntry{}
+	}
+	for j, i := range missing {
+		out[j].CappedAt = capped
+		results[i] = out[j]
+		c.entries[keys[i]] = patternCacheEntry{version: version, result: out[j]}
+	}
+	return results, nil
+}
+
+type libraryMatchRead struct {
+	match library.Match
+	scope library.PatternScope
+}
+
+// addLibraryMatch reads one match for both of its teams; its document and positions go with the call.
+func (h *Handlers) addLibraryMatch(runner *tacticalplan.PatternRunner, read libraryMatchRead) {
+	m := read.match
+	doc, err := h.readLibraryDocument(m.DemoID)
+	if err != nil {
+		log.Printf("httpapi: patterns skip match %s: %v", m.ID, err)
+		runner.Unreadable()
+		return
 	}
 	var buys, opponentBuys []tacticalplan.BuyType
-	if scope.Buy != "" {
-		buys = []tacticalplan.BuyType{scope.Buy}
+	if read.scope.Buy != "" {
+		buys = []tacticalplan.BuyType{read.scope.Buy}
 	}
-	if scope.OpponentBuy != "" {
-		opponentBuys = []tacticalplan.BuyType{scope.OpponentBuy}
+	if read.scope.OpponentBuy != "" {
+		opponentBuys = []tacticalplan.BuyType{read.scope.OpponentBuy}
 	}
-	inputs, read, skipped := []tacticalplan.PatternInput{}, 0, 0
-	for _, m := range listed {
-		if scope.Matches > 0 && read >= scope.Matches {
-			break
-		}
-		doc, err := h.readLibraryDocument(m.DemoID)
-		if err != nil {
-			log.Printf("httpapi: patterns skip match %s: %v", m.ID, err)
-			skipped++
-			continue
-		}
-		read++
-		blob := onceBlob(h.positionsReader(m.DemoID))
-		for _, t := range m.Teams {
-			filter := tacticalplan.Filter{TeamKey: t.Key, Buys: buys, OpponentBuys: opponentBuys}
-			input := tacticalplan.PatternInput{Match: tacticalplan.SpatialMatch{MatchID: m.ID, Document: doc, Filter: filter, Blob: blob},
-				PlayedAt: m.PlayedAt, Team: matchTeamName(t)}
-			for _, other := range m.Teams {
-				if other.Key != t.Key {
-					input.Opponent = matchTeamName(other)
-				}
+	blob := onceBlob(h.positionsReader(m.DemoID))
+	for _, t := range m.Teams {
+		filter := tacticalplan.Filter{TeamKey: t.Key, Buys: buys, OpponentBuys: opponentBuys}
+		input := tacticalplan.PatternInput{Match: tacticalplan.SpatialMatch{MatchID: m.ID, Document: doc, Filter: filter, Blob: blob},
+			PlayedAt: m.PlayedAt, Team: matchTeamName(t)}
+		for _, other := range m.Teams {
+			if other.Key != t.Key {
+				input.Opponent = matchTeamName(other)
 			}
-			inputs = append(inputs, input)
 		}
+		runner.Add(input)
 	}
-	return inputs, skipped, nil
 }
 
 // patternFocus is who the finder's paths and heatmap follow: the first player
@@ -199,10 +291,18 @@ func (h *Handlers) patternPicture(resp *patternRunResponse, inputs []tacticalpla
 	return nil
 }
 
-// GetLibraryTeamPattern handles GET /api/library/teams/{id}/pattern: a pattern
-// (the pattern parameter, JSON) over the team's matches on one map, with the
-// team view's scope and matches for the most recent N. The answer lists the
-// matched rounds by match, and their paths and heatmap.
+// writePatternError answers a failed run: 400 for a bad query, else 500.
+func writePatternError(w http.ResponseWriter, err error) {
+	var bad errBadSpatialQuery
+	if errors.As(err, &bad) {
+		writeError(w, http.StatusBadRequest, bad.Error())
+		return
+	}
+	internalError(w, "run pattern", err)
+}
+
+// GetLibraryTeamPattern handles GET /api/library/teams/{id}/pattern: the pattern
+// (JSON) over the team's matches on one map, with the matched rounds' paths and heatmap.
 func (h *Handlers) GetLibraryTeamPattern(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
 		return
@@ -222,8 +322,9 @@ func (h *Handlers) GetLibraryTeamPattern(w http.ResponseWriter, r *http.Request)
 		writeLibraryError(w, "get team", err)
 		return
 	}
-	resp, ok := h.runTeamPattern(w, r.Context(), patternRun{team: team, q: q, pattern: p})
-	if !ok {
+	resp, err := h.runTeamPattern(r.Context(), patternRun{team: team, q: q, pattern: p})
+	if err != nil {
+		writePatternError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -236,41 +337,28 @@ type patternRun struct {
 	pattern tacticalplan.Pattern
 }
 
-// runTeamPattern answers a pattern over a team, or writes the error.
-func (h *Handlers) runTeamPattern(w http.ResponseWriter, ctx context.Context, run patternRun) (patternRunResponse, bool) {
-	spatial, inputs, err := h.teamPatternInputs(ctx, run.team, run.q, run.pattern.Side)
-	var bad errBadSpatialQuery
-	if errors.As(err, &bad) {
-		writeError(w, http.StatusBadRequest, bad.Error())
-		return patternRunResponse{}, false
-	}
+func (h *Handlers) runTeamPattern(ctx context.Context, run patternRun) (patternRunResponse, error) {
+	spatial, inputs, err := h.teamPatternInputs(ctx, teamPatternRead{team: run.team, q: run.q, side: run.pattern.Side})
 	if err != nil {
-		internalError(w, "read team matches", err)
-		return patternRunResponse{}, false
+		return patternRunResponse{}, err
 	}
-	results, err := tacticalplan.RunPatterns(inputs, []tacticalplan.Pattern{run.pattern}, time.Now())
-	if err != nil {
-		internalError(w, "run pattern", err)
-		return patternRunResponse{}, false
-	}
+	results := tacticalplan.RunPatterns(inputs, []tacticalplan.Pattern{run.pattern}, time.Now())
 	resp := patternRunResponse{spatialResponse: spatial, Pattern: run.pattern, Result: results[0]}
 	if err := h.patternPicture(&resp, inputs); err != nil {
-		internalError(w, "draw pattern rounds", err)
-		return patternRunResponse{}, false
+		return patternRunResponse{}, err
 	}
-	return resp, true
+	return resp, nil
 }
 
-// GetLibraryPatternRounds handles GET /api/library/patterns/{id}/rounds: a saved
-// pattern over a team (team_id, else its own team) with the team view's scope,
-// or over the whole library on its map when it has no team.
+// GetLibraryPatternRounds handles GET /api/library/patterns/{id}/rounds: a saved pattern over
+// a team (team_id, else its own) with its own scope, or the whole library without one.
 func (h *Handlers) GetLibraryPatternRounds(w http.ResponseWriter, r *http.Request) {
 	saved, ok := h.loadLibraryPattern(w, r)
 	if !ok {
 		return
 	}
 	q := cloneValues(r.URL.Query())
-	team, hasTeam, err := h.patternTeam(r.Context(), saved, q.Get("team_id"))
+	team, hasTeam, err := h.patternTeam(r.Context(), patternTeamAsk{pattern: saved, asked: q.Get("team_id")})
 	if err != nil {
 		writeLibraryError(w, "get team", err)
 		return
@@ -278,43 +366,44 @@ func (h *Handlers) GetLibraryPatternRounds(w http.ResponseWriter, r *http.Reques
 	if hasTeam {
 		q.Set("map", saved.Map)
 		applyPatternScope(q, saved.Scope)
-		resp, ok := h.runTeamPattern(w, r.Context(), patternRun{team: team, q: q, pattern: saved.Pattern})
-		if ok {
-			writeJSON(w, http.StatusOK, resp)
+		resp, err := h.runTeamPattern(r.Context(), patternRun{team: team, q: q, pattern: saved.Pattern})
+		if err != nil {
+			writePatternError(w, err)
+			return
 		}
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
-	inputs, skipped, err := h.libraryPatternInputs(r.Context(), saved.Map, saved.Scope)
-	if err != nil {
-		internalError(w, "read library matches", err)
-		return
-	}
-	results, err := tacticalplan.RunPatterns(inputs, []tacticalplan.Pattern{saved.Pattern}, time.Now())
+	results, err := h.libraryPatternResults(r.Context(), libraryRun{mapName: saved.Map, scope: saved.Scope, patterns: []tacticalplan.Pattern{saved.Pattern}})
 	if err != nil {
 		internalError(w, "run pattern", err)
 		return
 	}
-	resp := patternRunResponse{Pattern: saved.Pattern, Result: results[0], spatialResponse: spatialResponse{
-		Map: saved.Map, Maps: []spatialMapCount{}, Matches: []spatialMatchRef{}, Skipped: []scoutSkipped{}}}
-	resp.Result.MissingPositions += skipped
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, patternRunResponse{Pattern: saved.Pattern, Result: results[0], spatialResponse: spatialResponse{
+		Map: saved.Map, Maps: []spatialMapCount{}, Matches: []spatialMatchRef{}, Skipped: []scoutSkipped{}}})
+}
+
+// patternTeamAsk is a saved pattern and the team a request asked to run it on, if any.
+type patternTeamAsk struct {
+	pattern library.Pattern
+	asked   string
 }
 
 // patternTeam is the team a saved pattern runs on: the one asked for, else its
 // own. A deleted own team leaves the pattern on the whole library.
-func (h *Handlers) patternTeam(ctx context.Context, p library.Pattern, asked string) (library.Team, bool, error) {
-	if asked != "" {
-		id, err := uuid.Parse(asked)
+func (h *Handlers) patternTeam(ctx context.Context, ask patternTeamAsk) (library.Team, bool, error) {
+	if ask.asked != "" {
+		id, err := uuid.Parse(ask.asked)
 		if err != nil {
 			return library.Team{}, false, library.ErrNotFound
 		}
 		team, err := h.libraryRepo.GetTeam(ctx, id)
 		return team, err == nil, err
 	}
-	if p.TeamID == nil {
+	if ask.pattern.TeamID == nil {
 		return library.Team{}, false, nil
 	}
-	team, err := h.libraryRepo.GetTeam(ctx, *p.TeamID)
+	team, err := h.libraryRepo.GetTeam(ctx, *ask.pattern.TeamID)
 	if errors.Is(err, library.ErrNotFound) {
 		return library.Team{}, false, nil
 	}

@@ -108,3 +108,16 @@ func TestPatternToolsSaveListRunDelete(t *testing.T) {
 		t.Fatalf("delete without approval = %+v", del)
 	}
 }
+
+func TestPatternClockAfterThePlant(t *testing.T) {
+	plant := 40.0
+	for _, c := range []struct {
+		seconds float64
+		plant   *float64
+		want    string
+	}{{13, nil, "1:42"}, {13, &plant, "1:42"}, {52, &plant, "+12s tras el plant"}, {120, nil, "+5s tras el plant"}} {
+		if got := clockLabel(c.seconds, c.plant); got != c.want {
+			t.Fatalf("clockLabel(%v) = %q, want %q", c.seconds, got, c.want)
+		}
+	}
+}

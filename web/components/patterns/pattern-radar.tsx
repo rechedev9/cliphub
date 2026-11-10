@@ -22,6 +22,8 @@ export type PatternPicture = 'recorridos' | 'calor';
 type Props = {
   geometry: TacticalGeometry;
   levels: readonly RadarLevel[];
+  /** The map has two floors: paths and zones keep to the floor they are on, even with one shown. */
+  multiLevel: boolean;
   picture: PatternPicture;
   overlay: Overlay | null;
   heatmap: Heatmap | null;
@@ -36,13 +38,9 @@ type Props = {
   onArea: (box: WorldBox | null, level: RadarLevel) => void;
 };
 
-/**
- * The matched rounds on the radar: the paths of the players in focus in the
- * window, everyone else translucent, or their smooth heatmap. Dragging draws
- * the zone of the block being edited (Shift + drag once zoomed).
- */
-export function PatternRadar({ geometry, levels, picture, overlay, heatmap, side, focus, tramo, area, others, onArea }: Props): ReactNode {
-  const split = levels.length > 1;
+/** The matched rounds' paths in the window (focus loud) or their heatmap; dragging draws the edited block's zone. */
+export function PatternRadar({ geometry, levels, multiLevel, picture, overlay, heatmap, side, focus, tramo, area, others, onArea }: Props): ReactNode {
+  const split = multiLevel;
   const { calibration } = geometry;
   const images = useRef(new WeakMap<Uint8ClampedArray<ArrayBuffer>, HTMLCanvasElement>());
   const densities = useMemo(() => {
@@ -94,7 +92,7 @@ export function PatternRadar({ geometry, levels, picture, overlay, heatmap, side
             ctx.lineWidth = strong ? 1.75 : 1;
             ctx.beginPath();
             let open = false;
-            for (const point of trackInWindow(track, overlay.step_seconds, tramo)) {
+            for (const point of trackInWindow({ track, step: overlay.step_seconds, tramo })) {
               if (split && levelForAltitude(calibration, point[2]) !== level) {
                 open = false;
                 continue;

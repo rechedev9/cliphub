@@ -62,10 +62,31 @@ func TestLibraryTeamPatternRunsSavesAndDetectsAcrossTheLibrary(t *testing.T) {
 		}
 	}
 
+	// The cached figures are the ones a fresh pass gives.
+	first := listed.Patterns
+	f.env.json(http.MethodGet, "/api/library/patterns?map=de_mirage&stats=1", nil, http.StatusOK, &listed)
+	for i, p := range listed.Patterns {
+		if *p.Stats != *first[i].Stats {
+			t.Fatalf("cached figures of %q = %+v, first pass %+v", p.Name, p.Stats, first[i].Stats)
+		}
+	}
+
 	var rounds patternRunResponse
 	f.env.json(http.MethodGet, "/api/library/patterns/"+saved.ID.String()+"/rounds", nil, http.StatusOK, &rounds)
 	if rounds.Result.Matched != run.Result.Matched {
 		t.Fatalf("saved pattern over its team matched %d, the run %d", rounds.Result.Matched, run.Result.Matched)
+	}
+
+	// A pattern's own scope applies to its figures and to its rounds alike.
+	var newest library.Pattern
+	body["name"], body["scope"] = "Última", map[string]any{"matches": 1}
+	f.env.json(http.MethodPost, "/api/library/patterns", body, http.StatusCreated, &newest)
+	f.env.json(http.MethodGet, "/api/library/patterns?map=de_mirage&stats=1&team_id="+f.vitality.String(), nil, http.StatusOK, &listed)
+	f.env.json(http.MethodGet, "/api/library/patterns/"+newest.ID.String()+"/rounds", nil, http.StatusOK, &rounds)
+	for _, p := range listed.Patterns {
+		if p.ID == newest.ID && (p.Stats.Rounds != rounds.Result.Rounds || len(rounds.Result.Matches) > 1) {
+			t.Fatalf("one-match pattern: list %+v, rounds %d of the run's %d over %d matches", p.Stats, rounds.Result.Rounds, run.Result.Rounds, len(rounds.Result.Matches))
+		}
 	}
 	f.env.json(http.MethodDelete, "/api/library/patterns/"+saved.ID.String(), nil, http.StatusNoContent, nil)
 	f.env.json(http.MethodGet, "/api/library/patterns/"+saved.ID.String(), nil, http.StatusNotFound, nil)

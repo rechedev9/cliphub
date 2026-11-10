@@ -41,27 +41,30 @@ test('the block window maps to the tramo and back on the round clock', () => {
   assert.deepEqual(withTramo({ kind: 'player', from: 0 }, { from: 0, to: 0, fromPlant: true }), { kind: 'player', from: 0 });
   assert.equal(blockSentence({ kind: 'player', from: 0, to: 35, area: { min_x: 0, min_y: 0, max_x: 1, max_y: 1 } }), 'Pasa por la caja dibujada entre 1:55 y 1:20');
   assert.equal(blockSentence({ kind: 'utility', from_throw: true, from: 0, area: { min_x: 0, min_y: 0, max_x: 1, max_y: 1 } }), 'La tira desde la caja dibujada en toda la ronda');
-  assert.equal(entryLabel('player', 13), 'Entra en la zona a 1:42');
-  assert.equal(entryLabel('plant', 60), 'Planta a 0:55');
+  assert.equal(entryLabel({ kind: 'player', seconds: 13 }), 'Entra en la zona a 1:42');
+  assert.equal(entryLabel({ kind: 'player', seconds: 52, plant: 40 }), 'Entra en la zona a +12s tras el plant');
+  assert.equal(entryLabel({ kind: 'utility', seconds: 120 }), 'La tira a +5s tras el plant');
+  assert.equal(entryLabel({ kind: 'plant', seconds: 60, plant: 60 }), 'Planta a +0s tras el plant');
+  assert.equal(entryLabel({ kind: 'plant', seconds: 60 }), 'Planta a 0:55');
 });
 
 test('an area keeps the floor it was drawn on only on a two-floor map', () => {
   const box = { minX: -10.4, minY: 0, maxX: 99.6, maxY: 50 };
-  assert.deepEqual(areaOfBox(box, 'lower', false), { min_x: -10, min_y: 0, max_x: 100, max_y: 50 });
-  const lower = areaOfBox(box, 'lower', true);
+  assert.deepEqual(areaOfBox({ box, level: 'lower', twoFloors: false }), { min_x: -10, min_y: 0, max_x: 100, max_y: 50 });
+  const lower = areaOfBox({ box, level: 'lower', twoFloors: true });
   assert.equal(lower.level, 'lower');
   assert.equal(inArea(lower, 20, 20, 'lower'), true);
   assert.equal(inArea(lower, 20, 20, 'default'), false);
   assert.equal(inArea(lower, 200, 20, 'lower'), false);
-  assert.equal(inArea(areaOfBox(box, 'default', false), 20, 20, 'lower'), true);
+  assert.equal(inArea(areaOfBox({ box, level: 'default', twoFloors: false }), 20, 20, 'lower'), true);
 });
 
 test('a track keeps the points inside the clock window', () => {
   const track = { start: 2, points: [[0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0], [4, 0, 0]] satisfies [number, number, number][] };
   // Points sit at 1, 1.5, 2, 2.5 and 3 seconds with a 0.5 s step.
-  assert.deepEqual(trackInWindow(track, 0.5, { from: 2, to: 10 }).map((p) => p[0]), [2, 3, 4]);
-  assert.equal(trackInWindow(track, 0.5, { from: 0, to: 0 }).length, 5);
-  assert.equal(trackInWindow(track, 0, { from: 0, to: 0 }).length, 0);
+  assert.deepEqual(trackInWindow({ track, step: 0.5, tramo: { from: 2, to: 10 } }).map((p) => p[0]), [2, 3, 4]);
+  assert.equal(trackInWindow({ track, step: 0.5, tramo: { from: 0, to: 0 } }).length, 5);
+  assert.equal(trackInWindow({ track, step: 0, tramo: { from: 0, to: 0 } }).length, 0);
 });
 
 test('the matched rounds open at the moment the pattern held', () => {

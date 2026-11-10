@@ -5,11 +5,8 @@ import { SPATIAL_RESPONSE_KEYS } from './spatial.ts';
 import type { TacticalBuyType, TacticalSide } from './tactical.ts';
 import type { TeamGrenadeKind } from './grenades.ts';
 
-/**
- * Browser-side contract of the pattern finder (`tacticalplan.Pattern` and
- * `library.Pattern` in Go): blocks that must all hold in a round, run over a
- * team's matches or saved and detected over the whole library.
- */
+// The pattern finder's contract (`tacticalplan.Pattern`, `library.Pattern`): blocks that must all
+// hold in a round, run over a team's matches or saved and detected over the whole library.
 
 export const PATTERN_BLOCK_KINDS = ['player', 'utility', 'plant'] as const;
 export type PatternBlockKind = (typeof PATTERN_BLOCK_KINDS)[number];
@@ -54,6 +51,8 @@ export type PatternRound = {
   /** When the first timed block first held, and its tick. */
   seconds?: number;
   tick?: number;
+  /** Seconds from freeze end to the plant, when the bomb went down. */
+  plant_seconds?: number;
 };
 
 export type PatternMatch = {
@@ -75,7 +74,13 @@ export type PatternResult = {
   /** 0 to 1 over the matched rounds. */
   win_rate: number;
   blocks: { matched: number; rounds: number }[];
-  missing_positions: number;
+  /** Matches without saved positions: a player block leaves their rounds out of scope. */
+  missing_positions?: number;
+  unreadable_matches?: number;
+  /** Grenades a throw-position block could not place. */
+  grenades_without_throw?: number;
+  /** A library-wide run read only this many of the newest matches of the map. */
+  capped_at?: number;
   recent_rounds: number;
   recent_matched: number;
   trend: PatternTrend;
@@ -123,18 +128,21 @@ function scopeParams(scope: TeamPatternScope): URLSearchParams {
   return params;
 }
 
+export type TeamPatternRun = { teamId: string; scope: TeamPatternScope; pattern: PatternDefinition };
+
 /** A pattern over a team's matches on one map: the matched rounds by match, their paths and heatmap. */
-export function runTeamPattern(teamId: string, scope: TeamPatternScope, pattern: PatternDefinition): Promise<PatternRunResponse> {
-  const params = scopeParams(scope);
-  params.set('pattern', JSON.stringify(pattern));
-  return request<PatternRunResponse>(`/teams/${encodeURIComponent(teamId)}/pattern?${params.toString()}`);
+export function runTeamPattern(run: TeamPatternRun): Promise<PatternRunResponse> {
+  const params = scopeParams(run.scope);
+  params.set('pattern', JSON.stringify(run.pattern));
+  return request<PatternRunResponse>(`/teams/${encodeURIComponent(run.teamId)}/pattern?${params.toString()}`);
 }
 
-/**
- * The saved patterns of a map, the team's and the library-wide ones. With a
- * team and figures, each runs over the team's scope; with figures and no team,
- * over the whole library.
- */
+/** A saved pattern's own rounds: over its team, or over the library when it has none. */
+export function savedPatternRounds(id: string): Promise<PatternRunResponse> {
+  return request<PatternRunResponse>(`/patterns/${encodeURIComponent(id)}/rounds`);
+}
+
+/** The saved patterns of a map, the team's and the library-wide ones; figures use each one's scope. */
 export async function listSavedPatterns(query: { map: string; teamId?: string; scope?: TeamPatternScope; stats?: boolean }): Promise<SavedPattern[]> {
   const params = query.scope === undefined ? new URLSearchParams() : scopeParams(query.scope);
   params.set('map', query.map);

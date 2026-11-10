@@ -110,7 +110,7 @@ type patternRoundOut struct {
 	Side  string `json:"side"`
 	Won   bool   `json:"won"`
 	Buy   string `json:"buy,omitempty"`
-	Clock string `json:"clock,omitempty" jsonschema:"when the first block that is not inverted first held, on the round clock: 1:42 reads Entra en la zona a 1:42"`
+	Clock string `json:"clock,omitempty" jsonschema:"when the first block that is not inverted first held, on the round clock (1:42 reads Entra en la zona a 1:42), or +Ns tras el plant past the plant"`
 }
 
 type patternMatchOut struct {
@@ -135,10 +135,13 @@ type patternRunOut struct {
 	Won              int                         `json:"won"`
 	WinRate          float64                     `json:"win_rate" jsonschema:"won over matched, 0 to 1"`
 	Blocks           []tacticalplan.PatternCount `json:"blocks" jsonschema:"each block's own count over the rounds, in order, as each block card shows it"`
-	MissingPositions int                         `json:"missing_positions,omitempty" jsonschema:"rounds without saved positions: player blocks cannot hold in them"`
+	MissingPositions int                         `json:"missing_positions,omitempty" jsonschema:"matches without saved positions: a player block leaves their rounds out of scope"`
+	Unreadable       int                         `json:"unreadable_matches,omitempty" jsonschema:"matches whose analysis or positions could not be read"`
+	NoThrow          int                         `json:"grenades_without_throw,omitempty" jsonschema:"grenades a from_throw block could not place: their demo has no throw data"`
+	CappedAt         int                         `json:"capped_at,omitempty" jsonschema:"a library-wide run read only the newest capped_at matches of the map"`
 	RecentRounds     int                         `json:"recent_rounds" jsonschema:"rounds of the last 30 days"`
 	RecentMatched    int                         `json:"recent_matched"`
-	Trend            string                      `json:"trend" jsonschema:"up, down or flat: the last 30 days' share against the earlier one; empty when either has no rounds"`
+	Trend            string                      `json:"trend" jsonschema:"up, down or flat: the last 30 days' share against the earlier one; empty under 10 rounds on either side"`
 	Months           []patternMonthOut           `json:"months"`
 	Matches          []patternMatchOut           `json:"matches" jsonschema:"the matched rounds by match, newest first"`
 	Truncated        bool                        `json:"truncated,omitempty" jsonschema:"more matched rounds than listed; the counts cover them all"`
@@ -241,8 +244,16 @@ func patternScopeValues(s tuiclient.PatternScope) url.Values {
 	return v
 }
 
-// clockLabel is seconds after the round went live on CS2's round clock.
-func clockLabel(seconds float64) string {
+// clockLabel is seconds after the round went live on CS2's round clock; past the plant
+// (or the clock's end without one) it is the time since then, as the web shows it.
+func clockLabel(seconds float64, plant *float64) string {
+	from := float64(roundClockSeconds)
+	if plant != nil && *plant < from {
+		from = *plant
+	}
+	if seconds >= from && (plant != nil || seconds > from) {
+		return fmt.Sprintf("+%ds tras el plant", int(seconds-from+0.5))
+	}
 	left := max(0, roundClockSeconds-int(seconds+0.5))
 	return fmt.Sprintf("%d:%02d", left/60, left%60)
 }
@@ -250,7 +261,7 @@ func clockLabel(seconds float64) string {
 func summarizePattern(run tuiclient.PatternRun, title string) patternRunOut {
 	r := run.Result
 	out := patternRunOut{Map: cleanName(run.Map), Rounds: r.Rounds, Matched: r.Matched, Won: r.Won, WinRate: r.WinRate, Blocks: r.Blocks,
-		MissingPositions: r.MissingPositions, RecentRounds: r.RecentRounds, RecentMatched: r.RecentMatched, Trend: r.Trend,
+		MissingPositions: r.MissingPositions, Unreadable: r.Unreadable, NoThrow: r.NoThrow, CappedAt: r.CappedAt, RecentRounds: r.RecentRounds, RecentMatched: r.RecentMatched, Trend: r.Trend,
 		Months: []patternMonthOut{}, Matches: []patternMatchOut{}}
 	if out.Blocks == nil {
 		out.Blocks = []tacticalplan.PatternCount{}
@@ -273,7 +284,7 @@ func summarizePattern(run tuiclient.PatternRun, title string) patternRunOut {
 			rows++
 			item := patternRoundOut{Ref: fmt.Sprintf("%s/%d", match.MatchID, row.Round), Side: string(row.Side), Won: row.Won, Buy: string(row.Buy)}
 			if row.Seconds != nil {
-				item.Clock = clockLabel(*row.Seconds)
+				item.Clock = clockLabel(*row.Seconds, row.PlantSeconds)
 			}
 			match.Matched = append(match.Matched, item)
 			ref := fmt.Sprintf("%s:%d", match.MatchID, row.Round)
@@ -293,13 +304,22 @@ func summarizePattern(run tuiclient.PatternRun, title string) patternRunOut {
 	return out
 }
 
+// patternLink is what a studio_path to the finder carries.
+type patternLink struct {
+	teamID, mapName string
+	pattern         tacticalplan.Pattern
+	scope           tuiclient.PatternScope
+	from, to        string
+}
+
 // patternStudioPath opens the pattern in the team's Replay > Patrones with its scope, as the web reads it.
-func patternStudioPath(teamID, mapName string, p tacticalplan.Pattern, scope tuiclient.PatternScope, dates [2]string) string {
+func patternStudioPath(l patternLink) string {
+	teamID, mapName, p, scope := l.teamID, l.mapName, l.pattern, l.scope
 	v := url.Values{"tab": {"replay"}, "forma": {"patrones"}}
 	if mapName != "" {
 		v.Set("map", mapName)
 	}
-	for key, value := range map[string]string{"from": dates[0], "to": dates[1], "buy": scope.Buy, "opponent_buy": scope.OpponentBuy} {
+	for key, value := range map[string]string{"from": l.from, "to": l.to, "buy": scope.Buy, "opponent_buy": scope.OpponentBuy} {
 		if value != "" {
 			v.Set(key, value)
 		}
@@ -316,13 +336,13 @@ func patternStudioPath(teamID, mapName string, p tacticalplan.Pattern, scope tui
 func savedPatternOf(p tuiclient.SavedPattern) savedPatternOut {
 	out := savedPatternOut{ID: p.ID, Name: cleanName(p.Name), Map: p.Map, TeamID: p.TeamID, Pattern: p.Pattern, Scope: p.Scope, Stats: p.Stats}
 	if p.TeamID != "" {
-		out.StudioPath = patternStudioPath(p.TeamID, p.Map, p.Pattern, p.Scope, [2]string{})
+		out.StudioPath = patternStudioPath(patternLink{teamID: p.TeamID, mapName: p.Map, pattern: p.Pattern, scope: p.Scope})
 	}
 	return out
 }
 
 // runTeamPattern checks a team run, asks the orchestrator and words the answer.
-func runTeamPattern(ctx context.Context, s *studio, run teamPatternRun) (patternRunOut, error) {
+func (s *studio) runTeamPattern(ctx context.Context, run teamPatternRun) (patternRunOut, error) {
 	if err := checkUUID("team_id", run.teamID); err != nil {
 		return patternRunOut{}, err
 	}
@@ -338,12 +358,12 @@ func runTeamPattern(ctx context.Context, s *studio, run teamPatternRun) (pattern
 	if err != nil {
 		return patternRunOut{}, toolError(err)
 	}
-	got, err := c.TeamPattern(ctx, run.teamID, q, patternScopeValues(scope), run.pattern)
+	got, err := c.TeamPattern(ctx, tuiclient.TeamPatternQuery{TeamID: run.teamID, Scope: q, Extra: patternScopeValues(scope), Pattern: run.pattern})
 	if err != nil {
 		return patternRunOut{}, toolError(err)
 	}
 	out := summarizePattern(got, "Patrón en "+cleanName(got.Map))
-	out.StudioPath = patternStudioPath(run.teamID, got.Map, run.pattern, scope, [2]string{run.from, run.to})
+	out.StudioPath = patternStudioPath(patternLink{teamID: run.teamID, mapName: got.Map, pattern: run.pattern, scope: scope, from: run.from, to: run.to})
 	return out, nil
 }
 
@@ -368,7 +388,7 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, patternRunOut{}, err
 			}
-			out, err := runTeamPattern(ctx, s, teamPatternRun{teamID: in.TeamID, mapName: in.Map, from: in.From, to: in.To, teamScope: in.teamScopeIn, scope: in.patternScopeIn, pattern: p})
+			out, err := s.runTeamPattern(ctx, teamPatternRun{teamID: in.TeamID, mapName: in.Map, from: in.From, to: in.To, teamScope: in.teamScopeIn, scope: in.patternScopeIn, pattern: p})
 			return nil, out, err
 		})
 
@@ -382,7 +402,7 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, patternRunOut{}, err
 			}
-			out, err := runTeamPattern(ctx, s, teamPatternRun{teamID: in.TeamID, mapName: in.Map, from: in.From, to: in.To, teamScope: in.teamScopeIn, scope: in.patternScopeIn, pattern: p})
+			out, err := s.runTeamPattern(ctx, teamPatternRun{teamID: in.TeamID, mapName: in.Map, from: in.From, to: in.To, teamScope: in.teamScopeIn, scope: in.patternScopeIn, pattern: p})
 			return nil, out, err
 		})
 
@@ -444,7 +464,7 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 			for _, p := range list {
 				item := savedPatternOf(p)
 				if in.TeamID != "" {
-					item.StudioPath = patternStudioPath(in.TeamID, p.Map, p.Pattern, p.Scope, [2]string{})
+					item.StudioPath = patternStudioPath(patternLink{teamID: in.TeamID, mapName: p.Map, pattern: p.Pattern, scope: p.Scope})
 				}
 				out.Patterns = append(out.Patterns, item)
 			}
@@ -477,7 +497,7 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 			}
 			out := summarizePattern(got, cleanName(saved.Name))
 			if team := cmp.Or(in.TeamID, saved.TeamID); team != "" {
-				out.StudioPath = patternStudioPath(team, saved.Map, saved.Pattern, saved.Scope, [2]string{})
+				out.StudioPath = patternStudioPath(patternLink{teamID: team, mapName: saved.Map, pattern: saved.Pattern, scope: saved.Scope})
 			}
 			return nil, out, nil
 		})

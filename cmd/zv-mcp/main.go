@@ -138,9 +138,11 @@ in a clock window (clock_from and clock_to, seconds after the round went live, o
 with their callout and counts. team_heatmap reads a team's matches on one map the same way, with players (SteamID64s) as the focus.
 Replay > Patrones of a team: find_player_pattern finds the rounds in which a player passes through a zone (a world rectangle,
 optionally one floor) in a clock window, or does not with invert; find_pattern_rounds adds up blocks (player, utility, plant),
-each with its own count. Both list the matched rounds by match with when the block held, the win rate, the last 30 days and the trend,
+each with its own count. Both list the matched rounds by match with when the block held (+Ns tras el plant past the plant), the win rate,
+the last 30 days and the trend (only with 10 rounds each side), matches without positions (their rounds are out of scope) and unreadable ones,
 with replay_path (a playlist) and studio_path. save_pattern stores one for a team or the whole library, list_patterns gives each
-saved pattern's figures, pattern_rounds runs one (without a team, over every analysed match of its map) and delete_pattern removes it.
+saved pattern's figures with its own scope, pattern_rounds runs one (without a team, over the newest 200 analysed matches of its map,
+capped_at says so) and delete_pattern removes it.
 player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay).
 export_replay_gif saves a round's tramo as a looping GIF with the radar, players, utility, clock and saved drawings, as Exportar GIF (G) does.
 record_round_pov is the Replay's "Grabar su POV de esta ronda": one player's first-person video of one round (match_id, round, steamid),
