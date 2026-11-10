@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/rechedev9/cliphub/internal/community"
 )
 
 const testProMatchesJSON = `{"status":"ok","updated_at":"2026-11-09T03:00:00Z","days":7,"page":1,"pages":1,"total":1,
@@ -65,4 +67,14 @@ func TestListAndImportProMatches(t *testing.T) {
 func TestListProMatchesExplainsAMissingCatalog(t *testing.T) {
 	cs, _ := proMatchStudio(t, `{"status":"missing","matches":[],"facets":{"teams":[],"events":[],"maps":[]},"follows":[]}`)
 	toolFails(t, cs, "list_pro_matches", map[string]any{}, "no pro match catalog yet")
+}
+
+func TestProListPathCarriesTheFilters(t *testing.T) {
+	if got := proListPath(community.ProMatchQuery{Days: community.DefaultProMatchDays, Page: 1}); got != "/partidas/pro" {
+		t.Fatalf("defaults = %q", got)
+	}
+	got := proListPath(community.ProMatchQuery{Days: 90, Team: "9565", Event: "IEM Chengdu", Map: "de_mirage", Page: 2})
+	if got != "/partidas/pro?dias=90&equipo=9565&evento=IEM+Chengdu&mapa=de_mirage&pagina=2" {
+		t.Fatalf("filters = %q", got)
+	}
 }

@@ -1,18 +1,19 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { CloudOff, PlugZap, Trophy, X } from 'lucide-react';
 import { LibraryApiError, isLibraryOffline } from '@/lib/api/library';
 import {
-  DEFAULT_PRO_QUERY,
   PRO_PERIODS,
   followProTeam,
   groupByDay,
   proDayLabel,
   importProMatch,
   listProMatches,
+  parseProQuery,
   proCatalogNotice,
+  proQueryAddress,
   unfollowProTeam,
   type ProMatch,
   type ProMatchMap,
@@ -48,12 +49,19 @@ function importErrorText(error: unknown): string {
 /** Partidas pro: the server's recent HLTV matches, filtered, with Abrir en el Replay and Seguir equipo. */
 export function ProMatchList(): ReactNode {
   const router = useRouter();
-  const [query, setQuery] = useState<ProMatchQuery>(DEFAULT_PRO_QUERY);
+  const search = useSearchParams();
+  const [query, setQuery] = useState<ProMatchQuery>(() => parseProQuery(search));
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [importing, setImporting] = useState<string | null>(null);
   const [following, setFollowing] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // The filters live in the address, so Back from the Replay keeps them; the entry is replaced, not added.
+  useEffect(() => {
+    const address = proQueryAddress(query);
+    window.history.replaceState(null, '', address === '' ? window.location.pathname : `${window.location.pathname}?${address}`);
+  }, [query]);
 
   useEffect(() => {
     let active = true;
@@ -172,12 +180,18 @@ function unavailablePage(query: ProMatchQuery): ProMatchesPage {
   return { status: 'unavailable', days: query.days, page: 1, pages: 1, total: 0, matches: [], facets: { teams: [], events: [], maps: [] }, follows: [] };
 }
 
+/** The period choices, plus the one an address or an assistant link asked for. */
+function periodOptions(days: number): { value: string; label: string }[] {
+  const options = PRO_PERIODS.map((p) => ({ value: String(p.days), label: p.label }));
+  return options.some((o) => o.value === String(days)) ? options : [...options, { value: String(days), label: `${days} días` }];
+}
+
 function ProFilters({ page, query, onChange }: { page: ProMatchesPage; query: ProMatchQuery; onChange: (patch: Partial<ProMatchQuery>) => void }): ReactNode {
   const period = String(query.days);
   return (
     <div className="flex flex-wrap items-center gap-3">
       <Segmented label="Periodo" value={period} onChange={(v) => onChange({ days: Number(v) })}
-        options={PRO_PERIODS.map((p) => ({ value: String(p.days), label: p.label }))} />
+        options={periodOptions(query.days)} />
       <FilterSelect label="Equipo" all="Todos los equipos" value={query.team} onChange={(team) => onChange({ team })}
         options={page.facets.teams.map((t) => ({ value: String(t.id), label: t.rank ? `${t.name} (#${t.rank})` : t.name }))} />
       <FilterSelect label="Evento" all="Todos los eventos" value={query.event} onChange={(event) => onChange({ event })}

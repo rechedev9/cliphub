@@ -23,6 +23,9 @@ export type ProMatchCardProps = {
 
 /** One HLTV match: its teams with Seguir, and each analysed map with its way into the Replay. */
 export function ProMatchCard({ match, importing, following, onOpen, onToggleFollow }: ProMatchCardProps): ReactNode {
+  // A note every map shares shows once for the match, so it does not repeat under each map.
+  const allOld = match.maps.length > 0 && match.maps.every((m) => m.old_analysis);
+  const allRadarOff = match.maps.length > 0 && match.maps.every((m) => m.radar_may_be_off);
   return (
     <article className="studio-panel flex flex-col gap-3 p-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
@@ -36,6 +39,8 @@ export function ProMatchCard({ match, importing, following, onOpen, onToggleFoll
         </a>
         <span>{HLTV_DEMO_NOTE}</span>
       </p>
+      {allOld ? <OldAnalysisNote /> : null}
+      {allRadarOff ? <RadarOffNote /> : null}
       <div className="flex flex-wrap gap-2">
         {match.teams.map((team) => (
           <Button
@@ -56,14 +61,35 @@ export function ProMatchCard({ match, importing, following, onOpen, onToggleFoll
       </div>
       <ul className="flex flex-col divide-y divide-border">
         {match.maps.map((map) => (
-          <ProMapRow key={map.entry} map={map} busy={importing === `${match.id}/${map.entry}`} disabled={importing !== null} onOpen={() => onOpen(match, map)} />
+          <ProMapRow key={map.entry} map={map} notes={{ old: !allOld && map.old_analysis, radar: !allRadarOff && map.radar_may_be_off }}
+            busy={importing === `${match.id}/${map.entry}`} disabled={importing !== null} onOpen={() => onOpen(match, map)} />
         ))}
       </ul>
     </article>
   );
 }
 
-function ProMapRow({ map, busy, disabled, onOpen }: { map: ProMatchMap; busy: boolean; disabled: boolean; onOpen: () => void }): ReactNode {
+function OldAnalysisNote(): ReactNode {
+  return (
+    <p className="flex items-start gap-1.5 text-meta text-fg-3">
+      <History aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+      {OLD_ANALYSIS_NOTE}
+    </p>
+  );
+}
+
+function RadarOffNote(): ReactNode {
+  return (
+    <p className="flex items-start gap-1.5 text-meta text-warning">
+      <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+      {RADAR_OFF_NOTE}
+    </p>
+  );
+}
+
+type ProMapRowProps = { map: ProMatchMap; notes: { old: boolean; radar: boolean }; busy: boolean; disabled: boolean; onOpen: () => void };
+
+function ProMapRow({ map, notes, busy, disabled, onOpen }: ProMapRowProps): ReactNode {
   const demos = proMapDemos(map);
   return (
     <li className="flex flex-col gap-1.5 py-2 first:pt-0 last:pb-0">
@@ -87,18 +113,8 @@ function ProMapRow({ map, busy, disabled, onOpen }: { map: ProMatchMap; busy: bo
           </Button>
         )}
       </div>
-      {map.old_analysis ? (
-        <p className="flex items-start gap-1.5 text-meta text-fg-3">
-          <History aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-          {OLD_ANALYSIS_NOTE}
-        </p>
-      ) : null}
-      {map.radar_may_be_off ? (
-        <p className="flex items-start gap-1.5 text-meta text-warning">
-          <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-          {RADAR_OFF_NOTE}
-        </p>
-      ) : null}
+      {notes.old ? <OldAnalysisNote /> : null}
+      {notes.radar ? <RadarOffNote /> : null}
     </li>
   );
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,6 +77,8 @@ type listProMatchesOut struct {
 	Events    []proCountOut  `json:"events"`
 	Maps      []proCountOut  `json:"maps"`
 	Follows   []proFollowOut `json:"follows"`
+	// StudioPath opens Partidas pro with the same filters.
+	StudioPath string `json:"studio_path" jsonschema:"the path that opens Partidas pro in Studio with these filters"`
 }
 
 type importProMatchIn struct {
@@ -123,7 +127,9 @@ func registerProMatchTools(server *mcp.Server, s *studio) {
 			if err := proCatalogStatus(page.Status); err != nil {
 				return nil, listProMatchesOut{}, err
 			}
-			return nil, proMatchesOf(page), nil
+			out := proMatchesOf(page)
+			out.StudioPath = proListPath(q)
+			return nil, out, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "import_pro_match", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
@@ -197,6 +203,26 @@ func registerProMatchTools(server *mcp.Server, s *studio) {
 			}
 			return nil, out, nil
 		})
+}
+
+// proListPath is the Partidas pro address of a query, with the keys the page reads (web parseProQuery).
+func proListPath(q community.ProMatchQuery) string {
+	v := url.Values{}
+	if q.Days > 0 && q.Days != community.DefaultProMatchDays {
+		v.Set("dias", strconv.Itoa(q.Days))
+	}
+	for key, value := range map[string]string{"equipo": q.Team, "evento": q.Event, "mapa": q.Map} {
+		if value != "" {
+			v.Set(key, value)
+		}
+	}
+	if q.Page > 1 {
+		v.Set("pagina", strconv.Itoa(q.Page))
+	}
+	if len(v) == 0 {
+		return "/partidas/pro"
+	}
+	return "/partidas/pro?" + v.Encode()
 }
 
 func (in listProMatchesIn) query() (community.ProMatchQuery, error) {

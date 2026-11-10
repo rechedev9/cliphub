@@ -84,6 +84,40 @@ export const PRO_PERIODS = [
 
 export const DEFAULT_PRO_QUERY: ProMatchQuery = { days: 7, team: '', event: '', map: '', page: 1 };
 
+/** The address keys of the Partidas pro filters; cmd/zv-mcp proListPath writes the same ones. */
+export const PRO_URL_KEYS = { days: 'dias', team: 'equipo', event: 'evento', map: 'mapa', page: 'pagina' } as const satisfies Record<keyof ProMatchQuery, string>;
+
+const MAX_PRO_DAYS = 120;
+
+function intParam(raw: string | null, max: number): number | null {
+  if (raw === null || !/^[0-9]{1,4}$/.test(raw)) return null;
+  const n = Number(raw);
+  return n >= 1 && n <= max ? n : null;
+}
+
+/** The filters an address carries; a missing or bad key keeps its default. */
+export function parseProQuery(search: Pick<URLSearchParams, 'get'>): ProMatchQuery {
+  const text = (key: string): string => (search.get(key) ?? '').trim().slice(0, 80);
+  return {
+    days: intParam(search.get(PRO_URL_KEYS.days), MAX_PRO_DAYS) ?? DEFAULT_PRO_QUERY.days,
+    team: text(PRO_URL_KEYS.team),
+    event: text(PRO_URL_KEYS.event),
+    map: /^[a-z0-9_]{1,40}$/.test(text(PRO_URL_KEYS.map)) ? text(PRO_URL_KEYS.map) : '',
+    page: intParam(search.get(PRO_URL_KEYS.page), 1000) ?? 1,
+  };
+}
+
+/** The address query of the filters, without the defaults; parseProQuery reads it back. */
+export function proQueryAddress(q: ProMatchQuery): string {
+  const params = new URLSearchParams();
+  if (q.days !== DEFAULT_PRO_QUERY.days) params.set(PRO_URL_KEYS.days, String(q.days));
+  if (q.team) params.set(PRO_URL_KEYS.team, q.team);
+  if (q.event) params.set(PRO_URL_KEYS.event, q.event);
+  if (q.map) params.set(PRO_URL_KEYS.map, q.map);
+  if (q.page > 1) params.set(PRO_URL_KEYS.page, String(q.page));
+  return params.toString();
+}
+
 /** The query string of a catalog read, without the defaults. Hoy starts at the reader's midnight. */
 export function proMatchSearch(q: ProMatchQuery, now: Date = new Date()): string {
   const params = new URLSearchParams();

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_PRO_QUERY, groupByDay, localDay, proCatalogNotice, proDayLabel, proMapDemos, proMatchSearch, proMatchTitle, type ProMatch } from './pro-matches.ts';
+import { DEFAULT_PRO_QUERY, groupByDay, parseProQuery, proQueryAddress, localDay, proCatalogNotice, proDayLabel, proMapDemos, proMatchSearch, proMatchTitle, type ProMatch } from './pro-matches.ts';
 
 const match = (id: number, playedAt: string): ProMatch => ({
   id,
@@ -53,4 +53,13 @@ test('every catalog state but ok has its own message', () => {
   const titles = (['disabled', 'missing', 'unavailable'] as const).map((s) => proCatalogNotice(s)?.title);
   assert.equal(new Set(titles).size, 3);
   for (const t of titles) assert.ok(t && !/[–—]/.test(t));
+});
+
+test('the filters travel in the address and read back the same', () => {
+  const q = { days: 90, team: '9565', event: 'IEM Chengdu', map: 'de_mirage', page: 2 };
+  assert.equal(proQueryAddress(q), 'dias=90&equipo=9565&evento=IEM+Chengdu&mapa=de_mirage&pagina=2');
+  assert.deepEqual(parseProQuery(new URLSearchParams(proQueryAddress(q))), q);
+  assert.equal(proQueryAddress(DEFAULT_PRO_QUERY), '');
+  assert.deepEqual(parseProQuery(new URLSearchParams('dias=60')), { ...DEFAULT_PRO_QUERY, days: 60 });
+  assert.deepEqual(parseProQuery(new URLSearchParams('dias=999&mapa=../x&pagina=0')), DEFAULT_PRO_QUERY);
 });
