@@ -47,6 +47,6 @@ test('proxy rejects cross-origin and DNS-rebound reads', async () => {
 
 test('proxy preserves the API matcher and streaming-route exclusions', () => {
   assert.deepEqual(config, {
-    matcher: '/api/((?!demos/scan/?$|library/demos/?$|library/import-package/?$|library/matches/[^/]+/voice/?$|streams/?$|editor/assets/?$|full-demo/overlay-images/?$|session/bootstrap/?$|voice-plugin/gamestate/?$).*)',
+    matcher: '/api/((?!demos/scan/?$|library/demos/?$|library/import-package/?$|library/matches/[^/]+/voice/?$|library/matches/[^/]+/replay-video/?$|streams/?$|editor/assets/?$|full-demo/overlay-images/?$|session/bootstrap/?$|voice-plugin/gamestate/?$).*)',
   });
 });

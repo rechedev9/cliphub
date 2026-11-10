@@ -68,6 +68,9 @@ func (s Scene) units(world float64) float64 {
 // drawAt paints one moment over the plate: utility, the bomb, the drawings, the players and the clock.
 func (s Scene) drawAt(img *image.Paletted, tick int, in inks) {
 	for _, e := range s.Round.Events {
+		if s.Hide.Utility {
+			break
+		}
 		kind, radius, last := e.Kind, 0.0, e.EndTick
 		switch kind {
 		case tacticalplan.EventSmoke:
@@ -93,7 +96,7 @@ func (s Scene) drawAt(img *image.Paletted, tick int, in inks) {
 			ring(img, ringSpec{x: x, y: y, r: s.units(radius), width: 2.5, ink: in.fire})
 		}
 	}
-	if b := s.Round.Bomb; b != nil && b.PlantTick > 0 && tick >= b.PlantTick && (b.DefuseTick == 0 || tick < b.DefuseTick) && (b.ExplodeTick == 0 || tick < b.ExplodeTick) {
+	if b := s.Round.Bomb; !s.Hide.Bomb && b != nil && b.PlantTick > 0 && tick >= b.PlantTick && (b.DefuseTick == 0 || tick < b.DefuseTick) && (b.ExplodeTick == 0 || tick < b.ExplodeTick) {
 		for _, e := range s.Round.Events {
 			if e.Kind == tacticalplan.EventPlant {
 				x, y := s.px(e.Pos[0], e.Pos[1])
@@ -109,6 +112,12 @@ func (s Scene) drawAt(img *image.Paletted, tick int, in inks) {
 		for _, st := range note.Strokes {
 			s.drawStroke(img, st, in.stroke(st.Color))
 		}
+	}
+	if !s.Hide.Clock {
+		defer caption(img, clockLabel(s.Round, tick, s.Tickrate), in)
+	}
+	if s.Hide.Players {
+		return
 	}
 	r := math.Max(4, float64(s.Size)*0.0095)
 	samples := samplesAt(s.Frames, tick)
@@ -132,7 +141,6 @@ func (s Scene) drawAt(img *image.Paletted, tick int, in inks) {
 		disc(img, x, y, r+1.5, in.outline)
 		disc(img, x, y, r, side)
 	}
-	caption(img, clockLabel(s.Round, tick, s.Tickrate), in)
 }
 
 func (s Scene) drawStroke(img *image.Paletted, st Stroke, ink uint8) {

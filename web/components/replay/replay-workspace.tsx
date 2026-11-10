@@ -58,6 +58,7 @@ import type { MapCapture } from './gif-export';
 import { GifPanel } from './gif-panel';
 import { PlaylistPicker } from './playlist-picker';
 import { useReplayGif } from './use-replay-gif';
+import { useReplayVideo } from './use-replay-video';
 import { useSavedPlaylists } from './use-saved-playlists';
 import type { FocusControl } from './replay-players';
 import { useMapSettings } from './use-map-settings';
@@ -591,6 +592,26 @@ export function ReplayWorkspace({
     notes: focusTimeline === null ? [] : (notes.notes ?? []).map((note) => ({ at: clockSecondsOf(focusTimeline, note.tick), strokes: note.strokes })),
     onStart: () => setPlaying(false),
   });
+  const matchVoice = voice.state.kind === 'ready' && voice.state.voice.present ? voice.state.voice : null;
+  const video = useReplayVideo({
+    captureRef,
+    focused,
+    library,
+    multi,
+    rounds: centreRounds.length,
+    transport,
+    events: transportEvents,
+    tramo,
+    speed,
+    tickOf,
+    voice:
+      matchVoice === null || focused?.matchId !== voice.matchId
+        ? null
+        : { synced: matchVoice.sync.state !== 'unsynced', tracks: matchVoice.tracks.map((track) => track.track).filter((track) => !voice.mutedTracks.has(track)) },
+    draft: library ? draft.strokes : [],
+    notes: focusTimeline === null ? [] : (notes.notes ?? []).map((note) => ({ at: clockSecondsOf(focusTimeline, note.tick), strokes: note.strokes })),
+    onStart: () => setPlaying(false),
+  });
 
   if (entries.length === 0) {
     return (
@@ -727,7 +748,7 @@ export function ReplayWorkspace({
           )}
           <SetposNotice note={setpos.note} />
         </div>
-        {gif.open ? <GifPanel gif={gif} tramo={{ tramo, onChange: setTramo }} multi={multi} speed={speed} onClose={gif.toggle} /> : null}
+        {gif.open ? <GifPanel gif={gif} video={video} tramo={{ tramo, onChange: setTramo }} multi={multi} speed={speed} onClose={gif.toggle} /> : null}
         <MapToolsBar draft={library ? draft : null} gif={{ open: gif.open, onToggle: gif.toggle }} demo={demoLink} zoomSlot={setZoomSlot} />
       </div>
 
