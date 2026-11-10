@@ -26,8 +26,8 @@ type Loaded = { prep: TeamPrep; t: TeamPlaybook; ct: TeamPlaybook; scout: ScoutR
 export type PrepQuery = { teamId: string; map: string; from?: string; to?: string; lineup?: readonly string[]; opponentIds?: readonly string[] };
 
 /**
- * The preparation of a rival on one map: what stands out, buys against buys,
- * tempo, CT positions and both playbooks. `onOpenReplay` gives each section the
+ * The preparation of a rival on one map: buys against buys, tempo and attack,
+ * what stands out, CT positions and both playbooks. `onOpenReplay` gives each section the
  * door to the Replay form that shows it; the printed sheet has none.
  */
 export function PrepBody({
@@ -115,9 +115,6 @@ export function PrepBody({
         </EmptySample>
       ) : (
         <>
-          <PrepSection title="Lo que destaca">
-            <SignificantStats stats={stats} loading={loadedNorms === null || references === null} note={statsNote} />
-          </PrepSection>
           <PrepSection title="Compras contra compras" hint="Cada cifra abre sus rondas en Repetición.">
             <MatchupTables prep={prep} library={matchupPool} />
           </PrepSection>
@@ -125,6 +122,9 @@ export function PrepBody({
             <TempoByBuy prep={prep} />
           </PrepSection>
           <AttackPrep query={query} />
+          <PrepSection title="Lo que destaca">
+            <SignificantStats stats={stats} loading={loadedNorms === null || references === null} note={statsNote} />
+          </PrepSection>
           <PrepSection title="Posiciones CT por tramo" action={door('calor')}>
             <CtPositions prep={prep} />
           </PrepSection>

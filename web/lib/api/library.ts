@@ -752,12 +752,15 @@ export function getTeamBombsites(teamId: string, query: TeamScoutQuery = {}): Pr
 export type TeamSideStatsQuery = TeamScoutQuery & {
   /** Team ids to compare with; empty compares with every other team of the library. */
   compare?: readonly string[];
+  /** `none` skips the comparison group: only the team's figures and players come back. */
+  group?: 'none';
 };
 
 /** A team's figures overall and per side, each with the mean of the comparison group. */
 export function getTeamSideStats(teamId: string, query: TeamSideStatsQuery = {}): Promise<TeamSideStats> {
   const params = scoutParams(query);
   for (const team of query.compare ?? []) params.append('compare_team', team);
+  if (query.group) params.set('group', query.group);
   const search = params.toString();
   return request<TeamSideStats>(`/teams/${id(teamId)}/side-stats${search === '' ? '' : `?${search}`}`);
 }

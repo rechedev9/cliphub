@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { getTeamFirstDeath, type FirstDeathMovement, type FirstDeathPlayer, type FirstDeathZone, type TeamFirstDeath } from '@/lib/api/first-death';
 import type { TeamSpatialQuery } from '@/lib/api/library';
 import type { TacticalSide } from '@/lib/api/tactical';
-import { cardRoleText } from '@/lib/analysis/map-role';
+import { mapRoleChips } from '@/lib/analysis/map-role';
 import { evidenceRefs } from '@/lib/analysis/playbook';
 import { findingHref } from '@/lib/analysis/replay-link';
 import { formatShortDate, prettyMapName } from '@/lib/format';
@@ -13,6 +13,7 @@ import { FIRST_DEATH_TRAMOS, type FirstDeathTramoId, type Tramo } from '@/lib/re
 import { placeLabel } from '@/lib/tactical-labels';
 import { PlayerAvatar } from '@/components/players/player-avatar';
 import { Button } from '@/components/ui/button';
+import { RoleChip } from '@/components/ui/role-chip';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { playerColor } from './ct-positions-map';
@@ -164,7 +165,8 @@ function FirstDeathBody({ teamId, tramo, data, picked, onPick, showMap, onToggle
 type PlayerCardProps = { player: FirstDeathPlayer; side: TacticalSide; index: number; picked: Picked | null; onPick: (picked: Picked) => void };
 
 function PlayerCard({ player, side, index, picked, onPick }: PlayerCardProps): ReactNode {
-  const role = cardRoleText({ side, mapRole: player.map_role, role: roleText(player.role) });
+  const chips = mapRoleChips(side === 'T' ? { t: player.map_role } : { ct: player.map_role }, side);
+  const library = roleText(player.role);
   return (
     <article aria-label={player.name} className="studio-panel flex flex-col gap-2 px-3 py-2.5">
       <header className="flex items-center gap-2">
@@ -174,7 +176,14 @@ function PlayerCard({ player, side, index, picked, onPick }: PlayerCardProps): R
             <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ backgroundColor: playerColor(index) }} />
             {player.name}
           </h4>
-          {role === '' ? null : <span className="text-meta text-fg-3">{role}</span>}
+          {chips.length === 0 && library === '' ? null : (
+            <p className="flex flex-wrap items-center gap-1">
+              {chips.map((chip) => (
+                <RoleChip key={chip.side} side={chip.side} label={chip.label} />
+              ))}
+              {library === '' ? null : <RoleChip label={library} />}
+            </p>
+          )}
         </div>
       </header>
       <p className="text-meta text-fg-2">Rondas con posiciones {player.rounds}</p>
