@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import type { HitLineKind } from '@/lib/replay/hit-lines';
 import { FRAME_RATES, MAP_SHOWS, MAP_SHOW_HINTS, MAP_SHOW_LABELS, MAP_SIZES, MAP_SIZE_LABELS, ZOOM_SPEED_LABELS, frameRateLabel } from '@/lib/replay/map-settings';
 import type { MapSettings } from '@/lib/replay/map-settings';
@@ -47,6 +47,7 @@ export function ReplayPreferences({
   onSettings,
   drawing,
   container,
+  returnFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -56,10 +57,23 @@ export function ReplayPreferences({
   drawing: boolean;
   /** The full-screen replay, which sits in the top layer: the sheet opens inside it to stay visible. */
   container: HTMLElement | null;
+  /** The button that opened the sheet, which gets the focus back when it closes. */
+  returnFocus: RefObject<HTMLButtonElement | null>;
 }): ReactNode {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent container={container ?? undefined} className="gap-0 sm:max-w-md">
+    // Not modal and without a backdrop, so the map plays, pans and zooms while a setting changes.
+    <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
+      <SheetContent
+        data-replay-preferences=""
+        container={container ?? undefined}
+        overlay={false}
+        onInteractOutside={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          returnFocus.current?.focus();
+        }}
+        className="gap-0 sm:max-w-md"
+      >
         <SheetHeader className="border-b border-border-subtle pr-12">
           <SheetTitle>Ajustes del mapa</SheetTitle>
           <SheetDescription>Se aplican al momento y se guardan para todas las partidas.</SheetDescription>

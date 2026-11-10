@@ -10,6 +10,10 @@ export const TACTICAL_EVIDENCE_QUERY = { round: 'round', tick: 'tick' } as const
 /** Query key of the record tab a link opens, and the tab that holds the replay. */
 export const MATCH_TAB_QUERY = 'tab';
 export const MATCH_REPLAY_TAB = 'replay';
+/** The tab that opens first, with Detalles de la demo at its end. */
+export const MATCH_SUMMARY_TAB = 'resumen';
+/** The id of Detalles de la demo in Resumen; a link with this hash opens it. */
+export const DEMO_DETAILS_ID = 'detalles-demo';
 /** The tab's id before it was renamed; old links and exported reports still carry it. */
 export const LEGACY_REPLAY_TAB = 'tactica';
 

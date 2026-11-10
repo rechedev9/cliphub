@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { Bomb, Eye, Flag, Flame, Footprints, Settings2, Tag, X, Zap } from 'lucide-react';
 import { LAYER_LABELS, TRAIL_LENGTHS } from '@/lib/replay/layers';
 import type { LayerToggle, ReplayLayers, TrailSeconds } from '@/lib/replay/layers';
@@ -57,7 +57,7 @@ export function MapBar({
   /** The player the map keeps centred. */
   follow: { name: string; onStop: () => void } | null;
   /** Ajustes del mapa, a sheet beside the map. */
-  preferences: { open: boolean; onOpen: () => void };
+  preferences: { open: boolean; onOpen: () => void; triggerRef: RefObject<HTMLButtonElement | null> };
 }): ReactNode {
   return (
     <div className="@container flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-border-subtle bg-surface-1 px-2 py-1.5">
@@ -105,6 +105,7 @@ export function MapBar({
         </button>
       )}
       <ReplayChip
+        ref={preferences.triggerRef}
         pressed={preferences.open}
         aria-haspopup="dialog"
         aria-expanded={preferences.open}

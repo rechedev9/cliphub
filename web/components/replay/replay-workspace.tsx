@@ -6,7 +6,7 @@ import type { ReplayRef } from '@/lib/analysis/replay-link';
 import type { TacticalSource } from '@/lib/api/tactical';
 import { matchHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
-import { MATCH_TAB_QUERY } from '@/lib/library/rounds';
+import { DEMO_DETAILS_ID, MATCH_SUMMARY_TAB, MATCH_TAB_QUERY } from '@/lib/library/rounds';
 import { scoreAfter, teamsInScoreOrder, winnerTeamName } from '@/lib/replay/strip-round';
 import { centreRound } from '@/lib/replay/centre-round';
 import type { CentreRound } from '@/lib/replay/centre-round';
@@ -187,7 +187,15 @@ export function ReplayWorkspace({
   const [eventsOpen, setEventsOpen] = useState(false);
   const [help, setHelp] = useState(false);
   const [preferences, setPreferences] = useState(false);
+  const preferencesChip = useRef<HTMLButtonElement>(null);
+  // The sheet opens inside the replay only in full screen, so entering or leaving it closes the sheet instead of moving it.
+  const [rootElement, setRootElement] = useState<HTMLElement | null>(null);
+  const setRoot = useCallback((element: HTMLElement | null) => {
+    rootRef.current = element;
+    setRootElement(element);
+  }, []);
   const fullscreen = useFullscreen(rootRef);
+  useEffect(() => setPreferences(false), [fullscreen.active]);
   const draft = useTelestratorDraft();
 
   const entry = entries[index];
@@ -412,11 +420,12 @@ export function ReplayWorkspace({
     if (shortcut === null) return;
     const target = event.target;
     const root = rootRef.current;
-    // Ajustes del mapa opens inside the replay in full screen; its controls keep their keys.
-    if (target instanceof Element && target.closest('[role="dialog"]') !== null) return;
+    // Ajustes del mapa is part of the replay wherever it mounts; any other dialog keeps its keys.
+    const inPreferences = target instanceof Element && target.closest('[data-replay-preferences]') !== null;
+    if (!inPreferences && target instanceof Element && target.closest('[role="dialog"]') !== null) return;
     if (target instanceof HTMLElement && target !== document.body) {
       // Clicking the map focuses the replay or leaves focus on a wrapper around it, such as the tab panel.
-      if (root === null || (!root.contains(target) && !target.contains(root))) return;
+      if (root === null || (!inPreferences && !root.contains(target) && !target.contains(root))) return;
       const inputType = target.tagName === 'INPUT' ? target.getAttribute('type') : null;
       const keyboardFocus = pointerTarget.current === null || !target.contains(pointerTarget.current);
       if (!targetTakesKey({ tag: target.tagName, inputType, editable: target.isContentEditable, keyboardFocus }, shortcut)) return;
@@ -599,9 +608,13 @@ export function ReplayWorkspace({
   const followedName = followSlot === null || focused === null ? null : (focused.doc.players.find((player) => player.slot === followSlot)?.name ?? null);
   const focusNames = focused === null ? '' : focused.doc.players.filter((player) => focus.includes(player.slot)).map((player) => player.name).join(' y ');
   const superposeText = superposeCopy({ multi, everyRound, anyFocus: focus.length > 0, focusNames, shown: centreRounds.length, total: entries.length });
-  // Detalles de la demo sit at the end of the partida's Resumen; a Crear job has no partida.
+  // A Crear job has no partida; a library one shows once its date is known, so the link neither dangles nor shifts.
+  const demoDate = entry === undefined ? null : (matchDate?.(entry.matchId) ?? null);
+  const partidaKnown = matchDate === undefined ? current?.state === 'ready' : demoDate !== null;
   const demoLink: DemoLink | null =
-    library && entry !== undefined ? { date: matchDate?.(entry.matchId) ?? null, href: `${matchHref(entry.matchId)}?${MATCH_TAB_QUERY}=resumen` } : null;
+    library && entry !== undefined && partidaKnown
+      ? { date: demoDate, href: `${matchHref(entry.matchId)}?${MATCH_TAB_QUERY}=${MATCH_SUMMARY_TAB}#${DEMO_DETAILS_ID}` }
+      : null;
   const roundActions = !library ? null : (
     <div className="flex flex-wrap gap-1">
       {focused !== null && entry !== undefined && !multi ? (
@@ -617,7 +630,7 @@ export function ReplayWorkspace({
   );
   return (
     <section
-      ref={rootRef}
+      ref={setRoot}
       data-replay-workspace=""
       aria-label="Repetición"
       // Takes the focus a click on the map or a panel would drop, so the shortcuts keep working.
@@ -673,7 +686,7 @@ export function ReplayWorkspace({
           onToggleLayer={(key) => (key === 'names' ? setMapSettings(toggleNames(mapSettings, multi)) : setLayers((value) => toggleLayer(value, key)))}
           onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
           follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
-          preferences={{ open: preferences, onOpen: () => setPreferences(true) }}
+          preferences={{ open: preferences, onOpen: () => setPreferences((value) => !value), triggerRef: preferencesChip }}
         />
         <div className="relative min-h-0 flex-1">
           {focused === null ? (
@@ -831,7 +844,8 @@ export function ReplayWorkspace({
         settings={mapSettings}
         onSettings={setMapSettings}
         drawing={library}
-        container={fullscreen.active ? rootRef.current : null}
+        container={fullscreen.active ? rootElement : null}
+        returnFocus={preferencesChip}
       />
       <ShortcutHelp open={help} onOpenChange={setHelp} />
     </section>
