@@ -284,6 +284,14 @@ test('the whole Libreta file goes out and comes back in with every section', () 
   assert.ok(imported.response.keys.includes('sections'));
 });
 
+test('the pinned players are read and replaced whole, players only', () => {
+  assert.equal(matchLibraryRoute('DELETE', ['pinned-players']), undefined);
+  assert.ok(matchLibraryRoute('GET', ['pinned-players']));
+  const write = matchLibraryRoute('PUT', ['pinned-players']);
+  assert.ok(write?.body?.kind === 'json');
+  assert.deepEqual(write.body.fields, ['players']);
+});
+
 test('the library search keeps only its query and words', () => {
   const route = matchLibraryRoute('GET', ['search']);
   assert.ok(route);

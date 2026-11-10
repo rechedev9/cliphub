@@ -117,7 +117,7 @@ For a player: player_positions; leaderboard is the Ranking page: it ranks the li
 filtered by map, side, role (such as b_lurk on de_anubis; on any map the library roles awp, entry, support, rifler), map_role (a callout
 held on the map and side, or allround, which on the library scope also reads over every map with a side; the answer's
 map_roles lists them), dates and demo source, with each player's metrics, library_role, roles, breakdown (percent of rounds per role and per
-position) and round refs. The rating is the Rating de ClipHub. Without from and to the library scope reads the last 90 days, like the page. Scope pro ranks the pro players of the community server
+position) and round refs. The rating is the Rating de ClipHub. list_pinned_players and set_pinned_players read and replace the Ranking's Fijados (players kept on top through every filter; start from the list to add or remove one). Without from and to the library scope reads the last 90 days, like the page. Scope pro ranks the pro players of the community server
 (last 90 days unless days says otherwise) by side, role, map_role, the HLTV rank of the rival (top) and of the player's own team
 (team_top) and event (the answer's events lists them); those rows carry a team, and refs only from the library's own demos of the player.
 Fix the library's teams: update_team renames or replaces the aliases (start from get_team) and sets

@@ -30,6 +30,10 @@ type LibretaRepository interface {
 	SetTeamProfile(ctx context.Context, p *library.TeamProfile) error
 	// ListTeamProfiles returns every saved profile; a team without one is not own and not ranked.
 	ListTeamProfiles(ctx context.Context) ([]library.TeamProfile, error)
+	// ListPinnedPlayers returns the Ranking's pinned players in table order.
+	ListPinnedPlayers(ctx context.Context) ([]library.PinnedPlayer, error)
+	// SetPinnedPlayers replaces the whole pinned list.
+	SetPinnedPlayers(ctx context.Context, players []library.PinnedPlayer) error
 	// CreateCall stores a call; an id that is already stored is ErrConflict.
 	CreateCall(ctx context.Context, c *library.Call) error
 	GetCall(ctx context.Context, id uuid.UUID) (library.Call, error)
