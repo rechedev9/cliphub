@@ -80,6 +80,7 @@ team_prep's warnings are the data warnings Preparar shows on top (the team's new
 in N of M matches, under 30 rounds): say them before the figures. side is the bar's side: the warnings (and prepare_team's
 scouting) count it, and with t_from, t_to and movement (static, slow, fast) team_prep and prepare_team add first_death,
 each player's 5 zones with most seconds per round with positions until the round's first death.
+Preparar's Jugadores block (a card per player, above the first-death positions) is team_side_stats over the same scope: map, side, rival, lineup and dates.
 The team tools and scout_team take opponent_id and match_id to narrow the matches, and lineup (SteamID64s) to keep
 only the rounds every player of the team played in it, like the Alineación selector; the UI defaults to the
 players of the team's latest match, which team_lineups lists, and an empty lineup keeps every round. team_playbook lists every

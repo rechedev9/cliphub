@@ -14,14 +14,16 @@ import { REPLAY_FORM_LABEL } from '@/lib/replay/forms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { FirstDeathPositions } from '@/components/prep/first-death-positions';
 import { PrepBody } from '@/components/prep/prep-body';
+import { PrepPlayers } from '@/components/prep/prep-players';
 import { Button } from '@/components/ui/button';
 import { TEAM_REPLAY_FORMS, type TeamReplayForm } from './team-replay';
 import { TeamScout } from './team-scout';
 
 /**
  * Preparar: everything to get ready for a rival in one tab. First what to
- * distrust (an old sample, a lineup that changed), then the map's preparation
- * (buys, tempo, CT positions, playbooks, positions until the first death) and under it the scouting sections.
+ * distrust (an old sample, a lineup that changed), then the players, the positions
+ * until the first death and the map's preparation (buys, tempo, what stands out,
+ * CT positions, playbooks), and last the scouting sections.
  * Each part opens the Replay form that shows it.
  */
 export function TeamPrepare({
@@ -69,6 +71,7 @@ export function TeamPrepare({
     };
   }, [team.id, barQuery, scope.side]);
   const warnings = useMemo(() => prepareWarnings(sample, team.name), [sample, team.name]);
+  const players = <PrepPlayers teamId={team.id} scope={{ side: scope.side, map: scope.map, from, to, opponentIds, lineup }} />;
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -100,33 +103,44 @@ export function TeamPrepare({
         </ul>
       )}
       {scope.map === '' ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-1 px-3 py-2.5">
-          <p className="text-body-sm text-fg-2">Elige un mapa para ver compras contra compras, ritmo, posiciones de CT y playbooks:</p>
-          {maps.map((map) => {
-            const count = mapCounts?.[map];
-            return (
-              <Button
-                key={map}
-                type="button"
-                variant="outline"
-                size="xs"
-                disabled={count === 0}
-                title={count === 0 ? NO_MATCHES_TEXT : undefined}
-                onClick={() => onMapChange(map)}
-              >
-                {prettyMapName(map)}
-                {count === undefined ? null : <span className="font-normal text-fg-3 tabular-nums">{mapCountText(count)}</span>}
-              </Button>
-            );
-          })}
-        </div>
+        <>
+          {players}
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-1 px-3 py-2.5">
+            <p className="text-body-sm text-fg-2">Elige un mapa para ver compras contra compras, ritmo, posiciones de CT y playbooks:</p>
+            {maps.map((map) => {
+              const count = mapCounts?.[map];
+              return (
+                <Button
+                  key={map}
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  disabled={count === 0}
+                  title={count === 0 ? NO_MATCHES_TEXT : undefined}
+                  onClick={() => onMapChange(map)}
+                >
+                  {prettyMapName(map)}
+                  {count === undefined ? null : <span className="font-normal text-fg-3 tabular-nums">{mapCountText(count)}</span>}
+                </Button>
+              );
+            })}
+          </div>
+        </>
       ) : (
-        <PrepBody query={{ teamId: team.id, map: scope.map, from, to, lineup, opponentIds }} onOpenReplay={(form) => {
+        <PrepBody
+          query={{ teamId: team.id, map: scope.map, from, to, lineup, opponentIds }}
+          lead={
+            <>
+              {players}
+              <FirstDeathPositions teamId={team.id} query={barQuery} scopeSide={scope.side} />
+            </>
+          }
+          onOpenReplay={(form) => {
             const known = TEAM_REPLAY_FORMS.find((entry) => entry === form);
             if (known !== undefined) onOpenReplay(known);
-          }} />
+          }}
+        />
       )}
-      {scope.map === '' ? null : <FirstDeathPositions teamId={team.id} query={barQuery} scopeSide={scope.side} />}
       <section aria-label="Scouting" className="flex flex-col gap-2 border-t border-border pt-4">
         <h2 className="text-body font-semibold text-fg-1">Cómo juegan</h2>
         <TeamScout teamId={team.id} scope={scope} lineup={lineup} onCounts={onCounts} />
