@@ -20,9 +20,8 @@ import {
   Vector4,
   WebGLRenderTarget,
 } from 'three';
-import type { Camera, Object3D, WebGLRenderer } from 'three';
+import type { WebGLRenderer } from 'three';
 import type { MapScene, SceneChunk, SceneMaterial } from '@/lib/api/map-scene';
-import { AutoExposure } from './auto-exposure';
 import { Cs2Post, cs2Exposure } from './cs2-post';
 import { blankTexture } from './map-shader';
 import type { MapUniforms } from './map-shader';
@@ -86,8 +85,7 @@ export class RealMap {
   #look: RealMapLook = DEFAULT_LOOK;
   readonly #ambient: Vector3;
   readonly #exposure: number;
-  readonly #auto: AutoExposure;
-  /** 1 while the auto exposure meters the frame: every surface writes its unexposed luminance. */
+  /** The shaders' meter switch; this map never meters, so it stays 0. */
   readonly #meter = { value: 0 };
   readonly #post: Cs2Post;
   readonly #fogLift = { value: 0 };
@@ -99,7 +97,6 @@ export class RealMap {
     const sky = scene.sun?.sky ?? [0.55, 0.62, 0.75];
     this.#ambient = new Vector3(...(scene.lightmap?.average ?? [sky[0] * 0.55, sky[1] * 0.55, sky[2] * 0.55]));
     this.#exposure = cs2Exposure(scene, [this.#ambient.x, this.#ambient.y, this.#ambient.z]);
-    this.#auto = new AutoExposure({ renderer, post: scene.post, start: this.#exposure });
     this.#post = new Cs2Post(scene.post);
     const lightmapTextures = new Set([scene.lightmap?.irradiance, scene.lightmap?.shadows, scene.lightmap?.directional]);
     this.#textures = scene.textures.map((texture, index) => toTexture(texture, renderer, !lightmapTextures.has(index)));
@@ -132,32 +129,6 @@ export class RealMap {
     if (this.#sky !== null) this.group.add(this.#sky.mesh);
   }
 
-  /** Whether the map's own sky draws behind it. */
-  get hasSky(): boolean {
-    return this.#sky !== null;
-  }
-
-  /** Whether the scene has baked lighting; without it every surface is lit like a prop. */
-  get baked(): boolean {
-    return this.#shared.irradiance !== null;
-  }
-
-  get triangles(): number {
-    return this.#scene.chunks.reduce((sum, chunk) => sum + chunk.index.length / 3, 0);
-  }
-
-  /**
-   * How high the camera is over the map's floor: the fog starts that much further
-   * out, so it hazes the distance from above as it does at eye level.
-   */
-  setCameraHeight(z: number): void {
-    this.#fogLift.value = Math.max(0, z - this.#scene.min[2]) * 1.2;
-  }
-
-  setVisible(visible: boolean): void {
-    this.group.visible = visible;
-  }
-
   /** A view straight from above has no horizon: it leaves out the sky and the ground laid under the map. */
   setSurroundingsVisible(visible: boolean): void {
     if (this.#sky !== null) this.#sky.mesh.visible = visible;
@@ -167,18 +138,7 @@ export class RealMap {
   setLook(look: RealMapLook): void {
     this.#look = look;
     for (const material of this.#materials.values()) this.#applyLook(material);
-    this.#sky?.setExposure(look.exposure * this.#auto.value);
-  }
-
-  /**
-   * Meters the frame `camera` sees and eases the exposure towards CS2's, as its
-   * auto exposure does; true while it is still adapting, so the caller draws again.
-   */
-  adaptExposure(options: { renderer: WebGLRenderer; scene: Object3D; camera: Camera; now: number }): boolean {
-    const moving = this.#auto.step({ ...options, meter: this.#meter });
-    for (const material of this.#materials.values()) material.uniforms.uExposure.value = this.#look.exposure * this.#auto.value;
-    this.#sky?.setExposure(this.#look.exposure * this.#auto.value);
-    return moving;
+    this.#sky?.setExposure(look.exposure * this.#exposure);
   }
 
   dispose(): void {
@@ -192,13 +152,12 @@ export class RealMap {
     this.#ground.material.dispose();
     this.#shared.sunDepth?.dispose();
     this.#post.dispose();
-    this.#auto.dispose();
   }
 
   #applyLook(material: ShaderMaterial): void {
     const fog = this.#scene.fog;
     const u = material.uniforms;
-    u.uExposure.value = this.#look.exposure * this.#auto.value;
+    u.uExposure.value = this.#look.exposure * this.#exposure;
     u.uIrradianceScale.value = this.#look.irradiance;
     u.uFog.value.set(fog?.start ?? 0, fog?.end ?? 1, (fog?.max ?? 0) * this.#look.fogStrength);
   }
