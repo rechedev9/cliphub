@@ -72,6 +72,7 @@ type LibraryRepository interface {
 	libraryPlaylistRepository
 	patternRepository
 	libraryProRepository
+	libraryVoiceRepository
 }
 
 // WithLibrary enables the /api/library routes over repo.
@@ -491,11 +492,15 @@ func (h *Handlers) DeleteLibraryDemo(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	d, getErr := h.libraryRepo.GetDemo(r.Context(), id)
 	if err := h.libraryRepo.DeleteDemo(r.Context(), id); err != nil {
 		writeLibraryError(w, "delete demo", err)
 		return
 	}
 	h.discardLibraryDemo(id)
+	if getErr == nil && d.MatchID != nil {
+		h.discardMatchVoice(*d.MatchID)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

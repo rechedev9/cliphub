@@ -70,8 +70,13 @@ import { useRoundPov } from './use-round-pov';
 import { useSetposCopies } from './use-setpos-copies';
 import { useWinTimelines } from './use-win-timelines';
 import { WinStrip } from './win-strip';
+import { CommsPanel } from './comms-panel';
+import { useReplayVoice } from './use-replay-voice';
+import { VoiceBar } from './voice-bar';
 import type { WinStripState } from './win-strip';
 import { winProbabilityAt, winStripPoints } from '@/lib/replay/win-strip';
+import type { VoiceCommsLine } from '@/lib/api/voice';
+import { toast } from 'sonner';
 
 /** The side panels and the notes follow the playhead this many times a second. */
 const UI_TICKS_PER_SECOND = 4;
@@ -300,6 +305,7 @@ export function ReplayWorkspace({
     [seekTo],
   );
   const moments = useKeyMoments({ focused, enabled: layers.moments, transport, clockSecondsOf, onJump: jumpTo });
+  const voice = useReplayVoice({ matchId: library && entry !== undefined ? entry.matchId : null, clock, focused, tickOf, playing, speed });
 
   const select = useCallback(
     (next: number, tick?: number) => {
@@ -509,6 +515,16 @@ export function ReplayWorkspace({
     [analyses, groupLabel],
   );
   const nowSeconds = uiTick / UI_TICKS_PER_SECOND;
+  const hasVoice = voice.state.kind === 'ready' && voice.state.voice.present;
+  // A phrase of this round seeks; one of another round in the strip opens it at that tick.
+  const jumpToLine = (line: VoiceCommsLine): void => {
+    if (focused === null || entry === undefined) return;
+    if (line.round === focused.round.number) return jumpTo(clockSecondsOf(focused.timeline, line.tick));
+    const at = entries.findIndex((candidate) => candidate.matchId === entry.matchId && candidate.round === line.round);
+    if (at < 0) return void toast.info(`La ronda ${line.round} no está en esta lista: quita el filtro para verla.`);
+    setPlaying(false);
+    select(at, line.tick);
+  };
   const notesMatchId = library && entry !== undefined ? entry.matchId : undefined;
   const noteMatchIds = useMemo(() => (notesMatchId === undefined ? [] : [notesMatchId]), [notesMatchId]);
   const matchNotes = useAnnotations(roundNotes === undefined ? noteMatchIds : NO_MATCHES, entry?.round);
@@ -702,6 +718,7 @@ export function ReplayWorkspace({
           actions={roundActions}
           filters={filters}
           moments={layers.moments && focused !== null ? { count: moments.length, list: <KeyMomentList moments={moments} /> } : null}
+          comms={hasVoice && focused !== null ? <CommsPanel voice={voice} doc={focused.doc} round={focused.round.number} currentTick={tickOf(focused, nowSeconds)} onJump={jumpToLine} /> : null}
         />
         )}
       </aside>
@@ -813,6 +830,7 @@ export function ReplayWorkspace({
             )
           }
         />
+        {library ? <VoiceBar voice={voice} /> : null}
       </div>
 
       <ShortcutHelp open={help} onOpenChange={setHelp} />

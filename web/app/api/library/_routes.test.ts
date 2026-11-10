@@ -306,3 +306,19 @@ test('pro match routes take only HLTV ids and map entries', () => {
   assert.equal(matchLibraryRoute('DELETE', ['pro-follows', '9565'])?.response.kind, 'empty');
   assert.equal(matchLibraryRoute('DELETE', ['pro-follows', 'faze']), undefined);
 });
+
+test('team voice imports up to 2 GiB, streams a numbered track, and a sync carries only the offset', () => {
+  const imported = matchLibraryRoute('POST', ['matches', ID, 'voice']);
+  assert.equal(imported?.body?.kind, 'multipart');
+  assert.equal(imported?.body?.maxBytes, 2 * 1024 * 1024 * 1024);
+  assert.equal(matchLibraryRoute('GET', ['matches', ID, 'voice', 'tracks', '16', 'audio'])?.response.kind, 'stream');
+  assert.equal(matchLibraryRoute('GET', ['matches', ID, 'voice', 'tracks', '17', 'audio']), undefined);
+  assert.equal(matchLibraryRoute('GET', ['matches', ID, 'voice', 'tracks', '0', 'audio']), undefined);
+  const sync = matchLibraryRoute('PATCH', ['matches', ID, 'voice']);
+  assert.deepEqual(sync?.body?.kind === 'json' ? sync.body.fields : [], ['offset_ms', 'auto']);
+  const search = matchLibraryRoute('GET', ['voice', 'search']);
+  assert.ok(search);
+  assert.equal(libraryUpstreamQuery(search, new URLSearchParams('q=rota+b&team_id=x&phase=dead')), 'q=rota+b&team_id=x');
+  assert.ok(matchLibraryRoute('POST', ['voice', 'transcriber', 'install']));
+  assert.equal(matchLibraryRoute('DELETE', ['voice', 'transcriber']), undefined);
+});

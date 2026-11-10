@@ -37,7 +37,7 @@ async function handle(request: Request, { params }: Params): Promise<Response> {
 
   let upstream: Response | null;
   if (route.body?.kind === 'multipart') {
-    const result = await forwardImport(request, url);
+    const result = await forwardImport(request, { url, maxBytes: route.body.maxBytes ?? MAX_IMPORT_REQUEST_BYTES });
     if ('refused' in result) return result.refused;
     upstream = result.upstream;
   } else {
@@ -87,12 +87,13 @@ function downloadResponse(upstream: Response): Response {
 type ImportForward = { refused: Response } | { upstream: Response | null };
 
 /** Streams a multipart import to the orchestrator without buffering the demo. */
-async function forwardImport(request: Request, url: string): Promise<ImportForward> {
+async function forwardImport(request: Request, target: { url: string; maxBytes: number }): Promise<ImportForward> {
+  const { url, maxBytes } = target;
   const contentType = request.headers.get('content-type') ?? '';
   if (!contentType.toLowerCase().startsWith('multipart/form-data;')) {
     return { refused: NextResponse.json({ error: 'multipart/form-data required' }, { status: 400 }) };
   }
-  const upload = await prepareLocalUploadBody(request, MAX_IMPORT_REQUEST_BYTES);
+  const upload = await prepareLocalUploadBody(request, maxBytes);
   if (!upload.ok) return { refused: NextResponse.json({ error: upload.error }, { status: upload.status }) };
   const headers: Record<string, string> = { 'Content-Type': contentType };
   if (upload.contentLength !== undefined) headers['Content-Length'] = upload.contentLength;

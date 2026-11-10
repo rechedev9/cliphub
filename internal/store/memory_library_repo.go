@@ -32,6 +32,7 @@ type MemoryLibraryRepository struct {
 	playlists    map[uuid.UUID]library.Playlist
 	libreta      memoryLibreta
 	pro          memoryPro
+	voices       map[uuid.UUID]memoryVoice
 }
 
 type memoryJobLink struct {
@@ -82,6 +83,7 @@ func NewMemoryLibraryRepository() *MemoryLibraryRepository {
 		annotations:  map[uuid.UUID]library.Annotation{},
 		plays:        map[uuid.UUID]library.Play{},
 		playlists:    map[uuid.UUID]library.Playlist{},
+		voices:       map[uuid.UUID]memoryVoice{},
 	}
 }
 
@@ -306,6 +308,7 @@ func (r *MemoryLibraryRepository) DeleteDemo(ctx context.Context, id uuid.UUID) 
 		delete(r.matchTeams, matchID)
 		delete(r.matchPlayers, matchID)
 		r.dropMatchAnnotations(matchID)
+		delete(r.voices, matchID)
 		r.refreshNicks(steamIDs)
 	}
 	return nil

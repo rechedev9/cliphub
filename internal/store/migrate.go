@@ -43,6 +43,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV17LibraryTeamProfiles,
 	migrateV18LibraryPatterns,
 	migrateV19LibraryProMatches,
+	migrateV20LibraryVoice,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -841,6 +842,60 @@ func migrateV19LibraryProMatches(tx *sql.Tx) error {
 	} {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("library pro matches: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateV20LibraryVoice stores a match's team voice: one row per match with its
+// sync and transcript state, its tracks with the speech found on import, and the
+// transcribed lines in audio time, which a read places on the demo by the offset.
+func migrateV20LibraryVoice(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`CREATE TABLE library_match_voice (
+			match_id            TEXT    PRIMARY KEY REFERENCES library_matches(id) ON DELETE CASCADE,
+			sync_state          TEXT    NOT NULL,
+			sync_method         TEXT    NOT NULL DEFAULT '',
+			offset_ms           INTEGER NOT NULL DEFAULT 0,
+			auto_offset_ms      INTEGER NOT NULL DEFAULT 0,
+			sync_confidence     REAL    NOT NULL DEFAULT 0,
+			sync_note           TEXT    NOT NULL DEFAULT '',
+			team_key            TEXT    NOT NULL DEFAULT '',
+			transcript_state    TEXT    NOT NULL DEFAULT 'none',
+			transcript_language TEXT    NOT NULL DEFAULT '',
+			transcript_model    TEXT    NOT NULL DEFAULT '',
+			transcript_error    TEXT    NOT NULL DEFAULT '',
+			transcript_at       INTEGER NOT NULL DEFAULT 0,
+			created_at          INTEGER NOT NULL,
+			updated_at          INTEGER NOT NULL
+		)`,
+		`CREATE TABLE library_voice_tracks (
+			match_id    TEXT    NOT NULL REFERENCES library_match_voice(match_id) ON DELETE CASCADE,
+			track       INTEGER NOT NULL CHECK (track > 0),
+			label       TEXT    NOT NULL DEFAULT '',
+			steamid64   TEXT    NOT NULL DEFAULT '',
+			file_name   TEXT    NOT NULL DEFAULT '',
+			channel     INTEGER NOT NULL DEFAULT -1,
+			stored_key  TEXT    NOT NULL,
+			duration_ms INTEGER NOT NULL DEFAULT 0,
+			size_bytes  INTEGER NOT NULL DEFAULT 0,
+			source      TEXT    NOT NULL DEFAULT 'upload',
+			speech      TEXT    NOT NULL DEFAULT '[]',
+			PRIMARY KEY (match_id, track)
+		)`,
+		`CREATE TABLE library_voice_lines (
+			match_id TEXT    NOT NULL REFERENCES library_match_voice(match_id) ON DELETE CASCADE,
+			track    INTEGER NOT NULL,
+			start_ms INTEGER NOT NULL,
+			end_ms   INTEGER NOT NULL,
+			text     TEXT    NOT NULL,
+			text_key TEXT    NOT NULL
+		)`,
+		`CREATE INDEX library_voice_lines_time ON library_voice_lines(match_id, start_ms, track)`,
+		`CREATE INDEX library_match_voice_transcript ON library_match_voice(transcript_state)`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("library voice: %w", err)
 		}
 	}
 	return nil
