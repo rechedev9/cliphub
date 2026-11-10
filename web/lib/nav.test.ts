@@ -12,6 +12,7 @@ const RAIL = [
   ['analyze', 'Partidas', '/partidas'],
   ['analyze', 'Replay', '/replay'],
   ['analyze', 'Equipos', '/equipos'],
+  ['analyze', 'Jugadores', '/jugadores'],
   ['analyze', 'Ranking', '/ranking'],
   ['analyze', 'Libreta', '/libreta'],
   ['analyze', 'Lineups pro', '/lineups'],
@@ -42,12 +43,12 @@ test('nav: every retired door lands inside a live section', () => {
   }
 });
 
-test('nav: a nested route lights its section, a series lights Short', () => {
+test('nav: a nested route lights its section, a series lights Short, a player sheet sits under Jugadores', () => {
   assert.equal(sectionForPath('/partidas/1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed')?.href, '/partidas');
   assert.equal(sectionForPath('/mis-videos/abc/publicar/clip')?.href, '/mis-videos');
   assert.equal(sectionForPath('/series/abc')?.href, '/shorts');
-  assert.equal(sectionForPath('/jugadores')?.href, '/equipos');
-  assert.equal(sectionForPath('/jugadores/76561198000000000')?.href, '/equipos');
+  assert.equal(sectionForPath('/jugadores')?.href, '/jugadores');
+  assert.equal(sectionForPath('/jugadores/76561198000000000')?.href, '/jugadores');
   assert.equal(sectionForPath('/jugadores/faceit')?.href, '/jugadores/faceit');
   assert.equal(sectionForPath('/videos-largos/serie/abc')?.href, '/videos-largos');
   assert.equal(sectionForPath('/shortsx'), null);

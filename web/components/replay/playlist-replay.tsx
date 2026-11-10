@@ -160,8 +160,10 @@ function PassingPlaylistReplay(): ReactNode {
   );
   const matches = useLibraryMatches();
   const [currentKey, setCurrentKey] = useState<string | null>(null);
-  useRouteTitle(title ?? 'Replay');
-  useDocumentTitle(`${title ?? 'Replay'} · ClipHub`);
+  // With no rounds the page is the team Replay, which names the tab itself.
+  const tabTitle = refs.length === 0 ? undefined : (title ?? 'Replay');
+  useRouteTitle(tabTitle);
+  useDocumentTitle(tabTitle === undefined ? undefined : `${tabTitle} · ClipHub`);
 
   const matchIds = useMemo(() => [...new Set(refs.map((ref) => ref.matchId))], [refs]);
   const missing = useMemo(

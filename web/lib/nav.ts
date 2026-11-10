@@ -17,6 +17,7 @@ export const NAV_SECTIONS = [
   { label: 'Partidas', href: '/partidas', area: 'analyze' },
   { label: 'Replay', href: '/replay', area: 'analyze' },
   { label: 'Equipos', href: '/equipos', area: 'analyze' },
+  { label: 'Jugadores', href: '/jugadores', area: 'analyze' },
   { label: 'Ranking', href: '/ranking', area: 'analyze' },
   { label: 'Libreta', href: '/libreta', area: 'analyze' },
   { label: 'Lineups pro', href: '/lineups', area: 'analyze' },
@@ -29,10 +30,9 @@ export const NAV_SECTIONS = [
 export type NavSection = (typeof NAV_SECTIONS)[number];
 export type NavHref = NavSection['href'];
 
-/** Routes outside the rail that belong to a section: a Short series (Demo completa ones live under /videos-largos), the player hub and a player sheet. /jugadores/faceit is its own section. */
+/** Routes outside the rail that belong to a section: a Short series (Demo completa ones live under /videos-largos). */
 const SECTION_PREFIXES: ReadonlyArray<readonly [prefix: string, href: NavHref]> = [
   ['/series/', '/shorts'],
-  ['/jugadores', '/equipos'],
 ];
 
 /** The rail section a pathname lives in, including nested routes under it. */
