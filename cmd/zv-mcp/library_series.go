@@ -302,7 +302,7 @@ func registerLibrarySeriesTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, teamMapsOut{}, toolError(err)
 			}
-			counts, err := c.LibraryTeamMapCounts(ctx, in.TeamID, scope)
+			counts, err := c.LibraryTeamMapCounts(ctx, tuiclient.MapCountsRequest{TeamID: in.TeamID, Scope: scope})
 			if err != nil {
 				return nil, teamMapsOut{}, toolError(err)
 			}

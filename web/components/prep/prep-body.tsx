@@ -23,7 +23,7 @@ import { AttackPrep } from './attack-sections';
 type Loaded = { prep: TeamPrep; t: TeamPlaybook; ct: TeamPlaybook; scout: ScoutReport | null };
 
 /** What a rival's preparation on one map reads: the team, the map, the days and the lineup, as the API takes them. */
-export type PrepQuery = { teamId: string; map: string; from?: string; to?: string; lineup?: readonly string[] };
+export type PrepQuery = { teamId: string; map: string; from?: string; to?: string; lineup?: readonly string[]; opponentIds?: readonly string[] };
 
 /**
  * The preparation of a rival on one map: what stands out, buys against buys,
@@ -40,7 +40,7 @@ export function PrepBody({
   header?: (prep: TeamPrep) => ReactNode;
   onOpenReplay?: (form: ReplayForm) => void;
 }): ReactNode {
-  const { teamId, map, from, to, lineup } = query;
+  const { teamId, map, from, to, lineup, opponentIds } = query;
   const [data, setData] = useState<Loaded | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -52,12 +52,12 @@ export function PrepBody({
     let active = true;
     setData(null);
     setFailed(false);
-    const base = { map, from, to, lineup };
+    const base = { map, from, to, lineup, opponent_ids: opponentIds };
     Promise.all([
       getTeamPrep(teamId, base),
       getTeamPlaybook(teamId, { ...base, side: 'T' }),
       getTeamPlaybook(teamId, { ...base, side: 'CT' }),
-      getLibraryTeamScout(teamId, { maps: [map], from, to, lineup }).catch(() => null),
+      getLibraryTeamScout(teamId, { maps: [map], from, to, lineup, opponent_ids: opponentIds }).catch(() => null),
     ])
       .then(([prep, t, ct, scout]) => {
         if (active) setData({ prep, t, ct, scout });
@@ -68,7 +68,7 @@ export function PrepBody({
     return () => {
       active = false;
     };
-  }, [teamId, map, from, to, lineup, attempt]);
+  }, [teamId, map, from, to, lineup, opponentIds, attempt]);
 
   if (failed) {
     return (

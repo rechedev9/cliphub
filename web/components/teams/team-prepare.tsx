@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Printer, TriangleAlert } from 'lucide-react';
 import type { LibraryMatch, LibraryTeam } from '@/lib/api/library';
 import type { ScoutReport } from '@/lib/api/scout';
+import { NO_MATCHES_TEXT, mapCountText, type MapCounts } from '@/lib/analysis/map-counts';
 import { prepareWarnings } from '@/lib/analysis/prepare-warnings';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prepHref } from '@/lib/clips/routes';
@@ -26,6 +27,7 @@ export function TeamPrepare({
   team,
   matches,
   maps,
+  mapCounts,
   scope,
   lineup,
   onMapChange,
@@ -36,6 +38,8 @@ export function TeamPrepare({
   /** The team's matches the scope keeps. */
   matches: readonly LibraryMatch[];
   maps: readonly string[];
+  /** Matches per map in the scope; null leaves every map choosable. */
+  mapCounts: MapCounts | null;
   scope: AnalysisScope;
   /** The scope's lineup as SteamID64s; empty counts every round. */
   lineup: readonly string[];
@@ -45,6 +49,7 @@ export function TeamPrepare({
 }): ReactNode {
   const [now] = useState(() => Date.now());
   const { from, to } = scopeDateRange(scope.period, now);
+  const opponentIds = useMemo(() => (scope.opponent === '' ? [] : [scope.opponent]), [scope.opponent]);
   const [kept, setKept] = useState<readonly string[] | null>(null);
   const onReport = useCallback((report: ScoutReport | null) => setKept(report === null ? null : report.matches.map((match) => match.played_at)), []);
   const warnings = useMemo(
@@ -84,14 +89,26 @@ export function TeamPrepare({
       {scope.map === '' ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-1 px-3 py-2.5">
           <p className="text-body-sm text-fg-2">Elige un mapa para ver compras contra compras, ritmo, posiciones de CT y playbooks:</p>
-          {maps.map((map) => (
-            <Button key={map} type="button" variant="outline" size="xs" onClick={() => onMapChange(map)}>
-              {prettyMapName(map)}
-            </Button>
-          ))}
+          {maps.map((map) => {
+            const count = mapCounts?.[map];
+            return (
+              <Button
+                key={map}
+                type="button"
+                variant="outline"
+                size="xs"
+                disabled={count === 0}
+                title={count === 0 ? NO_MATCHES_TEXT : undefined}
+                onClick={() => onMapChange(map)}
+              >
+                {prettyMapName(map)}
+                {count === undefined ? null : <span className="font-normal text-fg-3 tabular-nums">{mapCountText(count)}</span>}
+              </Button>
+            );
+          })}
         </div>
       ) : (
-        <PrepBody query={{ teamId: team.id, map: scope.map, from, to, lineup }} onOpenReplay={(form) => {
+        <PrepBody query={{ teamId: team.id, map: scope.map, from, to, lineup, opponentIds }} onOpenReplay={(form) => {
             const known = TEAM_REPLAY_FORMS.find((entry) => entry === form);
             if (known !== undefined) onOpenReplay(known);
           }} />

@@ -6,6 +6,7 @@ import { ListVideo } from 'lucide-react';
 import { getTeamRounds, type LibraryMatch, type LibraryRosterEntry, type TeamCriterion } from '@/lib/api/library';
 import { REPLAY_MAX_REFS, replayHref, type ReplayRef } from '@/lib/analysis/replay-link';
 import { scopeDateRange, type AnalysisScope, type ScopeField } from '@/lib/analysis/scope';
+import type { MapCounts } from '@/lib/analysis/map-counts';
 import { teamScopeEntries } from '@/lib/analysis/team-scope';
 import type { ReplayForm } from '@/lib/replay/forms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
@@ -79,6 +80,7 @@ export function TeamReplay({
   scope,
   lineup,
   matches,
+  mapCounts,
   roster,
   form,
   onFormChange,
@@ -91,6 +93,8 @@ export function TeamReplay({
   /** The scope's lineup as SteamID64s; empty counts every round. */
   lineup: readonly string[];
   matches: readonly LibraryMatch[];
+  /** Matches per map in the scope, for the map select of the heatmap and the paths. */
+  mapCounts: MapCounts | null;
   /** The players a heatmap or the paths can count alone. */
   roster: readonly LibraryRosterEntry[];
   form: TeamReplayForm;
@@ -140,6 +144,7 @@ export function TeamReplay({
           criteria={criteria}
           view={form === 'calor' ? 'heatmap' : 'overlay'}
           roster={roster}
+          mapCounts={mapCounts}
           onMapChange={onMapChange}
           onCounts={onCounts}
           onRounds={onRounds}

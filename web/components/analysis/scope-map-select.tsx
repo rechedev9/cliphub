@@ -32,10 +32,21 @@ function MapName({ map }: { map: string }): ReactNode {
 /** The map control of the scope bar: each map says how many matches it has in the scope and a map with none cannot be chosen. */
 export function ScopeMapSelect({ value, maps, required, counts, onChange }: ScopeMapSelectProps): ReactNode {
   const allLabel = required ? 'Elige un mapa' : 'Todos los mapas';
+  // A map reached through the URL, a chip or a changed scope can still have none: say so on the trigger.
+  const emptyChoice = value !== '' && counts?.[value] === 0;
   return (
     <Select value={value === '' ? ALL : value} onValueChange={(next) => onChange(next === ALL ? '' : next)}>
-      <SelectTrigger aria-label="Mapa" className={cn('h-8 gap-1.5 px-2.5 text-body-sm', value !== '' && 'border-fg-3 text-fg-1')}>
-        <SelectValue>{value === '' ? allLabel : <MapName map={value} />}</SelectValue>
+      <SelectTrigger
+        aria-label="Mapa"
+        title={emptyChoice ? NO_MATCHES_TEXT : undefined}
+        className={cn('h-8 gap-1.5 px-2.5 text-body-sm', value !== '' && 'border-fg-3 text-fg-1')}
+      >
+        <SelectValue>
+          <span className="flex items-center gap-2">
+            {value === '' ? allLabel : <MapName map={value} />}
+            {emptyChoice ? <span className="text-meta text-fg-3 tabular-nums">{mapCountText(0)}</span> : null}
+          </span>
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={ALL}>{allLabel}</SelectItem>

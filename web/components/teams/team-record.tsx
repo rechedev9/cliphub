@@ -166,6 +166,8 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
 };
 /** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
 const REPORTING_TABS = new Set(['mapas', 'estadisticas', 'sitios', 'preparar', 'playbook', 'replay']);
+/** Tabs whose view reads the matches through the server scope pipeline, the one the map counts follow. */
+const COUNTED_TABS = new Set(['estadisticas', 'sitios', 'preparar', 'playbook', 'replay']);
 const TEAM_TABS = ['plantilla', 'partidas', 'mapas', 'estadisticas', 'series', 'veto', 'sitios', 'preparar', 'playbook', 'replay'];
 /** Tabs of older links: Scouting is in Preparar, and the radar and the grenades are forms of the Replay. */
 const LEGACY_TABS: Readonly<Record<string, string>> = { scouting: 'preparar', radar: 'replay', granadas: 'replay' };
@@ -275,7 +277,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
     hrefFor: teamHref,
   };
   const activeScopeId = tab === 'replay' && (replayForm === 'granadas' || replayForm === 'patrones') ? `replay-${replayForm}` : tab;
-  const mapCounts = useTeamMapCounts({ teamId: team.id, scope, fields: TAB_FIELDS[activeScopeId] ?? [], lineup });
+  const mapCounts = useTeamMapCounts({ teamId: team.id, scope, fields: COUNTED_TABS.has(tab) ? (TAB_FIELDS[activeScopeId] ?? []) : [], lineup });
 
   function withScope(id: string, content: ReactNode): ReactNode {
     const fields = TAB_FIELDS[id] ?? [];
@@ -411,6 +413,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
                 team={team}
                 matches={scoped}
                 maps={teamMaps}
+                mapCounts={mapCounts}
                 scope={scope}
                 lineup={lineup}
                 onMapChange={onMapChange}
@@ -437,6 +440,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
                 scope={scope}
                 lineup={lineup}
                 matches={matches}
+                mapCounts={mapCounts}
                 roster={team.roster ?? []}
                 form={replayForm}
                 onFormChange={(form) => {

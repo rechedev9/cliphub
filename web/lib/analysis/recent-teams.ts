@@ -1,6 +1,9 @@
 /** localStorage key of the teams opened last; Studio's storage lives in the profile, so each profile keeps its own. */
 export const RECENT_TEAMS_KEY = 'cliphub.recent-teams.v1';
-export const RECENT_TEAMS_MAX = 4;
+/** "Recientes" lists this many teams besides the open one. */
+export const RECENT_TEAMS_SHOWN = 4;
+/** The open team and the ones shown beside it. */
+const RECENT_TEAMS_STORED = RECENT_TEAMS_SHOWN + 1;
 
 /** Team ids from stored JSON; anything unreadable is an empty list. */
 export function parseRecentTeams(raw: string | null): string[] {
@@ -8,24 +11,35 @@ export function parseRecentTeams(raw: string | null): string[] {
   try {
     const value: unknown = JSON.parse(raw);
     if (!Array.isArray(value)) return [];
-    const ids = value.filter((item): item is string => typeof item === 'string' && item !== '');
-    return [...new Set(ids)].slice(0, RECENT_TEAMS_MAX);
+    return [...new Set(value.filter((item): item is string => typeof item === 'string' && item !== ''))];
   } catch {
     return [];
   }
 }
 
-/** The list with `id` first, no repeats, and at most the last four. */
-export function withRecentTeam(list: readonly string[], id: string): string[] {
-  return [id, ...list.filter((item) => item !== id)].slice(0, RECENT_TEAMS_MAX);
+export type RecentTeamUpdate = {
+  list: readonly string[];
+  /** The team just opened. */
+  id: string;
+  /** Ids of the teams the library has; the others were merged or deleted and drop out first. */
+  known: readonly string[];
+};
+
+/** The open team first, then the teams still in the library, at most the open one and four more. */
+export function withRecentTeam({ list, id, known }: RecentTeamUpdate): string[] {
+  const alive = new Set(known);
+  return [id, ...list.filter((item) => item !== id && alive.has(item))].slice(0, RECENT_TEAMS_STORED);
 }
 
-/** The recent teams that still exist, newest first. */
-export function recentTeamOptions<T extends { readonly value: string }>(recent: readonly string[], options: readonly T[]): T[] {
-  return recent.flatMap((id) => options.filter((option) => option.value === id));
+/** The recent teams to list: not the open one, and only those the picker offers. */
+export function recentTeamOptions<T extends { readonly value: string }>(recent: readonly string[], options: readonly T[], openId: string): T[] {
+  return recent
+    .filter((id) => id !== openId)
+    .flatMap((id) => options.filter((option) => option.value === id))
+    .slice(0, RECENT_TEAMS_SHOWN);
 }
 
-export function readRecentTeams(): string[] {
+function readRecentTeams(): string[] {
   try {
     return parseRecentTeams(window.localStorage.getItem(RECENT_TEAMS_KEY));
   } catch {
@@ -33,9 +47,9 @@ export function readRecentTeams(): string[] {
   }
 }
 
-/** Puts the team first in the stored list and returns it; storage that refuses leaves the list as it was. */
-export function rememberRecentTeam(id: string): string[] {
-  const next = withRecentTeam(readRecentTeams(), id);
+/** Puts the team first in the stored list, dropping teams that no longer exist, and returns it. */
+export function rememberRecentTeam({ id, known }: Pick<RecentTeamUpdate, 'id' | 'known'>): string[] {
+  const next = withRecentTeam({ list: readRecentTeams(), id, known });
   try {
     window.localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(next));
   } catch {

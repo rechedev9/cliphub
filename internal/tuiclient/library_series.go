@@ -126,10 +126,16 @@ type TeamMapCounts struct {
 	} `json:"maps"`
 }
 
-// LibraryTeamMapCounts counts a team's matches per map under the team scope of q.
-func (c *Client) LibraryTeamMapCounts(ctx context.Context, teamID string, q AnalysisQuery) (TeamMapCounts, error) {
+// MapCountsRequest is a team and the scope its matches are counted under.
+type MapCountsRequest struct {
+	TeamID string
+	Scope  AnalysisQuery
+}
+
+// LibraryTeamMapCounts counts a team's matches per map under the request's scope.
+func (c *Client) LibraryTeamMapCounts(ctx context.Context, req MapCountsRequest) (TeamMapCounts, error) {
 	var out TeamMapCounts
-	err := c.getJSON(ctx, teamPath(teamID, "map-counts")+q.encode(), &out)
+	err := c.getJSON(ctx, teamPath(req.TeamID, "map-counts")+req.Scope.encode(), &out)
 	return out, err
 }
 

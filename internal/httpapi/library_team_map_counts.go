@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
@@ -25,13 +26,16 @@ type teamMapCountsResponse struct {
 	Maps     []teamMapCount `json:"maps"`
 }
 
-// teamMapCounts counts, map by map, the matches the scope keeps with the
-// pipeline the views use (period, rival, rival level, whose, lineup and the
-// "last N" cap per map). Map and side do not narrow it, and round criteria
-// count rounds, not matches.
-func (h *Handlers) teamMapCounts(ctx context.Context, team library.Team, filter tacticalplan.ScoutFilter) (teamMapCountsResponse, error) {
-	resp := teamMapCountsResponse{TeamID: team.ID, TeamName: team.Name, Maps: []teamMapCount{}}
-	candidates, pending, _, err := h.teamCandidates(ctx, team, nil)
+type teamMapCountsQuery struct {
+	team   library.Team
+	filter tacticalplan.ScoutFilter
+}
+
+// teamMapCounts counts per map the matches keepTeamMatches would read; map,
+// side and round criteria do not narrow it.
+func (h *Handlers) teamMapCounts(ctx context.Context, q teamMapCountsQuery) (teamMapCountsResponse, error) {
+	resp := teamMapCountsResponse{TeamID: q.team.ID, TeamName: q.team.Name, Maps: []teamMapCount{}}
+	candidates, pending, _, err := h.teamCandidates(ctx, q.team, nil)
 	if err != nil {
 		return resp, err
 	}
@@ -39,15 +43,18 @@ func (h *Handlers) teamMapCounts(ctx context.Context, team library.Team, filter 
 	for _, m := range pending {
 		counts[m.Document.Demo.Map] = 0
 	}
-	selected, _ := selectTeamMatches(filter, pending)
+	selected, _ := selectTeamMatches(q.filter, pending)
 	byMap := map[string][]tacticalplan.ScoutMatch{}
 	for _, m := range selected {
 		byMap[m.Document.Demo.Map] = append(byMap[m.Document.Demo.Map], m)
 	}
 	for name, matches := range byMap {
-		kept, _ := h.keepTeamMatches(keepQuery{
-			teamID: team.ID, candidates: candidates, selected: matches, lineup: filter.Lineup, limit: filter.MaxMatches,
-		})
+		keep := keepQuery{teamID: q.team.ID, candidates: candidates, selected: matches, lineup: q.filter.Lineup, limit: q.filter.MaxMatches}
+		if len(q.filter.Lineup) == 0 {
+			counts[name] = h.countAnalysed(keep)
+			continue
+		}
+		kept, _ := h.keepTeamMatches(keep)
 		counts[name] = len(kept)
 	}
 	for name, n := range counts {
@@ -55,6 +62,21 @@ func (h *Handlers) teamMapCounts(ctx context.Context, team library.Team, filter 
 	}
 	sort.Slice(resp.Maps, func(i, j int) bool { return resp.Maps[i].Map < resp.Maps[j].Map })
 	return resp, nil
+}
+
+// countAnalysed is keepTeamMatches for a scope without a lineup: every analysed
+// match stays, so a stat of the document replaces decoding it.
+func (h *Handlers) countAnalysed(q keepQuery) int {
+	n := 0
+	for _, sm := range q.selected {
+		if (q.limit > 0 && n >= q.limit) || n >= library.MaxReportMatches {
+			break
+		}
+		if ok, err := h.storage.Exists(artifacts.LibraryTacticalIndexKey(q.candidates[sm.MatchID].match.DemoID)); err == nil && ok {
+			n++
+		}
+	}
+	return n
 }
 
 // GetLibraryTeamMapCounts handles GET /api/library/teams/{id}/map-counts: the
@@ -70,7 +92,7 @@ func (h *Handlers) GetLibraryTeamMapCounts(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	filter.Maps = nil
-	resp, err := h.teamMapCounts(r.Context(), team, filter)
+	resp, err := h.teamMapCounts(r.Context(), teamMapCountsQuery{team: team, filter: filter})
 	if err != nil {
 		internalError(w, "team map counts", err)
 		return
