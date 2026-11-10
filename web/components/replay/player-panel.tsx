@@ -18,7 +18,7 @@ import { roundPovLabel } from '@/lib/replay/round-pov';
 import type { RoundPovRun } from '@/lib/replay/round-pov';
 import { RESULTS_HREF } from '@/lib/clips/routes';
 import { Button } from '@/components/ui/button';
-import { AllTeamRow, FOCUS_HINT } from './replay-players';
+import { AllTeamRow, FOLLOW_HINT } from './replay-players';
 
 const money = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
 
@@ -107,7 +107,7 @@ function PlayerRow({
         onClick={onSelect}
         aria-pressed={selected}
         aria-label={`${selected ? 'Quitar del primer plano' : 'Poner en primer plano'} a ${card.name}`}
-        title={FOCUS_HINT}
+        title={FOLLOW_HINT}
         className={cn('absolute inset-0 rounded-sm outline-none', FOCUS_RING)}
       />
       <span className="pointer-events-none relative flex min-w-0 items-center gap-1.5">

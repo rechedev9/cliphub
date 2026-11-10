@@ -8,7 +8,7 @@ import { inFocus, playerInitials } from '@/lib/replay/player-focus';
 import type { PlayerFocus } from '@/lib/replay/player-focus';
 import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { FOCUS_HINT } from './replay-players';
+import { FOLLOW_HINT } from './replay-players';
 import type { SetposCopy } from '@/lib/replay/setpos';
 import { teamNamesFor } from '@/lib/replay/map-hud';
 import { playerCards } from '@/lib/replay/player-cards';
@@ -81,7 +81,7 @@ export function ReplaySidePanel({
               type="button"
               aria-pressed={focus.includes(card.slot)}
               aria-label={card.name}
-              title={`${card.name}. ${FOCUS_HINT}`}
+              title={`${card.name}. ${FOLLOW_HINT}`}
               onClick={(event) => onPickSlot(card.slot, event.shiftKey)}
               className={cn(
                 'grid size-8 place-items-center rounded-sm border text-meta font-semibold outline-none hover:bg-surface-3',

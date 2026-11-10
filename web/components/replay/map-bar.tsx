@@ -28,6 +28,7 @@ import { FOCUS_RING } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { cn } from '@/lib/utils';
 import { ReplayChip } from './replay-chip';
+import { ShortcutTable } from './shortcut-table';
 
 const LAYER_ICONS: Record<LayerToggle, ReactNode> = {
   utility: <Flame aria-hidden />,
@@ -273,6 +274,10 @@ export function MapBar({
               </li>
             ))}
           </ul>
+          <section aria-label="Atajos de teclado" className="flex basis-full flex-col gap-1.5 border-t border-border-subtle pt-1.5">
+            <h3 className="text-meta font-semibold text-fg-2">Atajos de teclado</h3>
+            <ShortcutTable drawing={draft !== null} className="@3xl:flex-row @3xl:*:flex-1" />
+          </section>
         </div>
       ) : null}
     </div>
