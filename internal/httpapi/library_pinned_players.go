@@ -28,12 +28,14 @@ func (h *Handlers) PutLibraryPinnedPlayers(w http.ResponseWriter, r *http.Reques
 	if !h.libraryReady(w) {
 		return
 	}
-	var req pinnedPlayersBody
-	if err := decodeSingleJSONBody(w, r, &req, true); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid pinned players JSON")
+	var req struct {
+		Players *[]library.PinnedPlayer `json:"players"`
+	}
+	if err := decodeSingleJSONBody(w, r, &req, true); err != nil || req.Players == nil {
+		writeError(w, http.StatusBadRequest, "invalid pinned players JSON: players is required, [] clears the list")
 		return
 	}
-	players, err := library.CleanPinnedPlayers(req.Players)
+	players, err := library.CleanPinnedPlayers(*req.Players)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

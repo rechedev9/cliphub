@@ -110,6 +110,7 @@ type leaderboardRowOut struct {
 	Rounds    int     `json:"rounds"`
 	Matches   int     `json:"matches"`
 	Value     float64 `json:"value"`
+	Pinned    bool    `json:"pinned,omitempty" jsonschema:"in the Ranking's Fijados, which the page shows first; see list_pinned_players"`
 	// Metrics repeats every metric of the player, so one call reads the whole row of the Studio table.
 	Metrics     map[string]float64 `json:"metrics,omitempty"`
 	LibraryRole string             `json:"library_role,omitempty" jsonschema:"library rows: awp, entry, support or rifler over the board's matches, on any map; absent under 20 rounds"`
@@ -226,8 +227,17 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 			for _, m := range board.MapRoles {
 				out.MapRoles = append(out.MapRoles, leaderboardMapRole{Key: cleanName(m.Key), Label: cleanName(m.Label), Players: m.Players})
 			}
+			// A Studio that cannot list the pins still answers the board, with none marked.
+			pinned := map[string]bool{}
+			if pins, err := c.GetPinnedPlayers(ctx); err == nil {
+				for _, pin := range pins {
+					pinned[pin.SteamID64] = true
+				}
+			}
 			for _, p := range board.Players {
-				out.Players = append(out.Players, leaderboardRow(p))
+				row := leaderboardRow(p)
+				row.Pinned = pinned[p.SteamID64]
+				out.Players = append(out.Players, row)
 			}
 			return nil, out, nil
 		})

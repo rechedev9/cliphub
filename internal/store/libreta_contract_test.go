@@ -195,6 +195,13 @@ func TestLibretaRepositoryContract(t *testing.T) {
 				if again, _ := f.repo.ListPinnedPlayers(f.ctx); again[0].Name != "ZywOo" {
 					t.Fatalf("a caller edit reached the store: %+v", again)
 				}
+				dup := []library.PinnedPlayer{first[1], first[0], {SteamID64: first[1].SteamID64, Name: "again"}}
+				if err := f.repo.SetPinnedPlayers(f.ctx, dup); err != nil {
+					t.Fatalf("SetPinnedPlayers(duplicate) = %v", err)
+				}
+				if got, err = f.repo.ListPinnedPlayers(f.ctx); err != nil || len(got) != 2 || got[0] != first[1] || got[1] != first[0] {
+					t.Fatalf("after a duplicate = %+v, %v; want each player once, first kept", got, err)
+				}
 				if err := f.repo.SetPinnedPlayers(f.ctx, first[1:]); err != nil {
 					t.Fatal(err)
 				}

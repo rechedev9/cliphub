@@ -31,7 +31,7 @@ func (r *SQLiteLibraryRepository) SetPinnedPlayers(ctx context.Context, players 
 			return err
 		}
 		for i, p := range players {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO library_pinned_players (steamid64, name, position) VALUES (?, ?, ?)`,
+			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO library_pinned_players (steamid64, name, position) VALUES (?, ?, ?)`,
 				p.SteamID64, p.Name, i); err != nil {
 				return err
 			}

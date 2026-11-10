@@ -27,7 +27,7 @@ func TestLibraryPinnedPlayersReplaceInOrderAndRefuseBadIDs(t *testing.T) {
 		t.Fatalf("read back = %+v", got.Players)
 	}
 	many := strings.Repeat(`{"steamid64":"76561198000000001"},`, 100) + `{"steamid64":"76561198000000001"}`
-	for _, bad := range []string{`{"players":[{"steamid64":"abc"}]}`, `{"players":[` + many + `]}`, `{"players":[],"x":1}`} {
+	for _, bad := range []string{`{"players":[{"steamid64":"abc"}]}`, `{"players":[` + many + `]}`, `{"players":[],"x":1}`, `{}`, `{"players":null}`} {
 		if rw := env.do(http.MethodPut, "/api/library/pinned-players", []byte(bad), "application/json"); rw.Code != http.StatusBadRequest {
 			t.Fatalf("PUT %.60s = %d, want 400", bad, rw.Code)
 		}
