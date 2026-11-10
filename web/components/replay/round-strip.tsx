@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Bomb, Clock3, Scissors, Skull, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, Bomb, Clock3, Scissors, Skull, type LucideIcon } from 'lucide-react';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalSide } from '@/lib/api/tactical';
+import { isHalfBreak } from '@/lib/replay/half-break';
 import { entryKey, stripGroups } from '@/lib/replay/playlist';
 import { ROUND_OUTCOME_LABEL } from '@/lib/replay/round-outcome';
 import type { RoundOutcome } from '@/lib/replay/round-outcome';
@@ -12,7 +13,25 @@ import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /** What the strip knows about a round once its match is loaded. */
-export type StripRoundInfo = { score: string; winner: TacticalSide | ''; outcome: RoundOutcome; half: number };
+export type StripRoundInfo = {
+  /** The score after the round, the team that started CT first. */
+  score: string;
+  winner: TacticalSide | '';
+  outcome: RoundOutcome;
+  half: number;
+  /** Team names in the order of `score`. */
+  teams: readonly [string, string];
+  /** Empty for a round without a winner. */
+  winnerName: string;
+};
+
+/** `Ronda 13: gana NAVI (CT), eliminación, 9:4 NAVI - FaZe`. */
+function roundSummary(round: number, info: StripRoundInfo | null): string {
+  if (info === null) return `Ronda ${round}`;
+  const winner = info.winner === '' ? 'sin ganador' : `gana ${info.winnerName || info.winner} (${info.winner})`;
+  const teams = info.teams.every((name) => name !== '') ? ` ${info.teams.join(' - ')}` : '';
+  return `Ronda ${round}: ${winner}, ${ROUND_OUTCOME_LABEL[info.outcome].toLowerCase()}, ${info.score}${teams}`;
+}
 
 const OUTCOME_ICON: Record<RoundOutcome, LucideIcon | null> = {
   exploded: Bomb,
@@ -92,17 +111,22 @@ export function RoundStrip({
               const key = entryKey(entry);
               const info = roundInfo(entry);
               const previous = offset > 0 ? roundInfo(entries[at - 1]) : null;
-              const halfBreak = info !== null && previous !== null && info.half !== previous.half;
+              const halfBreak = isHalfBreak(info, previous);
               const selected = at === index;
               const included = multi?.selected.includes(key) ?? false;
               const blocked = multi?.blocked(entry) ?? null;
               const Icon = info === null ? null : OUTCOME_ICON[info.outcome];
-              const outcome = info === null ? '' : `, ${ROUND_OUTCOME_LABEL[info.outcome].toLowerCase()}`;
               const toggles = multi !== null && !multi.locked && !selected;
-              let hint: string | undefined = info === null ? undefined : `${info.score}${outcome}`;
+              const summary = roundSummary(entry.round, info);
+              let hint: string | undefined = info === null ? undefined : summary;
               if (toggles) hint = blocked ?? 'Pulsa para superponer, doble clic para abrir';
               return (
-                <li key={key} className={cn('flex', halfBreak ? 'ml-3' : offset > 0 && 'ml-0.5')}>
+                <li key={key} className={cn('flex', !halfBreak && offset > 0 && 'ml-0.5')}>
+                  {halfBreak ? (
+                    <span className="flex w-5 items-center justify-center text-fg-3" title="Cambio de lado" role="img" aria-label="Cambio de lado">
+                      <ArrowLeftRight className="size-3" aria-hidden />
+                    </span>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => (toggles ? onToggleMulti(key) : onSelect(at))}
@@ -111,9 +135,9 @@ export function RoundStrip({
                     title={hint}
                     aria-current={selected ? 'true' : undefined}
                     aria-pressed={multi === null ? undefined : included || selected}
-                    aria-label={`Ronda ${entry.round}${info ? `, marcador ${info.score}${outcome}` : ''}`}
+                    aria-label={summary}
                     className={cn(
-                      'relative flex h-10 w-8 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-sm text-fg-2 outline-none',
+                      'relative flex h-11 w-9 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-sm text-fg-2 outline-none',
                       'transition-[background-color,color] duration-(--dur-fast) disabled:opacity-40',
                       FOCUS_RING,
                       selected ? 'bg-surface-5 text-fg-1 shadow-[inset_0_0_0_1px_var(--fg-2)]' : 'bg-surface-1 hover:bg-surface-3 hover:text-fg-1',
@@ -121,8 +145,9 @@ export function RoundStrip({
                     )}
                   >
                     <span className="text-meta leading-none font-medium tabular-nums">{entry.round}</span>
-                    {Icon === null ? <span className="size-3" aria-hidden /> : <Icon className={cn('size-3', sideText(info?.winner))} aria-hidden />}
-                    <span className={cn('absolute inset-x-1 bottom-0 h-0.5 rounded-full', sideBar(info?.winner))} aria-hidden />
+                    <span className="text-meta leading-none tabular-nums text-fg-3">{info === null ? '·' : info.score}</span>
+                    {Icon === null ? null : <Icon className={cn('absolute top-0.5 right-0.5 size-2.5', sideText(info?.winner))} aria-hidden />}
+                    <span className={cn('absolute inset-x-0 bottom-0 h-0.5', sideBar(info?.winner))} aria-hidden />
                   </button>
                 </li>
               );

@@ -35,7 +35,8 @@ test('multi round: the focused events move onto the shared clock', () => {
 });
 
 test('player cards: health, bomb, kills, grenades and weapon up to the playhead', () => {
-  const round: Pick<TacticalRound, 'players'> = {
+  const round: Pick<TacticalRound, 'players' | 'tick_end'> = {
+    tick_end: 6000,
     players: [
       { slot: 1, side: 'T', kills: 2, deaths: 0, assists: 0, damage: 0, equip_value: 4700, money: 800, survived: true },
       { slot: 2, side: 'CT', kills: 0, deaths: 1, assists: 0, damage: 0, equip_value: 5200, money: 300, survived: false, death_tick: 2920 },
@@ -60,6 +61,7 @@ test('player cards: health, bomb, kills, grenades and weapon up to the playhead'
   assert.equal(t.health, 71);
   assert.equal(t.hasBomb, true);
   assert.equal(t.kills, 1);
+  assert.equal(t.assists, null);
   assert.equal(t.lastWeapon, 'ak47');
   assert.equal(utilityLine(t.utility), '1 humo');
   assert.deepEqual(cards.ct.map((card) => [card.name, card.alive, card.health]), [

@@ -5,7 +5,7 @@ import { Keyboard, Layers, Maximize, Minimize, Radar, RefreshCw } from 'lucide-r
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import type { TacticalSource } from '@/lib/api/tactical';
 import { prettyMapName } from '@/lib/format';
-import { teamScoreBefore } from '@/lib/library/rounds';
+import { scoreAfter, teamsInScoreOrder, winnerTeamName } from '@/lib/replay/strip-round';
 import { centreRound } from '@/lib/replay/centre-round';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import { ReplayClock } from '@/lib/replay/clock';
@@ -494,7 +494,15 @@ export function ReplayWorkspace({
       if (state?.state !== 'ready') return null;
       const found = state.analysis.round(candidate.round);
       if (found === undefined) return null;
-      return { score: teamScoreBefore(state.analysis.doc, found).join(':'), winner: found.winner, outcome: roundOutcome(found.end_reason), half: found.half };
+      const { doc } = state.analysis;
+      return {
+        score: scoreAfter(doc, found).join(':'),
+        winner: found.winner,
+        outcome: roundOutcome(found.end_reason),
+        half: found.half,
+        teams: teamsInScoreOrder(doc),
+        winnerName: winnerTeamName(doc, found),
+      };
     },
     [analyses],
   );
@@ -506,7 +514,7 @@ export function ReplayWorkspace({
       const state = analyses.get(matchId);
       if (state?.state === 'ready') {
         const { doc } = state.analysis;
-        const teams = doc.teams.map((team) => team.name || team.key).join(' vs ');
+        const teams = teamsInScoreOrder(doc).join(' vs ');
         return `${prettyMapName(doc.demo.map)} · ${teams}`;
       }
       if (state?.state === 'failed') return 'Partida sin análisis';
@@ -776,7 +784,7 @@ export function ReplayWorkspace({
             aria-pressed={multi}
             disabled={focused === null}
             onClick={toggleMulti}
-            className="h-10 shrink-0"
+            className="h-11 shrink-0"
             title={`${superposeHint} (M)`}
           >
             <Layers aria-hidden />

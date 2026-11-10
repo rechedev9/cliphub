@@ -104,6 +104,7 @@ export function ReplaySidePanel({
       <PlayerPanel
         sides={sides}
         teamNames={teamNames}
+        teamScores={{ CT: focused.round.score_ct_before, T: focused.round.score_t_before }}
         hiddenSlots={layers.hiddenSlots}
         focus={focus}
         onPick={onPickSlot}

@@ -24,6 +24,8 @@ export type PlayerCard = {
   money: number;
   equipValue: number;
   kills: number;
+  /** The round's assists once the playhead reaches its end; null before, because the document has no assist event. */
+  assists: number | null;
   utility: UtilityUsed;
   lastWeapon: string | null;
   /** Null when the samples carry no gear (analyses before version 5). */
@@ -37,7 +39,7 @@ export type PlayerCard = {
 };
 
 export type PlayerCardInput = {
-  round: Pick<TacticalRound, 'players'>;
+  round: Pick<TacticalRound, 'players' | 'tick_end'>;
   samples: readonly TacticalSample[];
   events: readonly TimelineEvent[];
   nowSeconds: number;
@@ -55,6 +57,7 @@ export function playerCards(input: PlayerCardInput): { ct: PlayerCard[]; t: Play
   const kills = new Map<number, number>();
   const weapons = new Map<number, string>();
   const utility = new Map<number, UtilityUsed>();
+  const sideOf = new Map(input.round.players.map((player) => [player.slot, player.side]));
 
   for (const entry of input.events) {
     if (entry.seconds > input.nowSeconds) break;
@@ -62,6 +65,8 @@ export function playerCards(input: PlayerCardInput): { ct: PlayerCard[]; t: Play
     const actor = event.actor_slot;
     if (actor === undefined) continue;
     if (event.kind === TACTICAL_EVENT_KINDS.kill) {
+      const victimSide = sideOf.get(event.target_slot ?? -1);
+      if (victimSide !== undefined && victimSide === sideOf.get(actor)) continue;
       kills.set(actor, (kills.get(actor) ?? 0) + 1);
       if (event.weapon) weapons.set(actor, event.weapon);
       continue;
@@ -93,6 +98,7 @@ export function playerCards(input: PlayerCardInput): { ct: PlayerCard[]; t: Play
       money: alive && sample?.money !== undefined ? sample.money : player.money,
       equipValue: player.equip_value,
       kills: kills.get(player.slot) ?? 0,
+      assists: input.nowTick >= input.round.tick_end ? player.assists : null,
       utility: utility.get(player.slot) ?? emptyUtility(),
       lastWeapon: weapons.get(player.slot) ?? null,
       inventory: alive ? (sample?.inventory ?? null) : null,
