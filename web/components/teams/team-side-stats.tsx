@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { getTeamSideStats } from '@/lib/api/library';
-import type { SideStat, SideStats, TeamSideStats as TeamSideStatsReport } from '@/lib/api/side-stats';
+import type { SideStat, TeamSideStats as TeamSideStatsReport } from '@/lib/api/side-stats';
 import type { DeltaTone } from '@/lib/analysis/compare';
 import { scopeDateRange, type AnalysisScope, type ScopeField } from '@/lib/analysis/scope';
 import { teamScopeEntries } from '@/lib/analysis/team-scope';
@@ -25,9 +25,9 @@ import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { PlayerStatCard } from './player-stat-card';
+import { TeamSidesCard } from './team-sides-card';
 
 const BORDER: Record<DeltaTone, string> = { better: 'border-l-outcome-win', worse: 'border-l-outcome-loss', even: 'border-l-border' };
-const SIDE_TILES = SIDE_STAT_TILES.filter((tile) => tile.key !== 'maps_won');
 
 function StatTile({ tile, stat }: { tile: SideStatTile; stat: SideStat }): ReactNode {
   const delta = sideDelta(stat, tile.unit);
@@ -43,53 +43,6 @@ function StatTile({ tile, stat }: { tile: SideStatTile; stat: SideStat }): React
         <span className="text-meta text-fg-3 tabular-nums">{groupMeanText(stat, tile.unit)}</span>
       </dd>
     </div>
-  );
-}
-
-function SideCell({ tile, stat }: { tile: SideStatTile; stat: SideStat }): ReactNode {
-  const delta = sideDelta(stat, tile.unit);
-  return (
-    <td className="px-2 py-1.5 text-end tabular-nums">
-      <span className="font-medium text-fg-1">{formatSideValue(stat.value, tile.unit)}</span>
-      {delta ? <span className={cn('ml-2 text-meta', DELTA_TONE_CLASS[delta.tone])}>{delta.text}</span> : null}
-      <span className="block text-meta text-fg-3">{groupMeanText(stat, tile.unit)}</span>
-    </td>
-  );
-}
-
-function SidesTable({ ct, t }: { ct: SideStats; t: SideStats }): ReactNode {
-  return (
-    <section aria-labelledby="side-stats-sides" className="studio-panel flex flex-col gap-2 p-3">
-      <h2 id="side-stats-sides" className="text-body font-semibold text-fg-1">
-        Por lado
-      </h2>
-      <table className="w-full text-body-sm">
-        <thead>
-          <tr className="border-b border-border-subtle text-meta text-fg-3">
-            <th scope="col" className="px-2 py-1.5 text-start font-normal">
-              Cifra
-            </th>
-            <th scope="col" className="px-2 py-1.5 text-end font-semibold text-side-ct">
-              CT
-            </th>
-            <th scope="col" className="px-2 py-1.5 text-end font-semibold text-side-t">
-              T
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {SIDE_TILES.map((tile) => (
-            <tr key={tile.key} className="border-b border-border-subtle last:border-0">
-              <th scope="row" className="px-2 py-1.5 text-start font-normal text-fg-2">
-                {tile.label}
-              </th>
-              <SideCell tile={tile} stat={ct[tile.key]} />
-              <SideCell tile={tile} stat={t[tile.key]} />
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
   );
 }
 
@@ -198,18 +151,20 @@ export function TeamSideStats({ teamId, scope, lineup, compare, onCounts }: Team
   }
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <TeamSidesCard ct={data.ct} t={data.t} side={side} />
+        <p className="measure-read text-body-sm text-fg-2">{groupText(data)}</p>
+      </div>
       <section aria-labelledby="side-stats-overall" className="flex flex-col gap-2">
         <h2 id="side-stats-overall" className="text-body font-semibold text-fg-1">
           Estadísticas generales
         </h2>
-        <p className="measure-read text-body-sm text-fg-2">{groupText(data)}</p>
         <dl className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-2">
           {SIDE_STAT_TILES.map((tile) => (
             <StatTile key={tile.key} tile={tile} stat={data.overall[tile.key]} />
           ))}
         </dl>
       </section>
-      {side === '' ? <SidesTable ct={data.ct} t={data.t} /> : null}
       <section aria-labelledby="side-stats-players" className="flex flex-col gap-2">
         <h2 id="side-stats-players" className="text-body font-semibold text-fg-1">
           Rendimiento de jugadores

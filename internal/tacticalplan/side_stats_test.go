@@ -101,8 +101,15 @@ func TestTeamSideStatsBuyScopeAndEmptyFigures(t *testing.T) {
 		t.Fatalf("pistols won = %v, want no data", *r.Overall.PistolsWon.Value)
 	}
 	wantStat(t, "rounds won", r.Overall.RoundsWon, 50)
-	if r.CT.RoundsPlayed.Value != nil {
-		t.Fatalf("CT rounds outside the side scope = %v", *r.CT.RoundsPlayed.Value)
+	// The other side keeps every filter but the side, so a greyed CT still has numbers.
+	if r.CT.RoundsPlayed.Value == nil || *r.CT.RoundsPlayed.Value == 0 {
+		t.Fatalf("CT rounds with the T side chosen = %+v, want figures", r.CT.RoundsPlayed)
+	}
+	if r.CT.RoundsWon.Value == nil {
+		t.Fatalf("CT rounds won = no data, want a figure")
+	}
+	if r.T.RoundsPlayed.Value == nil || *r.T.RoundsPlayed.Value != float64(r.Rounds) {
+		t.Fatalf("T rounds %+v do not match overall %d", r.T.RoundsPlayed, r.Rounds)
 	}
 }
 

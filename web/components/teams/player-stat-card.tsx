@@ -66,7 +66,7 @@ export function PlayerStatCard({ player, side }: { player: SideStatsPlayer; side
         </div>
       </div>
       <p className="flex items-baseline gap-1.5">
-        <span className="text-title font-semibold text-fg-1 tabular-nums">{formatDecimal(player.rating, 2)}</span>
+        <span className="text-display font-semibold text-fg-1 tabular-nums">{formatDecimal(player.rating, 2)}</span>
         <span className="text-meta text-fg-3">{RATING_LABEL}</span>
         <InfoTip label={RATING_LABEL} text={RATING_FORMULA_TEXT} />
       </p>

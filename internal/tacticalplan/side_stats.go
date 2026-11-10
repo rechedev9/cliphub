@@ -311,7 +311,8 @@ func (run *teamRun) addMatch(m SideStatsMatch, opts SideStatsOptions) {
 	run.added++
 	doc := m.Document
 	filter := opts.Rounds
-	filter.TeamKey, filter.Side, filter.Lineup, filter.Slots, filter.Subjects = m.TeamKey, opts.Side, opts.Lineup, nil, nil
+	// The side filter is applied below, so the other side still gets its figures.
+	filter.TeamKey, filter.Side, filter.Lineup, filter.Slots, filter.Subjects = m.TeamKey, "", opts.Lineup, nil, nil
 	run.overall.seenMatch, run.ct.seenMatch, run.t.seenMatch = false, false, false
 	kept := 0
 	names := map[uint8]Player{}
@@ -326,13 +327,16 @@ func (run *teamRun) addMatch(m SideStatsMatch, opts SideStatsOptions) {
 		for _, pr := range r.Players {
 			v.sides[pr.Slot] = pr.Side
 		}
-		kept++
-		run.overall.addRound(v)
 		if v.side == SideCT {
 			run.ct.addRound(v)
 		} else {
 			run.t.addRound(v)
 		}
+		if opts.Side != "" && v.side != opts.Side {
+			continue
+		}
+		kept++
+		run.overall.addRound(v)
 		if !run.group {
 			run.addPlayers(v, names)
 		}
@@ -465,12 +469,15 @@ func TeamSideStats(in SideStatsInput) SideStatsReport {
 	if in.Group != nil {
 		report.GroupMatches = len(in.Group.matches)
 		for _, g := range in.Group.teams {
-			if g.overall.rounds == 0 {
-				continue
+			if g.overall.rounds > 0 {
+				overall = append(overall, groupTeam{g.overall.stats(), g.overall.rounds})
 			}
-			overall = append(overall, groupTeam{g.overall.stats(), g.overall.rounds})
-			ct = append(ct, groupTeam{sideOnly(g.ct.stats()), g.ct.rounds})
-			t = append(t, groupTeam{sideOnly(g.t.stats()), g.t.rounds})
+			if g.ct.rounds > 0 {
+				ct = append(ct, groupTeam{sideOnly(g.ct.stats()), g.ct.rounds})
+			}
+			if g.t.rounds > 0 {
+				t = append(t, groupTeam{sideOnly(g.t.stats()), g.t.rounds})
+			}
 		}
 	}
 	report.GroupTeams = len(overall)
