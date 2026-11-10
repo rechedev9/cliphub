@@ -103,6 +103,8 @@ export type ReplayWorkspaceProps = {
   openPlaylistId?: string;
   /** Players to put in the foreground by SteamID64, found in each match by it since slots change between demos. */
   focusPlayers?: readonly string[];
+  /** Opens with every round of the list superposed, as a grenade's Reproducir does. */
+  superpose?: boolean;
 };
 
 const NO_MATCHES: readonly string[] = [];
@@ -127,6 +129,7 @@ export function ReplayWorkspace({
   roundNotes,
   openPlaylistId,
   focusPlayers,
+  superpose = false,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
   const clock = useMemo(() => new ReplayClock(), []);
@@ -142,7 +145,7 @@ export function ReplayWorkspace({
   const [speed, setSpeed] = useState(1);
   const [loop, setLoop] = useState(false);
   const [ownLayers, setLayers] = useState<ReplayLayers>(DEFAULT_LAYERS);
-  const [multi, setMulti] = useState(false);
+  const [multi, setMulti] = useState(superpose);
   const captureRef = useRef<MapCapture | null>(null);
   // The span the superposed rounds play in; one round alone plays whole.
   const [ownTramo, setOwnTramo] = useState<Tramo>(WHOLE_ROUND);
@@ -176,8 +179,8 @@ export function ReplayWorkspace({
   // Slots mean a player only inside one match: a focus the workspace keeps itself ends with the match.
   const matchId = entry?.matchId;
   useEffect(() => setOwnFocus([]), [matchId]);
-  // With players in focus every round of the scope is superposed; without, the cap keeps the map readable.
-  const everyRound = focus.length > 0;
+  // With players in focus, or a list opened to superpose, every round is superposed; otherwise the cap keeps the map readable.
+  const everyRound = focus.length > 0 || superpose;
   const selectedKeys = useMemo(() => {
     if (!multi) return [];
     return everyRound ? entries.map(entryKey) : withFocus(multiKeys, focusKey);
@@ -562,11 +565,12 @@ export function ReplayWorkspace({
   const followedName = followSlot === null || focused === null ? null : (focused.doc.players.find((player) => player.slot === followSlot)?.name ?? null);
   const focusNames = focused === null ? '' : focused.doc.players.filter((player) => focus.includes(player.slot)).map((player) => player.name).join(' y ');
   let superposeNote = `hasta ${MULTI_MAX_ROUNDS} rondas`;
-  if (everyRound) superposeNote = multi ? `${centreRounds.length} de ${focusNames}` : `todas las de ${focusNames}`;
+  if (everyRound && focus.length === 0) superposeNote = multi ? `${centreRounds.length} de ${entries.length}` : 'todas las de la lista';
+  else if (everyRound) superposeNote = multi ? `${centreRounds.length} de ${focusNames}` : `todas las de ${focusNames}`;
   else if (multi) superposeNote = `${centreRounds.length} de ${MULTI_MAX_ROUNDS} como máximo`;
-  const superposeHint = everyRound
-    ? `Superpone todas las rondas del alcance con ${focusNames} en primer plano, desde el final del tiempo de compra`
-    : `Superpone hasta ${MULTI_MAX_ROUNDS} rondas desde el final del tiempo de compra: pulsa una ronda para sumarla. Elige un jugador para ver todas las suyas`;
+  let superposeHint = `Superpone todas las rondas del alcance con ${focusNames} en primer plano, desde el final del tiempo de compra`;
+  if (everyRound && focus.length === 0) superposeHint = 'Superpone todas las rondas de la lista desde el final del tiempo de compra';
+  else if (!everyRound) superposeHint = `Superpone hasta ${MULTI_MAX_ROUNDS} rondas desde el final del tiempo de compra: pulsa una ronda para sumarla. Elige un jugador para ver todas las suyas`;
   const roundActions = !library ? null : (
     <div className="flex flex-wrap gap-1">
       {focused !== null && entry !== undefined && !multi ? (

@@ -354,6 +354,18 @@ export function inScopePeriod(iso: string, period: ScopePeriod, now: number): bo
   return true;
 }
 
+/** The most played map of these matches, ties by name, the map a team's heatmap opens on (`chooseSpatialMap`); '' for none. */
+export function busiestMap(maps: readonly string[]): string {
+  const counts = new Map<string, number>();
+  for (const map of maps) if (map !== '') counts.set(map, (counts.get(map) ?? 0) + 1);
+  let best = '';
+  for (const [map, count] of counts) {
+    const bestCount = counts.get(best) ?? 0;
+    if (count > bestCount || (count === bestCount && map < best)) best = map;
+  }
+  return best;
+}
+
 /** "3 mapas · 72 rondas", the sample size every analysis page shows beside its scope. */
 export function scopeCountText(maps: number, rounds: number): string {
   return `${maps} ${maps === 1 ? 'mapa' : 'mapas'} · ${rounds} ${rounds === 1 ? 'ronda' : 'rondas'}`;

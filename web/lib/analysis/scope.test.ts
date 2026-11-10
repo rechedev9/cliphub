@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  busiestMap,
   DEFAULT_SCOPE,
   inScopePeriod,
   lineupOf,
@@ -16,6 +17,13 @@ import {
   type AnalysisScope,
 } from './scope.ts';
 import { teamScopeEntries } from './team-scope.ts';
+
+test('busiestMap picks the most played map like the heatmap, ties by name', () => {
+  assert.equal(busiestMap(['de_mirage', 'de_cache', 'de_cache', 'de_mirage', 'de_nuke']), 'de_cache');
+  assert.equal(busiestMap(['de_nuke', 'de_cache', 'de_cache']), 'de_cache');
+  assert.equal(busiestMap(['', '']), '');
+  assert.equal(busiestMap([]), '');
+});
 
 const TEAM = '0b7c4a1e-6f0d-4a51-9d55-3f1f3a9c2b10';
 const NOW = Date.parse('2026-11-05T12:00:00Z');

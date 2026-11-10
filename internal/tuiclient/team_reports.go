@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 // Evidence is one round a report counted, by match, round and tick.
@@ -190,38 +192,33 @@ func (c *Client) TeamPrepReport(ctx context.Context, teamID string, q AnalysisQu
 	return out, err
 }
 
-// TeamGrenade is one grenade a team threw. Origin is nil for a match analysed
-// before throws were recorded.
-type TeamGrenade struct {
-	MatchID          string      `json:"match_id"`
-	Round            int         `json:"round"`
-	Seconds          float64     `json:"seconds"`
-	Kind             string      `json:"kind"`
-	Side             string      `json:"side"`
-	ThrowerSteamID64 string      `json:"thrower_steamid64"`
-	ThrowerName      string      `json:"thrower_name"`
-	Origin           *[3]float64 `json:"origin"`
-	ThrowTick        *int        `json:"throw_tick"`
-	View             *[2]float64 `json:"view"`
-	Landing          [3]float64  `json:"landing"`
-	RoundWon         bool        `json:"round_won"`
-}
-
 // TeamGrenades is GET /api/library/teams/{id}/grenades.
 type TeamGrenades struct {
-	Grenades []TeamGrenade     `json:"grenades"`
-	Rounds   int               `json:"rounds"`
-	Skipped  []AnalysisSkipped `json:"skipped"`
+	tacticalplan.TeamGrenades
+	Skipped      []AnalysisSkipped `json:"skipped"`
+	AWPEstimated int               `json:"awp_estimated"`
 }
 
-// TeamGrenadeList returns the team's grenades of the given kinds, all when none.
-func (c *Client) TeamGrenadeList(ctx context.Context, teamID string, q AnalysisQuery, kinds []string) (TeamGrenades, error) {
-	q.Limit = 0
-	values := q.values()
-	for _, kind := range kinds {
+// TeamGrenadeQuery names the team, the matches and rounds, the kinds (all when
+// none) and whether to read the rivals' grenades instead of the team's.
+type TeamGrenadeQuery struct {
+	TeamID    string
+	Query     AnalysisQuery
+	Kinds     []string
+	Opponents bool
+}
+
+// TeamGrenadeList returns the grenades the query asks for.
+func (c *Client) TeamGrenadeList(ctx context.Context, q TeamGrenadeQuery) (TeamGrenades, error) {
+	q.Query.Limit = 0
+	values := q.Query.values()
+	for _, kind := range q.Kinds {
 		values.Add("kind", kind)
 	}
-	path := teamPath(teamID, "grenades") + encodeValues(values)
+	if q.Opponents {
+		values.Set("opponents", "1")
+	}
+	path := teamPath(q.TeamID, "grenades") + encodeValues(values)
 	var out TeamGrenades
 	err := c.getJSON(ctx, path, &out)
 	return out, err

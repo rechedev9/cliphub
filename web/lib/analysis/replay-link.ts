@@ -23,6 +23,11 @@ export function focusedReplayHref(options: { refs: readonly ReplayRef[]; title?:
   return `${path}?${writeTeamFocus(query, [options.steamId])}`;
 }
 
+/** The same playlist opened with every round superposed (`s=1`). */
+export function superposedReplayHref(refs: readonly ReplayRef[], title?: string): string {
+  return `${replayHref(refs, title)}&s=1`;
+}
+
 /** Reads the refs back; malformed entries are dropped. */
 export function parseReplayRefs(query: Pick<URLSearchParams, 'getAll'>): ReplayRef[] {
   const out: ReplayRef[] = [];

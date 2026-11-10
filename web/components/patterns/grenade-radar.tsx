@@ -46,6 +46,10 @@ type Props = {
   box: FloorBox | null;
   onBox: (box: FloorBox | null) => void;
   onHover: (spotKey: string | null) => void;
+  /** The colour token of a throw; by default its kind's. Chosen players colour their own throws. */
+  tokenOf?: (grenade: TeamGrenade) => string;
+  /** A label pinned at a world point, such as the open spot's round count. */
+  badge?: { at: readonly [number, number, ...number[]]; level: RadarLevel; text: string } | null;
 };
 
 function paintTracer(ctx: CanvasRenderingContext2D, tracer: GrenadeTracer, color: string, strong: boolean): void {
@@ -68,10 +72,14 @@ function paintTracer(ctx: CanvasRenderingContext2D, tracer: GrenadeTracer, color
 
 /**
  * Every throw on the radar as a tracer from the thrower to the landing,
- * coloured by kind. Dragging draws a box that filters the list (Shift + drag
+ * coloured by kind or by player. Dragging draws a box that filters the list (Shift + drag
  * once zoomed, when a plain drag pans); hovering a tracer highlights its spot.
  */
-export function GrenadeRadar({ geometry, levels, grenades, spotOf, selected, highlight, box, onBox, onHover }: Props): ReactNode {
+function kindToken(grenade: TeamGrenade): string {
+  return GRENADE_KIND_TOKEN[grenade.kind];
+}
+
+export function GrenadeRadar({ geometry, levels, grenades, spotOf, selected, highlight, box, onBox, onHover, tokenOf = kindToken, badge = null }: Props): ReactNode {
   const split = levels.length > 1;
   const onPlate = useCallback(
     (level: RadarLevel) => (split ? grenades.filter((grenade) => levelForAltitude(geometry.calibration, grenade.landing[2]) === level) : grenades),
@@ -80,32 +88,32 @@ export function GrenadeRadar({ geometry, levels, grenades, spotOf, selected, hig
   const paint = useCallback(
     ({ ctx, size, level }: RadarFrame) => {
       const computed = getComputedStyle(ctx.canvas);
-      const colors = new Map<TeamGrenadeKind, string>();
-      const colorOf = (kind: TeamGrenadeKind): string => {
-        const known = colors.get(kind);
+      const colors = new Map<string, string>();
+      const colorOf = (token: string): string => {
+        const known = colors.get(token);
         if (known !== undefined) return known;
-        const value = computed.getPropertyValue(GRENADE_KIND_TOKEN[kind]).trim() || '#9aa4b2';
-        colors.set(kind, value);
+        const value = computed.getPropertyValue(token).trim() || '#9aa4b2';
+        colors.set(token, value);
         return value;
       };
-      const strong: { tracer: GrenadeTracer; kind: TeamGrenadeKind }[] = [];
+      const strong: { tracer: GrenadeTracer; token: string }[] = [];
       for (const grenade of onPlate(level)) {
         const tracer = grenadeTracer(geometry.calibration, size, grenade);
         if (tracer === null) continue;
         const id = grenadeId(grenade);
         if (highlight !== null && spotOf.get(id) === highlight) {
-          strong.push({ tracer, kind: grenade.kind });
+          strong.push({ tracer, token: tokenOf(grenade) });
           continue;
         }
         let alpha = highlight === null ? 0.7 : 0.3;
         if (selected !== null && !selected.has(id)) alpha = 0.12;
         ctx.globalAlpha = alpha;
-        paintTracer(ctx, tracer, colorOf(grenade.kind), false);
+        paintTracer(ctx, tracer, colorOf(tokenOf(grenade)), false);
       }
       ctx.globalAlpha = 1;
-      for (const entry of strong) paintTracer(ctx, entry.tracer, colorOf(entry.kind), true);
+      for (const entry of strong) paintTracer(ctx, entry.tracer, colorOf(entry.token), true);
     },
-    [geometry.calibration, highlight, onPlate, selected, spotOf],
+    [geometry.calibration, highlight, onPlate, selected, spotOf, tokenOf],
   );
   const marks = useMemo(() => grenades.flatMap((grenade): WorldMark[] => (grenade.origin === null ? [grenade.landing] : [grenade.landing, grenade.origin])), [grenades]);
 
@@ -119,18 +127,35 @@ export function GrenadeRadar({ geometry, levels, grenades, spotOf, selected, hig
       label="Radar con las granadas del equipo"
     >
       {(projection, zoomed, level) => (
-        <DragLayer
-          geometry={geometry}
-          projection={projection}
-          zoomed={zoomed}
-          grenades={onPlate(level)}
-          spotOf={spotOf}
-          box={box !== null && (!split || box.level === level) ? box.box : null}
-          onBox={(next) => onBox(next === null ? null : { box: next, level })}
-          onHover={onHover}
-        />
+        <>
+          <DragLayer
+            geometry={geometry}
+            projection={projection}
+            zoomed={zoomed}
+            grenades={onPlate(level)}
+            spotOf={spotOf}
+            box={box !== null && (!split || box.level === level) ? box.box : null}
+            onBox={(next) => onBox(next === null ? null : { box: next, level })}
+            onHover={onHover}
+          />
+          {badge === null || (split && badge.level !== level) ? null : (
+            <SpotBadge geometry={geometry} projection={projection} at={badge.at} text={badge.text} />
+          )}
+        </>
       )}
     </RadarSurface>
+  );
+}
+
+function SpotBadge({ geometry, projection, at, text }: { geometry: TacticalGeometry; projection: RadarProjection; at: readonly [number, number, ...number[]]; text: string }): ReactNode {
+  const point = worldToRendered(geometry.calibration, at[0], at[1], projection.size);
+  return (
+    <span
+      className="pointer-events-none absolute -translate-x-1/2 -translate-y-[calc(100%+0.5rem)] rounded-sm border border-primary/40 bg-surface-1 px-1.5 py-0.5 text-meta font-medium whitespace-nowrap text-fg-1 tabular-nums shadow-sm"
+      style={{ left: point.x + projection.offsetX, top: point.y + projection.offsetY }}
+    >
+      {text}
+    </span>
   );
 }
 

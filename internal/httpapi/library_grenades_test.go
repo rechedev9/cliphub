@@ -29,16 +29,24 @@ func TestLibraryTeamGrenadesListsWhereEachGrenadeCameFrom(t *testing.T) {
 	if err := env.storage.Put(key, bytes.NewReader(b)); err != nil {
 		t.Fatal(err)
 	}
-	base := "/api/library/teams/" + teamOfMatch(t, m, "ct-start").TeamID.String() + "/grenades"
+	path := "/api/library/teams/" + teamOfMatch(t, m, "ct-start").TeamID.String() + "/grenades"
+	base := path + "?map=" + m.Map
 
 	var got struct {
-		Grenades []map[string]any `json:"grenades"`
-		Rounds   int              `json:"rounds"`
-		Skipped  []scoutSkipped   `json:"skipped"`
+		Grenades  []map[string]any            `json:"grenades"`
+		Rounds    int                         `json:"rounds"`
+		RoundList []tacticalplan.GrenadeRound `json:"round_list"`
+		Skipped   []scoutSkipped              `json:"skipped"`
 	}
 	env.json(http.MethodGet, base, nil, http.StatusOK, &got)
-	if got.Rounds != 2 || len(got.Skipped) != 0 || len(got.Grenades) != 2 {
-		t.Fatalf("grenades = %+v, want the smoke and the flash reported once, over 2 rounds", got)
+	if got.Rounds != 2 || len(got.RoundList) != 2 || len(got.Skipped) != 0 || len(got.Grenades) != 2 {
+		t.Fatalf("grenades = %+v, want the smoke and the flash reported once, over 2 listed rounds", got)
+	}
+	if got.RoundList[0].Side != tacticalplan.SideCT || got.RoundList[0].Category == "" {
+		t.Fatalf("first round = %+v, want the team's CT round with its category", got.RoundList[0])
+	}
+	if spot, ok := got.Grenades[0]["spot"].(string); !ok || spot == "" {
+		t.Fatalf("smoke spot = %v, want a spot key", got.Grenades[0]["spot"])
 	}
 	smoke, flash := got.Grenades[0], got.Grenades[1]
 	if smoke["kind"] != "smoke" || smoke["match_id"] != m.ID.String() || smoke["thrower_name"] != "one" || smoke["side"] != "CT" {
@@ -53,17 +61,26 @@ func TestLibraryTeamGrenadesListsWhereEachGrenadeCameFrom(t *testing.T) {
 		}
 	}
 
-	env.json(http.MethodGet, base+"?kind=smoke&kind=he", nil, http.StatusOK, &got)
+	env.json(http.MethodGet, base+"&kind=smoke&kind=he", nil, http.StatusOK, &got)
 	if len(got.Grenades) != 1 || got.Grenades[0]["kind"] != "smoke" {
 		t.Fatalf("smokes and HEs = %+v", got.Grenades)
 	}
-	env.json(http.MethodGet, base+"?map=de_nuke", nil, http.StatusOK, &got)
+	env.json(http.MethodGet, path+"?map=de_nuke", nil, http.StatusOK, &got)
 	if len(got.Grenades) != 0 || got.Rounds != 0 {
 		t.Fatalf("another map = %+v, want nothing", got)
 	}
-	for _, bad := range []string{"?kind=incgrenade", "?side=mid", "?match_id=nope"} {
-		if rw := env.do(http.MethodGet, base+bad, nil, ""); rw.Code != http.StatusBadRequest {
-			t.Fatalf("GET %s = %d, want 400", bad, rw.Code)
+	// The rivals threw nothing; their rounds are the team's, seen from T.
+	env.json(http.MethodGet, base+"&opponents=1", nil, http.StatusOK, &got)
+	if len(got.Grenades) != 0 || got.Rounds != 2 || got.RoundList[0].Side != tacticalplan.SideT {
+		t.Fatalf("opponents = %+v, want no grenades over the same 2 rounds on T", got)
+	}
+	for _, bad := range []string{"", "&kind=incgrenade", "&side=mid", "&match_id=nope", "&opponents=yes"} {
+		url := base + bad
+		if bad == "" {
+			url = path
+		}
+		if rw := env.do(http.MethodGet, url, nil, ""); rw.Code != http.StatusBadRequest {
+			t.Fatalf("GET %s = %d, want 400", url, rw.Code)
 		}
 	}
 }

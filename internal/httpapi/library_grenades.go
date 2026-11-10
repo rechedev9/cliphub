@@ -17,22 +17,32 @@ type teamGrenadesResponse struct {
 	AWPEstimated int            `json:"awp_estimated,omitempty"`
 }
 
-// grenadeKindsQuery reads the repeatable kind parameter.
-func grenadeKindsQuery(q url.Values) ([]tacticalplan.EventKind, error) {
-	kinds := make([]tacticalplan.EventKind, 0, len(q["kind"]))
+// grenadeQuery reads the repeatable kind parameter and opponents=1.
+func grenadeQuery(q url.Values) (tacticalplan.GrenadeQuery, error) {
+	out := tacticalplan.GrenadeQuery{Kinds: make([]tacticalplan.EventKind, 0, len(q["kind"]))}
 	for _, raw := range q["kind"] {
 		kind := tacticalplan.EventKind(raw)
 		if !slices.Contains(tacticalplan.GrenadeKinds, kind) {
-			return nil, errors.New("kind must be smoke, flash, he, molotov or decoy")
+			return out, errors.New("kind must be smoke, flash, he, molotov or decoy")
 		}
-		kinds = append(kinds, kind)
+		out.Kinds = append(out.Kinds, kind)
 	}
-	return kinds, nil
+	switch q.Get("opponents") {
+	case "", "0":
+	case "1":
+		out.Opponents = true
+	default:
+		return out, errors.New("opponents must be 0 or 1")
+	}
+	return out, nil
 }
 
 // ListLibraryTeamGrenades handles GET /api/library/teams/{id}/grenades: every
-// grenade the team threw, where from and where it landed. It takes the scout
-// filter (map, side, from, to, opponent_id, match_id, lineup) and a repeatable kind.
+// grenade the team threw, where from, where it landed and what the team did
+// after it, with every round the filter kept. It takes the scout filter with the
+// team scope (teamScopeQuery, read from the team's side), a repeatable kind and
+// opponents=1 for the grenades of the team's rivals in the same rounds. The
+// map is required, since the follow-up reads every position of each round.
 func (h *Handlers) ListLibraryTeamGrenades(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
 		return
@@ -47,9 +57,13 @@ func (h *Handlers) ListLibraryTeamGrenades(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	kinds, err := grenadeKindsQuery(q)
+	read, err := grenadeQuery(q)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(filter.Maps) == 0 {
+		writeError(w, http.StatusBadRequest, "map is required")
 		return
 	}
 	team, err := h.libraryRepo.GetTeam(r.Context(), id)
@@ -57,14 +71,14 @@ func (h *Handlers) ListLibraryTeamGrenades(w http.ResponseWriter, r *http.Reques
 		writeLibraryError(w, "get team", err)
 		return
 	}
-	loaded, skipped, err := h.loadTeamMatches(r.Context(), team, matchIDs, filter)
+	loaded, skipped, err := h.loadFramedMatches(r.Context(), framedQuery{team: team, matchIDs: matchIDs, filter: filter})
 	if err != nil {
 		internalError(w, "list team grenades", err)
 		return
 	}
-	resp := teamGrenadesResponse{TeamGrenades: tacticalplan.CollectTeamGrenades(loaded, filter, kinds), Skipped: skipped}
+	resp := teamGrenadesResponse{TeamGrenades: tacticalplan.CollectTeamGrenades(loaded, filter, read), Skipped: skipped}
 	for _, m := range loaded {
-		resp.AWPEstimated += awpEstimated(filter, m)
+		resp.AWPEstimated += awpEstimated(filter, m.ScoutMatch)
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

@@ -178,11 +178,17 @@ type playbookRead struct {
 func readPlaybookRound(doc Document, r Round, side Side, frames []Frame) (playbookRead, bool) {
 	team := teamSlots(r, side)
 	track := teamTrack(doc, r, team, frames)
+	return readPlaybookTrack(doc, r, side, track), len(track) > 0
+}
+
+// readPlaybookTrack reads holds and tempo from a team track already named.
+func readPlaybookTrack(doc Document, r Round, side Side, track []teamFrame) playbookRead {
+	team := teamSlots(r, side)
 	read := playbookRead{doc: doc, round: r, side: side, team: team, presence: sitePresence(track), zones: controlledZones(track)}
 	if tick := roundTempo(doc, r, side, team, read.presence); tick > 0 {
 		read.tempo, read.hasTempo = secondsSince(r, tick, doc.Demo.Tickrate)
 	}
-	return read, len(track) > 0
+	return read
 }
 
 // category gives the round its playbook category, and the faked site of a fake.

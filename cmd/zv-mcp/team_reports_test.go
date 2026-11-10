@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -62,12 +64,32 @@ func addTeamReportRoutes(mux *http.ServeMux) {
 			http.Error(w, `{"error":"unexpected kinds `+r.URL.RawQuery+`"}`, http.StatusBadRequest)
 			return
 		}
-		g := `{"match_id":"` + testMatchID + `","round":%s,"seconds":%s,"kind":"%s","side":"T","thrower_steamid64":"%s","thrower_name":"p","landing":[10.4,20.6,-3],"round_won":true}`
-		row := func(round, secs, kind, thrower string) string {
-			return fmt.Sprintf(g, round, secs, kind, thrower)
+		g := `{"match_id":"` + testMatchID + `","round":%s,"tick":%s000,"seconds":%s,"kind":"%s","side":"T","thrower_steamid64":"%s","thrower_name":"p",` +
+			`"landing":[10.4,20.6,-3],"land_place":"Ramp","spot":"%s","after":{"zones":["Middle"],"fight":"Middle"},"round_won":%s,"tickrate":64}`
+		row := func(round, secs, kind, thrower, spot string) string {
+			return fmt.Sprintf(g, round, round, secs, kind, thrower, spot, strconv.FormatBool(round != "3"))
 		}
-		_, _ = w.Write([]byte(`{"rounds":4,"skipped":[],"grenades":[` + row("1", "5", "smoke", "a") + `,` + row("1", "7", "smoke", "b") + `,` +
-			row("2", "3", "flash", "a") + `,` + strings.Replace(row("2", "9", "smoke", "a"), `"landing"`, `"origin":[1,2,3],"throw_tick":640,"view":[90,-10],"landing"`, 1) + `]}`))
+		// The rivals' rounds keep the team's own buy in team_buy; round 3 was planted at 50 s.
+		round := `{"match_id":"` + testMatchID + `","round":%d,"tick":100,"side":"T","buy":"%s","opponent_buy":"%[2]s","team_buy":"%[2]s","won":%t,"category":"execute","site":"A"%s}`
+		if r.URL.Query().Get("opponents") == "1" {
+			round = strings.Replace(round, `"buy":"%s"`, `"buy":"eco"`, 1)
+		}
+		rounds := []string{fmt.Sprintf(round, 1, "full", true, ""), fmt.Sprintf(round, 2, "full", true, ""),
+			fmt.Sprintf(round, 3, "eco", false, `,"plant_seconds":50`), fmt.Sprintf(round, 4, "full", false, "")}
+		grenades := []string{row("1", "5", "smoke", grenadeA, "smoke:one"), row("1", "7", "smoke", grenadeB, "smoke:two"),
+			row("2", "3", "flash", grenadeA, "flash:three"),
+			strings.Replace(row("2", "9", "smoke", grenadeA, "smoke:one"), `"landing"`, `"origin":[1,2,3],"throw_tick":640,"view":[90,-10],"landing"`, 1),
+			row("3", "60", "smoke", grenadeB, "smoke:two")}
+		// Like the server, buy keeps the rounds of the team's own buy, also with opponents: round 3 is the only eco.
+		if r.URL.Query().Get("buy") == "full" {
+			rounds = slices.Delete(rounds, 2, 3)
+			grenades = grenades[:4]
+		}
+		_, _ = w.Write([]byte(`{"rounds":` + strconv.Itoa(len(rounds)) + `,"round_list":[` + strings.Join(rounds, ",") + `],"skipped":[],"grenades":[` +
+			strings.Join(grenades, ",") + `]}`))
+	})
+	mux.HandleFunc("GET /api/library/maps/de_nuke/callouts", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"map":"de_nuke","callouts":[{"token":"Ramp","name":"Rampa"},{"token":"Hut"}]}`))
 	})
 	mux.HandleFunc("GET /api/library/players/"+testSteamID+"/positions", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"steamid64":"` + testSteamID + `","match_count":2,"window_seconds":25,"min_reliable_sample":5,"skipped":[],
@@ -140,29 +162,104 @@ func TestTeamBombsitesPlaybookAndPrep(t *testing.T) {
 	toolFails(t, cs, "team_prep", map[string]any{"team_id": testTeamID, "map": ""}, "map is required")
 }
 
+const (
+	grenadeA = "76561198000000001"
+	grenadeB = "76561198000000002"
+)
+
 func TestTeamGrenadesGroupsByKind(t *testing.T) {
 	cs := fakeAnalysisStudio(t)
 	var out teamGrenadesOut
-	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": []string{"Smoke", "flash"}, "limit": 3}, &out)
-	if out.Total != 4 || out.Rounds != 4 || len(out.Kinds) != 2 || len(out.Grenades) != 3 || !out.Truncated || out.Note == "" {
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": []string{"Smoke", "flash"}, "limit": 3}, &out)
+	if out.Total != 5 || out.Rounds != 4 || out.MatchingRounds != 3 || len(out.Kinds) != 2 || len(out.Grenades) != 3 || !out.Truncated || out.Note == "" {
 		t.Fatalf("grenades = %+v", out)
 	}
 	smoke := out.Kinds[0]
-	if smoke.Kind != "smoke" || smoke.Count != 3 || smoke.T != 3 || smoke.MedianSeconds != 7 || smoke.PerRound != 0.75 {
+	if smoke.Kind != "smoke" || smoke.Count != 4 || smoke.T != 4 || smoke.MedianSeconds != 8 || smoke.PerRound != 1 {
 		t.Errorf("smoke = %+v", smoke)
 	}
-	if len(smoke.Throwers) != 2 || smoke.Throwers[0].SteamID64 != "a" || smoke.Throwers[0].Count != 2 {
+	if len(smoke.Throwers) != 2 || smoke.Throwers[0].SteamID64 != grenadeA || smoke.Throwers[0].Count != 2 {
 		t.Errorf("throwers = %+v", smoke.Throwers)
 	}
 	if g := out.Grenades[0]; g.Ref != testMatchID+"/1" || g.Landing != [3]int{10, 21, -3} || g.Origin != nil || g.ThrowTick != nil {
 		t.Errorf("first row = %+v", g)
 	}
 	var all teamGrenadesOut
-	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": []string{"smoke", "flash"}}, &all)
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": []string{"smoke", "flash"}}, &all)
 	if g := all.Grenades[3]; g.ThrowTick == nil || *g.ThrowTick != 640 || g.Origin == nil {
 		t.Errorf("a recorded throw = %+v, want the throw_tick save_lineup reads", g)
 	}
-	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": []string{"c4"}}, "kind must be one of")
+	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": []string{"c4"}}, "kind must be one of")
+}
+
+func TestTeamGrenadesReadsTheClockSpotsAndRounds(t *testing.T) {
+	cs := fakeAnalysisStudio(t)
+	kinds := []string{"smoke", "flash"}
+	var out teamGrenadesOut
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds}, &out)
+	if len(out.Clock) != 2 || out.Clock[0].Span != "1:55-1:45" || out.Clock[0].Throws != 4 || out.Clock[1].Span != "Tras la plant" {
+		t.Fatalf("clock = %+v, want the opening bin and the smoke after the plant", out.Clock)
+	}
+	if p := out.Clock[0].Players; len(p) != 2 || p[0].SteamID64 != grenadeA || p[0].Throws != 3 || p[1].Throws != 1 {
+		t.Errorf("opening bin players = %+v", p)
+	}
+	if len(out.Spots) != 3 || out.Spots[0].Key != "smoke:one" || out.Spots[0].Rounds != 2 || out.Spots[0].LandPlace != "Ramp" || len(out.Spots[0].After) != 3 {
+		t.Fatalf("spots = %+v", out.Spots)
+	}
+
+	var spot teamGrenadesOut
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "spot": "smoke:one"}, &spot)
+	d := spot.Spot
+	if d == nil || spot.MatchingRounds != 2 || d.Rounds != 2 || d.Won != 2 || len(d.RoundList) != 2 || d.RoundList[1].Ref != testMatchID+"/2" {
+		t.Fatalf("spot = %+v over %d rounds", d, spot.MatchingRounds)
+	}
+	want := []followUpOut{{Kind: "play", Value: "execute@A", Rounds: 2, Won: 2}, {Kind: "fight", Value: "Middle", Rounds: 2, Won: 2}, {Kind: "zone", Value: "Middle", Rounds: 2, Won: 2}}
+	if fmt.Sprint(d.After) != fmt.Sprint(want) {
+		t.Errorf("after = %+v, want %+v", d.After, want)
+	}
+	if d.Setpos != "setpos 1.00 2.00 3.00;setang -10.00 90.00 0" {
+		t.Errorf("setpos = %q", d.Setpos)
+	}
+	if !strings.Contains(d.StudioPath, "r="+testMatchID+"%3A1%3A808") || !strings.Contains(d.StudioPath, "%3A2%3A448") || !strings.HasSuffix(d.StudioPath, "s=1&t=Humo+a+Rampa+%C2%B7+2+rondas") {
+		t.Errorf("studio_path = %s, want both rounds from before the throw, superposed", d.StudioPath)
+	}
+
+	var inverted teamGrenadesOut
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "spot": "smoke:one", "invert": true}, &inverted)
+	if inverted.MatchingRounds != 2 || len(inverted.Inverted) != 2 || inverted.Inverted[0].Ref != testMatchID+"/3" || inverted.Inverted[1].Play != "execute@A" {
+		t.Errorf("inverted = %+v over %d rounds", inverted.Inverted, inverted.MatchingRounds)
+	}
+
+	var full teamGrenadesOut
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "buy": []string{"full"}, "players": []string{grenadeB}}, &full)
+	if full.Rounds != 3 || full.Total != 1 || full.MatchingRounds != 1 || full.Grenades[0].Ref != testMatchID+"/1" {
+		t.Errorf("full buys of B = %+v, want B's one smoke over the 3 full rounds", full)
+	}
+	// With the rivals' utility, buy still reads the scouted team's buy.
+	var rivals teamGrenadesOut
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "buy": []string{"full"}, "opponents": true}, &rivals)
+	if rivals.Rounds != 3 {
+		t.Errorf("opponents with the team's full buys = %d rounds, want 3", rivals.Rounds)
+	}
+	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": kinds}, "map is required")
+	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "max_matches": 51}, "max_matches")
+	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "spot": "smoke:nope"}, "no spot")
+	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "players": []string{"zywoo"}}, "is not a SteamID64")
+}
+
+func TestTeamGrenadesSendsTheTeamScope(t *testing.T) {
+	in := teamGrenadesIn{TeamID: testTeamID, Opponents: true, analysisFilterIn: analysisFilterIn{Map: "de_nuke"},
+		teamScopeIn: teamScopeIn{teamRoundScopeIn: teamRoundScopeIn{MaxMatches: 5, Buy: []string{"full"}, AWP: "with", OpponentTop: 30, RoundFrom: 3}}}
+	read, err := in.read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := read.Query.Scope.Encode(); got != "awp=with&buy=full&max_matches=5&opponent_top=30&round_from=3" {
+		t.Errorf("scope = %s, want the team scope keys every team tool sends", got)
+	}
+	if !read.Opponents {
+		t.Error("opponents was dropped")
+	}
 }
 
 func TestPlayerPositionsAndLeaderboard(t *testing.T) {
