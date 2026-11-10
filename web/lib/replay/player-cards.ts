@@ -24,6 +24,8 @@ export type PlayerCard = {
   money: number;
   equipValue: number;
   kills: number;
+  /** Assists of the whole round: the document has no assist event, so this does not grow with the playhead. */
+  assists: number;
   utility: UtilityUsed;
   lastWeapon: string | null;
   /** Null when the samples carry no gear (analyses before version 5). */
@@ -93,6 +95,7 @@ export function playerCards(input: PlayerCardInput): { ct: PlayerCard[]; t: Play
       money: alive && sample?.money !== undefined ? sample.money : player.money,
       equipValue: player.equip_value,
       kills: kills.get(player.slot) ?? 0,
+      assists: player.assists,
       utility: utility.get(player.slot) ?? emptyUtility(),
       lastWeapon: weapons.get(player.slot) ?? null,
       inventory: alive ? (sample?.inventory ?? null) : null,
