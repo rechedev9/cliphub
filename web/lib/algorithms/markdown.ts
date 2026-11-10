@@ -1,12 +1,16 @@
-// The Markdown subset the Ideas guide uses: headings, paragraphs, flat lists, pipe tables,
-// fenced code and rules.
+// The Markdown subset the Ideas guide and the report notes use: headings, paragraphs, flat lists,
+// pipe tables, fenced code, rules and [text](/studio-path) links to Studio pages.
+
+import { isStudioPagePath } from '../desktop-navigation.ts';
 
 export type Inline =
   | { kind: 'text'; text: string }
   | { kind: 'strong'; children: Inline[] }
   | { kind: 'em'; children: Inline[] }
   | { kind: 'code'; text: string }
-  | { kind: 'link'; href: string };
+  | { kind: 'link'; href: string }
+  /** A link to a Studio page by its relative path, the studio_path the MCP tools hand out. */
+  | { kind: 'route'; href: string; children: Inline[] };
 
 export type Block =
   | { kind: 'heading'; level: 2 | 3; id: string; title: string; content: Inline[] }
@@ -17,7 +21,7 @@ export type Block =
   | { kind: 'rule' };
 
 // Em needs a non-word edge so `Q* ... P*` stays text.
-const INLINE_RE = /`([^`]+)`|\*\*(.+?)\*\*|(?<![\w*])\*(?![\s*])([^*\n]+?)(?<!\s)\*(?!\w)|(https?:\/\/[^\s<]+)/g;
+const INLINE_RE = /\[([^\]\n]+)\]\((\/[^\s)]*)\)|`([^`]+)`|\*\*(.+?)\*\*|(?<![\w*])\*(?![\s*])([^*\n]+?)(?<!\s)\*(?!\w)|(https?:\/\/[^\s<]+)/g;
 
 const URL_TRAILING_RE = /[.,:;!?"»\]]+$/;
 
@@ -38,9 +42,12 @@ export function parseInline(source: string): Inline[] {
   for (const match of source.matchAll(INLINE_RE)) {
     const index = match.index;
     if (index > last) out.push({ kind: 'text', text: source.slice(last, index) });
-    const [whole, code, strong, em, url = ''] = match;
+    const [whole, routeText, route, code, strong, em, url = ''] = match;
     let consumed = whole;
-    if (code !== undefined) out.push({ kind: 'code', text: code });
+    if (routeText !== undefined && route !== undefined) {
+      if (isStudioPagePath(route)) out.push({ kind: 'route', href: route, children: parseInline(routeText) });
+      else out.push({ kind: 'text', text: whole });
+    } else if (code !== undefined) out.push({ kind: 'code', text: code });
     else if (strong !== undefined) out.push({ kind: 'strong', children: parseInline(strong) });
     else if (em !== undefined) out.push({ kind: 'em', children: parseInline(em) });
     else {
@@ -62,6 +69,7 @@ function plainText(content: Inline[]): string {
           return node.text;
         case 'strong':
         case 'em':
+        case 'route':
           return plainText(node.children);
         case 'link':
           return node.href;

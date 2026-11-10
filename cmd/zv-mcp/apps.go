@@ -33,6 +33,7 @@ var appPages = []appPage{
 	{shortOptionsAppURI, "short-options", "Opciones del Short", "Picker for the format, effects, transition, music and extras of a Short.", "short-options.html", false},
 	{hudGalleryAppURI, "hud-gallery", "HUD de la Demo completa", "Gallery of the HUD designs a Full Demo can use.", "hud-gallery.html", false},
 	{jobProgressAppURI, "job-progress", "Progreso de ClipHub Studio", "Live progress bar of a demo import, a parse, a capture or a render.", "job-progress.html", true},
+	{zoneMapAppURI, "zone-map", "Zonas del mapa", "A CS2 map's outline with the zones of a finding marked.", "zone-map.html", false},
 }
 
 type chooseShortIn struct {

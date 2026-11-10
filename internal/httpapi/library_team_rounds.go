@@ -17,6 +17,8 @@ type teamRoundOut struct {
 	Buy         tacticalplan.BuyType `json:"buy"`
 	OpponentBuy tacticalplan.BuyType `json:"opponent_buy"`
 	Site        tacticalplan.Site    `json:"site"`
+	// Pattern is the round shape of the team's side, such as execute or hold.
+	Pattern string `json:"pattern,omitempty"`
 }
 
 // teamRoundsMatch is one match of the scope with the rounds it keeps, in round order.
@@ -87,8 +89,12 @@ func teamRoundsOf(f tacticalplan.ScoutFilter, sm tacticalplan.ScoutMatch) teamRo
 	}
 	for _, r := range f.RoundFilter(sm).Apply(doc) {
 		side := doc.TeamSide(sm.TeamKey, r)
+		pattern := string(r.Class.TSide)
+		if side == tacticalplan.SideCT {
+			pattern = string(r.Class.CTSide)
+		}
 		out.Rounds = append(out.Rounds, teamRoundOut{
-			Round: r.Number, Side: side, Winner: r.Winner, Buy: r.Economy.Buy(side), OpponentBuy: r.Economy.Buy(side.Opponent()), Site: r.Class.Site,
+			Round: r.Number, Side: side, Winner: r.Winner, Buy: r.Economy.Buy(side), OpponentBuy: r.Economy.Buy(side.Opponent()), Site: r.Class.Site, Pattern: pattern,
 		})
 	}
 	return out

@@ -243,9 +243,10 @@ type PlayerPositions struct {
 				Rounds Rate   `json:"rounds"`
 			} `json:"zones"`
 			Places []struct {
-				Place  string `json:"place"`
-				Label  string `json:"label"`
-				Rounds Rate   `json:"rounds"`
+				Place    string     `json:"place"`
+				Label    string     `json:"label"`
+				Rounds   Rate       `json:"rounds"`
+				Examples []Evidence `json:"examples"`
 			} `json:"places"`
 			AWPKills  Rate `json:"awp_kills"`
 			AWPRounds Rate `json:"awp_rounds"`

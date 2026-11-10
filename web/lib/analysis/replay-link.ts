@@ -1,4 +1,7 @@
 import { writeTeamFocus } from '../replay/player-focus.ts';
+import { writeTramo } from '../replay/tramo.ts';
+import type { Tramo } from '../replay/tramo.ts';
+import { ZONE_MARKS_MAX, ZONE_QUERY } from '../replay/zone-marks.ts';
 
 /** One round to replay, optionally starting at a tick. */
 export type ReplayRef = { matchId: string; round: number; tick?: number };
@@ -26,6 +29,17 @@ export function focusedReplayHref(options: { refs: readonly ReplayRef[]; title?:
 /** The same playlist opened with every round superposed (`s=1`). */
 export function superposedReplayHref(refs: readonly ReplayRef[], title?: string): string {
   return `${replayHref(refs, title)}&s=1`;
+}
+
+/** What a finding's link opens: its rounds, and the zones, players (SteamID64) and tramo to show them with. */
+export type FindingLink = { refs: readonly ReplayRef[]; title: string; zones?: readonly string[]; focus?: readonly string[]; tramo?: Tramo };
+
+/** The playlist of a finding, the same link the MCP tools hand out as `studio_path`. */
+export function findingHref(link: FindingLink): string {
+  const params = new URLSearchParams(writeTeamFocus(replayHref(link.refs, link.title).slice('/replay?'.length), link.focus ?? []));
+  for (const zone of (link.zones ?? []).slice(0, ZONE_MARKS_MAX)) params.append(ZONE_QUERY, zone);
+  const query = link.tramo === undefined ? params.toString() : writeTramo(params.toString(), link.tramo);
+  return `/replay?${query}`;
 }
 
 /** Reads the refs back; malformed entries are dropped. */

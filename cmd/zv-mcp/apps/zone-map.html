@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zonas del mapa</title>
+<style>
+/*BASE_CSS*/
+.map { margin-top: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.map svg { display: block; width: 100%; height: auto; max-height: 70vh; }
+.floor { fill: #2a303c; }
+.zone { fill: var(--accent); fill-opacity: .32; stroke: var(--accent); stroke-opacity: .9; vector-effect: non-scaling-stroke; stroke-width: 1.5; }
+.zone.lower { stroke-dasharray: 4 3; fill-opacity: .18; }
+.label { fill: var(--text); paint-order: stroke; stroke: var(--bg); stroke-linejoin: round; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+.legend { margin: 10px 0 0; padding-left: 16px; font-size: 12px; }
+.legend .missing { color: var(--muted); }
+.path { margin-top: 8px; font-size: 12px; color: var(--muted); word-break: break-all; }
+.path code { color: var(--text); }
+</style>
+</head>
+<body>
+<h1 id="title">Zonas del mapa</h1>
+<p class="sub" id="lead">Cargando el mapa...</p>
+<div id="root"></div>
+<script>
+/*BRIDGE_JS*/
+</script>
+<script>
+const SVG = "http://www.w3.org/2000/svg";
+const root = document.getElementById("root");
+
+function svgEl(tag, attrs, ...children) {
+  const node = document.createElementNS(SVG, tag);
+  for (const [key, value] of Object.entries(attrs || {})) node.setAttribute(key, value);
+  for (const child of children.flat()) if (child) node.append(child);
+  return node;
+}
+
+function prettyMap(name) {
+  const bare = String(name || "").replace(/^de_/, "");
+  return bare ? bare.charAt(0).toUpperCase() + bare.slice(1) : "el mapa";
+}
+
+function drawMap(drawing) {
+  const box = String(drawing.view_box || "").split(" ").map(Number);
+  const width = box.length === 4 && box[2] > 0 ? box[2] : 1000;
+  const size = Math.max(width / 40, 12);
+  const zones = (drawing.zones || []).map((z) => svgEl("path", { class: z.lower ? "zone lower" : "zone", d: z.path }));
+  const labels = (drawing.zones || []).map((z) => svgEl("text", { class: "label", x: z.x, y: z.y, "font-size": size, "stroke-width": size / 4 }, z.label));
+  return el("div", { class: "map" },
+    svgEl("svg", { viewBox: drawing.view_box, role: "img", "aria-label": "Mapa con las zonas marcadas" },
+      svgEl("path", { class: "floor", d: drawing.silhouette || "" }), zones, labels));
+}
+
+function load(result) {
+  const out = (result && result.structuredContent) || {};
+  const drawing = result && result._meta ? result._meta["cliphub/zone-map"] : null;
+  document.getElementById("title").textContent = out.title || "Zonas en " + prettyMap(out.map);
+  const marks = Array.isArray(out.zones) ? out.zones : [];
+  const lower = new Set(((drawing && drawing.zones) || []).filter((z) => z.lower).map((z) => z.callout));
+  const legend = el("ul", { class: "legend" }, marks.map((z) => {
+    if (!z.found) return el("li", { class: "missing" }, z.label + ": no aparece en este mapa");
+    return el("li", {}, z.label + (lower.has(z.callout) ? " (planta baja, con borde discontinuo)" : ""));
+  }));
+  const parts = [];
+  if (drawing && drawing.view_box) parts.push(drawMap(drawing));
+  parts.push(legend);
+  if (out.studio_path) parts.push(el("div", { class: "path" }, "En Studio: ", el("code", {}, out.studio_path)));
+  root.replaceChildren(...parts);
+  document.getElementById("lead").textContent = drawing && drawing.view_box
+    ? "El contorno es el espacio por el que se juega, como lo dibuja el radar 2D de Studio."
+    : "Esta vista no recibió el dibujo del mapa; las zonas están en la lista.";
+}
+
+bridge.onToolResult(load);
+bridge.start("cliphub-zone-map").then((ok) => {
+  if (!ok) document.getElementById("lead").textContent = "Esta vista solo funciona dentro de un asistente compatible.";
+});
+</script>
+</body>
+</html>

@@ -361,10 +361,12 @@ type Report struct {
 	TeamName string      `json:"team_name"`
 	MatchIDs []uuid.UUID `json:"match_ids"`
 	// Side is "CT", "T" or empty for both sides.
-	Side      string    `json:"side"`
-	Notes     string    `json:"notes"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Side  string `json:"side"`
+	Notes string `json:"notes"`
+	// RoundLists are the named rounds the coach (or an assistant) kept, in order.
+	RoundLists []ReportRoundList `json:"round_lists"`
+	CreatedAt  time.Time         `json:"created_at"`
+	UpdatedAt  time.Time         `json:"updated_at"`
 }
 
 // ReportFilter selects reports for a list read.
@@ -376,8 +378,9 @@ type ReportFilter struct {
 
 // ReportPatch is a user edit of a report. Nil fields are left unchanged.
 type ReportPatch struct {
-	Title    *string
-	MatchIDs *[]uuid.UUID
-	Side     *string
-	Notes    *string
+	Title      *string
+	MatchIDs   *[]uuid.UUID
+	Side       *string
+	Notes      *string
+	RoundLists *[]ReportRoundList
 }

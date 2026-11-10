@@ -1,6 +1,7 @@
 import type { MetricsReport } from '../api/metrics.ts';
 import type { ReportSide, ScoutMatchSummary, ScoutReport } from '../api/scout.ts';
 import { metricsMatchIndex, metricsSections, modelText } from '../metrics/advanced.ts';
+import { notesHtml } from './notes-html.ts';
 import {
   REPORT_SIDE_LABEL,
   evidenceLabel,
@@ -53,7 +54,7 @@ h2 { margin: 28px 0 4px; font-size: 17px; border-bottom: 1px solid #d4d4d8; padd
 h3 { margin: 16px 0 6px; font-size: 13px; }
 .meta, .intro, footer { color: #52525b; }
 .intro { margin: 0 0 8px; }
-.notes { white-space: pre-wrap; border-left: 3px solid #0891b2; padding: 8px 12px; background: #f4f4f5; margin: 0 0 16px; }
+.notes { border-left: 3px solid #0891b2; padding: 8px 12px; background: #f4f4f5; margin: 0 0 16px; }
 dl { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 8px 0; }
 dt { font-size: 11px; color: #52525b; }
 dd { margin: 0; font-weight: 600; }
@@ -130,7 +131,7 @@ export function buildReportHtml(input: ReportExportInput): string {
     `${scout.matches.length} ${scout.matches.length === 1 ? 'partida' : 'partidas'} en ${maps} ${maps === 1 ? 'mapa' : 'mapas'}`,
     `Generado el ${generatedFormat.format(input.generatedAt)}`,
   ].join('. ');
-  const notes = input.notes.trim() === '' ? '' : `<p class="notes">${escapeHtml(input.notes.trim())}</p>`;
+  const notes = input.notes.trim() === '' ? '' : `<div class="notes">${notesHtml(input.notes.trim(), origin)}</div>`;
   const metricsMatches = input.metrics ? metricsMatchIndex(input.metrics, matches) : matches;
   const sections = [
     ...scoutSections(scout).map((section) => sectionHtml(section, origin, matches)),

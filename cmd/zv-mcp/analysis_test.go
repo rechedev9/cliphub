@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -66,6 +67,34 @@ func fakeAnalysisStudio(t *testing.T) *mcp.ClientSession {
 			"rounds":[
 			{"number":1,"winner":"CT","economy":{"ct_buy":"pistol","t_buy":"pistol"},"class":{"t_side":"fast","ct_side":"hold","site":"A"},"players":[{"slot":0,"side":"CT","kills":2},{"slot":5,"side":"T","deaths":1}]},
 			{"number":2,"winner":"T","economy":{"ct_buy":"full","t_buy":"eco"},"class":{"t_side":"eco_rush","ct_side":"aggression","site":"B"},"players":[{"slot":0,"side":"CT","deaths":1},{"slot":5,"side":"T"}]}]}`))
+	})
+	mux.HandleFunc("GET /api/library/teams/"+testTeamID+"/rounds", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		rounds := []string{}
+		for _, round := range []struct{ json, side, buy string }{
+			{`{"round":1,"side":"CT","winner":"CT","buy":"pistol","opponent_buy":"pistol","site":"A","pattern":"hold"}`, "CT", "pistol"},
+			{`{"round":2,"side":"CT","winner":"T","buy":"full","opponent_buy":"eco","site":"B","pattern":"aggression"}`, "CT", "full"},
+		} {
+			if (q.Get("side") == "" || q.Get("side") == round.side) && (!q.Has("buy") || q.Get("buy") == round.buy) {
+				rounds = append(rounds, round.json)
+			}
+		}
+		matches := ""
+		if !q.Has("match_id") || q.Get("match_id") == testMatchID {
+			matches = `{"match_id":"` + testMatchID + `","map":"de_nuke","played_at":"2026-10-12T18:00:00Z","opponent":"MOUZ","total":2,"rounds":[` + strings.Join(rounds, ",") + `]}`
+		}
+		_, _ = w.Write([]byte(`{"team_name":"Vitality","rounds":` + fmt.Sprint(len(rounds)) + `,"matches":[` + matches + `],"skipped":[{"match_id":"x","reason":"over_match_limit"}]}`))
+	})
+	mux.HandleFunc("GET /api/library/matches/"+testMatchID, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"id":"` + testMatchID + `","map":"de_nuke","played_at":"2026-10-12T18:00:00Z","teams":[{"key":"ct-start","team_id":"` + testTeamID + `"},{"key":"t-start","clan_name":"MOUZ"}]}`))
+	})
+	mux.HandleFunc("GET /api/library/plays/"+testPlayID, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"id":"` + testPlayID + `","title":"Agresión en B","team_id":"` + testTeamID + `","map":"de_nuke","side":"CT","kind":"aggression","site":"B",
+			"examples":[{"match_id":"` + testMatchID + `","round":2}]}`))
+	})
+	mux.HandleFunc("GET /api/library/teams/"+testTeamID+"/plays", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"team_name":"Vitality","matches":1,"rounds":2,"compared":2,"plays":[{"map":"de_nuke","side":"CT","kind":"hold","site":"A","rounds":24,
+			"seed":{"match_id":"` + testMatchID + `","round":1},"examples":[{"match_id":"` + testMatchID + `","round":1}]}]}`))
 	})
 	addTeamReportRoutes(mux)
 	srv := httptest.NewServer(mux)
@@ -177,18 +206,23 @@ func TestPlayerMetricsUsesTheBaselineDefinitions(t *testing.T) {
 func TestFindRoundsFiltersByTeamOrPlayer(t *testing.T) {
 	cs := fakeAnalysisStudio(t)
 	var out findRoundsOut
-	callTool(t, cs, "find_rounds", map[string]any{"team_id": testTeamID, "buy": "full"}, &out)
-	if out.MatchesRead != 1 || len(out.Rounds) != 1 {
-		t.Fatalf("team full buys = %+v", out)
+	callTool(t, cs, "find_rounds", map[string]any{"team_id": testTeamID, "buy": []string{"full"}}, &out)
+	if out.MatchesRead != 1 || len(out.Rounds) != 1 || out.MatchCap != 50 || !out.MoreMatches {
+		t.Fatalf("team full buys = %+v, want one round, the 50 match cap and older matches left out", out)
 	}
 	r := out.Rounds[0]
 	if r.Ref != testMatchID+"/2" || r.Side != "CT" || r.OpponentBuy != "eco" || r.Won || r.Pattern != "aggression" || r.Opponent != "MOUZ" || r.Kills != nil {
 		t.Errorf("round = %+v", r)
 	}
 
+	out = findRoundsOut{}
 	callTool(t, cs, "find_rounds", map[string]any{"steamid": testSteamID, "result": "won"}, &out)
-	if len(out.Rounds) != 1 || out.Rounds[0].Round != 1 || out.Rounds[0].Kills == nil || *out.Rounds[0].Kills != 2 {
-		t.Fatalf("player wins = %+v", out.Rounds)
+	if len(out.Rounds) != 1 || out.Rounds[0].Round != 1 || out.Rounds[0].Kills == nil || *out.Rounds[0].Kills != 2 || out.MoreMatches {
+		t.Fatalf("player wins = %+v", out)
+	}
+	callTool(t, cs, "find_rounds", map[string]any{"steamid": testSteamID, "opponent_buy": []string{"eco"}}, &out)
+	if len(out.Rounds) != 1 || out.Rounds[0].Round != 2 {
+		t.Errorf("player rounds against an eco = %+v, want round 2", out.Rounds)
 	}
 	callTool(t, cs, "find_rounds", map[string]any{"team_id": testTeamID, "limit": 1}, &out)
 	if len(out.Rounds) != 1 || !out.Truncated {
@@ -198,6 +232,27 @@ func TestFindRoundsFiltersByTeamOrPlayer(t *testing.T) {
 	if len(out.Rounds) != 0 {
 		t.Errorf("T rounds of a team that only played CT = %+v", out.Rounds)
 	}
-	toolFails(t, cs, "find_rounds", map[string]any{"buy": "full"}, "exactly one of team_id or steamid")
-	toolFails(t, cs, "find_rounds", map[string]any{"team_id": testTeamID, "buy": "rich"}, "buy must be one of")
+	toolFails(t, cs, "find_rounds", map[string]any{"buy": []string{"full"}}, "exactly one of team_id or steamid")
+	toolFails(t, cs, "find_rounds", map[string]any{"team_id": testTeamID, "buy": []string{"rich"}}, "buy must be one of")
+	toolFails(t, cs, "find_rounds", map[string]any{"steamid": testSteamID, "lineup": []string{testSteamID}}, "pass team_id")
+}
+
+// A play's rounds are the ones it opens in the Replay, whoever's rounds the call reads.
+func TestFindRoundsKeepsAPlaysRounds(t *testing.T) {
+	cs := fakeAnalysisStudio(t)
+	var out findRoundsOut
+	callTool(t, cs, "find_rounds", map[string]any{"play_id": testPlayID}, &out)
+	if len(out.Rounds) != 1 || out.Rounds[0].Ref != testMatchID+"/2" || out.Play != "Agresión en B" {
+		t.Fatalf("Libreta play on its own team = %+v, want its example round 2", out)
+	}
+	callTool(t, cs, "find_rounds", map[string]any{"play_id": testPlayID, "steamid": testSteamID}, &out)
+	if len(out.Rounds) != 1 || out.Rounds[0].Round != 2 || out.Rounds[0].Deaths == nil {
+		t.Errorf("Libreta play for a player = %+v", out.Rounds)
+	}
+	callTool(t, cs, "find_rounds", map[string]any{"play_id": testMatchID + "/1", "team_id": testTeamID}, &out)
+	if len(out.Rounds) != 1 || out.Rounds[0].Round != 1 || out.Rounds[0].Pattern != "hold" || !out.PlayCapped || out.PlayRounds != 24 {
+		t.Errorf("detected play = %+v, want its round 1, capped from 24", out)
+	}
+	toolFails(t, cs, "find_rounds", map[string]any{"play_id": testMatchID + "/1"}, "needs the team_id")
+	toolFails(t, cs, "find_rounds", map[string]any{"play_id": testMatchID + "/9", "team_id": testTeamID}, "no detected play has that ref")
 }

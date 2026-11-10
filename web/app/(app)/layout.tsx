@@ -8,6 +8,7 @@ import { CommandStrip } from '@/components/shell/command-strip';
 import { RouteFrame } from '@/components/shell/route-frame';
 import { RouteTitleProvider } from '@/components/shell/route-title';
 import { ShellActivityMonitor } from '@/components/shell/shell-activity-monitor';
+import { DesktopNavigation } from '@/components/shell/desktop-navigation';
 import { TelemetryNotice } from '@/components/shell/telemetry-notice';
 import { SIDEBAR_COOKIE_NAME } from '@/components/shell/shell-cookies';
 
@@ -30,6 +31,7 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
   return (
     <ShellSidebarProvider defaultOpen={sidebarOpen} style={SHELL_VARS}>
       <ShellActivityMonitor />
+      <DesktopNavigation />
       <TelemetryNotice />
       <AppTour />
       <AppSidebar />

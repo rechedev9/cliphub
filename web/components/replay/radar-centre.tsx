@@ -24,6 +24,7 @@ import type { RadarRect } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { readRadarStyle } from '@/components/tactical/radar-style';
 import { TelestratorLayer } from '@/components/tactical/spatial/telestrator';
+import { ZoneLayer } from './zone-layer';
 import { MapZoomControls } from '@/components/analysis/map-zoom-controls';
 import { cn } from '@/lib/utils';
 import type { CentreRound } from '@/lib/replay/centre-round';
@@ -86,7 +87,7 @@ function spotsOf(spots: Map<RadarLevel, Map<number, number>>, level: RadarLevel)
  * a right-click copies their setpos.
  * The canvas mirrors the clock and is `aria-hidden`; the panels say the same in text.
  */
-export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, focus, onPickSlot, onHoverSlot, onCopySlot, followSlot, onFollowSlot, settings, barSlot, captureRef }: ReplayCentreProps): ReactNode {
+export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, zones, focus, onPickSlot, onHoverSlot, onCopySlot, followSlot, onFollowSlot, settings, barSlot, captureRef }: ReplayCentreProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLCanvasElement | null>(null);
@@ -626,6 +627,9 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
       >
         <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full" />
       </div>
+      {drawable && geometry !== undefined && !bothFloors && zones !== undefined && zones.length > 0 ? (
+        <ZoneLayer geometry={geometry} projection={projection} zones={zones} />
+      ) : null}
       {drawable && telestrator !== null && geometry !== undefined && !bothFloors ? (
         <TelestratorLayer calibration={geometry.calibration} projection={projection} shown={telestrator.shown} draft={telestrator.draft} />
       ) : null}
@@ -640,6 +644,9 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
                   draft={telestrator.draft}
                   level={pane.level}
                 />
+              )}
+              {zones === undefined || zones.length === 0 ? null : (
+                <ZoneLayer geometry={geometry} projection={localProjection(pane, projections[index])} zones={zones} level={pane.level} />
               )}
               <span className="absolute top-2 left-2 rounded-sm bg-surface-0/90 px-1.5 py-0.5 text-meta text-fg-2">{LEVEL_LABEL[pane.level]}</span>
             </div>

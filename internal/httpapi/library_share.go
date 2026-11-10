@@ -79,9 +79,12 @@ func (h *Handlers) ExportLibraryReport(w http.ResponseWriter, r *http.Request) {
 	shared := report
 	shared.TeamName = team.Name
 	shared.MatchIDs = make([]uuid.UUID, 0, len(matches))
+	carried := map[uuid.UUID]uuid.UUID{}
 	for _, m := range matches {
 		shared.MatchIDs = append(shared.MatchIDs, m.Match.ID)
+		carried[m.Match.ID] = m.Match.ID
 	}
+	shared.RoundLists = remapRoundLists(report.RoundLists, carried)
 	notesOf, err := h.shareAnnotations(r.Context(), matches, func(library.Annotation) bool { return true })
 	if err != nil {
 		internalError(w, "list report notes", err)

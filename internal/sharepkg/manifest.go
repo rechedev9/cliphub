@@ -23,10 +23,12 @@ import (
 )
 
 const (
-	Format    = "cliphub-share"
-	Version   = 1
-	Extension = ".cliphub"
-	MediaType = "application/zip"
+	Format = "cliphub-share"
+	// Version 2 carries report notes up to 20000 characters and round lists; a Studio of version 1 asks for an update.
+	Version    = 2
+	minVersion = 1
+	Extension  = ".cliphub"
+	MediaType  = "application/zip"
 
 	KindReport = "report"
 
@@ -88,7 +90,7 @@ func (m Manifest) Validate() error {
 	if m.Version > Version {
 		return invalidf("made by a newer Studio (version %d); update Studio to open it", m.Version)
 	}
-	if m.Version != Version {
+	if m.Version < minVersion {
 		return invalidf("unsupported version %d", m.Version)
 	}
 	if title := strings.TrimSpace(m.Title); title == "" || len([]rune(title)) > MaxTitleRunes {
@@ -173,7 +175,7 @@ func validateReport(r library.Report, matches map[uuid.UUID]library.Match) error
 		return invalidf("report needs the name of its team")
 	case r.Side != "" && r.Side != "CT" && r.Side != "T":
 		return invalidf("report side must be CT, T or empty")
-	case len([]rune(r.Notes)) > MaxNotesRunes:
+	case len([]rune(r.Notes)) > library.MaxReportNotesRunes:
 		return invalidf("report notes are too long")
 	case len(r.MatchIDs) > MaxMatches:
 		return invalidf("a report reads at most %d matches", MaxMatches)
@@ -181,6 +183,16 @@ func validateReport(r library.Report, matches map[uuid.UUID]library.Match) error
 	for _, id := range r.MatchIDs {
 		if _, ok := matches[id]; !ok {
 			return invalidf("the report names a match the package does not carry")
+		}
+	}
+	if _, err := library.CleanReportRoundLists(r.RoundLists); err != nil {
+		return invalidf("report: %v", err)
+	}
+	for _, list := range r.RoundLists {
+		for _, round := range list.Rounds {
+			if _, ok := matches[round.MatchID]; !ok {
+				return invalidf("a report round list names a match the package does not carry")
+			}
 		}
 	}
 	return nil

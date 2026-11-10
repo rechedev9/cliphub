@@ -57,7 +57,12 @@ updates on its own; keep calling the wait tools to learn when the job ends, with
 each percent in chat.
 Analysis: list_teams for team ids, list_players to turn a nick into a SteamID64, get_team (roster) and
 get_player (nicks and teams by date), scout_team for a team's tendencies, player_metrics for a player's
-numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
+numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open: with team_id it takes
+every team scope key below (lineup too) and counts the rounds the team tools count; play_id keeps the rounds of a
+Libreta play or the example rounds of a detected play (at most 20; play_rounds_capped and play_rounds say when the group holds more); it reads at most 50 matches, newest first,
+and more_matches says when older ones were left out.
+open_in_studio brings the Studio window to the front on a studio_path (app pages only, routed in the app); opened says whether
+the window did it, and when it did not it returns the full http://127.0.0.1:<port> address for the user to open.
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
 team_side_stats is the team's Estadísticas tab: figures overall and per side, each with group_avg over the
 compare_to teams (empty: the whole library) in the same map, side, dates and buys (buy, opponent_buy), and
@@ -80,6 +85,14 @@ pistol with pistol), awp and opponent_awp (with or without; awp_estimated counts
 kills), advantage (4v5, 5v4 at some moment) and round_from/round_to. team_rounds lists those rounds over
 the matches, with the Replay's studio_path and a playlist_path to play them one after another. The Replay
 holds one buy (or half) and one advantage per side, so studio_path refuses longer lists.
+team_attack (one map, T side) is the match prep read: sites and Bombsite Tempo (rush, set strat, mid round, no site)
+crossed with buy matchups, the preferred defaults, the executes per buy and per-player T windows, with stale,
+few-rounds, roster and capped warnings to repeat to the user; prepare_team includes it. Its rows give rounds and example refs;
+all_rounds, default_rounds, execute_rounds and each list's top row carry a studio_path, as do
+team_grenades zones and player_positions places: it opens the 2D Replay on those rounds
+with the focus, tramo and zones in the URL; show_zones draws a map with zones marked in hosts with MCP Apps.
+The match_prep prompt guides a match prep: rival and maps, the analysis, find_rounds for each finding's rounds,
+then create_report with Markdown notes and one named round list per finding.
 For a player: player_positions; leaderboard is the Ranking page: it ranks the library's players on one metric (rating, kd or a get_baseline one),
 filtered by map, side, role (such as b_lurk on de_anubis), map_role (a callout held on the map and side, or allround; the answer's
 map_roles lists them), dates and demo source, with each player's metrics, roles, breakdown (percent of rounds per role and per
@@ -90,8 +103,10 @@ Fix the library's teams: update_team renames or replaces the aliases (start from
 own (Mi equipo, one team at most: setting it moves the mark) and hltv_rank,
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.
-Scouting reports (Informes): list_reports, get_report (sections and players), create_report,
-update_report, delete_report. Libreta (the team's notebook; its Jugadas tab was the Stratbook): list_plays
+Scouting reports (Informes): list_reports, get_report (sections, players and the attack read per map), create_report,
+update_report, delete_report. A report's notes are Markdown up to 20000 characters, shown rendered in
+Informes and the exported report, with [text](studio_path) links to Studio pages; round_lists are named lists of round refs (up to 30 lists of 200 rounds), each a button that
+opens its rounds in the Replay; every listed round must be of the report's match_ids, and update_report replaces them whole. Libreta (the team's notebook; its Jugadas tab was the Stratbook): list_plays
 (archived plays only with include_archived), get_play, create_play (by hand), save_round_as_play (a
 round ref and the team's side key), detect_team_plays then save_detected_play with a play's ref,
 update_play (also status, tags and roles), delete_play, export_plays and import_plays (.json files on this PC).

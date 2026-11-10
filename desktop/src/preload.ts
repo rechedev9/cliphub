@@ -10,6 +10,8 @@ const STUDIO_UPDATE_STATUS_CHANNEL = 'cliphub:app-update-status';
 const STUDIO_TELEMETRY_EVENT_CHANNEL = 'cliphub:telemetry-event';
 const STUDIO_MATCH_MODE_CHANNEL = 'cliphub:match-mode';
 const STUDIO_REPLAY_GIF_CHANNEL = 'cliphub:replay-gif';
+const STUDIO_OPEN_PATH_CHANNEL = 'cliphub:open-path';
+const STUDIO_OPEN_PATH_ACK_CHANNEL = 'cliphub:open-path-ack';
 
 interface PreloadBrowserScope {
   navigator?: {
@@ -110,6 +112,21 @@ contextBridge.exposeInMainWorld('cliphubReports', {
       return Promise.resolve({ ok: false, error: 'El PDF se guarda desde un clic.' });
     }
     return ipcRenderer.invoke(STUDIO_REPORT_PDF_CHANNEL, { html, fileName });
+  },
+});
+
+// The page an assistant asked for, routed in the app; the ack tells main the app took it.
+contextBridge.exposeInMainWorld('cliphubNavigation', {
+  onOpen: (listener: (path: unknown) => void): (() => void) => {
+    const wrapped = (_event: unknown, request: unknown): void => {
+      if (typeof request !== 'object' || request === null || !('id' in request) || !('path' in request)) return;
+      listener(request.path);
+      ipcRenderer.send(STUDIO_OPEN_PATH_ACK_CHANNEL, request.id);
+    };
+    ipcRenderer.on(STUDIO_OPEN_PATH_CHANNEL, wrapped);
+    return () => {
+      ipcRenderer.removeListener(STUDIO_OPEN_PATH_CHANNEL, wrapped);
+    };
   },
 });
 

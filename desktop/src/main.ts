@@ -62,6 +62,7 @@ import { parseClipboardWriteRequest, STUDIO_CLIPBOARD_CHANNEL } from './clipboar
 import { registerReportPdfIPC } from './report-pdf-window';
 import { registerReplayGifIPC } from './replay-gif-window';
 import { denyPopups, registerMatchModeIPC } from './match-mode-window';
+import { bringForward, ipcRouter, watchOpenRequests } from './studio-raise';
 import {
   AppUpdateController,
   createDefaultAppUpdateHost,
@@ -962,12 +963,7 @@ function shutdown(): void {
   stopActiveBootAttempt();
 }
 
-app.on('second-instance', () => {
-  const win = aliveWindow();
-  if (win === null) return;
-  if (win.isMinimized()) win.restore();
-  win.focus();
-});
+app.on('second-instance', () => bringForward(aliveWindow()));
 
 app.whenReady().then(() => {
   const downloads = new StreamDownloads();
@@ -1030,6 +1026,9 @@ app.whenReady().then(() => {
   registerReplayGifIPC(saveFiles);
   registerAppUpdateIPC();
   registerMatchModeIPC({ isTrustedSender: trustedSettingsSender, webOrigin: () => activeWebOrigin, isLoopbackOrigin, backgroundColor: BOOT_SURFACE });
+  const studioShown = (): string | null => (loadingScreenShowing || !readAgentAccess(agentAccessFile) ? null : activeWebOrigin);
+  const routeInApp = ipcRouter({ ipc: ipcMain, window: aliveWindow });
+  watchOpenRequests({ userData: app.getPath('userData'), window: aliveWindow, webOrigin: studioShown, log: logLine, routeInApp });
   telemetryClient.start();
   telemetryJournal.start();
   diagnosticLogs?.start();

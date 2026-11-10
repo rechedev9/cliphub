@@ -250,14 +250,14 @@ func registerMatchTacticalTools(server *mcp.Server, s *studio) {
 			}
 			out := dossierOut{SteamID64: cleanName(d.SteamID64), Name: cleanName(d.Name), Verdict: cleanName(d.Verdict), Score: d.Score,
 				Confidence: d.Confidence, ProfileURL: cleanText(d.ProfileURL, maxErrorRunes), Markdown: cleanText(d.Markdown, maxDossierRunes),
-				Channels: []channelOut{}, Policy: cleanText(d.Policy.Summary, maxReportNotesRunes), PolicyRules: []string{},
-				PolicyRejected: cleanText(d.Policy.Rejected, maxReportNotesRunes)}
+				Channels: []channelOut{}, Policy: cleanText(d.Policy.Summary, maxNotesRunes), PolicyRules: []string{},
+				PolicyRejected: cleanText(d.Policy.Rejected, maxNotesRunes)}
 			for _, ch := range d.Channels {
 				out.Channels = append(out.Channels, channelOut{Label: cleanName(ch.Label), URL: cleanText(ch.URL, maxErrorRunes),
-					Instructions: cleanText(ch.Instructions, maxReportNotesRunes), Effective: ch.Effective})
+					Instructions: cleanText(ch.Instructions, maxNotesRunes), Effective: ch.Effective})
 			}
 			for _, r := range d.Policy.Rules {
-				out.PolicyRules = append(out.PolicyRules, cleanText(r, maxReportNotesRunes))
+				out.PolicyRules = append(out.PolicyRules, cleanText(r, maxNotesRunes))
 			}
 			return nil, out, nil
 		})

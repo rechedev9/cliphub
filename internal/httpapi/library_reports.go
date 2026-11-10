@@ -18,9 +18,8 @@ import (
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
-// Report limits. A title is a short name; notes are the coach's free text.
+// Report limits. The notes cap is library.MaxReportNotesRunes, a whole match prep in Markdown.
 const (
-	maxReportNotesRunes = 4000
 	// scoutCandidateLimit is how many of a team's most recent matches a scout
 	// without explicit match ids considers before its filter picks from them.
 	scoutCandidateLimit = library.MaxListLimit
@@ -366,6 +365,8 @@ type libraryReportRequest struct {
 	MatchIDs *[]uuid.UUID `json:"match_ids"`
 	Side     *string      `json:"side"`
 	Notes    *string      `json:"notes"`
+	// RoundLists replaces every named round list of the report.
+	RoundLists *[]library.ReportRoundList `json:"round_lists"`
 }
 
 // cleanReportRequest validates the fields a request carries. Every match id
@@ -388,10 +389,17 @@ func (h *Handlers) cleanReportRequest(ctx context.Context, req libraryReportRequ
 	}
 	if req.Notes != nil {
 		notes := strings.TrimSpace(*req.Notes)
-		if len([]rune(notes)) > maxReportNotesRunes {
-			return req, "", fmt.Errorf("notes must be at most %d characters", maxReportNotesRunes)
+		if len([]rune(notes)) > library.MaxReportNotesRunes {
+			return req, "", fmt.Errorf("notes must be at most %d characters", library.MaxReportNotesRunes)
 		}
 		req.Notes = &notes
+	}
+	if req.RoundLists != nil {
+		lists, err := library.CleanReportRoundLists(*req.RoundLists)
+		if err != nil {
+			return req, "", err
+		}
+		req.RoundLists = &lists
 	}
 	if req.MatchIDs != nil {
 		if len(*req.MatchIDs) > library.MaxReportMatches {
@@ -454,6 +462,13 @@ func (h *Handlers) CreateLibraryReport(w http.ResponseWriter, r *http.Request) {
 	if req.Notes != nil {
 		report.Notes = *req.Notes
 	}
+	if req.RoundLists != nil {
+		if err := library.CheckReportListMatches(*req.RoundLists, report.MatchIDs); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		report.RoundLists = *req.RoundLists
+	}
 	if err := h.libraryRepo.CreateReport(r.Context(), &report); err != nil {
 		writeLibraryError(w, "create report", err)
 		return
@@ -505,8 +520,23 @@ func (h *Handlers) PatchLibraryReport(w http.ResponseWriter, r *http.Request) {
 		writeReportRequestError(w, code, err)
 		return
 	}
+	matchIDs := report.MatchIDs
+	if req.MatchIDs != nil {
+		matchIDs = *req.MatchIDs
+	}
+	switch {
+	case req.RoundLists != nil:
+		if err := library.CheckReportListMatches(*req.RoundLists, matchIDs); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	case req.MatchIDs != nil:
+		// Dropping a match from the report drops its rounds from the lists, as the Edit dialog expects.
+		kept := library.KeepReportListMatches(report.RoundLists, matchIDs)
+		req.RoundLists = &kept
+	}
 	updated, err := h.libraryRepo.UpdateReport(r.Context(), report.ID, library.ReportPatch{
-		Title: req.Title, MatchIDs: req.MatchIDs, Side: req.Side, Notes: req.Notes,
+		Title: req.Title, MatchIDs: req.MatchIDs, Side: req.Side, Notes: req.Notes, RoundLists: req.RoundLists,
 	})
 	if err != nil {
 		writeLibraryError(w, "update report", err)

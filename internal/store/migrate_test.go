@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -172,6 +173,48 @@ func TestOpenSQLitePragmasSurviveConnectionReplacement(t *testing.T) {
 	}
 }
 
+// A database from before the report round lists gains the column, and its reports read empty lists.
+func TestMigrateV21AddsReportRoundListsToAnExistingDatabase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "jobs.db")
+	db, err := openSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stmt := range []string{
+		`ALTER TABLE library_reports DROP COLUMN round_lists`,
+		fmt.Sprintf(`PRAGMA user_version = %d`, len(migrations)-1),
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if found, _ := func() (bool, error) {
+		raw, err := sql.Open("sqlite", path)
+		if err != nil {
+			return false, err
+		}
+		defer raw.Close()
+		return columnExists(raw, "library_reports", "round_lists")
+	}(); found {
+		t.Fatal("the fixture still has round_lists")
+	}
+	db, err = openSQLite(path)
+	if err != nil {
+		t.Fatalf("openSQLite: %v", err)
+	}
+	defer db.Close()
+	found, err := columnExists(db, "library_reports", "round_lists")
+	if err != nil || !found {
+		t.Fatalf("round_lists after migrate: found=%v err=%v", found, err)
+	}
+	if version, err := schemaVersion(db); err != nil || version != len(migrations) {
+		t.Fatalf("user_version = %d (%v), want %d", version, err, len(migrations))
+	}
+}
+
 // A database that ran step 1 before 5.8.0 added source_kind to it opened with
 // "no such column: source_kind" and Studio could not start.
 func TestMigrateV10AddsStreamSourceKindToAnOlderDatabase(t *testing.T) {
@@ -184,8 +227,9 @@ func TestMigrateV10AddsStreamSourceKindToAnOlderDatabase(t *testing.T) {
 		`CREATE TABLE stream_jobs (id TEXT PRIMARY KEY, status TEXT NOT NULL, failure_reason TEXT, failure_code TEXT,
 			source_path TEXT NOT NULL, source_sha256 TEXT NOT NULL, source_url TEXT, public_source_url TEXT, title TEXT,
 			probe TEXT NOT NULL, edit_plan TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
-		// A real version 9 database has the stratbook table that later steps alter.
+		// A real version 9 database has the stratbook and report tables that later steps alter.
 		`CREATE TABLE library_plays (id TEXT PRIMARY KEY)`,
+		`CREATE TABLE library_reports (id TEXT PRIMARY KEY)`,
 		`PRAGMA user_version = 9`,
 	} {
 		if _, err := legacy.Exec(stmt); err != nil {

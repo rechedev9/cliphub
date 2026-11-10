@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ListVideo } from 'lucide-react';
 import { parseReplayRefs } from '@/lib/analysis/replay-link';
 import { listLibraryMatches } from '@/lib/api/library';
@@ -13,6 +13,9 @@ import { matchTitle } from '@/lib/library/partidas';
 import { teamFocusFromQuery } from '@/lib/replay/player-focus';
 import { entryKey, indexOfKey } from '@/lib/replay/playlist';
 import { PLAYLISTS_HREF, PLAYLIST_QUERY, isPlaylistId, playlistRefs } from '@/lib/replay/saved-playlist';
+import { isWholeRound, tramoFromQuery, writeTramo } from '@/lib/replay/tramo';
+import type { Tramo } from '@/lib/replay/tramo';
+import { zonesFromQuery } from '@/lib/replay/zone-marks';
 import { EmptyState } from '@/components/records/empty-state';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
@@ -137,8 +140,18 @@ function PassingPlaylistReplay(): ReactNode {
   const refs = useMemo(() => parseReplayRefs(search), [search]);
   const title = search.get('t') ?? undefined;
   const focusPlayers = useMemo(() => teamFocusFromQuery(search), [search]);
-  // `s=1` opens every round superposed, as a grenade's Reproducir does.
-  const superpose = search.get('s') === '1';
+  const router = useRouter();
+  const pathname = usePathname();
+  // A finding's link names its zones and its tramo (its players come in `jugador`); the tramo stays in the URL as the user moves it.
+  const zones = useMemo(() => zonesFromQuery(search), [search]);
+  const tramo = useMemo(() => tramoFromQuery(search), [search]);
+  // `s=1` opens every round superposed, as a grenade's Reproducir does, and so does a link with a tramo.
+  const [tramoLink] = useState(() => !isWholeRound(tramoFromQuery(search)));
+  const superpose = search.get('s') === '1' || tramoLink;
+  const setTramo = useCallback(
+    (next: Tramo) => router.replace(`${pathname}?${writeTramo(search.toString(), next)}`, { scroll: false }),
+    [pathname, router, search],
+  );
   const matches = useLibraryMatches();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [currentKey, setCurrentKey] = useState<string | null>(null);
@@ -211,6 +224,8 @@ function PassingPlaylistReplay(): ReactNode {
       filters={filters}
       title={title}
       focusPlayers={focusPlayers}
+      tramo={{ tramo, onChange: setTramo }}
+      zones={zones}
       superpose={superpose}
     />
   );

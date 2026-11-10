@@ -215,8 +215,8 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "prepare_team", Annotations: readOnly,
-		Description: "Everything the team's Preparar tab shows for one map, in one call: the scouting (scout_team) and the map preparation (team_prep) " +
-			"over the same matches. studio_path opens that tab. Use scout_team or team_prep alone when only one half is needed."},
+		Description: "Everything the team's Preparar tab shows for one map, in one call: the scouting (scout_team), the map preparation (team_prep) " +
+			"and the T side (team_attack) over the same matches. studio_path opens that tab. Use one of those tools alone when only one part is needed."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamPrepIn) (*mcp.CallToolResult, prepareTeamOut, error) {
 			q, err := teamReportIn{TeamID: in.TeamID, analysisFilterIn: analysisFilterIn{Map: in.Map, From: in.From, To: in.To},
 				teamScopeIn: in.teamScopeIn}.check(false)
@@ -238,15 +238,20 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, prepareTeamOut{}, toolError(err)
 			}
-			return nil, prepareTeamOut{Scouting: summarizeScout(scout), Prep: summarizePrep(prep), StudioPath: preparePath(in.TeamID, q)}, nil
+			attack, err := c.TeamAttackReport(ctx, in.TeamID, q)
+			if err != nil {
+				return nil, prepareTeamOut{}, toolError(err)
+			}
+			return nil, prepareTeamOut{Scouting: summarizeScout(scout), Prep: summarizePrep(prep), Attack: summarizeAttack(attack), StudioPath: preparePath(in.TeamID, q)}, nil
 		})
 }
 
-// prepareTeamOut is the team's Preparar tab: both halves over the same matches.
+// prepareTeamOut is the team's Preparar tab: every part over the same matches.
 type prepareTeamOut struct {
-	Scouting   scoutTeamOut `json:"scouting"`
-	Prep       teamPrepOut  `json:"prep"`
-	StudioPath string       `json:"studio_path" jsonschema:"the path that opens the team's Preparar tab on this map and lineup in Studio"`
+	Scouting   scoutTeamOut  `json:"scouting"`
+	Prep       teamPrepOut   `json:"prep"`
+	Attack     teamAttackOut `json:"attack" jsonschema:"the T side as team_attack reads it"`
+	StudioPath string        `json:"studio_path" jsonschema:"the path that opens the team's Preparar tab on this map and lineup in Studio"`
 }
 
 // preparePath is the team's Preparar tab on the query's map and lineup, as the
