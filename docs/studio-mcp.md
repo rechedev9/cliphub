@@ -282,7 +282,7 @@ Write:
 | `import_share_code` | `POST /api/steam/import` with `code` only: Studio downloads with the Steam session the user started in the UI, else `steam_credentials_required` asks the user to sign in there. Makes a Crear job | no |
 | `pick_player` | `POST /api/jobs/{id}/parse` with `target_steamid` | no |
 | `delete_demo` | `GET /api/library/demos/{id}` for the summary of each demo (`id`, or up to 50 `ids` as Borrar on the partidas chosen in Partidas), then `DELETE /api/library/demos/{id}` for each, in order (demo, match, analysis and corrections; videos and jobs stay) | yes |
-| `update_team` | `PATCH /api/library/teams/{id}` (`name`, `aliases` replaces the set, so the list starts from `get_team`: a dropped clan name makes a new team on the next import; `own` marks Mi equipo, which `list_teams` and `get_team` return as `own`) | no |
+| `update_team` | `PATCH /api/library/teams/{id}` (`name`, `aliases` replaces the set, so the list starts from `get_team`: a dropped clan name makes a new team on the next import) | no |
 | `assign_match_team` | `PUT /api/library/matches/{id}/teams/{key}` (`team_id`, `team_name` found or created, or cleared; `remember_alias`); `get_match` lists the side keys | no |
 | `create_report`, `update_report` | `POST /api/library/reports` (`title`, `team_id`, `match_ids`, `side`, `notes`); `PATCH /api/library/reports/{id}` (the team cannot change) | no |
 | `delete_report` | `GET` then `DELETE /api/library/reports/{id}` | yes |

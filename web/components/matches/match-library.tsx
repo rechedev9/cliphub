@@ -13,12 +13,9 @@ import {
   listLibraryDemos,
   listLibraryMatches,
   listLibrarySeries,
-  listLibraryTeams,
   listUnlinkedLibraryJobs,
   patchLibraryDemo,
-  patchLibraryTeam,
   type LibrarySource,
-  type LibraryTeam,
 } from '@/lib/api/library';
 import type { LibrarySeries } from '@/lib/api/veto';
 import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, matchHref } from '@/lib/clips/routes';
@@ -68,7 +65,6 @@ import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { DemoImport } from '@/components/matches/demo-import';
 import { LibraryListControls } from '@/components/matches/library-list-controls';
-import { OwnTeamPicker } from '@/components/matches/own-team-picker';
 import { PartidaGroupsList } from '@/components/matches/partida-groups-list';
 import { DemoStatus, RowActions, Scoreline, isPending, removeDemo, type RowHandlers } from '@/components/matches/partida-cells';
 import { StudioPageHeader } from '@/components/studio/page-header';
@@ -225,20 +221,18 @@ function initialView(search: URLSearchParams): TableViewState {
   };
 }
 
-type Loaded = { rows: PartidaRow[]; series: LibrarySeries[]; teams: LibraryTeam[]; unlinkedJobs: number };
+type Loaded = { rows: PartidaRow[]; series: LibrarySeries[]; unlinkedJobs: number };
 
 async function loadLibrary(): Promise<Loaded> {
-  const [demos, matches, unlinked, series, teams] = await Promise.all([
+  const [demos, matches, unlinked, series] = await Promise.all([
     listLibraryDemos(),
     listLibraryMatches(),
     // The Crear backlog is a hint; the table stands without it.
     listUnlinkedLibraryJobs().catch(() => []),
     // Without series every partida stands alone, as before.
     listLibrarySeries().catch((): LibrarySeries[] => []),
-    // Without teams there is no Mi equipo picker; the guess from the scrims still works.
-    listLibraryTeams().catch((): LibraryTeam[] => []),
   ]);
-  return { rows: buildPartidaRows(demos, matches), series, teams, unlinkedJobs: unlinked.length };
+  return { rows: buildPartidaRows(demos, matches), series, unlinkedJobs: unlinked.length };
 }
 
 /** Title and page actions. `PartidasSkeleton` passes a placeholder where the live importer goes. */
@@ -286,7 +280,6 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const view = useTableView('partidas', initialView(search));
   const [listView, setListView] = useState<LibraryListView>(() => parseListView(search));
   const [povJobs, setPovJobs] = useState<ReadonlySet<string>>(new Set());
-  const [savingOwn, setSavingOwn] = useState(false);
   const pendingRef = useRef(false);
   const pollRef = useRef<() => void>(() => {});
   // Only the newest read may land, so a slow poll that began before an edit cannot undo it.
@@ -303,7 +296,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     } catch (error) {
       if (read !== readRef.current) return;
       setReadError(isLibraryOffline(error) ? 'offline' : 'error');
-      setLoaded((current) => current ?? { rows: [], series: [], teams: [], unlinkedJobs: 0 });
+      setLoaded((current) => current ?? { rows: [], series: [], unlinkedJobs: 0 });
     }
   }, []);
 
@@ -338,20 +331,6 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     setNotice(failed.length > 0 ? 'No se pudo cambiar la fuente de alguna partida.' : null);
     pollRef.current();
     return failed.length === 0;
-  }
-
-  async function changeOwnTeam(teamId: string | null, current: string | null): Promise<void> {
-    const target = teamId ?? current;
-    if (target === null) return;
-    setSavingOwn(true);
-    try {
-      await patchLibraryTeam(target, { own: teamId !== null });
-    } catch {
-      setNotice('No se pudo guardar Mi equipo.');
-    } finally {
-      setSavingOwn(false);
-      pollRef.current();
-    }
   }
 
   useEffect(() => {
@@ -486,7 +465,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
 
   const now = Date.now();
   const seriesById = seriesIndex(loaded.series);
-  const ownTeam = ownTeamId({ rows, explicit: loaded.teams.find((team) => team.own)?.id ?? null });
+  // Mi equipo comes from the team profile of #411; until it is read here, the scrims decide.
+  const ownTeam = ownTeamId({ rows, explicit: null });
   const selectedMap = view.state.filters.map ?? FILTER_ANY;
   // Every filter but the map: the chips count over these rows, and the map chip then narrows them.
   const facet = filterRows(rows, { ...view.state.filters, map: FILTER_ANY }, {
@@ -558,14 +538,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
         {chips.length > 1 || selectedMap !== FILTER_ANY ? (
           <MapChips chips={chips} total={facet.length} value={selectedMap} onChange={(map) => view.setFilter('map', map)} />
         ) : null}
-        <LibraryListControls view={listView} onChange={changeListView}>
-          <OwnTeamPicker
-            teams={loaded.teams}
-            value={loaded.teams.find((team) => team.own)?.id ?? null}
-            disabled={savingOwn}
-            onChange={(teamId) => void changeOwnTeam(teamId, loaded.teams.find((team) => team.own)?.id ?? null)}
-          />
-        </LibraryListControls>
+        <LibraryListControls view={listView} onChange={changeListView} />
         {listView.mode === 'series' ? (
           <div className="flex flex-col gap-4">
             {filterBar}

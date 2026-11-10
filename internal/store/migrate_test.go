@@ -186,7 +186,6 @@ func TestMigrateV10AddsStreamSourceKindToAnOlderDatabase(t *testing.T) {
 			probe TEXT NOT NULL, edit_plan TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
 		// A real version 9 database has the stratbook table that later steps alter.
 		`CREATE TABLE library_plays (id TEXT PRIMARY KEY)`,
-		`CREATE TABLE library_teams (id TEXT PRIMARY KEY)`,
 		`PRAGMA user_version = 9`,
 	} {
 		if _, err := legacy.Exec(stmt); err != nil {

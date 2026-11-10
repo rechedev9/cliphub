@@ -230,15 +230,13 @@ type Series struct {
 // Team is a team identity across matches. Aliases are the clan names that
 // resolve to it; the roster is derived from the matches it played.
 type Team struct {
-	ID         uuid.UUID `json:"id"`
-	Name       string    `json:"name"`
-	Aliases    []string  `json:"aliases"`
-	MatchCount int       `json:"match_count"`
-	// Own marks the user's own team (Mi equipo); at most one team has it.
-	Own       bool          `json:"own"`
-	Roster    []RosterEntry `json:"roster,omitempty"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
+	ID         uuid.UUID     `json:"id"`
+	Name       string        `json:"name"`
+	Aliases    []string      `json:"aliases"`
+	MatchCount int           `json:"match_count"`
+	Roster     []RosterEntry `json:"roster,omitempty"`
+	CreatedAt  time.Time     `json:"created_at"`
+	UpdatedAt  time.Time     `json:"updated_at"`
 }
 
 // RosterEntry is one player who played for a team, with the dates of the
@@ -261,8 +259,6 @@ type TeamFilter struct {
 type TeamPatch struct {
 	Name    *string
 	Aliases *[]string
-	// Own true makes this team the user's own and clears the mark elsewhere; false clears it.
-	Own *bool
 }
 
 // Player is a player identity, keyed by SteamID64.

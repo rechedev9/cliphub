@@ -113,8 +113,6 @@ export type LibraryTeam = {
   name: string;
   aliases: string[];
   match_count: number;
-  /** True for the user's own team (Mi equipo); at most one team has it. */
-  own: boolean;
   roster?: LibraryRosterEntry[];
   created_at: string;
   updated_at: string;
@@ -368,7 +366,7 @@ export function getTeamLineups(teamId: string): Promise<TeamLineups> {
   return request<TeamLineups>(`/teams/${id(teamId)}/lineups`);
 }
 
-export function patchLibraryTeam(teamId: string, patch: { name?: string; aliases?: string[]; own?: boolean }): Promise<LibraryTeam> {
+export function patchLibraryTeam(teamId: string, patch: { name?: string; aliases?: string[] }): Promise<LibraryTeam> {
   return request<LibraryTeam>(`/teams/${id(teamId)}`, jsonInit('PATCH', patch));
 }
 

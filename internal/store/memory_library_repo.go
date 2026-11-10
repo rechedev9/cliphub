@@ -57,7 +57,6 @@ type memoryMatchTeam struct {
 type memoryLibraryTeam struct {
 	id                   uuid.UUID
 	name, nameKey        string
-	own                  bool
 	createdAt, updatedAt time.Time
 }
 
@@ -711,7 +710,7 @@ func (r *MemoryLibraryRepository) teamMatchCount(id uuid.UUID) int {
 
 func (r *MemoryLibraryRepository) teamView(t memoryLibraryTeam) library.Team {
 	out := library.Team{
-		ID: t.id, Name: t.name, Own: t.own, MatchCount: r.teamMatchCount(t.id),
+		ID: t.id, Name: t.name, MatchCount: r.teamMatchCount(t.id),
 		CreatedAt: t.createdAt, UpdatedAt: t.updatedAt, Aliases: []string{},
 	}
 	var keys []string
@@ -857,15 +856,6 @@ func (r *MemoryLibraryRepository) UpdateTeam(ctx context.Context, id uuid.UUID, 
 	if patch.Name != nil {
 		t.name = library.CleanName(*patch.Name)
 		t.nameKey = library.NormalizeName(t.name)
-	}
-	if patch.Own != nil {
-		for other, o := range r.teams {
-			if o.own {
-				o.own = false
-				r.teams[other] = o
-			}
-		}
-		t.own = *patch.Own
 	}
 	t.updatedAt = libraryNow()
 	r.teams[id] = t

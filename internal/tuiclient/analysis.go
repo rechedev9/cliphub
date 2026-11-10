@@ -13,8 +13,6 @@ type LibraryTeam struct {
 	Name       string   `json:"name"`
 	Aliases    []string `json:"aliases"`
 	MatchCount int      `json:"match_count"`
-	// Own is true for the user's own team (Mi equipo).
-	Own bool `json:"own"`
 }
 
 // ListLibraryTeams lists the library's teams, optionally those whose name or

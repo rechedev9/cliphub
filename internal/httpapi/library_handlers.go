@@ -758,7 +758,6 @@ func (h *Handlers) ListLibraryTeams(w http.ResponseWriter, r *http.Request) {
 type libraryTeamRequest struct {
 	Name    *string   `json:"name"`
 	Aliases *[]string `json:"aliases"`
-	Own     *bool     `json:"own"`
 }
 
 func (req libraryTeamRequest) clean() (libraryTeamRequest, error) {
@@ -846,7 +845,7 @@ func (h *Handlers) PatchLibraryTeam(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	team, err := h.libraryRepo.UpdateTeam(r.Context(), id, library.TeamPatch{Name: req.Name, Aliases: req.Aliases, Own: req.Own})
+	team, err := h.libraryRepo.UpdateTeam(r.Context(), id, library.TeamPatch{Name: req.Name, Aliases: req.Aliases})
 	if err != nil {
 		writeLibraryError(w, "update team", err)
 		return

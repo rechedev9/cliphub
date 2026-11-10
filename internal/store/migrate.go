@@ -40,7 +40,6 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV14LibraryRoles,
 	migrateV15LibraryCalls,
 	migrateV16LibraryPlaylists,
-	migrateV17LibraryOwnTeam,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -767,20 +766,6 @@ func migrateV16LibraryPlaylists(tx *sql.Tx) error {
 	} {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("library playlists: %w", err)
-		}
-	}
-	return nil
-}
-
-// migrateV17LibraryOwnTeam marks the user's own team, which Partidas reads to
-// colour each match edge by the team's result. A partial unique index keeps it to one.
-func migrateV17LibraryOwnTeam(tx *sql.Tx) error {
-	for _, stmt := range []string{
-		`ALTER TABLE library_teams ADD COLUMN is_own INTEGER NOT NULL DEFAULT 0`,
-		`CREATE UNIQUE INDEX library_teams_own ON library_teams(is_own) WHERE is_own = 1`,
-	} {
-		if _, err := tx.Exec(stmt); err != nil {
-			return fmt.Errorf("library own team: %w", err)
 		}
 	}
 	return nil

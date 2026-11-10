@@ -399,31 +399,6 @@ func TestLibraryRepositoryContract(t *testing.T) {
 			},
 		},
 		{
-			name: "one team is Mi equipo and the mark follows a merge",
-			run: func(t *testing.T, f libraryFixture) {
-				a := f.analyze(f.demo("a", 0), "de_mirage", side{"Vitality", 13, []string{"1"}}, side{"MOUZ", 5, []string{"2"}})
-				vit := *teamOf(t, a, "ct-start").TeamID
-				mouz := *teamOf(t, a, "t-start").TeamID
-				yes, no := true, false
-				if team, err := f.repo.UpdateTeam(f.ctx, vit, library.TeamPatch{Own: &yes}); err != nil || !team.Own {
-					t.Fatalf("set own = %+v, %v", team, err)
-				}
-				if team, err := f.repo.UpdateTeam(f.ctx, mouz, library.TeamPatch{Own: &yes}); err != nil || !team.Own {
-					t.Fatalf("move own = %+v, %v", team, err)
-				}
-				if team, _ := f.repo.GetTeam(f.ctx, vit); team.Own {
-					t.Fatalf("the first team kept the mark: %+v", team)
-				}
-				merged, err := f.repo.MergeTeams(f.ctx, mouz, vit)
-				if err != nil || !merged.Own {
-					t.Fatalf("merge = %+v, %v, want the mark on the merged team", merged, err)
-				}
-				if team, err := f.repo.UpdateTeam(f.ctx, vit, library.TeamPatch{Own: &no}); err != nil || team.Own {
-					t.Fatalf("clear own = %+v, %v", team, err)
-				}
-			},
-		},
-		{
 			name: "team aliases are unique and MergeTeams folds one team into another",
 			run: func(t *testing.T, f libraryFixture) {
 				a := f.analyze(f.demo("a", 0), "de_mirage", side{"team_zywoo", 13, []string{"1"}}, side{"MOUZ", 5, []string{"2"}})

@@ -66,7 +66,7 @@ players of the team's latest match, which team_lineups lists, and an empty lineu
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
 For a player: player_positions; leaderboard ranks the library's players on one get_baseline metric.
-Fix the library's teams: update_team renames, marks Mi equipo (own, the team whose results colour the Partidas rows) or replaces the aliases (start from get_team),
+Fix the library's teams: update_team renames or replaces the aliases (start from get_team),
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.
 Scouting reports (Informes): list_reports, get_report (sections and players), create_report,
