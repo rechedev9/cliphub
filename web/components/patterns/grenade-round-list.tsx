@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { playLabel, roundPlay, type GrenadeRoundRow } from '@/lib/analysis/grenade-follow-up';
-import { GRENADE_KIND_LABEL, spotReplayRefs } from '@/lib/analysis/grenade-patterns';
+import { GRENADE_KIND_LABEL, grenadeId, spotReplayRefs, throwReplayRef } from '@/lib/analysis/grenade-patterns';
 import { replayHref } from '@/lib/analysis/replay-link';
 import { roundClock } from '@/lib/replay/tramo';
 import { Button } from '@/components/ui/button';
@@ -40,20 +40,30 @@ export function GrenadeRoundList({ rows, matchLabel }: { rows: readonly GrenadeR
               const title = `${matchLabel(round.match_id)} · ronda ${round.round}`;
               const play = roundPlay(round);
               return (
-                <li key={row.key}>
+                <li key={row.key} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-meta text-fg-2 hover:bg-surface-3">
                   <Link
                     href={replayHref([ref ?? { matchId: round.match_id, round: round.round, tick: round.tick }], title)}
-                    className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-2 py-1.5 text-meta text-fg-2 outline-none hover:bg-surface-3 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    className="flex flex-wrap items-baseline gap-x-2 rounded-sm py-1.5 pl-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   >
                     <span className="font-medium text-fg-1 tabular-nums">Ronda {round.round}</span>
                     <span className={round.won ? 'text-outcome-win' : 'text-outcome-loss'}>{round.won ? 'Ganada' : 'Perdida'}</span>
                     {play === '' ? null : <span>{playLabel(play)}</span>}
-                    <span className="min-w-0 flex-1 text-fg-3">
-                      {row.grenades.length === 0
-                        ? 'Sin la granada'
-                        : row.grenades.map((grenade) => `${GRENADE_KIND_LABEL[grenade.kind]} de ${grenade.thrower_name} ${roundClock(grenade.seconds)}`).join(', ')}
-                    </span>
                   </Link>
+                  <span className="min-w-0 flex-1 py-1.5 pr-2 text-fg-3">
+                    {row.grenades.length === 0
+                      ? 'Sin la granada'
+                      : row.grenades.map((grenade, index) => (
+                          <Fragment key={grenadeId(grenade)}>
+                            {index > 0 ? ', ' : null}
+                            <Link
+                              href={replayHref([throwReplayRef(grenade)], title)}
+                              className="rounded-sm underline-offset-2 outline-none hover:text-fg-1 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                            >
+                              {GRENADE_KIND_LABEL[grenade.kind]} de {grenade.thrower_name} <span className="tabular-nums">{roundClock(grenade.seconds)}</span>
+                            </Link>
+                          </Fragment>
+                        ))}
+                  </span>
                 </li>
               );
             })}

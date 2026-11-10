@@ -66,6 +66,8 @@ type Props = {
   plantSeconds?: (matchId: string, round: number) => number | null;
   /** The players whose throws count when the page keeps them (the Replay's focus); without it the finder shows its own picker. */
   players?: readonly string[];
+  /** The picker's choice when the page keeps it (in its URL); without it the finder keeps its own. */
+  pick?: { picked: readonly string[]; onChange: (next: readonly string[]) => void };
   /** "Rivales de <equipo>", where the page can read the rivals' utility in the same rounds. */
   rivals?: { on: boolean; label: string; onChange: (on: boolean) => void };
   /** The team the grenades belong to, for Guardar como jugada; null when there is none to save them to. */
@@ -73,7 +75,7 @@ type Props = {
 };
 
 /** The Pattern Finder on one map: radar with tracers, box filter, players, the round clock and the spots or rounds. */
-export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tramoControl, plantSeconds, players: pagePlayers, rivals, teamId }: Props): ReactNode {
+export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tramoControl, plantSeconds, players: pagePlayers, pick, rivals, teamId }: Props): ReactNode {
   const { tramo, onChange: setTramo } = useTramo(tramoControl);
   const [kinds, setKinds] = useState<ReadonlySet<TeamGrenadeKind>>(() => new Set(TEAM_GRENADE_KINDS));
   const [area, setArea] = useState<GrenadeArea>('landing');
@@ -82,7 +84,9 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
   const [floor, setFloor] = useState<RadarLevel | 'both'>('both');
   const [hover, setHover] = useState<string | null>(null);
   const [chosen, setChosen] = useState<readonly string[]>([]);
-  const [ownPlayers, setOwnPlayers] = useState<readonly string[]>([]);
+  const [localPlayers, setLocalPlayers] = useState<readonly string[]>([]);
+  const ownPlayers = pick?.picked ?? localPlayers;
+  const setOwnPlayers = pick?.onChange ?? setLocalPlayers;
   const [open, setOpen] = useState<string | null>(null);
   const [results, setResults] = useState<ResultsView>('spots');
   const [invert, setInvert] = useState(false);

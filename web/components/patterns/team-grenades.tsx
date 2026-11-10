@@ -1,13 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Map as MapIcon, PlugZap } from 'lucide-react';
 import { isLibraryOffline, listTeamGrenades, type LibraryMatch, type TeamCriterion } from '@/lib/api/library';
 import { sampleNotes } from '@/lib/api/team-insights';
 import type { TeamGrenades as TeamGrenadesData } from '@/lib/api/grenades';
-import { HALF_BUY, scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
+import { busiestMap, HALF_BUY, inScopePeriod, scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { rivalOf, teamLabel } from '@/lib/library/partidas';
+import { teamFocusFromQuery, writeTeamFocus } from '@/lib/replay/player-focus';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { useMapGeometry } from '@/components/analysis/use-map-geometry';
 import { EmptyState } from '@/components/records/empty-state';
@@ -66,8 +68,36 @@ export function TeamGrenades({
   const [attempt, setAttempt] = useState(0);
   const [rivals, setRivals] = useState(false);
   const { from, to } = scopeDateRange(scope.period, now);
-  const { map, side, opponent } = scope;
+  const { map, side, opponent, period } = scope;
   const geometry = useMapGeometry(teamId, map === '' ? [] : [map]).get(map);
+  // With no map in the scope the tab opens on the one the heatmap opens on.
+  const defaultMap = useMemo(
+    () =>
+      busiestMap(
+        matches
+          .filter((match) => inScopePeriod(match.played_at, period, now) && (opponent === '' || rivalOf(match, teamId)?.team_id === opponent))
+          .map((match) => match.map),
+      ),
+    [matches, period, now, opponent, teamId],
+  );
+  useEffect(() => {
+    if (map === '' && defaultMap !== '') onMapChange(defaultMap);
+  }, [map, defaultMap, onMapChange]);
+  // The picked players live in the URL by SteamID64 (`jugador`), the key the heatmap's focus reads too.
+  const router = useRouter();
+  const pathname = usePathname();
+  const search = useSearchParams();
+  const picked = useMemo(() => teamFocusFromQuery(search), [search]);
+  const pick = useMemo(
+    () => ({
+      picked,
+      onChange: (next: readonly string[]) => {
+        const query = writeTeamFocus(search.toString(), next);
+        router.replace(query === '' ? pathname : `${pathname}?${query}`, { scroll: false });
+      },
+    }),
+    [picked, pathname, router, search],
+  );
   const teamName = useMemo(() => {
     for (const match of matches) {
       const own = match.teams.find((entry) => entry.team_id === teamId);
@@ -108,6 +138,7 @@ export function TeamGrenades({
     [matches, teamId],
   );
 
+  if (map === '' && defaultMap !== '') return <FinderSkeleton />;
   if (map === '') {
     const maps = [...new Set(matches.map((match) => match.map))].sort();
     return (
@@ -161,6 +192,7 @@ export function TeamGrenades({
       data={load.data}
       buy={scope.buy === HALF_BUY ? '' : scope.buy}
       matchLabel={matchLabel}
+      pick={pick}
       rivals={{ on: rivals, label: `Rivales de ${teamName}`, onChange: setRivals }}
       teamId={rivals ? null : teamId}
     />

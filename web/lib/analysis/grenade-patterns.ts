@@ -210,15 +210,20 @@ export function clockBins(
 const LEAD_SECONDS = 3;
 const DEFAULT_TICKRATE = 64;
 
+/** The replay of this grenade's round, starting just before it is thrown. */
+export function throwReplayRef(grenade: TeamGrenade): ReplayRef {
+  const lead = Math.round(LEAD_SECONDS * (grenade.tickrate > 0 ? grenade.tickrate : DEFAULT_TICKRATE));
+  return { matchId: grenade.match_id, round: grenade.round, tick: Math.max(0, (grenade.throw_tick ?? grenade.tick) - lead) };
+}
+
 /** One replay entry per round, starting just before the first throw of that round. */
 export function spotReplayRefs(grenades: readonly TeamGrenade[]): ReplayRef[] {
   const refs = new Map<string, ReplayRef>();
   for (const grenade of grenades) {
     const key = `${grenade.match_id}:${grenade.round}`;
-    const lead = Math.round(LEAD_SECONDS * (grenade.tickrate > 0 ? grenade.tickrate : DEFAULT_TICKRATE));
-    const tick = Math.max(0, (grenade.throw_tick ?? grenade.tick) - lead);
+    const ref = throwReplayRef(grenade);
     const known = refs.get(key);
-    if (known === undefined || (known.tick ?? 0) > tick) refs.set(key, { matchId: grenade.match_id, round: grenade.round, tick });
+    if (known === undefined || (known.tick ?? 0) > (ref.tick ?? 0)) refs.set(key, ref);
   }
   // The Replay plays at most REPLAY_MAX_REFS rounds, so the count shown never promises more.
   return [...refs.values()].slice(0, REPLAY_MAX_REFS);
