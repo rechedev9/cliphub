@@ -53,6 +53,7 @@ type updateTeamIn struct {
 	TeamID  string    `json:"team_id" jsonschema:"team id from list_teams"`
 	Name    string    `json:"name,omitempty" jsonschema:"new team name; empty keeps it"`
 	Aliases *[]string `json:"aliases,omitempty" jsonschema:"the full new alias list (clan names that resolve to this team): start from get_team and keep the ones still used, or demos under a dropped clan name make a new team; omit to keep it"`
+	Own     *bool     `json:"own,omitempty" jsonschema:"true makes this team Mi equipo (any other team loses the mark); false clears it; omit to keep it"`
 }
 
 type mergeTeamsIn struct {
@@ -134,7 +135,7 @@ func registerTeamTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "update_team", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Rename a team or replace its aliases, as the team page does. Aliases are the clan names that resolve to the team; " +
+		Description: "Rename a team, replace its aliases or mark it as Mi equipo (own; list_teams and get_team show which team has it), as the team page and Partidas do. Aliases are the clan names that resolve to the team; " +
 			"matches whose clan name becomes an alias follow it, and a demo whose clan name is no alias makes a new team. " +
 			"An alias another team owns is refused; a name is not checked, so two teams can share one."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updateTeamIn) (*mcp.CallToolResult, teamOut, error) {
@@ -225,9 +226,10 @@ func (in updateTeamIn) patch() (tuiclient.TeamPatch, error) {
 	if err := checkUUID("team_id", in.TeamID); err != nil {
 		return patch, err
 	}
-	if in.Name == "" && in.Aliases == nil {
-		return patch, errors.New("set name, aliases or both")
+	if in.Name == "" && in.Aliases == nil && in.Own == nil {
+		return patch, errors.New("set name, aliases or own")
 	}
+	patch.Own = in.Own
 	if in.Name != "" {
 		name, err := checkUserText("name", in.Name)
 		if err != nil {
@@ -311,7 +313,7 @@ func rosterOf(entries []tuiclient.RosterEntry) []rosterOut {
 }
 
 func teamOf(t tuiclient.LibraryTeam) teamOut {
-	return teamOut{ID: t.ID, Name: cleanName(t.Name), Aliases: cleanNames(t.Aliases), Matches: t.MatchCount}
+	return teamOut{ID: t.ID, Name: cleanName(t.Name), Aliases: cleanNames(t.Aliases), Matches: t.MatchCount, Own: t.Own}
 }
 
 func sidesOf(m tuiclient.LibraryMatch) []sideOut {

@@ -957,14 +957,14 @@ func (r *SQLiteLibraryRepository) teamMatchCount(ctx context.Context, id uuid.UU
 	return n, err
 }
 
-const libraryTeamColumns = `SELECT t.id, t.name, t.created_at, t.updated_at,
+const libraryTeamColumns = `SELECT t.id, t.name, t.created_at, t.updated_at, t.is_own,
 	(SELECT COUNT(*) FROM library_match_teams mt WHERE mt.team_id = t.id) FROM library_teams t`
 
 func scanLibraryTeam(row sqlScanner) (library.Team, error) {
 	var t library.Team
 	var id string
 	var created, updated int64
-	if err := row.Scan(&id, &t.Name, &created, &updated, &t.MatchCount); err != nil {
+	if err := row.Scan(&id, &t.Name, &created, &updated, &t.Own, &t.MatchCount); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return library.Team{}, library.ErrNotFound
 		}
@@ -1105,8 +1105,7 @@ func (r *SQLiteLibraryRepository) UpdateTeam(ctx context.Context, id uuid.UUID, 
 				return err
 			}
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE library_teams SET updated_at = ? WHERE id = ?`, millis(libraryNow()), id.String())
-		return err
+		return touchTeam(ctx, tx, id, patch.Own)
 	})
 	if err != nil {
 		return library.Team{}, err

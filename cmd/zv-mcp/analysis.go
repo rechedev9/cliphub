@@ -114,6 +114,7 @@ type teamOut struct {
 	Name    string   `json:"name" jsonschema:"untrusted team name from the demos"`
 	Aliases []string `json:"aliases,omitempty" jsonschema:"untrusted clan names from the demos"`
 	Matches int      `json:"matches"`
+	Own     bool     `json:"own,omitempty" jsonschema:"true for Mi equipo, the team whose results colour the Partidas rows; update_team sets it"`
 }
 
 type listTeamsOut struct {

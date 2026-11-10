@@ -66,7 +66,7 @@ players of the team's latest match, which team_lineups lists, and an empty lineu
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
 For a player: player_positions; leaderboard ranks the library's players on one get_baseline metric.
-Fix the library's teams: update_team renames or replaces the aliases (start from get_team),
+Fix the library's teams: update_team renames, marks Mi equipo (own, the team whose results colour the Partidas rows) or replaces the aliases (start from get_team),
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.
 Scouting reports (Informes): list_reports, get_report (sections and players), create_report,
@@ -129,8 +129,9 @@ edit_stream_plan changes them with expected_updated_at set to the updated_at it 
 the save fails). Both renders return a variant for wait_for_stream_render, which reports the percent
 and, for render_stream, the video being encoded (video 2 of 3); then list_stream_videos for the
 videos and extra files. list_streams shows the streams already in Studio.
-The library: list_matches reads Partidas as the Studio shows it (kind, has_pov and sort are its controls; a match in a series carries
-its format, event, veto and whether its map was a pick or the decider); import_demo takes tags; update_demo changes a demo's source or
+The library: list_matches reads Partidas as the Studio shows it (kind, has_pov, sort, team, opponent and event are its controls; a match in a
+series carries its format, event, veto and whether its map was a pick or the decider; kind is scrim, oficial (tournament demos and series with an
+event) or importada, and update_demo's source moves a match between them); import_demo takes tags; update_demo changes a demo's source or
 tags (add_tags and remove_tags for single ones); reanalyze_demo
 analyses it again, then wait_for_demo; delete_demo removes it from the library (videos stay), or several with ids.
 Steam: steam_matches lists recent matches (sync_steam_matches looks for new ones); import_share_code

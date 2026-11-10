@@ -107,6 +107,7 @@ func (c *Client) GetTeamLineups(ctx context.Context, id string) (TeamLineups, er
 type TeamPatch struct {
 	Name    *string   `json:"name,omitempty"`
 	Aliases *[]string `json:"aliases,omitempty"`
+	Own     *bool     `json:"own,omitempty"`
 }
 
 // UpdateLibraryTeam applies a rename or a new alias set.

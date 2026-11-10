@@ -92,7 +92,11 @@ func TestTeamToolsSendWhatTheUISends(t *testing.T) {
 	if got := rec.get("PATCH /api/library/teams/{id}"); !strings.HasSuffix(got, `{"name":"Vitality"}`) {
 		t.Errorf("rename only = %s, want aliases left out", got)
 	}
-	toolFails(t, cs, "update_team", map[string]any{"team_id": testTeamID}, "set name, aliases or both")
+	callTool(t, cs, "update_team", map[string]any{"team_id": testTeamID, "own": false}, &renamed)
+	if got := rec.get("PATCH /api/library/teams/{id}"); !strings.HasSuffix(got, `{"own":false}`) {
+		t.Errorf("clear own = %s, want own:false sent", got)
+	}
+	toolFails(t, cs, "update_team", map[string]any{"team_id": testTeamID}, "set name, aliases or own")
 	toolFails(t, cs, "update_team", map[string]any{"team_id": testTeamID, "name": "a\nb"}, "control characters")
 
 	var assigned assignTeamOut

@@ -19,10 +19,15 @@ const (
 func listMatchesStudio(t *testing.T) *mcp.ClientSession {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/library/matches", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /api/library/matches", func(w http.ResponseWriter, r *http.Request) {
+		// A library of more than one page: the second page holds the last match.
+		if r.URL.Query().Get("offset") == "200" {
+			_, _ = w.Write([]byte(`{"matches":[]}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"matches":[
 			{"id":"` + listMatchA + `","demo_id":"` + listDemoA + `","series_id":"` + testSeriesID + `","source":"faceit","map":"de_mirage","played_at":"2026-11-05T20:00:00Z","round_count":24,"teams":[]},
-			{"id":"` + listMatchB + `","demo_id":"` + listDemoB + `","source":"scrim","map":"de_nuke","played_at":"2026-11-01T20:00:00Z","round_count":26,"teams":[]}]}`))
+			{"id":"` + listMatchB + `","demo_id":"` + listDemoB + `","source":"scrim","map":"de_nuke","played_at":"2026-11-01T20:00:00Z","round_count":26,"teams":[{"key":"ct-start","team_id":"` + testTeamID + `"},{"key":"t-start","team_id":"` + testRivalID + `"}]}]}`))
 	})
 	mux.HandleFunc("GET /api/library/demos", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"demos":[
@@ -80,6 +85,15 @@ func TestListMatchesFiltersByKindAndPOVAndSortsByImport(t *testing.T) {
 	if want := []string{listMatchB}; !slices.Equal(listedIDs(out), want) || !out.Matches[0].HasPOV {
 		t.Errorf("has_pov = %v, want %v", listedIDs(out), want)
 	}
+	callTool(t, cs, "list_matches", map[string]any{"event": "iem"}, &out)
+	if want := []string{listMatchA}; !slices.Equal(listedIDs(out), want) {
+		t.Errorf("event iem = %v, want %v", listedIDs(out), want)
+	}
+	callTool(t, cs, "list_matches", map[string]any{"team": testTeamID, "opponent": testRivalID}, &out)
+	if want := []string{listMatchB}; !slices.Equal(listedIDs(out), want) {
+		t.Errorf("team vs opponent = %v, want %v", listedIDs(out), want)
+	}
+	toolFails(t, cs, "list_matches", map[string]any{"opponent": testRivalID}, "opponent needs team")
 	callTool(t, cs, "list_matches", map[string]any{"sort": "imported"}, &out)
 	if want := []string{listMatchB, listMatchA}; !slices.Equal(listedIDs(out), want) {
 		t.Errorf("sort imported = %v, want %v", listedIDs(out), want)

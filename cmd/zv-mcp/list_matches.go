@@ -10,7 +10,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
-// Match kinds of the Tipo de partida control, derived from the demo source (web/lib/library/partida-groups.ts).
+// Match kinds of the Tipo de partida control (web/lib/library/partida-groups.ts matchKind).
 const (
 	kindScrim    = "scrim"
 	kindOfficial = "oficial"
@@ -25,11 +25,14 @@ const (
 )
 
 type listMatchesIn struct {
-	Map     string `json:"map,omitempty" jsonschema:"filter by map, e.g. de_mirage"`
-	SteamID string `json:"steamid,omitempty" jsonschema:"filter by a player's SteamID64"`
-	Kind    string `json:"kind,omitempty" jsonschema:"scrim (scrim demos), oficial (FACEIT and tournament demos) or importada (any other import); empty keeps all"`
-	HasPOV  bool   `json:"has_pov,omitempty" jsonschema:"true keeps the matches with a recorded video, looking through the newest 100 jobs (Con POV)"`
-	Sort    string `json:"sort,omitempty" jsonschema:"played (default, the match date) or imported (the import date)"`
+	Map      string `json:"map,omitempty" jsonschema:"filter by map, e.g. de_mirage"`
+	SteamID  string `json:"steamid,omitempty" jsonschema:"filter by a player's SteamID64"`
+	Team     string `json:"team,omitempty" jsonschema:"only matches this team played, id from list_teams (the Equipo filter)"`
+	Opponent string `json:"opponent,omitempty" jsonschema:"with team: only matches against this team, id from list_teams (the Rival filter)"`
+	Event    string `json:"event,omitempty" jsonschema:"only matches in a series whose event contains this text (the Evento filter)"`
+	Kind     string `json:"kind,omitempty" jsonschema:"scrim (scrim demos), oficial (tournament demos and matches in a series with an event) or importada (the rest, such as FACEIT pugs); empty keeps all"`
+	HasPOV   bool   `json:"has_pov,omitempty" jsonschema:"true keeps the matches with a finished video among their jobs (Con POV)"`
+	Sort     string `json:"sort,omitempty" jsonschema:"played (default, the match date) or imported (the import date)"`
 }
 
 func (in listMatchesIn) check() error {
@@ -38,6 +41,16 @@ func (in listMatchesIn) check() error {
 	}
 	if err := checkOptionalFilter("steamid", in.SteamID, steamIDPattern); err != nil {
 		return err
+	}
+	for field, id := range map[string]string{"team": in.Team, "opponent": in.Opponent} {
+		if id != "" {
+			if err := checkUUID(field, id); err != nil {
+				return err
+			}
+		}
+	}
+	if in.Opponent != "" && in.Team == "" {
+		return fmt.Errorf("opponent needs team")
 	}
 	if in.Kind != "" && !slices.Contains(matchKinds, in.Kind) {
 		return fmt.Errorf("kind must be one of %s", strings.Join(matchKinds, ", "))
@@ -61,7 +74,7 @@ type matchSeriesOut struct {
 type listedMatch struct {
 	matchSummary
 	Kind       string          `json:"kind" jsonschema:"scrim, oficial or importada"`
-	Source     string          `json:"source,omitempty" jsonschema:"valve, faceit, hltv, scrim, unknown or shared"`
+	Source     string          `json:"source,omitempty" jsonschema:"valve, faceit, hltv, scrim, unknown or shared; update_demo changes it"`
 	ImportedAt string          `json:"imported_at,omitempty" jsonschema:"YYYY-MM-DD"`
 	Tags       []string        `json:"tags,omitempty" jsonschema:"untrusted labels; update_demo changes them"`
 	HasPOV     bool            `json:"has_pov,omitempty" jsonschema:"only set when has_pov was asked"`
@@ -72,19 +85,20 @@ type listMatchesOut struct {
 	Matches []listedMatch `json:"matches"`
 }
 
-// kindOfSource is the Tipo de partida of a demo source: scrims, official FACEIT and tournament demos, the rest imported by hand.
-func kindOfSource(source string) string {
-	switch source {
-	case "scrim":
+// kindOf is the Tipo de partida of a match: scrims, tournament demos and matches of a series with an event
+// are official, the rest (FACEIT pugs, Valve and unidentified demos) were imported.
+func kindOf(source string, inEventSeries bool) string {
+	switch {
+	case source == "scrim":
 		return kindScrim
-	case "faceit", "hltv":
+	case source == "hltv" || inEventSeries:
 		return kindOfficial
 	}
 	return kindImported
 }
 
 func listMatches(ctx context.Context, c *tuiclient.Client, in listMatchesIn) (listMatchesOut, error) {
-	matches, err := c.ListLibraryMatches(ctx, in.Map, in.SteamID)
+	matches, err := c.ListLibraryMatches(ctx, tuiclient.LibraryMatchQuery{Map: in.Map, SteamID: in.SteamID, TeamID: in.Team})
 	if err != nil {
 		return listMatchesOut{}, err
 	}
@@ -93,10 +107,6 @@ func listMatches(ctx context.Context, c *tuiclient.Client, in listMatchesIn) (li
 		return listMatchesOut{}, err
 	}
 	series, err := c.ListLibrarySeries(ctx, "")
-	if err != nil {
-		return listMatchesOut{}, err
-	}
-	povJobs, err := jobsWithVideos(ctx, c, in.HasPOV)
 	if err != nil {
 		return listMatchesOut{}, err
 	}
@@ -109,49 +119,102 @@ func listMatches(ctx context.Context, c *tuiclient.Client, in listMatchesIn) (li
 		seriesByID[se.ID] = se
 	}
 
-	out := listMatchesOut{Matches: []listedMatch{}}
+	kept := []listedMatch{}
+	jobsOf := map[string][]string{}
 	imported := map[string]time.Time{}
 	for _, m := range matches {
 		d := demoByID[m.DemoID]
+		se, inSeries := seriesByID[m.SeriesID]
 		source := d.Source
 		if source == "" {
 			source = m.Source
 		}
-		kind := kindOfSource(source)
-		pov := slices.ContainsFunc(d.JobIDs, func(id string) bool { return povJobs[id] })
-		if (in.Kind != "" && kind != in.Kind) || (in.HasPOV && !pov) {
+		kind := kindOf(source, inSeries && se.Event != "")
+		if (in.Kind != "" && kind != in.Kind) || !playedAgainst(m, in.Opponent) || !inEvent(se, in.Event) {
 			continue
 		}
-		item := listedMatch{matchSummary: summarizeMatch(m), Kind: kind, Source: cleanName(source), Tags: cleanNames(d.Tags), HasPOV: pov}
+		item := listedMatch{matchSummary: summarizeMatch(m), Kind: kind, Source: cleanName(source), Tags: cleanNames(d.Tags)}
 		if !d.Imported.IsZero() {
 			item.ImportedAt = d.Imported.Format(time.DateOnly)
 			imported[m.ID] = d.Imported
 		}
-		if se, ok := seriesByID[m.SeriesID]; ok {
+		if inSeries {
 			item.Series = matchSeriesOf(se, m.Map)
 		}
-		out.Matches = append(out.Matches, item)
+		jobsOf[m.ID] = d.JobIDs
+		kept = append(kept, item)
+	}
+	if in.HasPOV {
+		kept, err = withPOV(ctx, c, kept, jobsOf)
+		if err != nil {
+			return listMatchesOut{}, err
+		}
 	}
 	if in.Sort == sortImported {
-		slices.SortStableFunc(out.Matches, func(a, b listedMatch) int { return imported[b.ID].Compare(imported[a.ID]) })
+		slices.SortStableFunc(kept, func(a, b listedMatch) int { return imported[b.ID].Compare(imported[a.ID]) })
 	}
-	return out, nil
+	return listMatchesOut{Matches: kept}, nil
 }
 
-// jobsWithVideos is the set of recent jobs that have a finished video; empty unless asked for.
-func jobsWithVideos(ctx context.Context, c *tuiclient.Client, asked bool) (map[string]bool, error) {
-	jobs := map[string]bool{}
-	if !asked {
-		return jobs, nil
+func playedAgainst(m tuiclient.LibraryMatch, opponent string) bool {
+	return opponent == "" || slices.ContainsFunc(m.Teams, func(t tuiclient.LibraryMatchTeam) bool { return t.TeamID == opponent })
+}
+
+// inEvent keeps a match whose series event contains the text, case apart; no text keeps all.
+func inEvent(se tuiclient.LibrarySeries, text string) bool {
+	return text == "" || strings.Contains(strings.ToLower(se.Event), strings.ToLower(text))
+}
+
+// withPOV keeps the matches with a finished video among their jobs and marks them.
+func withPOV(ctx context.Context, c *tuiclient.Client, matches []listedMatch, jobsOf map[string][]string) ([]listedMatch, error) {
+	var all []string
+	for _, m := range matches {
+		all = append(all, jobsOf[m.ID]...)
 	}
-	rows, _, err := readVideoLibrary(ctx, c, maxVideoJobs)
+	withVideo, err := jobsWithVideos(ctx, c, all)
 	if err != nil {
 		return nil, err
 	}
-	for _, v := range describeVideoLibrary(rows, nil, "").Videos {
-		jobs[v.JobID] = true
+	kept := matches[:0]
+	for _, m := range matches {
+		if slices.ContainsFunc(jobsOf[m.ID], func(id string) bool { return withVideo[id] }) {
+			m.HasPOV = true
+			kept = append(kept, m)
+		}
 	}
-	return jobs, nil
+	return kept, nil
+}
+
+// jobsWithVideos is the set of jobs among jobIDs with a ready render that wrote a video, the rows Partidas reads for its POV chip.
+func jobsWithVideos(ctx context.Context, c *tuiclient.Client, jobIDs []string) (map[string]bool, error) {
+	found := map[string]bool{}
+	presets, err := c.Presets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var items []tuiclient.BatchItem
+	for _, id := range jobIDs {
+		if checkUUID("job_id", id) != nil {
+			continue
+		}
+		for _, p := range presets.Presets {
+			if artifactNamePattern.MatchString(p.Name) {
+				items = append(items, tuiclient.BatchItem{JobID: id, Variant: p.Name})
+			}
+		}
+	}
+	for chunk := range slices.Chunk(items, tuiclient.BatchStatusMaxItems) {
+		rows, err := c.BatchStatus(ctx, chunk)
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			if row.Error == nil && row.Render != nil && renderReady(row.Render.Status) && len(row.Render.Videos) > 0 {
+				found[row.JobID] = true
+			}
+		}
+	}
+	return found, nil
 }
 
 func matchSeriesOf(se tuiclient.LibrarySeries, mapName string) *matchSeriesOut {

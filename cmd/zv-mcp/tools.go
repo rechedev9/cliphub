@@ -232,7 +232,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "list_matches", Annotations: readOnly,
 		Description: "List the analysed matches in the Studio library as Partidas shows them: newest first by the match date (sort imported: by the import date), " +
 			"each with its tipo (kind), source, tags and, when it belongs to a series, the series format, event, veto and how its map was chosen (pick or decider). " +
-			"kind and has_pov are the Tipo de partida and Con POV controls."},
+			"kind, has_pov, team, opponent and event are the Tipo de partida, Con POV, Equipo, Rival and Evento controls; every page of the library is read before they apply."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listMatchesIn) (*mcp.CallToolResult, listMatchesOut, error) {
 			if err := in.check(); err != nil {
 				return nil, listMatchesOut{}, err

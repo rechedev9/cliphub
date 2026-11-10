@@ -28,7 +28,15 @@ const VIEW_LABEL: Record<LibraryViewMode, string> = { series: 'Por series', tabl
 const VIEW_OPTIONS = LIBRARY_VIEWS.map((mode) => ({ value: mode, label: VIEW_LABEL[mode] }));
 
 /** Above the list: how it is shown, what it is sorted by, which kind of partida and whether it needs a POV. */
-export function LibraryListControls({ view, onChange }: { view: LibraryListView; onChange: (next: LibraryListView) => void }): ReactNode {
+export function LibraryListControls({
+  view,
+  onChange,
+  children,
+}: {
+  view: LibraryListView;
+  onChange: (next: LibraryListView) => void;
+  children?: ReactNode;
+}): ReactNode {
   const povId = useId();
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -46,6 +54,7 @@ export function LibraryListControls({ view, onChange }: { view: LibraryListView;
         <Switch aria-labelledby={povId} checked={view.pov} onCheckedChange={(pov) => onChange({ ...view, pov })} />
         <span id={povId} className="text-body-sm text-fg-2">Con POV</span>
       </span>
+      {children}
     </div>
   );
 }

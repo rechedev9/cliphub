@@ -103,13 +103,25 @@ func (c *Client) Healthy(ctx context.Context) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-// ListLibraryMatches lists analysed matches, optionally for one map or player.
-func (c *Client) ListLibraryMatches(ctx context.Context, mapName, steamID string) ([]LibraryMatch, error) {
-	return c.SearchLibraryMatches(ctx, LibraryMatchQuery{Map: mapName, SteamID: steamID})
+// ListLibraryMatches reads every page of the matches q keeps, newest first; q.Limit and q.Offset are ignored.
+func (c *Client) ListLibraryMatches(ctx context.Context, q LibraryMatchQuery) ([]LibraryMatch, error) {
+	var all []LibraryMatch
+	for page := range libraryMaxPages {
+		q.Limit, q.Offset = libraryPage, page*libraryPage
+		part, err := c.SearchLibraryMatches(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, part...)
+		if len(part) < libraryPage {
+			break
+		}
+	}
+	return all, nil
 }
 
 // LibraryMatchQuery filters GET /api/library/matches; zero fields are unset.
-// From and To bound played_at, both included; Limit 0 is the server default.
+// From and To bound played_at, both included; Limit 0 is the server default and Offset skips that many matches.
 type LibraryMatchQuery struct {
 	Map     string
 	SteamID string
@@ -117,6 +129,7 @@ type LibraryMatchQuery struct {
 	From    time.Time
 	To      time.Time
 	Limit   int
+	Offset  int
 }
 
 // SearchLibraryMatches lists analysed matches newest first, filtered on the server.
@@ -130,6 +143,9 @@ func (c *Client) SearchLibraryMatches(ctx context.Context, q LibraryMatchQuery) 
 	}
 	if q.Limit > 0 {
 		params["limit"] = strconv.Itoa(q.Limit)
+	}
+	if q.Offset > 0 {
+		params["offset"] = strconv.Itoa(q.Offset)
 	}
 	var out struct {
 		Matches []LibraryMatch `json:"matches"`

@@ -1,6 +1,7 @@
-import type { LibrarySource, LibraryMatch } from '../api/library.ts';
+import type { LibrarySource } from '../api/library.ts';
+import { MAX_TAG_LENGTH } from '../api/libreta.ts';
 import type { LibrarySeries, VetoStep } from '../api/veto.ts';
-import { partidaDate, teamOutcome, type Outcome, type PartidaRow } from './partidas.ts';
+import { partidaDate, teamLabel, teamOutcome, type Outcome, type PartidaRow } from './partidas.ts';
 
 /** Pure reads for the grouped Partidas list: kind, sort, series with veto, own team and tags. */
 
@@ -10,13 +11,36 @@ export type MatchKind = (typeof MATCH_KINDS)[number];
 export const KIND_LABEL: Record<MatchKind, string> = { scrim: 'Scrims', oficial: 'Oficiales', importada: 'Importadas' };
 
 /**
- * The library stores no match type, so it comes from the demo source: a scrim is a
- * scrim, FACEIT and tournament demos are official, anything else was imported by hand.
+ * The library stores no match type, so it comes from the demo source and its series:
+ * a scrim is a scrim; a tournament (HLTV) demo, or a match in a series with an event,
+ * is official; a FACEIT pug with no event and anything else counts as imported.
  */
-export function matchKind(source: LibrarySource): MatchKind {
-  if (source === 'scrim') return 'scrim';
-  if (source === 'faceit' || source === 'hltv') return 'oficial';
+export function matchKind(input: { source: LibrarySource; inEventSeries: boolean }): MatchKind {
+  if (input.source === 'scrim') return 'scrim';
+  if (input.source === 'hltv' || input.inEventSeries) return 'oficial';
   return 'importada';
+}
+
+export type SeriesById = ReadonlyMap<string, LibrarySeries>;
+
+export function seriesIndex(series: readonly LibrarySeries[]): SeriesById {
+  return new Map(series.map((entry) => [entry.id, entry]));
+}
+
+/** The event of the series a row's match belongs to, or an empty string. */
+export function rowEvent(row: PartidaRow, seriesById: SeriesById): string {
+  const id = row.match?.series_id;
+  return id === undefined ? '' : (seriesById.get(id)?.event ?? '');
+}
+
+export function rowKind(row: PartidaRow, seriesById: SeriesById): MatchKind {
+  return matchKind({ source: row.demo.source, inEventSeries: rowEvent(row, seriesById) !== '' });
+}
+
+/** Every event name the library's series carry, for the event filter. */
+export function eventOptions(series: readonly LibrarySeries[]): { value: string; label: string }[] {
+  const events = [...new Set(series.map((entry) => entry.event).filter((event) => event !== ''))];
+  return events.sort((a, b) => a.localeCompare(b, 'es')).map((event) => ({ value: event, label: event }));
 }
 
 export const SORTS = ['played', 'imported'] as const;
@@ -84,12 +108,14 @@ export function hasPov(row: PartidaRow, jobsWithVideos: ReadonlySet<string>): bo
 const OWN_TEAM_MIN_MATCHES = 3;
 
 /**
- * The library has no "my team" setting, so it is the library team that plays in the
- * most matches, when it has at least three and no other team ties it. Null otherwise.
+ * Mi equipo when the user picked it; otherwise a guess from the scrims alone: the
+ * library team in the most scrim matches, when it has at least three and no other team ties it.
  */
-export function ownTeamId(matches: readonly LibraryMatch[]): string | null {
+export function ownTeamId(input: { rows: readonly PartidaRow[]; explicit: string | null }): string | null {
+  if (input.explicit !== null) return input.explicit;
   const counts = new Map<string, number>();
-  for (const match of matches) {
+  for (const { demo, match } of input.rows) {
+    if (match === null || demo.source !== 'scrim') continue;
     for (const team of match.teams) {
       if (team.team_id !== null) counts.set(team.team_id, (counts.get(team.team_id) ?? 0) + 1);
     }
@@ -104,6 +130,20 @@ export function ownTeamId(matches: readonly LibraryMatch[]): string | null {
 export function ownOutcome(row: PartidaRow, ownId: string | null): Outcome | null {
   if (ownId === null || row.match === null) return null;
   return teamOutcome(row.match, ownId);
+}
+
+/** The name of a library team as it appears in a row's match, for "Resultado de <equipo>". */
+export function ownTeamName(rows: readonly PartidaRow[], teamId: string): string {
+  for (const { match } of rows) {
+    const team = match?.teams.find((entry) => entry.team_id === teamId);
+    if (team !== undefined) return teamLabel(team);
+  }
+  return '';
+}
+
+/** A tag as the library stores it: no commas, trimmed, within the length the library allows. */
+export function cleanTag(raw: string): string {
+  return raw.replaceAll(',', ' ').split(/\s+/).filter(Boolean).join(' ').slice(0, MAX_TAG_LENGTH).trim();
 }
 
 /** A group on the list: one series with its maps, or a partida on its own. */

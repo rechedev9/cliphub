@@ -1,16 +1,18 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { MonitorPlay, TriangleAlert, Video } from 'lucide-react';
+import type { LibrarySource } from '@/lib/api/library';
 import type { LibrarySeries } from '@/lib/api/veto';
 import { matchHref, matchReplayHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { SERIES_FORMAT_LABEL } from '@/lib/library/veto';
-import { ownOutcome, seriesVeto, type DayGroup, type PartidaGroup, type VetoMark } from '@/lib/library/partida-groups';
-import { matchTitle, type Outcome, type PartidaRow } from '@/lib/library/partidas';
+import { hasPov, ownOutcome, seriesVeto, type DayGroup, type PartidaGroup, type VetoMark } from '@/lib/library/partida-groups';
+import { OUTCOME_LABEL, matchTitle, type Outcome, type PartidaRow } from '@/lib/library/partidas';
 import { cn } from '@/lib/utils';
 import { DemoStatus, RowActions, Scoreline, type RowHandlers } from '@/components/matches/partida-cells';
+import { PartidaSource } from '@/components/matches/partida-source';
 import { PartidaTags } from '@/components/matches/partida-tags';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,12 +31,20 @@ function dayHeading(day: string): string {
   return Number.isNaN(at.getTime()) ? day : DAY_FORMAT.format(at);
 }
 
+/** Groups drawn before "Mostrar más", so a long library does not paint every row at once. */
+const GROUPS_PER_PAGE = 40;
+
 export type GroupListContext = {
   ownTeam: string | null;
+  /** The name of the own team, for the label of the row edge. */
+  ownName: string;
   povJobs: ReadonlySet<string>;
   allTags: readonly string[];
   handlers: RowHandlers;
+  selected: ReadonlySet<string>;
+  onToggle: (demoId: string) => void;
   onTagsChanged: (demoId: string, tags: string[]) => void;
+  onSourceChange: (demoId: string, source: LibrarySource) => void;
 };
 
 function markLabel(mark: VetoMark): string {
@@ -46,16 +56,26 @@ function markLabel(mark: VetoMark): string {
 function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; context: GroupListContext }): ReactNode {
   const { demo, match } = row;
   const outcome = ownOutcome(row, context.ownTeam);
-  const pov = demo.job_ids.some((jobId) => context.povJobs.has(jobId));
+  const pov = hasPov(row, context.povJobs);
+  const edgeLabel = outcome === null ? undefined : `Resultado de ${context.ownName}: ${OUTCOME_LABEL[outcome]}`;
   const name = match ? prettyMapName(match.map) : demo.file_name;
   const failed = demo.state === 'failed' ? <TriangleAlert aria-hidden className="size-4 shrink-0 text-destructive" /> : null;
   return (
     <li
+      title={edgeLabel}
       className={cn(
         'relative flex flex-wrap items-center gap-x-4 gap-y-2 border-l-2 px-3 py-2.5 transition-colors hover:bg-surface-2',
         OUTCOME_EDGE[outcome ?? 'draw'],
       )}
     >
+      <input
+        type="checkbox"
+        aria-label={`Elegir ${name}`}
+        checked={context.selected.has(demo.id)}
+        onChange={() => context.onToggle(demo.id)}
+        className="relative z-10 size-4 accent-primary"
+      />
+      {edgeLabel ? <span className="sr-only">{edgeLabel}</span> : null}
       <div className="flex w-44 shrink-0 flex-col">
         <span className="flex items-center gap-2 font-semibold">
           {failed}
@@ -78,6 +98,9 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
           POV
         </Badge>
       ) : null}
+      <div className="relative z-10">
+        <PartidaSource demo={demo} onChange={context.onSourceChange} />
+      </div>
       <div className="relative z-10">
         <PartidaTags demo={demo} allTags={context.allTags} onChanged={context.onTagsChanged} />
       </div>
@@ -147,10 +170,18 @@ function GroupCard({ group, context }: { group: PartidaGroup; context: GroupList
 
 /** Partidas grouped by day, each series as one card with its bans and the pick of every map. */
 export function PartidaGroupsList({ days, context }: { days: readonly DayGroup[]; context: GroupListContext }): ReactNode {
+  const [limit, setLimit] = useState(GROUPS_PER_PAGE);
   if (days.length === 0) return <p className="text-body-sm text-fg-2">Ninguna partida cumple estos filtros.</p>;
+  const total = days.reduce((sum, day) => sum + day.groups.length, 0);
+  let left = limit;
+  const visible = days.flatMap((day) => {
+    const groups = day.groups.slice(0, Math.max(left, 0));
+    left -= groups.length;
+    return groups.length === 0 ? [] : [{ day: day.day, groups }];
+  });
   return (
     <div className="flex flex-col gap-5">
-      {days.map((day) => (
+      {visible.map((day) => (
         <section key={day.day} aria-label={dayHeading(day.day)} className="flex flex-col gap-2">
           <h2 className="text-body-sm font-medium text-fg-2 first-letter:uppercase">{dayHeading(day.day)}</h2>
           {day.groups.map((group) => (
@@ -158,6 +189,11 @@ export function PartidaGroupsList({ days, context }: { days: readonly DayGroup[]
           ))}
         </section>
       ))}
+      {total > limit ? (
+        <Button type="button" variant="outline" size="sm" className="self-center" onClick={() => setLimit(limit + GROUPS_PER_PAGE)}>
+          Mostrar más ({total - limit} sin ver)
+        </Button>
+      ) : null}
     </div>
   );
 }

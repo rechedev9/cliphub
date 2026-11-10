@@ -110,7 +110,7 @@ const MATCH_KEYS = [
   'id', 'demo_id', 'series_id', 'map', 'played_at', 'source', 'tickrate', 'duration_ticks', 'round_count',
   'teams', 'players', 'created_at', 'updated_at',
 ];
-const TEAM_KEYS = ['id', 'name', 'aliases', 'match_count', 'roster', 'created_at', 'updated_at'];
+const TEAM_KEYS = ['id', 'name', 'aliases', 'match_count', 'own', 'roster', 'created_at', 'updated_at'];
 const PLAYER_KEYS = [
   'steamid64', 'nick', 'nicks', 'faceit_player_id', 'faceit_nickname', 'match_count', 'teams', 'created_at', 'updated_at',
 ];
@@ -155,7 +155,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['matches', UUID, 'metrics'], response: json(METRICS_KEYS) },
   { method: 'GET', segments: ['teams'], query: ['q', ...PAGING], response: json(['teams']) },
   { method: 'GET', segments: ['teams', UUID], response: json(TEAM_KEYS) },
-  { method: 'PATCH', segments: ['teams', UUID], body: fields(['name', 'aliases']), response: json(TEAM_KEYS) },
+  { method: 'PATCH', segments: ['teams', UUID], body: fields(['name', 'aliases', 'own']), response: json(TEAM_KEYS) },
   { method: 'POST', segments: ['teams', UUID, 'merge'], body: fields(['into_team_id']), response: json(TEAM_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'lineups'], response: json(TEAM_LINEUPS_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'scout'], query: ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup'], response: json(SCOUT_KEYS) },

@@ -2,20 +2,13 @@
 
 import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
+import { MAX_TAG_LENGTH, MAX_TAGS } from '@/lib/api/libreta';
 import { patchLibraryDemo, type LibraryDemo } from '@/lib/api/library';
-import { tagSuggestions } from '@/lib/library/partida-groups';
+import { cleanTag, tagSuggestions } from '@/lib/library/partida-groups';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
-const MAX_TAGS = 32;
-const MAX_TAG_LENGTH = 40;
-
-/** A tag as the library stores it: no commas, trimmed, within the length the Demo panel allows. */
-function cleanTag(raw: string): string {
-  return raw.replaceAll(',', ' ').trim().slice(0, MAX_TAG_LENGTH).trim();
-}
 
 /** The tags of a demo as chips that can be removed, and "+ Etiqueta" to add one with the library's tags as suggestions. */
 export function PartidaTags({

@@ -14,6 +14,8 @@ type SelectionBarProps = {
   /** Extra text after the count, such as the size the selection frees. */
   detail?: string;
   confirmDescription: string;
+  /** Other actions on the chosen rows, shown before the delete. */
+  actions?: ReactNode;
   /** How the last delete went, shown in the bar so it floats with it. */
   result?: { text: string; failed: boolean } | null;
   onDelete: () => void;
@@ -24,7 +26,7 @@ type SelectionBarProps = {
  * Actions for the rows picked in a page that is not one table. Render it last on the page: it floats at the
  * bottom of the window while the page scrolls, and nothing above it moves when it appears.
  */
-export function SelectionBar({ count, noun, busy, detail, confirmDescription, result, onDelete, onClear }: SelectionBarProps): ReactNode {
+export function SelectionBar({ count, noun, busy, detail, confirmDescription, actions, result, onDelete, onClear }: SelectionBarProps): ReactNode {
   return (
     <div
       role="region"
@@ -36,6 +38,7 @@ export function SelectionBar({ count, noun, busy, detail, confirmDescription, re
         {selectedCount(count, noun)}
         {detail ? <span className="font-normal text-fg-2">{` · ${detail}`}</span> : null}
       </span>
+      {actions}
       <DeleteChosenButton count={count} noun={noun} loading={busy} description={confirmDescription} onConfirm={onDelete} />
       <Button type="button" variant="ghost" size="xs" className="ml-auto" disabled={busy} onClick={onClear}>
         <X aria-hidden />

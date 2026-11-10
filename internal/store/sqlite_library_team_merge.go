@@ -48,8 +48,18 @@ func (r *SQLiteLibraryRepository) MergeTeams(ctx context.Context, from, into uui
 		if _, err := tx.ExecContext(ctx, `UPDATE library_series SET team_b = NULL WHERE team_a = team_b`); err != nil {
 			return fmt.Errorf("merge series slots: %w", err)
 		}
+		// The own mark moves with the team it was on.
+		var fromOwn bool
+		if err := tx.QueryRowContext(ctx, `SELECT is_own FROM library_teams WHERE id = ?`, from.String()).Scan(&fromOwn); err != nil {
+			return fmt.Errorf("read own team: %w", err)
+		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM library_teams WHERE id = ?`, from.String()); err != nil {
 			return fmt.Errorf("delete merged team: %w", err)
+		}
+		if fromOwn {
+			if _, err := tx.ExecContext(ctx, `UPDATE library_teams SET is_own = 1 WHERE id = ?`, into.String()); err != nil {
+				return fmt.Errorf("move own team: %w", err)
+			}
 		}
 		_, err := tx.ExecContext(ctx, `UPDATE library_teams SET updated_at = ? WHERE id = ?`, millis(libraryNow()), into.String())
 		return err

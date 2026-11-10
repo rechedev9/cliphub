@@ -4,13 +4,18 @@ import type { LibraryDemo, LibraryMatch, LibraryMatchTeam } from '../api/library
 import type { LibrarySeries } from '../api/veto.ts';
 import {
   groupPartidas,
+  cleanTag,
+  eventOptions,
   hasPov,
   libraryTags,
   listViewParams,
   matchKind,
   ownOutcome,
   ownTeamId,
+  ownTeamName,
   parseListView,
+  rowKind,
+  seriesIndex,
   seriesVeto,
   tagSuggestions,
   withListView,
@@ -26,15 +31,15 @@ function side(key: LibraryMatchTeam['key'], score: number, teamId: string | null
   return { key, start_side: key === 'ct-start' ? 'CT' : 'T', clan_name: '', team_id: teamId, assignment: 'auto', score };
 }
 
-function row(id: string, input: { at: string; imported?: string; series?: string; teams?: [string | null, string | null]; tags?: string[]; jobs?: string[] }): PartidaRow {
+function row(id: string, input: { source?: LibraryDemo['source']; at: string; imported?: string; series?: string; teams?: [string | null, string | null]; tags?: string[]; jobs?: string[] }): PartidaRow {
   const [ct, t] = input.teams ?? [A, B];
   const match: LibraryMatch = {
-    id, demo_id: `demo-${id}`, map: 'de_mirage', played_at: input.at, source: 'faceit', tickrate: 64, duration_ticks: 1,
+    id, demo_id: `demo-${id}`, map: 'de_mirage', played_at: input.at, source: input.source ?? 'faceit', tickrate: 64, duration_ticks: 1,
     round_count: 20, teams: [side('ct-start', 13, ct), side('t-start', 7, t)], created_at: '', updated_at: '',
     ...(input.series === undefined ? {} : { series_id: input.series }),
   };
   const demo: LibraryDemo = {
-    id: `demo-${id}`, sha256: id, file_name: `${id}.dem`, path: '', size_bytes: 1, source: 'faceit', source_manual: false, state: 'ready',
+    id: `demo-${id}`, sha256: id, file_name: `${id}.dem`, path: '', size_bytes: 1, source: input.source ?? 'faceit', source_manual: false, state: 'ready',
     tags: input.tags ?? [], job_ids: input.jobs ?? [], imported_at: input.imported ?? input.at, updated_at: input.at,
   };
   return { demo, match };
@@ -47,12 +52,21 @@ function series(id: string, vetoes: LibrarySeries['vetoes']): LibrarySeries {
   };
 }
 
-test('the match kind comes from the demo source', () => {
-  assert.equal(matchKind('scrim'), 'scrim');
-  assert.equal(matchKind('faceit'), 'oficial');
-  assert.equal(matchKind('hltv'), 'oficial');
-  assert.equal(matchKind('valve'), 'importada');
-  assert.equal(matchKind('unknown'), 'importada');
+test('the match kind comes from the demo source and the series event', () => {
+  assert.equal(matchKind({ source: 'scrim', inEventSeries: true }), 'scrim');
+  assert.equal(matchKind({ source: 'hltv', inEventSeries: false }), 'oficial');
+  assert.equal(matchKind({ source: 'faceit', inEventSeries: true }), 'oficial');
+  assert.equal(matchKind({ source: 'faceit', inEventSeries: false }), 'importada');
+  assert.equal(matchKind({ source: 'valve', inEventSeries: false }), 'importada');
+});
+
+test('a row is official only through its series event', () => {
+  const withEvent: LibrarySeries = { ...series('s1', []), event: 'IEM' };
+  const index = seriesIndex([withEvent, series('s2', [])]);
+  assert.equal(rowKind(row('a', { at: '2026-10-01T10:00:00Z', series: 's1' }), index), 'oficial');
+  assert.equal(rowKind(row('b', { at: '2026-10-01T10:00:00Z', series: 's2' }), index), 'importada');
+  assert.equal(rowKind(row('c', { at: '2026-10-01T10:00:00Z', source: 'scrim', series: 's1' }), index), 'scrim');
+  assert.deepEqual(eventOptions([withEvent, series('s2', [])]), [{ value: 'IEM', label: 'IEM' }]);
 });
 
 test('the list view round-trips through the query and leaves other keys alone', () => {
@@ -70,17 +84,20 @@ test('a partida has a POV when one of its jobs has a video', () => {
   assert.equal(hasPov(r, new Set(['j9'])), false);
 });
 
-test('the own team is the one that plays most, and only when it is clear', () => {
+test('the own team is the one picked, else the one that plays most scrims, and only when it is clear', () => {
   const rows = [
-    row('1', { at: '2026-10-01T10:00:00Z' }),
-    row('2', { at: '2026-10-02T10:00:00Z', teams: [A, C] }),
-    row('3', { at: '2026-10-03T10:00:00Z', teams: [C, A] }),
+    row('1', { at: '2026-10-01T10:00:00Z', source: 'scrim' }),
+    row('2', { at: '2026-10-02T10:00:00Z', source: 'scrim', teams: [A, C] }),
+    row('3', { at: '2026-10-03T10:00:00Z', source: 'scrim', teams: [C, A] }),
   ];
   const [first, second, third] = rows;
   assert.ok(first && second && third);
-  const matches = rows.flatMap(({ match }) => (match ? [match] : []));
-  assert.equal(ownTeamId(matches), A);
-  assert.equal(ownTeamId(matches.slice(0, 2)), null);
+  assert.equal(ownTeamId({ rows, explicit: null }), A);
+  assert.equal(ownTeamId({ rows: rows.slice(0, 2), explicit: null }), null);
+  assert.equal(ownTeamId({ rows, explicit: C }), C);
+  const pugs = rows.map((entry) => ({ ...entry, demo: { ...entry.demo, source: 'faceit' as const } }));
+  assert.equal(ownTeamId({ rows: pugs, explicit: null }), null);
+  assert.equal(ownTeamName(rows, A), 'Equipo CT');
   assert.equal(ownOutcome(first, A), 'win');
   assert.equal(ownOutcome(second, A), 'win');
   assert.equal(ownOutcome(third, A), 'loss');
@@ -138,6 +155,11 @@ test('tag suggestions skip the tags a demo already has and rank prefixes first',
   assert.deepEqual(tagSuggestions({ all, typed: 'es', current: [] }), ['ESL', 'escuadra']);
   assert.deepEqual(tagSuggestions({ all, typed: 'cr', current: ['Pracc'] }), ['scrim vs X']);
   assert.deepEqual(tagSuggestions({ all, typed: '', current: ['ESL'] }), ['scrim vs X', 'Pracc', 'escuadra']);
+});
+
+test('a tag is trimmed, comma free and no longer than the library allows', () => {
+  assert.equal(cleanTag('  ESL, Pro  '), 'ESL Pro');
+  assert.equal(cleanTag('x'.repeat(60)).length, 40);
 });
 
 test('library tags come most used first', () => {

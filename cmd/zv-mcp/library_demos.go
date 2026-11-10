@@ -172,7 +172,7 @@ func registerLibraryDemoTools(server *mcp.Server, s *studio) {
 				if err != nil {
 					return nil, demoOut{}, toolError(err)
 				}
-				next := editTags(current.Tags, in.AddTags, in.RemoveTags)
+				next := editTags(current.Tags, tagEdit{add: in.AddTags, remove: in.RemoveTags})
 				if err := checkDemoTags(next); err != nil {
 					return nil, demoOut{}, err
 				}
@@ -254,15 +254,18 @@ func deleteDemosSummary(names []string) string {
 		len(names), list, effect)
 }
 
+// tagEdit is what a row's tag controls change: tags to take off and tags to put on.
+type tagEdit struct{ add, remove []string }
+
 // editTags removes, then appends, keeping the order and leaving no duplicate.
-func editTags(current, add, remove []string) []string {
-	next := make([]string, 0, len(current)+len(add))
+func editTags(current []string, edit tagEdit) []string {
+	next := make([]string, 0, len(current)+len(edit.add))
 	for _, tag := range current {
-		if !slices.Contains(remove, tag) && !slices.Contains(next, tag) {
+		if !slices.Contains(edit.remove, tag) && !slices.Contains(next, tag) {
 			next = append(next, tag)
 		}
 	}
-	for _, tag := range add {
+	for _, tag := range edit.add {
 		if !slices.Contains(next, tag) {
 			next = append(next, tag)
 		}
