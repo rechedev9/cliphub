@@ -27,6 +27,7 @@ func seriesStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	rec.handle(mux, "GET /api/library/teams/{id}/maps", `{"team_name":"Vitality","matches":4,"series":1,"maps":[{"map":"de_nuke","matches":4,"wins":3,"losses":1,
 		"rounds_won":52,"rounds_lost":40,"sides":[{"side":"CT","rounds":46,"won":{"count":30}},{"side":"T","rounds":46,"won":{"count":22}}],
 		"veto":{"picked":{"count":2},"banned":{"count":0}},"preference":{"score":64}}]}`)
+	rec.handle(mux, "GET /api/library/teams/{id}/map-counts", `{"maps":[{"map":"de_nuke","matches":2},{"map":"de_mirage","matches":0}]}`)
 	rec.handle(mux, "GET /api/library/teams/{id}/veto", `{"team_name":"Vitality","opponent_name":"MOUZ","plan":{"format":"bo3","first":"a",
 		"maps":[{"map":"de_nuke","our_matches":4,"our_rate":0.5652,"their_matches":2,"their_rate":0.48,"edge":0.0852,"their_bans":1}],
 		"steps":[{"team":"a","action":"ban","map":"de_train","basis":"chosen"},{"team":"b","action":"ban","map":"de_nuke","basis":"history"}],
@@ -79,6 +80,15 @@ func TestTeamMapsAndVeto(t *testing.T) {
 	if m.Record != "3-1-0" || m.RoundWinPct != 56.5 || m.CTWinPct != 65.2 || m.Vetoes["picked"] != 2 || len(m.Vetoes) != 1 || m.Preference != 64 {
 		t.Errorf("map = %+v", m)
 	}
+
+	if m.ScopeMatches != 2 {
+		t.Errorf("scope_matches = %d, want the 2 matches the server counted on de_nuke", m.ScopeMatches)
+	}
+	callTool(t, cs, "team_maps", map[string]any{"team_id": testTeamID, "opponent_id": []string{testRivalID}, "lineup": []string{testSteamID}, "max_matches": 5, "whose": "own"}, &maps)
+	if got := rec.get("GET /api/library/teams/{id}/map-counts"); !strings.Contains(got, "opponent_id="+testRivalID) || !strings.Contains(got, "lineup="+testSteamID) || !strings.Contains(got, "max_matches=5") || !strings.Contains(got, "whose=own") {
+		t.Errorf("map-counts query = %s", got)
+	}
+	toolFails(t, cs, "team_maps", map[string]any{"team_id": testTeamID, "opponent_top": 7}, "opponent_top")
 
 	var v vetoOut
 	callTool(t, cs, "simulate_veto", map[string]any{"team_id": testTeamID, "opponent_id": testRivalID, "format": "bo3", "done": []string{"DE_TRAIN"}}, &v)

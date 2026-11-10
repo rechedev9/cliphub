@@ -6,6 +6,7 @@ import type { LibraryRosterEntry, TeamCriterion } from '@/lib/api/library';
 import type { SpatialResponse } from '@/lib/api/spatial';
 import { sampleNotes } from '@/lib/api/team-insights';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
+import type { MapCounts } from '@/lib/analysis/map-counts';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { heatChoiceFromQuery, writeHeatChoice } from '@/lib/replay/heat-choice';
 import type { HeatChoice } from '@/lib/replay/heat-choice';
@@ -28,6 +29,7 @@ export function TeamSpatial({
   criteria,
   view,
   roster,
+  mapCounts,
   onMapChange,
   onCounts,
   onRounds,
@@ -41,6 +43,8 @@ export function TeamSpatial({
   /** The form the team's Replay is on: a heatmap or the superposed paths. */
   view: 'heatmap' | 'overlay';
   roster: readonly LibraryRosterEntry[];
+  /** Matches per map in the scope, so the map select agrees with the scope bar. */
+  mapCounts: MapCounts | null;
   onMapChange: (map: string) => void;
   onCounts: (counts: ScopeCounts | null) => void;
   /** The rounds the figure counts on its map, for the playlist link. */
@@ -103,6 +107,7 @@ export function TeamSpatial({
         side={scope.side}
         view={view}
         hideViewSwitch
+        mapCounts={mapCounts}
         onMapChange={onMapChange}
         onLoaded={onLoaded}
         tramo={tramo}

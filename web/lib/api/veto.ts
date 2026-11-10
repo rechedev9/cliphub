@@ -153,6 +153,9 @@ export const EXTRA_POOL_MAPS = ['de_overpass', 'de_vertigo'] as const;
 
 export const SERIES_KEYS = ['id', 'format', 'event', 'veto', 'team_ids', 'teams', 'vetoes', 'match_ids', 'created_at', 'updated_at'];
 export const SERIES_FIELDS = ['format', 'event', 'veto', 'team_ids', 'vetoes'];
+/** Matches per map under the team scope (`httpapi.teamMapCountsResponse`); a map with none comes back as 0. */
+export type TeamMapCounts = { team_id: string; team_name: string; maps: { map: string; matches: number }[] };
+export const TEAM_MAP_COUNTS_KEYS = ['team_id', 'team_name', 'maps'];
 export const TEAM_MAPS_KEYS = ['team_id', 'team_name', 'matches', 'series', 'skipped', 'maps'];
 export const VETO_KEYS = ['team_id', 'team_name', 'opponent_id', 'opponent_name', 'plan'];
 export const VETO_QUERY = ['opponent_id', 'format', 'first', 'pool', 'done'];

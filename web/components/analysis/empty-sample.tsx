@@ -30,7 +30,7 @@ export function EmptySample({
   if (showEveryone === null || hiddenLocally) return children;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <p className="text-body-sm text-fg-2">La alineación elegida no deja ninguna ronda con este filtro.</p>
+      <p className="text-body-sm text-fg-2">Ninguna ronda cumple el alcance elegido (alineación, rival, fechas o filtros).</p>
       <Button type="button" variant="outline" size="sm" onClick={showEveryone}>
         <Users aria-hidden />
         Todos los jugadores

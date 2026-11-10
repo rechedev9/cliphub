@@ -776,7 +776,7 @@ export function ReplayWorkspace({
             disabled={focused === null}
             onClick={toggleMulti}
             className="h-10 shrink-0"
-            title={superposeHint}
+            title={`${superposeHint} (M)`}
           >
             <Layers aria-hidden />
             <span className="flex flex-col items-start leading-tight">

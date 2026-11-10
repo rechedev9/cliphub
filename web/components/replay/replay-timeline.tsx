@@ -90,7 +90,7 @@ export function ReplayTimeline({
   const postPlant = timeline.durationSeconds > 0 ? postPlantSpan(events, timeline.durationSeconds) : null;
   return (
     <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-start gap-x-3">
-      <Button type="button" size="icon-sm" variant="outline" onClick={onTogglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'} title="Espacio: reproducir o pausar · ←/→: 1 s · Mayús + ←/→: evento · [ ]: ronda">
+      <Button type="button" size="icon-sm" variant="outline" onClick={onTogglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'} title="Espacio: reproducir o pausar · ←/→: 1 s · Mayús + ←/→: evento · [ ] o J K: ronda">
         {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
       </Button>
       <span ref={clockRef} className="flex h-10 w-[6ch] items-center justify-end font-display text-title font-semibold tabular-nums text-fg-1">

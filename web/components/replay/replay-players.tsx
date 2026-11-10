@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils';
 export type FocusControl = { focus: PlayerFocus; onChange: (focus: number[]) => void };
 
 export const FOCUS_HINT = 'Clic deja solo a ese jugador. Mayús y clic suma otro.';
+/** The hint of a player's own card, where F also centres the map on the chosen player. */
+export const FOLLOW_HINT = `${FOCUS_HINT} F centra el mapa en él.`;
 
 /** The first row of every player list: nobody chosen, so the whole team counts. */
 export function AllTeamRow({ focus, onChange, className }: FocusControl & { className?: string }): ReactNode {
@@ -57,7 +59,7 @@ export function ReplayPlayers({ doc, teamKey, focus, onChange }: FocusControl & 
                 key={slot}
                 type="button"
                 aria-pressed={chosen}
-                title={FOCUS_HINT}
+                title={FOLLOW_HINT}
                 onClick={pick(slot)}
                 className={cn(
                   'h-7 max-w-40 truncate rounded-sm border px-2 text-body-sm outline-none transition-[background-color,border-color,opacity] duration-(--dur-fast)',

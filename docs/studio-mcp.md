@@ -210,7 +210,7 @@ Read:
 | `list_callouts` | `GET /api/library/maps/{map}/callouts`: the places of the map's newest analysed match (calibrated from the overview first), each with its token, CS2's name and the team's name, plus places the team named that the geometry lacks |
 | `detect_team_plays` | `GET /api/library/teams/{id}/plays` with the `scout_team` filter; each group's seed round is its `ref`; the 20 most repeated by default, at most 100, `truncated` when more |
 | `list_library_series` | `GET /api/library/series` (`team_id`): format, event, veto notes, teams by slot, veto steps, match ids |
-| `team_maps` | `GET /api/library/teams/{id}/maps` (`from`, `to`): record, round win rate per side, veto counts and preference per map |
+| `team_maps` | `GET /api/library/teams/{id}/maps` (`from`, `to`): record, round win rate per side, veto counts and preference per map; plus `GET /api/library/teams/{id}/map-counts` with the scope keys `opponent_id`, `lineup`, `max_matches`, `last_days`, `opponent_top`, `whose`: `scope_matches` per map, the "N partidas" of the map selector (0 greys the map out) |
 | `simulate_veto` | `GET /api/library/teams/{id}/veto` (`opponent_id`, `format`, `first`, repeatable `pool` and `done`): steps with their basis, the maps played and each map's edge |
 | `faceit_player` | `GET /api/faceit/players` (`nickname`, a nick or profile URL): id, level, ELO, country, SteamID64 |
 | `faceit_matches` | `GET /api/faceit/players/{id}/matches` (`limit` 10 by default and at most 20): map, result, score, K/D/A, ADR, match room link |
