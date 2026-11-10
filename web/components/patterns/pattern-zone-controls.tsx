@@ -5,6 +5,7 @@ import type { MapCallout } from '@/lib/api/callouts';
 import { PATTERN_MAX_CALLOUTS, PATTERN_MAX_MIN_PLAYERS, type PatternBlock } from '@/lib/api/patterns';
 import type { AreaShape } from '@/lib/analysis/pattern-finder';
 import { Segmented } from '@/components/ui/segmented';
+import { InfoTip } from '@/components/analysis/info-tip';
 
 const SHAPES: readonly { value: AreaShape; label: string }[] = [
   { value: 'box', label: 'Caja' },
@@ -62,8 +63,8 @@ export function ZoneControls({ block, shape, onShape, callouts, onChange }: Prop
           options={SHAPES.map((entry) => ({ ...entry, disabled: entry.value === 'callouts' && callouts.length === 0, reason: 'Este mapa no tiene callouts' }))}
           onChange={onShape}
         />
+        {block.area === undefined ? <InfoTip label="la zona" text={HINT[shape]} /> : null}
       </div>
-      {block.area === undefined ? <p className="text-meta text-fg-3">{HINT[shape]}</p> : null}
       {shape === 'callouts' && callouts.length > 0 ? (
         <fieldset className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-sm border border-border bg-surface-0 px-2 py-1.5">
           <legend className="sr-only">Callouts de la zona</legend>

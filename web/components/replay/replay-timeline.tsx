@@ -8,13 +8,13 @@ import type { TacticalEvent, TacticalTimeout } from '@/lib/api/tactical';
 import { isBombKind } from '@/lib/replay/event-kinds';
 import { postPlantSpan, timeoutSpans } from '@/lib/replay/map-hud';
 import { SCRUB_STEP_SECONDS } from '@/lib/replay/playback';
-import { TACTICAL_REPLAY_SPEEDS, roundClockLabelFor } from '@/lib/tactical-timeline';
+import { roundClockLabelFor } from '@/lib/tactical-timeline';
 import type { RoundTimeline, TimelineEvent } from '@/lib/tactical-timeline';
-import { formatRate } from '@/lib/format';
-import { Button, FOCUS_RING } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { CLOCK_BOX, STRIP, TramoBar } from './tramo-bar';
+import { TramoBar } from './tramo-bar';
 import type { TramoControl } from './tramo-bar';
+import { CLOCK_BOX, PLAYING_STRIP, SCRUB_INPUT, SpeedPicker } from './time-strip';
 
 /** Kills in the killer's colour, the bomb in white, grenades as short grey ticks. */
 function tickClass(event: TacticalEvent): string {
@@ -98,7 +98,7 @@ export function ReplayTimeline({
           {roundClockLabelFor(timeline, 0)}
         </span>
       </div>
-      <div className={cn(STRIP, 'shadow-[inset_0_0_0_2px_var(--primary)]')}>
+      <div className={PLAYING_STRIP}>
         <div className="pointer-events-none absolute inset-0" aria-hidden>
           <div className="absolute inset-y-0 left-0 bg-surface-3/60" style={{ width: `${freeze * 100}%` }} />
           {timeoutSpans(timeouts, timeline).map((timeout) => (
@@ -125,14 +125,7 @@ export function ReplayTimeline({
             }}
             onChange={(event) => onSeek(Number(event.target.value))}
             aria-label="Posición de la reproducción"
-            className={cn(
-              'absolute inset-0 h-10 w-full cursor-pointer appearance-none bg-transparent outline-none',
-              '[&::-webkit-slider-runnable-track]:h-10 [&::-webkit-slider-runnable-track]:bg-transparent',
-              '[&::-webkit-slider-thumb]:h-10 [&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-[2px] [&::-webkit-slider-thumb]:bg-primary',
-              '[&::-moz-range-track]:h-10 [&::-moz-range-track]:bg-transparent',
-              '[&::-moz-range-thumb]:h-10 [&::-moz-range-thumb]:w-1.5 [&::-moz-range-thumb]:rounded-[2px] [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-primary',
-              FOCUS_RING,
-            )}
+            className={SCRUB_INPUT}
           />
       </div>
       <div className={CLOCK_BOX}>
@@ -140,23 +133,7 @@ export function ReplayTimeline({
         {roundClockLabelFor(timeline, timeline.durationSeconds)}
       </div>
       <div className="ml-1.5 flex h-10 items-center gap-1">
-        <div className="flex items-center rounded-md border border-border-strong bg-surface-1 p-0.5" role="group" aria-label="Velocidad">
-          {TACTICAL_REPLAY_SPEEDS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onSpeedChange(option)}
-              aria-pressed={speed === option}
-              className={cn(
-                'h-7 min-w-9 rounded-sm px-1.5 text-meta tabular-nums outline-none transition-[background-color,color] duration-(--dur-fast)',
-                FOCUS_RING,
-                speed === option ? 'bg-surface-4 font-semibold text-fg-1 shadow-[inset_0_-2px_0_0_var(--primary)]' : 'text-fg-2 hover:text-fg-1',
-              )}
-            >
-              {formatRate(option)}
-            </button>
-          ))}
-        </div>
+        <SpeedPicker speed={speed} onChange={onSpeedChange} />
         <Button type="button" size="icon-xs" variant={loop ? 'outline-primary' : 'ghost'} onClick={onToggleLoop} aria-pressed={loop} aria-label="Repetir en bucle" className="size-8">
           <Repeat aria-hidden />
         </Button>

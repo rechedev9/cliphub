@@ -33,6 +33,7 @@ import { TramoBar, useTramo, type TramoControl } from '@/components/replay/tramo
 import { Button } from '@/components/ui/button';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { Segmented } from '@/components/ui/segmented';
+import { InfoTip } from '@/components/analysis/info-tip';
 import { Toggle } from '@/components/ui/toggle';
 import { clockHistogram, type Bucket } from '@/lib/analysis/pattern-canvas';
 import { CAPS_LABEL } from '@/components/analysis/scope-field-style';
@@ -300,7 +301,7 @@ export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tra
     <div className="flex flex-wrap items-center gap-2">
       <Segmented label="La caja acota" value={area} options={AREAS} onChange={setArea} />
       {box === null ? (
-        <span className="text-body-sm text-fg-3">Arrastra sobre el radar para dibujar la caja; con zoom, Mayús + arrastrar.</span>
+        <InfoTip label="la caja" text="Arrastra sobre el radar para dibujar la caja; con zoom, Mayús + arrastrar." />
       ) : (
         <Button type="button" variant="ghost" size="xs" onClick={() => setBox(null)}>
           <X aria-hidden />

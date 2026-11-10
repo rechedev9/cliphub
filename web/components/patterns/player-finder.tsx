@@ -22,6 +22,7 @@ import { TramoBar, useTramo, type TramoControl } from '@/components/replay/tramo
 import { HeatLegend } from '@/components/tactical/spatial/heat-legend';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
+import { InfoTip } from '@/components/analysis/info-tip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Toggle } from '@/components/ui/toggle';
 import { ClockHistogram, type HistogramKey } from './clock-histogram';
@@ -253,7 +254,10 @@ export function PlayerFinder({ frame, teamId, scope, lineup, criteria, roster, t
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
           {box === null ? (
-            <span className="text-body-sm text-fg-3">Arrastra sobre el radar para dibujar la zona; con zoom, Mayús + arrastrar.</span>
+            <span className="flex items-center gap-1.5 text-meta text-fg-2">
+              Zona
+              <InfoTip label="la zona" text="Arrastra sobre el radar para dibujar la zona; con zoom, Mayús + arrastrar." />
+            </span>
           ) : (
             <Button type="button" variant="ghost" size="xs" onClick={() => setBox(null)}>
               <X aria-hidden />
@@ -333,6 +337,6 @@ function HeatNote({ heats, boxed }: { heats: readonly PlayerHeat[]; boxed: boole
       </p>
     );
   }
-  if (heats.length === 1) return <HeatLegend kind="position" maxCount={0} maxSeconds={0} sampleSeconds={0} />;
+  if (heats.length === 1) return <HeatLegend kind="position" maxSeconds={0} />;
   return <p className="text-meta text-fg-3">Cada color es un jugador; cuanto más opaco, más tiempo pasó en la zona.</p>;
 }

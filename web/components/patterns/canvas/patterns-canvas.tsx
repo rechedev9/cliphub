@@ -164,7 +164,7 @@ export function PatternsCanvas({ analysis, onTeam }: { analysis: TeamAnalysis; o
   return (
     <div
       data-replay-workspace=""
-      className="grid min-h-0 gap-2 lg:h-[calc(100dvh-var(--shell-strip-height)-1.5rem)] lg:grid-cols-[19rem_minmax(0,1fr)_23rem] lg:grid-rows-[minmax(0,1fr)_auto]"
+      className="grid min-h-0 gap-2 lg:h-[calc(100dvh-var(--shell-strip-height)-1.5rem)] lg:grid-cols-[18rem_minmax(0,1fr)_20rem] lg:grid-rows-[minmax(0,1fr)_auto]"
     >
       <aside aria-label="Filtros y paneles" className="flex min-h-0 flex-col gap-2 lg:overflow-y-auto lg:pr-1">
         <TeamScopeFilter

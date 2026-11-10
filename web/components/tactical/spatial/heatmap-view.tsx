@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Flame } from 'lucide-react';
+import { Flame, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { InfoTip } from '@/components/analysis/info-tip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { getSpatialHeatmap } from '@/lib/api/library';
 import type { SpatialScope } from '@/lib/api/library';
 import { HEATMAP_GRENADES, HEATMAP_KINDS, KILL_SPOTS } from '@/lib/api/spatial';
@@ -358,8 +360,6 @@ export function HeatmapView({
             }}
           />
         ) : null}
-      </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {kind === 'kill' ? (
           <Segmented
             label="Qué punto de cada baja cuenta"
@@ -372,8 +372,7 @@ export function HeatmapView({
           />
         ) : null}
         {kind === 'utility' ? (
-          <div role="group" aria-label="Granadas" className="flex flex-wrap items-center gap-1.5">
-            <span className="text-body-sm text-fg-3">Granadas:</span>
+          <div role="group" aria-label="Granadas" title="Sin selección cuenta todas" className="flex flex-wrap items-center gap-1.5">
             {HEATMAP_GRENADES.map((grenade) => (
               <button
                 key={grenade}
@@ -388,22 +387,9 @@ export function HeatmapView({
                 {eventKindLabel(grenade)}
               </button>
             ))}
-            <span className="text-meta text-fg-3">{grenades.length === 0 ? 'Sin selección cuenta todas.' : ''}</span>
           </div>
         ) : null}
-        <label className="flex min-w-56 items-center gap-2 text-body-sm text-fg-2">
-          Suavizado
-          <input
-            type="range"
-            min={Math.round(SMOOTHING_MIN * 100)}
-            max={Math.round(SMOOTHING_MAX * 100)}
-            step={1}
-            value={Math.round(smoothing * 100)}
-            onChange={(event) => setSmoothing(Number(event.target.value) / 100)}
-            className="h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary"
-          />
-          <span className="w-10 text-right text-meta tabular-nums text-fg-3">{Math.round(smoothing * 100)} %</span>
-        </label>
+        <HeatSettings smoothing={smoothing} onChange={setSmoothing} />
       </div>
 
       {body()}
@@ -467,15 +453,21 @@ function HeatmapSidebar({
   const amount = (count: number): string => heatAmount({ kind, count, sampleSeconds });
   const top = places.slice(0, TOP_PLACES);
   const timing = kind === 'timing';
+  const method = [
+    `Cada zona suma las celdas de ${cellSize} unidades que cuenta su lugar; el radar las suaviza.`,
+    kind === 'position' ? `El tiempo es el de los jugadores vivos, medido cada ${String(sampleSeconds).replace('.', ',')} s del tramo: una ronda larga pesa más que una corta.` : '',
+    kind === 'kill' ? 'Las bajas a compañeros no cuentan.' : '',
+    timing ? 'Cada jugador cuenta su primera llegada a cada zona en cada ronda.' : '',
+    `${layer.rounds} de ${rounds} rondas, ${matchCount} ${matchCount === 1 ? 'partida' : 'partidas'}.`,
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
-    <aside className="flex min-w-0 flex-col gap-3 rounded-lg border border-border-strong bg-surface-1 p-3">
-      <p className="text-body-sm text-fg-2">
-        {amount(layer.total)} en {layer.rounds} de {rounds} rondas ({matchCount} {matchCount === 1 ? 'partida' : 'partidas'}).
-        {missing > 0 ? ` ${missing} sin posiciones guardadas.` : ''}
-      </p>
-      <HeatLegend kind={kind} maxCount={layer.maxCount} maxSeconds={layer.maxSeconds} sampleSeconds={sampleSeconds} />
+    <aside className="flex min-w-0 flex-col gap-3">
+      <HeatLegend kind={kind} maxSeconds={layer.maxSeconds} />
+      {missing > 0 ? <p className="text-meta text-fg-3">{missing} rondas sin posiciones guardadas.</p> : null}
       {selected ? (
-        <div className="flex flex-col gap-1.5 rounded-md border border-border p-2.5">
+        <div className="flex flex-col gap-1.5 rounded-md bg-surface-2 p-2.5">
           <span className="text-body-sm font-medium text-fg-1">{selected.name}</span>
           <span className="text-meta tabular-nums text-fg-2">
             {amount(selected.count)} · {selected.cells.length > 1 ? 'al menos ' : ''}
@@ -484,9 +476,7 @@ function HeatmapSidebar({
           </span>
           <EvidenceChips examples={selected.examples} matches={matches} />
         </div>
-      ) : (
-        <p className="text-meta text-fg-3">Pulsa una zona del radar para ver de qué rondas sale.</p>
-      )}
+      ) : null}
       {top.length === 0 ? (
         <div className="flex flex-col items-start gap-2">
           <p className="flex items-center gap-2 text-body-sm text-fg-3">
@@ -501,7 +491,12 @@ function HeatmapSidebar({
         </div>
       ) : (
         <table className="w-full text-body-sm">
-          <caption className="pb-1 text-left text-meta text-fg-3">{timing ? 'Primeras llegadas' : 'Zonas con más actividad'}</caption>
+          <caption className="pb-1 text-left text-meta text-fg-3">
+            <span className="flex items-center justify-between gap-2">
+              {timing ? 'Primeras llegadas' : 'Zonas con más actividad'}
+              <InfoTip label="el mapa de calor" text={method} />
+            </span>
+          </caption>
           <thead className="sr-only">
             <tr>
               <th>Zona</th>
@@ -524,12 +519,34 @@ function HeatmapSidebar({
           </tbody>
         </table>
       )}
-      <p className="text-meta text-fg-3">
-        Cada zona suma las celdas de {cellSize} unidades que cuenta su lugar; el radar las suaviza.
-        {kind === 'position' ? ` El tiempo es el de los jugadores vivos, medido cada ${String(sampleSeconds).replace('.', ',')} s del tramo: una ronda larga pesa más que una corta.` : ''}
-        {kind === 'kill' ? ' Las bajas a compañeros no cuentan.' : ''}
-        {timing ? ' Cada jugador cuenta su primera llegada a cada zona en cada ronda.' : ''}
-      </p>
     </aside>
+  );
+}
+
+/** Secondary options of the heatmap in one menu, so the filter row carries only what changes the question. */
+function HeatSettings({ smoothing, onChange }: { smoothing: number; onChange: (smoothing: number) => void }): ReactNode {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label="Ajustes del mapa de calor" className="ml-auto">
+          <Settings2 aria-hidden />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64">
+        <label className="flex items-center gap-2 text-body-sm text-fg-2">
+          Suavizado
+          <input
+            type="range"
+            min={Math.round(SMOOTHING_MIN * 100)}
+            max={Math.round(SMOOTHING_MAX * 100)}
+            step={1}
+            value={Math.round(smoothing * 100)}
+            onChange={(event) => onChange(Number(event.target.value) / 100)}
+            className="h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary"
+          />
+          <span className="w-10 text-right text-meta tabular-nums text-fg-3">{Math.round(smoothing * 100)} %</span>
+        </label>
+      </PopoverContent>
+    </Popover>
   );
 }

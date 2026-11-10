@@ -151,9 +151,12 @@ export function TeamSideStats({ teamId, scope, lineup, compare, onCounts }: Team
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
-        <SlashTitle>Lados</SlashTitle>
+        <div className="flex items-center gap-2">
+          <SlashTitle>Lados</SlashTitle>
+          {data.group_teams === 0 ? null : <InfoTip label="la media del grupo" text={groupText(data)} />}
+        </div>
         <TeamSidesCard ct={data.ct} t={data.t} overall={data.overall} side={side} map={map} />
-        <p className="measure-read text-body-sm text-fg-2">{groupText(data)}</p>
+        {data.group_teams === 0 ? <p className="measure-read text-body-sm text-fg-2">{groupText(data)}</p> : null}
       </div>
       <section aria-label="Jugadores" className="flex flex-col gap-2">
         <SlashTitle>Jugadores</SlashTitle>

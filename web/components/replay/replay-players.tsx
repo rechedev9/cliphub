@@ -47,7 +47,7 @@ export function ReplayPlayers({ doc, teamKey, focus, onChange }: FocusControl & 
   const names = new Map(doc.players.map((player) => [player.slot, player.name]));
   const pick = (slot: number) => (event: MouseEvent) => onChange(pickPlayer(focus, slot, event.shiftKey));
   return (
-    <section aria-label="Jugadores" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-border bg-surface-1 px-2 py-1.5">
+    <section aria-label="Jugadores" className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <AllTeamRow focus={focus} onChange={onChange} />
       {teams.map((team) => (
         <div key={team.key} role="group" aria-label={team.name || team.key} className="flex flex-wrap items-center gap-1">

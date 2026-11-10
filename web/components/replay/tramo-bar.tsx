@@ -7,6 +7,7 @@ import type { Tramo } from '@/lib/replay/tramo';
 import { FOCUS_RING } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { CLOCK_BOX, STRIP } from './time-strip';
 
 /** A tramo and how to change it; the Replay keeps it in the URL and hands it to each form. */
 export type TramoControl = { tramo: Tramo; onChange: (tramo: Tramo) => void };
@@ -99,10 +100,6 @@ function Handle({
 
 /** A moment of the matched rounds on the strip: its second on the round clock and the token of its player's colour. */
 export type TramoEvent = { seconds: number; token: string };
-
-/** The clock box and the strip every time control shares: the Tramo bar and the Replay's transport. */
-export const CLOCK_BOX = 'flex h-10 shrink-0 items-center gap-1.5 rounded-sm border border-border bg-surface-1 px-2 font-mono text-body-sm tabular-nums text-fg-1';
-export const STRIP = 'relative h-10 min-w-0 flex-1 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]';
 
 /** The quick tramos in a small menu beside the start clock, so the strip carries no buttons. */
 function TramoPresets({ tramo, onChange, plant }: { tramo: Tramo; onChange: (tramo: Tramo) => void; plant: boolean }): ReactNode {

@@ -42,7 +42,7 @@ export function PatternsWorkspace({ teamId }: { teamId: string }): ReactNode {
   useDocumentTitle(state.kind === 'ready' ? `${state.data.team.name} · Buscador de patrones · ClipHub` : 'Buscador de patrones · ClipHub');
   if (state.kind === 'loading') {
     return (
-      <div role="status" aria-label="Cargando el equipo" className="grid gap-2 lg:grid-cols-[19rem_minmax(0,1fr)_23rem]">
+      <div role="status" aria-label="Cargando el equipo" className="grid gap-2 lg:grid-cols-[18rem_minmax(0,1fr)_20rem]">
         <Skeleton className="h-96 w-full" />
         <Skeleton className="aspect-square w-full" />
         <Skeleton className="h-96 w-full" />
