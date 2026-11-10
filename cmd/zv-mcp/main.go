@@ -67,6 +67,10 @@ For a team: team_bombsites, team_playbook (one map and side), team_prep (one map
 team_side_stats is the team's Estadísticas tab: figures overall and per side, each with group_avg over the
 compare_to teams (empty: the whole library) in the same map, side, dates and buys (buy, opponent_buy), and
 one card per player; its rating is ClipHub's own (rating_formula), never call it an HLTV rating.
+Player cards carry the library role (awp, entry, support, rifler); with one map they also give the role on the map as the
+Ranking reads it: map_roles (one per side) in team_side_stats, map_role in team_prep (ct_players and first_death) and in
+each side of player_positions, with a label such as "Lurk de B", "Ancla A" or "Todoterreno" (no site role and no callout
+holding 40% of the side's rounds).
 team_grenades is the Granadas finder of one map (map required): clock (throws per 10 s of the round clock by player, then
 a Tras la plant bin), spots (repeated throws with what the team does in the 20 s after) and, with spot, one grenade in full: its
 rounds over the scope's rounds, what follows, a setpos and a studio_path that superposes its rounds. players, opponents (the
@@ -98,11 +102,12 @@ with the focus, tramo and zones in the URL; show_zones draws a map with zones ma
 The match_prep prompt guides a match prep: rival and maps, the analysis, find_rounds for each finding's rounds,
 then create_report with Markdown notes and one named round list per finding.
 For a player: player_positions; leaderboard is the Ranking page: it ranks the library's players on one metric (rating, kd or a get_baseline one),
-filtered by map, side, role (such as b_lurk on de_anubis), map_role (a callout held on the map and side, or allround; the answer's
-map_roles lists them), dates and demo source, with each player's metrics, roles, breakdown (percent of rounds per role and per
+filtered by map, side, role (such as b_lurk on de_anubis; on any map the library roles awp, entry, support, rifler), map_role (a callout
+held on the map and side, or allround, which on the library scope also reads over every map with a side; the answer's
+map_roles lists them), dates and demo source, with each player's metrics, library_role, roles, breakdown (percent of rounds per role and per
 position) and round refs. The rating is the Rating de ClipHub. Without from and to the library scope reads the last 90 days, like the page. Scope pro ranks the pro players of the community server
 (last 90 days unless days says otherwise) by side, role, map_role, the HLTV rank of the rival (top) and of the player's own team
-(team_top) and event (the answer's events lists them); those rows carry a team and no refs.
+(team_top) and event (the answer's events lists them); those rows carry a team, and refs only from the library's own demos of the player.
 Fix the library's teams: update_team renames or replaces the aliases (start from get_team) and sets
 own (Mi equipo, one team at most: setting it moves the mark) and hltv_rank,
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds

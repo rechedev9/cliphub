@@ -7,6 +7,7 @@ import { LIBRARY_ROLES, getTeamSideStats } from '@/lib/api/library';
 import type { ReportSide } from '@/lib/api/scout';
 import type { SideStat, SideStats, SideStatsPlayer, TeamSideStats as TeamSideStatsReport } from '@/lib/api/side-stats';
 import type { DeltaTone } from '@/lib/analysis/compare';
+import { mapRolesText } from '@/lib/analysis/map-role';
 import { scopeDateRange, type AnalysisScope, type ScopeField } from '@/lib/analysis/scope';
 import { teamScopeEntries } from '@/lib/analysis/team-scope';
 import { RATING_FORMULA_TEXT, RATING_LABEL } from '@/lib/analysis/rating';
@@ -129,6 +130,8 @@ function roleText(role: string): string {
 
 function PlayerCard({ player, side }: { player: SideStatsPlayer; side: ReportSide }): ReactNode {
   const name = player.name || player.steamid64;
+  // With one map the card names the role per side, such as "T · Lurk de B".
+  const mapRoles = mapRolesText(player.map_roles, side);
   const lines = [
     { label: 'K/D', value: formatDecimal(player.kd, 2) },
     { label: 'ADR', value: formatDecimal(player.adr, 1) },
@@ -141,9 +144,13 @@ function PlayerCard({ player, side }: { player: SideStatsPlayer; side: ReportSid
         <PlayerAvatar nickname={name} playerID={player.steamid64} size={32} />
         <div className="min-w-0">
           <p className="truncate text-body font-semibold text-fg-1">{name}</p>
-          <p className="text-meta text-fg-2">
-            <SideLabel side={side} /> · {roleText(player.role)}
-          </p>
+          {mapRoles === '' ? (
+            <p className="text-meta text-fg-2">
+              <SideLabel side={side} /> · {roleText(player.role)}
+            </p>
+          ) : (
+            <p className="text-meta text-fg-2">{player.role === 'unknown' ? mapRoles : `${mapRoles}, ${roleText(player.role)}`}</p>
+          )}
         </div>
       </div>
       <p className="flex items-baseline gap-1.5">

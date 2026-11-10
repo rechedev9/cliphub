@@ -34,6 +34,8 @@ type MatchReadOptions struct {
 // filter never reads a match again.
 type MatchRead struct {
 	Rounds int
+	// Map keys the per-map role counts, so a board over every map never pools callouts.
+	Map string
 	// HasRoles is true when the role counts were read.
 	HasRoles bool
 	totals   map[Side]map[string]playerTotals
@@ -48,7 +50,7 @@ type MatchRead struct {
 // ReadMatch reads the totals of every player on each side of a match.
 func ReadMatch(m MetricsMatch, opts MatchReadOptions) MatchRead {
 	read := MatchRead{
-		Rounds: len(m.Document.Rounds), HasRoles: opts.Roles,
+		Rounds: len(m.Document.Rounds), Map: m.Document.Demo.Map, HasRoles: opts.Roles,
 		totals: map[Side]map[string]playerTotals{}, roles: map[Side]map[string]RoleCounts{},
 		rounds: map[Side]map[string][]RoundRef{}, keyed: map[Side]map[string]map[string][]RoundRef{},
 	}
@@ -112,11 +114,19 @@ type LeaderboardOptions struct {
 	// (or MapRoleAllround); the sample must hold that side only.
 	MapRole     string
 	MapRoleSide Side
+	// AnyMap says the board reads every map: rows carry no per-map roles or breakdown.
+	AnyMap bool
+	// LibraryRoles is each player's library role (awp, entry, support, rifler);
+	// LibraryRole keeps the players with that one.
+	LibraryRoles map[string]string
+	LibraryRole  string
 }
 
 type leaderboardPlayer struct {
-	totals   playerTotals
-	roles    map[Side]*RoleCounts
+	totals playerTotals
+	roles  map[Side]*RoleCounts
+	// mapRoles holds the same counts per map, for Todoterreno over every map.
+	mapRoles map[string]map[Side]*RoleCounts
 	examples []RoundRef
 	keyed    map[string][]RoundRef
 	team     string
@@ -158,7 +168,10 @@ func (s *LeaderboardSample) Add(m MatchRead, side Side) {
 		for steam, t := range m.totals[sd] {
 			p := s.players[steam]
 			if p == nil {
-				p = &leaderboardPlayer{totals: playerTotals{steamID: steam, name: t.name}, roles: map[Side]*RoleCounts{}, keyed: map[string][]RoundRef{}}
+				p = &leaderboardPlayer{
+					totals: playerTotals{steamID: steam, name: t.name}, roles: map[Side]*RoleCounts{},
+					mapRoles: map[string]map[Side]*RoleCounts{}, keyed: map[string][]RoundRef{},
+				}
 				s.players[steam] = p
 			}
 			if p.team == "" {
@@ -174,6 +187,13 @@ func (s *LeaderboardSample) Add(m MatchRead, side Side) {
 					p.roles[sd] = &RoleCounts{}
 				}
 				p.roles[sd].add(tally)
+				if p.mapRoles[m.Map] == nil {
+					p.mapRoles[m.Map] = map[Side]*RoleCounts{}
+				}
+				if p.mapRoles[m.Map][sd] == nil {
+					p.mapRoles[m.Map][sd] = &RoleCounts{}
+				}
+				p.mapRoles[m.Map][sd].add(tally)
 			}
 			p.examples = appendCapped(p.examples, m.rounds[sd][steam])
 			for key, refs := range m.keyed[sd][steam] {
@@ -213,6 +233,18 @@ func (p *leaderboardPlayer) rowExamples(opts LeaderboardOptions) []RoundRef {
 	return p.examples
 }
 
+// PlayerExamples is the rounds each player's row opens under the role and map
+// role of opts, by SteamID64, whatever the player's metrics or rounds.
+func (s *LeaderboardSample) PlayerExamples(opts LeaderboardOptions) map[string][]RoundRef {
+	out := map[string][]RoundRef{}
+	for steam, p := range s.players {
+		if refs := p.rowExamples(opts); len(refs) > 0 {
+			out[steam] = refs
+		}
+	}
+	return out
+}
+
 // Rows ranks the players with at least MinRounds rounds on the metric, best
 // first. A player without the metric, or without the role, is left out.
 func (s *LeaderboardSample) Rows(opts LeaderboardOptions) []LeaderboardRow {
@@ -229,14 +261,21 @@ func (s *LeaderboardSample) Rows(opts LeaderboardOptions) []LeaderboardRow {
 		if opts.Role != "" && p.roleOn(RoleSide(opts.Role)) != opts.Role {
 			continue
 		}
-		if opts.MapRole != "" && p.countsOn(opts.MapRoleSide).mapRole() != opts.MapRole {
+		if opts.MapRole == MapRoleAllround && !p.allroundOn(opts.MapRoleSide) {
+			continue
+		}
+		if opts.MapRole != "" && opts.MapRole != MapRoleAllround && p.countsOn(opts.MapRoleSide).positionKey(opts.MapRoleSide) != opts.MapRole {
+			continue
+		}
+		libraryRole := opts.LibraryRoles[p.totals.steamID]
+		if opts.LibraryRole != "" && libraryRole != opts.LibraryRole {
 			continue
 		}
 		row := LeaderboardRow{
 			SteamID64: p.totals.steamID, Name: p.totals.name, Rounds: p.totals.rounds, Matches: p.totals.matches,
-			Value: v, Metrics: values, Examples: p.rowExamples(opts), Team: p.team,
+			Value: v, Metrics: values, Examples: p.rowExamples(opts), Team: p.team, LibraryRole: libraryRole,
 		}
-		if s.roles {
+		if s.roles && !opts.AnyMap {
 			row.Roles = &PlayerRoles{CT: p.roleOn(SideCT), T: p.roleOn(SideT)}
 			row.Breakdown = p.breakdown()
 		}
@@ -253,7 +292,7 @@ func (s *LeaderboardSample) MapRoleOptions(side Side, minRounds int) []MapRoleOp
 		if p.totals.rounds < minRounds {
 			continue
 		}
-		if role := p.countsOn(side).mapRole(); role != "" {
+		if role := p.countsOn(side).positionKey(side); role != "" {
 			counts[role]++
 		}
 	}

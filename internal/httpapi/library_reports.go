@@ -132,6 +132,7 @@ func (h *Handlers) teamCandidates(ctx context.Context, team library.Team, matchI
 type keptMatch struct {
 	scout  tacticalplan.ScoutMatch
 	demoID uuid.UUID
+	match  library.Match
 }
 
 // keepQuery is what keepTeamMatches walks: the selected matches, newest first.
@@ -168,7 +169,7 @@ func (h *Handlers) keepTeamMatches(q keepQuery) ([]keptMatch, []scoutSkipped) {
 			continue
 		}
 		sm.Document = doc
-		kept = append(kept, keptMatch{scout: sm, demoID: demoID})
+		kept = append(kept, keptMatch{scout: sm, demoID: demoID, match: q.candidates[sm.MatchID].match})
 	}
 	return kept, skipped
 }

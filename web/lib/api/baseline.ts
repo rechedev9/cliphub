@@ -61,6 +61,14 @@ export type LeaderboardRole = (typeof CT_ROLES)[number] | (typeof T_ROLES)[numbe
 
 export type LeaderboardRoles = { ct?: LeaderboardRole; t?: LeaderboardRole };
 
+/** Library roles, read over every map (`library.Role*`); a board filters on them without a map. */
+export const GENERIC_ROLES = ['awp', 'entry', 'support', 'rifler'] as const;
+export type GenericRole = (typeof GENERIC_ROLES)[number];
+
+/** A player's role on one side of one map as the Ranking reads it (`tacticalplan.SideMapRole`). */
+export type SideMapRole = { role: LeaderboardRole; map_role: string; label: string };
+export type PlayerMapRoles = { ct?: SideMapRole; t?: SideMapRole };
+
 /** A round of the row to open in the Replay (`LeaderboardRow.examples`). */
 export type LeaderboardRound = { match_id: string; round: number; tick: number };
 
@@ -84,11 +92,13 @@ export type LeaderboardRow = {
   value: number;
   /** Every leaderboard metric the player has; library rows only. */
   metrics?: Partial<Record<LeaderboardMetric, number>>;
+  /** The library role over the board's matches; library rows with enough rounds only. */
+  library_role?: GenericRole;
   /** The role per side on the map; present when the query names a map. */
   roles?: LeaderboardRoles;
   /** Roles and positions as shares of the player's rounds per side; present when the query names a map. */
   breakdown?: { ct?: SideBreakdown; t?: SideBreakdown };
-  /** The rounds of the filtered role or position, else the newest of the side; library rows only. */
+  /** The rounds of the filtered role or position, else the newest of the side; on pro rows, the library's own rounds of the player. */
   examples?: LeaderboardRound[];
 };
 
@@ -129,12 +139,13 @@ export type LeaderboardQuery = BaselineQuery & {
   metric: LeaderboardMetric;
   limit?: number;
   side?: 'CT' | 'T';
-  role?: LeaderboardRole;
+  /** A role on the map (needs `map`), or a library role on any map (library scope only). */
+  role?: LeaderboardRole | GenericRole;
   /** RFC 3339 bounds of the match date. */
   from?: string;
   to?: string;
   source?: LeaderboardMatchSource;
-  /** A callout, or `allround`, held on `side`; needs the map and the side. */
+  /** A callout, or `allround`, held on `side`; needs the map and the side, except `allround` on the library scope. */
   map_role?: string;
   /** Pro scope: only maps from the last N days (`all` for every date, dated or not), of one event, against a team ranked `top` or better, and players whose own team is ranked `team_top` or better. */
   days?: number | 'all';

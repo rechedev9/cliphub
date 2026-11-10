@@ -79,11 +79,13 @@ type PrepPlayerWindow struct {
 
 // PrepPlayer is one CT player of the team and their positions per window.
 type PrepPlayer struct {
-	SteamID64 string             `json:"steamid64"`
-	Name      string             `json:"name"`
-	Role      string             `json:"role"`
-	Rounds    int                `json:"rounds"`
-	Windows   []PrepPlayerWindow `json:"windows"`
+	SteamID64 string `json:"steamid64"`
+	Name      string `json:"name"`
+	Role      string `json:"role"`
+	// MapRole is the player's CT role on the map, read like the Ranking's.
+	MapRole *SideMapRole       `json:"map_role,omitempty"`
+	Rounds  int                `json:"rounds"`
+	Windows []PrepPlayerWindow `json:"windows"`
 }
 
 // Prep is what to expect from a team on one map: how it fares in each buy
@@ -105,6 +107,8 @@ type PrepOptions struct {
 	Filter ScoutFilter
 	// Roles is the inferred role per SteamID; a missing one reads "unknown".
 	Roles map[string]string
+	// MapRoles is each player's role per side on the map (LeaderboardSample.MapRoles).
+	MapRoles map[string]PlayerMapRoles
 }
 
 type matchupKey struct {
@@ -210,7 +214,7 @@ func BuildPrep(matches []FramedMatch, opts PrepOptions) Prep {
 	}
 	prep.Matchups = run.matchupRows()
 	prep.Tempo = run.tempoRows()
-	prep.CTPlayers = run.playerRows(opts.Roles, prep.Map)
+	prep.CTPlayers = run.playerRows(opts, prep.Map)
 	return prep
 }
 
@@ -357,15 +361,15 @@ func (run *prepRun) tempoRows() []PrepTempo {
 	return out
 }
 
-func (run *prepRun) playerRows(roles map[string]string, mapName string) []PrepPlayer {
+func (run *prepRun) playerRows(opts PrepOptions, mapName string) []PrepPlayer {
 	cal, calibrated := radarmap.Lookup(mapName)
 	out := make([]PrepPlayer, 0, len(run.players))
 	for id, acc := range run.players {
-		role := roles[id]
+		role := opts.Roles[id]
 		if role == "" {
 			role = "unknown"
 		}
-		p := PrepPlayer{SteamID64: id, Name: acc.name, Role: role, Rounds: acc.rounds, Windows: make([]PrepPlayerWindow, 0, len(PrepWindows))}
+		p := PrepPlayer{SteamID64: id, Name: acc.name, Role: role, MapRole: opts.MapRoles[id].CT, Rounds: acc.rounds, Windows: make([]PrepPlayerWindow, 0, len(PrepWindows))}
 		for i, w := range PrepWindows {
 			win := acc.windows[i]
 			spots := make([]PrepSpot, 0, len(win.spots))

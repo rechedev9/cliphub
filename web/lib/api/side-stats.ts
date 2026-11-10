@@ -1,3 +1,5 @@
+import type { PlayerMapRoles } from './baseline.ts';
+
 // Browser-side contract of `tacticalplan.SideStatsReport` (`GET /api/library/teams/{id}/side-stats`),
 // with the Go JSON names.
 
@@ -30,6 +32,8 @@ export type SideStatsPlayer = {
   steamid64: string;
   name: string;
   role: string;
+  /** The role per side on the map, as the Ranking reads it; set when the scope reads one map. */
+  map_roles?: PlayerMapRoles;
   rounds: number;
   kills: number;
   deaths: number;

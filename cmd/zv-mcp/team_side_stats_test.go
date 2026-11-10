@@ -15,7 +15,7 @@ func TestTeamSideStatsForwardsTheScopeAndKeepsGroupAverages(t *testing.T) {
 			"matches":3,"rounds":40,"group_teams":1,"group_matches":20,"group_capped":true,"group_min_rounds":20,"compare_skipped":[],"rating_formula":"ClipHub rating",
 			"match_list":[{"match_id":"` + testMatchID + `","map":"de_nuke","played_at":"2026-10-01T18:00:00Z","opponent":"MOUZ\u0007","rounds":12,"won":true}],
 			"overall":{"rounds_won":{"value":55,"count":22,"total":40,"group_avg":50,"group_teams":1},"pistols_won":{"value":null,"group_avg":null}},
-			"ct":{},"t":{},"players":[{"steamid64":"` + testSteamID + `","name":"ZywOo\u0007","role":"awp","rounds":40,"rating":1.31,"kd":1.5,"adr":88.2,"kpr":0.85,"dpr":0.55}]}`))
+			"ct":{},"t":{},"players":[{"steamid64":"` + testSteamID + `","name":"ZywOo\u0007","role":"awp","map_roles":{"t":{"role":"b_lurk","map_role":"Canal","label":"Lurk de B\u0007"}},"rounds":40,"rating":1.31,"kd":1.5,"adr":88.2,"kpr":0.85,"dpr":0.55}]}`))
 	})
 	cs := serveTools(t, mux, registerTeamSideStatsTool)
 
@@ -35,6 +35,9 @@ func TestTeamSideStatsForwardsTheScopeAndKeepsGroupAverages(t *testing.T) {
 	}
 	if len(out.Players) != 1 || out.Players[0].Name != "ZywOo" || out.Players[0].Rating != 1.31 || len(out.CompareTo) != 1 || out.CompareTo[0] != "MOUZ" {
 		t.Fatalf("players %+v, compare %v", out.Players, out.CompareTo)
+	}
+	if r := out.Players[0].MapRoles; len(r) != 1 || r[0].Side != "T" || r[0].Role != "b_lurk" || r[0].Label != "Lurk de B" {
+		t.Fatalf("map roles = %+v, want the T role with a clean label", r)
 	}
 	if len(out.MatchList) != 1 || out.MatchList[0].Opponent != "MOUZ" || !out.MatchList[0].Won || !out.GroupCapped || out.GroupMatches != 20 {
 		t.Fatalf("match list %+v, group %d capped %v", out.MatchList, out.GroupMatches, out.GroupCapped)

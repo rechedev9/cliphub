@@ -27,6 +27,8 @@ type leaderboardFilters struct {
 	side    tacticalplan.Side
 	role    string
 	mapRole string
+	// libraryRole is a library role (awp, entry, support, rifler), read on any map.
+	libraryRole string
 	// from, to and source narrow the library's matches.
 	from   *time.Time
 	to     *time.Time
@@ -53,8 +55,12 @@ func (f leaderboardFilters) proServer() bool {
 	return f.side != "" || f.role != "" || f.mapRole != "" || f.proOnly()
 }
 
+// libraryRoles are the roles read over every map, from the library role rule.
+var libraryRoles = []string{library.RoleAWP, library.RoleEntry, library.RoleSupport, library.RoleRifler}
+
 // parseLeaderboardFilters reads the filters of both scopes. A role or a map role
-// sits on one side of one map, so it needs a map and sets or needs the side.
+// sits on one side of one map, so it needs a map and sets or needs the side. A
+// library role and Todoterreno (map_role allround) need no map, only the library scope.
 func parseLeaderboardFilters(q url.Values, base baselineQuery) (leaderboardFilters, error) {
 	var f leaderboardFilters
 	var err error
@@ -74,7 +80,18 @@ func parseLeaderboardFilters(q url.Values, base baselineQuery) (leaderboardFilte
 		}
 	}
 	f.role, f.mapRole, f.event = q.Get("role"), q.Get("map_role"), q.Get("event")
-	if f.side, err = tacticalplan.RoleFilterSide(tacticalplan.RoleFilter{Role: f.role, MapRole: f.mapRole, Side: f.side, HaveMap: base.mapName != ""}); err != nil {
+	if slices.Contains(libraryRoles, f.role) {
+		f.libraryRole, f.role = f.role, ""
+	}
+	if f.role != "" && tacticalplan.RoleSide(f.role) == "" {
+		return f, fmt.Errorf("role must be awp, entry, support, rifler (any map) or a_anchor, b_anchor, rotator, a_lurk, b_lurk, half_lurk, pack (one map), not %q", f.role)
+	}
+	anyMapAllround := base.mapName == "" && f.mapRole == tacticalplan.MapRoleAllround
+	if base.scope == baselineScopePro && (f.libraryRole != "" || anyMapAllround) {
+		return f, errors.New("the pro scope reads roles on one map: awp, entry, support, rifler and allround without a map need scope library")
+	}
+	haveMap := base.mapName != "" || anyMapAllround
+	if f.side, err = tacticalplan.RoleFilterSide(tacticalplan.RoleFilter{Role: f.role, MapRole: f.mapRole, Side: f.side, HaveMap: haveMap}); err != nil {
 		return f, err
 	}
 	for _, in := range []struct {
@@ -112,9 +129,11 @@ type matchReadCache struct {
 	entries map[uuid.UUID]matchReadEntry
 }
 
+// matchReadEntry is one match's read and each player's library role read on it alone.
 type matchReadEntry struct {
 	updatedAt time.Time
 	read      tacticalplan.MatchRead
+	roles     map[string]library.PlayerRole
 }
 
 func (c *matchReadCache) get(id uuid.UUID) (matchReadEntry, bool) {
@@ -139,41 +158,107 @@ type leaderboardRead struct {
 	filters leaderboardFilters
 }
 
+// leaderboardFold is a folded leaderboard: the sample, each player's library
+// role over the folded matches and how many matches could not be read.
+type leaderboardFold struct {
+	sample       *tacticalplan.LeaderboardSample
+	libraryRoles map[string]string
+	skipped      int
+}
+
+// matchReadInput is a library match to read; doc, when set, is its document already in memory.
+type matchReadInput struct {
+	match     library.Match
+	doc       *tacticalplan.Document
+	withRoles bool
+}
+
+// cachedMatchRead returns the match's read, from the cache while the match is
+// unchanged. It reads without holding the cache lock, so a slow first read
+// does not stall other requests; two requests may read the same match once each.
+func (h *Handlers) cachedMatchRead(in matchReadInput) (matchReadEntry, error) {
+	m, c := in.match, &h.references.matchReads
+	if e, ok := c.get(m.ID); ok && e.updatedAt.Equal(m.UpdatedAt) && (!in.withRoles || e.read.HasRoles) {
+		return e, nil
+	}
+	var doc tacticalplan.Document
+	if in.doc != nil {
+		doc = *in.doc
+	} else {
+		read, err := h.readLibraryDocument(m.DemoID)
+		if err != nil {
+			return matchReadEntry{}, err
+		}
+		doc = read
+	}
+	opts := tacticalplan.MatchReadOptions{Roles: in.withRoles}
+	if in.withRoles {
+		opts.Opening = h.readOpeningFrames(m.DemoID, doc)
+	}
+	e := matchReadEntry{
+		updatedAt: m.UpdatedAt, roles: matchLibraryRoles(m.ID, doc),
+		read: tacticalplan.ReadMatch(tacticalplan.MetricsMatch{MatchID: m.ID, PlayedAt: m.PlayedAt, Document: doc}, opts),
+	}
+	c.put(m.ID, e)
+	return e, nil
+}
+
+// matchLibraryRoles reads every player's library role on one match alone, to fold across matches.
+func matchLibraryRoles(id uuid.UUID, doc tacticalplan.Document) map[string]library.PlayerRole {
+	docs := []library.RoleDocument{{MatchID: id, Document: doc}}
+	out := map[string]library.PlayerRole{}
+	for _, p := range doc.Players {
+		if p.SteamID64 != "" {
+			out[p.SteamID64] = library.InferPlayerRole(p.SteamID64, docs)
+		}
+	}
+	return out
+}
+
 // leaderboardSample folds the library's matches that pass the filters, newest
-// first, and returns how many it could not read. Roles are read only on a map.
-// Matches are read without holding the cache lock, so a slow first read does
-// not stall other requests; two requests may read the same match once each.
-func (h *Handlers) leaderboardSample(ctx context.Context, in leaderboardRead) (*tacticalplan.LeaderboardSample, int, error) {
+// first. Roles by side are read on a map, or for Todoterreno over every map.
+func (h *Handlers) leaderboardSample(ctx context.Context, in leaderboardRead) (leaderboardFold, error) {
 	q, f := in.query, in.filters
 	matches, err := h.allLibraryMatches(ctx, library.MatchFilter{Map: q.mapName, From: f.from, To: f.to, Source: f.source})
 	if err != nil {
-		return nil, 0, err
+		return leaderboardFold{}, err
 	}
+	return h.foldLeaderboard(ctx, foldInput{matches: matches, side: f.side, withRoles: q.mapName != "" || f.mapRole == tacticalplan.MapRoleAllround})
+}
+
+// foldInput is the matches a board folds, the side it counts and whether it reads roles by side.
+type foldInput struct {
+	matches   []library.Match
+	side      tacticalplan.Side
+	withRoles bool
+}
+
+// foldLeaderboard folds the matches newest first, from the cached reads.
+func (h *Handlers) foldLeaderboard(ctx context.Context, in foldInput) (leaderboardFold, error) {
+	matches := in.matches
 	sort.SliceStable(matches, func(i, j int) bool { return matches[i].PlayedAt.After(matches[j].PlayedAt) })
-	withRoles := q.mapName != ""
-	c := &h.references.matchReads
-	sample := &tacticalplan.LeaderboardSample{}
-	skipped := 0
+	withRoles := in.withRoles
+	out := leaderboardFold{sample: &tacticalplan.LeaderboardSample{}, libraryRoles: map[string]string{}}
+	parts := map[string][]library.PlayerRole{}
 	for _, m := range matches {
 		if err := ctx.Err(); err != nil {
-			return nil, 0, err
+			return leaderboardFold{}, err
 		}
-		e, ok := c.get(m.ID)
-		if !ok || !e.updatedAt.Equal(m.UpdatedAt) || (withRoles && !e.read.HasRoles) {
-			doc, err := h.readLibraryDocument(m.DemoID)
-			if err != nil {
-				log.Printf("httpapi: leaderboard skips match %s: %v", m.ID, err)
-				skipped++
-				continue
-			}
-			opts := tacticalplan.MatchReadOptions{Roles: withRoles}
-			if withRoles {
-				opts.Opening = h.readOpeningFrames(m.DemoID, doc)
-			}
-			e = matchReadEntry{updatedAt: m.UpdatedAt, read: tacticalplan.ReadMatch(tacticalplan.MetricsMatch{MatchID: m.ID, PlayedAt: m.PlayedAt, Document: doc}, opts)}
-			c.put(m.ID, e)
+		e, err := h.cachedMatchRead(matchReadInput{match: m, withRoles: withRoles})
+		if err != nil {
+			log.Printf("httpapi: leaderboard skips match %s: %v", m.ID, err)
+			out.skipped++
+			continue
 		}
-		sample.Add(e.read, f.side)
+		out.sample.Add(e.read, in.side)
+		for steam, role := range e.roles {
+			parts[steam] = append(parts[steam], role)
+		}
 	}
-	return sample, skipped, nil
+	for steam, p := range parts {
+		if role := library.FoldPlayerRoles(steam, p).Role; role != library.RoleUnknown {
+			out.libraryRoles[steam] = role
+		}
+	}
+	return out, nil
 }

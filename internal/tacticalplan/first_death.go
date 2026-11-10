@@ -65,6 +65,8 @@ type FirstDeathOptions struct {
 	Movement Movement
 	// Roles is the inferred role per SteamID; a missing one reads "unknown".
 	Roles map[string]string
+	// MapRoles is each player's role per side on the map (LeaderboardSample.MapRoles).
+	MapRoles map[string]PlayerMapRoles
 }
 
 // FirstDeathZone is a callout where a player spent time in the window before
@@ -80,11 +82,13 @@ type FirstDeathZone struct {
 
 // FirstDeathPlayer is one player of the team and their zones, most time first.
 type FirstDeathPlayer struct {
-	SteamID64 string           `json:"steamid64"`
-	Name      string           `json:"name"`
-	Role      string           `json:"role"`
-	Rounds    int              `json:"rounds"`
-	Zones     []FirstDeathZone `json:"zones"`
+	SteamID64 string `json:"steamid64"`
+	Name      string `json:"name"`
+	Role      string `json:"role"`
+	// MapRole is the player's role on the filter's side of the map, read like the Ranking's.
+	MapRole *SideMapRole     `json:"map_role,omitempty"`
+	Rounds  int              `json:"rounds"`
+	Zones   []FirstDeathZone `json:"zones"`
 }
 
 // FirstDeathThresholds are the rules the view applied.
@@ -291,7 +295,7 @@ func (run *firstDeathRun) rows(mapName string) []FirstDeathPlayer {
 		if role == "" {
 			role = "unknown"
 		}
-		p := FirstDeathPlayer{SteamID64: id, Name: acc.name, Role: role, Rounds: acc.rounds, Zones: make([]FirstDeathZone, 0, len(acc.zones))}
+		p := FirstDeathPlayer{SteamID64: id, Name: acc.name, Role: role, MapRole: run.opts.MapRoles[id].On(run.opts.Filter.Side), Rounds: acc.rounds, Zones: make([]FirstDeathZone, 0, len(acc.zones))}
 		for callout, z := range acc.zones {
 			zone := FirstDeathZone{
 				Callout: callout, Seconds: math.Round(z.seconds/float64(acc.rounds)*100) / 100, Rounds: len(z.refs),

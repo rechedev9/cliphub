@@ -38,17 +38,30 @@ type framedQuery struct {
 // loadFramedMatches reads the team's matches the filter selects, with their
 // documents; each position blob is read only when the builder reaches it.
 func (h *Handlers) loadFramedMatches(ctx context.Context, q framedQuery) ([]tacticalplan.FramedMatch, []scoutSkipped, error) {
+	kept, skipped, err := h.keepFramedMatches(ctx, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	return h.framedMatches(kept), skipped, nil
+}
+
+// keepFramedMatches reads the team's matches the filter selects, with their documents.
+func (h *Handlers) keepFramedMatches(ctx context.Context, q framedQuery) ([]keptMatch, []scoutSkipped, error) {
 	candidates, pending, skipped, err := h.teamCandidates(ctx, q.team, q.matchIDs)
 	if err != nil {
 		return nil, nil, err
 	}
 	selected, unrated := selectTeamMatches(q.filter, pending)
 	kept, more := h.keepTeamMatches(keepQuery{teamID: q.team.ID, candidates: candidates, selected: selected, lineup: q.filter.Lineup, limit: q.filter.MaxMatches})
+	return kept, append(append(skipped, unrated...), more...), nil
+}
+
+func (h *Handlers) framedMatches(kept []keptMatch) []tacticalplan.FramedMatch {
 	loaded := make([]tacticalplan.FramedMatch, 0, len(kept))
 	for _, k := range kept {
 		loaded = append(loaded, tacticalplan.FramedMatch{ScoutMatch: k.scout, Blob: h.positionsReader(k.demoID)})
 	}
-	return loaded, append(append(skipped, unrated...), more...), nil
+	return loaded
 }
 
 // framedRequest reads the team and the scout filter of a playbook or a prep.
@@ -123,17 +136,18 @@ func (h *Handlers) GetLibraryTeamPrep(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "the prep reads both sides; drop side")
 		return
 	}
-	loaded, skipped, err := h.loadFramedMatches(r.Context(), q)
+	kept, skipped, err := h.keepFramedMatches(r.Context(), q)
 	if err != nil {
 		internalError(w, "team prep", err)
 		return
 	}
+	loaded := h.framedMatches(kept)
 	metrics := make([]tacticalplan.MetricsMatch, 0, len(loaded))
 	for _, m := range loaded {
 		metrics = append(metrics, tacticalplan.MetricsMatch{MatchID: m.MatchID, Document: m.Document, TeamKey: m.TeamKey})
 	}
 	prep := tacticalplan.BuildPrep(loaded, tacticalplan.PrepOptions{
-		Filter: q.filter, Roles: inferRoles(teamSteamIDs(metrics), roleDocuments(metrics)),
+		Filter: q.filter, Roles: inferRoles(teamSteamIDs(metrics), roleDocuments(metrics)), MapRoles: h.teamMapRoles(kept),
 	})
 	writeJSON(w, http.StatusOK, prepResponse{TeamID: q.team.ID, TeamName: q.team.Name, Skipped: skipped, Prep: prep})
 }

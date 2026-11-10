@@ -23,6 +23,24 @@ const (
 	maxLeaderboardRefs     = 10
 )
 
+// libraryRoleKeys are the leaderboard roles read on any map, from the library role rule.
+var libraryRoleKeys = []string{"awp", "entry", "support", "rifler"}
+
+// mapRoleOut is a player's role on one side of one map, read as the Ranking reads it.
+type mapRoleOut struct {
+	Side    string `json:"side"`
+	Role    string `json:"role" jsonschema:"a_anchor, b_anchor, rotator (CT) or a_lurk, b_lurk, half_lurk, pack (T)"`
+	MapRole string `json:"map_role" jsonschema:"the callout token holding 40% of the side's rounds, or allround"`
+	Label   string `json:"label" jsonschema:"how Studio shows it: the site role (Lurk de B, Ancla A), else the callout held, else Todoterreno"`
+}
+
+func mapRoleOf(side tacticalplan.Side, r *tacticalplan.SideMapRole) *mapRoleOut {
+	if r == nil {
+		return nil
+	}
+	return &mapRoleOut{Side: string(side), Role: cleanName(r.Role), MapRole: cleanName(r.MapRole), Label: cleanName(r.Label)}
+}
+
 type playerPositionsIn struct {
 	SteamID string `json:"steamid" jsonschema:"SteamID64 of the player"`
 	Map     string `json:"map,omitempty" jsonschema:"only matches on this map, such as de_mirage"`
@@ -43,6 +61,7 @@ type positionSideOut struct {
 	Rounds        int                `json:"rounds"`
 	Sampled       int                `json:"sampled" jsonschema:"rounds with a position read"`
 	Role          string             `json:"role,omitempty" jsonschema:"CT only: a_anchor, b_anchor or rotator"`
+	MapRole       *mapRoleOut        `json:"map_role,omitempty" jsonschema:"the side's role on the map as the Ranking reads it, both sides; absent on too few sampled rounds"`
 	Zones         []positionShareOut `json:"zones" jsonschema:"A, B or other: where most of the window was spent"`
 	Places        []positionShareOut `json:"places" jsonschema:"callouts, most frequent first"`
 	AWPKillPct    float64            `json:"awp_kill_pct" jsonschema:"share of the player's kills with the AWP"`
@@ -70,8 +89,8 @@ type leaderboardIn struct {
 	Scope     string `json:"scope,omitempty" jsonschema:"library (default): every match in the library; pro: the pro players of the community server's pro maps, last 90 days unless days says otherwise (side, role, map_role, days, top, team_top and event apply; from, to and source do not)"`
 	Map       string `json:"map,omitempty" jsonschema:"only matches on this map, such as de_mirage"`
 	Side      string `json:"side,omitempty" jsonschema:"only the rounds played on this side: CT or T"`
-	Role      string `json:"role,omitempty" jsonschema:"only players with this role on the map and its side (needs map): a_anchor, b_anchor, rotator (CT), a_lurk, b_lurk, half_lurk, pack (T)"`
-	MapRole   string `json:"map_role,omitempty" jsonschema:"only players who hold this callout on the map and side (needs map and side), such as Canal; allround for the ones with no main position; the answer lists them in map_roles"`
+	Role      string `json:"role,omitempty" jsonschema:"only players with this role. On any map, library scope only: awp, entry, support, rifler (the library role over the board's matches). On one map and its side (needs map): a_anchor, b_anchor, rotator (CT), a_lurk, b_lurk, half_lurk, pack (T)"`
+	MapRole   string `json:"map_role,omitempty" jsonschema:"only players who hold this callout on the map and side (needs map and side), such as Canal; allround (Todoterreno) for the ones with no main position, which needs only a side in the library scope; the answer lists the callouts in map_roles"`
 	From      string `json:"from,omitempty" jsonschema:"library only: first day the matches were played, YYYY-MM-DD; with neither from nor to the last 90 days are read, like the Ranking page, so pass 2000-01-01 for every date"`
 	To        string `json:"to,omitempty" jsonschema:"library only: last day the matches were played, YYYY-MM-DD, included; empty means no upper bound (naming it alone drops the 90 day default)"`
 	Days      int    `json:"days,omitempty" jsonschema:"pro only: only maps played in the last 1 to 365 days"`
@@ -87,16 +106,17 @@ type leaderboardRowOut struct {
 	Rank      int     `json:"rank"`
 	SteamID64 string  `json:"steamid64"`
 	Name      string  `json:"name" jsonschema:"untrusted player name from the demo"`
-	Team      string  `json:"team,omitempty" jsonschema:"pro rows only: untrusted team name; their maps are not in the library, so there are no refs"`
+	Team      string  `json:"team,omitempty" jsonschema:"pro rows only: untrusted team name"`
 	Rounds    int     `json:"rounds"`
 	Matches   int     `json:"matches"`
 	Value     float64 `json:"value"`
 	// Metrics repeats every metric of the player, so one call reads the whole row of the Studio table.
-	Metrics map[string]float64 `json:"metrics,omitempty"`
-	Roles   *leaderboardRoles  `json:"roles,omitempty" jsonschema:"the role on each side of the map; set when map is"`
+	Metrics     map[string]float64 `json:"metrics,omitempty"`
+	LibraryRole string             `json:"library_role,omitempty" jsonschema:"library rows: awp, entry, support or rifler over the board's matches, on any map; absent under 20 rounds"`
+	Roles       *leaderboardRoles  `json:"roles,omitempty" jsonschema:"the role on each side of the map; set when map is"`
 	// Breakdown says how the player's rounds split between roles and between positions, per side.
 	Breakdown *leaderboardBreakdown `json:"breakdown,omitempty" jsonschema:"percentages of the rounds per role and per position on each side; set when map is"`
-	Refs      []string              `json:"refs,omitempty" jsonschema:"match_id/round of the player's newest rounds in the filter, to open in the Replay"`
+	Refs      []string              `json:"refs,omitempty" jsonschema:"match_id/round of the player's newest rounds in the filter, to open in the Replay; on pro rows, the library's own rounds of the player on the map, side and role"`
 }
 
 type leaderboardShare struct {
@@ -149,7 +169,7 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "player_positions", Annotations: readOnly,
 		Description: "Read where a player stands in the first seconds of their rounds, per map and side: the site zones, " +
-			"the callouts, the CT role (anchor or rotator) and how much they use the AWP. Each place names its callout token (show_zones draws it) " +
+			"the callouts, the CT role (anchor or rotator), the map_role of each side as the Ranking reads it (label such as Lurk de B, Ancla A or Todoterreno) and how much they use the AWP. Each place names its callout token (show_zones draws it) " +
 			"and a studio_path that opens example rounds in the 2D Replay with the player in focus and the zone marked. Filter by map and dates."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in playerPositionsIn) (*mcp.CallToolResult, playerPositionsOut, error) {
 			if err := checkSteamID(in.SteamID); err != nil {
@@ -173,12 +193,14 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "leaderboard", Annotations: readOnly,
 		Description: "Rank the library's players on one metric (the get_baseline metrics, plus rating and kd), best first, over the " +
 			"players with at least min_rounds rounds: the Ranking page of Studio. Filter by map, side, role (a role on a map, " +
-			"such as b_lurk on de_anubis), dates and demo source; each row carries every metric, the roles and refs of the player's rounds. " +
-			"Without from and to, the library scope reads the last 90 days, like the page. map_role keeps the players who hold one callout on the map and side (or allround); " +
+			"such as b_lurk on de_anubis, or on any map a library role: awp, entry, support, rifler), dates and demo source; each row carries every metric, " +
+			"its library_role, the roles and refs of the player's rounds. " +
+			"Without from and to, the library scope reads the last 90 days, like the page. map_role keeps the players who hold one callout on the map and side " +
+			"(or allround, Todoterreno, which on the library scope also reads over every map with only a side); " +
 			"each row carries a breakdown of its rounds per role and position, and map_roles lists the positions to pick from. The rating is the Rating de ClipHub: " + tacticalplan.RatingFormula + ". " +
 			"Scope pro ranks the pro players of the community server's pro maps (last 90 days unless days says otherwise) by side, role, map_role, the rank of the rival (top 5, 15, 30 or 50), " +
 			"the rank of the player's own team (team_top) and event (events lists them); " +
-			"those maps are not in the library, so their rows have a team and no refs."},
+			"those maps are not in the library, so a pro row's refs are the library's own rounds of that player on the map, side and role, when it has any."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in leaderboardIn) (*mcp.CallToolResult, leaderboardOut, error) {
 			q, err := in.check()
 			if err != nil {
@@ -213,7 +235,7 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 
 func leaderboardRow(p tuiclient.LeaderboardPlayer) leaderboardRowOut {
 	row := leaderboardRowOut{Rank: p.Rank, SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Team: cleanName(p.Team), Rounds: p.Rounds, Matches: p.Matches,
-		Value: p.Value, Metrics: p.Metrics}
+		Value: p.Value, Metrics: p.Metrics, LibraryRole: cleanName(p.LibraryRole)}
 	if p.Roles != nil {
 		row.Roles = &leaderboardRoles{CT: cleanName(p.Roles.CT), T: cleanName(p.Roles.T)}
 	}
@@ -264,8 +286,14 @@ func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 	if in.TeamTop != 0 && !slices.Contains([]int{5, 15, 30, 50}, in.TeamTop) {
 		return tuiclient.LeaderboardQuery{}, errors.New("team_top must be 5, 15, 30 or 50")
 	}
-	if in.MapRole != "" && (in.Map == "" || (in.Side == "" && in.Role == "")) {
-		return tuiclient.LeaderboardQuery{}, errors.New("map_role needs a map and a side")
+	anyMapAllround := in.Map == "" && in.MapRole == tacticalplan.MapRoleAllround
+	// Only a map role sets the side; a library role has none.
+	roleSetsSide := tacticalplan.RoleSide(strings.ToLower(strings.TrimSpace(in.Role))) != ""
+	if in.MapRole != "" && ((in.Side == "" && !roleSetsSide) || (in.Map == "" && !anyMapAllround)) {
+		return tuiclient.LeaderboardQuery{}, errors.New("map_role needs a map and a side; allround (Todoterreno) needs only a side")
+	}
+	if pro && anyMapAllround {
+		return tuiclient.LeaderboardQuery{}, errors.New("the pro scope reads map_role on one map: pass map, or use scope library for allround on every map")
 	}
 	if pro && (in.From != "" || in.To != "" || in.Source != "") {
 		return tuiclient.LeaderboardQuery{}, errors.New("from, to and source are for the library scope; the pro scope takes days, top, team_top and event")
@@ -280,11 +308,15 @@ func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 		return tuiclient.LeaderboardQuery{}, err
 	}
 	role := strings.ToLower(strings.TrimSpace(in.Role))
-	if role != "" && tacticalplan.RoleSide(role) == "" {
-		return tuiclient.LeaderboardQuery{}, fmt.Errorf("role must be a_anchor, b_anchor, rotator, a_lurk, b_lurk, half_lurk or pack, not %q", cleanName(in.Role))
+	libraryRole := slices.Contains(libraryRoleKeys, role)
+	if role != "" && !libraryRole && tacticalplan.RoleSide(role) == "" {
+		return tuiclient.LeaderboardQuery{}, fmt.Errorf("role must be awp, entry, support, rifler or a_anchor, b_anchor, rotator, a_lurk, b_lurk, half_lurk, pack, not %q", cleanName(in.Role))
 	}
-	if role != "" && in.Map == "" {
-		return tuiclient.LeaderboardQuery{}, errors.New("role needs a map: a role is read on one map")
+	if libraryRole && pro {
+		return tuiclient.LeaderboardQuery{}, errors.New("awp, entry, support and rifler are library roles: they need scope library")
+	}
+	if role != "" && !libraryRole && in.Map == "" {
+		return tuiclient.LeaderboardQuery{}, errors.New("role needs a map: a_anchor to pack are read on one map; awp, entry, support and rifler on any")
 	}
 	source := strings.ToLower(strings.TrimSpace(in.Source))
 	if source != "" && !slices.Contains([]string{"valve", "faceit", "hltv", "scrim"}, source) {
@@ -311,7 +343,7 @@ func summarizePositions(steamID string, r tuiclient.PlayerPositions) playerPosit
 		for _, side := range m.Sides {
 			so := positionSideOut{Side: cleanName(side.Side), Rounds: side.Rounds, Sampled: side.Sampled, Role: cleanName(side.Role),
 				Zones: []positionShareOut{}, Places: []positionShareOut{}, AWPKillPct: side.AWPKills.Pct, AWPRoundPct: side.AWPRounds.Pct,
-				ReliableShare: side.Sampled >= r.MinReliable}
+				ReliableShare: side.Sampled >= r.MinReliable, MapRole: mapRoleOf(tacticalplan.Side(side.Side), side.MapRole)}
 			for _, z := range side.Zones {
 				so.Zones = append(so.Zones, positionShareOut{Name: cleanName(z.Zone), Rounds: z.Rounds.Count, Pct: z.Rounds.Pct})
 			}

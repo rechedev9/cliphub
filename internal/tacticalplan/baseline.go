@@ -311,6 +311,8 @@ type LeaderboardRow struct {
 	Metrics map[string]float64 `json:"metrics,omitempty"`
 	// Roles is the player's role per side on the map, set when the map is one.
 	Roles *PlayerRoles `json:"roles,omitempty"`
+	// LibraryRole is the player's library role over the board's matches (awp, entry, support, rifler); library rows only.
+	LibraryRole string `json:"library_role,omitempty"`
 	// Breakdown splits the player's rounds on each side between roles and positions.
 	Breakdown *PlayerBreakdown `json:"breakdown,omitempty"`
 	// Examples are the newest rounds the row counts (those of the filtered role or position), to open in the Replay.

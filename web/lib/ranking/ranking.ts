@@ -1,9 +1,11 @@
 import {
   CT_ROLES,
+  GENERIC_ROLES,
   LEADERBOARD_METRICS,
   LEADERBOARD_SOURCES,
   PRO_TOPS,
   T_ROLES,
+  type GenericRole,
   type Leaderboard,
   type LeaderboardMatchSource,
   type LeaderboardMetric,
@@ -26,11 +28,11 @@ export type RankingSort = LeaderboardMetric | 'rounds';
 export type RankingState = {
   /** Map, side, period and reference (`library` or `pro`) of the analysis scope. */
   readonly scope: AnalysisScope;
-  /** A role on the map; it fixes the side. Empty for every player. */
-  readonly role: LeaderboardRole | '';
+  /** A role on the map, which fixes the side, or a library role on any map (library data only). Empty for every player. */
+  readonly role: RankingRole | '';
   /** Which kind of demos count; empty for all of them. */
   readonly level: LeaderboardMatchSource | '';
-  /** A callout the player holds on the map and side, or `allround`; needs both. Empty for every player. */
+  /** A callout the player holds on the map and side, or `allround`; needs both, but library data reads `allround` on every map. Empty for every player. */
   readonly mapRole: string;
   /** Pro data only: the rival is ranked this high or better in HLTV; null for any rival. */
   readonly top: ProTop | null;
@@ -66,14 +68,33 @@ export const DEFAULT_SORT: LeaderboardMetric = 'rating';
 /** The leaderboard endpoint's cap; the table sorts and filters what it returns. */
 export const RANKING_FETCH_LIMIT = 500;
 
-const ROLES: readonly LeaderboardRole[] = [...CT_ROLES, ...T_ROLES];
+export type RankingRole = LeaderboardRole | GenericRole;
+
+/** The position key of a player with no main role or callout on a side: Todoterreno. */
+export const ALLROUND = 'allround';
+
+const MAP_ROLES: readonly LeaderboardRole[] = [...CT_ROLES, ...T_ROLES];
+
+export function isMapRole(role: RankingRole | ''): role is LeaderboardRole {
+  return MAP_ROLES.some((entry) => entry === role);
+}
 
 export function roleSide(role: LeaderboardRole): 'CT' | 'T' {
   return CT_ROLES.some((ct) => ct === role) ? 'CT' : 'T';
 }
 
-function parseRole(value: string | null): LeaderboardRole | '' {
-  return ROLES.find((role) => role === value) ?? '';
+/** Parses a role the scope can read: map roles need a map, library roles need library data. */
+export function parseRankingRole(value: string | null, scope: Pick<AnalysisScope, 'map' | 'reference'>): RankingRole | '' {
+  const mapRole = MAP_ROLES.find((role) => role === value);
+  if (mapRole !== undefined) return scope.map === '' ? '' : mapRole;
+  const generic = GENERIC_ROLES.find((role) => role === value);
+  return generic !== undefined && scope.reference !== 'pro' ? generic : '';
+}
+
+/** A position needs the side, and the map unless it is Todoterreno on library data. */
+function keepsMapRole(mapRole: string, scope: AnalysisScope): boolean {
+  if (scope.side === '' || mapRole === '') return false;
+  return scope.map !== '' || (mapRole === ALLROUND && scope.reference !== 'pro');
 }
 
 function parseLevel(value: string | null): LeaderboardMatchSource | '' {
@@ -110,19 +131,20 @@ function rankingScope(query: ScopeQuery): AnalysisScope {
 }
 
 /**
- * Reads the page state. A role needs a map and plays on one side, so the role
- * is dropped without a map and the side follows it.
+ * Reads the page state. A map role needs a map and plays on one side, so it is
+ * dropped without a map and the side follows it; a library role reads any map.
  */
 export function parseRanking(query: ScopeQuery): RankingState {
   const base = rankingScope(query);
-  const role = base.map === '' ? '' : parseRole(query.get(RANKING_PARAMS.role));
-  const scope = role === '' ? base : { ...base, side: roleSide(role) };
+  const role = parseRankingRole(query.get(RANKING_PARAMS.role), base);
+  const scope = isMapRole(role) ? { ...base, side: roleSide(role) } : base;
   const pro = scope.reference === 'pro';
   const dir = query.get(RANKING_PARAMS.dir);
+  const mapRole = parseMapRole(query.get(RANKING_PARAMS.mapRole));
   return {
     scope,
     role,
-    mapRole: scope.map === '' || scope.side === '' ? '' : parseMapRole(query.get(RANKING_PARAMS.mapRole)),
+    mapRole: keepsMapRole(mapRole, scope) ? mapRole : '',
     level: parseLevel(query.get(RANKING_PARAMS.level)),
     top: pro ? parseTop(query.get(RANKING_PARAMS.top)) : null,
     teamTop: pro ? parseTop(query.get(RANKING_PARAMS.teamTop)) : null,
@@ -156,13 +178,13 @@ export function writeRanking(state: RankingState, current: string | URLSearchPar
 /** A change of the state that keeps role, map and side consistent with each other. */
 export function patchRanking(state: RankingState, patch: Partial<Omit<RankingState, 'scope'>> & { scope?: Partial<AnalysisScope> }): RankingState {
   const next: RankingState = { ...state, ...patch, scope: { ...state.scope, ...patch.scope } };
-  let { role } = next;
-  if (next.scope.map === '' || (patch.scope?.side !== undefined && role !== '' && roleSide(role) !== next.scope.side)) role = '';
-  const scope = role === '' ? next.scope : { ...next.scope, side: roleSide(role) };
+  let role = parseRankingRole(next.role, next.scope);
+  if (isMapRole(role) && patch.scope?.side !== undefined && roleSide(role) !== next.scope.side) role = '';
+  const scope = isMapRole(role) ? { ...next.scope, side: roleSide(role) } : next.scope;
   // A position belongs to one map and side, so a change of either drops it.
   const moved = scope.map !== state.scope.map || scope.side !== state.scope.side;
   const mapRole = moved && patch.mapRole === undefined ? '' : next.mapRole;
-  return { ...next, role, mapRole: scope.map === '' || scope.side === '' ? '' : mapRole, scope };
+  return { ...next, role, mapRole: keepsMapRole(mapRole, scope) ? mapRole : '', scope };
 }
 
 /**

@@ -88,6 +88,24 @@ func TestInferPlayerRole(t *testing.T) {
 	}
 }
 
+func TestFoldPlayerRolesMatchesInferOverAllMatches(t *testing.T) {
+	docs := []RoleDocument{
+		{MatchID: uuid.New(), Document: roleDoc(repeatRounds(12, roleRound{kills: []string{"awp"}, grenades: 1}))},
+		{MatchID: uuid.New(), Document: roleDoc(repeatRounds(12, roleRound{kills: []string{"ak47"}, opening: true}))},
+	}
+	parts := []PlayerRole{InferPlayerRole("765", docs[:1]), InferPlayerRole("765", docs[1:])}
+	if parts[0].Role != RoleUnknown {
+		t.Fatalf("one match alone reads %q, want unknown under %d rounds", parts[0].Role, RoleMinRounds)
+	}
+	got, want := FoldPlayerRoles("765", parts), InferPlayerRole("765", docs)
+	if got.Role != RoleAWP || got.Role != want.Role || got.Rounds != want.Rounds || got.MatchCount != want.MatchCount {
+		t.Fatalf("fold = %+v, want %+v (awp)", got, want)
+	}
+	if got.AWPKills.Count != want.AWPKills.Count || got.TOpenings.Total != want.TOpenings.Total || len(got.TOpenings.Examples) != len(want.TOpenings.Examples) {
+		t.Fatalf("fold metrics = %+v / %+v, want %+v / %+v", got.AWPKills, got.TOpenings, want.AWPKills, want.TOpenings)
+	}
+}
+
 func TestInferPlayerRoleKeepsEvidence(t *testing.T) {
 	first, second := uuid.New(), uuid.New()
 	docs := []RoleDocument{

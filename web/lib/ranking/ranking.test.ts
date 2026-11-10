@@ -87,6 +87,23 @@ test('a role needs a map and fixes the side', () => {
   assert.equal(parse('map=de_anubis&role=nope').role, '');
 });
 
+test('a library role and Todoterreno read every map on library data only', () => {
+  const awp = parse('role=awp');
+  assert.equal(awp.role, 'awp');
+  assert.equal(awp.scope.side, '');
+  assert.equal(leaderboardRequest(awp, NOW).role, 'awp');
+  assert.equal(parse('map=de_anubis&role=rifler').role, 'rifler');
+  assert.equal(parse('ref=pro&role=awp').role, '');
+  assert.equal(patchRanking(awp, { scope: { reference: 'pro' } }).role, '');
+  const allround = parse('side=T&posicion=allround');
+  assert.equal(allround.mapRole, 'allround');
+  assert.equal(leaderboardRequest(allround, NOW).map_role, 'allround');
+  assert.equal(parse('posicion=allround').mapRole, '');
+  assert.equal(parse('ref=pro&side=T&posicion=allround').mapRole, '');
+  assert.equal(patchRanking(allround, { scope: { side: 'CT' } }).mapRole, '');
+  assert.equal(patchRanking(parse(''), { mapRole: 'allround', scope: { side: 'CT' } }).mapRole, 'allround');
+});
+
 test('choosing the other side or clearing the map drops the role', () => {
   const state = parse('map=de_anubis&role=b_lurk');
   assert.equal(patchRanking(state, { scope: { side: 'CT' } }).role, '');

@@ -1,3 +1,4 @@
+import type { SideMapRole } from './baseline.ts';
 import type { ScoutEvidence, ScoutRounds, ScoutSkipReason, ScoutSpot } from './scout.ts';
 import type { TacticalBuyType, TacticalHistogram, TacticalRate, TacticalSide, TacticalSite } from './tactical.ts';
 
@@ -124,6 +125,8 @@ export type PrepPlayer = {
   name: string;
   /** `library.Role*`: awp, entry, support, rifler or unknown. */
   role: string;
+  /** The player's CT role on the map, as the Ranking reads it. */
+  map_role?: SideMapRole;
   rounds: number;
   windows: PrepPlayerWindow[];
 };

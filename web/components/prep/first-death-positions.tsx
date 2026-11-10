@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getTeamFirstDeath, type FirstDeathMovement, type FirstDeathPlayer, type FirstDeathZone, type TeamFirstDeath } from '@/lib/api/first-death';
 import type { TeamSpatialQuery } from '@/lib/api/library';
 import type { TacticalSide } from '@/lib/api/tactical';
+import { cardRoleText } from '@/lib/analysis/map-role';
 import { evidenceRefs } from '@/lib/analysis/playbook';
 import { findingHref } from '@/lib/analysis/replay-link';
 import { formatShortDate, prettyMapName } from '@/lib/format';
@@ -117,7 +118,7 @@ function FirstDeathBody({ teamId, tramo, data, picked, onPick, showMap, onToggle
       <p className="text-meta text-fg-3">Segundos por ronda con posiciones, leídos en {data.framed} rondas de {data.side} con posiciones.</p>
       <div className="grid gap-2 sm:grid-cols-2 @[90rem]/content:grid-cols-5">
         {shown.map((entry, position) => (
-          <PlayerCard key={entry.steamid64} player={entry} index={position} picked={picked} onPick={onPick} />
+          <PlayerCard key={entry.steamid64} player={entry} side={data.side} index={position} picked={picked} onPick={onPick} />
         ))}
       </div>
       {others > 0 ? (
@@ -160,8 +161,10 @@ function FirstDeathBody({ teamId, tramo, data, picked, onPick, showMap, onToggle
   );
 }
 
-function PlayerCard({ player, index, picked, onPick }: { player: FirstDeathPlayer; index: number; picked: Picked | null; onPick: (picked: Picked) => void }): ReactNode {
-  const role = roleText(player.role);
+type PlayerCardProps = { player: FirstDeathPlayer; side: TacticalSide; index: number; picked: Picked | null; onPick: (picked: Picked) => void };
+
+function PlayerCard({ player, side, index, picked, onPick }: PlayerCardProps): ReactNode {
+  const role = cardRoleText({ side, mapRole: player.map_role, role: roleText(player.role) });
   return (
     <article aria-label={player.name} className="studio-panel flex flex-col gap-2 px-3 py-2.5">
       <header className="flex items-center gap-2">
