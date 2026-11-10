@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Check, ExternalLink, History, MonitorPlay, Plus, TriangleAlert } from 'lucide-react';
 import { proMapDemos, proMatchTitle, proSeriesVeto, type ProMatch, type ProMatchMap, type ProMatchTeam } from '@/lib/api/pro-matches';
 import { prettyMapName } from '@/lib/format';
+import { MapThumb } from '@/components/analysis/map-thumb';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -29,7 +30,8 @@ export function ProMatchCard({ match, importing, following, onOpen, onToggleFoll
   const allRadarOff = match.maps.length > 0 && match.maps.every((m) => m.radar_may_be_off);
   const veto = proSeriesVeto(match);
   return (
-    <article className="studio-panel flex flex-col gap-3 p-4">
+    <article className="studio-panel overflow-hidden">
+      <header className="flex flex-col gap-2 border-b border-border-subtle bg-surface-2 px-3 py-2">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
         <div className="flex flex-wrap items-center gap-2">
           {veto.format ? <Badge variant="secondary" shape="square">{veto.format}</Badge> : null}
@@ -70,9 +72,10 @@ export function ProMatchCard({ match, importing, following, onOpen, onToggleFoll
           </Button>
         ))}
       </div>
-      <ul className="flex flex-col divide-y divide-border">
+      </header>
+      <ul>
         {match.maps.map((map) => (
-          <ProMapRow key={map.entry} map={map} mark={veto.marks.get(map.map)} notes={{ old: !allOld && map.old_analysis, radar: !allRadarOff && map.radar_may_be_off }}
+          <ProMapRow key={map.entry} map={map} teams={match.teams} mark={veto.marks.get(map.map)} notes={{ old: !allOld && map.old_analysis, radar: !allRadarOff && map.radar_may_be_off }}
             busy={importing === `${match.id}/${map.entry}`} disabled={importing !== null} onOpen={() => onOpen(match, map)} />
         ))}
       </ul>
@@ -98,30 +101,44 @@ function RadarOffNote(): ReactNode {
   );
 }
 
-type ProMapRowProps = { map: ProMatchMap; mark?: string; notes: { old: boolean; radar: boolean }; busy: boolean; disabled: boolean; onOpen: () => void };
+type ProMapRowProps = {
+  map: ProMatchMap;
+  teams: readonly ProMatchTeam[];
+  mark?: string;
+  notes: { old: boolean; radar: boolean };
+  busy: boolean;
+  disabled: boolean;
+  onOpen: () => void;
+};
 
-function ProMapRow({ map, mark, notes, busy, disabled, onOpen }: ProMapRowProps): ReactNode {
+function ProMapRow({ map, teams, mark, notes, busy, disabled, onOpen }: ProMapRowProps): ReactNode {
   const demos = proMapDemos(map);
+  const name = prettyMapName(map.map);
+  const label = `Abrir el replay 2D de ${name}`;
   return (
-    <li className="flex flex-col gap-1.5 py-2 first:pt-0 last:pb-0">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-body-sm text-fg-1">
-          {prettyMapName(map.map)}
-          {mark ? <span className="text-meta font-medium tracking-wide text-fg-3"> · {mark}</span> : null}
+    <li className="flex flex-col gap-1.5 px-3 py-2.5 transition-colors hover:bg-surface-2 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-border-subtle">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <MapThumb map={map.map} className="h-10 w-16" crop={1.5} />
+        <div className="flex w-44 shrink-0 flex-col">
+          <span className="font-semibold">{name}</span>
+          {mark ? <span className="text-meta font-medium tracking-wide text-fg-3">{mark}</span> : null}
+        </div>
+        <div className="min-w-56 flex-1 text-body-sm text-fg-2">
+          {teams.map((team) => team.name).join(' vs ')}
           {demos ? <span className="text-fg-3"> · {demos}</span> : null}
           <span className="text-fg-3 tabular-nums"> · {map.rounds} rondas</span>
-        </span>
+        </div>
         {map.library_match_id ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/partidas/${encodeURIComponent(map.library_match_id)}?tab=replay`}>
+          <Button asChild variant="outline" size="xs">
+            <Link href={`/partidas/${encodeURIComponent(map.library_match_id)}?tab=replay`} aria-label={label}>
               <MonitorPlay aria-hidden />
-              Abrir en el Replay
+              2D
             </Link>
           </Button>
         ) : (
-          <Button type="button" size="sm" disabled={disabled} onClick={onOpen}>
+          <Button type="button" variant="outline" size="xs" aria-label={label} disabled={disabled} onClick={onOpen}>
             <MonitorPlay aria-hidden />
-            {busy ? 'Importando…' : 'Abrir en el Replay'}
+            {busy ? 'Importando…' : '2D'}
           </Button>
         )}
       </div>

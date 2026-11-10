@@ -16,6 +16,7 @@ import {
   parseListView,
   rowKind,
   seriesIndex,
+  seriesScore,
   seriesVeto,
   tagSuggestions,
   withListView,
@@ -165,4 +166,14 @@ test('a tag is trimmed, comma free and no longer than the library allows', () =>
 test('library tags come most used first', () => {
   const rows = [row('1', { at: '2026-10-01T10:00:00Z', tags: ['b', 'a'] }), row('2', { at: '2026-10-02T10:00:00Z', tags: ['b'] })];
   assert.deepEqual(libraryTags(rows), ['b', 'a']);
+});
+
+test('the series score counts the maps each team won', () => {
+  const rows = [
+    row('m1', { at: '2026-10-01T10:00:00Z', series: 's1' }),
+    row('m2', { at: '2026-10-01T11:00:00Z', series: 's1', teams: [B, A] }),
+    row('m3', { at: '2026-10-01T12:00:00Z', series: 's1', teams: [B, A] }),
+  ];
+  assert.deepEqual(seriesScore(series('s1', []), rows), [1, 2]);
+  assert.equal(seriesScore({ ...series('s1', []), teams: [] }, rows), null);
 });
