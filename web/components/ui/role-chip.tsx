@@ -37,25 +37,39 @@ export type RoleChipProps = {
 /** A player's role on one side as a T (orange) or CT (blue) chip; `neutral` is for roles that belong to no side. */
 export function RoleChip({ side = 'neutral', label, breakdown, className }: RoleChipProps): ReactNode {
   const letter = SIDE_LETTER[side];
-  return (
-    <span data-slot="role-chip" data-side={side} className={cn(roleChipVariants({ side }), className)}>
+  const classes = cn(roleChipVariants({ side }), className);
+  const content = (
+    <>
       {letter === '' ? null : <span className="font-semibold">{letter}</span>}
       <span className="truncate">{label}</span>
-      {breakdown === undefined || breakdown === '' ? null : (
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              aria-label={`Desglose de ${label}`}
-              title="Ver el desglose"
-              className={cn('-mr-0.5 inline-flex rounded-sm opacity-80 hover:opacity-100', FOCUS_RING)}
-            >
-              <ChartNoAxesColumn aria-hidden className="size-3" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto max-w-xs p-2 text-body-sm">{breakdown}</PopoverContent>
-        </Popover>
-      )}
-    </span>
+    </>
+  );
+  if (breakdown === undefined || breakdown === '') {
+    return (
+      <span data-slot="role-chip" data-side={side} className={classes}>
+        {content}
+      </span>
+    );
+  }
+  const name = `Desglose de ${letter} ${label}`.replace('  ', ' ');
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          data-slot="role-chip"
+          data-side={side}
+          aria-label={name}
+          title="Ver el desglose"
+          className={cn(classes, 'min-h-6 cursor-pointer hover:brightness-110', FOCUS_RING)}
+        >
+          {content}
+          <ChartNoAxesColumn aria-hidden className="size-3 opacity-80" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent aria-label={name} className="w-auto max-w-xs p-2 text-body-sm">
+        {breakdown}
+      </PopoverContent>
+    </Popover>
   );
 }

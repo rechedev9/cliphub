@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { LIBRARY_ROLES } from '@/lib/api/library';
 import type { ReportSide } from '@/lib/api/scout';
 import type { SideStatsPlayer } from '@/lib/api/side-stats';
+import { mapRoleChips } from '@/lib/analysis/map-role';
 import { RATING_FORMULA_TEXT, RATING_LABEL } from '@/lib/analysis/rating';
 import { formatDecimal } from '@/lib/format';
 import { ROLE_LABEL } from '@/lib/library/partidas';
@@ -27,21 +28,20 @@ function SideLabel({ side }: { side: ReportSide }): ReactNode {
 }
 
 function RoleChips({ player, side }: { player: SideStatsPlayer; side: ReportSide }): ReactNode {
-  const { t, ct } = player.map_roles ?? {};
-  const tLabel = side !== 'CT' && t !== undefined ? t.label : '';
-  const ctLabel = side !== 'T' && ct !== undefined ? ct.label : '';
-  if (tLabel === '' && ctLabel === '') {
+  const chips = mapRoleChips(player.map_roles, side);
+  if (chips.length === 0) {
     return (
       <p className="flex flex-wrap items-center gap-1 text-meta text-fg-2">
         <SideLabel side={side} />
-        <RoleChip label={roleText(player.role)} />
+        {player.role === 'unknown' ? null : <RoleChip label={roleText(player.role)} />}
       </p>
     );
   }
   return (
     <p className="flex flex-wrap items-center gap-1">
-      {tLabel === '' ? null : <RoleChip side="t" label={tLabel} />}
-      {ctLabel === '' ? null : <RoleChip side="ct" label={ctLabel} />}
+      {chips.map((chip) => (
+        <RoleChip key={chip.side} side={chip.side} label={chip.label} />
+      ))}
       {player.role === 'unknown' ? null : <RoleChip label={roleText(player.role)} />}
     </p>
   );

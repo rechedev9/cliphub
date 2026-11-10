@@ -1,4 +1,4 @@
-import type { GenericRole, LeaderboardRole, LeaderboardRoles, LeaderboardRow, SideBreakdown } from '../api/baseline.ts';
+import type { GenericRole, LeaderboardRole, LeaderboardRow, SideBreakdown } from '../api/baseline.ts';
 import { RATING_FORMULA_TEXT } from '../analysis/rating.ts';
 import { formatDecimal } from '../format.ts';
 import { ROLE_LABEL as ROLE_LABEL_LIBRARY } from '../library/partidas.ts';
@@ -44,10 +44,6 @@ function roleLabel(key: string): string {
   return key;
 }
 
-function roleName(key: string): string {
-  return roleLabel(key).toLowerCase();
-}
-
 export type RoleChipData = { side: 'ct' | 't'; label: string; breakdown: string };
 
 function chipLabel(options: { breakdown: SideBreakdown | undefined; role: LeaderboardRole | undefined }): string {
@@ -82,35 +78,7 @@ export function roleChips(row: LeaderboardRow, side: '' | 'CT' | 'T'): RoleChipD
   return chips;
 }
 
-function sideText(side: 'CT' | 'T', breakdown: SideBreakdown | undefined): string {
-  if (breakdown === undefined) return '';
-  const place = breakdown.places.find((share) => share.key === breakdown.map_role);
-  const named = place?.label ?? breakdown.map_role ?? '';
-  const main = breakdown.map_role === ALLROUND ? 'Todoterreno' : named;
-  const roles = breakdown.roles.filter((share) => share.pct >= 1).map((share) => `${Math.round(share.pct)} % ${roleName(share.key)}`);
-  const places = breakdown.places.map((share) => `${Math.round(share.pct)} % ${share.label ?? share.key}`);
-  const details = [roles.join(', '), places.join(', ')].filter((part) => part !== '').join('; ');
-  return [`${side} ${main}`.trim(), details === '' ? '' : `(${details})`].filter((part) => part !== '').join(' ');
-}
-
-/** The shares of a player's rounds by role and by position per side, such as "CT Canal (70 % ancla B; 60 % Canal)", or empty without them. */
-export function breakdownText(row: LeaderboardRow, side: '' | 'CT' | 'T'): string {
-  const parts: string[] = [];
-  if (side !== 'T') parts.push(sideText('CT', row.breakdown?.ct));
-  if (side !== 'CT') parts.push(sideText('T', row.breakdown?.t));
-  return parts.filter((part) => part !== '').join(' · ');
-}
-
 /** The library role of a row, such as "AWPer", or empty without one. */
 export function libraryRoleText(role: GenericRole | undefined): string {
   return role === undefined ? '' : ROLE_LABEL_LIBRARY[role];
-}
-
-/** "CT Ancla B · T Lurk de B", or empty when no role could be read. */
-export function rolesText(roles: LeaderboardRoles | undefined, side: '' | 'CT' | 'T'): string {
-  if (roles === undefined) return '';
-  const parts: string[] = [];
-  if (roles.ct !== undefined && side !== 'T') parts.push(`CT ${ROLE_LABEL[roles.ct]}`);
-  if (roles.t !== undefined && side !== 'CT') parts.push(`T ${ROLE_LABEL[roles.t]}`);
-  return parts.join(' · ');
 }
