@@ -73,6 +73,15 @@ func TestHeroAWPEstimatedFromKills(t *testing.T) {
 	if got := roundNumbers(Filter{TeamKey: "ct-start", Weapon: WeaponHeroAWP}.Apply(d)); !reflect.DeepEqual(got, []int{4}) {
 		t.Fatalf("an AWP hit marks the hero in an old analysis, got %v", got)
 	}
+	// The views flag such matches as awp_estimated, so a hero AWP must count as an AWP read.
+	for _, f := range []Filter{{Weapon: WeaponHeroAWP}, {OpponentWeapon: WeaponHeroAWP}} {
+		if !f.ReadsAWP() {
+			t.Fatalf("%+v must read the AWP", f)
+		}
+	}
+	if (Filter{Weapon: WeaponHeroAK}).ReadsAWP() {
+		t.Fatal("a hero AK does not read the AWP")
+	}
 }
 
 func TestSecondRoundSkipsOvertime(t *testing.T) {
