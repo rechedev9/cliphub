@@ -13,7 +13,25 @@ import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /** What the strip knows about a round once its match is loaded. */
-export type StripRoundInfo = { score: string; winner: TacticalSide | ''; outcome: RoundOutcome; half: number };
+export type StripRoundInfo = {
+  /** The score after the round, the team that started CT first. */
+  score: string;
+  winner: TacticalSide | '';
+  outcome: RoundOutcome;
+  half: number;
+  /** Team names in the order of `score`. */
+  teams: readonly [string, string];
+  /** Empty for a round without a winner. */
+  winnerName: string;
+};
+
+/** `Ronda 13: gana NAVI (CT), eliminación, 9:4 NAVI - FaZe`. */
+function roundSummary(round: number, info: StripRoundInfo | null): string {
+  if (info === null) return `Ronda ${round}`;
+  const winner = info.winner === '' ? 'sin ganador' : `gana ${info.winnerName || info.winner} (${info.winner})`;
+  const teams = info.teams.every((name) => name !== '') ? ` ${info.teams.join(' - ')}` : '';
+  return `Ronda ${round}: ${winner}, ${ROUND_OUTCOME_LABEL[info.outcome].toLowerCase()}, ${info.score}${teams}`;
+}
 
 const OUTCOME_ICON: Record<RoundOutcome, LucideIcon | null> = {
   exploded: Bomb,
@@ -98,9 +116,9 @@ export function RoundStrip({
               const included = multi?.selected.includes(key) ?? false;
               const blocked = multi?.blocked(entry) ?? null;
               const Icon = info === null ? null : OUTCOME_ICON[info.outcome];
-              const outcome = info === null ? '' : `, ${ROUND_OUTCOME_LABEL[info.outcome].toLowerCase()}`;
               const toggles = multi !== null && !multi.locked && !selected;
-              let hint: string | undefined = info === null ? undefined : `${info.score}${outcome}`;
+              const summary = roundSummary(entry.round, info);
+              let hint: string | undefined = info === null ? undefined : summary;
               if (toggles) hint = blocked ?? 'Pulsa para superponer, doble clic para abrir';
               return (
                 <li key={key} className={cn('flex', !halfBreak && offset > 0 && 'ml-0.5')}>
@@ -117,7 +135,7 @@ export function RoundStrip({
                     title={hint}
                     aria-current={selected ? 'true' : undefined}
                     aria-pressed={multi === null ? undefined : included || selected}
-                    aria-label={`Ronda ${entry.round}${info ? `, marcador ${info.score}${outcome}` : ''}`}
+                    aria-label={summary}
                     className={cn(
                       'relative flex h-11 w-9 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-sm text-fg-2 outline-none',
                       'transition-[background-color,color] duration-(--dur-fast) disabled:opacity-40',

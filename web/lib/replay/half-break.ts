@@ -1,4 +1,6 @@
-/** True when a round opens a new half (or overtime period) after the previous round of the same match. */
+import { sidesSwapped } from '../tactical-filter.ts';
+
+/** True when the teams change sides between two rounds: regulation's half break and every overtime half, not an overtime's first half. */
 export function isHalfBreak(info: { half: number } | null, previous: { half: number } | null): boolean {
-  return info !== null && previous !== null && info.half !== previous.half;
+  return info !== null && previous !== null && sidesSwapped(info.half) !== sidesSwapped(previous.half);
 }

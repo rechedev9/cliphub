@@ -114,10 +114,20 @@ function PlayerRow({
         <span className={cn('min-w-0 flex-1 truncate text-body-sm font-medium text-fg-1', !card.alive && 'line-through decoration-fg-3')}>{card.name}</span>
         <span
           className="flex items-center gap-0.5 text-meta tabular-nums text-fg-2"
-          title={`${card.kills} ${card.kills === 1 ? 'baja' : 'bajas'} y ${card.assists} ${card.assists === 1 ? 'asistencia' : 'asistencias'} en la ronda`}
+          title={
+            card.assists === null
+              ? `${card.kills} ${card.kills === 1 ? 'baja' : 'bajas'}; las asistencias se cuentan al acabar la ronda`
+              : `${card.kills} ${card.kills === 1 ? 'baja' : 'bajas'} y ${card.assists} ${card.assists === 1 ? 'asistencia' : 'asistencias'} en la ronda`
+          }
         >
-          <Crosshair className="size-3" aria-hidden />
-          <span className={cn(card.kills > 0 && 'text-fg-1')}>{card.kills}</span>/<span>{card.assists}</span>
+          <span aria-hidden className="flex items-center gap-0.5">
+            <Crosshair className="size-3" />
+            <span className={cn(card.kills > 0 && 'text-fg-1')}>{card.kills}</span>/<span>{card.assists ?? '·'}</span>
+          </span>
+          <span className="sr-only">
+            {card.kills} {card.kills === 1 ? 'baja' : 'bajas'}
+            {card.assists === null ? '' : `, ${card.assists} ${card.assists === 1 ? 'asistencia' : 'asistencias'}`}
+          </span>
         </span>
         <span className="text-meta tabular-nums text-success">${money.format(card.money)}</span>
       </span>
@@ -242,10 +252,11 @@ export function PlayerPanel({
             <h3 className="flex items-center gap-2 px-1 pb-1">
               <span className={cn('rounded-sm px-1 text-meta font-semibold', side === TACTICAL_SIDES.ct ? 'bg-side-ct/15 text-side-ct' : 'bg-side-t/15 text-side-t')}>{side}</span>
               <span className="min-w-0 flex-1 truncate text-body-sm font-semibold text-fg-1">{teamNames[side]}</span>
-              <span className="text-body-sm font-semibold tabular-nums text-fg-1" title="Rondas ganadas antes de esta" aria-label={`${teamScores[side]} rondas ganadas`}>
-                {teamScores[side]}
+              <span className="rounded-sm bg-surface-4 px-1.5 text-body-sm font-semibold tabular-nums text-fg-1" title="Rondas ganadas antes de esta">
+                <span aria-hidden>{teamScores[side]}</span>
+                <span className="sr-only">{teamScores[side]} rondas ganadas antes de esta</span>
               </span>
-              <span className="text-meta tabular-nums text-fg-3">
+              <span className="ml-1 text-meta tabular-nums text-fg-3">
                 <span className="text-fg-1">{alive}</span> de {cards.length} vivos
               </span>
             </h3>
