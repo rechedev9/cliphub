@@ -22,6 +22,11 @@ import (
 
 const proTestMatch = 2400001
 
+// proTestVeto is the match page veto of the fake catalog: Vitality bans first and picks Mirage.
+var proTestVeto = []community.ProSidecarVeto{{Team: "Vitality", Action: "ban", Map: "Ancient"}, {Team: "FaZe", Action: "ban", Map: "Inferno"},
+	{Team: "Vitality", Action: "pick", Map: "Mirage"}, {Team: "FaZe", Action: "pick", Map: "Dust2"}, {Team: "Vitality", Action: "ban", Map: "Train"},
+	{Team: "FaZe", Action: "ban", Map: "Anubis"}, {Action: "decider", Map: "Nuke"}}
+
 // fakeProServer serves a catalog of one HLTV match with two maps, their analyses
 // and a third map whose file does not decode; tests may change the match it serves.
 func fakeProServer(t *testing.T) (*httptest.Server, *community.ProMatch) {
@@ -40,7 +45,8 @@ func fakeProServer(t *testing.T) (*httptest.Server, *community.ProMatch) {
 			{Slot: 1, SteamID64: "2", Name: "two", TeamKey: "b", StartSide: tacticalplan.SideT}}
 		h := community.ProAnalysisHeader{Format: community.ProAnalysisFormat, Entry: entry + ".dem", Document: doc, Positions: blob.Descriptor,
 			Match: community.ProSidecar{Source: "hltv", MatchID: proTestMatch, Event: match.Event, PlayedAt: match.PlayedAt.Format(time.RFC3339),
-				Teams: []community.ProSidecarTeam{{ID: 9565, Name: "Vitality", Rank: &rank}, {ID: 6667, Name: "FaZe"}}, Maps: []string{"Mirage", "Mirage", "Nuke"}}}
+				Teams: []community.ProSidecarTeam{{ID: 9565, Name: "Vitality", Rank: &rank}, {ID: 6667, Name: "FaZe"}}, Maps: []string{"Mirage", "Dust2", "Nuke"},
+				Format: "bo3", Veto: proTestVeto}}
 		var buf bytes.Buffer
 		if err := community.WriteProAnalysis(&buf, h, blob.Data); err != nil {
 			t.Fatal(err)
@@ -101,6 +107,9 @@ func TestProMatchImportFollowAndSeries(t *testing.T) {
 	}
 	var match library.Match
 	env.json(http.MethodGet, "/api/library/matches/"+first.MatchID.String(), nil, http.StatusOK, &match)
+	if match.SeriesID == nil {
+		t.Fatal("the first map of a BO3 must open its series, so the veto shows at once")
+	}
 	names := []string{}
 	for _, side := range match.Teams {
 		names = append(names, side.TeamName)
@@ -150,8 +159,12 @@ func TestProMatchImportFollowAndSeries(t *testing.T) {
 	if a.SeriesID == nil || b.SeriesID == nil || *a.SeriesID != *b.SeriesID {
 		t.Fatalf("two maps of one HLTV match must share a series: %v %v", a.SeriesID, b.SeriesID)
 	}
-	if s, err := env.repo.GetSeries(t.Context(), *a.SeriesID); err != nil || s.Format != library.FormatBO3 || s.Event != "IEM Chengdu" {
+	s, err := env.repo.GetSeries(t.Context(), *a.SeriesID)
+	if err != nil || s.Format != library.FormatBO3 || s.Event != "IEM Chengdu" || len(s.Teams) != 2 || s.Teams[0].Name != "Vitality" {
 		t.Fatalf("series = %+v %v", s, err)
+	}
+	if len(s.Vetoes) != 7 || s.Vetoes[2] != (library.VetoStep{Team: "a", Action: "pick", Map: "de_mirage"}) || s.Vetoes[3].Team != "b" || s.Vetoes[6] != (library.VetoStep{Action: "decider", Map: "de_nuke"}) {
+		t.Fatalf("the series must carry the HLTV veto in its team slots: %+v", s.Vetoes)
 	}
 	env.json(http.MethodGet, "/api/library/pro-matches", nil, http.StatusOK, &list)
 	if got := list.Matches[0].Maps[1].LibraryMatchID; got == nil || *got != second.MatchID {

@@ -133,9 +133,11 @@ recorded) and list_pro_combos (each with clip_url once a round of it is recorded
 one into the Libreta. pro_grenade_meta is the Meta view: one map side's grenades ranked by throws per 100 rounds in a
 period, the teams that use each and the trend (new, rising, falling or steady), so a grenade entering the meta shows.
 Partidas pro are recent HLTV matches the same server analysed: list_pro_matches (period, team, event, map; studio_path opens the list with those filters;
-each match has its hltv_url, where its .dem files are downloaded to record clips), import_pro_match (one map, its
+each match has its event, hltv_url, where its .dem files are downloaded to record clips, its series (format and each map's
+pick_by or decider) and the HLTV veto when the server has one), import_pro_match (one map, its
 demos joined after a server restart; returns the library match_id and studio_path, read only until its .dem is
-imported; old_analysis marks one older than the current scan), follow_pro_team, unfollow_pro_team and
+imported; old_analysis marks one older than the current scan; the maps of one HLTV match share a library series that
+carries its format, event and veto, so set_match_series is not needed), follow_pro_team, unfollow_pro_team and
 list_pro_follows (a followed team's last five maps and its new ones are imported on their own).
 launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades,
 lineup_ids of Libreta lineups or pro_lineup_ids of pro lineups on one map.

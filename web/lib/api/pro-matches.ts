@@ -25,8 +25,17 @@ export type ProMatchMap = {
   radar_may_be_off: boolean;
 };
 
+/** One step of the HLTV veto; team_id is missing for the decider and for a name neither team has. */
+export type ProVetoStep = { team_id?: number; team?: string; action: 'ban' | 'pick' | 'decider'; map: string };
+
+/** One map of the series in play order, the unplayed decider too; picked_by is an HLTV team id. */
+export type ProSeriesMap = { number: number; map: string; picked_by?: number; decider?: boolean };
+
+/** format is bo1, bo2, bo3 or bo5, missing when unknown; veto is empty when the server has none. */
+export type ProSeries = { format?: string; maps: ProSeriesMap[]; veto: ProVetoStep[] };
+
 /** hltv_url is the match page on HLTV, where its demos can be downloaded. */
-export type ProMatch = { id: number; event: string; played_at: string; hltv_url: string; teams: ProMatchTeam[]; maps: ProMatchMap[] };
+export type ProMatch = { id: number; event: string; played_at: string; hltv_url: string; teams: ProMatchTeam[]; maps: ProMatchMap[]; series: ProSeries };
 
 export type ProTeamCount = { id: number; name: string; rank?: number; matches: number };
 export type ProNameCount = { name: string; matches: number };
@@ -211,4 +220,25 @@ export function proMatchTitle(m: Pick<ProMatch, 'teams' | 'event'>): string {
 /** Says a map was played over several demos, which Studio joins; null for one demo. */
 export function proMapDemos(map: Pick<ProMatchMap, 'parts'>): string | null {
   return map.parts.length > 1 ? `${map.parts.length} demos unidas` : null;
+}
+
+export type ProSeriesVeto = {
+  /** BO3, or null when the format is unknown. */
+  format: string | null;
+  /** Banned maps in veto order, each with the team that banned it. */
+  bans: { map: string; team: string }[];
+  /** "PICK de FURIA", "PICK" or "DECIDER" for each map of the series, by map name. */
+  marks: Map<string, string>;
+};
+
+/** Reads the series of a pro match the way the library series cards show it. */
+export function proSeriesVeto(m: Pick<ProMatch, 'teams' | 'series'>): ProSeriesVeto {
+  const teamName = (id: number | undefined, fallback = ''): string => m.teams.find((t) => t.id === id)?.name ?? fallback;
+  const bans = m.series.veto.filter((step) => step.action === 'ban').map((step) => ({ map: step.map, team: teamName(step.team_id, step.team ?? '') }));
+  const marks = new Map<string, string>();
+  for (const sm of m.series.maps) {
+    if (sm.decider) marks.set(sm.map, 'DECIDER');
+    else if (sm.picked_by !== undefined) marks.set(sm.map, teamName(sm.picked_by) ? `PICK de ${teamName(sm.picked_by)}` : 'PICK');
+  }
+  return { format: m.series.format ? m.series.format.toUpperCase() : null, bans, marks };
 }

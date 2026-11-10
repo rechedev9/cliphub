@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { isCandidate, needsVisit, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState, rankedTeamIn } from "./hltv.ts";
+import { isCandidate, needsVisit, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState, rankedTeamIn, sidecarFor } from "./hltv.ts";
 
 test("parseRanking keeps teams with an id, rank and name", () => {
   const got = parseRanking([
@@ -48,6 +48,27 @@ test("parseArgs ignores invalid numbers", () => {
 test("--refetch names a folder of sidecars to download again", () => {
   assert.equal(parseArgs(["--refetch", "C:\sidecars", "--max", "3"], "out").refetch, "C:\sidecars");
   assert.equal(parseArgs([], "out").refetch, "");
+});
+
+test("parseMatch reads the series format and the ordered veto from the veto boxes", () => {
+  const match = parseMatch({
+    teams: [], event: "IEM", unix: "5", demos: [], maps: ["Ancient", "Dust2", "Nuke"],
+    vetoBoxes: [
+      "Best of 3 (LAN)\n\n* Upper bracket final",
+      "1. FURIA removed Mirage\n2. Natus Vincere removed Inferno\n3. FURIA picked Ancient\n4. Natus Vincere picked Dust2\n5. FURIA removed Train\n6. Natus Vincere removed Anubis\n7. Nuke was left over",
+    ],
+  });
+  assert.ok(match);
+  assert.equal(match.format, "bo3");
+  assert.equal(match.veto.length, 7);
+  assert.deepEqual(match.veto[1], { team: "Natus Vincere", action: "ban", map: "Inferno" });
+  assert.deepEqual(match.veto[2], { team: "FURIA", action: "pick", map: "Ancient" });
+  assert.deepEqual(match.veto[6], { team: "", action: "decider", map: "Nuke" });
+  const sidecar = sidecarFor(1, "/download/demo/1", match, []);
+  assert.equal(parseSidecar(sidecar)?.veto?.length, 7);
+  const bare = parseMatch({ teams: [], event: "", unix: "5", demos: [], maps: [] });
+  assert.deepEqual([bare?.format, bare?.veto], ["", []]);
+  assert.equal(sidecarFor(1, "/download/demo/1", { ...match, format: "", veto: [] }, []).veto, undefined);
 });
 
 test("parseSidecar keeps only an HLTV demo download of a real match", () => {

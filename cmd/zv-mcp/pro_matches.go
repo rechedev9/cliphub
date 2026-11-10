@@ -51,6 +51,26 @@ type proMatchOut struct {
 	HLTVURL     string            `json:"hltv_url" jsonschema:"the HLTV match page, where its .dem files can be downloaded to record clips"`
 	Teams       []proMatchTeamOut `json:"teams"`
 	Maps        []proMatchMapOut  `json:"maps"`
+	Series      proSeriesOut      `json:"series"`
+	Veto        []proVetoStepOut  `json:"veto" jsonschema:"the HLTV veto in order; empty when the server has none for the match"`
+}
+
+type proSeriesMapOut struct {
+	Number  int    `json:"number" jsonschema:"the map's place in the series"`
+	Map     string `json:"map"`
+	PickBy  string `json:"pick_by,omitempty" jsonschema:"untrusted name of the team that picked the map"`
+	Decider bool   `json:"decider,omitempty" jsonschema:"the map left over after the bans"`
+}
+
+type proSeriesOut struct {
+	Format string            `json:"format,omitempty" jsonschema:"bo1, bo2, bo3 or bo5; missing when unknown"`
+	Maps   []proSeriesMapOut `json:"maps" jsonschema:"every map of the series in play order, the unplayed decider too"`
+}
+
+type proVetoStepOut struct {
+	Team   string `json:"team,omitempty" jsonschema:"untrusted team name; empty for the decider"`
+	Action string `json:"action" jsonschema:"ban, pick or decider"`
+	Map    string `json:"map"`
 }
 
 type proCountOut struct {
@@ -110,6 +130,7 @@ type proFollowsOut struct {
 func registerProMatchTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "list_pro_matches", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "List recent HLTV pro matches the ClipHub community server analysed (Partidas pro), newest first, filtered by period, team, event and map. " +
+			"Each match has its event, its series (format and every map in play order with who picked it or the decider) and the HLTV veto when the server has it. " +
 			"Each map has an entry for import_pro_match and library_match_id once imported. The answer also lists the period's teams, events and maps and the followed teams."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listProMatchesIn) (*mcp.CallToolResult, listProMatchesOut, error) {
 			q, err := in.query()
@@ -287,6 +308,7 @@ func proMatchesOf(page tuiclient.ProMatches) listProMatchesOut {
 			}
 			row.Maps = append(row.Maps, mo)
 		}
+		row.Series, row.Veto = proSeriesOf(m)
 		out.Matches = append(out.Matches, row)
 	}
 	for _, t := range page.Facets.Teams[:min(len(page.Facets.Teams), proFacetRows)] {
@@ -302,6 +324,27 @@ func proMatchesOf(page tuiclient.ProMatches) listProMatchesOut {
 		out.Follows = append(out.Follows, proFollowOf(f))
 	}
 	return out
+}
+
+// proSeriesOf is the series and veto of a catalog match, with team ids turned into names.
+func proSeriesOf(m tuiclient.ProMatch) (proSeriesOut, []proVetoStepOut) {
+	names := map[int]string{}
+	for _, t := range m.Teams {
+		names[t.ID] = cleanName(t.Name)
+	}
+	series := proSeriesOut{Format: cleanName(m.Series.Format), Maps: []proSeriesMapOut{}}
+	for _, sm := range m.Series.Maps {
+		series.Maps = append(series.Maps, proSeriesMapOut{Number: sm.Number, Map: cleanName(sm.Map), PickBy: names[sm.PickedBy], Decider: sm.Decider})
+	}
+	veto := []proVetoStepOut{}
+	for _, v := range m.Series.Veto {
+		team := names[v.TeamID]
+		if team == "" && v.Action != community.ProVetoDecider {
+			team = cleanName(v.Team)
+		}
+		veto = append(veto, proVetoStepOut{Team: team, Action: cleanName(v.Action), Map: cleanName(v.Map)})
+	}
+	return series, veto
 }
 
 func proFollowOf(f library.ProFollow) proFollowOut {

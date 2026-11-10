@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS pro_match_maps (
 	played_at        TEXT NOT NULL,
 	teams            TEXT NOT NULL,
 	synced_at        TEXT NOT NULL,
+	series           TEXT NOT NULL DEFAULT '',
 	PRIMARY KEY (match_id, entry)
 );
 CREATE TABLE IF NOT EXISTS ranking_lines (
@@ -91,11 +92,29 @@ func openStore(path string) (*store, error) {
 			return nil, fmt.Errorf("initialize database: %w", err)
 		}
 	}
+	if err := addSeriesColumn(db); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize database: %w", err)
+	}
 	if err := os.Chmod(path, 0o600); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("restrict database: %w", err)
 	}
 	return &store{db: db}, nil
+}
+
+// addSeriesColumn adds the series of a catalog made before it and clears the file
+// stamps, so the next pro-matches run reads every analysis again.
+func addSeriesColumn(db *sql.DB) error {
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('pro_match_maps') WHERE name = 'series'`).Scan(&n); err != nil || n > 0 {
+		return err
+	}
+	if _, err := db.Exec(`ALTER TABLE pro_match_maps ADD COLUMN series TEXT NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	_, err := db.Exec(`UPDATE pro_match_maps SET mod_time = ''`)
+	return err
 }
 
 func (s *store) Close() error { return s.db.Close() }

@@ -3,8 +3,9 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Check, ExternalLink, History, MonitorPlay, Plus, TriangleAlert } from 'lucide-react';
-import { proMapDemos, proMatchTitle, type ProMatch, type ProMatchMap, type ProMatchTeam } from '@/lib/api/pro-matches';
+import { proMapDemos, proMatchTitle, proSeriesVeto, type ProMatch, type ProMatchMap, type ProMatchTeam } from '@/lib/api/pro-matches';
 import { prettyMapName } from '@/lib/format';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 export const RADAR_OFF_NOTE = 'El radar de este mapa cambió después de analizar la partida: las posiciones pueden salir algo desplazadas.';
@@ -26,12 +27,22 @@ export function ProMatchCard({ match, importing, following, onOpen, onToggleFoll
   // A note every map shares shows once for the match, so it does not repeat under each map.
   const allOld = match.maps.length > 0 && match.maps.every((m) => m.old_analysis);
   const allRadarOff = match.maps.length > 0 && match.maps.every((m) => m.radar_may_be_off);
+  const veto = proSeriesVeto(match);
   return (
     <article className="studio-panel flex flex-col gap-3 p-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-        <h3 className="text-body font-semibold text-fg-1">{proMatchTitle(match)}</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          {veto.format ? <Badge variant="secondary" shape="square">{veto.format}</Badge> : null}
+          <h3 className="text-body font-semibold text-fg-1">{proMatchTitle(match)}</h3>
+        </div>
         <p className="text-meta text-fg-3">{match.event}</p>
       </div>
+      {veto.bans.length > 0 ? (
+        <p className="text-meta text-fg-3">
+          <span className="font-medium tracking-wide">BANS</span>{' '}
+          {veto.bans.map((ban) => (ban.team === '' ? prettyMapName(ban.map) : `${prettyMapName(ban.map)} (${ban.team})`)).join(', ')}
+        </p>
+      ) : null}
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-fg-3">
         <a href={match.hltv_url} target="_blank" rel="noreferrer"
           className="inline-flex items-center gap-1 text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">
@@ -61,7 +72,7 @@ export function ProMatchCard({ match, importing, following, onOpen, onToggleFoll
       </div>
       <ul className="flex flex-col divide-y divide-border">
         {match.maps.map((map) => (
-          <ProMapRow key={map.entry} map={map} notes={{ old: !allOld && map.old_analysis, radar: !allRadarOff && map.radar_may_be_off }}
+          <ProMapRow key={map.entry} map={map} mark={veto.marks.get(map.map)} notes={{ old: !allOld && map.old_analysis, radar: !allRadarOff && map.radar_may_be_off }}
             busy={importing === `${match.id}/${map.entry}`} disabled={importing !== null} onOpen={() => onOpen(match, map)} />
         ))}
       </ul>
@@ -87,15 +98,16 @@ function RadarOffNote(): ReactNode {
   );
 }
 
-type ProMapRowProps = { map: ProMatchMap; notes: { old: boolean; radar: boolean }; busy: boolean; disabled: boolean; onOpen: () => void };
+type ProMapRowProps = { map: ProMatchMap; mark?: string; notes: { old: boolean; radar: boolean }; busy: boolean; disabled: boolean; onOpen: () => void };
 
-function ProMapRow({ map, notes, busy, disabled, onOpen }: ProMapRowProps): ReactNode {
+function ProMapRow({ map, mark, notes, busy, disabled, onOpen }: ProMapRowProps): ReactNode {
   const demos = proMapDemos(map);
   return (
     <li className="flex flex-col gap-1.5 py-2 first:pt-0 last:pb-0">
       <div className="flex items-center justify-between gap-3">
         <span className="text-body-sm text-fg-1">
           {prettyMapName(map.map)}
+          {mark ? <span className="text-meta font-medium tracking-wide text-fg-3"> · {mark}</span> : null}
           {demos ? <span className="text-fg-3"> · {demos}</span> : null}
           <span className="text-fg-3 tabular-nums"> · {map.rounds} rondas</span>
         </span>

@@ -71,6 +71,8 @@ type proMatchView struct {
 	HLTVURL  string        `json:"hltv_url"`
 	Teams    []proTeamView `json:"teams"`
 	Maps     []proMapView  `json:"maps"`
+	// Series is the format, veto and pick of each map, as far as the server knows them.
+	Series community.ProSeries `json:"series"`
 }
 
 type proMatchesResponse struct {
@@ -139,7 +141,13 @@ func (h *Handlers) proMatchViews(ctx context.Context, matches []community.ProMat
 		if err != nil {
 			return nil, err
 		}
-		v := proMatchView{ID: m.ID, Event: m.Event, PlayedAt: m.PlayedAt, HLTVURL: community.ProMatchURL(m.ID), Teams: []proTeamView{}, Maps: []proMapView{}}
+		v := proMatchView{ID: m.ID, Event: m.Event, PlayedAt: m.PlayedAt, HLTVURL: community.ProMatchURL(m.ID), Teams: []proTeamView{}, Maps: []proMapView{}, Series: m.Series}
+		if v.Series.Maps == nil {
+			v.Series.Maps = []community.ProSeriesMap{}
+		}
+		if v.Series.Veto == nil {
+			v.Series.Veto = []community.ProVetoStep{}
+		}
 		for _, t := range m.Teams {
 			v.Teams = append(v.Teams, proTeamView{ProTeam: t, Followed: followed[t.ID]})
 		}

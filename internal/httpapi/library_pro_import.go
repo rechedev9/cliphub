@@ -193,6 +193,9 @@ func (h *Handlers) replaceProMap(ctx context.Context, in proStore) (proImportRes
 	if err != nil {
 		return proImportResponse{}, fmt.Errorf("replace pro map %d/%s: %w", in.ref.matchID, in.ref.file.Entry, err)
 	}
+	if match.SeriesID != nil {
+		h.fillProSeries(ctx, proSeriesFill{id: *match.SeriesID, sidecar: in.header.Match})
+	}
 	log.Printf("httpapi: replaced pro map match=%d entry=%s analysis_version=%d", in.ref.matchID, in.ref.file.Entry, rec.AnalysisVersion)
 	return proImportResponse{MatchID: match.ID, DemoID: in.demo.ID, StudioPath: proStudioPath(match.ID),
 		RadarMayBeOff: library.RadarMayBeOff(rec.Map, rec.AnalysisVersion)}, nil
@@ -325,77 +328,4 @@ func (h *Handlers) aliasProTeams(ctx context.Context, p proPairing) {
 			log.Printf("httpapi: pro team %q keeps clan %q apart: %v", p.teams[idx].Name, clan, err)
 		}
 	}
-}
-
-// groupProSeries puts the imported maps of one HLTV match in a series once two
-// are in; after that only the new map joins, so a map the user took out stays out.
-func (h *Handlers) groupProSeries(ctx context.Context, header community.ProAnalysisHeader, added library.Match) {
-	records, err := h.libraryRepo.ListProMaps(ctx, header.Match.MatchID)
-	if err != nil {
-		log.Printf("httpapi: group pro series: %v", err)
-		return
-	}
-	matches := []library.Match{}
-	for _, rec := range records {
-		if rec.DemoID == nil {
-			continue
-		}
-		if d, err := h.libraryRepo.GetDemo(ctx, *rec.DemoID); err == nil && d.MatchID != nil {
-			if m, err := h.libraryRepo.GetMatch(ctx, *d.MatchID); err == nil && !slices.ContainsFunc(matches, func(x library.Match) bool { return x.ID == m.ID }) {
-				matches = append(matches, m)
-			}
-		}
-	}
-	if len(matches) < 2 {
-		return
-	}
-	var seriesID *uuid.UUID
-	for _, m := range matches {
-		if m.SeriesID != nil && seriesID == nil {
-			seriesID = m.SeriesID
-		}
-	}
-	if seriesID == nil {
-		s := library.Series{Format: proSeriesFormat(len(header.Match.Maps), len(matches)), Event: header.Match.Event, TeamIDs: proSeriesTeams(added)}
-		if cleaned, err := library.CleanSeries(s); err == nil {
-			s = cleaned
-		}
-		if err := h.libraryRepo.CreateSeries(ctx, &s); err != nil {
-			log.Printf("httpapi: create pro series: %v", err)
-			return
-		}
-		seriesID = &s.ID
-	} else {
-		matches = []library.Match{added}
-	}
-	for _, m := range matches {
-		if m.SeriesID != nil {
-			continue
-		}
-		if _, err := h.libraryRepo.UpdateMatch(ctx, m.ID, library.MatchPatch{SeriesID: seriesID}); err != nil {
-			log.Printf("httpapi: attach pro map %s to its series: %v", m.ID, err)
-		}
-	}
-}
-
-func proSeriesFormat(sidecarMaps, imported int) string {
-	if max(sidecarMaps, imported) > 3 {
-		return library.FormatBO5
-	}
-	return library.FormatBO3
-}
-
-// proSeriesTeams is both resolved teams of the map, or none when either side has none.
-func proSeriesTeams(m library.Match) []uuid.UUID {
-	ids := []uuid.UUID{}
-	for _, t := range m.Teams {
-		if t.TeamID == nil || slices.Contains(ids, *t.TeamID) {
-			return []uuid.UUID{}
-		}
-		ids = append(ids, *t.TeamID)
-	}
-	if len(ids) != 2 {
-		return []uuid.UUID{}
-	}
-	return ids
 }
