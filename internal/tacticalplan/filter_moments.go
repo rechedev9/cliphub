@@ -32,8 +32,10 @@ func (a Advantage) String() string { return fmt.Sprintf("%dv%d", a.Own, a.Rival)
 // filter reads it from AWP kills and hits instead.
 func AWPEstimated(d Document) bool { return d.AnalysisVersion < AWPFlagVersion }
 
-// ReadsAWP reports whether the filter asks about either side's AWP.
-func (f Filter) ReadsAWP() bool { return f.AWP != "" || f.OpponentAWP != "" }
+// ReadsAWP reports whether the filter asks about either side's AWP, a hero AWP included.
+func (f Filter) ReadsAWP() bool {
+	return f.AWP != "" || f.OpponentAWP != "" || f.Weapon == WeaponHeroAWP || f.OpponentWeapon == WeaponHeroAWP
+}
 
 // presenceQuery asks whether Side had an AWP in Round; Estimate reads kills
 // and hits, for analyses older than AWPFlagVersion.

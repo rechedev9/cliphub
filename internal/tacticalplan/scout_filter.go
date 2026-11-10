@@ -55,6 +55,8 @@ type ScoutFilter struct {
 	// Rounds holds the round criteria (buys, AWP, advantage, range); its team,
 	// side and lineup are the scout's own, and slots never apply across demos.
 	Rounds Filter `json:"rounds"`
+	// PlayRounds, when not nil, keeps only these rounds per match: a Libreta play's examples.
+	PlayRounds map[uuid.UUID][]int `json:"-"`
 }
 
 // Select returns the matches the filter keeps, most recent first. The order is
@@ -69,7 +71,7 @@ func (f ScoutFilter) Select(matches []ScoutMatch) []ScoutMatch {
 func (f ScoutFilter) SelectRated(matches []ScoutMatch) (kept, unrated []ScoutMatch) {
 	kept = make([]ScoutMatch, 0, len(matches))
 	for _, m := range matches {
-		if !f.keepsMatch(m) {
+		if !f.KeepsMatch(m) {
 			continue
 		}
 		if f.OpponentTop > 0 && m.OpponentRank <= 0 {
@@ -86,14 +88,16 @@ func (f ScoutFilter) SelectRated(matches []ScoutMatch) (kept, unrated []ScoutMat
 	return kept, unrated
 }
 
-func (f ScoutFilter) keepsMatch(m ScoutMatch) bool {
+// KeepsMatch reports whether the match-level criteria keep m, before the rival level.
+func (f ScoutFilter) KeepsMatch(m ScoutMatch) bool {
 	switch {
 	case len(f.Maps) > 0 && !containsString(f.Maps, m.Document.Demo.Map),
 		f.From != nil && m.PlayedAt.Before(*f.From),
 		f.To != nil && m.PlayedAt.After(*f.To),
 		len(f.Opponents) > 0 && !containsString(f.Opponents, m.OpponentID),
 		f.Whose == WhoseOwn && !m.OwnTeam,
-		f.Whose == WhoseOthers && m.OwnTeam:
+		f.Whose == WhoseOthers && m.OwnTeam,
+		f.PlayRounds != nil && len(f.PlayRounds[m.MatchID]) == 0:
 		return false
 	}
 	return true
@@ -118,6 +122,9 @@ func (f ScoutFilter) RoundFilter(m ScoutMatch) Filter {
 	out := f.Rounds
 	out.TeamKey, out.Side, out.Lineup = m.TeamKey, f.Side, f.Lineup
 	out.Slots, out.Subjects = nil, nil
+	if f.PlayRounds != nil {
+		out.Numbers = append([]int{}, f.PlayRounds[m.MatchID]...)
+	}
 	return out
 }
 

@@ -53,7 +53,7 @@ func (h *Handlers) GetLibraryTeamRounds(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	filter, matchIDs, err := scoutQuery(r.URL.Query())
+	filter, matchIDs, err := h.teamScope(r.Context(), scopeRequest{teamID: id, q: r.URL.Query()})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -63,7 +63,7 @@ func (h *Handlers) GetLibraryTeamRounds(w http.ResponseWriter, r *http.Request) 
 		writeLibraryError(w, "get team", err)
 		return
 	}
-	candidates, pending, skipped, err := h.teamCandidates(r.Context(), team, matchIDs)
+	candidates, pending, skipped, err := h.teamCandidates(r.Context(), candidateQuery{team: team, matchIDs: matchIDs, scope: filter})
 	if err != nil {
 		internalError(w, "read team matches", err)
 		return

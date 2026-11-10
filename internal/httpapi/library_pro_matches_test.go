@@ -121,8 +121,12 @@ func TestProMatchImportFollowAndSeries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, pending, _, err := env.h.teamCandidates(t.Context(), faze, nil); err != nil || len(pending) != 1 || pending[0].OpponentRank != 1 {
+	top := candidateQuery{team: faze, scope: tacticalplan.ScoutFilter{OpponentTop: 5}}
+	if _, pending, _, err := env.h.teamCandidates(t.Context(), top); err != nil || len(pending) != 1 || pending[0].OpponentRank != 1 {
 		t.Fatalf("the rival level must read the catalog rank of a pro match: %+v %v", pending, err)
+	}
+	if _, pending, _, err := env.h.teamCandidates(t.Context(), candidateQuery{team: faze}); err != nil || len(pending) != 1 || pending[0].OpponentRank != 0 {
+		t.Fatalf("without a rival level no catalog rank is read: %+v %v", pending, err)
 	}
 	var again proImportResponse
 	env.json(http.MethodPost, "/api/library/pro-matches/2400001/vitality-vs-faze-m1-mirage/import", nil, http.StatusOK, &again)

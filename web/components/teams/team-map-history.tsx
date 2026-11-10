@@ -9,6 +9,7 @@ import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { librarySeriesHref, matchesHref } from '@/lib/clips/routes';
 import { formatShortDate } from '@/lib/format';
 import { countOf } from '@/lib/library/veto';
+import { OVER_READ_LIMIT } from '@/lib/api/team-insights';
 import { MapCard, type MapRate } from '@/components/analysis/map-card';
 import { MapLabel } from '@/components/analysis/map-thumb';
 import { MapPreferenceScore } from '@/components/analysis/map-preference';
@@ -138,6 +139,8 @@ export function TeamMapHistory({
   }
   const refs = matchRefs(matches);
   // Without a single veto on record, five columns of zeros say less than the note below.
+  const unread = data.skipped.filter((entry) => entry.reason === OVER_READ_LIMIT).length;
+  const missing = data.skipped.length - unread;
   const showVeto = records.some((record) => VETO_COLUMNS.some((column) => record.veto[column.key].count > 0));
   const vetoColumns = showVeto ? VETO_COLUMNS : [];
   const columns = ['Pistola CT', 'Pistola T', ...vetoColumns.map((c) => c.label), 'Última'];
@@ -226,7 +229,8 @@ export function TeamMapHistory({
       <p className="measure-read text-meta text-fg-3">
         Leídas: {data.matches} {data.matches === 1 ? 'partida' : 'partidas'} y {data.series} {data.series === 1 ? 'serie' : 'series'}. Las
         rondas por lado salen del documento táctico de cada partida
-        {data.skipped.length > 0 ? `; ${data.skipped.length} ${data.skipped.length === 1 ? 'partida sin análisis no cuenta' : 'partidas sin análisis no cuentan'} en los lados` : ''}.{' '}
+        {missing > 0 ? `; ${missing} ${missing === 1 ? 'partida sin análisis no cuenta' : 'partidas sin análisis no cuentan'} en los lados` : ''}
+        {unread > 0 ? `; las ${unread} más antiguas cuentan en el resultado pero no en los lados, por el tope de 200 análisis` : ''}.{' '}
         {showVeto
           ? 'Los picks y bans solo cuentan en series con los dos equipos y el veto apuntados.'
           : 'Los picks y bans aparecen al apuntar una serie con los dos equipos y su veto.'}

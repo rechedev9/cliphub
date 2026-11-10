@@ -29,7 +29,7 @@ func (h *Handlers) GetLibraryTeamWarnings(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	filter, matchIDs, err := scoutQuery(r.URL.Query())
+	filter, matchIDs, err := h.teamScope(r.Context(), scopeRequest{teamID: id, q: r.URL.Query()})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -50,7 +50,10 @@ func (h *Handlers) GetLibraryTeamWarnings(w http.ResponseWriter, r *http.Request
 // teamDataWarnings loads the scope's matches once without the lineup filter:
 // they are what the lineup is compared against, and the lineup's own matches are the sample.
 func (h *Handlers) teamDataWarnings(ctx context.Context, q framedQuery) ([]tacticalplan.DataWarning, error) {
-	candidates, pending, _, err := h.teamCandidates(ctx, q.team, q.matchIDs)
+	// The newest analysed match is read whatever the map, dates and lineup, so none goes to SQL.
+	every := q.filter
+	every.Maps, every.From, every.To, every.Lineup = nil, nil, nil, nil
+	candidates, pending, _, err := h.teamCandidates(ctx, candidateQuery{team: q.team, matchIDs: q.matchIDs, scope: every})
 	if err != nil {
 		return nil, err
 	}

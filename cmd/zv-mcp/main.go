@@ -92,9 +92,15 @@ max_matches (last 3 or 5), last_days (3, 7, 14, 30, 90, 180, 365), opponent_top 
 rival's rank today, or its rank on the day for a Partidas pro import; rivals without a rank come back as unranked), whose (own: matches of the user's own team,
 the one list_teams marks own; others: scouting), buy and opponent_buy (full with full, half is semi and force,
 pistol with pistol), awp and opponent_awp (with or without; awp_estimated counts older analyses read from AWP
-kills), advantage (4v5, 5v4 at some moment) and round_from/round_to. team_rounds lists those rounds over
+kills), advantage (4v5, 5v4 at some moment), round_from/round_to, site, outcome (win or loss), post_plant, phase
+(regulation or overtime), second_round, end_reason (elimination, bomb_exploded, bomb_defused, time_expired), weapon
+and opponent_weapon (scout, no_scout, hero_ak, hero_awp; docs/studio-mcp.md has each rule), a custom buy range per
+player (equip_from/equip_to, opponent_equip_from/opponent_equip_to, in dollars of equipment) and tactic (a Libreta
+play id of the same team: only its example rounds; a deleted play keeps none). Team views read every match the team played and keep the newest 50; older ones come
+back as over_match_limit skips. One view opens at most 200 analyses (the lineup and a single map or date range are
+applied first); the rest come back as over_read_limit skips. Say when more_matches is true. team_rounds lists those rounds over
 the matches, with the Replay's studio_path and a playlist_path to play them one after another. The Replay
-holds one buy (or half) and one advantage per side, so studio_path refuses longer lists.
+holds one buy (or half), one advantage, one site and one end_reason, so studio_path refuses longer lists.
 team_attack (one map, T side) is the match prep read: sites and Bombsite Tempo (rush, set strat, mid round, no site)
 crossed with buy matchups, the preferred defaults, the executes per buy and per-player T windows, with stale,
 few-rounds, roster and capped warnings to repeat to the user; prepare_team includes it. Its rows give rounds and example refs;
@@ -138,7 +144,7 @@ a map name or grenade word in the query narrows it.
 Series of the library (BO1, BO2, BO3, BO5 with teams and veto; a BO2 does not play its map left over): list_library_series, create_library_series,
 update_library_series, delete_library_series and set_match_series. The maps of one FACEIT match
 (files 1-<match id>-<map>-1.dem) join one series on their own once two are analysed. team_maps reads a team's map record
-and, with the scope keys of the bar, the matches per map (scope_matches); simulate_veto recommends a veto against a rival.
+over every match (sides_unread: older ones past 200 analyses count in the results, not the sides) and, with the scope keys of the bar, the matches per map (scope_matches); simulate_veto recommends a veto against a rival.
 FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows,
 follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account).
 Lineups pro are grenades pros repeat in pro matches, served by the ClipHub community server:

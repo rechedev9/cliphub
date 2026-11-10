@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -531,6 +532,9 @@ func (r *MemoryLibraryRepository) matchSelected(m memoryLibraryMatch, f library.
 			return false
 		}
 	}
+	if f.TeamID != nil && len(f.Lineup) > 0 && !r.lineupCanPlay(m, f) {
+		return false
+	}
 	if f.SteamID != "" {
 		found := false
 		for _, p := range r.matchPlayers[m.id] {
@@ -867,4 +871,27 @@ func (r *MemoryLibraryRepository) UpdateTeam(ctx context.Context, id uuid.UUID, 
 	r.teams[id] = t
 	r.mu.Unlock()
 	return r.GetTeam(ctx, id)
+}
+
+// lineupCanPlay is the SQLite lineup filter: a listed player of the team played
+// the match, and no unlisted one played every round of it.
+func (r *MemoryLibraryRepository) lineupCanPlay(m memoryLibraryMatch, f library.MatchFilter) bool {
+	keys := map[string]bool{}
+	for _, side := range r.matchTeams[m.id] {
+		if sameUUID(side.teamID, f.TeamID) {
+			keys[side.key] = true
+		}
+	}
+	listed := false
+	for _, p := range r.matchPlayers[m.id] {
+		if !keys[p.TeamKey] {
+			continue
+		}
+		if slices.Contains(f.Lineup, p.SteamID64) {
+			listed = true
+		} else if p.Rounds >= m.roundCount {
+			return false
+		}
+	}
+	return listed
 }

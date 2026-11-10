@@ -198,8 +198,11 @@ type MatchFilter struct {
 	Tag      string
 	From     *time.Time
 	To       *time.Time
-	Limit    int
-	Offset   int
+	// Lineup, with TeamID, drops the matches no round of that team could keep: none of
+	// its players is listed, or one who is not played every round.
+	Lineup []string
+	Limit  int
+	Offset int
 }
 
 // MatchPatch is a user edit of a match. ClearSeries detaches the match from

@@ -113,6 +113,19 @@ func TestTeamSideStatsBuyScopeAndEmptyFigures(t *testing.T) {
 	}
 }
 
+func TestTeamSideStatsKeepsOnlyThePlayRounds(t *testing.T) {
+	m := sideStatsMatch("home")
+	opts := SideStatsOptions{PlayRounds: map[uuid.UUID][]int{m.MatchID: {2}}}
+	r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{m}, Options: opts})
+	if r.Rounds != 1 || r.Matches != 1 {
+		t.Fatalf("play rounds sample = %d matches, %d rounds, want round 2 alone", r.Matches, r.Rounds)
+	}
+	opts.PlayRounds = map[uuid.UUID][]int{}
+	if r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{m}, Options: opts}); r.Rounds != 0 {
+		t.Fatalf("a match without play rounds kept %d rounds", r.Rounds)
+	}
+}
+
 func TestTeamSideStatsRoundRange(t *testing.T) {
 	all := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}})
 	r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}, Options: SideStatsOptions{Rounds: Filter{RoundFrom: 2}}})

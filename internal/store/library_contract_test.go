@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -324,6 +325,27 @@ func TestLibraryRepositoryContract(t *testing.T) {
 				listed, _ := f.repo.ListMatches(f.ctx, library.MatchFilter{Limit: 1})
 				if len(listed[0].Teams) != 2 || listed[0].Players != nil {
 					t.Fatalf("list row = %+v, want teams and no players", listed[0])
+				}
+			},
+		},
+		{
+			name: "ListMatches with a lineup drops matches a player outside it played in full",
+			run: func(t *testing.T, f libraryFixture) {
+				a := f.analyze(f.demo("a", 0), "de_mirage", side{"Vitality", 13, []string{"1", "2"}}, side{"MOUZ", 5, []string{"9"}})
+				b := f.analyze(f.demo("b", 2), "de_nuke", side{"Vitality", 13, []string{"1", "3"}}, side{"FaZe", 5, []string{"8"}})
+				vit := teamOf(t, a, "ct-start").TeamID
+				for name, tc := range map[string]struct {
+					lineup []string
+					want   []uuid.UUID
+				}{
+					"both rosters":  {[]string{"1", "2", "3"}, []uuid.UUID{b.ID, a.ID}},
+					"one roster":    {[]string{"1", "2"}, []uuid.UUID{a.ID}},
+					"rival players": {[]string{"9", "8"}, []uuid.UUID{}},
+				} {
+					got, err := f.repo.ListMatches(f.ctx, library.MatchFilter{TeamID: vit, Lineup: tc.lineup})
+					if ids := matchIDs(got); err != nil || !slices.Equal(ids, tc.want) {
+						t.Fatalf("%s: ids = %v (%v), want %v", name, ids, err, tc.want)
+					}
 				}
 			},
 		},

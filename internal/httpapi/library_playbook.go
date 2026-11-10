@@ -47,7 +47,7 @@ func (h *Handlers) loadFramedMatches(ctx context.Context, q framedQuery) ([]tact
 
 // keepFramedMatches reads the team's matches the filter selects, with their documents.
 func (h *Handlers) keepFramedMatches(ctx context.Context, q framedQuery) ([]keptMatch, []scoutSkipped, error) {
-	candidates, pending, skipped, err := h.teamCandidates(ctx, q.team, q.matchIDs)
+	candidates, pending, skipped, err := h.teamCandidates(ctx, candidateQuery{team: q.team, matchIDs: q.matchIDs, scope: q.filter})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -74,7 +74,7 @@ func (h *Handlers) framedRequest(w http.ResponseWriter, r *http.Request) (framed
 	if !ok {
 		return framedQuery{}, false
 	}
-	filter, matchIDs, err := scoutQuery(r.URL.Query())
+	filter, matchIDs, err := h.teamScope(r.Context(), scopeRequest{teamID: id, q: r.URL.Query()})
 	if err == nil && len(filter.Maps) != 1 {
 		err = errors.New("map is required, exactly once")
 	}

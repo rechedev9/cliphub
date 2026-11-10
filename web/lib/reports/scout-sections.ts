@@ -70,6 +70,7 @@ export const SKIP_REASON_LABEL: Record<ScoutSkipReason, string> = {
   team_not_in_match: 'El equipo no jugó esta partida.',
   analysis_missing: 'La partida aún no tiene análisis táctico.',
   over_match_limit: 'Supera el máximo de partidas de un informe.',
+  over_read_limit: 'Supera el máximo de análisis que se leen de una vez.',
   opponent_unranked: 'El rival no tiene ranking HLTV para el nivel elegido.',
 };
 

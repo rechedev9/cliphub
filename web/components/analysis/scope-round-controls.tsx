@@ -24,7 +24,7 @@ const TRIGGER = 'h-8 gap-1.5 px-2.5 text-body-sm';
 type Patch = (patch: Partial<AnalysisScope>) => void;
 type Choice = { readonly value: string; readonly label: string; readonly disabled?: boolean };
 
-function ChoiceSelect({
+export function ChoiceSelect({
   label,
   allLabel,
   value,

@@ -1,10 +1,15 @@
 package httpapi
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
+
+	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 func skippedFor(skipped []scoutSkipped, reason string) int {
@@ -106,5 +111,72 @@ func TestTeamScopeRoundCriteriaReachEveryTeamFigure(t *testing.T) {
 	f.env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/rounds?round_from=1&round_to=1&max_matches=50", nil, http.StatusOK, &rounds)
 	if rounds.Rounds != pistols.Tendencies.RoundCount || len(rounds.Matches) != 2 || rounds.Matches[0].Rounds[0].Round != 1 || rounds.Matches[0].Total != 2 {
 		t.Fatalf("rounds = %+v, want round 1 of both matches, as the scout counts", rounds)
+	}
+}
+
+func TestTeamScopeTacticKeepsThePlayRounds(t *testing.T) {
+	f := newScoutFixture(t)
+	play := library.Play{Title: "Exec A", TeamID: &f.vitality, Map: "de_mirage", Side: "T", Kind: "execute", Origin: "manual",
+		Examples: []tacticalplan.Evidence{{MatchID: f.away.ID, Round: 2}}}
+	if err := f.env.repo.CreatePlay(t.Context(), &play); err != nil {
+		t.Fatal(err)
+	}
+	var rounds teamRoundsResponse
+	f.env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/rounds?tactic="+play.ID.String(), nil, http.StatusOK, &rounds)
+	if rounds.Rounds != 1 || len(rounds.Matches) != 1 || rounds.Matches[0].MatchID != f.away.ID || rounds.Matches[0].Rounds[0].Round != 2 {
+		t.Fatalf("tactic rounds = %+v, want round 2 of the away match", rounds)
+	}
+	f.env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/rounds?tactic="+uuid.NewString(), nil, http.StatusOK, &rounds)
+	if rounds.Rounds != 0 {
+		t.Fatalf("a deleted tactic kept %d rounds, want none", rounds.Rounds)
+	}
+	theirs := library.Play{Title: "MOUZ exec", TeamID: &f.mouz, Map: "de_mirage", Side: "T", Kind: "execute", Origin: "manual",
+		Examples: []tacticalplan.Evidence{{MatchID: f.away.ID, Round: 2}}}
+	if err := f.env.repo.CreatePlay(t.Context(), &theirs); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"?tactic=nope", "?tactic=" + theirs.ID.String(), "?weapon=knife", "?equip_to=0", "?end_reason=surrender"} {
+		if rw := f.env.do(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/rounds"+bad, nil, ""); rw.Code != http.StatusBadRequest {
+			t.Errorf("rounds%s = %d, want 400", bad, rw.Code)
+		}
+	}
+}
+
+func TestTeamCandidatesReadEveryMatchAndBoundTheDocuments(t *testing.T) {
+	env := newLibraryTestEnv(t)
+	seeded := []library.Match{env.seedLibraryMatch("m0", "Vitality", "MOUZ")}
+	teamID := *teamOfMatch(t, seeded[0], "ct-start").TeamID
+	for i := 1; i <= library.MaxListLimit; i++ {
+		seeded = append(seeded, env.seedLibraryMatch(fmt.Sprintf("m%d", i), "Vitality", "MOUZ"))
+	}
+	team, err := env.repo.GetTeam(t.Context(), teamID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opens := func() int {
+		n := 0
+		for _, m := range seeded {
+			n += env.storage.openCount(artifacts.LibraryTacticalIndexKey(m.DemoID))
+		}
+		return n
+	}
+	env.storage.resetOpenCounts()
+	candidates, pending, _, err := env.h.teamCandidates(t.Context(), candidateQuery{team: team})
+	if err != nil || len(pending) != library.MaxListLimit+1 {
+		t.Fatalf("listed %d matches (%v), want all %d", len(pending), err, library.MaxListLimit+1)
+	}
+	away := tacticalplan.ScoutFilter{Lineup: tacticalplan.Lineup{"76561198000000099"}}
+	if _, none, _, err := env.h.teamCandidates(t.Context(), candidateQuery{team: team, scope: away}); err != nil || len(none) != 0 || opens() != 0 {
+		t.Fatalf("a lineup that never played must drop every match before a read: %d left, %d reads (%v)", len(none), opens(), err)
+	}
+	budget := 3
+	kept, skipped := env.h.keepTeamMatches(keepQuery{teamID: teamID, candidates: candidates, selected: pending, reads: &budget})
+	if len(kept) != 3 || opens() != 3 || len(skipped) != len(pending)-3 || skipped[0].Reason != scoutSkipReadLimit {
+		t.Fatalf("a read budget of 3 kept %d, read %d, skipped %d (%+v)", len(kept), opens(), len(skipped), skipped[:1])
+	}
+	env.storage.resetOpenCounts()
+	history, err := env.h.teamMapHistory(t.Context(), mapHistoryQuery{team: team, withDocuments: true})
+	if err != nil || history.Matches != len(seeded) || opens() != maxTeamDocReads || skippedFor(history.Skipped, scoutSkipReadLimit) != len(seeded)-maxTeamDocReads {
+		t.Fatalf("map history = %d matches, %d reads, skipped %+v (%v)", history.Matches, opens(), history.Skipped, err)
 	}
 }

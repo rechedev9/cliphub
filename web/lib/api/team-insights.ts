@@ -103,6 +103,8 @@ export const TEAM_LINEUPS_KEYS = ['team_id', 'team_name', 'latest_match', 'lates
 /** The team scope keys every team endpoint takes beyond the scout filter (`httpapi.teamScopeQuery`). */
 export const TEAM_SCOPE_QUERY = [
   'max_matches', 'opponent_top', 'whose', 'buy', 'opponent_buy', 'awp', 'opponent_awp', 'advantage', 'round_from', 'round_to',
+  'site', 'outcome', 'tag', 'phase', 'second_round', 'end_reason', 'weapon', 'opponent_weapon', 'equip_from', 'equip_to',
+  'opponent_equip_from', 'opponent_equip_to', 'tactic',
 ] as const;
 
 /** Mi equipo and the HLTV rank of a team (`library.TeamProfile`); `own_teams` counts the teams marked as own. */
@@ -142,13 +144,17 @@ export const OPPONENT_UNRANKED = 'opponent_unranked';
 /** The skip reason of a match past the server's cap of 50 (`library.MaxReportMatches`). */
 export const OVER_MATCH_LIMIT = 'over_match_limit';
 
-/** What the sample box adds to a team figure's count: unrated rivals, the 50 match cap and estimated AWP. */
-export type SampleNotes = { unrated: number; capped: number; awpEstimated: number };
+/** The skip reason of a match past the server's 200 analyses read in one view. */
+export const OVER_READ_LIMIT = 'over_read_limit';
+
+/** What the sample box adds to a team figure's count: unrated rivals, the 50 match cap, the 200 read cap and estimated AWP. */
+export type SampleNotes = { unrated: number; capped: number; unread: number; awpEstimated: number };
 
 export function sampleNotes(skipped: readonly Skipped[], awpEstimated: number | undefined): SampleNotes {
   return {
     unrated: skipped.filter((entry) => entry.reason === OPPONENT_UNRANKED).length,
     capped: skipped.filter((entry) => entry.reason === OVER_MATCH_LIMIT).length,
+    unread: skipped.filter((entry) => entry.reason === OVER_READ_LIMIT).length,
     awpEstimated: awpEstimated ?? 0,
   };
 }

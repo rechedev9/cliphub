@@ -29,6 +29,8 @@ type SideStatsOptions struct {
 	Roles  map[string]string
 	// MapRoles is each player's role per side when the scope reads one map.
 	MapRoles map[string]PlayerMapRoles
+	// PlayRounds, when not nil, keeps only a Libreta play's rounds of each match.
+	PlayRounds map[uuid.UUID][]int
 }
 
 // SideStat is one figure (nil Value without data; rates in percent) and the mean
@@ -313,6 +315,9 @@ func (run *teamRun) addMatch(m SideStatsMatch, opts SideStatsOptions) {
 	filter := opts.Rounds
 	// The side filter is applied below, so the other side still gets its figures.
 	filter.TeamKey, filter.Side, filter.Lineup, filter.Slots, filter.Subjects = m.TeamKey, "", opts.Lineup, nil, nil
+	if opts.PlayRounds != nil {
+		filter.Numbers = append([]int{}, opts.PlayRounds[m.MatchID]...)
+	}
 	run.overall.seenMatch, run.ct.seenMatch, run.t.seenMatch = false, false, false
 	kept := 0
 	names := map[uint8]Player{}

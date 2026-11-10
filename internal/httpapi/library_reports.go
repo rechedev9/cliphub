@@ -18,19 +18,14 @@ import (
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
-// Report limits. The notes cap is library.MaxReportNotesRunes, a whole match prep in Markdown.
-const (
-	// scoutCandidateLimit is how many of a team's most recent matches a scout
-	// without explicit match ids considers before its filter picks from them.
-	scoutCandidateLimit = library.MaxListLimit
-)
-
 // Why a requested match was left out of a scout.
 const (
 	scoutSkipNotFound     = "not_found"
 	scoutSkipTeamMissing  = "team_not_in_match"
 	scoutSkipNotAnalyzed  = "analysis_missing"
 	scoutSkipBeyondLimits = "over_match_limit"
+	// The view read maxTeamDocReads analyses without filling its matches.
+	scoutSkipReadLimit = "over_read_limit"
 	// The opponent level could not rate the match: its rival has no HLTV rank.
 	scoutSkipUnranked = "opponent_unranked"
 )
@@ -82,9 +77,31 @@ func candidateFor(m library.Match, teamID uuid.UUID, profiles teamProfiles) (sco
 	return c, found
 }
 
-// teamCandidates reads the team's matches (the given ids, or its most recent
-// ones) and the side the team played in each. Matches it cannot use are skipped.
-func (h *Handlers) teamCandidates(ctx context.Context, team library.Team, matchIDs []uuid.UUID) (map[uuid.UUID]scoutCandidate, []tacticalplan.ScoutMatch, []scoutSkipped, error) {
+// maxTeamDocReads bounds the analyses one team read opens, so an old lineup
+// over a long history costs a known number of files.
+const maxTeamDocReads = 4 * library.MaxReportMatches
+
+// candidateQuery is a team's matches to read: the given ids, or every match the
+// scope's single map, dates and lineup let through in SQL.
+type candidateQuery struct {
+	team     library.Team
+	matchIDs []uuid.UUID
+	scope    tacticalplan.ScoutFilter
+}
+
+// listFilter is the part of the scope the library list applies before any file read.
+func (q candidateQuery) listFilter() library.MatchFilter {
+	f := library.MatchFilter{TeamID: &q.team.ID, From: q.scope.From, To: q.scope.To, Lineup: q.scope.Lineup}
+	if len(q.scope.Maps) == 1 {
+		f.Map = q.scope.Maps[0]
+	}
+	return f
+}
+
+// teamCandidates reads the team's matches and the side the team played in each.
+// Matches it cannot use are skipped.
+func (h *Handlers) teamCandidates(ctx context.Context, q candidateQuery) (map[uuid.UUID]scoutCandidate, []tacticalplan.ScoutMatch, []scoutSkipped, error) {
+	team, matchIDs := q.team, q.matchIDs
 	skipped := []scoutSkipped{}
 	var matches []library.Match
 	if len(matchIDs) > 0 {
@@ -100,7 +117,7 @@ func (h *Handlers) teamCandidates(ctx context.Context, team library.Team, matchI
 			matches = append(matches, m)
 		}
 	} else {
-		listed, err := h.libraryRepo.ListMatches(ctx, library.MatchFilter{TeamID: &team.ID, Limit: scoutCandidateLimit})
+		listed, err := h.allLibraryMatches(ctx, q.listFilter())
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -119,7 +136,8 @@ func (h *Handlers) teamCandidates(ctx context.Context, team library.Team, matchI
 			skipped = append(skipped, scoutSkipped{MatchID: m.ID, Reason: scoutSkipTeamMissing})
 			continue
 		}
-		if m.Source == library.SourcePro {
+		// The catalog rank is one read per match: only the level filter needs it.
+		if m.Source == library.SourcePro && q.scope.OpponentTop > 0 && q.scope.KeepsMatch(c.scout) {
 			c.scout.OpponentRank = h.proRivalRank(ctx, c)
 		}
 		candidates[m.ID] = c
@@ -143,13 +161,20 @@ type keepQuery struct {
 	lineup     tacticalplan.Lineup
 	// limit is the user's "last N matches"; 0 reads up to MaxReportMatches.
 	limit int
+	// reads is the analyses left to open, shared by the calls of one request; nil gives maxTeamDocReads.
+	reads *int
 }
 
 // keepTeamMatches keeps the selected matches the lineup played, up to the user's limit or
-// MaxReportMatches; only matches past MaxReportMatches come back as skipped.
+// MaxReportMatches, opening at most maxTeamDocReads analyses; the rest come back as skipped.
 func (h *Handlers) keepTeamMatches(q keepQuery) ([]keptMatch, []scoutSkipped) {
 	kept := make([]keptMatch, 0, min(len(q.selected), library.MaxReportMatches))
 	var skipped []scoutSkipped
+	reads := q.reads
+	if reads == nil {
+		budget := maxTeamDocReads
+		reads = &budget
+	}
 	for _, sm := range q.selected {
 		if q.limit > 0 && q.limit < library.MaxReportMatches && len(kept) >= q.limit {
 			break
@@ -158,6 +183,11 @@ func (h *Handlers) keepTeamMatches(q keepQuery) ([]keptMatch, []scoutSkipped) {
 			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipBeyondLimits})
 			continue
 		}
+		if *reads <= 0 {
+			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipReadLimit})
+			continue
+		}
+		*reads--
 		demoID := q.candidates[sm.MatchID].match.DemoID
 		doc, err := h.readLibraryDocument(demoID)
 		if err != nil {
@@ -178,7 +208,7 @@ func (h *Handlers) keepTeamMatches(q keepQuery) ([]keptMatch, []scoutSkipped) {
 // ones), keeps those the filter selects, and loads their tactical documents
 // and setup frames. Matches it cannot read are returned as skipped.
 func (h *Handlers) loadTeamMatches(ctx context.Context, team library.Team, matchIDs []uuid.UUID, filter tacticalplan.ScoutFilter) ([]tacticalplan.ScoutMatch, []scoutSkipped, error) {
-	candidates, pending, skipped, err := h.teamCandidates(ctx, team, matchIDs)
+	candidates, pending, skipped, err := h.teamCandidates(ctx, candidateQuery{team: team, matchIDs: matchIDs, scope: filter})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -319,7 +349,7 @@ func (h *Handlers) GetLibraryTeamScout(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	filter, matchIDs, err := scoutQuery(r.URL.Query())
+	filter, matchIDs, err := h.teamScope(r.Context(), scopeRequest{teamID: id, q: r.URL.Query()})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

@@ -25,6 +25,8 @@ const (
 	roundResultLost    = "lost"
 	// overMatchLimit is the skip reason of a team match past the scope's cap.
 	overMatchLimit = "over_match_limit"
+	// overReadLimit is the skip reason of a match past the server's 200 analyses read.
+	overReadLimit = "over_read_limit"
 )
 
 var buyTypes = []string{"pistol", "eco", "semi", "force", "full"}
@@ -128,8 +130,8 @@ func (in findRoundsIn) check() (tuiclient.AnalysisQuery, error) {
 	}
 	if in.SteamID != "" {
 		s := in.teamRoundScopeIn
-		if len(in.Lineup) > 0 || s.MaxMatches != 0 || s.OpponentTop != 0 || s.Whose != "" || s.AWP != "" || s.OpponentAWP != "" || len(s.Advantage) > 0 {
-			return tuiclient.AnalysisQuery{}, errors.New("lineup, max_matches, opponent_top, whose, awp, opponent_awp and advantage are team scope keys: pass team_id")
+		if len(in.Lineup) > 0 || s.teamOnly() {
+			return tuiclient.AnalysisQuery{}, errors.New("lineup, max_matches, opponent_top, whose and the Replay filters (awp, advantage, site, outcome, post_plant, phase, second_round, end_reason, weapon, equip ranges, tactic) are team scope keys: pass team_id")
 		}
 	}
 	return teamQuery(in.analysisFilterIn, in.teamScopeIn)
@@ -257,7 +259,7 @@ func (in findRoundsIn) teamRounds(call roundsCall) (findRoundsOut, error) {
 	}
 	out.team = cleanName(got.TeamName)
 	for _, skipped := range got.Skipped {
-		if skipped.Reason == overMatchLimit {
+		if skipped.Reason == overMatchLimit || skipped.Reason == overReadLimit {
 			out.MoreMatches = true
 		} else {
 			out.MatchesSkipped++

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, BookMarked, GitMerge, Pencil, PlugZap, Shield } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   getLibraryTeam,
   getTeamLineups,
@@ -11,6 +12,7 @@ import {
   isLibraryNotFound,
   isLibraryOffline,
   listLibraryMatches,
+  listLibraryPlays,
   listLibraryTeams,
   mergeLibraryTeam,
   patchLibraryTeam,
@@ -30,7 +32,8 @@ import {
   teamLabel,
   teamOutcome,
 } from '@/lib/library/partidas';
-import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
+import { inScopePeriod, type AnalysisScope, type ScopeField } from '@/lib/analysis/scope';
+import { mapPatch, tacticOptions, unknownTactic, type TacticOption } from '@/lib/analysis/scope-tactics';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
 import { lastResults } from '@/lib/analysis/context-bar';
 import { COMPARE_PARAM, parseCompareTeams, writeCompareTeams } from '@/lib/analysis/side-stats';
@@ -195,12 +198,19 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   );
   const [reported, setReported] = useState<ScopeCounts | null>(null);
   const [teams, setTeams] = useState<LibraryTeam[] | null>(null);
+  // null until the Libreta answers, so a tactic in the URL is not cleared early.
+  const [tactics, setTactics] = useState<readonly TacticOption[] | null>(null);
   const [now] = useState(() => Date.now());
   const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'team', id: team.id });
   const references = useReferences(scope.map);
   const proReference = references !== null && references !== 'failed' ? references.pro : null;
   const onCounts = useCallback((counts: ScopeCounts | null) => setReported(counts), []);
-  const onMapChange = useCallback((map: string) => setScope({ map }), [setScope]);
+  const changeScope = useCallback(
+    (patch: Partial<AnalysisScope>) =>
+      setScope(patch.map === undefined ? patch : { ...patch, ...mapPatch({ map: patch.map, tactic: patch.tactic ?? scope.tactic, options: tactics ?? [] }) }),
+    [scope.tactic, setScope, tactics],
+  );
+  const onMapChange = useCallback((map: string) => changeScope({ map }), [changeScope]);
   const teamMaps = useMemo(() => [...new Set(matches.map((match) => match.map))].sort(), [matches]);
   // Keyed on the ids, so a view refetches only when the players it counts change.
   const lineupKey = lineupSteamIds(scope.lineup, lineups).join(',');
@@ -247,6 +257,27 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
     };
   }, [team.id]);
 
+  useEffect(() => {
+    let active = true;
+    listLibraryPlays({ team_id: team.id, include_archived: true })
+      .then((plays) => {
+        if (active) setTactics(tacticOptions(plays));
+      })
+      .catch(() => {
+        if (active) setTactics([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [team.id]);
+
+  // A tactic deleted from the Libreta would empty every view: drop it and say why.
+  useEffect(() => {
+    if (tactics === null || !unknownTactic(scope.tactic, tactics)) return;
+    setScope({ tactic: '' });
+    toast.warning('La táctica del filtro ya no está en la Libreta y se ha quitado.');
+  }, [scope.tactic, setScope, tactics]);
+
   const scoped = matches.filter(
     (match) =>
       (scope.map === '' || match.map === scope.map) &&
@@ -285,7 +316,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
       <div className="flex flex-col gap-3">
         <ScopeBar
           scope={scope}
-          onChange={setScope}
+          onChange={changeScope}
           onReset={resetScope}
           proReference={proReference}
           fields={fields}
@@ -296,6 +327,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           mapRequired={id === 'playbook' || id === 'replay-granadas' || id === 'replay-patrones'}
           opponents={id === 'veto' ? (teams ?? []).map((entry) => ({ value: entry.id, label: entry.name })) : playedRivals}
           limits={id.startsWith('replay') ? TEAM_REPLAY_LIMITS : undefined}
+          tactics={tactics ?? []}
           ownTeams={profile?.own_teams ?? 0}
           counts={counts}
           results={id === 'veto' || id === 'series' ? undefined : results}

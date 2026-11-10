@@ -49,7 +49,7 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	q := r.URL.Query()
-	filter, matchIDs, err := scoutQuery(q)
+	filter, matchIDs, err := h.teamScope(r.Context(), scopeRequest{teamID: team.ID, q: q})
 	var asked []uuid.UUID
 	if err == nil {
 		asked, err = uuidList(q["compare_team"], "compare_team", maxCompareTeams)
@@ -81,7 +81,7 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 		resp.Compare = "teams"
 		resp.CompareTeams = append(resp.CompareTeams, sideStatsTeam{TeamID: other.ID, Name: other.Name})
 	}
-	candidates, pending, skipped, err := h.teamCandidates(r.Context(), team, matchIDs)
+	candidates, pending, skipped, err := h.teamCandidates(r.Context(), candidateQuery{team: team, matchIDs: matchIDs, scope: filter})
 	if err != nil {
 		internalError(w, "team side stats", err)
 		return
@@ -99,7 +99,7 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 		})
 	}
 	opts := tacticalplan.SideStatsOptions{
-		Side: filter.Side, Rounds: filter.Rounds, Lineup: filter.Lineup, Roles: sideStatsRoles(own),
+		Side: filter.Side, Rounds: filter.Rounds, Lineup: filter.Lineup, Roles: sideStatsRoles(own), PlayRounds: filter.PlayRounds,
 	}
 	if len(filter.Maps) == 1 {
 		opts.MapRoles = h.teamMapRoles(kept)
