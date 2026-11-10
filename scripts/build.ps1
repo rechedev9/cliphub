@@ -3,6 +3,7 @@
 param(
     [switch]$RequireFaceitEmbed,
     # Build the TeamSpeak plugin even when gcc is not found, so a missing gcc fails the build.
+    # -RequireFaceitEmbed implies it.
     [switch]$TeamSpeakPlugin
 )
 
@@ -113,6 +114,11 @@ try {
     $publicationLock = Enter-BuildPublicationLock -BinDir $binDir
     Recover-BuildPublication -BinDir $binDir -PublicationLock $publicationLock
     [void](New-Item -ItemType Directory -Path $stagingDir)
+    # The TeamSpeak plugin needs gcc; the installer path must not ship without it, so fail before any build.
+    $hasGcc = [bool](Get-Command gcc -ErrorAction SilentlyContinue)
+    if (($TeamSpeakPlugin -or $RequireFaceitEmbed) -and -not $hasGcc) {
+        throw "gcc (MinGW-w64) is not on PATH, so the TeamSpeak 3 plugin cannot be built and a release must not ship without it. Install MinGW-w64 and retry."
+    }
     $faceitEmbedKey = Get-FaceitEmbedKey
     if ($RequireFaceitEmbed -and $faceitEmbedKey -eq "") {
         throw "FACEIT_API_KEY is required to embed in zv-orchestrator.exe for the installer"
@@ -152,7 +158,7 @@ try {
     Publish-BuildArtifacts -Names $commands -BinDir $binDir -StagingDir $stagingDir -BackupDir $backupDir -PublicationLock $publicationLock
 
     # The TeamSpeak 3 plugin package ships in the installer beside the Go runtimes; it needs MinGW-w64 gcc.
-    if ($TeamSpeakPlugin -or (Get-Command gcc -ErrorAction SilentlyContinue)) {
+    if ($hasGcc) {
         & (Join-Path $PSScriptRoot "build-teamspeak-plugin.ps1")
         if ($LASTEXITCODE -ne 0) {
             throw "build-teamspeak-plugin.ps1 failed with exit $LASTEXITCODE"
