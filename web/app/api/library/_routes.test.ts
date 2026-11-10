@@ -124,6 +124,12 @@ test('series, map history and the veto simulator are reachable with their own na
   assert.ok(series?.body?.kind === 'json');
   assert.deepEqual(series.body.fields, ['format', 'event', 'veto', 'team_ids', 'vetoes']);
   assert.ok(matchLibraryRoute('GET', ['teams', ID, 'maps']));
+  const mapCounts = matchLibraryRoute('GET', ['teams', ID, 'map-counts']);
+  assert.ok(mapCounts);
+  assert.equal(
+    libraryUpstreamQuery(mapCounts, new URLSearchParams(`map=de_nuke&opponent_id=${ID}&max_matches=5&whose=own&token=x`)),
+    `map=de_nuke&opponent_id=${ID}&max_matches=5&whose=own`,
+  );
   const veto = matchLibraryRoute('GET', ['teams', ID, 'veto']);
   assert.ok(veto);
   assert.equal(

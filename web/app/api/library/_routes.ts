@@ -50,7 +50,7 @@ import {
 } from '../../../lib/api/callouts.ts';
 import { SHARE_IMPORT_KEYS } from '../../../lib/library/share.ts';
 import { SEARCH_QUERY_KEYS, SEARCH_RESPONSE_KEYS } from '../../../lib/api/search.ts';
-import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
+import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAP_COUNTS_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
 import {
   DEMO_VOICE_KEYS,
   TRANSCRIBER_KEYS,
@@ -224,6 +224,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['teams', UUID, 'roles'], query: PREP_QUERY, response: json(TEAM_ROLES_KEYS) },
   { method: 'PUT', segments: ['teams', UUID, 'roles'], body: fields(ROLE_SHEET_FIELDS), response: json(ROLE_SHEET_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'maps'], query: ['from', 'to'], response: json(TEAM_MAPS_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'map-counts'], query: [...SCOUT_QUERY, ...TEAM_SCOPE_QUERY], response: json(TEAM_MAP_COUNTS_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'veto'], query: VETO_QUERY, response: json(VETO_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'bombsites'], query: [...TEAM_BOMBSITES_QUERY, ...TEAM_SCOPE_QUERY], response: json(TEAM_BOMBSITES_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'side-stats'], query: [...TEAM_SIDE_STATS_QUERY, ...TEAM_SCOPE_QUERY], response: json(TEAM_SIDE_STATS_KEYS) },

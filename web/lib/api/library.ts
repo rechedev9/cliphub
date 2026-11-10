@@ -16,7 +16,7 @@ import type {
 } from './stratbook.ts';
 import type { TacticalBuyType } from './tactical.ts';
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
-import { vetoSearch, type LibrarySeries, type SeriesInput, type TeamMaps, type VetoQuery, type VetoSimulation } from './veto.ts';
+import { vetoSearch, type LibrarySeries, type SeriesInput, type TeamMapCounts, type TeamMaps, type VetoQuery, type VetoSimulation } from './veto.ts';
 import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites, TeamLineups, TeamProfile, TeamRounds } from './team-insights.ts';
 import type { Baseline, BaselineQuery, Leaderboard, LeaderboardQuery } from './baseline.ts';
 import type { LibraryNorms, LibraryNormsQuery } from './norms.ts';
@@ -346,6 +346,12 @@ export function getLibraryTeamMaps(teamId: string, range: { from?: string; to?: 
   if (range.to) params.set('to', range.to);
   const search = params.toString();
   return request<TeamMaps>(`/teams/${id(teamId)}/maps${search === '' ? '' : `?${search}`}`);
+}
+
+/** The matches per map the team scope keeps, for the map selector; map and side do not narrow it. */
+export function getTeamMapCounts(teamId: string, query: TeamScoutQuery = {}): Promise<TeamMapCounts> {
+  const search = scoutParams(query).toString();
+  return request<TeamMapCounts>(`/teams/${id(teamId)}/map-counts${search === '' ? '' : `?${search}`}`);
 }
 
 /** A simulated veto against a rival: the given steps kept, the rest recommended. */

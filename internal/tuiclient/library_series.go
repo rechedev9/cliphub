@@ -118,6 +118,21 @@ type TeamMaps struct {
 	Maps     []TeamMapRecord   `json:"maps"`
 }
 
+// TeamMapCounts is GET /api/library/teams/{id}/map-counts: the matches in scope per map.
+type TeamMapCounts struct {
+	Maps []struct {
+		Map     string `json:"map"`
+		Matches int    `json:"matches"`
+	} `json:"maps"`
+}
+
+// LibraryTeamMapCounts counts a team's matches per map under the team scope of q.
+func (c *Client) LibraryTeamMapCounts(ctx context.Context, teamID string, q AnalysisQuery) (TeamMapCounts, error) {
+	var out TeamMapCounts
+	err := c.getJSON(ctx, teamPath(teamID, "map-counts")+q.encode(), &out)
+	return out, err
+}
+
 // LibraryTeamMaps returns a team's results, side rounds and vetoes per map.
 func (c *Client) LibraryTeamMaps(ctx context.Context, teamID string, q AnalysisQuery) (TeamMaps, error) {
 	var out TeamMaps

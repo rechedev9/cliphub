@@ -85,6 +85,13 @@ type teamMapsIn struct {
 	TeamID string `json:"team_id" jsonschema:"team id from list_teams"`
 	From   string `json:"from,omitempty" jsonschema:"first day, YYYY-MM-DD"`
 	To     string `json:"to,omitempty" jsonschema:"last day, YYYY-MM-DD, included"`
+	// The scope keys of the map selector: they only set scope_matches, the record stays over from and to.
+	OpponentID  []string `json:"opponent_id,omitempty" jsonschema:"scope_matches counts only matches against these teams, ids from list_teams"`
+	Lineup      []string `json:"lineup,omitempty" jsonschema:"scope_matches counts only matches the team played with these players, SteamID64s from team_lineups or get_team, at most 50"`
+	MaxMatches  int      `json:"max_matches,omitempty" jsonschema:"scope_matches counts at most the team's most recent N matches on each map, 1 to 50"`
+	LastDays    int      `json:"last_days,omitempty" jsonschema:"scope_matches counts only matches of the last N days: 3, 7, 14, 30, 90, 180 or 365; do not combine with from"`
+	OpponentTop int      `json:"opponent_top,omitempty" jsonschema:"scope_matches counts only matches against a rival in the HLTV top N: 5, 15, 30, 100 or 200"`
+	Whose       string   `json:"whose,omitempty" jsonschema:"scope_matches counts only own matches (own) or only other teams' matches (others)"`
 }
 
 type mapRecordOut struct {
@@ -96,6 +103,8 @@ type mapRecordOut struct {
 	TWinPct     float64        `json:"t_round_win_pct"`
 	Vetoes      map[string]int `json:"vetoes" jsonschema:"picked, banned, opponent_picked, opponent_banned and decider counts from the series"`
 	Preference  int            `json:"preference" jsonschema:"-100 to 100: how much the team seeks this map"`
+	// ScopeMatches is the N partidas of the map selector.
+	ScopeMatches int `json:"scope_matches" jsonschema:"matches on this map under the scope keys, the N partidas of the map selector; 0 is a map the selector greys out (Sin partidas con esta alineación)"`
 }
 
 type teamMapsOut struct {
@@ -268,12 +277,20 @@ func registerLibrarySeriesTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "team_maps", Annotations: readOnly,
-		Description: "Read a team's record on every map: results, round win rate per side, how often it picks or bans the map in its series, and its preference."},
+		Description: "Read a team's record on every map: results, round win rate per side, how often it picks or bans the map in its series, and its preference. " +
+			"scope_matches is the N partidas of the Replay, Equipos and Preparar map selector, counted with the same scope keys the bar sends (opponent_id, lineup, max_matches, last_days, opponent_top, whose, from, to)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamMapsIn) (*mcp.CallToolResult, teamMapsOut, error) {
 			if err := checkUUID("team_id", in.TeamID); err != nil {
 				return nil, teamMapsOut{}, err
 			}
-			q, err := analysisFilterIn{From: in.From, To: in.To}.query()
+			filter := analysisFilterIn{From: in.From, To: in.To}
+			q, err := filter.query()
+			if err != nil {
+				return nil, teamMapsOut{}, err
+			}
+			scope, err := teamQuery(filter, teamScopeIn{OpponentID: in.OpponentID, Lineup: in.Lineup, teamRoundScopeIn: teamRoundScopeIn{
+				MaxMatches: in.MaxMatches, LastDays: in.LastDays, OpponentTop: in.OpponentTop, Whose: in.Whose,
+			}})
 			if err != nil {
 				return nil, teamMapsOut{}, err
 			}
@@ -285,7 +302,11 @@ func registerLibrarySeriesTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, teamMapsOut{}, toolError(err)
 			}
-			return nil, summarizeTeamMaps(tm), nil
+			counts, err := c.LibraryTeamMapCounts(ctx, in.TeamID, scope)
+			if err != nil {
+				return nil, teamMapsOut{}, toolError(err)
+			}
+			return nil, summarizeTeamMaps(tm, counts), nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "simulate_veto", Annotations: readOnly,
@@ -431,11 +452,16 @@ func seriesName(se tuiclient.LibrarySeries) string {
 	return strings.Join(names, " contra ")
 }
 
-func summarizeTeamMaps(tm tuiclient.TeamMaps) teamMapsOut {
+func summarizeTeamMaps(tm tuiclient.TeamMaps, counts tuiclient.TeamMapCounts) teamMapsOut {
 	out := teamMapsOut{Team: cleanName(tm.TeamName), Matches: tm.Matches, Series: tm.Series, Maps: []mapRecordOut{}, SkippedMatches: len(tm.Skipped)}
+	inScope := map[string]int{}
+	for _, c := range counts.Maps {
+		inScope[c.Map] = c.Matches
+	}
 	for _, m := range tm.Maps {
 		r := mapRecordOut{Map: cleanName(m.Map), Matches: m.Matches, Record: fmt.Sprintf("%d-%d-%d", m.Wins, m.Losses, m.Ties),
-			RoundWinPct: pct(m.RoundsWon, m.RoundsWon+m.RoundsLost), Vetoes: map[string]int{}, Preference: m.Preference.Score}
+			RoundWinPct: pct(m.RoundsWon, m.RoundsWon+m.RoundsLost), Vetoes: map[string]int{}, Preference: m.Preference.Score,
+			ScopeMatches: inScope[m.Map]}
 		for _, side := range m.Sides {
 			switch side.Side {
 			case "CT":
