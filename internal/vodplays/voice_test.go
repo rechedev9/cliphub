@@ -258,3 +258,39 @@ func TestVoicedEnoughNeedsRealAudio(t *testing.T) {
 		t.Fatal("steady speech has a voice")
 	}
 }
+
+func TestAddVoicePeaksJoinsTouchingPeaksIntoOneMoment(t *testing.T) {
+	peaks := []VoicePeak{
+		{StartSeconds: 800, EndSeconds: 804, ExcessDB: 9},
+		{StartSeconds: 812, EndSeconds: 815, ExcessDB: 14},
+		{StartSeconds: 822, EndSeconds: 826, ExcessDB: 11},
+		{StartSeconds: 834, EndSeconds: 837, ExcessDB: 10},
+	}
+	got := AddVoicePeaks(nil, peaks, 2000)
+	if len(got) != 1 {
+		t.Fatalf("plays = %+v, want one moment", got)
+	}
+	if got[0].VoiceDB != 14 {
+		t.Fatalf("level = %v, want the highest peak (14)", got[0].VoiceDB)
+	}
+	if length := got[0].EndSeconds - got[0].StartSeconds; length > voiceMaxMomentSeconds+0.001 {
+		t.Fatalf("moment lasts %v s, want at most %v", length, voiceMaxMomentSeconds)
+	}
+	if got[0].StartSeconds > 813 || got[0].EndSeconds < 813 {
+		t.Fatalf("moment %v to %v lost the loudest point", got[0].StartSeconds, got[0].EndSeconds)
+	}
+}
+
+func TestAddVoicePeaksFoldsAReactionThatTouchesAKillPlay(t *testing.T) {
+	plays := GroupPlays([]Kill{{Seconds: 100}}, 500)
+	// The kill play ends at 103; the peak clip starts at 108, 5 s after the end: not touching.
+	apart := AddVoicePeaks(plays, []VoicePeak{{StartSeconds: 113, EndSeconds: 115, ExcessDB: 10}}, 500)
+	if len(apart) != 2 {
+		t.Fatalf("a distant reaction should stay apart: %+v", apart)
+	}
+	// Starting at 107 its clip begins at 102, inside the kill play.
+	got := AddVoicePeaks(plays, []VoicePeak{{StartSeconds: 107, EndSeconds: 109, ExcessDB: 10}}, 500)
+	if len(got) != 1 || len(got[0].VoiceSeconds) != 1 || got[0].Kind != KillKind {
+		t.Fatalf("touching reaction should fold into the kill play: %+v", got)
+	}
+}

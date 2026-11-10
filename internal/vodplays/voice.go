@@ -37,8 +37,10 @@ const (
 	// A peak lasts at least minPeakWindows, unless one window is far above the threshold.
 	minPeakWindows    = 2
 	singleWindowBoost = 6.0
-	// Peaks closer than this are one moment.
-	voiceMergeGapSeconds = 4.0
+	// Peaks whose clips (lead-in and tail included) come within voiceJoinSlackSeconds
+	// of each other are one moment, and one moment spans at most voiceMaxMomentSeconds.
+	voiceJoinSlackSeconds = 3.0
+	voiceMaxMomentSeconds = 30.0
 	// A shout on purpose is far over the local baseline and over almost everything
 	// else in the video, held for markedHoldWindows (1 s). Only a few per hour stay marked.
 	markedExcessDB      = 27.0
@@ -97,6 +99,15 @@ type VoicePeak struct {
 	// ExcessDB is how far the loudest window rose over the local baseline.
 	ExcessDB float64 `json:"excess_db"`
 	Marked   bool    `json:"marked,omitempty"`
+	// LoudestSeconds is where the loudest stretch of the peak sits; zero means the middle.
+	LoudestSeconds float64 `json:"loudest_seconds,omitempty"`
+}
+
+func (p VoicePeak) loudest() float64 {
+	if p.LoudestSeconds > 0 {
+		return p.LoudestSeconds
+	}
+	return (p.StartSeconds + p.EndSeconds) / 2
 }
 
 // VoicedEnough tells whether a loudness series holds a voice at all: a mix
@@ -166,10 +177,12 @@ func DetectVoicePeaks(levels []float64, sensitivity int) []VoicePeak {
 			i++
 			continue
 		}
-		j, top, topExcess, held, run := i, levels[i], 0.0, 0, 0
+		j, top, topExcess, topAt, held, run := i, levels[i], 0.0, i, 0, 0
 		for j < len(levels) && levels[j] >= bases[j]+delta {
 			top = math.Max(top, levels[j])
-			topExcess = math.Max(topExcess, levels[j]-bases[j])
+			if levels[j]-bases[j] > topExcess {
+				topExcess, topAt = levels[j]-bases[j], j
+			}
 			if levels[j]-bases[j] >= markedExcessDB && levels[j] >= extreme {
 				run++
 				held = max(held, run)
@@ -184,6 +197,8 @@ func DetectVoicePeaks(levels []float64, sensitivity int) []VoicePeak {
 				EndSeconds:   round3(float64(j) * VoiceWindowSeconds),
 				ExcessDB:     math.Round(topExcess*10) / 10,
 				Marked:       held >= markedHoldWindows,
+
+				LoudestSeconds: round3((float64(topAt) + 0.5) * VoiceWindowSeconds),
 			})
 		}
 		i = j
@@ -191,17 +206,35 @@ func DetectVoicePeaks(levels []float64, sensitivity int) []VoicePeak {
 	return limitMarked(mergePeaks(peaks))
 }
 
+// mergePeaks joins peaks whose clips touch or nearly touch into one moment that
+// keeps the highest level, then trims a moment longer than voiceMaxMomentSeconds
+// to the stretch around its loudest point.
 func mergePeaks(peaks []VoicePeak) []VoicePeak {
+	sort.SliceStable(peaks, func(a, b int) bool { return peaks[a].StartSeconds < peaks[b].StartSeconds })
+	joinGap := voiceLeadInSeconds + voiceTailSeconds + voiceJoinSlackSeconds
 	var out []VoicePeak
 	for _, p := range peaks {
-		if n := len(out); n > 0 && p.StartSeconds-out[n-1].EndSeconds <= voiceMergeGapSeconds {
+		if n := len(out); n > 0 && p.StartSeconds-out[n-1].EndSeconds <= joinGap {
 			last := &out[n-1]
-			last.EndSeconds = p.EndSeconds
+			if p.ExcessDB > last.ExcessDB {
+				last.LoudestSeconds = p.loudest()
+			} else {
+				last.LoudestSeconds = last.loudest()
+			}
+			last.EndSeconds = math.Max(last.EndSeconds, p.EndSeconds)
 			last.ExcessDB = math.Max(last.ExcessDB, p.ExcessDB)
 			last.Marked = last.Marked || p.Marked
 			continue
 		}
 		out = append(out, p)
+	}
+	span := voiceMaxMomentSeconds - voiceLeadInSeconds - voiceTailSeconds
+	for i := range out {
+		if out[i].EndSeconds-out[i].StartSeconds > span {
+			centre := out[i].loudest()
+			out[i].StartSeconds = round3(math.Max(out[i].StartSeconds, centre-span/2))
+			out[i].EndSeconds = round3(math.Min(out[i].EndSeconds, centre+span/2))
+		}
 	}
 	return out
 }
@@ -233,7 +266,7 @@ func AddVoicePeaks(plays []Play, peaks []VoicePeak, durationSeconds float64) []P
 	out := make([]Play, len(plays))
 	copy(out, plays)
 	var alone []Play
-	for _, peak := range peaks {
+	for _, peak := range mergePeaks(append([]VoicePeak(nil), peaks...)) {
 		idx := nearKillPlay(out, peak)
 		if idx < 0 {
 			alone = append(alone, voicePlay(peak, durationSeconds))
@@ -265,6 +298,10 @@ func nearKillPlay(plays []Play, peak VoicePeak) int {
 		}
 		first, last := p.KillSeconds[0], p.KillSeconds[len(p.KillSeconds)-1]
 		if peak.EndSeconds >= first-voiceBeforeKillSeconds && peak.StartSeconds <= last+voiceAfterKillSeconds {
+			return i
+		}
+		// A reaction clip that overlaps or touches the kill play is part of it.
+		if peak.StartSeconds-voiceLeadInSeconds <= p.EndSeconds && peak.EndSeconds+voiceTailSeconds >= p.StartSeconds {
 			return i
 		}
 	}
