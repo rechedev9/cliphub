@@ -21,6 +21,18 @@ func ProbeFile(demoPath, target string) (Report, error) {
 }
 
 func CollectFile(demoPath, target string) (Report, []Packet, []Sighting, error) {
+	return CollectDemo(context.Background(), DemoRequest{Path: demoPath, Target: target})
+}
+
+// DemoRequest names a demo file and the SteamID64 whose voice the report centres on.
+type DemoRequest struct {
+	Path   string
+	Target string
+}
+
+// CollectDemo is CollectFile that stops when ctx ends.
+func CollectDemo(ctx context.Context, req DemoRequest) (Report, []Packet, []Sighting, error) {
+	demoPath, target := req.Path, req.Target
 	abs, err := filepath.Abs(demoPath)
 	if err != nil {
 		return Report{}, nil, nil, fmt.Errorf("resolve demo path: %w", err)
@@ -34,11 +46,7 @@ func CollectFile(demoPath, target string) (Report, []Packet, []Sighting, error) 
 
 	p := demoinfocs.NewParser(f)
 	defer p.Close()
-	return Collect(p, target, abs, nil)
-}
-
-func Collect(p demoinfocs.Parser, target, demoPath string, spill *packetSpill) (Report, []Packet, []Sighting, error) {
-	return collectContext(context.Background(), p, target, demoPath, spill)
+	return collectContext(ctx, p, target, abs, nil)
 }
 
 func collectContext(ctx context.Context, p demoinfocs.Parser, target, demoPath string, spill *packetSpill) (Report, []Packet, []Sighting, error) {

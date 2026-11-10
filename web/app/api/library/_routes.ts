@@ -51,6 +51,20 @@ import { SHARE_IMPORT_KEYS } from '../../../lib/library/share.ts';
 import { SEARCH_QUERY_KEYS, SEARCH_RESPONSE_KEYS } from '../../../lib/api/search.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
 import {
+  DEMO_VOICE_KEYS,
+  TRANSCRIBER_KEYS,
+  VOICE_COMMS_KEYS,
+  VOICE_COMMS_QUERY,
+  VOICE_IMPORT_KEYS,
+  VOICE_KEYS,
+  VOICE_SEARCH_KEYS,
+  VOICE_SEARCH_QUERY,
+  VOICE_SYNC_FIELDS,
+  VOICE_TRACK_FIELDS,
+  VOICE_TRANSCRIBE_FIELDS,
+  VOICE_UPLOAD_BYTES,
+} from '../../../lib/api/voice.ts';
+import {
   PLAYER_POSITIONS_KEYS,
   PLAYER_POSITIONS_QUERY,
   TEAM_BOMBSITES_KEYS,
@@ -79,9 +93,11 @@ export type LibraryRoute = {
   readonly query?: readonly string[];
   /**
    * `json` forwards an object body with these fields only, up to `maxBytes`
-   * (the 1 MiB control limit when unset); `multipart` streams the import.
+   * (the 1 MiB control limit when unset); `multipart` streams the import, up to `maxBytes` (one demo when unset).
    */
-  readonly body?: { readonly kind: 'json'; readonly fields: readonly string[]; readonly maxBytes?: number } | { readonly kind: 'multipart' };
+  readonly body?:
+    | { readonly kind: 'json'; readonly fields: readonly string[]; readonly maxBytes?: number }
+    | { readonly kind: 'multipart'; readonly maxBytes?: number };
   /**
    * `json` copies these top-level keys; `stream` proxies bytes; `empty` is a 204;
    * `download` returns the bytes of a POST as a file with its name and length.
@@ -108,6 +124,8 @@ const PRO_CLIP_FILE = /^[a-z0-9-]{1,220}-r[0-9]{1,3}-t[0-9]{1,9}-[0-9]{17}(-comb
 const HLTV_ID = /^[1-9][0-9]{0,11}$/;
 const PRO_ENTRY = /^[A-Za-z0-9][A-Za-z0-9_.()-]{0,200}$/;
 const PLACE = /^[A-Za-z0-9_][A-Za-z0-9_ '.-]{0,63}$/;
+/** A team voice track number, 1 to 16. */
+const VOICE_TRACK = /^([1-9]|1[0-6])$/;
 
 const PAGING = ['limit', 'offset'];
 /** A Libreta file holds up to 1000 plays and its other sections, so its import gets the 8 MiB the orchestrator reads. */
@@ -172,6 +190,20 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
     response: json(BOT_REPLAY_KEYS),
   },
   { method: 'GET', segments: ['matches', UUID, 'metrics'], response: json(METRICS_KEYS) },
+  { method: 'GET', segments: ['matches', UUID, 'voice'], response: json(VOICE_KEYS) },
+  { method: 'POST', segments: ['matches', UUID, 'voice'], body: { kind: 'multipart', maxBytes: VOICE_UPLOAD_BYTES }, response: json(VOICE_IMPORT_KEYS) },
+  { method: 'PATCH', segments: ['matches', UUID, 'voice'], body: fields(VOICE_SYNC_FIELDS), response: json(VOICE_KEYS) },
+  { method: 'DELETE', segments: ['matches', UUID, 'voice'], response: { kind: 'empty' } },
+  { method: 'PATCH', segments: ['matches', UUID, 'voice', 'tracks', VOICE_TRACK], body: fields(VOICE_TRACK_FIELDS), response: json(VOICE_KEYS) },
+  { method: 'GET', segments: ['matches', UUID, 'voice', 'tracks', VOICE_TRACK, 'audio'], response: { kind: 'stream' } },
+  { method: 'POST', segments: ['matches', UUID, 'voice', 'transcribe'], body: fields(VOICE_TRANSCRIBE_FIELDS), response: json(VOICE_KEYS) },
+  { method: 'GET', segments: ['matches', UUID, 'voice', 'comms'], query: VOICE_COMMS_QUERY, response: json(VOICE_COMMS_KEYS) },
+  { method: 'GET', segments: ['matches', UUID, 'voice', 'demo'], response: json(DEMO_VOICE_KEYS) },
+  { method: 'POST', segments: ['matches', UUID, 'voice', 'demo'], response: json(DEMO_VOICE_KEYS) },
+  { method: 'GET', segments: ['matches', UUID, 'voice', 'demo', STEAM_ID, 'audio'], response: { kind: 'stream' } },
+  { method: 'GET', segments: ['voice', 'search'], query: VOICE_SEARCH_QUERY, response: json(VOICE_SEARCH_KEYS) },
+  { method: 'GET', segments: ['voice', 'transcriber'], response: json(TRANSCRIBER_KEYS) },
+  { method: 'POST', segments: ['voice', 'transcriber', 'install'], response: json(TRANSCRIBER_KEYS) },
   { method: 'GET', segments: ['teams'], query: ['q', ...PAGING], response: json(['teams']) },
   { method: 'GET', segments: ['teams', UUID], response: json(TEAM_KEYS) },
   { method: 'PATCH', segments: ['teams', UUID], body: fields(['name', 'aliases']), response: json(TEAM_KEYS) },

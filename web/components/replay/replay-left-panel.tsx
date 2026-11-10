@@ -66,8 +66,11 @@ export function ReplayLeftPanel({
   actions,
   filters,
   moments,
+  comms,
 }: {
   focused: CentreRound | null;
+  /** The team voice's comms of a library match; null without a recording. */
+  comms?: ReactNode;
   /** What can be made from this round: a video, a play. */
   actions: ReactNode;
   filters: ReactNode;
@@ -83,6 +86,11 @@ export function ReplayLeftPanel({
       {moments === null ? null : (
         <Fold title="Momentos clave" count={moments.count} defaultOpen>
           {moments.list}
+        </Fold>
+      )}
+      {comms === undefined || comms === null ? null : (
+        <Fold title="Comunicaciones" defaultOpen>
+          {comms}
         </Fold>
       )}
       {reasons.length === 0 ? null : (

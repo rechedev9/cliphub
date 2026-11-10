@@ -135,6 +135,7 @@ type LibraryRepository interface {
 	PlaylistRepository
 	PatternRepository
 	ProMatchRepository
+	VoiceRepository
 }
 
 type Repositories struct {
