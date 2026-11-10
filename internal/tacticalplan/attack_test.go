@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/rechedev9/cliphub/internal/radarmap"
 )
 
 func attackOf(t *testing.T) AttackPrep {
@@ -26,7 +28,8 @@ func TestAttackCrossesSitesAndTempoWithBuyMatchups(t *testing.T) {
 	if prep.Map != "de_mirage" || prep.RoundCount != 7 || prep.Framed != 6 {
 		t.Fatalf("totals = map %s, %d rounds, %d framed", prep.Map, prep.RoundCount, prep.Framed)
 	}
-	wantSites := map[string][]int{AttackSiteA: {2, 6}, AttackSiteB: {1, 3, 7}, AttackSiteBoth: {4}, AttackSiteNone: {5}}
+	// Round 4 shows up on A at 30 s and plants B at 70 s: a take after a look, not both sites.
+	wantSites := map[string][]int{AttackSiteA: {2, 6}, AttackSiteB: {1, 3, 4, 7}, AttackSiteBoth: {}, AttackSiteNone: {5}}
 	if got := cellRounds(prep.Sites); !reflect.DeepEqual(got, wantSites) {
 		t.Errorf("sites = %v, want %v", got, wantSites)
 	}
@@ -44,12 +47,12 @@ func TestAttackCrossesSitesAndTempoWithBuyMatchups(t *testing.T) {
 	if full.Buy != BandFull || full.OpponentBuy != BandFull || full.Rounds != 6 || full.WinRate.Count != 4 {
 		t.Errorf("second matchup = %+v, want full against full, 4 of 6 won", full.PrepRounds)
 	}
-	fullSites := map[string][]int{AttackSiteA: {2, 6}, AttackSiteB: {1, 3, 7}, AttackSiteBoth: {4}, AttackSiteNone: {}}
+	fullSites := map[string][]int{AttackSiteA: {2, 6}, AttackSiteB: {1, 3, 4, 7}, AttackSiteBoth: {}, AttackSiteNone: {}}
 	if got := cellRounds(full.Sites); !reflect.DeepEqual(got, fullSites) {
 		t.Errorf("full buy sites = %v, want %v", got, fullSites)
 	}
-	if b := full.Sites[1]; b.Share.Count != 3 || b.Share.Total != 6 || b.WinRate.Count != 3 {
-		t.Errorf("full buy on B = %+v, want 3 of 6 rounds, all won", b.PrepRounds)
+	if b := full.Sites[1]; b.Share.Count != 4 || b.Share.Total != 6 || b.WinRate.Count != 3 {
+		t.Errorf("full buy on B = %+v, want 4 of 6 rounds, 3 won", b.PrepRounds)
 	}
 	if got := cellRounds(eco.Tempo); !reflect.DeepEqual(got[TempoNoSite], []int{5}) || len(got[TempoRush]) != 0 {
 		t.Errorf("eco tempo = %v, want the save as no site", got)
@@ -86,21 +89,22 @@ func TestAttackReadsDefaultsAndExecutes(t *testing.T) {
 	}
 	var got []row
 	for _, e := range prep.Executes {
-		if e.Buy != BandFull || e.OpponentBuy != BandFull || e.Share.Total != 6 {
+		if e.Buy != BandFull || e.OpponentBuy != BandFull || e.Share.Total != 5 {
 			t.Errorf("execute %+v is outside the full buy matchup", e)
 		}
 		got = append(got, row{e.Site, e.Route, refRounds(e.Refs)})
 	}
-	want := []row{{"A", "Middle", []int{2}}, {"B", "", []int{7}}, {"B", "TSpawn", []int{1}}, {"both", "", []int{4}}}
+	// Shares are over the 5 framed full buy rounds; round 6 has no frames.
+	want := []row{{"A", "Middle", []int{2}}, {"B", "", []int{7}}, {"B", "BombsiteA", []int{4}}, {"B", "TSpawn", []int{1}}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("executes = %+v, want %+v", got, want)
 	}
-	rush := prep.Executes[2]
-	if rush.Rushes.Count != 1 || rush.ContactSeconds != 15 || rush.RouteLabel != "T Spawn" {
+	rush := prep.Executes[3]
+	if rush.Rushes.Count != 1 || rush.ContactSeconds == nil || *rush.ContactSeconds != 15 || rush.RouteLabel != "T Spawn" {
 		t.Errorf("rush execute = %+v", rush)
 	}
-	if split := prep.Executes[3]; split.Plants.Count != 1 || split.ContactSeconds != 30 {
-		t.Errorf("split execute = %+v, want the plant and the A contact at 30 s", split)
+	if take := prep.Executes[2]; take.Plants.Count != 1 || take.ContactSeconds == nil || *take.ContactSeconds != 30 {
+		t.Errorf("B take = %+v, want the plant and the first contact at 30 s", take)
 	}
 }
 
@@ -139,20 +143,89 @@ func TestAttackWarnsAboutThinStaleSamples(t *testing.T) {
 
 func TestAttackWarnsAboutLineupChanges(t *testing.T) {
 	day := func(n int) time.Time { return time.Date(2026, 9, n, 18, 0, 0, 0, time.UTC) }
-	match := func(n int, nicks ...string) FramedMatch {
+	// The three older documents field "bench", but no kept round plays him: he never reads as left.
+	match := func(n int, nicks ...string) matchRoster {
 		doc := NewDocument()
+		r := Round{Number: 1}
+		if n < 4 {
+			nicks = append(nicks, "bench")
+		}
 		for i, nick := range nicks {
 			doc.Players = append(doc.Players, Player{Slot: uint8(i), SteamID64: "id-" + nick, Name: nick, TeamKey: "team"})
+			if nick != "bench" {
+				r.Players = append(r.Players, PlayerRound{Slot: uint8(i), Side: SideT})
+			}
 		}
 		doc.Players = append(doc.Players, Player{Slot: 9, SteamID64: "rival", Name: "rival", TeamKey: "other"})
-		return FramedMatch{ScoutMatch: ScoutMatch{MatchID: uuid.New(), TeamKey: "team", PlayedAt: day(n), Document: doc}}
+		r.Players = append(r.Players, PlayerRound{Slot: 9, Side: SideCT})
+		m := FramedMatch{ScoutMatch: ScoutMatch{MatchID: uuid.New(), TeamKey: "team", PlayedAt: day(n), Document: doc}}
+		return rosterOf(m, []Round{r})
 	}
-	selected := []FramedMatch{
+	rosters := []matchRoster{
 		match(4, "core", "new", "sub"), match(3, "core", "old", "new"), match(2, "core", "old", "new", "sub"), match(1, "core", "old"),
 	}
-	days, warnings := sampleWarnings(selected, day(10))
+	days, warnings := sampleWarnings(rosters, day(10))
 	want := []PrepWarning{{Kind: WarningRosterChanged, Joined: []string{"new"}, Left: []string{"old"}}}
 	if days != 6 || !reflect.DeepEqual(warnings, want) {
 		t.Errorf("sampleWarnings = %d days, %+v, want 6 days and %+v", days, warnings, want)
+	}
+}
+
+// nukeDoc stacks B under A, as on Nuke: in 2D the sites sit 400 units apart, a floor apart in height.
+func nukeDoc() Document {
+	doc := NewDocument()
+	lower := -495.0
+	doc.Geometry.Calibration.LowerAltitudeMax = &lower
+	doc.Geometry.Callouts = []Callout{
+		{Name: "BombsiteA", Level: radarmap.LevelDefault, Center: [2]float64{0, 0}},
+		{Name: "BombsiteB", Level: radarmap.LevelLower, Center: [2]float64{0, -400}},
+	}
+	return doc
+}
+
+func TestAttackLeanCountsTheFloorOnNuke(t *testing.T) {
+	doc := nukeDoc()
+	zones := siteZones(doc)
+	// Halfway between both sites in 2D: the floor tells Heaven (upper) from Ramp (lower).
+	if got := leanOf(doc, zones, [3]float64{0, -200, -400}, "Heaven"); got != 0 {
+		t.Errorf("upper player halfway = %d, want towards A", got)
+	}
+	if got := leanOf(doc, zones, [3]float64{0, -200, -700}, "Ramp"); got != 2 {
+		t.Errorf("lower player halfway = %d, want towards B", got)
+	}
+	if got := leanOf(doc, zones, [3]float64{0, 0, -700}, "BombsiteB"); got != 2 {
+		t.Errorf("player on the B callout = %d, want B whatever the 2D distance", got)
+	}
+}
+
+func TestAttackDefaultKeepsAPlayerWhoDiedBeforeTheRead(t *testing.T) {
+	doc := nukeDoc()
+	track := []teamFrame{
+		{tick: 100, seconds: 10, pos: map[uint8][3]float64{0: {0, 0, -400}, 1: {0, -400, -700}, 2: {0, -50, -400}}, callouts: map[uint8]string{0: "BombsiteA", 1: "BombsiteB", 2: "Heaven"}},
+		// Slot 2 died at 15 s; the read at 25 s still counts them where they last stood.
+		{tick: 200, seconds: 25, pos: map[uint8][3]float64{0: {0, 0, -400}, 1: {0, -400, -700}}, callouts: map[uint8]string{0: "BombsiteA", 1: "BombsiteB"}},
+	}
+	run := attackRun{defaults: map[string]*defaultAcc{}}
+	run.addDefault(attackRound{m: FramedMatch{ScoutMatch: ScoutMatch{Document: doc}}, r: Round{Number: 1}, read: playbookRead{track: track}})
+	if _, ok := run.defaults["2-0-1"]; !ok || len(run.defaults) != 1 {
+		t.Errorf("defaults = %v, want 2-0-1 with the dead player towards A", run.defaults)
+	}
+}
+
+func TestAttackSiteReadsBothOnlyBeforeThePlant(t *testing.T) {
+	r := Round{Class: Class{Site: SiteB}, Bomb: &Bomb{PlantTick: 100, Site: SiteB}}
+	cases := []struct {
+		name string
+		read attackRead
+		want string
+	}{
+		{"both sites before the plant", attackRead{presence: map[Site]int{SiteA: 50, SiteB: 80}, category: PlaybookExecute}, AttackSiteBoth},
+		{"a fake then the take", attackRead{presence: map[Site]int{SiteA: 50, SiteB: 80}, category: PlaybookFake}, AttackSiteB},
+		{"A only after the plant", attackRead{presence: map[Site]int{SiteA: 150, SiteB: 80}, category: PlaybookExecute}, AttackSiteB},
+	}
+	for _, c := range cases {
+		if got := attackSite(r, c.read); got != c.want {
+			t.Errorf("%s: site = %s, want %s", c.name, got, c.want)
+		}
 	}
 }

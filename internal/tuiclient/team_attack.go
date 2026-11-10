@@ -36,9 +36,9 @@ type AttackExecute struct {
 	Route       string `json:"route"`
 	RouteLabel  string `json:"route_label"`
 	ReportGroup
-	Rushes         Rate    `json:"rushes"`
-	Plants         Rate    `json:"plants"`
-	ContactSeconds float64 `json:"contact_seconds"`
+	Rushes         Rate     `json:"rushes"`
+	Plants         Rate     `json:"plants"`
+	ContactSeconds *float64 `json:"contact_seconds"`
 }
 
 // AttackPlayer is one T player of an attack prep and their spots per window.
@@ -68,11 +68,13 @@ type AttackPlayer struct {
 
 // PrepWarning is what to distrust in a prep.
 type PrepWarning struct {
-	Kind   string   `json:"kind"`
-	Days   int      `json:"days"`
-	Rounds int      `json:"rounds"`
-	Joined []string `json:"joined"`
-	Left   []string `json:"left"`
+	Kind      string   `json:"kind"`
+	Days      int      `json:"days"`
+	Rounds    int      `json:"rounds"`
+	Joined    []string `json:"joined"`
+	Left      []string `json:"left"`
+	Matches   int      `json:"matches"`
+	Available int      `json:"available"`
 }
 
 // TeamAttack is GET /api/library/teams/{id}/attack.

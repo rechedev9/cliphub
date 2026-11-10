@@ -21,8 +21,8 @@ const (
 	AttackZoneLimit = 3
 	// AttackMinRounds is the T rounds below which the prep warns the sample is thin: two halves.
 	AttackMinRounds = 24
-	// AttackStaleDays matches the Preparar tab: a newer sample says how the team plays today.
-	AttackStaleDays = 60
+	// AttackStaleDays is the age past which a sample may no longer say how the team plays today.
+	AttackStaleDays = 21
 	// AttackRosterMatches is the matches a player needs to count as a regular, not a stand-in.
 	AttackRosterMatches = 3
 )
@@ -64,6 +64,8 @@ const (
 	WarningStale         = "stale"
 	WarningFewRounds     = "few_rounds"
 	WarningRosterChanged = "roster_changed"
+	// WarningCapped is set by the endpoint when it read fewer matches than the filter selects.
+	WarningCapped = "capped"
 )
 
 // AttackThresholds are the rules the attack prep applied.
@@ -104,6 +106,9 @@ type PrepWarning struct {
 	Rounds int      `json:"rounds,omitempty"`
 	Joined []string `json:"joined,omitempty"`
 	Left   []string `json:"left,omitempty"`
+	// Matches and Available are a capped warning's matches read and matches the filter selects.
+	Matches   int `json:"matches,omitempty"`
+	Available int `json:"available,omitempty"`
 }
 
 // AttackPrep is how a team attacks one map: where each buy matchup goes, how
@@ -177,6 +182,8 @@ func (c *cellGroups) cells(order []string) []AttackCell {
 type matchupAcc struct {
 	prepGroup
 	sites, tempo *cellGroups
+	// framed counts the rounds with positions, the only ones an execute is read from.
+	framed int
 }
 
 type attackRun struct {
@@ -229,9 +236,12 @@ func BuildAttack(matches []FramedMatch, opts AttackOptions) AttackPrep {
 	}
 	selected := selectFramed(matches, f)
 	prep.Matches = len(selected)
+	rosters := make([]matchRoster, 0, len(selected))
 	for _, m := range selected {
 		src := openFrames(m)
-		for _, r := range f.rounds(m.ScoutMatch) {
+		rounds := f.rounds(m.ScoutMatch)
+		rosters = append(rosters, rosterOf(m, rounds))
+		for _, r := range rounds {
 			prep.RoundCount++
 			if run.addRound(framedRound{m: m, r: r, frames: src.round(r.Number)}) {
 				prep.Framed++
@@ -251,7 +261,7 @@ func BuildAttack(matches []FramedMatch, opts AttackOptions) AttackPrep {
 		played := selected[0].PlayedAt
 		prep.LastPlayedAt = &played
 		var warnings []PrepWarning
-		prep.DaysSince, warnings = sampleWarnings(selected, opts.Now)
+		prep.DaysSince, warnings = sampleWarnings(rosters, opts.Now)
 		prep.Warnings = append(prep.Warnings, warnings...)
 	}
 	return prep
@@ -261,7 +271,7 @@ func BuildAttack(matches []FramedMatch, opts AttackOptions) AttackPrep {
 func (run *attackRun) addRound(in framedRound) bool {
 	read, framed := readPlaybookRound(in.m.Document, in.r, SideT, in.frames)
 	category, _ := read.category()
-	site := attackSite(in.r, read.presence)
+	site := attackSite(in.r, attackRead{presence: read.presence, category: category})
 	ar := attackRound{
 		m: in.m, r: in.r, read: read, category: category, site: site,
 		tempo: attackTempo(category, site), band: bandKey{buyBand(in.r.Economy.TBuy), buyBand(in.r.Economy.CTBuy)},
@@ -278,8 +288,11 @@ func (run *attackRun) addRound(in framedRound) bool {
 		acc.add(ar.won, ar.start)
 		acc.sites.add(ar.site, ar)
 		acc.tempo.add(ar.tempo, ar)
-		if ar.site != AttackSiteNone && (ar.tempo == TempoRush || ar.tempo == TempoSetStrat) {
-			run.addExecute(ar)
+		if framed {
+			acc.framed++
+			if ar.site != AttackSiteNone && (ar.tempo == TempoRush || ar.tempo == TempoSetStrat) {
+				run.addExecute(ar)
+			}
 		}
 	}
 	if !framed {
@@ -325,12 +338,20 @@ func buyBand(b BuyType) string {
 	}
 }
 
-// attackSite is both when the team stood on both bombsites, else the round's site.
-func attackSite(r Round, presence map[Site]int) string {
-	_, onA := presence[SiteA]
-	_, onB := presence[SiteB]
+// attackRead is what attackSite reads of a round besides its class.
+type attackRead struct {
+	presence map[Site]int
+	category string
+}
+
+// attackSite is both when the team stood on both sites before the plant of a
+// round that was no fake (TSplit is one site from two corridors); otherwise the round's site.
+func attackSite(r Round, read attackRead) string {
+	tickA, onA := read.presence[SiteA]
+	tickB, onB := read.presence[SiteB]
+	planted := r.Bomb != nil && r.Bomb.PlantTick > 0
 	switch {
-	case onA && onB:
+	case onA && onB && planted && tickA <= r.Bomb.PlantTick && tickB <= r.Bomb.PlantTick && read.category != PlaybookFake:
 		return AttackSiteBoth
 	case r.Class.Site == SiteA:
 		return AttackSiteA
@@ -369,23 +390,40 @@ type rosterSpan struct {
 	first, last int64
 }
 
-// sampleWarnings is what to distrust in the sample, as the Preparar tab reads it:
-// its age and lineup changes inside it, plus the days since the newest match.
-func sampleWarnings(selected []FramedMatch, now time.Time) (int, []PrepWarning) {
-	out := []PrepWarning{}
-	newest, oldest := dayOf(selected[0].PlayedAt), dayOf(selected[0].PlayedAt)
-	spans := map[string]*rosterSpan{}
-	for _, m := range selected {
-		day := dayOf(m.PlayedAt)
-		newest, oldest = max(newest, day), min(oldest, day)
-		for _, p := range m.Document.Players {
-			if p.TeamKey != m.TeamKey || p.SteamID64 == "" {
-				continue
+// matchRoster is the team's players in the rounds a match kept, by SteamID64.
+type matchRoster struct {
+	day     int64
+	players map[string]string
+}
+
+// rosterOf names the team's players in the kept rounds, so a lineup filter
+// leaves its benched players out of the roster warning.
+func rosterOf(m FramedMatch, rounds []Round) matchRoster {
+	out := matchRoster{day: dayOf(m.PlayedAt), players: map[string]string{}}
+	for _, r := range rounds {
+		for _, pr := range r.Players {
+			if p, ok := m.Document.PlayerBySlot(pr.Slot); ok && p.TeamKey == m.TeamKey && p.SteamID64 != "" {
+				out.players[p.SteamID64] = p.Name
 			}
-			s, ok := spans[p.SteamID64]
+		}
+	}
+	return out
+}
+
+// sampleWarnings is what to distrust in the sample: its age and lineup changes
+// inside it, plus the days since the newest match. rosters is not empty.
+func sampleWarnings(rosters []matchRoster, now time.Time) (int, []PrepWarning) {
+	out := []PrepWarning{}
+	newest, oldest := rosters[0].day, rosters[0].day
+	spans := map[string]*rosterSpan{}
+	for _, m := range rosters {
+		day := m.day
+		newest, oldest = max(newest, day), min(oldest, day)
+		for id, name := range m.players {
+			s, ok := spans[id]
 			if !ok {
-				s = &rosterSpan{name: p.Name, first: day, last: day}
-				spans[p.SteamID64] = s
+				s = &rosterSpan{name: name, first: day, last: day}
+				spans[id] = s
 			}
 			s.matches++
 			s.first, s.last = min(s.first, day), max(s.last, day)
@@ -394,7 +432,7 @@ func sampleWarnings(selected []FramedMatch, now time.Time) (int, []PrepWarning) 
 	days := 0
 	if !now.IsZero() {
 		days = max(int(dayOf(now)-newest), 0)
-		if days > AttackStaleDays {
+		if days >= AttackStaleDays {
 			out = append(out, PrepWarning{Kind: WarningStale, Days: days})
 		}
 	}

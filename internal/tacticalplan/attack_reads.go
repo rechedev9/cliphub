@@ -17,18 +17,16 @@ type AttackZone struct {
 	PrepRounds
 }
 
-// AttackDefault is a spread the team stood in at AttackReadSeconds of a round it
-// did not rush or execute: "2-1-2" is two players towards A, one mid and two
-// towards B. Share is over the framed T rounds.
+// AttackDefault is the team's spread at AttackReadSeconds of a slow round: "2-1-2" is two
+// players towards A, one mid and two towards B. Share is over the framed T rounds.
 type AttackDefault struct {
 	Formation string `json:"formation"`
 	PrepRounds
 	Zones []AttackZone `json:"zones"`
 }
 
-// AttackExecute is one way the team took a site on a buy matchup: the route most
-// of its first players on site came through, "" when it could not be read or the
-// round split. Share is over the matchup's rounds.
+// AttackExecute is one way the team took a site on a buy matchup, by the route its first players
+// came through ("" when unread). Share is over the matchup's framed rounds.
 type AttackExecute struct {
 	Buy         string `json:"buy"`
 	OpponentBuy string `json:"opponent_buy"`
@@ -36,9 +34,10 @@ type AttackExecute struct {
 	Route       string `json:"route"`
 	RouteLabel  string `json:"route_label"`
 	PrepRounds
-	Rushes         Rate    `json:"rushes"`
-	Plants         Rate    `json:"plants"`
-	ContactSeconds float64 `json:"contact_seconds"`
+	Rushes Rate `json:"rushes"`
+	Plants Rate `json:"plants"`
+	// ContactSeconds is the median second the site was reached; nil when no round read it.
+	ContactSeconds *float64 `json:"contact_seconds"`
 }
 
 // AttackSpot is a callout a T player held most in a window, with the median
@@ -78,52 +77,99 @@ type defaultAcc struct {
 	zones map[string]*prepGroup
 }
 
-// addDefault reads the round's formation at AttackReadSeconds; a map without
-// both site centres, or a round that ended before, has none.
+// addDefault reads the round's formation at AttackReadSeconds from each player's
+// last position by then, so an early death keeps its place; a round that ended before has none.
 func (run *attackRun) addDefault(ar attackRound) {
 	zones := siteZones(ar.m.Document)
-	a, okA := zones[ZoneA]
-	b, okB := zones[ZoneB]
-	if !okA || !okB {
+	if _, ok := zones[ZoneA]; !ok {
 		return
 	}
+	if _, ok := zones[ZoneB]; !ok {
+		return
+	}
+	type seen struct {
+		pos     [3]float64
+		callout string
+	}
+	last := map[uint8]seen{}
+	readTick := -1
 	for _, f := range ar.read.track {
-		if f.seconds < AttackReadSeconds {
-			continue
+		if f.seconds > AttackReadSeconds && readTick >= 0 {
+			break
 		}
-		if len(f.pos) == 0 {
-			return
-		}
-		var spread [3]int
-		for _, at := range f.pos {
-			dA := math.Hypot(at[0]-a.center[0], at[1]-a.center[1])
-			dB := math.Hypot(at[0]-b.center[0], at[1]-b.center[1])
-			switch lean := dA / math.Max(dA+dB, 1); {
-			case lean < AttackLeanRatio:
-				spread[0]++
-			case lean > 1-AttackLeanRatio:
-				spread[2]++
-			default:
-				spread[1]++
+		if f.seconds <= AttackReadSeconds {
+			for slot, at := range f.pos {
+				last[slot] = seen{pos: at, callout: f.callouts[slot]}
 			}
 		}
-		key := fmt.Sprintf("%d-%d-%d", spread[0], spread[1], spread[2])
-		acc, ok := run.defaults[key]
-		if !ok {
-			acc = &defaultAcc{zones: map[string]*prepGroup{}}
-			run.defaults[key] = acc
+		if f.seconds >= AttackReadSeconds {
+			readTick = f.tick
 		}
-		acc.add(ar.won, evidence(ar.m.ScoutMatch, ar.r, f.tick))
-		for _, hold := range ar.read.zones {
-			g, ok := acc.zones[hold.Zone]
-			if !ok {
-				g = &prepGroup{}
-				acc.zones[hold.Zone] = g
-			}
-			g.add(ar.won, ar.start)
-		}
+	}
+	if readTick < 0 || len(last) == 0 {
 		return
 	}
+	var spread [3]int
+	for _, s := range last {
+		spread[leanOf(ar.m.Document, zones, s.pos, s.callout)]++
+	}
+	key := fmt.Sprintf("%d-%d-%d", spread[0], spread[1], spread[2])
+	acc, ok := run.defaults[key]
+	if !ok {
+		acc = &defaultAcc{zones: map[string]*prepGroup{}}
+		run.defaults[key] = acc
+	}
+	acc.add(ar.won, evidence(ar.m.ScoutMatch, ar.r, readTick))
+	for _, hold := range ar.read.zones {
+		g, ok := acc.zones[hold.Zone]
+		if !ok {
+			g = &prepGroup{}
+			acc.zones[hold.Zone] = g
+		}
+		g.add(ar.won, ar.start)
+	}
+}
+
+// otherFloorPenalty is added to the distance to a site on another floor, so a
+// two-level map such as Nuke does not read both sites as equally near.
+const otherFloorPenalty = 1500
+
+// leanOf is 0 towards A, 1 mid, 2 towards B: a site callout decides; otherwise
+// the share of the distance to A over both, with the floor counted as zoneOf does.
+func leanOf(d Document, zones map[string]siteZone, pos [3]float64, callout string) int {
+	switch SiteFromPlace(callout) {
+	case SiteA:
+		return 0
+	case SiteB:
+		return 2
+	}
+	level := d.Geometry.Calibration.Level(pos[2])
+	dist := func(z siteZone) float64 {
+		out := math.Hypot(pos[0]-z.center[0], pos[1]-z.center[1])
+		if z.level != "" && level != z.level {
+			out += otherFloorPenalty
+		}
+		return out
+	}
+	dA, dB := dist(zones[ZoneA]), dist(zones[ZoneB])
+	switch lean := dA / math.Max(dA+dB, 1); {
+	case lean < AttackLeanRatio:
+		return 0
+	case lean > 1-AttackLeanRatio:
+		return 2
+	default:
+		return 1
+	}
+}
+
+func medianOrNil(values []float64) *float64 {
+	if len(values) == 0 {
+		return nil
+	}
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+	m := median(sorted)
+	return &m
 }
 
 func (run *attackRun) defaultRows(framed int) []AttackDefault {
@@ -232,8 +278,8 @@ func (run *attackRun) executeRows() []AttackExecute {
 		}
 		byBand[key.band] = append(byBand[key.band], AttackExecute{
 			Buy: key.band.buy, OpponentBuy: key.band.opponent, Site: key.site, Route: key.route, RouteLabel: label,
-			PrepRounds: acc.result(run.matchups[key.band].rounds), Rushes: newRate(acc.rushes, acc.rounds),
-			Plants: newRate(acc.plants, acc.rounds), ContactSeconds: median(acc.contact),
+			PrepRounds: acc.result(run.matchups[key.band].framed), Rushes: newRate(acc.rushes, acc.rounds),
+			Plants: newRate(acc.plants, acc.rounds), ContactSeconds: medianOrNil(acc.contact),
 		})
 	}
 	bands := make([]bandKey, 0, len(byBand))

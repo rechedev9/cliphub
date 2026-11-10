@@ -6,7 +6,7 @@ import { TriangleAlert } from 'lucide-react';
 import { ATTACK_SITES, ATTACK_TEMPOS } from '@/lib/api/attack';
 import type { AttackCell, AttackPlayer, TeamAttack } from '@/lib/api/attack';
 import { getTeamAttack } from '@/lib/api/library';
-import { BAND_LABEL, DEFAULT_TRAMO, attackHref, siteLabel, siteZones, tempoLabel, warningText, windowTramo } from '@/lib/analysis/attack';
+import { BAND_LABEL, DEFAULT_TRAMO, attackHref, lastMatchText, siteLabel, siteZones, tempoLabel, warningText, windowTramo } from '@/lib/analysis/attack';
 import { prepWindowLabel, secondsLabel } from '@/lib/analysis/prep';
 import { prettyMapName } from '@/lib/format';
 import { placeLabel } from '@/lib/tactical-labels';
@@ -18,11 +18,11 @@ import type { PrepQuery } from './prep-body';
 
 const pct = (value: number): string => `${Math.round(value)} %`;
 
-function cellOf(attack: TeamAttack, cell: AttackCell, options: { what: string; zones: string[] }): HeatCell {
+function cellOf({ attack, cell, what, zones }: { attack: TeamAttack; cell: AttackCell; what: string; zones: string[] }): HeatCell {
   return {
     text: `${pct(cell.share.pct)} · gana ${pct(cell.win_rate.pct)}`,
     n: cell.rounds,
-    href: attackHref(attack, { refs: cell.refs, what: options.what, zones: options.zones }),
+    href: attackHref(attack, { refs: cell.refs, what, zones }),
   };
 }
 
@@ -34,14 +34,14 @@ function CrossTable({ attack, kind }: { attack: TeamAttack; kind: 'sites' | 'tem
   const columns: HeatColumn[] = [{ id: 'buy', header: 'Compras' }, ...keys.map((key) => ({ id: key, header: label(key), align: 'end' as const }))];
   const total: Record<string, HeatCell> = { buy: { text: 'Todas las rondas', tone: 't' } };
   for (const cell of kind === 'sites' ? attack.sites : attack.tempo) {
-    if (cell.rounds > 0) total[cell.key] = cellOf(attack, cell, { what: label(cell.key), zones: zones(cell.key) });
+    if (cell.rounds > 0) total[cell.key] = cellOf({ attack, cell, what: label(cell.key), zones: zones(cell.key) });
   }
   const rows: HeatRow[] = [{ id: 'all', cells: total }];
   for (const matchup of attack.matchups) {
     const matchupText = `${BAND_LABEL[matchup.buy]} contra ${BAND_LABEL[matchup.opponent_buy].toLowerCase()}`;
     const cells: Record<string, HeatCell> = { buy: { text: matchupText, tone: 't' } };
     for (const cell of kind === 'sites' ? matchup.sites : matchup.tempo) {
-      if (cell.rounds > 0) cells[cell.key] = cellOf(attack, cell, { what: `${matchupText} · ${label(cell.key)}`, zones: zones(cell.key) });
+      if (cell.rounds > 0) cells[cell.key] = cellOf({ attack, cell, what: `${matchupText} · ${label(cell.key)}`, zones: zones(cell.key) });
     }
     rows.push({ id: `${matchup.buy}|${matchup.opponent_buy}`, cells });
   }
@@ -99,7 +99,7 @@ function Executes({ attack }: { attack: TeamAttack }): ReactNode {
           <li key={`${entry.buy}|${entry.opponent_buy}|${entry.site}|${entry.route}`} className="flex flex-wrap items-baseline justify-between gap-x-3 text-body-sm">
             {href === undefined ? <span className="text-fg-1">{what}</span> : <Link href={href} className="text-fg-1 hover:text-primary hover:underline">{what}</Link>}
             <span className="text-fg-2 tabular-nums">
-              {pct(entry.share.pct)} · gana {pct(entry.win_rate.pct)} · rush {pct(entry.rushes.pct)} · planta {pct(entry.plants.pct)} · llega en {secondsLabel(entry.contact_seconds)}
+              {pct(entry.share.pct)} · gana {pct(entry.win_rate.pct)} · rush {pct(entry.rushes.pct)} · planta {pct(entry.plants.pct)}{entry.contact_seconds === null ? '' : ` · llega en ${secondsLabel(entry.contact_seconds)}`}
             </span>
           </li>
         );
@@ -198,6 +198,12 @@ export function AttackPrep({ query }: { query: PrepQuery & { matchIds?: readonly
   if (attack.round_count === 0) return null;
   return (
     <>
+      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4">
+        <h2 className="text-body font-semibold text-fg-1">Ataque en T</h2>
+        <p className="text-meta text-fg-2">
+          {lastMatchText(attack.days_since_last_match)} · {attack.matches} {attack.matches === 1 ? 'partida' : 'partidas'} · {attack.round_count} rondas de T
+        </p>
+      </header>
       {attack.warnings.length === 0 ? null : (
         <ul role="note" aria-label="Avisos del ataque" className="flex flex-col gap-1 rounded-md border border-border-strong bg-surface-2 px-3 py-2">
           {attack.warnings.map((warning) => (

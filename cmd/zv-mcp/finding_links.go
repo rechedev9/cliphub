@@ -28,19 +28,61 @@ type findingLink struct {
 	zones []string
 }
 
-// path writes the link as the web's findingHref does; a finding without rounds has none.
-func (l findingLink) path() string {
+// maxExampleRefs is the round refs a row lists in place of a link, as team_prep does.
+const maxExampleRefs = 5
+
+// linkOut is a studio_path and, when its rounds were cut at maxPlaylistRounds, how many it opens.
+type linkOut struct {
+	StudioPath   string `json:"studio_path,omitempty"`
+	RoundsLinked int    `json:"rounds_linked,omitempty" jsonschema:"set only when studio_path was cut: the rounds it opens, fewer than rounds"`
+}
+
+// roundKeys is the link's valid rounds as match:round, once each, in order.
+func (l findingLink) roundKeys() []string {
 	seen := map[string]bool{}
-	parts := []string{}
+	out := []string{}
 	for _, e := range l.refs {
-		if len(parts) == maxPlaylistRounds {
-			break
-		}
 		key := e.MatchID + ":" + strconv.Itoa(e.Round)
 		if seen[key] || e.Round < 1 || checkUUID("match_id", e.MatchID) != nil {
 			continue
 		}
 		seen[key] = true
+		out = append(out, key)
+	}
+	return out
+}
+
+func (l findingLink) out() linkOut {
+	keys := l.roundKeys()
+	o := linkOut{StudioPath: l.path()}
+	if len(keys) > maxPlaylistRounds {
+		o.RoundsLinked = maxPlaylistRounds
+	}
+	return o
+}
+
+// exampleRefs is up to maxExampleRefs of the rounds as match_id/round.
+func exampleRefs(refs []tuiclient.Evidence) []string { return examplesOf(refs, maxExampleRefs) }
+
+func examplesOf(refs []tuiclient.Evidence, n int) []string {
+	keys := findingLink{refs: refs}.roundKeys()
+	if len(keys) > n {
+		keys = keys[:n]
+	}
+	for i, k := range keys {
+		keys[i] = strings.Replace(k, ":", "/", 1)
+	}
+	return keys
+}
+
+// path writes the link as the web's findingHref does; a finding without rounds has none.
+func (l findingLink) path() string {
+	keys := l.roundKeys()
+	if len(keys) > maxPlaylistRounds {
+		keys = keys[:maxPlaylistRounds]
+	}
+	parts := make([]string, 0, len(keys)+1)
+	for _, key := range keys {
 		parts = append(parts, "r="+key)
 	}
 	if len(parts) == 0 {

@@ -60,7 +60,6 @@ import { useMapSettings } from './use-map-settings';
 import { ReplayLeftPanel } from './replay-left-panel';
 import { ReplayTimeline } from './replay-timeline';
 import { RadarCentre } from './radar-centre';
-
 import { ReplaySidePanel } from './replay-side-panel';
 import { RoundStrip } from './round-strip';
 import { SetposNotice } from './setpos-notice';

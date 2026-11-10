@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -89,8 +91,15 @@ func TestTeamAttackLinksEveryFinding(t *testing.T) {
 	if out.Sites[1].StudioPath != "" {
 		t.Errorf("a site without rounds links %q", out.Sites[1].StudioPath)
 	}
-	if m := out.Matchups[0]; len(m.Sites) != 1 || m.Sites[0].Key != "A" || !strings.Contains(query(t, m.Sites[0].StudioPath).Get("t"), "compra completa contra compra completa") {
-		t.Errorf("matchup = %+v, want the empty B cell left out", m)
+	if m := out.Matchups[0]; len(m.Sites) != 1 || m.Sites[0].Key != "A" || m.Sites[0].StudioPath != "" || len(m.Sites[0].Examples) != 0 ||
+		!strings.Contains(query(t, m.StudioPath).Get("t"), "compra completa contra compra completa") {
+		t.Errorf("matchup = %+v, want the empty B cell left out and the cells with counts only", m)
+	}
+	if out.AllRounds.Rounds != 2 || len(query(t, out.AllRounds.StudioPath)["r"]) != 2 || out.AllRounds.RoundsLinked != 0 {
+		t.Errorf("all rounds = %+v", out.AllRounds)
+	}
+	if c := out.Executes[0].ContactSeconds; c == nil || *c != 21 {
+		t.Errorf("contact = %v, want 21", c)
 	}
 	def := query(t, out.Defaults[0].StudioPath)
 	if def.Get("tramo") != "0-55" || def.Get("zona") != "Outside" || out.Defaults[0].Zones[0].Callout != "Outside" {
@@ -167,5 +176,86 @@ func TestMatchPrepPromptLaysOutTheFlow(t *testing.T) {
 	}
 	if _, err := cs.GetPrompt(context.Background(), &mcp.GetPromptParams{Name: "match_prep", Arguments: map[string]string{}}); err == nil {
 		t.Error("a prompt without a rival did not fail")
+	}
+}
+
+// seededAttack is the attack read of a 20 match library: 300 T rounds, every row with all its refs.
+func seededAttack() string {
+	refs := make([]string, 0, 300)
+	for m := range 20 {
+		id := fmt.Sprintf("6f1c2a9e-3b7d-4c8a-9e21-%012d", m)
+		for r := 1; r <= 15; r++ {
+			refs = append(refs, fmt.Sprintf(`{"match_id":"%s","round":%d,"tick":%d}`, id, r, r*1000))
+		}
+	}
+	group := func(from, n int) string {
+		return fmt.Sprintf(`"rounds":%d,"share":{"count":%d,"total":300,"pct":10},"win_rate":{"pct":50,"reliable":true},"refs":[%s]`,
+			n, n, strings.Join(refs[from:from+n], ","))
+	}
+	cells := func(keys ...string) string {
+		out := []string{}
+		for i, k := range keys {
+			out = append(out, `{"key":"`+k+`",`+group(i*60, 60)+`}`)
+		}
+		return "[" + strings.Join(out, ",") + "]"
+	}
+	bands := []string{"pistol", "eco", "half", "full"}
+	matchups, executes := []string{}, []string{}
+	for i, b := range bands {
+		for j, o := range bands[:3] {
+			matchups = append(matchups, `{"buy":"`+b+`","opponent_buy":"`+o+`",`+group((i*3+j)*25, 25)+`,"sites":`+cells("A", "B", "both", "none")+`,"tempo":`+cells("rush", "set_strat", "mid_round", "no_site")+`}`)
+		}
+		for k := range 5 {
+			executes = append(executes, `{"buy":"`+b+`","opponent_buy":"full","site":"A","route":"Hut",`+group(k*20, 20)+`,"rushes":{"pct":10},"plants":{"pct":50},"contact_seconds":20}`)
+		}
+	}
+	defaults := []string{}
+	for i := range 6 {
+		defaults = append(defaults, fmt.Sprintf(`{"formation":"%d-1-2",%s,"zones":[{"zone":"Outside","label":"Outside",%s}]}`, i, group(i*40, 40), group(i*40, 20)))
+	}
+	players := []string{}
+	for p := range 5 {
+		windows := []string{}
+		for w, span := range [][2]int{{0, 55}, {55, 75}, {75, 0}} {
+			spots := []string{}
+			for s := range 5 {
+				spots = append(spots, fmt.Sprintf(`{"callout":"Spot%d","share":{"count":30,"pct":20},"refs":[%s],"arrival_seconds":10}`, s, strings.Join(refs[(w*5+s)*15:(w*5+s)*15+30], ",")))
+			}
+			windows = append(windows, fmt.Sprintf(`{"from_seconds":%d,"to_seconds":%d,"rounds":150,"spots":[%s],"pace":{}}`, span[0], span[1], strings.Join(spots, ",")))
+		}
+		players = append(players, fmt.Sprintf(`{"steamid64":"7656119800000000%d","name":"p%d","role":"rifler","rounds":150,"windows":[%s]}`, p, p, strings.Join(windows, ",")))
+	}
+	return `{"team_name":"Vitality","skipped":[],"map":"de_nuke","matches":20,"round_count":300,"framed":300,"days_since_last_match":3,` +
+		`"sites":` + cells("A", "B", "both", "none") + `,"tempo":` + cells("rush", "set_strat", "mid_round", "no_site") +
+		`,"matchups":[` + strings.Join(matchups, ",") + `],"defaults":[` + strings.Join(defaults, ",") + `],"executes":[` + strings.Join(executes, ",") +
+		`],"players":[` + strings.Join(players, ",") + `],"warnings":[]}`
+}
+
+func TestTeamAttackStaysSmallOnABigLibrary(t *testing.T) {
+	body := seededAttack()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/library/teams/"+testTeamID+"/attack", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(body)) })
+	cs := serveTools(t, mux, func(server *mcp.Server, s *studio) { registerTeamAttackTool(server, s) })
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "team_attack", Arguments: map[string]any{"team_id": testTeamID, "map": "de_nuke"}})
+	if err != nil || res.IsError {
+		t.Fatalf("team_attack = %+v, %v", res, err)
+	}
+	raw, err := json.Marshal(res.StructuredContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The read is about 600 KB of refs. Three section links of 200 rounds take some 23 KB of what is left.
+	if len(raw) > 80_000 || len(body) < 500_000 {
+		t.Errorf("team_attack output = %d bytes of a %d byte read, want at most 80000", len(raw), len(body))
+	}
+	var out teamAttackOut
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.AllRounds.Rounds != 240 || out.AllRounds.RoundsLinked != maxPlaylistRounds || len(query(t, out.AllRounds.StudioPath)["r"]) != maxPlaylistRounds {
+		t.Errorf("all rounds = %d rounds, %d linked", out.AllRounds.Rounds, out.AllRounds.RoundsLinked)
+	}
+	if out.Sites[0].StudioPath == "" || out.Sites[1].StudioPath != "" || len(out.Sites[1].Examples) != maxExampleRefs {
+		t.Errorf("sites = %+v, want the top row linked and the rest with 5 examples", out.Sites)
 	}
 }

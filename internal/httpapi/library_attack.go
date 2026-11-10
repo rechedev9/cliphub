@@ -40,5 +40,14 @@ func (h *Handlers) GetLibraryTeamAttack(w http.ResponseWriter, r *http.Request) 
 	attack := tacticalplan.BuildAttack(loaded, tacticalplan.AttackOptions{
 		Filter: q.filter, Roles: inferRoles(teamSteamIDs(metrics), roleDocuments(metrics)), Now: time.Now(),
 	})
+	beyond := 0
+	for _, s := range skipped {
+		if s.Reason == scoutSkipBeyondLimits {
+			beyond++
+		}
+	}
+	if beyond > 0 {
+		attack.Warnings = append(attack.Warnings, tacticalplan.PrepWarning{Kind: tacticalplan.WarningCapped, Matches: len(loaded), Available: len(loaded) + beyond})
+	}
 	writeJSON(w, http.StatusOK, attackResponse{TeamID: q.team.ID, TeamName: q.team.Name, Skipped: skipped, AttackPrep: attack})
 }

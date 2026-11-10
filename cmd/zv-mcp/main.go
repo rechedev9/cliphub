@@ -82,8 +82,9 @@ the matches, with the Replay's studio_path and a playlist_path to play them one 
 holds one buy (or half) and one advantage per side, so studio_path refuses longer lists.
 team_attack (one map, T side) is the match prep read: sites and Bombsite Tempo (rush, set strat, mid round, no site)
 crossed with buy matchups, the preferred defaults, the executes per buy and per-player T windows, with stale,
-few-rounds and roster warnings to repeat to the user; prepare_team includes it. Every finding of team_attack,
-team_grenades zones and player_positions places carries a studio_path that opens the 2D Replay on those rounds
+few-rounds, roster and capped warnings to repeat to the user; prepare_team includes it. Its rows give rounds and example refs;
+all_rounds, default_rounds, execute_rounds and each list's top row carry a studio_path, as do
+team_grenades zones and player_positions places: it opens the 2D Replay on those rounds
 with the focus, tramo and zones in the URL; show_zones draws a map with zones marked in hosts with MCP Apps.
 The match_prep prompt guides a match prep: rival and maps, the analysis, then a report in Informes.
 For a player: player_positions; leaderboard is the Ranking page: it ranks the library's players on one metric (rating, kd or a get_baseline one),

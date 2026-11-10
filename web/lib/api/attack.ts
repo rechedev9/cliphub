@@ -31,7 +31,8 @@ export type AttackExecute = PrepRounds & {
   route_label: string;
   rushes: TacticalRate;
   plants: TacticalRate;
-  contact_seconds: number;
+  /** Null when no round of it read a site contact. */
+  contact_seconds: number | null;
 };
 
 export type AttackSpot = PrepSpot & { arrival_seconds: number };
@@ -44,7 +45,16 @@ export type AttackPlayerWindow = PrepWindow & {
 
 export type AttackPlayer = { steamid64: string; name: string; role: string; rounds: number; windows: AttackPlayerWindow[] };
 
-export type AttackWarning = { kind: 'stale' | 'few_rounds' | 'roster_changed'; days?: number; rounds?: number; joined?: string[]; left?: string[] };
+export type AttackWarning = {
+  kind: 'stale' | 'few_rounds' | 'roster_changed' | 'capped';
+  days?: number;
+  rounds?: number;
+  joined?: string[];
+  left?: string[];
+  /** A capped read: the matches read and the matches the filter selects. */
+  matches?: number;
+  available?: number;
+};
 
 export type TeamAttack = {
   team_id: string;

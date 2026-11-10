@@ -43,12 +43,20 @@ export function windowTramo(window: PrepWindow): Tramo {
 /** The opening of the round a default is read in, the same tramo as the first prep window. */
 export const DEFAULT_TRAMO: Tramo = { from: 0, to: 55 };
 
+/** The age of the sample, always shown in the Ataque header. */
+export function lastMatchText(days: number): string {
+  if (days <= 0) return 'Última partida hoy';
+  return `Última partida hace ${days} ${days === 1 ? 'día' : 'días'}`;
+}
+
 export function warningText(warning: AttackWarning): string {
   switch (warning.kind) {
     case 'stale':
       return `La última partida es de hace ${warning.days ?? 0} días: puede que ya no jueguen así.`;
     case 'few_rounds':
       return `Solo hay ${warning.rounds ?? 0} rondas de T en este mapa: tómalo como pista, no como norma.`;
+    case 'capped':
+      return `Se leyeron las ${warning.matches ?? 0} partidas más recientes de ${warning.available ?? 0}: acota las fechas o los rivales para leer el resto.`;
     case 'roster_changed': {
       const parts: string[] = [];
       if ((warning.joined ?? []).length > 0) parts.push(`entraron ${(warning.joined ?? []).join(', ')}`);

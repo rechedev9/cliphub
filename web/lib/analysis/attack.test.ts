@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { attackHref, siteZones, warningText, windowTramo } from './attack.ts';
+import { attackHref, lastMatchText, siteZones, warningText, windowTramo } from './attack.ts';
 
 const MATCH = '6f1c2a9e-3b7d-4c8a-9e21-5d4b3a2f1e0c';
 const refs = (n: number) => Array.from({ length: n }, (_, i) => ({ match_id: MATCH, round: i + 1, tick: 100 }));
@@ -25,4 +25,7 @@ test('site keys mark their bombsites and warnings read in Spanish', () => {
   assert.deepEqual(siteZones('none'), []);
   assert.match(warningText({ kind: 'stale', days: 70 }), /hace 70 días/);
   assert.match(warningText({ kind: 'roster_changed', joined: ['nuevo'], left: [] }), /entraron nuevo/);
+  assert.match(warningText({ kind: 'capped', matches: 30, available: 41 }), /30 partidas más recientes de 41/);
+  assert.equal(lastMatchText(1), 'Última partida hace 1 día');
+  assert.equal(lastMatchText(0), 'Última partida hoy');
 });
