@@ -21,6 +21,12 @@ import { PlayerAvatar } from '@/components/players/player-avatar';
 import { RoleChip } from '@/components/ui/role-chip';
 import { cn } from '@/lib/utils';
 
+/** The sorted column reads as a slightly lighter band down the table. */
+const BAND = 'bg-surface-3/50';
+/** Role pairs sit under the nick as plain coloured text, not boxed chips. */
+const ROLE_PAIR = 'min-h-0 border-transparent bg-transparent px-0 py-0 font-semibold';
+const CAPS = 'text-meta font-semibold tracking-widest text-fg-3 uppercase';
+
 function subtitle(row: LeaderboardRow): string {
   const matches = `${row.matches} ${row.matches === 1 ? 'partida' : 'partidas'}`;
   return row.team === undefined ? matches : `${row.team} · ${matches}`;
@@ -36,7 +42,7 @@ function SortHeader({ column, state, onSort }: { column: (typeof RANKING_COLUMNS
   const dir = state.dir ?? naturalDir(column.sort);
   const Arrow = dir === 'asc' ? ArrowUp : ArrowDown;
   return (
-    <th scope="col" aria-sort={ariaSort(active, dir)} className="px-2 py-1.5 text-right font-medium whitespace-nowrap">
+    <th scope="col" aria-sort={ariaSort(active, dir)} className={cn('px-2 py-2.5 text-center whitespace-nowrap', CAPS, active && cn(BAND, 'text-fg-1'))}>
       <button
         type="button"
         title={column.title}
@@ -91,33 +97,35 @@ function PlayerRow({
   const libraryRole = row === null ? '' : libraryRoleText(row.library_role);
   const href = row === null ? null : playerRoundsHref(row, name);
   return (
-    <tr className={cn('border-t border-border-subtle', entry.pinned && 'bg-surface-2')}>
-      <td className="w-10 px-2 py-1.5 text-right text-fg-3 tabular-nums">{entry.place ?? ''}</td>
+    <tr className={cn('h-[45px] border-t border-border-subtle', entry.pinned && 'bg-surface-3/30')}>
+      <td className="w-12 px-2 py-1 text-center font-semibold text-fg-2 tabular-nums">{entry.place ?? ''}</td>
       <td className="max-w-80 px-2 py-1">
         <div className="flex items-center gap-1">
           <PinButton pin={{ steamid64: steamId, name }} pinned={entry.pinned !== null} onToggle={onPin} />
           <PlayerAvatar nickname={name} playerID={steamId} size={28} />
-          <div className="flex min-w-0 flex-col gap-0.5">
-            {row?.team === undefined ? (
-              <Link href={playerHref(steamId)} className="truncate font-medium text-fg-1 hover:underline">
-                {name}
-              </Link>
-            ) : (
-              <span className="truncate font-medium text-fg-1">{name}</span>
-            )}
-            {row === null ? (
-              <span className="text-meta text-fg-3">Bajo el mínimo de rondas con este filtro</span>
-            ) : (
-              <span className="truncate text-meta text-fg-2" title={subtitle(row)}>
-                {subtitle(row)}
-              </span>
-            )}
+          <div className="flex min-w-0 flex-col">
+            <span className="flex min-w-0 items-baseline gap-1.5">
+              {row?.team === undefined ? (
+                <Link href={playerHref(steamId)} className="truncate font-bold text-fg-1 hover:underline">
+                  {name}
+                </Link>
+              ) : (
+                <span className="truncate font-bold text-fg-1">{name}</span>
+              )}
+              {row === null ? (
+                <span className="truncate text-meta text-fg-3">Bajo el mínimo de rondas con este filtro</span>
+              ) : (
+                <span className="truncate text-meta text-fg-3" title={subtitle(row)}>
+                  {subtitle(row)}
+                </span>
+              )}
+            </span>
             {chips.length === 0 && libraryRole === '' ? null : (
-              <span className="flex flex-wrap items-center gap-1">
+              <span className="flex flex-wrap items-center gap-x-2">
                 {chips.map((chip) => (
-                  <RoleChip key={chip.side} side={chip.side} label={chip.label} breakdown={chip.breakdown} />
+                  <RoleChip key={chip.side} side={chip.side} label={chip.label} breakdown={chip.breakdown} className={ROLE_PAIR} />
                 ))}
-                {libraryRole === '' ? null : <RoleChip label={libraryRole} />}
+                {libraryRole === '' ? null : <RoleChip label={libraryRole} className={ROLE_PAIR} />}
               </span>
             )}
           </div>
@@ -126,7 +134,7 @@ function PlayerRow({
       {RANKING_COLUMNS.map((column) => {
         const value = row === null ? null : cellValue({ row, sort: column.sort, boardMetric });
         return (
-          <td key={column.sort} className={cn('px-2 py-1.5 text-right whitespace-nowrap tabular-nums', state.sort === column.sort ? 'text-fg-1' : 'text-fg-2')}>
+          <td key={column.sort} className={cn('px-2 py-1 text-center font-bold whitespace-nowrap text-fg-1 tabular-nums', state.sort === column.sort && BAND)}>
             {value === null ? <span className="text-fg-4">-</span> : column.format(value)}
             {column.sort === 'rounds' && row !== null && lowSample(row) ? (
               <TriangleAlert
@@ -137,7 +145,7 @@ function PlayerRow({
           </td>
         );
       })}
-      <td className="px-2 py-1 text-right">
+      <td className="px-2 py-1 text-center">
         {href === null ? null : (
           <Link
             href={href}
@@ -169,12 +177,12 @@ export function RankingTable({
   return (
     <div className="studio-panel overflow-x-auto">
       <table aria-label="Ranking de jugadores" className="w-full min-w-[56rem] text-body-sm">
-        <thead className="text-meta text-fg-2">
+        <thead>
           <tr>
-            <th scope="col" className="w-10 px-2 py-1.5 text-right font-medium">
-              #
+            <th scope="col" className={cn('w-12 px-2 py-2.5 text-center', CAPS)}>
+              Rank
             </th>
-            <th scope="col" className="px-2 py-1.5 text-left font-medium">
+            <th scope="col" className={cn('px-2 py-2.5 text-left', CAPS)}>
               Jugador
             </th>
             {RANKING_COLUMNS.map((column) => (

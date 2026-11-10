@@ -19,14 +19,18 @@ export const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 
 /**
- * `primary` is the one accent, violet: it marks the main action. Other colours
- * keep their meaning (sides, outcomes, formats, stream, errors).
+ * EDGE controls: rectangular, 1px border, no shadow. `primary` is the one
+ * accent, neon green: the main action is a green outline on a dark green tint
+ * with caps text, the secondary is a grey outline and the destructive one a
+ * red outline. Other colours keep their meaning (sides, outcomes, formats,
+ * stream, errors).
  */
+const CAPS = "uppercase tracking-wider"
+
 const buttonVariants = cva(
   [
-    "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-body-sm font-semibold whitespace-nowrap",
-    "transition-[background-color,border-color,box-shadow,color,opacity,scale] duration-(--dur-fast) ease-standard",
-    "motion-safe:active:scale-[0.97]",
+    "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-transparent text-body-sm font-semibold whitespace-nowrap",
+    "transition-[background-color,border-color,color,opacity] duration-(--dur-fast) ease-standard",
     "disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
     FOCUS_RING,
@@ -34,38 +38,27 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          "bg-primary text-primary-foreground shadow-[var(--elev-1)] hover:bg-primary/88 active:shadow-[var(--elev-0)] disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
-        hero:
-          "bg-primary text-primary-foreground shadow-[var(--elev-1)] hover:bg-primary/88 active:shadow-[var(--elev-0)] disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
-        stream:
-          "bg-stream text-stream-foreground shadow-[var(--elev-1)] hover:bg-stream/90 active:shadow-[var(--elev-0)] focus-visible:outline-stream disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
-        success:
-          "bg-success text-success-foreground shadow-[var(--elev-1)] hover:bg-success/90 hover:shadow-[var(--elev-2)] active:shadow-[var(--elev-0)] disabled:bg-secondary disabled:text-fg-3",
-        warning:
-          "bg-warning text-warning-foreground shadow-[var(--elev-1)] hover:bg-warning/90 hover:shadow-[var(--elev-2)] active:shadow-[var(--elev-0)] disabled:bg-secondary disabled:text-fg-3",
-        // --destructive under white text measures 3.17:1. --destructive-solid
-        // is the only red in the palette that clears AA under white (7.11:1).
-        destructive:
-          "bg-destructive-solid text-white shadow-[var(--elev-1)] hover:bg-destructive-solid/90 hover:shadow-[var(--elev-2)] active:shadow-[var(--elev-0)] focus-visible:outline-destructive disabled:bg-secondary disabled:text-fg-3",
-        outline:
-          "border border-border-strong bg-surface-3 text-fg-1 shadow-[var(--elev-0)] hover:border-fg-4 hover:bg-surface-4 hover:text-fg-1 active:shadow-none disabled:bg-surface-2 disabled:text-fg-3",
-        "outline-primary":
-          "border border-fg-2 bg-surface-4 text-fg-1 shadow-[var(--elev-0)] hover:border-fg-1 hover:bg-surface-5 active:shadow-none disabled:border-border-strong disabled:bg-surface-2 disabled:text-fg-3",
-        secondary:
-          "bg-secondary text-secondary-foreground shadow-[var(--elev-0)] hover:bg-surface-5 active:shadow-none",
+        default: `${CAPS} border-primary bg-primary/14 text-primary hover:bg-primary/24 disabled:border-border-strong disabled:bg-transparent disabled:text-fg-3`,
+        hero: `${CAPS} border-primary bg-primary/14 text-primary hover:bg-primary/24 disabled:border-border-strong disabled:bg-transparent disabled:text-fg-3`,
+        stream: `${CAPS} border-stream bg-stream/14 text-stream-text hover:bg-stream/24 focus-visible:outline-stream disabled:border-border-strong disabled:bg-transparent disabled:text-fg-3`,
+        success: `${CAPS} border-success bg-success/14 text-success hover:bg-success/24 disabled:border-border-strong disabled:bg-transparent disabled:text-fg-3`,
+        warning: `${CAPS} border-warning bg-warning/14 text-warning hover:bg-warning/24 disabled:border-border-strong disabled:bg-transparent disabled:text-fg-3`,
+        destructive: `${CAPS} border-destructive bg-destructive/12 text-destructive hover:bg-destructive/22 focus-visible:outline-destructive disabled:border-border-strong disabled:bg-transparent disabled:text-fg-3`,
+        outline: `${CAPS} border-border-strong bg-transparent text-fg-1 hover:border-fg-4 hover:bg-surface-3 disabled:text-fg-3`,
+        "outline-primary": `${CAPS} border-border-strong bg-transparent text-fg-1 hover:border-fg-3 hover:bg-surface-3 disabled:text-fg-3`,
+        secondary: `${CAPS} border-border-strong bg-surface-3 text-secondary-foreground hover:border-fg-4 hover:bg-surface-5`,
         ghost: "text-fg-2 hover:bg-surface-3 hover:text-fg-1",
-        link: "text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 motion-safe:active:scale-100",
+        link: "text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1",
       },
       size: {
-        default: "h-11 px-5 py-2.5 has-[>svg]:px-4",
-        xs: "h-8 gap-1 px-2.5 text-meta has-[>svg]:px-2 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-10 gap-1.5 px-3.5 has-[>svg]:px-3",
-        lg: "h-12 px-7 text-body has-[>svg]:px-5",
-        icon: "size-11",
-        "icon-xs": "size-8 [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-10",
-        "icon-lg": "size-12",
+        default: "h-8 px-3.5 has-[>svg]:px-3",
+        xs: "h-6 gap-1 px-2 text-meta has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-7 gap-1.5 px-3 has-[>svg]:px-2.5",
+        lg: "h-9 px-5 text-body has-[>svg]:px-4",
+        icon: "size-8",
+        "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-7",
+        "icon-lg": "size-9",
       },
     },
     defaultVariants: {

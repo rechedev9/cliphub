@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FOLLOW_ZOOM, MAX_ZOOM, boxWindow, followView, panView, radarImageFits, rememberZoom, rememberedZoom, zoomLevel, zoomViewAt } from './map-view.ts';
+import { FOLLOW_ZOOM, MAX_ZOOM, boxWindow, followView, panView, radarImageFits, zoomLevel, zoomViewAt } from './map-view.ts';
 import { radarProjection } from '../tactical-spatial.ts';
-import { heightTone, navRadarModel, polygonLevel, toneColor } from './nav-radar.ts';
+import { NAV_RADAR_PALETTE, floorBounds, floorPolygons, heightTone, navRadarModel, placeTints, polygonLevel, toneColor, toneRange } from './nav-radar.ts';
 import { layoutTags, tagName } from './tag-layout.ts';
 
 const base = { x: 0.1, y: 0.1, width: 0.8, height: 0.8 };
@@ -113,16 +113,51 @@ test('map view: the plate window covers the whole box, beside the view too', () 
   assert.ok(window.width > zoomed.width);
 });
 
-test('map view: the zoom is remembered per map until it is reset', () => {
-  const view = { x: 0.2, y: 0.2, width: 0.4, height: 0.4 };
-  rememberZoom('de_mirage', view);
-  assert.deepEqual(rememberedZoom('de_mirage'), view);
-  assert.equal(rememberedZoom('de_inferno'), null);
-  rememberZoom('de_mirage', null);
-  assert.equal(rememberedZoom('de_mirage'), null);
-});
-
 test('map view: the official radar only sits under a calibration read from its overview', () => {
   assert.equal(radarImageFits({ source: 'overview' }), true);
   assert.equal(radarImageFits({ source: 'derived' }), false);
+});
+
+test('nav radar: one floor of a two-floor map is its own polygons and its own extent', () => {
+  // An upper square near the origin and a lower one far to the east.
+  const vertices = Float32Array.from([0, 0, 0, 10, 0, 0, 10, 10, 0, 100, 0, -700, 120, 0, -700, 120, 20, -700]);
+  const model = navRadarModel({ vertices, triangles: new Uint32Array(), areas: [{ id: 1, polygon: [0, 1, 2] }, { id: 2, polygon: [3, 4, 5] }] });
+  assert.ok(model !== null);
+  const upper = floorPolygons(model, -495, 'default');
+  const lower = floorPolygons(model, -495, 'lower');
+  assert.equal(upper.length, 1);
+  assert.equal(lower.length, 1);
+  assert.deepEqual(floorBounds(lower), { minX: 100, minY: 0, maxX: 120, maxY: 20 });
+  assert.deepEqual(floorBounds(upper), { minX: 0, minY: 0, maxX: 10, maxY: 10 });
+  assert.equal(floorBounds([]), null);
+  assert.equal(floorPolygons(model, undefined, 'lower').length, 2);
+});
+
+test('nav radar: the greys are flat, the same range on any floor', () => {
+  const [low, high] = [NAV_RADAR_PALETTE.low, NAV_RADAR_PALETTE.high];
+  assert.ok(high[0] - low[0] <= 24);
+  const flat = [{ points: new Float64Array(), z: 5, cx: 0, cy: 0 }, { points: new Float64Array(), z: 5, cx: 0, cy: 0 }];
+  assert.deepEqual(toneRange(flat), { minZ: 5, maxZ: 5 });
+});
+
+test('nav radar: bombsites and the CT spawn are tinted from the ground near them, on their own floor', () => {
+  const square = (x: number, z: number): number[] => [x, 0, z, x + 10, 0, z, x + 10, 10, z];
+  const vertices = Float32Array.from([...square(0, 0), ...square(30, 0), ...square(2000, 0), ...square(10, 300), ...square(0, -700)]);
+  const areas = [0, 1, 2, 3, 4].map((id) => ({ id, polygon: [id * 3, id * 3 + 1, id * 3 + 2] }));
+  const model = navRadarModel({ vertices, triangles: new Uint32Array(), areas });
+  assert.ok(model !== null);
+  const callouts = [
+    { name: 'BombsiteA', level: 'default' as const, center: [5, 5] as [number, number], samples: 1 },
+    { name: 'CTSpawn', level: 'lower' as const, center: [5, 5] as [number, number], samples: 1 },
+    { name: 'Hell', level: 'default' as const, center: [5, 5] as [number, number], samples: 1 },
+  ];
+  const tints = placeTints(model, callouts, -495);
+  const byZ = (z: number, x: number): string | undefined => [...tints].find(([polygon]) => polygon.z === z && polygon.cx > x && polygon.cx < x + 10)?.[1];
+  assert.equal(byZ(0, 0), NAV_RADAR_PALETTE.site);
+  assert.equal(byZ(0, 30), NAV_RADAR_PALETTE.site);
+  // Too far, at another height (the roof), and on the other floor's tint.
+  assert.equal(byZ(0, 2000), undefined);
+  assert.equal(byZ(300, 10), undefined);
+  assert.equal(byZ(-700, 0), NAV_RADAR_PALETTE.spawn);
+  assert.equal(placeTints(model, callouts, -495), tints);
 });

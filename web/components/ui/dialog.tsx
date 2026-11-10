@@ -57,7 +57,7 @@ function DialogContent({
         // Fades in with a small scale. Surface is --surface-4 so the panel
         // stays lighter than the canvas behind it.
         className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-full min-w-0 max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border border-border bg-popover p-6 text-popover-foreground shadow-[var(--elev-5)] outline-none data-[state=closed]:animate-dialog-out data-[state=open]:animate-dialog-in sm:max-w-lg",
+          "fixed top-[50%] left-[50%] z-50 grid w-full min-w-0 max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border border-border-strong bg-popover p-5 text-popover-foreground outline-none data-[state=closed]:animate-dialog-out data-[state=open]:animate-dialog-in sm:max-w-lg",
           className
         )}
         {...props}
@@ -69,7 +69,7 @@ function DialogContent({
               data-slot="dialog-close"
               variant="ghost"
               size="icon-sm"
-              className="absolute top-3 right-3 text-fg-3 hover:text-fg-1"
+              className="absolute top-2.5 right-2.5 text-fg-3 hover:text-fg-1"
             >
               <XIcon />
               <span className="sr-only">Cerrar</span>

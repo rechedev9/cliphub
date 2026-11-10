@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Layers, Link2, ListVideo, MonitorPlay, PlugZap, Swords, TriangleAlert, Trophy } from 'lucide-react';
+import { Link2, MonitorPlay, PlugZap, Swords, TriangleAlert } from 'lucide-react';
 import {
   LIBRARY_PARSE_STATES,
   LIBRARY_SOURCES,
@@ -19,7 +19,7 @@ import {
 } from '@/lib/api/library';
 import type { LibrarySeries } from '@/lib/api/veto';
 import { listVoiceSummaries, type VoiceSummary } from '@/lib/api/voice';
-import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, PRO_MATCHES_HREF, matchHref } from '@/lib/clips/routes';
+import { LONG_VIDEOS_HREF, MATCHES_QUERY, matchHref } from '@/lib/clips/routes';
 import { bulkDeleteSummary, deleteErrorMessage } from '@/lib/delete-error';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
@@ -56,7 +56,6 @@ import { voiceIndex, type VoiceByMatch } from '@/lib/library/voice-summary';
 import type { CountNoun } from '@/lib/records/selection';
 import { FILTER_ANY, SEARCH_FILTER, filterRows, type TableViewState } from '@/lib/records/table-view';
 import { startPollLoop } from '@/lib/poll-loop';
-import { PLAYLISTS_HREF } from '@/lib/replay/saved-playlist';
 import { settleEach, withoutKeys } from '@/lib/settle-each';
 import { cn } from '@/lib/utils';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
@@ -70,7 +69,7 @@ import { LibraryListControls } from '@/components/matches/library-list-controls'
 import { PartidaGroupsList } from '@/components/matches/partida-groups-list';
 import { PartidaVoice } from '@/components/matches/partida-voice';
 import { DemoStatus, RowActions, Scoreline, isPending, removeDemo, type RowHandlers } from '@/components/matches/partida-cells';
-import { StudioPageHeader } from '@/components/studio/page-header';
+import { PartidasFrame } from '@/components/matches/partidas-frame';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -251,39 +250,6 @@ async function loadLibrary(): Promise<Loaded> {
   return { rows: buildPartidaRows(demos, matches), series, unlinkedJobs: unlinked.length, voices };
 }
 
-/** Title and page actions. `PartidasSkeleton` passes a placeholder where the live importer goes. */
-function PartidasHeader({ importer }: { importer: ReactNode }): ReactNode {
-  return (
-    <StudioPageHeader
-      title="Partidas"
-      description="Las demos que has importado. Abre una para ver cómo fue, ronda a ronda, y sacar sus vídeos."
-      actions={
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href={LIBRARY_SERIES_HREF}>
-              <Layers aria-hidden />
-              Series y veto
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href={PLAYLISTS_HREF}>
-              <ListVideo aria-hidden />
-              Playlists
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href={PRO_MATCHES_HREF}>
-              <Trophy aria-hidden />
-              Partidas pro
-            </Link>
-          </Button>
-          {importer}
-        </div>
-      }
-    />
-  );
-}
-
 /** Partidas: every demo in the library with its match, filterable, importable, and live while scans run. */
 export function MatchLibrary(): ReactNode {
   const search = useSearchParams();
@@ -407,17 +373,12 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     }
   }
 
-  // The header sits first in every branch, so the importer keeps its open dialog when the first demo fills the table.
-  const header = <PartidasHeader importer={<DemoImport onImported={() => pollRef.current()} />} />;
+  // The frame is the root in every branch, so the importer keeps its open dialog when the first demo fills the table.
+  const frame = (children: ReactNode): ReactNode => (
+    <PartidasFrame importer={<DemoImport onImported={() => pollRef.current()} />}>{children}</PartidasFrame>
+  );
 
-  if (loaded === null) {
-    return (
-      <>
-        {header}
-        <LibrarySkeleton />
-      </>
-    );
-  }
+  if (loaded === null) return frame(<LibrarySkeleton />);
 
   const { rows, unlinkedJobs } = loaded;
   const backlog = unlinkedJobs > 0 ? <CrearBacklog count={unlinkedJobs} busy={linking} onLink={() => void linkCrearDemos()} /> : null;
@@ -477,12 +438,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
         </div>
       );
     }
-    return (
-      <>
-        {header}
-        {empty}
-      </>
-    );
+    return frame(empty);
   }
 
   const now = Date.now();
@@ -537,9 +493,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     />
   );
 
-  return (
-    <>
-      {header}
+  const body = (
       <div className="flex flex-col gap-3">
         {pending > 0 || noticeLine !== null || backlog !== null ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -628,8 +582,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
         />
         )}
       </div>
-    </>
   );
+  return frame(body);
 }
 
 function CrearBacklog({ count, busy, onLink }: { count: number; busy: boolean; onLink: () => void }): ReactNode {
@@ -658,10 +612,9 @@ const SKELETON_CELLS = ['w-14', 'w-10', 'w-72', 'w-8', 'w-16', 'w-20'] as const;
 /** The page while the route or its first read loads: the real header, the importer slot and the table skeleton. */
 export function PartidasSkeleton(): ReactNode {
   return (
-    <>
-      <PartidasHeader importer={<Skeleton className="h-10 w-40" />} />
+    <PartidasFrame importer={<Skeleton className="h-8 w-36" />}>
       <LibrarySkeleton />
-    </>
+    </PartidasFrame>
   );
 }
 

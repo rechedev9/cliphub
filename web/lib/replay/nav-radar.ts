@@ -1,12 +1,13 @@
 import type { MapGeometry } from '../api/map-geometry.ts';
+import type { RadarLevel, TacticalGeometry } from '../api/tactical.ts';
 
 /**
  * The stylized radar drawn from the map's nav mesh: one flat polygon per
  * walkable area, toned by height so higher floors read lighter.
  */
 
-/** One nav area: flat world x,y pairs and its mean height. */
-export type NavPolygon = { points: Float64Array; z: number };
+/** One nav area: flat world x,y pairs, its mean height and its centre. */
+export type NavPolygon = { points: Float64Array; z: number; cx: number; cy: number };
 
 export type NavRadarModel = {
   /** Lowest floor first, so higher floors paint over the ones under them. */
@@ -30,13 +31,17 @@ function polygonOf(vertices: Float32Array, indices: readonly number[]): NavPolyg
   if (indices.length < 3) return null;
   const points = new Float64Array(indices.length * 2);
   let z = 0;
+  let cx = 0;
+  let cy = 0;
   for (let i = 0; i < indices.length; i += 1) {
     const at = indices[i] * 3;
     points[i * 2] = vertices[at];
     points[i * 2 + 1] = vertices[at + 1];
+    cx += vertices[at];
+    cy += vertices[at + 1];
     z += vertices[at + 2];
   }
-  return { points, z: z / indices.length };
+  return { points, z: z / indices.length, cx: cx / indices.length, cy: cy / indices.length };
 }
 
 /** The radar model of a nav mesh, or null when it has nothing to draw. */
@@ -56,19 +61,9 @@ export function navRadarModel(geometry: Pick<MapGeometry, 'vertices' | 'triangle
   if (polygons.length === 0) return null;
   polygons.sort((a, b) => a.z - b.z);
   const heights = polygons.map((polygon) => polygon.z);
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-  for (const { points } of polygons) {
-    for (let i = 0; i < points.length; i += 2) {
-      minX = Math.min(minX, points[i]);
-      maxX = Math.max(maxX, points[i]);
-      minY = Math.min(minY, points[i + 1]);
-      maxY = Math.max(maxY, points[i + 1]);
-    }
-  }
-  return { polygons, minZ: quantile(heights, Z_TRIM), maxZ: quantile(heights, 1 - Z_TRIM), bounds: { minX, minY, maxX, maxY } };
+  const bounds = floorBounds(polygons);
+  if (bounds === null) return null;
+  return { polygons, minZ: quantile(heights, Z_TRIM), maxZ: quantile(heights, 1 - Z_TRIM), bounds };
 }
 
 /** 0 at the lowest floor, 1 at the highest, eased so mid floors keep contrast. */
@@ -88,13 +83,93 @@ export function toneColor(tone: number, low: Rgb8, high: Rgb8): string {
   return `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
 }
 
-/** The radar's own colours: a dark plate in both themes, like the game's radar image. */
+/**
+ * The radar's own colours, flat like Skybox EDGE's: a black plate and one mid
+ * grey for every walkable floor of both levels. Height only moves the grey
+ * within a narrow band, so steps still read without a second colour.
+ */
 export const NAV_RADAR_PALETTE = {
   void: '#0b0c0e',
   outline: '#050506',
-  low: [52, 57, 63],
-  high: [156, 162, 170],
-} as const satisfies { void: string; outline: string; low: Rgb8; high: Rgb8 };
+  low: [90, 90, 90],
+  high: [107, 107, 107],
+  /** Bombsites, and the CT spawn's blue tint. */
+  site: '#4a2323',
+  spawn: '#1f2c44',
+} as const satisfies { void: string; outline: string; low: Rgb8; high: Rgb8; site: string; spawn: string };
+
+/** The height range one floor's tone spans, with stray areas trimmed off both ends. */
+export function toneRange(polygons: readonly NavPolygon[]): { minZ: number; maxZ: number } {
+  const heights = polygons.map((polygon) => polygon.z).sort((a, b) => a - b);
+  return { minZ: quantile(heights, Z_TRIM), maxZ: quantile(heights, 1 - Z_TRIM) };
+}
+
+/** Walkable ground within this many world units of a bombsite or spawn centre takes its tint. */
+const SITE_REACH = 400;
+const SPAWN_REACH = 460;
+/** Only the ground at the height of the place: the floor above or under it stays grey. */
+const TINT_HEIGHT = 150;
+
+type Callouts = TacticalGeometry['callouts'];
+
+const tintCache = new WeakMap<Callouts, Map<NavPolygon, string>>();
+
+/**
+ * The nav areas that make a bombsite or the CT spawn, each with its tint, found
+ * from the places the demo recorded: the areas on the place's floor, near its
+ * centre and at the height of the nearest ground.
+ */
+export function placeTints(model: NavRadarModel, callouts: Callouts, lowerAltitudeMax: number | undefined): Map<NavPolygon, string> {
+  const known = tintCache.get(callouts);
+  if (known !== undefined) return known;
+  const tints = new Map<NavPolygon, string>();
+  for (const callout of callouts) {
+    const name = callout.name.toLowerCase().replace(/[^a-z]/g, '');
+    const isSite = name === 'bombsitea' || name === 'bombsiteb';
+    if (!isSite && name !== 'ctspawn') continue;
+    const reach = isSite ? SITE_REACH : SPAWN_REACH;
+    const [x, y] = callout.center;
+    const onFloor = model.polygons.filter((polygon) => polygonLevel(polygon.z, lowerAltitudeMax) === callout.level);
+    let nearest: NavPolygon | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const polygon of onFloor) {
+      const distance = Math.hypot(polygon.cx - x, polygon.cy - y);
+      if (distance < nearestDistance) {
+        nearest = polygon;
+        nearestDistance = distance;
+      }
+    }
+    if (nearest === null) continue;
+    for (const polygon of onFloor) {
+      if (Math.hypot(polygon.cx - x, polygon.cy - y) <= reach && Math.abs(polygon.z - nearest.z) <= TINT_HEIGHT) tints.set(polygon, isSite ? NAV_RADAR_PALETTE.site : NAV_RADAR_PALETTE.spawn);
+    }
+  }
+  tintCache.set(callouts, tints);
+  return tints;
+}
+
+/** The nav areas on one floor of a two-floor map; a one-floor map answers all of them. */
+export function floorPolygons(model: NavRadarModel, lowerAltitudeMax: number | undefined, level: RadarLevel): NavPolygon[] {
+  return lowerAltitudeMax === undefined ? model.polygons : model.polygons.filter((polygon) => polygonLevel(polygon.z, lowerAltitudeMax) === level);
+}
+
+/** The world rectangle one floor's walkable areas cover, or null when it has none. */
+export function floorBounds(polygons: readonly NavPolygon[]): NavRadarModel['bounds'] | null {
+  if (polygons.length === 0) return null;
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const { points } of polygons) {
+    for (let i = 0; i < points.length; i += 2) {
+      minX = Math.min(minX, points[i]);
+      maxX = Math.max(maxX, points[i]);
+      minY = Math.min(minY, points[i + 1]);
+      maxY = Math.max(maxY, points[i + 1]);
+    }
+  }
+  return { minX, minY, maxX, maxY };
+}
 
 /** Which floor a polygon belongs to on a split-level map, like `levelForAltitude`. */
 export function polygonLevel(z: number, lowerAltitudeMax: number | undefined): 'default' | 'lower' {

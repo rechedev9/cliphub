@@ -9,12 +9,12 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
     <textarea
       data-slot="textarea"
       className={cn(
-        "min-h-20 w-full min-w-0 resize-y rounded-md border border-border-strong bg-surface-3 px-3.5 py-2.5 text-body-sm text-fg-1 shadow-[var(--elev-0)]",
+        "min-h-20 w-full min-w-0 resize-y rounded-md border border-border-strong bg-surface-3 px-2.5 py-2 text-body-sm text-fg-1",
         "transition-[border-color,box-shadow,background-color] duration-(--dur-instant) ease-standard",
         "selection:bg-primary selection:text-primary-foreground placeholder:text-fg-3",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         FOCUS_RING,
-        "focus-visible:border-fg-3 focus-visible:bg-surface-4",
+        "focus-visible:border-primary focus-visible:bg-surface-3 focus-visible:outline-0",
         "aria-invalid:border-destructive aria-invalid:focus-visible:outline-destructive",
         className
       )}

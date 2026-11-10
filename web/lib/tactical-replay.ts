@@ -142,7 +142,8 @@ export function createInterpolatedSampleReader(
 }
 
 /** A point of a motion trail, oldest first. */
-export type TrailPoint = { x: number; y: number };
+/** One point of a trail; `level` is the floor the player was on there, when the caller knows it. */
+export type TrailPoint = { x: number; y: number; level?: RadarLevel };
 
 /**
  * The last `seconds` of movement per slot, oldest point first, ending at the
@@ -154,6 +155,7 @@ export function sampleTrails(
   cursor: FrameCursor,
   tickrate: number,
   seconds: number,
+  levelOf?: (slot: number, index: number) => RadarLevel,
 ): Map<number, TrailPoint[]> {
   const trails = new Map<number, TrailPoint[]>();
   const current = frames[cursor.index];
@@ -165,9 +167,10 @@ export function sampleTrails(
     if (frame.tick < oldestTick) break;
     for (const sample of frame.samples) {
       if (!isAlive(sample)) continue;
+      const point: TrailPoint = levelOf === undefined ? { x: sample.x, y: sample.y } : { x: sample.x, y: sample.y, level: levelOf(sample.slot, i) };
       const points = trails.get(sample.slot);
-      if (points === undefined) trails.set(sample.slot, [{ x: sample.x, y: sample.y }]);
-      else points.push({ x: sample.x, y: sample.y });
+      if (points === undefined) trails.set(sample.slot, [point]);
+      else points.push(point);
     }
   }
   // Reverse once instead of shifting the growing array for every point.
@@ -183,12 +186,13 @@ export function createSampleTrailReader(
   frames: readonly TacticalFrame[],
   tickrate: number,
   seconds: number,
+  levelOf?: (slot: number, index: number) => RadarLevel,
 ): (cursor: FrameCursor) => ReadonlyMap<number, readonly TrailPoint[]> {
   let index: number | undefined;
   let trails: ReadonlyMap<number, readonly TrailPoint[]> = new Map();
   return (cursor) => {
     if (cursor.index !== index) {
-      trails = sampleTrails(frames, cursor, tickrate, seconds);
+      trails = sampleTrails(frames, cursor, tickrate, seconds, levelOf);
       index = cursor.index;
     }
     return trails;
@@ -197,20 +201,24 @@ export function createSampleTrailReader(
 
 /**
  * The vertical section to draw at full strength: the one most live players are
- * on. A single-level map always answers `default`, and a tie keeps `default` so
- * the view never flickers between layers on an even split.
+ * on. A single-level map always answers `default`. A tie keeps `previous` (the
+ * default when none), so the view never flickers between layers on an even split;
+ * `levelOf` settles a player's floor by a rule other than the raw altitude.
  */
 export function dominantLevel(
   calibration: RadarCalibration,
   samples: readonly TacticalSample[],
+  options: { previous?: RadarLevel; levelOf?: (sample: TacticalSample) => RadarLevel } = {},
 ): RadarLevel {
   if (!isMultiLevelMap(calibration)) return RADAR_LEVELS.default;
   let lower = 0;
   let upper = 0;
   for (const sample of samples) {
     if (!isAlive(sample)) continue;
-    if (levelForAltitude(calibration, sample.z) === RADAR_LEVELS.lower) lower += 1;
+    const level = options.levelOf === undefined ? levelForAltitude(calibration, sample.z) : options.levelOf(sample);
+    if (level === RADAR_LEVELS.lower) lower += 1;
     else upper += 1;
   }
+  if (lower === upper) return options.previous ?? RADAR_LEVELS.default;
   return lower > upper ? RADAR_LEVELS.lower : RADAR_LEVELS.default;
 }

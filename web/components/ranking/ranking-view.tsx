@@ -6,9 +6,11 @@ import { Trophy } from 'lucide-react';
 import { getLeaderboard, isLibraryOffline } from '@/lib/api/library';
 import type { Leaderboard } from '@/lib/api/baseline';
 import { DEFAULT_MAP_POOL, EXTRA_POOL_MAPS } from '@/lib/api/veto';
-import { resetScopeFields, type AnalysisScope, type ScopeField } from '@/lib/analysis/scope';
+import type { AnalysisScope } from '@/lib/analysis/scope';
 import {
   ALLROUND,
+  DEFAULT_MIN_ROUNDS,
+  DEFAULT_PERIOD,
   boardSampleText,
   leaderboardRequest,
   nextDir,
@@ -22,7 +24,6 @@ import {
   type RankingSort,
   type RankingState,
 } from '@/lib/ranking/ranking';
-import { ScopeBar } from '@/components/analysis/scope-bar';
 import { EmptyState } from '@/components/records/empty-state';
 import { RankingFilters } from '@/components/ranking/ranking-filters';
 import { RankingTable } from '@/components/ranking/ranking-table';
@@ -31,7 +32,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 type Load = { key: string; board: Leaderboard } | { key: string; failed: 'offline' | 'error' } | null;
 
-const SCOPE_FIELDS: readonly ScopeField[] = ['map', 'side', 'period'];
 const MAP_OPTIONS = [...DEFAULT_MAP_POOL, ...EXTRA_POOL_MAPS].sort();
 
 function failureMessage(failed: 'offline' | 'error', pro: boolean): string {
@@ -150,24 +150,28 @@ export function RankingView(): ReactNode {
     change({ ...state, sort, dir: nextDir(state, sort) });
   }
 
-  function resetScope(fields: readonly ScopeField[]): void {
-    change(patchRanking(state, { scope: resetScopeFields(state.scope, fields) }));
-  }
+  const cleared = patchRanking(state, {
+    scope: { map: '', side: '', period: DEFAULT_PERIOD },
+    role: '',
+    mapRole: '',
+    level: '',
+    top: null,
+    teamTop: null,
+    event: '',
+    minRounds: DEFAULT_MIN_ROUNDS,
+  });
+  const dirty = writeRanking(cleared, query) !== writeRanking(state, query);
 
   const patchScope = (patch: Partial<AnalysisScope>): void => change(patchRanking(state, { scope: patch }));
 
   return (
-    <div className="flex flex-col gap-3">
-      <ScopeBar
-        scope={state.scope}
-        fields={SCOPE_FIELDS}
-        maps={MAP_OPTIONS}
-        onChange={patchScope}
-        onReset={resetScope}
-        counts={board === null ? null : { maps: board.matches, rounds: board.rounds }}
-      />
+    <div className="flex flex-col gap-3.5">
       <RankingFilters
         state={state}
+        maps={MAP_OPTIONS}
+        onScope={patchScope}
+        counts={board === null ? null : { maps: board.matches, rounds: board.rounds }}
+        onClear={dirty ? () => change(cleared) : null}
         onRole={(role) => change(patchRanking(state, state.scope.map === '' ? { role, mapRole: '' } : { role }))}
         onAllround={(side) => change(side === null ? patchRanking(state, { mapRole: '' }) : patchRanking(state, { role: '', mapRole: ALLROUND, scope: { side } }))}
         onLevel={(level) => change(patchRanking(state, { level }))}

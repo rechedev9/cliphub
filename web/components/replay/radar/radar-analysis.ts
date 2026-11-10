@@ -10,7 +10,56 @@ import { formatDecimal } from '@/lib/format';
 /** What the analysis layers add to one frame of the focused round. */
 export type FrameAnalysis = { sight: FrameSight | null; hits: readonly HitLine[] };
 
-type Canvas = { ctx: CanvasRenderingContext2D; calibration: RadarCalibration; size: number; style: RadarStyle; samples: readonly TacticalSample[] };
+/** Where the other floor's pane lies from this one, so a line to a player there ends in a stub toward it. */
+export type AcrossFloors = { dx: number; dy: number; label: string; slots: ReadonlySet<number> };
+
+type Canvas = { ctx: CanvasRenderingContext2D; calibration: RadarCalibration; size: number; style: RadarStyle; samples: readonly TacticalSample[]; across?: AcrossFloors };
+
+/** How far a line to the other pane's player reaches toward it, in CSS pixels. */
+const STUB_LENGTH = 34;
+
+/** The slot on the other pane when exactly one end of a line is on this one; null when both or neither are. */
+function stubbed(canvas: Canvas, ends: { a: unknown; b: unknown; slotA: number; slotB: number }): { here: number; there: number } | null {
+  const { across } = canvas;
+  if (across === undefined) return null;
+  if (ends.a !== undefined && ends.b === undefined && across.slots.has(ends.slotB)) return { here: ends.slotA, there: ends.slotB };
+  if (ends.b !== undefined && ends.a === undefined && across.slots.has(ends.slotA)) return { here: ends.slotB, there: ends.slotA };
+  return null;
+}
+
+/** A short dashed line from a player toward the other floor's pane, ending in a small floor chip. */
+function drawStub(canvas: Canvas, options: { from: RadarPoint; color: string; width: number; alpha: number }): void {
+  const { ctx, across } = canvas;
+  if (across === undefined) return;
+  const { from, color, width, alpha } = options;
+  const end = { x: from.x + across.dx * STUB_LENGTH, y: from.y + across.dy * STUB_LENGTH };
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = `700 10px ${canvas.style.fontFamily}`;
+  const chipWidth = ctx.measureText(across.label).width + 8;
+  const cx = end.x + across.dx * (chipWidth / 2);
+  const cy = end.y + across.dy * 7;
+  ctx.fillStyle = 'rgba(11, 12, 14, 0.85)';
+  ctx.beginPath();
+  ctx.roundRect(cx - chipWidth / 2, cy - 7, chipWidth, 14, 7);
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#f2f4f6';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(across.label, cx, cy + 0.5);
+  ctx.globalAlpha = 1;
+}
 
 function sideOf(sample: TacticalSample): TacticalSide {
   return hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.sideT) ? TACTICAL_SIDES.t : TACTICAL_SIDES.ct;
@@ -60,6 +109,13 @@ export function drawSightPairs(canvas: Canvas, sight: FrameSight): void {
   for (const pair of sight.pairs) {
     const a = players.get(pair.a);
     const b = players.get(pair.b);
+    const stub = stubbed(canvas, { a, b, slotA: pair.a, slotB: pair.b });
+    const here = a ?? b;
+    if (stub !== null && here !== undefined) {
+      const looked = stub.here === pair.a ? pair.aSees : pair.bSees;
+      drawStub(canvas, { from: here.at, color: colorOf(canvas, here.side), width: 1, alpha: looked ? 0.7 : 0.35 });
+      continue;
+    }
     if (a === undefined || b === undefined) continue;
     let color = '#f2f4f6';
     if (pair.aSees !== pair.bSees) color = colorOf(canvas, pair.aSees ? a.side : b.side);
@@ -85,6 +141,12 @@ export function drawHitLines(canvas: Canvas, lines: readonly HitLine[]): void {
   for (const line of lines) {
     const from = players.get(line.from);
     const to = players.get(line.to);
+    const stub = stubbed(canvas, { a: from, b: to, slotA: line.from, slotB: line.to });
+    const here = from ?? to;
+    if (stub !== null && here !== undefined) {
+      drawStub(canvas, { from: here.at, color: canvas.style.hits[line.kind], width: 2, alpha: line.alpha });
+      continue;
+    }
     if (from === undefined || to === undefined) continue;
     const length = Math.hypot(to.at.x - from.at.x, to.at.y - from.at.y);
     if (length < 1) continue;

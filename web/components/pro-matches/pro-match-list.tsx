@@ -5,10 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { CloudOff, PlugZap, Trophy, X } from 'lucide-react';
 import { LibraryApiError, isLibraryOffline } from '@/lib/api/library';
 import {
-  PRO_PERIODS,
   followProTeam,
   groupByDay,
-  proDayLabel,
   importProMatch,
   listProMatches,
   parseProQuery,
@@ -21,15 +19,15 @@ import {
   type ProMatchTeam,
   type ProMatchesPage,
 } from '@/lib/api/pro-matches';
-import { prettyMapName } from '@/lib/format';
+import { DayHeading } from '@/components/matches/series-block';
 import { EmptyState } from '@/components/records/empty-state';
 import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { Segmented } from '@/components/ui/segmented';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProMatchCard } from './pro-match-card';
+import { ProFilters } from './pro-match-filters';
 
-const ALL = 'all';
+/** The address key of the second team of "VS."; the catalog filters one team, so this one narrows the page read. */
+const RIVAL_KEY = 'contra';
 
 type Load = { kind: 'loading' } | { kind: 'offline' } | { kind: 'page'; page: ProMatchesPage };
 
@@ -51,6 +49,7 @@ export function ProMatchList(): ReactNode {
   const router = useRouter();
   const search = useSearchParams();
   const [query, setQuery] = useState<ProMatchQuery>(() => parseProQuery(search));
+  const [rival, setRival] = useState(() => (search.get(RIVAL_KEY) ?? '').trim().slice(0, 20));
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [importing, setImporting] = useState<string | null>(null);
@@ -59,9 +58,11 @@ export function ProMatchList(): ReactNode {
 
   // The filters live in the address, so Back from the Replay keeps them; the entry is replaced, not added.
   useEffect(() => {
-    const address = proQueryAddress(query);
+    const params = new URLSearchParams(proQueryAddress(query));
+    if (rival !== '' && query.team !== '') params.set(RIVAL_KEY, rival);
+    const address = params.toString();
     window.history.replaceState(null, '', address === '' ? window.location.pathname : `${window.location.pathname}?${address}`);
-  }, [query]);
+  }, [query, rival]);
 
   useEffect(() => {
     let active = true;
@@ -116,6 +117,7 @@ export function ProMatchList(): ReactNode {
     );
   }
   const { page } = load;
+  const matches = rival === '' || query.team === '' ? page.matches : page.matches.filter((m) => m.teams.some((team) => String(team.id) === rival));
   const notice = proCatalogNotice(page.status);
   if (notice) {
     return (
@@ -125,7 +127,7 @@ export function ProMatchList(): ReactNode {
   }
   return (
     <div className="flex flex-col gap-5">
-      <ProFilters page={page} query={query} onChange={change} />
+      <ProFilters page={page} query={query} rival={rival} onChange={change} onRivalChange={setRival} />
       {page.follows.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-body-sm text-fg-2">Sigues a</span>
@@ -139,13 +141,13 @@ export function ProMatchList(): ReactNode {
         </div>
       ) : null}
       {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
-      {page.matches.length === 0 ? (
+      {matches.length === 0 ? (
         <EmptyState icon={Trophy} title="No hay partidas pro con estos filtros"
           description="Prueba con un periodo más largo o quita algún filtro. El servidor de ClipHub añade las partidas de HLTV cada día." />
       ) : (
-        groupByDay(page.matches).map((group) => (
-          <section key={group.day} aria-label={proDayLabel(group.day)} className="flex flex-col gap-3">
-            <h2 className="text-body-sm font-semibold text-fg-2">{proDayLabel(group.day)}</h2>
+        groupByDay(matches).map((group) => (
+          <section key={group.day} className="flex flex-col gap-2">
+            <DayHeading day={group.day} />
             {group.matches.map((m) => (
               <ProMatchCard key={m.id} match={m} importing={importing} following={following}
                 onOpen={(match, map) => void open(match, map)} onToggleFollow={(team: ProMatchTeam) => void toggleFollow(team)} />
@@ -178,54 +180,4 @@ function RetryButton({ onClick }: { onClick: () => void }): ReactNode {
 
 function unavailablePage(query: ProMatchQuery): ProMatchesPage {
   return { status: 'unavailable', days: query.days, page: 1, pages: 1, total: 0, matches: [], facets: { teams: [], events: [], maps: [] }, follows: [] };
-}
-
-/** The period choices, plus the one an address or an assistant link asked for. */
-function periodOptions(days: number): { value: string; label: string }[] {
-  const options = PRO_PERIODS.map((p) => ({ value: String(p.days), label: p.label }));
-  return options.some((o) => o.value === String(days)) ? options : [...options, { value: String(days), label: `${days} días` }];
-}
-
-function ProFilters({ page, query, onChange }: { page: ProMatchesPage; query: ProMatchQuery; onChange: (patch: Partial<ProMatchQuery>) => void }): ReactNode {
-  const period = String(query.days);
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <Segmented label="Periodo" value={period} onChange={(v) => onChange({ days: Number(v) })}
-        options={periodOptions(query.days)} />
-      <FilterSelect label="Equipo" all="Todos los equipos" value={query.team} onChange={(team) => onChange({ team })}
-        options={page.facets.teams.map((t) => ({ value: String(t.id), label: t.rank ? `${t.name} (#${t.rank})` : t.name }))} />
-      <FilterSelect label="Evento" all="Todos los eventos" value={query.event} onChange={(event) => onChange({ event })}
-        options={page.facets.events.map((e) => ({ value: e.name, label: e.name }))} />
-      <FilterSelect label="Mapa" all="Todos los mapas" value={query.map} onChange={(map) => onChange({ map })}
-        options={page.facets.maps.map((m) => ({ value: m.name, label: prettyMapName(m.name) }))} />
-    </div>
-  );
-}
-
-type FilterSelectProps = {
-  label: string;
-  all: string;
-  value: string;
-  options: readonly { value: string; label: string }[];
-  onChange: (value: string) => void;
-};
-
-function FilterSelect({ label, all, value, options, onChange }: FilterSelectProps): ReactNode {
-  // A chosen value stays listed even when the new period no longer has it.
-  const shown = value && !options.some((o) => o.value === value) ? [{ value, label: value }, ...options] : options;
-  return (
-    <Select value={value || ALL} onValueChange={(next) => onChange(next === ALL ? '' : next)}>
-      <SelectTrigger aria-label={label} className="h-8 w-48">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL}>{all}</SelectItem>
-        {shown.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
 }

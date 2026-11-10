@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DEFAULT_MAP_SETTINGS, namesShown, parseMapSettings, toggleNames } from './map-settings.ts';
+import { DEFAULT_MAP_SETTINGS, floorsSeparated, namesShown, parseMapSettings, toggleNames } from './map-settings.ts';
 
 test('stored map settings keep what is valid and default the rest', () => {
   assert.deepEqual(parseMapSettings(null), DEFAULT_MAP_SETTINGS);
@@ -23,4 +23,13 @@ test('names are switched for the mode on screen only', () => {
   assert.equal(namesShown(multiOff, true), false);
   assert.equal(namesShown(multiOff, false), true);
   assert.deepEqual(parseMapSettings(JSON.stringify(multiOff)), multiOff);
+});
+
+test('Nombres de zonas is off unless the stored settings turn it on, and the old floors words keep reading', () => {
+  assert.equal(DEFAULT_MAP_SETTINGS.show.zones, false);
+  assert.equal(parseMapSettings('{"show":{"killfeed":false}}').show.zones, false);
+  assert.equal(parseMapSettings('{"show":{"zones":true}}').show.zones, true);
+  assert.equal(floorsSeparated(parseMapSettings('{"floors":"both"}')), true);
+  assert.equal(floorsSeparated(parseMapSettings('{"floors":"one"}')), false);
+  assert.equal(floorsSeparated(DEFAULT_MAP_SETTINGS), true);
 });

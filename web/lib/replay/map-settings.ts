@@ -15,11 +15,20 @@ export const MAP_SIZE_LABELS: Record<MapSize, string> = { s: 'Pequeño', m: 'Med
 /** How much each size multiplies the player dots and the name tags. */
 export const MAP_SIZE_SCALE: Record<MapSize, number> = { s: 0.8, m: 1, l: 1.3 };
 
-/** On a two-floor map (Nuke, Vertigo): the floor the players are on, or both side by side. */
+/**
+ * On a two-floor map (Nuke, Vertigo): `both` is Separar pisos checked, each floor
+ * in its own block; `one` is it unchecked, the floor most players are on. The
+ * stored words stay as they were, so saved preferences keep reading.
+ */
 export const MAP_FLOORS = ['one', 'both'] as const;
 export type MapFloors = (typeof MAP_FLOORS)[number];
 
-export const MAP_FLOORS_LABELS: Record<MapFloors, string> = { one: 'Un piso', both: 'Los dos' };
+export const SEPARATE_FLOORS_LABEL = 'Separar pisos';
+export const SEPARATE_FLOORS_HINT = 'Cada piso en su bloque, a la misma escala. Sin marcar, el mapa muestra el piso donde está la mayoría';
+
+export function floorsSeparated(settings: Pick<MapSettings, 'floors'>): boolean {
+  return settings.floors === 'both';
+}
 
 /** How far one turn of the wheel zooms, by the same three sizes. */
 export const ZOOM_SPEED: Record<MapSize, number> = { s: 0.5, m: 1, l: 2 };
@@ -34,7 +43,7 @@ export function frameRateLabel(rate: FrameRate): string {
 }
 
 /** What the map draws on and around the players, each on or off. */
-export const MAP_SHOWS = ['killfeed', 'flashed', 'damage', 'trajectories', 'held'] as const;
+export const MAP_SHOWS = ['killfeed', 'flashed', 'damage', 'trajectories', 'held', 'zones'] as const;
 export type MapShow = (typeof MAP_SHOWS)[number];
 export type MapShows = Readonly<Record<MapShow, boolean>>;
 
@@ -44,6 +53,7 @@ export const MAP_SHOW_LABELS: Record<MapShow, string> = {
   damage: 'Daño recibido',
   trajectories: 'Trayectorias',
   held: 'Utilidad, bomba y kit',
+  zones: 'Nombres de zonas',
 };
 
 export const MAP_SHOW_HINTS: Record<MapShow, string> = {
@@ -52,6 +62,7 @@ export const MAP_SHOW_HINTS: Record<MapShow, string> = {
   damage: 'Un aro rojo en el punto de quien acaba de recibir daño',
   trajectories: 'La parábola de cada granada mientras vuela',
   held: 'Las granadas que lleva cada jugador, la bomba y el kit',
+  zones: 'Los nombres de los lugares, las bombsites y los spawns sobre el mapa de esquema',
 };
 
 /** How the Replay's map is drawn, kept per user across matches. Names are on or off per mode. */
@@ -67,9 +78,9 @@ export type MapSettings = {
   namesMulti: boolean;
 };
 
-const ALL_SHOWN: MapShows = { killfeed: true, flashed: true, damage: true, trajectories: true, held: true };
+const DEFAULT_SHOWS: MapShows = { killfeed: true, flashed: true, damage: true, trajectories: true, held: true, zones: false };
 
-export const DEFAULT_MAP_SETTINGS: MapSettings = { art: 'scheme', dots: 'm', names: 'm', floors: 'both', zoom: 'm', fps: 0, show: ALL_SHOWN, namesOne: true, namesMulti: true };
+export const DEFAULT_MAP_SETTINGS: MapSettings = { art: 'scheme', dots: 'm', names: 'm', floors: 'both', zoom: 'm', fps: 0, show: DEFAULT_SHOWS, namesOne: true, namesMulti: true };
 
 export const MAP_SETTINGS_KEY = 'cliphub.replay.map';
 
@@ -102,8 +113,8 @@ export function parseMapSettings(raw: string | null): MapSettings {
 }
 
 function parseShows(value: unknown): MapShows {
-  if (typeof value !== 'object' || value === null) return ALL_SHOWN;
-  const out: Record<MapShow, boolean> = { ...ALL_SHOWN };
+  if (typeof value !== 'object' || value === null) return DEFAULT_SHOWS;
+  const out: Record<MapShow, boolean> = { ...DEFAULT_SHOWS };
   for (const key of MAP_SHOWS) {
     const stored: unknown = Reflect.get(value, key);
     if (typeof stored === 'boolean') out[key] = stored;

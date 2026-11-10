@@ -189,17 +189,6 @@ export function localDay(value: string | Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** A day heading: Hoy, Ayer or the local date. */
-export function proDayLabel(day: string, now: Date = new Date()): string {
-  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  if (day === localDay(now)) return 'Hoy';
-  if (day === localDay(yesterday)) return 'Ayer';
-  const [y, m, d] = day.split('-').map(Number);
-  const date = new Date(y ?? 0, (m ?? 1) - 1, d ?? 1);
-  const year = date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' as const };
-  return new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', ...year }).format(date);
-}
-
 /** The matches grouped by the local day they were played, newest day first, keeping the server's order. */
 export function groupByDay(matches: readonly ProMatch[]): { day: string; matches: ProMatch[] }[] {
   const groups: { day: string; matches: ProMatch[] }[] = [];

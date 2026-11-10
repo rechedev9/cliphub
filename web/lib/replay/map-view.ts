@@ -122,19 +122,6 @@ export function boxWindow(box: { width: number; height: number }, projection: { 
   return { x: -offsetX / size, y: -offsetY / size, width: Math.max(1, box.width) / size, height: Math.max(1, box.height) / size };
 }
 
-/** Zoomed windows by map for the session, so leaving the 2D view and coming back keeps the framing. */
-const zoomMemory = new Map<string, RadarRect>();
-
-export function rememberedZoom(map: string): RadarRect | null {
-  return zoomMemory.get(map) ?? null;
-}
-
-/** Remembers `view` for `map`; null forgets it (the whole map). */
-export function rememberZoom(map: string, view: RadarRect | null): void {
-  if (view === null) zoomMemory.delete(map);
-  else zoomMemory.set(map, view);
-}
-
 /**
  * Whether CS2's overview image lines up with this calibration. A derived
  * calibration is fitted to where players stood, not to the image, so the image

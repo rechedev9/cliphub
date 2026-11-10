@@ -27,16 +27,13 @@ function Tabs({
 }
 
 const tabsListVariants = cva(
-  "group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-[3px] group-data-[orientation=horizontal]/tabs:h-10 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col",
+  "group/tabs-list inline-flex w-fit items-center justify-center group-data-[orientation=horizontal]/tabs:h-9 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col",
   {
     variants: {
       variant: {
-        // The well is one step BELOW the panel it sits on, so the active tab
-        // can rise above it. The shadcn default painted the active tab with
-        // --background, which on a forced-dark app made it darker than its own
-        // list — an inverted light model.
-        default: "border border-border bg-surface-1 shadow-[var(--elev-0)]",
-        line: "gap-1 border-0 bg-transparent shadow-none",
+        // EDGE tabs are plain text on a hairline; the active one carries the underline.
+        default: "gap-1 border-b border-border bg-transparent",
+        line: "gap-1 border-0 bg-transparent",
       },
     },
     defaultVariants: {
@@ -69,16 +66,15 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-1 text-body-sm font-medium whitespace-nowrap text-fg-3",
-        "transition-[color,background-color,border-color,box-shadow] duration-(--dur-fast) ease-standard",
+        "relative inline-flex h-full flex-1 items-center justify-center gap-1.5 rounded-none border border-transparent px-3 py-1 text-body-sm font-medium whitespace-nowrap text-fg-3",
+        "transition-[color,border-color] duration-(--dur-fast) ease-standard",
         "group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start",
         "hover:text-fg-1 disabled:pointer-events-none disabled:opacity-50",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         FOCUS_RING,
-        "group-data-[variant=default]/tabs-list:data-[state=active]:border-border-strong group-data-[variant=default]/tabs-list:data-[state=active]:bg-surface-3 group-data-[variant=default]/tabs-list:data-[state=active]:text-fg-1 group-data-[variant=default]/tabs-list:data-[state=active]:shadow-[var(--elev-1)]",
-        "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent group-data-[variant=line]/tabs-list:data-[state=active]:text-fg-1 group-data-[variant=line]/tabs-list:data-[state=active]:shadow-none",
-        // The underline is cyan: selection in this app is always cyan.
-        "after:absolute after:bg-primary after:opacity-0 after:transition-opacity group-data-[orientation=horizontal]/tabs:after:inset-x-0 group-data-[orientation=horizontal]/tabs:after:bottom-[-5px] group-data-[orientation=horizontal]/tabs:after:h-0.5 group-data-[orientation=vertical]/tabs:after:inset-y-0 group-data-[orientation=vertical]/tabs:after:-right-1 group-data-[orientation=vertical]/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-[state=active]:after:opacity-100",
+        "data-[state=active]:font-semibold data-[state=active]:text-fg-1",
+        // The underline is green: selection in this app is always the accent.
+        "after:absolute after:bg-primary after:opacity-0 after:transition-opacity group-data-[orientation=horizontal]/tabs:after:inset-x-0 group-data-[orientation=horizontal]/tabs:after:bottom-[-1px] group-data-[orientation=horizontal]/tabs:after:h-0.5 group-data-[orientation=vertical]/tabs:after:inset-y-0 group-data-[orientation=vertical]/tabs:after:-right-1 group-data-[orientation=vertical]/tabs:after:w-0.5 data-[state=active]:after:opacity-100",
         className
       )}
       {...props}

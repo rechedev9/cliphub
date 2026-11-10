@@ -4,34 +4,36 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * ClipHub Studio, Radar skin: the look of the Táctica replay across the app.
- * Slate ramps with a blue bias, IBM Plex Sans with Plex Mono for times and labels.
- * `primary` is the one accent, violet, chosen to clash with no meaning colour:
- * CT blue, T amber, won or lost, live stream magenta, errors red.
+ * ClipHub Studio, EDGE skin: a flat, near-black analysis workstation.
+ * Green-tinted blacks, 1px borders, no shadows, radius 2 to 3px, Saira for UI
+ * text and IBM Plex for figures. `primary` is the one accent, neon green, used
+ * for selection, primary actions and the active tab. CT blue, T orange, won and
+ * lost, live stream magenta and errors red keep their meaning.
  *
  * Token names are shared by both themes. `:root` is light; `.dark` (written on
- * <html> by next-themes, dark by default) overrides it.
+ * <html> by next-themes, dark by default) is the target look.
  */
 
 :root {
   color-scheme: light;
-  --radius: 0.25rem;
+  --radius: 0.1875rem;
 
-  /* next/font defines --font-plex-sans and --font-plex-mono on <html>. */
-  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  /* next/font defines --font-saira, --font-plex-sans and --font-plex-mono on <html>. */
+  --font-sans: var(--font-saira), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
-  --font-display: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-saira), ui-sans-serif, system-ui, sans-serif;
+  --font-num: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
 
   /* Surface ramp. 0: sidebar and wells; 1: app canvas; 2: panel and card;
    * 3: raised or selected row, field on a panel; 4: popover; 5: control on a
    * popover. Surfaces are opaque. */
-  --surface-0: oklch(0.965 0.006 230);
-  --surface-1: oklch(0.978 0.005 230);
-  --surface-2: oklch(0.995 0.002 230);
-  --surface-3: oklch(0.955 0.007 230);
-  --surface-4: oklch(0.995 0.002 230);
-  --surface-5: oklch(0.94 0.008 230);
-  --panel-raised: oklch(0.995 0.002 230);
+  --surface-0: oklch(0.965 0.005 160);
+  --surface-1: oklch(0.978 0.004 160);
+  --surface-2: oklch(0.995 0.002 160);
+  --surface-3: oklch(0.955 0.006 160);
+  --surface-4: oklch(0.995 0.002 160);
+  --surface-5: oklch(0.94 0.007 160);
+  --panel-raised: oklch(0.995 0.002 160);
 
   --background: var(--surface-1);
   --surface: var(--surface-2);
@@ -44,10 +46,10 @@
 
   /* Foreground ramp. --fg-3 is the AA floor for text; --fg-4 is for hairline
    * glyphs and separators, never text. */
-  --fg-1: oklch(0.22 0.02 235);
-  --fg-2: oklch(0.42 0.02 235);
-  --fg-3: oklch(0.52 0.018 235);
-  --fg-4: oklch(0.72 0.012 235);
+  --fg-1: oklch(0.22 0.014 165);
+  --fg-2: oklch(0.42 0.014 165);
+  --fg-3: oklch(0.52 0.013 165);
+  --fg-4: oklch(0.72 0.01 165);
 
   --foreground: var(--fg-1);
   --card-foreground: var(--fg-1);
@@ -57,10 +59,10 @@
   --muted-foreground: var(--fg-2);
   --sidebar-foreground: var(--fg-2);
 
-  --border-subtle: oklch(0.925 0.008 230);
-  --border: oklch(0.895 0.01 230);
-  --border-strong: oklch(0.8 0.012 230);
-  --border-accent: oklch(0.22 0.02 235 / 0.35);
+  --border-subtle: oklch(0.925 0.006 160);
+  --border: oklch(0.895 0.008 160);
+  --border-strong: oklch(0.8 0.01 160);
+  --border-accent: oklch(0.5 0.15 155 / 0.45);
   --input: var(--border-strong);
   --sidebar-border: var(--border);
 
@@ -69,9 +71,9 @@
 
   /* Accent and meaning. --destructive writes, --destructive-solid fills under
    * white text; the same pair exists for stream, success and warning. */
-  --primary: oklch(0.5 0.2 293);
-  --primary-foreground: oklch(0.99 0.005 293);
-  --accent: oklch(0.945 0.008 230);
+  --primary: oklch(0.5 0.15 155);
+  --primary-foreground: oklch(0.99 0.005 155);
+  --accent: oklch(0.945 0.006 160);
   --destructive: oklch(0.53 0.2 25);
   --destructive-solid: oklch(0.53 0.2 25);
   --destructive-foreground: oklch(1 0 0);
@@ -79,16 +81,18 @@
   --stream: oklch(0.56 0.15 6.9);
   --stream-text: oklch(0.5 0.14 6.9);
   --stream-foreground: oklch(1 0 0);
-  --success: oklch(0.52 0.12 160);
+  --success: oklch(0.5 0.13 150);
   --success-foreground: oklch(1 0 0);
   --warning: oklch(0.56 0.13 65);
   --warning-foreground: oklch(1 0 0);
-  --skeleton: oklch(0.925 0.008 230);
-  --ring: oklch(0.42 0.02 235);
+  --skeleton: oklch(0.925 0.006 160);
+  --ring: oklch(0.5 0.15 155);
 
   /* Sides and outcomes, the only other colours with a job. */
   --side-ct: oklch(0.52 0.15 255);
   --side-t: oklch(0.53 0.12 65); /* 4.5:1 on white for 12px labels */
+  /* The slash of a group label or section title: `/ PARTIDAS`. */
+  --slash: oklch(0.58 0.16 50);
 
   /* Each Crear format keeps one colour across its flow and Mis vídeos; text on a fill uses its foreground. */
   --format-short: oklch(0.55 0.2 25);
@@ -119,20 +123,20 @@
 
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: oklch(0.925 0.009 230);
+  --sidebar-accent: oklch(0.925 0.007 160);
   --sidebar-accent-foreground: var(--fg-1);
   --sidebar-ring: var(--ring);
 
-  /* Elevation: soft key shadows only. --elev-bevel stays as a token so the
-   * primitives that compose it keep compiling; it draws nothing visible. */
+  /* Elevation: none. EDGE draws depth with 1px borders and surface steps only.
+   * The tokens stay so the primitives that compose them keep compiling. */
   --elev-bevel: 0 0 0 0 transparent;
   --elev-0: var(--elev-bevel);
-  --elev-1: 0 1px 2px 0 oklch(0 0 0 / 0.05);
-  --elev-2: 0 1px 3px 0 oklch(0 0 0 / 0.08), 0 1px 2px -1px oklch(0 0 0 / 0.06);
-  --elev-3: 0 4px 10px -2px oklch(0 0 0 / 0.08), 0 2px 4px -2px oklch(0 0 0 / 0.05);
-  --elev-4: 0 10px 24px -6px oklch(0 0 0 / 0.14), 0 2px 6px -2px oklch(0 0 0 / 0.06);
-  --elev-5: 0 20px 40px -12px oklch(0 0 0 / 0.2);
-  --elev-band-up: 0 -6px 16px -12px oklch(0 0 0 / 0.18);
+  --elev-1: var(--elev-bevel);
+  --elev-2: var(--elev-bevel);
+  --elev-3: var(--elev-bevel);
+  --elev-4: var(--elev-bevel);
+  --elev-5: var(--elev-bevel);
+  --elev-band-up: var(--elev-bevel);
 
 
   /* Motion durations. Easings live in @theme so they emit `ease-*` utilities. */
@@ -147,69 +151,70 @@
   --shell-depth: 1;
 
   /* Shell geometry, shared by the command strip and the page frame. */
-  --shell-strip-height: 3rem;
-  --shell-gutter: clamp(1rem, 2.4vw, 2.5rem);
+  --shell-strip-height: 2.5rem;
+  --shell-gutter: clamp(0.875rem, 2vw, 2rem);
 }
 
 .dark {
   color-scheme: dark;
 
-  --surface-0: oklch(0.165 0.013 232);
-  --surface-1: oklch(0.19 0.014 232);
-  --surface-2: oklch(0.215 0.016 232);
-  --surface-3: oklch(0.25 0.018 232);
-  --surface-4: oklch(0.26 0.018 232);
-  --surface-5: oklch(0.305 0.02 232);
-  --panel-raised: oklch(0.232 0.017 232);
-  --secondary: var(--surface-4);
+  --surface-0: #0b0e0d;
+  --surface-1: #080b0a;
+  --surface-2: #101413;
+  --surface-3: #151a18;
+  --surface-4: #121715;
+  --surface-5: #1b2220;
+  --panel-raised: #131817;
+  --secondary: var(--surface-3);
 
-  --fg-1: oklch(0.955 0.008 230);
-  --fg-2: oklch(0.79 0.015 230);
-  --fg-3: oklch(0.69 0.016 230);
-  --fg-4: oklch(0.52 0.016 230);
+  --fg-1: #e8eeeb;
+  --fg-2: #aab4b0;
+  --fg-3: #8c9692;
+  --fg-4: #58625e;
 
-  --border-subtle: oklch(0.85 0.03 230 / 0.07);
-  --border: oklch(0.85 0.03 230 / 0.12);
-  --border-strong: oklch(0.85 0.03 230 / 0.22);
-  --border-accent: oklch(0.85 0.03 230 / 0.32);
+  --border-subtle: #161c1a;
+  --border: #1e2523;
+  --border-strong: #2b3532;
+  --border-accent: rgb(34 224 124 / 0.4);
 
-  --edge-light: oklch(1 0 0 / 0.04);
+  --edge-light: oklch(1 0 0 / 0);
   --edge-shade: oklch(0 0 0 / 0.4);
 
-  --primary: oklch(0.72 0.16 295);
-  --primary-foreground: oklch(0.18 0.05 295);
-  --accent: oklch(0.265 0.018 232);
-  --destructive: oklch(0.68 0.16 22);
-  --destructive-solid: oklch(0.5 0.19 22);
-  --destructive-foreground: oklch(0.16 0.035 22);
+  --primary: #22e07c;
+  --primary-foreground: #03150c;
+  --accent: #151a18;
+  --destructive: #e5484d;
+  --destructive-solid: #b8282d;
+  --destructive-foreground: #1a0507;
   --brand-accent: oklch(0.68 0.21 25);
   --stream: oklch(0.68 0.15 6.9);
   --stream-text: oklch(0.76 0.12 6.9);
   --stream-foreground: oklch(0.17 0.035 6.9);
-  --success: oklch(0.76 0.11 158);
-  --success-foreground: oklch(0.17 0.04 160);
-  --warning: oklch(0.8 0.12 78);
-  --warning-foreground: oklch(0.18 0.045 78);
-  --skeleton: oklch(0.265 0.016 232);
-  --ring: oklch(0.79 0.015 230);
+  --success: #3ddc6b;
+  --success-foreground: #04170b;
+  --warning: #e8b23a;
+  --warning-foreground: #1c1303;
+  --skeleton: #161c1a;
+  --ring: #22e07c;
 
-  --side-ct: oklch(0.72 0.13 250);
-  --side-t: oklch(0.8 0.14 75);
+  --side-ct: #3c86f0;
+  --side-t: #f0a03a;
+  --slash: #f2873a;
   --format-short: oklch(0.68 0.2 25);
   --format-short-foreground: oklch(0.17 0.035 25);
   --format-full: var(--side-ct);
-  --format-full-foreground: oklch(0.17 0.03 250);
+  --format-full-foreground: #05101f;
   --format-stream: var(--stream);
   --format-stream-foreground: var(--stream-foreground);
-  --format-summary: oklch(0.7 0.1 185);
-  --format-summary-foreground: oklch(0.17 0.03 185);
+  --format-summary: #4fe3b9;
+  --format-summary-foreground: #03150f;
 
   --chart-1: oklch(0.74 0.07 250);
   --chart-2: oklch(0.68 0.15 6.9);
   --chart-3: oklch(0.68 0.11 292);
   --chart-4: oklch(0.55 0.014 230);
   --chart-5: oklch(0.4 0.012 230);
-  --chart-6: oklch(0.74 0.09 185);
+  --chart-6: #4fe3b9;
   --chart-7: oklch(0.78 0.12 135);
 
   --faceit-level-1: oklch(0.88 0.01 250);
@@ -218,31 +223,24 @@
   --faceit-level-8: oklch(0.72 0.19 48);
   --faceit-level-10: oklch(0.66 0.23 32);
 
-  --sidebar-accent: oklch(0.24 0.017 232);
-
-  --elev-1: 0 1px 2px 0 oklch(0 0 0 / 0.3);
-  --elev-2: 0 1px 3px 0 oklch(0 0 0 / 0.35), 0 1px 2px -1px oklch(0 0 0 / 0.3);
-  --elev-3: 0 4px 12px -2px oklch(0 0 0 / 0.4);
-  --elev-4: 0 12px 28px -8px oklch(0 0 0 / 0.55), 0 0 0 1px oklch(1 0 0 / 0.04);
-  --elev-5: 0 24px 48px -16px oklch(0 0 0 / 0.65), 0 0 0 1px oklch(1 0 0 / 0.04);
-  --elev-band-up: 0 -8px 20px -14px oklch(0 0 0 / 0.7);
+  --sidebar-accent: #151a18;
 }
 
 /* Compact density: a 3.5px spacing unit instead of 4px and the type scale one
  * notch down, so every utility tightens together. --text-meta keeps the 12px floor. */
 :root[data-density="compact"] {
   --spacing: 0.21875rem;
-  --text-label: 0.78125rem;
-  --text-body-sm: 0.8125rem;
-  --text-body: 0.875rem;
-  --text-body-lg: 1rem;
-  --text-title: 1.125rem;
-  --text-section: 1.3125rem;
-  --text-display-sm: 1.625rem;
-  --text-display: 2.125rem;
+  --text-label: 0.75rem;
+  --text-body-sm: 0.78125rem;
+  --text-body: 0.8125rem;
+  --text-body-lg: 0.875rem;
+  --text-title: 1.0625rem;
+  --text-section: 1.25rem;
+  --text-display-sm: 1.5rem;
+  --text-display: 2rem;
   --text-stat: 1.5rem;
-  --shell-strip-height: 2.625rem;
-  --shell-gutter: clamp(0.875rem, 2vw, 2rem);
+  --shell-strip-height: 2.5rem;
+  --shell-gutter: clamp(0.75rem, 1.8vw, 1.75rem);
 }
 
 html[data-runtime="desktop"][data-performance-profile="efficiency"],
@@ -256,45 +254,46 @@ html[data-capture-active="true"] {
  * when no source file happens to use the matching utility class. */
 @theme static {
   /* ── Type scale ────────────────────────────────────────────────────────
-   * 12px is the hard floor; --text-meta is it. Retires 17 arbitrary sizes. */
+   * 12px is the hard floor; --text-meta is it. EDGE runs 12 to 14px for nearly
+   * everything, so the body steps are one notch below the old Plex scale. */
   --text-meta: 0.75rem;
   --text-meta--line-height: 1.25;
   --text-meta--letter-spacing: 0.02em;
-  --text-label: 0.8125rem;
+  --text-label: 0.75rem;
   --text-label--line-height: 1.3;
-  --text-label--letter-spacing: 0.01em;
-  --text-body-sm: 0.875rem;
-  --text-body-sm--line-height: 1.45;
-  --text-body: 0.9375rem;
-  --text-body--line-height: 1.6; /* 15/24 */
-  --text-body-lg: 1.0625rem;
-  --text-body-lg--line-height: 1.5;
-  --text-title: 1.25rem;
+  --text-label--letter-spacing: 0.04em;
+  --text-body-sm: 0.8125rem;
+  --text-body-sm--line-height: 1.4;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.5;
+  --text-body-lg: 0.9375rem;
+  --text-body-lg--line-height: 1.45;
+  --text-title: 1.125rem;
   --text-title--line-height: 1.2;
-  --text-title--letter-spacing: -0.01em;
-  --text-section: 1.5rem;
+  --text-title--letter-spacing: 0;
+  --text-section: 1.375rem;
   --text-section--line-height: 1.15;
-  --text-section--letter-spacing: -0.015em;
-  --text-display-sm: 1.875rem;
+  --text-section--letter-spacing: -0.005em;
+  --text-display-sm: 1.75rem;
   --text-display-sm--line-height: 1.08;
-  --text-display-sm--letter-spacing: -0.02em;
-  --text-display: 2.5rem;
+  --text-display-sm--letter-spacing: -0.01em;
+  --text-display: 2.25rem;
   --text-display--line-height: 1.02;
-  --text-display--letter-spacing: -0.025em;
-  --text-hero: 3.5rem;
+  --text-display--letter-spacing: -0.015em;
+  --text-hero: 3.25rem;
   --text-hero--line-height: 0.98;
-  --text-hero--letter-spacing: -0.03em;
+  --text-hero--letter-spacing: -0.02em;
   --text-stat: 1.75rem;
   --text-stat--line-height: 1;
   --text-stat--letter-spacing: 0.01em;
 
   /* Tracking scale. Overrides Tailwind's defaults so `tracking-wider` means
-   * one thing everywhere. Kept tight: Plex is drawn for dense UI. */
-  --tracking-tight: -0.02em;
-  --tracking-wide: 0.02em;
-  --tracking-wider: 0.04em;
-  --tracking-widest: 0.06em;
-  --tracking-ultra: 0.08em;
+   * one thing everywhere. The wide steps are for tiny uppercase labels. */
+  --tracking-tight: -0.01em;
+  --tracking-wide: 0.03em;
+  --tracking-wider: 0.08em;
+  --tracking-widest: 0.12em;
+  --tracking-ultra: 0.16em;
 
   /* Content measures: `max-w-read` (form), `max-w-list` (rows), `max-w-work`
    * (subject plus inspector rail). A page picks one; it never writes a pixel width. */
@@ -482,6 +481,7 @@ html[data-capture-active="true"] {
   --color-panel-raised: var(--panel-raised);
   --color-side-ct: var(--side-ct);
   --color-side-t: var(--side-t);
+  --color-slash: var(--slash);
   --color-format-short: var(--format-short);
   --color-format-short-foreground: var(--format-short-foreground);
   --color-format-full: var(--format-full);
@@ -539,10 +539,12 @@ html[data-capture-active="true"] {
   --shadow-xl: var(--elev-4);
   --shadow-2xl: var(--elev-5);
 
-  /* Fonts, wired in app/layout.tsx through next/font/google. */
-  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  /* Fonts, wired in app/layout.tsx through next/font/google. `font-num` is the
+   * narrow tabular face for figures. */
+  --font-sans: var(--font-saira), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
-  --font-display: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-saira), ui-sans-serif, system-ui, sans-serif;
+  --font-num: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
@@ -594,13 +596,13 @@ html[data-capture-active="true"] {
     @apply flex min-w-min flex-[0_1_auto] items-center justify-end gap-2 @min-[44rem]/content:basis-50;
   }
 
-  /* Flat, opaque panels: a hairline border and a soft shadow. */
+  /* Flat, opaque panels: a 1px border and nothing else. */
   .studio-panel {
-    @apply relative rounded-lg border border-border bg-surface-2 shadow-sm forced-colors:border-[CanvasText] forced-colors:shadow-none;
+    @apply relative rounded-lg border border-border bg-surface-2 forced-colors:border-[CanvasText];
   }
 
   .studio-panel-raised {
-    @apply border-border bg-panel-raised shadow-md forced-colors:border-[CanvasText] forced-colors:shadow-none;
+    @apply border-border bg-panel-raised forced-colors:border-[CanvasText];
   }
 
   .studio-panel-interactive {
@@ -624,7 +626,7 @@ html[data-capture-active="true"] {
   /* The type step lives here: tailwind-merge files an unknown `text-*` under
    * text colour, so `cn('text-body-sm text-fg-1')` would drop the size. */
   .shell-nav-key {
-    @apply relative text-body-sm data-[active=true]:before:absolute data-[active=true]:before:inset-y-1.5 data-[active=true]:before:left-0 data-[active=true]:before:w-0.5 data-[active=true]:before:rounded-[1px] data-[active=true]:before:bg-primary data-[active=true]:before:content-[''] forced-colors:data-[active=true]:before:bg-[Highlight];
+    @apply relative text-label data-[active=true]:before:absolute data-[active=true]:before:inset-y-0 data-[active=true]:before:left-0 data-[active=true]:before:w-0.5 data-[active=true]:before:bg-fg-1 data-[active=true]:before:content-[''] forced-colors:data-[active=true]:before:bg-[Highlight];
   }
 
   /* Route-pending underline, mounted only while a navigation is in flight. */
@@ -699,16 +701,6 @@ html[data-window-activity="inactive"] .studio-enter {
 html[data-runtime="desktop"][data-performance-profile="efficiency"] [class*="backdrop-blur"] {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
-}
-
-/* Efficiency drops the blurred shadows; the hairline borders carry the depth. */
-html[data-runtime="desktop"][data-performance-profile="efficiency"] {
-  --elev-1: none;
-  --elev-2: none;
-  --elev-3: none;
-  --elev-4: 0 2px 8px -4px oklch(0 0 0 / 0.4);
-  --elev-5: 0 4px 12px -6px oklch(0 0 0 / 0.45);
-  --elev-band-up: none;
 }
 
 html[data-runtime="desktop"][data-performance-profile="efficiency"] .ff-equalizer-bar {

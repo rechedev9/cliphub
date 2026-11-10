@@ -157,7 +157,7 @@ function OptionSelect({
   );
 }
 
-function PeriodControl({ scope, onChange }: { scope: AnalysisScope; onChange: ScopeBarProps['onChange'] }): ReactNode {
+export function PeriodControl({ scope, onChange }: { scope: AnalysisScope; onChange: ScopeBarProps['onChange'] }): ReactNode {
   // Exact days with both ends empty are "every date" in the URL, so the open date fields live here.
   const [picking, setPicking] = useState(false);
   const { period } = scope;

@@ -37,7 +37,7 @@ export function GlobalSearch(): ReactNode {
         size="sm"
         aria-label="Buscar en Studio"
         title="Buscar · Ctrl K"
-        className="text-fg-2 hover:text-fg-1 max-sm:w-10 max-sm:px-0"
+        className="text-fg-2 hover:text-fg-1 max-sm:w-8 max-sm:px-0"
         onClick={() => setOpen(true)}
       >
         <Search aria-hidden />

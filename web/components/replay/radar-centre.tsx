@@ -5,21 +5,39 @@ import { createPortal } from 'react-dom';
 import { RADAR_LEVELS } from '@/lib/api/tactical';
 import type { RadarLevel, TacticalSample } from '@/lib/api/tactical';
 import { OFF_FLOOR_ALPHA } from '@/lib/analysis/floors';
-import { BOTH_FLOORS, floorPanes, localProjection, onFloorOf, paneAt, paneProjection } from '@/lib/replay/floor-split';
+import { createFloorTimeline } from '@/lib/replay/floor-assign';
+import type { FloorTimeline } from '@/lib/replay/floor-assign';
+import {
+  BOTH_FLOORS,
+  WHOLE_FLOORS,
+  floorRectsOf,
+  followFloors,
+  isWholeView,
+  layoutFloors,
+  localProjection,
+  nearestPane,
+  panFloors,
+  paneProjection,
+  rememberFloorView,
+  rememberedFloorView,
+  sameFloorView,
+  zoomFloors,
+} from '@/lib/replay/floor-split';
+import type { FloorPane, FloorRects, FloorView } from '@/lib/replay/floor-split';
 import { hitLines, recentDamage } from '@/lib/replay/hit-lines';
 import { layerSamples, layerTrails, showAllPlayers } from '@/lib/replay/layers';
 import { blockingSmokes, frameSight } from '@/lib/replay/sight-lines';
 import type { FrameSight } from '@/lib/replay/sight-lines';
 import { MAP_SIZE_SCALE, ZOOM_SPEED } from '@/lib/replay/map-settings';
-import { WHEEL_STEP, boxWindow, followView, paddedView, panView, radarImageFits, rememberZoom, rememberedZoom, sameRect, wheelZooms, zoomLevel, zoomViewAt } from '@/lib/replay/map-view';
+import { WHEEL_STEP, boxWindow, paddedView, radarImageFits } from '@/lib/replay/map-view';
+import { floorBounds, floorPolygons } from '@/lib/replay/nav-radar';
 import { framesDecodeError } from '@/lib/replay/loaded-analysis';
 import { createInterpolatedSampleReader, createSampleTrailReader, dominantLevel, frameCursor } from '@/lib/tactical-replay';
 import type { FrameCursor, TrailPoint } from '@/lib/tactical-replay';
-import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import type { RadarProjection } from '@/lib/tactical-spatial';
 import type { MapPane } from './gif-export';
 import { timelineSeconds } from '@/lib/tactical-timeline';
-import { isCalibrationUsable, radarViewRect, worldRectToRadarRect, worldToRendered } from '@/lib/tactical-transform';
+import { isCalibrationUsable, levelForAltitude, radarViewRect, worldRectToRadarRect, worldToRendered } from '@/lib/tactical-transform';
 import type { RadarRect } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { readRadarStyle } from '@/components/tactical/radar-style';
@@ -63,13 +81,17 @@ type RealArt = { map: string; plate: RealPlate | null; failed: boolean };
 /** The game's radar images of one map. */
 type OfficialArt = { map: string; upper: HTMLImageElement; lower: HTMLImageElement | null };
 
-/** Where one view puts each floor's pane, and the window of the radar the plate covers. */
-type Framing = { projections: RadarProjection[]; shown: RadarRect };
-type Painted = { drawn: DrawnPlayer[]; samples: TacticalSample[]; view: RadarRect; panes: MapPane[] };
+/** Where one view puts each floor's pane, and the window of the radar each pane's plate covers. */
+type Framing = { projections: RadarProjection[]; shown: RadarRect[] };
+type Painted = { drawn: DrawnPlayer[]; samples: TacticalSample[]; levels: ReadonlyMap<number, RadarLevel>; view: FloorView; panes: MapPane[] };
 
 const GRID: MapArt = { kind: 'grid' };
 const NO_FOCUS: readonly number[] = [];
 const NO_HURT: ReadonlyMap<number, number> = new Map();
+const NO_LEVELS: ReadonlyMap<number, RadarLevel> = new Map();
+const NO_MARKS: readonly [number, number][] = [];
+const ABOVE_LABEL = 'Sup.';
+const BELOW_LABEL = 'Inf.';
 
 /** The tag spots of one floor's pane, so laying out one pane's tags never forgets the other's. */
 function spotsOf(spots: Map<RadarLevel, Map<number, number>>, level: RadarLevel): Map<number, number> {
@@ -80,9 +102,18 @@ function spotsOf(spots: Map<RadarLevel, Map<number, number>>, level: RadarLevel)
   return fresh;
 }
 
+/** The unit direction from one pane toward the other, for the stubs of lines that cross to it. */
+function directionTo(from: FloorPane, to: FloorPane): { dx: number; dy: number } {
+  const dx = to.x + to.width / 2 - (from.x + from.width / 2);
+  const dy = to.y + to.height / 2 - (from.y + from.height / 2);
+  const length = Math.hypot(dx, dy);
+  return length > 0 ? { dx: dx / length, dy: dy / length } : { dx: 1, dy: 0 };
+}
+
 /**
  * The 2D map: a stylized radar drawn from the map's nav mesh (or the game's
  * radar image when Studio has it), the players, their names and the grenades.
+ * On a two-floor map each floor has its own block, cropped to its extent.
  * The wheel zooms on the cursor, a drag pans, a click highlights a player and
  * a right-click copies their setpos.
  * The canvas mirrors the clock and is `aria-hidden`; the panels say the same in text.
@@ -98,6 +129,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
   const drawnRef = useRef<DrawnPlayer[]>([]);
   const spotsRef = useRef(new Map<RadarLevel, Map<number, number>>());
   const samplesRef = useRef<TacticalSample[]>([]);
+  const dominantRef = useRef<RadarLevel>(RADAR_LEVELS.default);
   const tipRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<Box>({ width: 1, height: 1, dpr: 1 });
   const [navArt, setNavArt] = useState<{ map: string; art: MapArt; failed: boolean } | null>(null);
@@ -107,7 +139,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
   const nameScale = MAP_SIZE_SCALE[settings.names];
   const show = settings.show;
   const [real, setReal] = useState<RealArt | null>(null);
-  const [zoomState, setZoomState] = useState<{ map: string; view: RadarRect | null } | null>(null);
+  const [zoomState, setZoomState] = useState<{ map: string; view: FloorView } | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [grabbing, setGrabbing] = useState(false);
   const [sightGeometry, setSightGeometry] = useState<{ map: string; result: SightGeometry } | null>(null);
@@ -119,7 +151,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
   const map = geometry?.map ?? '';
   const drawable = geometry !== undefined && isCalibrationUsable(geometry.calibration);
   const split = geometry?.calibration.lower_altitude_max !== undefined;
-  // Both floors side by side: each pane draws only what stands on its floor.
+  // Separar pisos: each floor in its own block, and each block draws only the players standing on its floor.
   const bothFloors = split && settings.floors === 'both';
   const imageFits = geometry !== undefined && radarImageFits(geometry.calibration);
   // Art and zoom are kept with their map, so a new map never paints under the last one's.
@@ -127,11 +159,11 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
   const navFailed = navArt?.map === map && navArt.failed;
   const official = imageFits && officialArt?.map === map ? officialArt : null;
   // The zoom outlives a remount, per map.
-  const zoomed = zoomState?.map === map ? zoomState.view : rememberedZoom(map);
-  const setZoomed = useCallback(
-    (view: RadarRect | null) => {
-      rememberZoom(map, view);
-      setZoomState({ map, view });
+  const view = zoomState?.map === map ? zoomState.view : rememberedFloorView(map);
+  const setView = useCallback(
+    (next: FloorView) => {
+      rememberFloorView(map, next);
+      setZoomState({ map, view: next });
     },
     [map],
   );
@@ -200,6 +232,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
     return source !== 'scheme' && official !== null ? { kind: 'image', upper: official.upper, lower: official.lower } : art;
   }, [art, official, realPlate, source]);
 
+  // The whole map's window: what one floor shows, and what every floor of a one-floor map is cropped to.
   const base = useMemo<RadarRect>(() => {
     if (geometry === undefined || !drawable) return { x: 0, y: 0, width: 1, height: 1 };
     if (art.kind === 'nav') {
@@ -209,22 +242,34 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
     }
     return radarViewRect(geometry);
   }, [art, drawable, geometry]);
-  const view = zoomed ?? base;
-  const panes = useMemo(() => floorPanes(box, bothFloors ? BOTH_FLOORS : [RADAR_LEVELS.default]), [box, bothFloors]);
+  // Each floor cropped to its own walkable extent (or, without the nav mesh, to where it was played).
+  const rects = useMemo<FloorRects>(() => {
+    if (geometry === undefined || !drawable || !bothFloors) return { default: base, lower: base };
+    const fallback = floorRectsOf(geometry, NO_MARKS);
+    if (art.kind !== 'nav') return fallback;
+    const { calibration } = geometry;
+    const of = (level: RadarLevel): RadarRect => {
+      const bounds = floorBounds(floorPolygons(art.model, calibration.lower_altitude_max, level));
+      if (bounds === null) return fallback[level];
+      return paddedView(worldRectToRadarRect(calibration, bounds, 1), VIEW_MARGIN);
+    };
+    return { default: of(RADAR_LEVELS.default), lower: of(RADAR_LEVELS.lower) };
+  }, [art, base, bothFloors, drawable, geometry]);
+  const layout = useMemo(() => layoutFloors({ box, rects, levels: bothFloors ? BOTH_FLOORS : [RADAR_LEVELS.default] }), [box, rects, bothFloors]);
+  const { panes } = layout;
   // One view for every pane, so zoom and pan move both floors together.
   const framingOf = useCallback(
-    (frameView: RadarRect): Framing => {
-      const paneProjections = panes.map((pane) => paneProjection(pane, frameView));
+    (frameView: FloorView): Framing => {
+      const projections = panes.map((pane) => paneProjection({ layout, pane, view: frameView }));
       // The plate covers the whole pane, not just the view, or the strips beside it stay black.
-      return { projections: paneProjections, shown: boxWindow(panes[0], localProjection(panes[0], paneProjections[0])) };
+      return { projections, shown: panes.map((pane, index) => boxWindow(pane, localProjection(pane, projections[index]))) };
     },
-    [panes],
+    [layout, panes],
   );
   const framing = useMemo(() => framingOf(view), [framingOf, view]);
   const { projections } = framing;
   const projection = projections[0];
-  const paneBox = panes[0];
-  const zoom = zoomLevel(view, base);
+  const zoomed = !isWholeView(view);
 
   // Slots mean a player only inside one match: in another match the same players are found by SteamID.
   const focusByMatch = useMemo(() => {
@@ -237,37 +282,58 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
     return out;
   }, [focus, focused, focusedMatchId, rounds]);
 
+  // The floor of each player over each round, settled once with the dead band round the altitude cut.
+  const timelines = useMemo(() => {
+    const out = new Map<string, FloorTimeline>();
+    if (geometry === undefined) return out;
+    for (const round of rounds) out.set(round.key, createFloorTimeline(geometry.calibration, round.frames));
+    return out;
+  }, [geometry, rounds]);
+
   const readers = useMemo(() => {
     const out = new Map<string, Readers>();
     for (const round of rounds) {
+      const timeline = timelines.get(round.key);
       out.set(round.key, {
         samples: createInterpolatedSampleReader(round.frames),
-        trails: createSampleTrailReader(round.frames, round.timeline.tickrate, layers.trailSeconds),
+        trails: createSampleTrailReader(round.frames, round.timeline.tickrate, layers.trailSeconds, (slot, index) => timeline?.levelAt(slot, index, RADAR_LEVELS.default) ?? RADAR_LEVELS.default),
       });
     }
     return out;
-  }, [layers.trailSeconds, rounds]);
+  }, [layers.trailSeconds, rounds, timelines]);
+
+  // The floor each of `samples` stands on at `cursor`, by its round's timeline.
+  const levelsOf = useCallback(
+    (round: CentreRound, cursor: FrameCursor | undefined, samples: readonly TacticalSample[]): ReadonlyMap<number, RadarLevel> => {
+      if (geometry === undefined || cursor === undefined) return NO_LEVELS;
+      const timeline = timelines.get(round.key);
+      const out = new Map<number, RadarLevel>();
+      for (const sample of samples) out.set(sample.slot, timeline?.levelAt(sample.slot, cursor.index, levelForAltitude(geometry.calibration, sample.z)) ?? levelForAltitude(geometry.calibration, sample.z));
+      return out;
+    },
+    [geometry, timelines],
+  );
 
   const plate = useCallback(
-    (level: RadarLevel, style: RadarStyle, at: Framing): HTMLCanvasElement | null => {
+    (level: RadarLevel, style: RadarStyle, at: Framing, index: number): HTMLCanvasElement | null => {
       if (geometry === undefined) return null;
-      const { shown } = at;
-      const { size } = at.projections[0];
-      const key = `${shownArt.kind}|${size}|${box.dpr}|${shown.x},${shown.y},${shown.width},${shown.height}|${map}`;
+      const shown = at.shown[index];
+      const { size } = at.projections[index];
+      const key = `${shownArt.kind}|${size}|${box.dpr}|${shown.x},${shown.y},${shown.width},${shown.height}|${map}|${show.zones}`;
       const known = plateRef.current.get(level);
       if (known?.key === key) return known.canvas;
-      const canvas = bakeMapPlate({ art: shownArt, geometry, level, size, dpr: box.dpr, view: shown, style });
+      const canvas = bakeMapPlate({ art: shownArt, geometry, level, size, dpr: box.dpr, view: shown, style, zoneNames: show.zones });
       plateRef.current.set(level, { key, canvas });
       return canvas;
     },
-    [box.dpr, geometry, map, shownArt],
+    [box.dpr, geometry, map, show.zones, shownArt],
   );
 
   const drawRound = useCallback(
-    (ctx: CanvasRenderingContext2D, round: CentreRound, options: { seconds: number; style: RadarStyle; level: RadarLevel; at: Framing }): DrawnPlayer[] => {
-      const { seconds, style, level } = options;
-      const { shown } = options.at;
-      const { size } = options.at.projections[0];
+    (ctx: CanvasRenderingContext2D, round: CentreRound, options: { seconds: number; style: RadarStyle; level: RadarLevel; at: Framing; index: number; away: { dx: number; dy: number } | null }): DrawnPlayer[] => {
+      const { seconds, style, level, index, away } = options;
+      const shown = options.at.shown[index];
+      const { size } = options.at.projections[index];
       const reader = readers.get(round.key);
       // Every round goes through the plate's calibration: one map, one world, whatever each demo derived.
       if (reader === undefined || geometry === undefined) return [];
@@ -288,7 +354,13 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
       // A player taken off the map stays on it, translucent.
       const kept = layerSamples(samples, showAllPlayers(layers));
       const layered = alone ? kept.filter((sample) => roundFocus.includes(sample.slot)) : kept;
-      const drawn = bothFloors ? onFloorOf(calibration, level, layered) : layered;
+      const levels = levelsOf(round, cursor, layered);
+      const onThisFloor = (sample: TacticalSample): boolean => levels.get(sample.slot) === level;
+      const drawn = bothFloors ? layered.filter(onThisFloor) : layered;
+      const across =
+        bothFloors && away !== null
+          ? { ...away, label: level === RADAR_LEVELS.default ? BELOW_LABEL : ABOVE_LABEL, slots: new Set(layered.filter((sample) => !onThisFloor(sample)).map((sample) => sample.slot)) }
+          : undefined;
       const secondsOf = (at: number): number => timelineSeconds(round.timeline, at);
       let analysis: FrameAnalysis | null = null;
       if (round.focused) {
@@ -314,6 +386,9 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
           offFloorAlpha: bothFloors ? 0 : OFF_FLOOR_ALPHA,
           size,
           samples: drawn,
+          everyone: layered,
+          levels,
+          across,
           trails: layerTrails(reader.trails(cursor), layers),
           events: round.events,
           nowSeconds,
@@ -335,23 +410,25 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
         round.focused ? { visible, spots: spotsOf(spotsRef.current, level) } : null,
       );
     },
-    [bothFloors, dotScale, focus, focusByMatch, geometry, layers, nameScale, readers, show, sightBvh, speakingAt, tickOf],
+    [bothFloors, dotScale, focus, focusByMatch, geometry, layers, levelsOf, nameScale, readers, show, sightBvh, speakingAt, tickOf],
   );
 
-  // With Seguir on, the view that keeps the followed player in it, moved on from `from`.
+  // With Seguir on, the view that keeps the followed player in it, on the pane of the floor they stand on.
   const followFrom = useCallback(
-    (samples: readonly TacticalSample[], from: RadarRect): RadarRect => {
+    (samples: readonly TacticalSample[], levels: ReadonlyMap<number, RadarLevel>, from: FloorView): FloorView => {
       const followed = followSlot === null ? undefined : samples.find((sample) => sample.slot === followSlot);
       if (followed === undefined || geometry === undefined) return from;
       const at = worldToRendered(geometry.calibration, followed.x, followed.y, 1);
-      return followView({ view: from, base, point: { x: at.x, y: at.y } });
+      const level = bothFloors ? (levels.get(followed.slot) ?? levelForAltitude(geometry.calibration, followed.z)) : RADAR_LEVELS.default;
+      const pane = panes.find((entry) => entry.level === level) ?? panes[0];
+      return followFloors({ pane, view: from, point: { x: at.x, y: at.y } });
     },
-    [base, followSlot, geometry],
+    [bothFloors, followSlot, geometry, panes],
   );
 
   // Draws one moment on a canvas the size of the visible one: the screen, or a GIF frame moved on from `gifView`.
   const paint = useCallback(
-    (canvas: HTMLCanvasElement, seconds: number, gifView?: RadarRect): Painted | null => {
+    (canvas: HTMLCanvasElement, seconds: number, gifView?: FloorView): Painted | null => {
       if (!drawable || geometry === undefined || focused === undefined) return null;
       const ctx = canvas.getContext('2d', { alpha: false });
       if (ctx === null) return null;
@@ -361,9 +438,13 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
       const reader = readers.get(focused.key);
       const cursor = frameCursor(focused.frames, tickOf(focused, seconds));
       const samples = cursor === undefined || reader === undefined ? [] : reader.samples(cursor);
-      const dominant = dominantLevel(geometry.calibration, samples);
-      const frameView = gifView === undefined ? view : followFrom(samples, gifView);
-      const at = sameRect(frameView, view) ? framing : framingOf(frameView);
+      const levels = levelsOf(focused, cursor, samples);
+      const rawLevel = (sample: TacticalSample): RadarLevel => levels.get(sample.slot) ?? levelForAltitude(geometry.calibration, sample.z);
+      const dominant = dominantLevel(geometry.calibration, samples, { previous: dominantRef.current, levelOf: rawLevel });
+      // A GIF frame is not the screen: only the screen's own frames move the floor the one-floor plate shows.
+      if (gifView === undefined) dominantRef.current = dominant;
+      const frameView = gifView === undefined ? view : followFrom(samples, levels, gifView);
+      const at = sameFloorView(frameView, view) ? framing : framingOf(frameView);
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = '#0b0c0e';
@@ -373,15 +454,17 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
       panes.forEach((pane, index) => {
         const level = bothFloors ? pane.level : dominant;
         const paneAtView = at.projections[index];
+        const other = panes[1 - index];
+        const away = bothFloors && other !== undefined ? directionTo(pane, other) : null;
         ctx.save();
         if (bothFloors) {
           ctx.beginPath();
           ctx.rect(pane.x * dpr, pane.y * dpr, pane.width * dpr, pane.height * dpr);
           ctx.clip();
         }
-        const baked = plate(level, style, at);
-        const left = paneAtView.offsetX + at.shown.x * paneAtView.size;
-        const top = paneAtView.offsetY + at.shown.y * paneAtView.size;
+        const baked = plate(level, style, at, index);
+        const left = paneAtView.offsetX + at.shown[index].x * paneAtView.size;
+        const top = paneAtView.offsetY + at.shown[index].y * paneAtView.size;
         if (baked !== null) ctx.drawImage(baked, Math.round(left * dpr), Math.round(top * dpr));
         if (others.length > 0) {
           const layer = layerRef.current ?? document.createElement('canvas');
@@ -393,28 +476,20 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
             layerCtx.setTransform(1, 0, 0, 1, 0, 0);
             layerCtx.clearRect(0, 0, layer.width, layer.height);
             layerCtx.setTransform(dpr, 0, 0, dpr, paneAtView.offsetX * dpr, paneAtView.offsetY * dpr);
-            for (const round of others) drawRound(layerCtx, round, { seconds, style, level, at });
+            for (const round of others) drawRound(layerCtx, round, { seconds, style, level, at, index, away });
             ctx.globalAlpha = OVERLAY_ALPHA;
             ctx.drawImage(layer, 0, 0);
             ctx.globalAlpha = 1;
           }
         }
         ctx.setTransform(dpr, 0, 0, dpr, paneAtView.offsetX * dpr, paneAtView.offsetY * dpr);
-        for (const player of drawRound(ctx, focused, { seconds, style, level, at })) drawn.push({ ...player, x: player.x + paneAtView.offsetX, y: player.y + paneAtView.offsetY });
+        for (const player of drawRound(ctx, focused, { seconds, style, level, at, index, away })) drawn.push({ ...player, x: player.x + paneAtView.offsetX, y: player.y + paneAtView.offsetY });
         ctx.restore();
       });
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      if (bothFloors && panes.length > 1) {
-        const [first, second] = panes;
-        ctx.fillStyle = style.text;
-        ctx.globalAlpha = 0.18;
-        if (second.x > first.x) ctx.fillRect((first.x + first.width) * dpr, 0, (second.x - first.x - first.width) * dpr, canvas.height);
-        else ctx.fillRect(0, (first.y + first.height) * dpr, canvas.width, (second.y - first.y - first.height) * dpr);
-        ctx.globalAlpha = 1;
-      }
-      return { drawn, samples, view: frameView, panes: panes.map((pane, index) => ({ level: bothFloors ? pane.level : undefined, projection: at.projections[index] })) };
+      return { drawn, samples, levels, view: frameView, panes: panes.map((pane, index) => ({ level: bothFloors ? pane.level : undefined, projection: at.projections[index] })) };
     },
-    [bothFloors, box, drawRound, drawable, followFrom, focused, framing, framingOf, geometry, panes, plate, readers, rounds, tickOf, view],
+    [bothFloors, box, drawRound, drawable, followFrom, focused, framing, framingOf, geometry, levelsOf, panes, plate, readers, rounds, tickOf, view],
   );
 
   const render = useCallback(
@@ -430,10 +505,10 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
       const tip = tipRef.current;
       const hovered = hover === null ? undefined : drawn.find((player) => player.slot === hover);
       if (tip !== null && hovered !== undefined) placeTooltip(tip, hovered.x, hovered.y, box);
-      const next = followFrom(painted.samples, view);
-      if (!sameRect(next, view)) setZoomed(next);
+      const next = followFrom(painted.samples, painted.levels, view);
+      if (!sameFloorView(next, view)) setView(next);
     },
-    [box, followFrom, geometry, hover, paint, setZoomed, view],
+    [box, followFrom, geometry, hover, paint, setView, view],
   );
 
   useEffect(() => {
@@ -520,22 +595,20 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
 
   // Not passive: a turn that zooms keeps the page still; zooming out of the whole map scrolls the page.
   const zoomSpeed = ZOOM_SPEED[settings.zoom];
-  const zoomStateRef = useRef({ panes, view, base, setZoomed, zoomSpeed });
-  zoomStateRef.current = { panes, view, base, setZoomed, zoomSpeed };
+  const zoomStateRef = useRef({ panes, view, setView, zoomSpeed });
+  zoomStateRef.current = { panes, view, setView, zoomSpeed };
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
     const onWheel = (event: WheelEvent): void => {
       const state = zoomStateRef.current;
-      if (!wheelZooms(state.view, state.base, event.deltaY)) return;
+      if (!(event.deltaY < 0 || (event.deltaY > 0 && state.view.zoom > 1))) return;
       event.preventDefault();
       const rect = container.getBoundingClientRect();
-      // The wheel zooms on the cursor inside its floor's pane; both panes share the view.
-      const hit = paneAt(state.panes, event.clientX - rect.left, event.clientY - rect.top);
-      const pane = hit?.pane ?? state.panes[0];
-      const cursor = hit === null ? { x: pane.width / 2, y: pane.height / 2 } : { x: hit.x, y: hit.y };
-      const next = zoomViewAt({ box: pane, view: state.view, base: state.base, cursor, factor: WHEEL_STEP ** (-event.deltaY * state.zoomSpeed) });
-      state.setZoomed(sameRect(next, state.base) ? null : next);
+      // The wheel zooms on the cursor inside the pane it is over (the closest one in the gap); both panes share the view.
+      const hit = nearestPane(state.panes, event.clientX - rect.left, event.clientY - rect.top);
+      const cursor = { x: Math.min(Math.max(hit.x, 0), hit.pane.width), y: Math.min(Math.max(hit.y, 0), hit.pane.height) };
+      state.setView(zoomFloors({ pane: hit.pane, view: state.view, cursor, factor: WHEEL_STEP ** (-event.deltaY * state.zoomSpeed) }));
     };
     container.addEventListener('wheel', onWheel, { passive: false });
     return () => container.removeEventListener('wheel', onWheel);
@@ -554,21 +627,22 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
 
   useEffect(() => onHoverSlot(hover), [hover, onHoverSlot]);
 
-  const dragRef = useRef<{ x: number; y: number; moved: boolean; id: number } | null>(null);
+  const dragRef = useRef<{ x: number; y: number; moved: boolean; id: number; level: RadarLevel } | null>(null);
   const local = (event: { clientX: number; clientY: number }): { x: number; y: number } => {
     const rect = containerRef.current?.getBoundingClientRect();
     return rect === undefined ? { x: 0, y: 0 } : { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
 
   const zoomBy = (factor: number): void => {
-    const next = zoomViewAt({ box: paneBox, view, base, cursor: { x: paneBox.width / 2, y: paneBox.height / 2 }, factor });
-    setZoomed(sameRect(next, base) ? null : next);
+    const pane = panes[0];
+    setView(zoomFloors({ pane, view, cursor: { x: pane.width / 2, y: pane.height / 2 }, factor }));
   };
 
   let cursorClass = 'cursor-grab';
   if (grabbing) cursorClass = 'cursor-grabbing';
   else if (hover !== null) cursorClass = 'cursor-pointer';
-  const label = mode === 'multi' ? `${rounds.length} rondas superpuestas desde el final del tiempo de compra` : `Mapa de la ronda ${focused?.round.number ?? ''}`;
+  const floorsNote = bothFloors ? ' Piso superior a la izquierda e inferior a la derecha.' : '';
+  const label = mode === 'multi' ? `${rounds.length} rondas superpuestas desde el final del tiempo de compra${floorsNote}` : `Mapa de la ronda ${focused?.round.number ?? ''}${floorsNote}`;
   const hovered = hover === null ? null : drawnRef.current.find((player) => player.slot === hover);
   const hoveredSample = hover === null ? undefined : samplesRef.current.find((sample) => sample.slot === hover);
   const decodeError = focused === undefined ? null : framesDecodeError(focused.frames);
@@ -584,7 +658,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
         onPointerDown={(event) => {
           if (event.button !== 0) return;
           const at = local(event);
-          dragRef.current = { ...at, moved: false, id: event.pointerId };
+          dragRef.current = { ...at, moved: false, id: event.pointerId, level: nearestPane(panes, at.x, at.y).pane.level };
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
         onPointerMove={(event) => {
@@ -600,8 +674,8 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
             setHover(null);
             drag.x = at.x;
             drag.y = at.y;
-            const next = panView({ box: paneBox, view, base, dx, dy });
-            setZoomed(sameRect(next, base) ? null : next);
+            const pane = panes.find((entry) => entry.level === drag.level) ?? panes[0];
+            setView(panFloors({ pane, view, dx, dy }));
             return;
           }
           const slot = playerAt(at.x, at.y);
@@ -624,7 +698,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
           event.preventDefault();
           onCopySlot(slot);
         }}
-        onDoubleClick={() => setZoomed(null)}
+        onDoubleClick={() => setView(WHOLE_FLOORS)}
       >
         <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full" />
       </div>
@@ -649,7 +723,6 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
               {zones === undefined || zones.length === 0 ? null : (
                 <ZoneLayer geometry={geometry} projection={localProjection(pane, projections[index])} zones={zones} level={pane.level} />
               )}
-              <span className="absolute top-2 left-2 rounded-sm bg-surface-0/90 px-1.5 py-0.5 text-meta text-fg-2">{LEVEL_LABEL[pane.level]}</span>
             </div>
           ))
         : null}
@@ -692,7 +765,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
 
       {barSlot === null
         ? null
-        : createPortal(<MapZoomControls zoom={zoom} zoomed={zoomed !== null} onZoomBy={zoomBy} onReset={() => setZoomed(null)} className="border-0 bg-transparent p-0" />, barSlot)}
+        : createPortal(<MapZoomControls zoom={view.zoom} zoomed={zoomed} onZoomBy={zoomBy} onReset={() => setView(WHOLE_FLOORS)} className="border-0 bg-transparent p-0" />, barSlot)}
 
       {drawable ? null : (
         <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-fg-2">

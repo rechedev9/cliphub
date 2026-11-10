@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_PRO_QUERY, groupByDay, parseProQuery, proQueryAddress, localDay, proCatalogNotice, proDayLabel, proMapDemos, proMatchSearch, proMatchTitle, proSeriesVeto, type ProMatch } from './pro-matches.ts';
+import { DEFAULT_PRO_QUERY, groupByDay, parseProQuery, proQueryAddress, proCatalogNotice, proMapDemos, proMatchSearch, proMatchTitle, proSeriesVeto, type ProMatch } from './pro-matches.ts';
 
 const match = (id: number, playedAt: string): ProMatch => ({
   id,
@@ -40,13 +40,6 @@ test('a match reads as its two teams and a joined map says so', () => {
   assert.equal(proMatchTitle({ teams: [], event: 'BLAST' }), 'BLAST');
   assert.equal(proMapDemos({ parts: [{ entry: 'a', first_round: 1, rounds: 9 }, { entry: 'a-p2', first_round: 9, rounds: 13 }] }), '2 demos unidas');
   assert.equal(proMapDemos({ parts: [{ entry: 'a', first_round: 1, rounds: 21 }] }), null);
-});
-
-test('day headings read Hoy and Ayer in local time', () => {
-  const now = new Date(2026, 10, 9, 0, 10);
-  assert.equal(proDayLabel(localDay(now), now), 'Hoy');
-  assert.equal(proDayLabel(localDay(new Date(2026, 10, 8, 23, 50)), now), 'Ayer');
-  assert.equal(proDayLabel('2026-11-01', now), '1 nov');
 });
 
 test('every catalog state but ok has its own message', () => {

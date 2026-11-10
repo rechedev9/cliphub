@@ -173,7 +173,7 @@ export function HeatTable({
       ) : (
         <div className="overflow-x-auto">
           <table aria-label={label} className="w-full border-collapse text-left text-body-sm">
-            <thead className="bg-surface-2 text-meta text-fg-3">
+            <thead className="bg-surface-2 text-meta tracking-wider text-fg-3 uppercase">
               <tr className="border-b border-border">
                 {columns.map((column, index) => (
                   <th

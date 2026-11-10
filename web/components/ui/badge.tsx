@@ -15,25 +15,24 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+        default: "border-primary/60 bg-primary/12 text-primary [a&]:hover:bg-primary/20",
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-surface-5",
+          "border-border-strong bg-secondary text-secondary-foreground [a&]:hover:bg-surface-5",
         // White on --destructive is 3.17:1. --destructive-solid is 7.11:1.
         destructive:
-          "border-transparent bg-destructive-solid text-white focus-visible:outline-destructive [a&]:hover:bg-destructive-solid/90",
-        success: "border-success/40 bg-success/10 text-success",
-        warning: "border-warning/40 bg-warning/10 text-warning",
-        accent: "border-primary/40 bg-primary/10 text-primary",
+          "border-destructive/60 bg-destructive/12 text-destructive focus-visible:outline-destructive [a&]:hover:bg-destructive/20",
+        success: "border-success/50 bg-success/10 text-success",
+        warning: "border-warning/50 bg-warning/10 text-warning",
+        accent: "border-primary/50 bg-primary/10 text-primary",
         stream: "border-stream/40 bg-stream/10 text-stream-text",
         danger: "border-destructive/40 bg-destructive/10 text-destructive",
         outline: "border-border-strong text-fg-1 [a&]:hover:bg-surface-3",
         ghost: "border-transparent text-fg-2 [a&]:hover:bg-surface-3 [a&]:hover:text-fg-1",
         link: "border-transparent text-fg-1 underline decoration-fg-4 underline-offset-4 [a&]:hover:decoration-fg-1",
       },
-      // The HUD language is square; `pill` stays the default so no existing
-      // call site changes shape without asking for it.
+      // EDGE chips are rectangular: `pill` keeps its name but rounds like a control.
       shape: {
-        pill: "rounded-full",
+        pill: "rounded-md",
         square: "rounded-none",
       },
     },

@@ -1,6 +1,7 @@
 import type { RadarLevel, TacticalGeometry } from '@/lib/api/tactical';
-import { NAV_RADAR_PALETTE, heightTone, polygonLevel, toneColor } from '@/lib/replay/nav-radar';
+import { NAV_RADAR_PALETTE, floorPolygons, heightTone, placeTints, toneColor, toneRange } from '@/lib/replay/nav-radar';
 import type { NavPolygon, NavRadarModel } from '@/lib/replay/nav-radar';
+import { placeLabel } from '@/lib/tactical-labels';
 import { worldToRendered } from '@/lib/tactical-transform';
 import type { RadarRect } from '@/lib/tactical-transform';
 import { renderRadarBackground } from '@/components/tactical/radar-draw';
@@ -16,8 +17,6 @@ export type MapArt =
 
 /** Floors this many world units apart get an edge between them, which reads as a step. */
 const BAND_UNITS = 40;
-/** Floors of the level nobody stands on stay visible but recede. */
-const INACTIVE_ALPHA = 0.28;
 const OUTLINE_PX = 2.4;
 const SEAM_PX = 0.9;
 const SITE_COLOR = '#c9ced4';
@@ -33,9 +32,11 @@ function tracePolygon(ctx: CanvasRenderingContext2D, polygon: NavPolygon): void 
  * The nav areas in world coordinates under a world-to-device transform: per
  * height band, a dark stroke round every area, then the fills on top. Inside a
  * band the fills cover the strokes, so only the outer walls and the steps
- * between bands keep a crisp edge.
+ * between bands keep a crisp edge. Bombsites and the CT spawn take their tint.
  */
-function paintFloors(ctx: CanvasRenderingContext2D, model: NavRadarModel, polygons: readonly NavPolygon[], unitsPerPixel: number): void {
+function paintFloors(ctx: CanvasRenderingContext2D, options: { polygons: readonly NavPolygon[]; tints: ReadonlyMap<NavPolygon, string>; unitsPerPixel: number }): void {
+  const { polygons, tints, unitsPerPixel } = options;
+  const range = toneRange(polygons);
   let start = 0;
   while (start < polygons.length) {
     const band = Math.floor(polygons[start].z / BAND_UNITS);
@@ -49,7 +50,7 @@ function paintFloors(ctx: CanvasRenderingContext2D, model: NavRadarModel, polygo
     ctx.stroke();
     ctx.lineWidth = SEAM_PX * unitsPerPixel;
     for (let i = start; i < end; i += 1) {
-      const color = toneColor(heightTone(polygons[i].z, model.minZ, model.maxZ), NAV_RADAR_PALETTE.low, NAV_RADAR_PALETTE.high);
+      const color = tints.get(polygons[i]) ?? toneColor(heightTone(polygons[i].z, range.minZ, range.maxZ), NAV_RADAR_PALETTE.low, NAV_RADAR_PALETTE.high);
       ctx.beginPath();
       tracePolygon(ctx, polygons[i]);
       ctx.fillStyle = color;
@@ -61,24 +62,15 @@ function paintFloors(ctx: CanvasRenderingContext2D, model: NavRadarModel, polygo
   }
 }
 
+/** Only the floor on show is painted, in the same greys on either floor: nothing of the other one ghosts through. */
 function paintNav(ctx: CanvasRenderingContext2D, options: { model: NavRadarModel; geometry: TacticalGeometry; level: RadarLevel; size: number; dpr: number; view: RadarRect }): void {
   const { model, geometry, level, size, dpr, view } = options;
   const { calibration } = geometry;
   const k = size / calibration.size / calibration.scale;
   // World x,y straight to device pixels of the window: one transform for every vertex.
   ctx.setTransform(k * dpr, 0, 0, -k * dpr, (-calibration.pos_x * k - view.x * size) * dpr, (calibration.pos_y * k - view.y * size) * dpr);
-  const unitsPerPixel = 1 / k;
   const split = calibration.lower_altitude_max;
-  if (split === undefined) {
-    paintFloors(ctx, model, model.polygons, unitsPerPixel);
-  } else {
-    const active = model.polygons.filter((polygon) => polygonLevel(polygon.z, split) === level);
-    const inactive = model.polygons.filter((polygon) => polygonLevel(polygon.z, split) !== level);
-    ctx.globalAlpha = INACTIVE_ALPHA;
-    paintFloors(ctx, model, inactive, unitsPerPixel);
-    ctx.globalAlpha = 1;
-    paintFloors(ctx, model, active, unitsPerPixel);
-  }
+  paintFloors(ctx, { polygons: floorPolygons(model, split, level), tints: placeTints(model, geometry.callouts, split), unitsPerPixel: 1 / k });
 }
 
 function siteBadge(ctx: CanvasRenderingContext2D, x: number, y: number, letter: string, font: string): void {
@@ -114,24 +106,44 @@ function spawnBadge(ctx: CanvasRenderingContext2D, options: { x: number; y: numb
   ctx.fillText(label, x, y + 0.5);
 }
 
-/** Bombsites and spawns, from the places the demo recorded. Zone names stay off the map: each team has its own. */
-function paintMarkers(ctx: CanvasRenderingContext2D, options: { geometry: TacticalGeometry; size: number; style: RadarStyle; official: boolean }): void {
-  const { geometry, size, style, official } = options;
-  // The official overview already draws its own sites and spawns.
-  if (official) return;
+/** The name of a zone, small and light with a dark edge so it reads on any grey. */
+function zoneName(ctx: CanvasRenderingContext2D, x: number, y: number, name: string, font: string): void {
+  ctx.font = `600 11px ${font}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(11, 12, 14, 0.9)';
+  ctx.strokeText(name, x, y);
+  ctx.fillStyle = '#d9dde1';
+  ctx.fillText(name, x, y);
+}
+
+/**
+ * Bombsite and spawn badges and the names of the places the demo recorded: on the
+ * flat map only with Nombres de zonas on, since it carries no text otherwise. The
+ * official overview already draws its own, and a two-floor map names each
+ * floor's places on that floor's plate.
+ */
+function paintMarkers(ctx: CanvasRenderingContext2D, options: { geometry: TacticalGeometry; level: RadarLevel; size: number; style: RadarStyle; kind: MapArt['kind']; zoneNames: boolean }): void {
+  const { geometry, level, size, style, kind, zoneNames } = options;
+  // The real map keeps its badges as before; the flat plate carries none until Nombres de zonas is on.
+  if (kind === 'image' || (!zoneNames && kind !== 'real')) return;
+  const split = geometry.calibration.lower_altitude_max !== undefined;
   for (const callout of geometry.callouts) {
+    if (split && callout.level !== level) continue;
     const at = worldToRendered(geometry.calibration, callout.center[0], callout.center[1], size);
     const name = callout.name.toLowerCase().replace(/[^a-z]/g, '');
     if (name === 'bombsitea') siteBadge(ctx, at.x, at.y, 'A', style.fontFamily);
     else if (name === 'bombsiteb') siteBadge(ctx, at.x, at.y, 'B', style.fontFamily);
     else if (name === 'tspawn') spawnBadge(ctx, { ...at, label: 'T', color: style.t, font: style.fontFamily });
     else if (name === 'ctspawn') spawnBadge(ctx, { ...at, label: 'CT', color: style.ct, font: style.fontFamily });
+    else if (zoneNames) zoneName(ctx, at.x, at.y, placeLabel(callout.name), style.fontFamily);
   }
 }
 
 /**
  * Bakes the visible window of the map plate at device resolution: the art,
- * then the bombsites and spawns. Everything draws in the radar
+ * then the zone names when asked. Everything draws in the radar
  * square's coordinates (`worldToRendered`), so the players land on it exactly.
  */
 export function bakeMapPlate(options: {
@@ -142,8 +154,11 @@ export function bakeMapPlate(options: {
   dpr: number;
   view: RadarRect;
   style: RadarStyle;
+  /** Bombsite and spawn badges and zone names on the schematic plate. */
+  zoneNames?: boolean;
 }): HTMLCanvasElement {
   const { art, geometry, level, size, dpr, view, style } = options;
+  const zoneNames = options.zoneNames ?? false;
   if (art.kind === 'grid') return renderRadarBackground(geometry, level, size, dpr, style, view);
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(view.width * size * dpr));
@@ -161,6 +176,6 @@ export function bakeMapPlate(options: {
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(image, 0, 0, size, size);
   }
-  paintMarkers(ctx, { geometry, size, style, official: art.kind === 'image' });
+  paintMarkers(ctx, { geometry, level, size, style, kind: art.kind, zoneNames });
   return canvas;
 }

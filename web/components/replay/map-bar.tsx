@@ -4,7 +4,7 @@ import type { ReactNode, RefObject } from 'react';
 import { Bomb, Eye, Flag, Flame, Footprints, Settings2, Tag, X, Zap } from 'lucide-react';
 import { LAYER_LABELS, TRAIL_LENGTHS } from '@/lib/replay/layers';
 import type { LayerToggle, ReplayLayers, TrailSeconds } from '@/lib/replay/layers';
-import { MAP_ARTS, MAP_ART_LABELS, MAP_FLOORS, MAP_FLOORS_LABELS } from '@/lib/replay/map-settings';
+import { MAP_ARTS, MAP_ART_LABELS, SEPARATE_FLOORS_HINT, SEPARATE_FLOORS_LABEL, floorsSeparated } from '@/lib/replay/map-settings';
 import type { MapSettings } from '@/lib/replay/map-settings';
 import { FOCUS_RING } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
@@ -49,7 +49,7 @@ export function MapBar({
 }: {
   settings: MapSettings;
   onSettings: (settings: MapSettings) => void;
-  /** The map has a lower floor (Nuke, Vertigo), so it can show both at once. */
+  /** The map has a lower floor (Nuke, Vertigo), so it can split the floors. */
   twoFloors: boolean;
   layers: ReplayLayers;
   onToggleLayer: (key: LayerToggle) => void;
@@ -68,12 +68,15 @@ export function MapBar({
         onChange={(art) => onSettings({ ...settings, art })}
       />
       {twoFloors ? (
-        <Segmented
-          label="Pisos del mapa"
-          value={settings.floors}
-          options={MAP_FLOORS.map((floors) => ({ value: floors, label: MAP_FLOORS_LABELS[floors] }))}
-          onChange={(floors) => onSettings({ ...settings, floors })}
-        />
+        <label title={SEPARATE_FLOORS_HINT} className="flex h-7 cursor-pointer items-center gap-1.5 rounded-sm border border-border-strong bg-surface-1 px-2 text-meta text-fg-1 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring">
+          <input
+            type="checkbox"
+            checked={floorsSeparated(settings)}
+            onChange={(event) => onSettings({ ...settings, floors: event.target.checked ? 'both' : 'one' })}
+            className="size-3.5 cursor-pointer accent-primary"
+          />
+          {SEPARATE_FLOORS_LABEL}
+        </label>
       ) : null}
       <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Capas del mapa">
         {LAYER_ORDER.map((key) => (

@@ -38,14 +38,17 @@ export function CommandStrip(): ReactElement {
       className="shell-strip sticky top-0 z-30 flex h-(--shell-strip-height) shrink-0 items-center gap-2 px-2 sm:gap-3 sm:px-3 print:hidden"
     >
       <SidebarTrigger
-        className="size-10 shrink-0 text-fg-2 hover:text-fg-1"
+        className="size-8 shrink-0 text-fg-2 hover:text-fg-1"
         title="Barra lateral · Ctrl/⌘ B"
       />
 
       {/* 6px inside the label, 14px across the level break, so the breadcrumb
           reads as two levels. */}
       <nav aria-label="Ruta actual" className="flex min-w-0 items-baseline gap-1.5">
-        <span className="truncate text-body-sm font-semibold text-fg-1">
+        <span className="flex min-w-0 items-baseline gap-1.5 truncate text-body-sm font-semibold text-fg-1">
+          <span aria-hidden className="text-slash">
+            /
+          </span>
           {section?.label ?? 'ClipHub'}
         </span>
         {trail === null ? null : (
@@ -70,7 +73,7 @@ export function CommandStrip(): ReactElement {
           data-testid="app-tour-trigger"
           aria-label="Abrir la guía de ClipHub"
           title="Guía de ClipHub"
-          className="text-fg-2 hover:text-fg-1 max-sm:w-10 max-sm:px-0"
+          className="text-fg-2 hover:text-fg-1 max-sm:w-8 max-sm:px-0"
           onClick={() => openAppTour(0)}
         >
           <CircleHelp aria-hidden />

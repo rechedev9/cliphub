@@ -12,14 +12,14 @@ import { cn } from "@/lib/utils"
  * clears the 3:1 graphics floor up to --surface-3.
  */
 const MENU_ITEM_CLASS = [
-  "relative flex min-h-9 cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-body-sm text-popover-foreground outline-hidden select-none",
+  "relative flex min-h-8 cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-body-sm text-popover-foreground outline-hidden select-none",
   "transition-colors duration-(--dur-instant) ease-standard",
   "focus:bg-surface-5 focus:text-fg-1 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
   "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-fg-3",
 ].join(" ")
 
 const MENU_SURFACE_CLASS =
-  "z-50 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-[var(--elev-4)] duration-(--dur-fast) ease-standard data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+  "z-50 overflow-hidden rounded-md border border-border-strong bg-popover p-1 text-popover-foreground duration-(--dur-fast) ease-standard data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
 
 function DropdownMenu({
   ...props

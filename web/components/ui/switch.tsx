@@ -2,7 +2,10 @@ import type { ReactNode } from 'react';
 import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const TRACK_ON = { primary: 'bg-primary', stream: 'bg-stream' } as const;
+const TRACK_ON = {
+  primary: { track: 'border-primary bg-primary/25', thumb: 'bg-primary' },
+  stream: { track: 'border-stream bg-stream/25', thumb: 'bg-stream' },
+} as const;
 
 export type SwitchProps = {
   checked: boolean;
@@ -14,7 +17,7 @@ export type SwitchProps = {
   'aria-labelledby'?: string;
 };
 
-/** The one on/off control in Studio: a round track whose thumb slides right when on. */
+/** The one on/off control in Studio: a square track whose thumb slides right when on. */
 export function Switch({ checked, onCheckedChange, disabled = false, tone = 'primary', ...aria }: SwitchProps): ReactNode {
   return (
     <button
@@ -25,16 +28,16 @@ export function Switch({ checked, onCheckedChange, disabled = false, tone = 'pri
       disabled={disabled}
       onClick={() => onCheckedChange(!checked)}
       className={cn(
-        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-(--dur-fast) ease-standard disabled:pointer-events-none disabled:opacity-50',
-        checked ? TRACK_ON[tone] : 'bg-border-strong',
+        'relative inline-flex h-5 w-9 shrink-0 items-center rounded-md border transition-colors duration-(--dur-fast) ease-standard disabled:pointer-events-none disabled:opacity-50',
+        checked ? TRACK_ON[tone].track : 'border-border-strong bg-surface-3',
         FOCUS_RING,
       )}
     >
       <span
         aria-hidden
         className={cn(
-          'block size-5 rounded-full bg-fg-1 shadow-sm transition-transform duration-(--dur-fast) ease-standard',
-          checked ? 'translate-x-5.5' : 'translate-x-0.5',
+          'block size-3 rounded-[1px] transition-transform duration-(--dur-fast) ease-standard',
+          checked ? ['translate-x-[1.1875rem]', TRACK_ON[tone].thumb] : ['translate-x-[0.1875rem] bg-fg-3'],
         )}
       />
     </button>
