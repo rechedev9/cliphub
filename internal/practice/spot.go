@@ -66,7 +66,7 @@ type Plan struct {
 
 // Validate checks every field strictly and sanitizes the labels.
 func Validate(in Input) (Plan, error) {
-	if !mapPattern.MatchString(in.Map) {
+	if !ValidMap(in.Map) {
 		return Plan{}, invalid("map must match de_<name>")
 	}
 	if len(in.Spots) == 0 {
@@ -115,6 +115,12 @@ func validateSpot(raw SpotInput, n int) (Spot, error) {
 	}
 	return spot, nil
 }
+
+// ValidMap reports whether name is a map CS2 can open from the launch URL.
+func ValidMap(name string) bool { return mapPattern.MatchString(name) }
+
+// GrenadeWeapon is the give name of an analysis grenade kind, or "".
+func GrenadeWeapon(kind string) string { return grenadeWeapons[kind] }
 
 func finiteWithin(v, limit float64) bool {
 	return !math.IsNaN(v) && !math.IsInf(v, 0) && math.Abs(v) <= limit

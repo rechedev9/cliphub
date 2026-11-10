@@ -27,6 +27,7 @@ import {
 import { TEAM_GRENADES_KEYS, TEAM_GRENADES_QUERY } from '../../../lib/api/grenades.ts';
 import { LINEUP_FIELDS, LINEUP_KEYS, LINEUP_LIST_QUERY, LINEUP_PATCH_FIELDS } from '../../../lib/api/lineups.ts';
 import { PRO_LINEUP_MAP_KEYS, PRO_LINEUP_MAPS_KEYS } from '../../../lib/api/pro-lineups.ts';
+import { BOT_REPLAY_FIELDS, BOT_REPLAY_KEYS } from '../../../lib/api/bot-replay.ts';
 import { ROLE_SHEET_FIELDS, ROLE_SHEET_KEYS, TEAM_ROLES_KEYS } from '../../../lib/api/roles.ts';
 import { CALL_FIELDS, CALL_KEYS, CALL_LIST_QUERY } from '../../../lib/api/calls.ts';
 import {
@@ -153,6 +154,12 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'overlay'], query: [...TACTICAL_FILTER_PARAM_NAMES, ...FOCUS_QUERY, ...OVERLAY_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'rounds', ROUND, 'play'], query: ['team_key', 'tick'], response: json(['draft']) },
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'rounds', ROUND, 'lineups'], response: json(ROUND_LINEUPS_KEYS) },
+  {
+    method: 'POST',
+    segments: ['matches', UUID, 'tactical', 'rounds', ROUND, 'bot-replay'],
+    body: fields(BOT_REPLAY_FIELDS),
+    response: json(BOT_REPLAY_KEYS),
+  },
   { method: 'GET', segments: ['matches', UUID, 'metrics'], response: json(METRICS_KEYS) },
   { method: 'GET', segments: ['teams'], query: ['q', ...PAGING], response: json(['teams']) },
   { method: 'GET', segments: ['teams', UUID], response: json(TEAM_KEYS) },

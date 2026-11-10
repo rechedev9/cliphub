@@ -171,6 +171,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/library/matches/{id}/metrics", h.GetLibraryMatchMetrics)
 	r.Get("/api/library/matches/{id}/tactical/rounds/{round}/play", h.GetLibraryRoundPlay)
 	r.Get("/api/library/matches/{id}/tactical/rounds/{round}/lineups", h.GetLibraryRoundLineups)
+	r.Post("/api/library/matches/{id}/tactical/rounds/{round}/bot-replay", h.LaunchLibraryBotReplay)
 	r.Get("/api/library/pro-lineups", h.ListProLineupMaps)
 	r.Get("/api/library/pro-lineups/{map}", h.GetProLineups)
 	r.Get("/api/library/pro-lineups/clips/{match}/{file}", h.GetProLineupClip)

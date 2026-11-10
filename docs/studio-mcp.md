@@ -145,8 +145,8 @@ safe. Only uploads are limited (2 concurrent).
   which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
   `delete_stream`, `delete_demo` (the file names; one approval for every demo in `ids`), `merge_teams` (both team names and the match count of the one that goes),
   `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video`, `change_video_music`,
-  `delete_report`, `delete_play`, `delete_lineup` and `delete_call` (the title), `delete_playlist` (name and round count), `delete_library_series` (format and teams)
-  and `launch_practice` (map and spot count).
+  `delete_report`, `delete_play`, `delete_lineup` and `delete_call` (the title), `delete_playlist` (name and round count), `delete_library_series` (format and teams),
+  `launch_practice` (map and spot count) and `launch_bot_replay` (round and side).
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
   travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
   clients. A failed or declined question starts nothing and hands out no code.
@@ -317,6 +317,7 @@ Write:
 | `follow_faceit_player`, `unfollow_faceit_player` | `POST /api/faceit/followed` (`nickname`); `DELETE /api/faceit/followed/{id}` (a seeded player is hidden) | no |
 | `link_player_faceit` | `POST /api/library/players/{steamid}/faceit` | no |
 | `launch_practice` | `POST /api/practice/launch` (`map`, at most 20 spots with `label`, `pos`, `ang` as pitch and yaw, `grenade`); a CT molotov becomes an incendiary, as on the grenades page. With `lineup_ids`, `GET /api/library/lineups/{id}` for each, all on `map`, as Practicar selección does in the Libreta. With `pro_lineup_ids` (ids or slugs), `GET /api/library/pro-lineups/{map}`: label the title, `pos` the origin, `ang` pitch and yaw, `grenade` the kind | yes |
+| `launch_bot_replay` | `POST /api/library/matches/{id}/tactical/rounds/{round}/bot-replay` (`side` the user plays, `replace_steamid` a player of that side whose spawn and positions the user takes), as Practicar contra esta ronda does in the Replay's round panel. Studio writes `cliphub_practice.cfg`, which only defines aliases and binds because a fresh launch runs it before the map's server exists. In game the first KP_ENTER applies the server settings, kicks the bots and joins the side; the second adds one bot per player of the other side (`bot_stop 1`, `bot_dont_shoot 1`); later ones place them with `setpos_player` at moment 1 of up to 12 (start, grenades, first contact, plant). KP_PLUS steps, KP_MINUS changes spawn, KP_DEL shifts the first bot's number (1 to 8, default 2) when they do not move, KP_INS sets up again, and the keypad digits stand the user on the rivals' throws with the grenade. Plain CS2 cannot make bots walk recorded paths, look where the rival looked or throw grenades without a server plugin; the answer's `limits` says so | yes |
 | `merge_teams` | `GET /api/library/teams/{id}` for both teams, then `POST /api/library/teams/{id}/merge` with `into_team_id` | yes |
 
 Short look and Full Demo HUD:
