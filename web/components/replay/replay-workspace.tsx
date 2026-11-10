@@ -675,7 +675,9 @@ export function ReplayWorkspace({
     >
       <div
         className={cn(
-          'flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-0',
+          'flex min-h-0 min-w-0 flex-col rounded-lg border border-border bg-surface-0',
+          // With the export panel open, a short column scrolls whole instead of hiding the panel.
+          gif.open ? 'overflow-y-auto overscroll-contain [scrollbar-width:thin]' : 'overflow-hidden',
           fullscreen.active ? 'col-start-1 row-start-1' : 'h-[72vh] min-[1180px]:col-start-2 min-[1180px]:row-start-1 min-[1180px]:h-auto',
         )}
       >
@@ -714,7 +716,7 @@ export function ReplayWorkspace({
           follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
           preferences={{ open: preferences, onOpen: () => setPreferences((value) => !value), triggerRef: preferencesChip }}
         />
-        <div className={cn('relative flex-1', gif.open ? 'min-h-[240px]' : 'min-h-0')}>
+        <div className={cn('relative flex-1', gif.open ? 'min-h-[200px]' : 'min-h-0')}>
           {focused === null ? (
             <CentreState state={current} round={entry?.round} onRetry={() => entry !== undefined && retry(entry.matchId)} />
           ) : (
