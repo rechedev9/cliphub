@@ -99,7 +99,7 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 		})
 	}
 	opts := tacticalplan.SideStatsOptions{
-		Side: filter.Side, Rounds: filter.Rounds, Lineup: filter.Lineup, Roles: sideStatsRoles(own),
+		Side: filter.Side, Rounds: filter.Rounds, Lineup: filter.Lineup, Roles: sideStatsRoles(own), PlayRounds: filter.PlayRounds,
 	}
 	if len(filter.Maps) == 1 {
 		opts.MapRoles = h.teamMapRoles(kept)
