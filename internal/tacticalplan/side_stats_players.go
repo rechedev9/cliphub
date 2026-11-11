@@ -182,10 +182,6 @@ func sumSlots(bySlot map[uint8]int) int {
 
 func (run *teamRun) addPlayers(v roundView, names map[uint8]Player) {
 	hs := headshotsBySlot(v)
-	var damage, flashes map[uint8]int
-	if v.utility {
-		damage, flashes = utilityDamageBySlot(v), flashAssistsBySlot(v)
-	}
 	for _, pr := range v.Players {
 		p, ok := names[pr.Slot]
 		if pr.Side != v.side || !ok || p.SteamID64 == "" {
@@ -209,8 +205,8 @@ func (run *teamRun) addPlayers(v roundView, names map[uint8]Player) {
 		}
 		if v.utility {
 			t.utilRounds++
-			t.utilDamage += damage[pr.Slot]
-			t.flashAssists += flashes[pr.Slot]
+			t.utilDamage += v.utilDamage[pr.Slot]
+			t.flashAssists += v.flashAssists[pr.Slot]
 		}
 	}
 }
@@ -261,14 +257,19 @@ func (run *teamRun) playerCards(opts SideStatsOptions) []SideStatsPlayer {
 	return out
 }
 
-// groupPlayerLine is the plain mean of the group teams' pooled lines, each team with at least
-// GroupMinRounds rounds; a figure no team has stays nil.
+// groupPlayerLine is the plain mean of the group teams' pooled lines, each figure counting a team
+// with at least GroupMinRounds rounds behind it (rounds with utility effects for UDR and FAR).
 func groupPlayerLine(teams []*teamRun) PlayerLine {
 	var lines []PlayerLine
 	for _, run := range teams {
-		if run.overall.rounds >= GroupMinRounds {
-			lines = append(lines, run.pooled().line())
+		if run.overall.rounds < GroupMinRounds {
+			continue
 		}
+		l := run.pooled().line()
+		if run.overall.utilRounds < GroupMinRounds {
+			l.UDR, l.FAR = nil, nil
+		}
+		lines = append(lines, l)
 	}
 	var out PlayerLine
 	for i, field := range out.fields() {

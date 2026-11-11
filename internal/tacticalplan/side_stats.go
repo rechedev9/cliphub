@@ -171,13 +171,15 @@ func mapWon(doc Document, teamKey string) bool {
 }
 
 // roundView is one kept round seen from the team: its side, every slot's side
-// and whether the demo was scanned with utility effects.
+// and whether the demo was scanned with utility effects, with the side's utility per slot then.
 type roundView struct {
 	Round
 	side     Side
 	sides    map[uint8]Side
 	tickrate float64
 	utility  bool
+	// utilDamage and flashAssists are filled once per round when utility is set.
+	utilDamage, flashAssists map[uint8]int
 }
 
 func (a *sideAcc) addRound(v roundView) {
@@ -221,12 +223,12 @@ func (a *sideAcc) addRound(v roundView) {
 	}
 	if v.utility {
 		a.utilRounds++
-		a.utilDamage += sumSlots(utilityDamageBySlot(v))
-		a.flashAssists += sumSlots(flashAssistsBySlot(v))
+		a.utilDamage += sumSlots(v.utilDamage)
+		a.flashAssists += sumSlots(v.flashAssists)
 	}
 }
 
-// teamRun adds up one team's matches; a group team skips the cards and the match list.
+// teamRun adds up one team's matches; a group team skips the match list and keeps its players only for players_group_avg.
 type teamRun struct {
 	overall, ct, t sideAcc
 	players        map[string]*playerAccum
@@ -262,6 +264,9 @@ func (run *teamRun) addMatch(m SideStatsMatch, opts SideStatsOptions) {
 		v := roundView{Round: r, side: doc.TeamSide(m.TeamKey, r), sides: map[uint8]Side{}, tickrate: doc.Demo.Tickrate, utility: doc.UtilityEffects}
 		for _, pr := range r.Players {
 			v.sides[pr.Slot] = pr.Side
+		}
+		if v.utility {
+			v.utilDamage, v.flashAssists = utilityDamageBySlot(v), flashAssistsBySlot(v)
 		}
 		if v.side == SideCT {
 			run.ct.addRound(v)

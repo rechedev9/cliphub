@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import type { ReportSide } from '@/lib/api/scout';
 import type { SideStat, SideStatKey, SideStats } from '@/lib/api/side-stats';
+import { deltaArrow } from '@/lib/analysis/compare';
 import { DELTA_TONE_CLASS } from '@/components/ui/delta-value';
 import { SIDE_STAT_TILES, dimmedSide, formatSideValue, sideDelta, type SideKey, type SideStatTile } from '@/lib/analysis/side-stats';
 import { prettyMapName } from '@/lib/format';
@@ -67,7 +68,7 @@ function SidePanel({ id, stats, map, dimmed }: { id: SideKey; stats: SideStats; 
 
 function Value({ stat, tile, dimmed, align }: { stat: SideStat; tile: SideStatTile; dimmed: boolean; align: 'start' | 'end' }): ReactNode {
   const delta = sideDelta(stat, tile.unit);
-  const arrow = delta === null || delta.tone === 'even' ? '' : delta.text.slice(0, 1);
+  const arrow = delta === null || delta.tone === 'even' || stat.value === null || stat.group_avg === null ? '' : deltaArrow(stat.value - stat.group_avg);
   return (
     <span
       title={deltaTitle(stat, tile)}

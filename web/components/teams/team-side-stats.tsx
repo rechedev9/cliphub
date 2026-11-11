@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import type { SideStat, TeamSideStats as TeamSideStatsReport } from '@/lib/api/side-stats';
 import type { DeltaTone } from '@/lib/analysis/compare';
-import { SIDE_STAT_TILES, formatSideValue, sideDelta, type SideStatTile } from '@/lib/analysis/side-stats';
+import { SIDE_STAT_TILES, formatSideValue, groupMeanText, sideDelta, type SideStatTile } from '@/lib/analysis/side-stats';
 import { EmptySample } from '@/components/analysis/empty-sample';
 import { InfoTip } from '@/components/analysis/info-tip';
 import { DELTA_TONE_CLASS } from '@/components/ui/delta-value';
@@ -19,7 +19,6 @@ const TONE: Record<DeltaTone, EdgeTone> = { better: 'good', worse: 'bad', even: 
 
 function StatTile({ tile, stat }: { tile: SideStatTile; stat: SideStat }): ReactNode {
   const delta = sideDelta(stat, tile.unit);
-  const mean = stat.group_avg === null ? 'Sin media del grupo' : `media ${formatSideValue(stat.group_avg, tile.unit)}`;
   return (
     <EdgeTile
       label={tile.label}
@@ -32,7 +31,7 @@ function StatTile({ tile, stat }: { tile: SideStatTile; stat: SideStat }): React
           <>
             {delta ? <span className={cn('font-medium', DELTA_TONE_CLASS[delta.tone])}>{delta.text}</span> : null}
             {delta ? ' · ' : null}
-            {mean}
+            {groupMeanText(stat, tile.unit)}
           </>
         )
       }

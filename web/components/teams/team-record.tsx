@@ -501,7 +501,6 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   };
 
   if (statsView) {
-    const recordHref = `${pathname}?${writeTab(search.toString(), 'plantilla', DEFAULT_TAB)}`;
     return (
       <div className="flex flex-col gap-5">
         {scopeBar(activeScopeId)}
@@ -511,11 +510,9 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             onValueChange={changeTab}
             tabs={tabList.filter((entry) => STATS_TABS.includes(entry.id))}
             actions={
-              <Button asChild variant="ghost" size="xs">
-                <Link href={recordHref}>
-                  <Shield aria-hidden />
-                  Ficha del equipo
-                </Link>
+              <Button variant="ghost" size="xs" onClick={() => changeTab('plantilla')}>
+                <Shield aria-hidden />
+                Ficha del equipo
               </Button>
             }
           />
