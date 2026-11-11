@@ -98,8 +98,8 @@ export function ReplayPreferences({
   drawing: boolean;
   /** The full-screen replay, which sits in the top layer: the dialog opens inside it to stay visible. */
   container: HTMLElement | null;
-  /** The button that opened the dialog, which gets the focus back when it closes. */
-  returnFocus: RefObject<HTMLButtonElement | null>;
+  /** What had the focus when the dialog opened, which gets it back when it closes. */
+  returnFocus: RefObject<HTMLElement | null>;
 }): ReactNode {
   const show = (key: MapShow): ReactNode => (
     <Toggle

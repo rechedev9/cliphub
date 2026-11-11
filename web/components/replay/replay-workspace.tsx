@@ -179,15 +179,23 @@ export function ReplayWorkspace({
   const [eventsOpen, setEventsOpen] = useState(false);
   const [preferences, setPreferences] = useState(false);
   const [preferencesTab, setPreferencesTab] = useState<PreferencesTab>('general');
-  const showShortcuts = useCallback(() => {
-    setPreferencesTab('keys');
+  const preferencesChip = useRef<HTMLButtonElement>(null);
+  // What had the focus when the dialog opened (the gear, the shortcuts button or the map), so closing gives it back.
+  const preferencesOpener = useRef<HTMLElement | null>(null);
+  const showPreferences = useCallback((tab: PreferencesTab) => {
+    const active = document.activeElement;
+    // "?" inside the open dialog only switches the tab and keeps the first opener.
+    if (!(active instanceof HTMLElement && active.closest('[data-replay-preferences]') !== null)) {
+      preferencesOpener.current = active instanceof HTMLElement ? active : null;
+    }
+    setPreferencesTab(tab);
     setPreferences(true);
   }, []);
+  const showShortcuts = useCallback(() => showPreferences('keys'), [showPreferences]);
   const openPreferences = useCallback(() => {
-    setPreferencesTab('general');
-    setPreferences((value) => !value);
-  }, []);
-  const preferencesChip = useRef<HTMLButtonElement>(null);
+    if (preferences) setPreferences(false);
+    else showPreferences('general');
+  }, [preferences, showPreferences]);
   // The dialog opens inside the replay only in full screen, so entering or leaving it closes the dialog instead of moving it.
   const [rootElement, setRootElement] = useState<HTMLElement | null>(null);
   const setRoot = useCallback((element: HTMLElement | null) => {
@@ -450,8 +458,7 @@ export function ReplayWorkspace({
     if (shortcut === 'help') {
       if (preferences && preferencesTab === 'keys') setPreferences(false);
       else showShortcuts();
-    }
-    else if (shortcut === 'fullscreen') fullscreen.toggle();
+    } else if (shortcut === 'fullscreen') fullscreen.toggle();
     else if (shortcut === 'multi') toggleMulti();
     else if (shortcut === 'follow') {
       const slot = focus[0] ?? followSlot;
@@ -737,7 +744,7 @@ export function ReplayWorkspace({
         twoFloors={focused !== null && isMultiLevelMap(focused.doc.geometry.calibration)}
         drawing={library}
         container={fullscreen.active ? rootElement : null}
-        returnFocus={preferencesChip}
+        returnFocus={preferencesOpener}
       />
     </section>
   );
