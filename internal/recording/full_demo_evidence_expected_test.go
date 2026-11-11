@@ -37,6 +37,7 @@ func TestFullDemoCaptureContractRejectsEachWrongReadback(t *testing.T) {
 	}{
 		{"spec_show_xray", "1", "was not disabled"},
 		{"voice_modenable", "true", "was not disabled"},
+		{"snd_mute_losefocus", "true", "was not disabled"},
 		{"cl_show_observer_crosshair", "0", "Crosshair source"},
 		{"cl_drawhud", "0", "readback differs: cl_drawhud"},
 		{"cl_drawhud_force_teamid_overhead", "0", "readback differs: cl_drawhud_force_teamid_overhead"},

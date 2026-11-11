@@ -192,7 +192,7 @@ func (e *FullDemoCaptureEvidence) Validate(plan RecordingPlan) error {
 
 // fullDemoDisabledCaptureCvars must read back as disabled after a Full Demo
 // capture applied its settings.
-var fullDemoDisabledCaptureCvars = []string{"voice_modenable", "snd_voipvolume", "tv_listen_voice_indices", "tv_listen_voice_indices_h", "spec_show_xray", "spec_autodirector"}
+var fullDemoDisabledCaptureCvars = []string{"voice_modenable", "snd_voipvolume", "tv_listen_voice_indices", "tv_listen_voice_indices_h", "snd_mute_losefocus", "spec_show_xray", "spec_autodirector"}
 
 // fullDemoObserverCrosshair is the cl_show_observer_crosshair readback the
 // approved crosshair source requires.

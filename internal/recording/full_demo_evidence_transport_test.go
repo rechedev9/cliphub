@@ -15,7 +15,7 @@ import (
 func validFullDemoEvidenceLines(t *testing.T, p RecordingPlan, token string) []string {
 	t.Helper()
 	applied := map[string]any{
-		"voice_modenable": 0, "snd_voipvolume": 0, "tv_listen_voice_indices": 0, "tv_listen_voice_indices_h": 0,
+		"voice_modenable": 0, "snd_voipvolume": 0, "tv_listen_voice_indices": 0, "tv_listen_voice_indices_h": 0, "snd_mute_losefocus": 0,
 		"spec_show_xray": 0, "spec_autodirector": 0, "cl_show_observer_crosshair": 2,
 		"cl_drawhud": 1, "cl_draw_only_deathnotices": 1, "crosshair": 1, "cl_demo_predict": 0, "cl_trueview_show_status": 0,
 		"cl_spec_show_bindings": 0, "cl_drawhud_specvote": 0, "cl_teamid_overhead_mode": 0, "cl_drawhud_force_teamid_overhead": -1, "hud_showtargetid": 0,

@@ -81,7 +81,7 @@ func TestFinalizeFullDemoCaptureEvidencePersistsFailures(t *testing.T) {
 func fullDemoEvidenceLog(t *testing.T) string {
 	t.Helper()
 	values := []recording.CvarValue{}
-	for _, name := range []string{"voice_modenable", "snd_voipvolume", "tv_listen_voice_indices", "tv_listen_voice_indices_h", "spec_show_xray", "spec_autodirector", "cl_demo_predict", "cl_trueview_show_status", "cl_spec_show_bindings", "cl_drawhud_specvote", "cl_teamid_overhead_mode", "hud_showtargetid", "cl_hud_radar_map_additive", "cl_hud_color"} {
+	for _, name := range []string{"voice_modenable", "snd_voipvolume", "tv_listen_voice_indices", "tv_listen_voice_indices_h", "snd_mute_losefocus", "spec_show_xray", "spec_autodirector", "cl_demo_predict", "cl_trueview_show_status", "cl_spec_show_bindings", "cl_drawhud_specvote", "cl_teamid_overhead_mode", "hud_showtargetid", "cl_hud_radar_map_additive", "cl_hud_color"} {
 		values = append(values, recording.CvarValue{Name: name, Value: json.RawMessage("0")})
 	}
 	values = append(values,

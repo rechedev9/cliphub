@@ -84,6 +84,8 @@
             // as the client build is newer than the demo's, which is the norm.
             const settings = {
                 voice_modenable: false, snd_voipvolume: 0, tv_listen_voice_indices: 0, tv_listen_voice_indices_h: 0,
+                // CS2 records silence while another window (Discord, a browser) has focus.
+                snd_mute_losefocus: false,
                 spec_show_xray: 0, spec_autodirector: false, cl_drawhud: true, cl_draw_only_deathnotices: false,
                 cl_show_observer_crosshair: fullDemoCapture.crosshair.mode === "observed" ? 2 : 0,
                 crosshair: true, cl_demo_predict: fullDemoCapture.trueview ? 2 : 0, cl_trueview_show_status: 0
