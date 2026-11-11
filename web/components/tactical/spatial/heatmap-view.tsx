@@ -457,10 +457,13 @@ export function HeatmapView({
       </div>
 
       {body()}
-      <div className="flex items-center gap-1.5">
-        <HeatPlayButton playback={playback} />
-        <div className="min-w-0 flex-1">
-          <TramoBar tramo={tramo} onChange={setTramo} />
+      {/* On a narrow window the speeds wrap under the strip instead of covering it. */}
+      <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <div className="flex min-w-[min(100%,28rem)] flex-1 items-center gap-1.5">
+          <HeatPlayButton playback={playback} />
+          <div className="min-w-0 flex-1">
+            <TramoBar tramo={tramo} onChange={setTramo} />
+          </div>
         </div>
         <SpeedPicker speed={playback.speed} onChange={playback.setSpeed} min={0.5} />
       </div>
