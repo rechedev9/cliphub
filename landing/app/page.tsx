@@ -1,9 +1,14 @@
 import { Download } from "lucide-react";
+import AssistantChat from "@/components/assistant-chat";
+import FeatureBento from "@/components/feature-bento";
+import HudCarousel from "@/components/hud-carousel";
+import ImportSources from "@/components/import-sources";
 import PhoneFrame from "@/components/phone-frame";
 import ProductFlow from "@/components/product-flow";
 import Reveal from "@/components/reveal";
 import SectionVideo from "@/components/section-video";
 import Shot from "@/components/shot";
+import StreamLayouts from "@/components/stream-layouts";
 import { DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL } from "@/lib/site";
 
 const NAV = [
@@ -73,57 +78,6 @@ const VIDEO_POINTS = [
   "Reintentar un vídeo fallido o cambiar la música sin volver a grabar.",
   "El asistente de YouTube propone título, alternativas, descripción, etiquetas y la mejor hora.",
   "Tú subes el vídeo, ClipHub nunca publica por ti.",
-] as const;
-
-const ANALYSIS = [
-  {
-    shot: "replay",
-    title: "Replay 2D",
-    body: "La ronda sobre el mapa, con los jugadores y la cámara donde quieras.",
-    alt: "Replay 2D de una ronda sobre el mapa, con los jugadores y sus movimientos",
-  },
-  {
-    shot: "heatmap",
-    title: "Mapa de calor",
-    body: "Dónde se juega cada ronda, por equipo y por zona.",
-    alt: "Mapa de calor del equipo sobre Mirage con las zonas más jugadas",
-  },
-  {
-    shot: "partida",
-    title: "Resumen de la partida",
-    body: "Rondas, compras y economía en una línea de tiempo.",
-    alt: "Resumen de la partida con la línea de tiempo de las rondas y el marcador",
-  },
-  {
-    shot: "equipo",
-    title: "Equipos",
-    body: "Lados, plantilla y estadísticas de cada equipo.",
-    alt: "Página de equipo con sus lados, su plantilla y las estadísticas de cada jugador",
-  },
-  {
-    shot: "preparar",
-    title: "Preparar al rival",
-    body: "El plan de la próxima partida, con sus patrones.",
-    alt: "Pestaña de preparar al rival con el plan de la próxima partida",
-  },
-  {
-    shot: "ranking",
-    title: "Ranking por rol",
-    body: "Los mejores del mundo en cada rol, con sus cifras.",
-    alt: "Tabla de ranking por rol con jugadores profesionales y sus cifras",
-  },
-  {
-    shot: "lineups",
-    title: "Lineups pro con Practicar en CS2",
-    body: "Humos, flashes y molotovs del mapa, listos para probar.",
-    alt: "Mapa de Mirage con los lineups profesionales y la opción de practicar en CS2",
-  },
-  {
-    shot: "informe",
-    title: "Informes en PDF",
-    body: "Un informe de scouting completo para el coach.",
-    alt: "Informe de scouting en PDF con el análisis del rival",
-  },
 ] as const;
 
 const ASSISTANT_POINTS = [
@@ -298,54 +252,6 @@ function VideosMedia() {
   );
 }
 
-function AnalysisCard({
-  title,
-  body,
-  shot,
-  alt,
-  delay,
-}: {
-  title: string;
-  body: string;
-  shot: string;
-  alt: string;
-  delay: number;
-}) {
-  return (
-    <Reveal delay={delay} className="min-w-0">
-      <article className="flex h-full flex-col gap-3 rounded-2xl border border-line bg-surface/70 p-3">
-        <Shot name={shot} title={title} alt={alt} />
-        <div className="px-1 pb-1">
-          <h3 className="font-display text-base font-semibold text-fg">{title}</h3>
-          <p className="mt-1 text-sm leading-relaxed text-muted">{body}</p>
-        </div>
-      </article>
-    </Reveal>
-  );
-}
-
-function AssistantChat() {
-  return (
-    <div className="rounded-2xl border border-line bg-surface p-4 shadow-xl shadow-black/30">
-      <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
-        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-primary">Asistente MCP</span>
-        <span className="flex items-center gap-1.5 font-mono text-[11px] text-muted">
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
-          En local
-        </span>
-      </div>
-      <div className="mt-4 space-y-3 text-sm leading-relaxed">
-        <p className="ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-surface-2 px-4 py-2.5 text-fg">
-          Hazme un Short de mi ACE en la ronda 19 de Inferno.
-        </p>
-        <p className="max-w-[92%] rounded-2xl rounded-bl-sm border border-line bg-bg px-4 py-2.5 text-muted">
-          Puedo grabar la ronda 19 desde tu POV en 9:16. ¿Te vale el tema Pulse y los cortes al ritmo?
-        </p>
-      </div>
-    </div>
-  );
-}
-
 export default function Home() {
   return (
     <>
@@ -452,7 +358,6 @@ export default function Home() {
                 <SectionHead eyebrow="02 / IMPORTAR" title="Importa de donde juegues" id="importar-titulo" />
                 <p className={leadClass}>Tus demos, tus partidas y los torneos que sigues, en el mismo sitio.</p>
                 <Points items={SOURCES} />
-                {/* slot: import-sources */}
               </>
             }
             media={
@@ -477,6 +382,9 @@ export default function Home() {
               </div>
             }
           />
+          <Reveal className="mt-14">
+            <ImportSources />
+          </Reveal>
         </Section>
 
         <Section id="short">
@@ -505,7 +413,7 @@ export default function Home() {
                   title="Demo completa: la partida entera desde un jugador"
                   id="demo-completa-titulo"
                 />
-                <p className={leadClass}>La partida entera, desde un jugador, con la calidad de un directo.</p>
+                <p className={leadClass}>Con la calidad de un directo: HUD de retransmisión, voces del equipo y tus propios vídeos.</p>
                 <Points items={DEMO_POINTS} />
               </>
             }
@@ -523,10 +431,13 @@ export default function Home() {
                   title="Ajustes de Demo completa"
                   alt="Ajustes de la demo completa con la vista previa del HUD, la intro, el sponsor y el outro"
                 />
-                {/* slot: hud-carousel */}
               </div>
             }
           />
+          <Reveal className="mx-auto mt-16 max-w-4xl">
+            <h3 className="mb-5 font-display text-xl font-semibold text-fg">Once HUD de retransmisión para elegir</h3>
+            <HudCarousel />
+          </Reveal>
         </Section>
 
         <Section id="streams">
@@ -546,17 +457,15 @@ export default function Home() {
                 <Points items={STREAM_POINTS} />
               </>
             }
-            media={
-              <div className="space-y-4">
-                <Shot
-                  name="stream-editor"
-                  title="Editor de clips"
-                  alt="Editor de clips de stream con el vídeo original y la vista previa en 9:16"
-                />
-                {/* slot: stream-layouts */}
-              </div>
-            }
+            media={<StreamLayouts />}
           />
+          <Reveal className="mx-auto mt-16 max-w-4xl">
+            <Shot
+              name="stream-editor"
+              title="Editor de clips"
+              alt="Editor de clips de stream con el vídeo original y la vista previa en 9:16"
+            />
+          </Reveal>
         </Section>
 
         <Section id="mis-videos">
@@ -580,17 +489,8 @@ export default function Home() {
               analizadas.
             </p>
           </Reveal>
-          {/* slot: feature-bento */}
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {ANALYSIS.map((item, index) => (
-              <AnalysisCard key={item.shot} {...item} delay={(index % 4) * 60} />
-            ))}
-          </div>
-          <Reveal delay={120}>
-            <p className="mt-10 border-t border-line pt-6 text-sm leading-relaxed text-muted">
-              También: simulación de veto, buscador de patrones, Libreta de jugadas, voz del equipo con TeamSpeak y
-              transcripción local.
-            </p>
+          <Reveal className="mt-10">
+            <FeatureBento />
           </Reveal>
         </Section>
 
@@ -603,12 +503,7 @@ export default function Home() {
                 <Points items={ASSISTANT_POINTS} />
               </>
             }
-            media={
-              <div className="space-y-4">
-                {/* slot: assistant-chat */}
-                <AssistantChat />
-              </div>
-            }
+            media={<AssistantChat />}
           />
         </Section>
 
