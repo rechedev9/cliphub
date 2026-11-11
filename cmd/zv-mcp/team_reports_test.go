@@ -276,7 +276,7 @@ func TestPlayerPositionsAndLeaderboard(t *testing.T) {
 	}
 
 	var board leaderboardOut
-	callTool(t, cs, "leaderboard", map[string]any{"metric": "ADR"}, &board)
+	callTool(t, cs, "leaderboard", map[string]any{"metric": "ADR", "scope": "library"}, &board)
 	if !board.HigherIsBetter || board.SkippedMatches != 1 || len(board.Players) != 1 || board.Players[0].Name != "ZywOo" || board.Players[0].Value != 92.4 {
 		t.Fatalf("leaderboard = %+v", board)
 	}
@@ -289,13 +289,16 @@ func TestPlayerPositionsAndLeaderboard(t *testing.T) {
 	if b := board.Players[0].Breakdown; b == nil || b.CT == nil || b.CT.MapRole != "Canal" || len(b.CT.Roles) != 2 || b.CT.Places[0].Pct != 60 || b.T != nil {
 		t.Fatalf("breakdown = %+v, want the CT shares", b)
 	}
-	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map_role": "Canal"}, "map_role needs a map and a side")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "library", "map_role": "Canal"}, "map_role needs a map and a side")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map": "de_anubis", "map_role": "Canal"}, "map_role needs a map and a side")
-	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "team_top": 15}, "days, top, team_top and event are for scope pro")
-	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "event": "IEM"}, "days, top, team_top and event are for scope pro")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "library", "team_top": 15}, "days, top, team_top and event are for scope pro")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "library", "event": "IEM"}, "days, top, team_top and event are for scope pro")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "team_top": 20}, "team_top must be")
 	var proBoard leaderboardOut
-	callTool(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro"}, &proBoard)
+	callTool(t, cs, "leaderboard", map[string]any{"metric": "adr"}, &proBoard)
+	if proBoard.Scope != "pro" {
+		t.Fatalf("scope = %q, want pro by default like the Ranking page", proBoard.Scope)
+	}
 	if len(proBoard.Players) != 0 || !strings.Contains(proBoard.Note, "not available yet") {
 		t.Fatalf("empty pro board = %+v, want a note that the pro data is not available", proBoard)
 	}
@@ -310,7 +313,7 @@ func TestPlayerPositionsAndLeaderboard(t *testing.T) {
 	callTool(t, cs, "leaderboard", map[string]any{"metric": "adr", "side": "T", "map_role": "allround"}, &board)
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map": "de_anubis", "role": "boss"}, "role must be")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "source": "x"}, "source must be")
-	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "days": 30}, "days, top, team_top and event are for scope pro")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "library", "days": 30}, "days, top, team_top and event are for scope pro")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "from": "2026-10-01"}, "for the library scope")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "top": 20}, "top must be")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "limit": 101}, "limit")

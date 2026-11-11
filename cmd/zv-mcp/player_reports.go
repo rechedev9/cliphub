@@ -86,7 +86,7 @@ type playerPositionsOut struct {
 
 type leaderboardIn struct {
 	Metric    string `json:"metric" jsonschema:"the metric to rank on: rating (the Rating de ClipHub, formula in the tool description), kd, kpr, dpr, adr, kast, opening_win_pct, trade_pct, utility_damage_per_round, flash_assists_per_round or wpa_per_round"`
-	Scope     string `json:"scope,omitempty" jsonschema:"library (default): every match in the library; pro: the pro players of the community server's pro maps, last 90 days unless days says otherwise (side, role, map_role, days, top, team_top and event apply; from, to and source do not)"`
+	Scope     string `json:"scope,omitempty" jsonschema:"pro (default, like the Ranking page): the pro players of the community server's pro maps, last 90 days unless days says otherwise (side, role, map_role, days, top, team_top and event apply; from, to and source do not); library: every match in the library. Without scope, from, to, source, a library role or allround without a map pick library"`
 	Map       string `json:"map,omitempty" jsonschema:"only matches on this map, such as de_mirage"`
 	Side      string `json:"side,omitempty" jsonschema:"only the rounds played on this side: CT or T"`
 	Role      string `json:"role,omitempty" jsonschema:"only players with this role. On any map, library scope only: awp, entry, support, rifler (the library role over the board's matches). On one map and its side (needs map): a_anchor, b_anchor, rotator (CT), a_lurk, b_lurk, half_lurk, pack (T)"`
@@ -192,7 +192,7 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "leaderboard", Annotations: readOnly,
-		Description: "Rank the library's players on one metric (the get_baseline metrics, plus rating and kd), best first, over the " +
+		Description: "Rank the players of the community server's pro maps (scope pro, the default, like the Ranking page) or of the library (scope library) on one metric (the get_baseline metrics, plus rating and kd), best first, over the " +
 			"players with at least min_rounds rounds: the Ranking page of Studio. Filter by map, side, role (a role on a map, " +
 			"such as b_lurk on de_anubis, or on any map a library role: awp, entry, support, rifler), dates and demo source; each row carries every metric, " +
 			"its library_role, the roles and refs of the player's rounds. " +
@@ -272,6 +272,16 @@ func sideBreakdown(b *tuiclient.SideBreakdown) *leaderboardSideBreakdown {
 	return &leaderboardSideBreakdown{Role: cleanName(b.Role), Roles: shares(b.Roles), MapRole: cleanName(b.MapRole), Places: shares(b.Places)}
 }
 
+// defaultScope is pro, like the Ranking page, unless the call names a filter only the library reads.
+func (in leaderboardIn) defaultScope() string {
+	role := strings.ToLower(strings.TrimSpace(in.Role))
+	anyMapAllround := in.Map == "" && in.MapRole == tacticalplan.MapRoleAllround
+	if in.From != "" || in.To != "" || in.Source != "" || slices.Contains(libraryRoleKeys, role) || anyMapAllround {
+		return "library"
+	}
+	return "pro"
+}
+
 func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 	metric := strings.ToLower(strings.TrimSpace(in.Metric))
 	if !slices.Contains(tacticalplan.LeaderboardMetrics, metric) {
@@ -280,6 +290,9 @@ func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 	scope := strings.ToLower(strings.TrimSpace(in.Scope))
 	if scope != "" && scope != "library" && scope != "pro" {
 		return tuiclient.LeaderboardQuery{}, fmt.Errorf("scope must be library or pro, not %q", cleanName(in.Scope))
+	}
+	if scope == "" {
+		scope = in.defaultScope()
 	}
 	if err := checkOptionalFilter("map", in.Map, mapNamePattern); err != nil {
 		return tuiclient.LeaderboardQuery{}, err

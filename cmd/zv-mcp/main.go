@@ -115,7 +115,7 @@ studio_path to /replay?r=... with the player, tramo and zone in the URL, and rou
 counts (cut at 200). Rows keep up to 5 refs to read; the path opens them all.
 The match_prep prompt guides a match prep: rival and maps, the analysis, find_rounds for each finding's rounds,
 then create_report with Markdown notes and one named round list per finding.
-For a player: player_positions; leaderboard is the Ranking page: it ranks the library's players on one metric (rating, kd or a get_baseline one),
+For a player: player_positions; leaderboard is the Ranking page: by default it ranks the pro players of the community server (scope pro), or with scope library the library's players, on one metric (rating, kd or a get_baseline one),
 filtered by map, side, role (such as b_lurk on de_anubis; on any map the library roles awp, entry, support, rifler), map_role (a callout
 held on the map and side, or allround, which on the library scope also reads over every map with a side; the answer's
 map_roles lists them), dates and demo source, with each player's metrics, library_role, roles, breakdown (percent of rounds per role and per

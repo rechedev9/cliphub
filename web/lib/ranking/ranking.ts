@@ -124,9 +124,13 @@ function parseEvent(value: string | null): string {
   return value !== null && /^[^\r\n]{1,120}$/.test(value) ? value : '';
 }
 
+/** The Ranking opens on the pro players of the community server; `ref=library` reads the user's own demos. */
+export const LIBRARY_REF = 'library';
+
 /** A missing period is the default three months; `period=all` is the explicit "every date". */
 function rankingScope(query: ScopeQuery): AnalysisScope {
-  const scope = parseAnalysisScope(query);
+  const parsed = parseAnalysisScope(query);
+  const scope: AnalysisScope = { ...parsed, reference: query.get(SCOPE_PARAMS.reference) === LIBRARY_REF ? 'library' : 'pro' };
   return scope.period.kind === 'all' && query.get(SCOPE_PARAMS.period) !== 'all' ? { ...scope, period: DEFAULT_PERIOD } : scope;
 }
 
@@ -159,6 +163,8 @@ export function parseRanking(query: ScopeQuery): RankingState {
 export function writeRanking(state: RankingState, current: string | URLSearchParams = ''): string {
   const params = new URLSearchParams(writeAnalysisScope(state.scope, current));
   for (const name of Object.values(RANKING_PARAMS)) params.delete(name);
+  if (state.scope.reference === 'library') params.set(SCOPE_PARAMS.reference, LIBRARY_REF);
+  else params.delete(SCOPE_PARAMS.reference);
   const { period } = state.scope;
   if (period.kind === 'all') params.set(SCOPE_PARAMS.period, 'all');
   if (period.kind === 'preset' && period.preset !== DEFAULT_PERIOD.preset) params.set(SCOPE_PARAMS.period, period.preset);
