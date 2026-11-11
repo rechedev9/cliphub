@@ -46,54 +46,48 @@ func (l *PlayerLine) fields() []**float64 {
 	return []**float64{&l.Rating, &l.KPR, &l.KD, &l.DPR, &l.ADR, &l.KAST, &l.UDR, &l.FAR, &l.HS}
 }
 
-// perfTotals adds up player rounds: one player's, or every player of a team.
+// perfTotals adds up player rounds: one player's, or every player of a team. box holds damage,
+// assists, KAST rounds and utility rounds as the baseline counts them.
 type perfTotals struct {
-	rounds, kills, deaths, damage, assists, kastRounds, headshots int
-	utilRounds, utilDamage, flashAssists                          int
-	// ratingRounds is the sum of each player's rating times its rounds, for the pooled rating.
-	ratingRounds float64
+	box                                                        BoxScore
+	rounds, kills, deaths, headshots, utilDamage, flashAssists int
 }
 
 func (t *perfTotals) add(o perfTotals) {
+	t.box.add(o.box)
 	t.rounds += o.rounds
 	t.kills += o.kills
 	t.deaths += o.deaths
-	t.damage += o.damage
-	t.assists += o.assists
-	t.kastRounds += o.kastRounds
 	t.headshots += o.headshots
-	t.utilRounds += o.utilRounds
 	t.utilDamage += o.utilDamage
 	t.flashAssists += o.flashAssists
-	t.ratingRounds += o.ratingRounds
 }
 
 func (t perfTotals) rating() float64 {
-	return Rating(RatingLine{Rounds: t.rounds, Kills: t.kills, Deaths: t.deaths, Assists: t.assists, Damage: t.damage, KASTRounds: t.kastRounds})
+	return Rating(RatingLine{Rounds: t.rounds, Kills: t.kills, Deaths: t.deaths, Assists: t.box.Assists, Damage: t.box.Damage, KASTRounds: t.box.KASTRounds})
 }
 
 func ptr(v float64) *float64 { return &v }
 
 func round1(v float64) float64 { return math.Round(v*10) / 10 }
 
-// line reads the totals as a Player Performance line; the rating is the rounds-weighted mean of
-// the players' ratings, so a team line sits among its players.
+// line reads the totals as a Player Performance line.
 func (t perfTotals) line() PlayerLine {
 	if t.rounds == 0 {
 		return PlayerLine{}
 	}
 	rounds := float64(t.rounds)
 	l := PlayerLine{
-		Rating: ptr(round2(t.ratingRounds / rounds)),
+		Rating: ptr(round2(t.rating())),
 		KPR:    ptr(round2(float64(t.kills) / rounds)),
 		KD:     ptr(round2(float64(t.kills) / float64(max(t.deaths, 1)))),
 		DPR:    ptr(round2(float64(t.deaths) / rounds)),
-		ADR:    ptr(round1(float64(t.damage) / rounds)),
-		KAST:   ptr(round1(100 * float64(t.kastRounds) / rounds)),
+		ADR:    ptr(round1(float64(t.box.Damage) / rounds)),
+		KAST:   ptr(round1(100 * float64(t.box.KASTRounds) / rounds)),
 	}
-	if t.utilRounds > 0 {
-		l.UDR = ptr(round2(float64(t.utilDamage) / float64(t.utilRounds)))
-		l.FAR = ptr(round2(float64(t.flashAssists) / float64(t.utilRounds)))
+	if u := float64(t.box.UtilityRounds); u > 0 {
+		l.UDR = ptr(round2(float64(t.utilDamage) / u))
+		l.FAR = ptr(round2(float64(t.flashAssists) / u))
 	}
 	if t.kills > 0 {
 		l.HS = ptr(round1(100 * float64(t.headshots) / float64(t.kills)))
@@ -107,8 +101,8 @@ type playerAccum struct {
 	order         int
 }
 
-// flashAssistsBySlot credits each thrower of the side with the kills of an enemy a teammate made
-// while that enemy was still blind from the thrower's flash; one assist per thrower and kill.
+// flashAssistsBySlot gives a side thrower one assist per kill a teammate makes on an enemy inside the
+// window its flash blinded that enemy (detonation tick plus blind seconds); an estimate, not CS2's own flag.
 func flashAssistsBySlot(v roundView) map[uint8]int {
 	type blind struct {
 		thrower, victim uint8
@@ -194,17 +188,12 @@ func (run *teamRun) addPlayers(v roundView, names map[uint8]Player) {
 		}
 		acc.name = p.Name
 		t := &acc.totals
+		addBoxRound(&t.box, pr, v.utility)
 		t.rounds++
 		t.kills += pr.Kills
 		t.deaths += pr.Deaths
-		t.damage += pr.Damage
-		t.assists += pr.Assists
 		t.headshots += hs[pr.Slot]
-		if pr.Kills > 0 || pr.Assists > 0 || pr.Survived || pr.Traded {
-			t.kastRounds++
-		}
 		if v.utility {
-			t.utilRounds++
 			t.utilDamage += v.utilDamage[pr.Slot]
 			t.flashAssists += v.flashAssists[pr.Slot]
 		}
@@ -226,15 +215,20 @@ func (run *teamRun) sortedPlayers() []*playerAccum {
 	return list
 }
 
-// pooled adds every player of the run into one line.
-func (run *teamRun) pooled() perfTotals {
+// teamLine pools every player of the run; its rating is the rounds-weighted mean of the players'
+// ratings, so the team's line sits among its players.
+func (run *teamRun) teamLine() PlayerLine {
 	var all perfTotals
+	weighted := 0.0
 	for _, acc := range run.players {
-		t := acc.totals
-		t.ratingRounds = round2(t.rating()) * float64(t.rounds)
-		all.add(t)
+		all.add(acc.totals)
+		weighted += round2(acc.totals.rating()) * float64(acc.totals.rounds)
 	}
-	return all
+	l := all.line()
+	if all.rounds > 0 {
+		l.Rating = ptr(round2(weighted / float64(all.rounds)))
+	}
+	return l
 }
 
 func (run *teamRun) playerCards(opts SideStatsOptions) []SideStatsPlayer {
@@ -245,8 +239,8 @@ func (run *teamRun) playerCards(opts SideStatsOptions) []SideStatsPlayer {
 		l := t.line()
 		p := SideStatsPlayer{
 			SteamID64: acc.steamID, Name: acc.name, Role: opts.Roles[acc.steamID],
-			Rounds: t.rounds, Kills: t.kills, Deaths: t.deaths, Damage: t.damage,
-			Rating: round2(t.rating()), KD: *l.KD, ADR: *l.ADR, KPR: *l.KPR, DPR: *l.DPR, KAST: *l.KAST,
+			Rounds: t.rounds, Kills: t.kills, Deaths: t.deaths, Damage: t.box.Damage,
+			Rating: *l.Rating, KD: *l.KD, ADR: *l.ADR, KPR: *l.KPR, DPR: *l.DPR, KAST: *l.KAST,
 			UDR: l.UDR, FAR: l.FAR, HS: l.HS,
 		}
 		if r, ok := opts.MapRoles[acc.steamID]; ok {
@@ -259,29 +253,28 @@ func (run *teamRun) playerCards(opts SideStatsOptions) []SideStatsPlayer {
 
 // groupPlayerLine is the plain mean of the group teams' pooled lines, each figure counting a team
 // with at least GroupMinRounds rounds behind it (rounds with utility effects for UDR and FAR).
-func groupPlayerLine(teams []*teamRun) PlayerLine {
-	var lines []PlayerLine
+func groupPlayerLine(teams map[string]*teamRun) PlayerLine {
+	var out PlayerLine
+	fields := out.fields()
+	sums, counts := make([]float64, len(fields)), make([]int, len(fields))
 	for _, run := range teams {
 		if run.overall.rounds < GroupMinRounds {
 			continue
 		}
-		l := run.pooled().line()
+		l := run.teamLine()
 		if run.overall.utilRounds < GroupMinRounds {
 			l.UDR, l.FAR = nil, nil
 		}
-		lines = append(lines, l)
-	}
-	var out PlayerLine
-	for i, field := range out.fields() {
-		sum, n := 0.0, 0
-		for k := range lines {
-			if v := *lines[k].fields()[i]; v != nil {
-				sum += *v
-				n++
+		for i, v := range l.fields() {
+			if *v != nil {
+				sums[i] += **v
+				counts[i]++
 			}
 		}
-		if n > 0 {
-			*field = ptr(round2(sum / float64(n)))
+	}
+	for i, field := range fields {
+		if counts[i] > 0 {
+			*field = ptr(round2(sums[i] / float64(counts[i])))
 		}
 	}
 	return out

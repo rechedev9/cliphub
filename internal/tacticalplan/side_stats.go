@@ -352,17 +352,13 @@ func TeamSideStats(in SideStatsInput) SideStatsReport {
 	report := SideStatsReport{
 		Matches: run.overall.matches, Rounds: run.overall.rounds,
 		Overall: run.overall.stats(), CT: sideOnly(run.ct.stats()), T: sideOnly(run.t.stats()),
-		Players: run.playerCards(in.Options), PlayersAverage: run.pooled().line(),
+		Players: run.playerCards(in.Options), PlayersAverage: run.teamLine(),
 		MatchList: run.refs, GroupMinRounds: GroupMinRounds, RatingFormula: RatingFormula,
 	}
 	var overall, ct, t []groupTeam
 	if in.Group != nil {
 		report.GroupMatches = len(in.Group.matches)
-		teams := make([]*teamRun, 0, len(in.Group.teams))
-		for _, g := range in.Group.teams {
-			teams = append(teams, g)
-		}
-		report.PlayersGroupAvg = groupPlayerLine(teams)
+		report.PlayersGroupAvg = groupPlayerLine(in.Group.teams)
 		for _, g := range in.Group.teams {
 			if g.overall.rounds > 0 {
 				overall = append(overall, groupTeam{g.overall.stats(), g.overall.rounds})

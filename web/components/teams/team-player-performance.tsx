@@ -1,23 +1,20 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowUp } from 'lucide-react';
-import { LIBRARY_ROLES } from '@/lib/api/library';
 import type { PlayerLine, SideStatsPlayer } from '@/lib/api/side-stats';
-import { compareDelta, deltaArrow } from '@/lib/analysis/compare';
-import { mapRoleChips } from '@/lib/analysis/map-role';
 import { RATING_FORMULA_TEXT } from '@/lib/analysis/rating';
 import { playerHref } from '@/lib/clips/routes';
 import { formatDecimal } from '@/lib/format';
-import { ROLE_LABEL } from '@/lib/library/partidas';
+import { nextSort, sortRows, type TableSort } from '@/lib/records/table-view';
 import { InfoTip } from '@/components/analysis/info-tip';
 import { PlayerAvatar } from '@/components/players/player-avatar';
 import { SlashTitle } from '@/components/records/document-page';
-import { DELTA_TONE_CLASS } from '@/components/ui/delta-value';
+import { DeltaValue } from '@/components/ui/delta-value';
 import { FOCUS_RING } from '@/components/ui/button';
-import { RoleChip } from '@/components/ui/role-chip';
 import { cn } from '@/lib/utils';
+import { RoleChips } from './player-stat-card';
 import { groupText, sideStatsState } from './team-side-stats';
 import { useTeamSideStats, type TeamSideStatsQuery } from './use-team-side-stats';
 
@@ -47,45 +44,32 @@ const COLUMNS: readonly Column[] = [
   { key: 'hs', label: 'HS %', digits: 0, pct: true, epsilon: 0.5, hint: 'Bajas con disparo a la cabeza.' },
 ];
 
-function lineOf(player: SideStatsPlayer): PlayerLine {
-  return {
-    rating: player.rating, kpr: player.kpr, kd: player.kd, dpr: player.dpr, adr: player.adr,
-    kast: player.kast, udr: player.udr, far: player.far, hs: player.hs,
-  };
-}
-
 function formatCell(value: number | null, column: Column): string {
   if (value === null) return '-';
   return column.pct ? `${Math.round(value)} %` : formatDecimal(value, column.digits);
 }
 
 function Cell({ value, column, group }: { value: number | null; column: Column; group: number | null }): ReactNode {
-  let arrow = '';
-  let tone: keyof typeof DELTA_TONE_CLASS = 'even';
-  if (value !== null && group !== null) {
-    const result = compareDelta(value, group, { higherIsBetter: column.lowerIsBetter !== true, epsilon: column.epsilon });
-    tone = result.tone;
-    arrow = tone === 'even' ? '' : deltaArrow(result.delta, column.epsilon);
-  }
   return (
-    <td title={group === null ? undefined : `Media del grupo ${formatCell(group, column)}`} className="px-2 py-3 text-right font-num font-bold text-fg-1 tabular-nums">
-      {formatCell(value, column)}
-      <span aria-hidden className={cn('ml-1 inline-block w-2 text-[0.5rem]', DELTA_TONE_CLASS[tone])}>
-        {arrow}
-      </span>
+    <td className="px-2 py-3 text-right font-num font-bold text-fg-1 tabular-nums">
+      {value === null ? (
+        '-'
+      ) : (
+        <DeltaValue
+          value={value}
+          format={(v) => formatCell(v, column)}
+          reference={group}
+          higherIsBetter={column.lowerIsBetter !== true}
+          epsilon={column.epsilon}
+          referenceLabel="Media del grupo"
+        />
+      )}
     </td>
   );
 }
 
-function roleText(role: string): string {
-  const known = LIBRARY_ROLES.find((entry) => entry === role);
-  return known === undefined || known === 'unknown' ? '' : ROLE_LABEL[known];
-}
-
 function PlayerCell({ player }: { player: SideStatsPlayer }): ReactNode {
   const name = player.name || player.steamid64;
-  const chips = mapRoleChips(player.map_roles, '');
-  const library = roleText(player.role);
   return (
     <th scope="row" className="px-3 py-2 text-left font-normal">
       <div className="flex min-w-0 items-center gap-3">
@@ -94,55 +78,40 @@ function PlayerCell({ player }: { player: SideStatsPlayer }): ReactNode {
           <Link href={playerHref(player.steamid64)} className={cn('truncate text-body font-bold text-fg-1 hover:text-primary hover:underline', FOCUS_RING)}>
             {name}
           </Link>
-          {chips.length > 0 ? (
-            <p className="flex flex-wrap items-center gap-1">
-              {chips.map((chip) => (
-                <RoleChip key={chip.side} side={chip.side} label={chip.label} />
-              ))}
-            </p>
-          ) : null}
-          {chips.length === 0 && library !== '' ? <RoleChip label={library} /> : null}
+          <RoleChips player={player} side="" />
         </div>
       </div>
     </th>
   );
 }
 
-type Sort = { key: ColumnKey; direction: 'asc' | 'desc' };
-
-function ariaSort(sort: Sort | null, key: ColumnKey): 'ascending' | 'descending' | undefined {
-  if (sort?.key !== key) return undefined;
+function ariaSort(sort: TableSort | null, key: ColumnKey): 'ascending' | 'descending' | undefined {
+  if (sort?.column !== key) return undefined;
   return sort.direction === 'asc' ? 'ascending' : 'descending';
 }
 
-function SortIcon({ sort, column }: { sort: Sort | null; column: ColumnKey }): ReactNode {
-  if (sort?.key !== column) return null;
+function SortIcon({ sort, column }: { sort: TableSort | null; column: ColumnKey }): ReactNode {
+  if (sort?.column !== column) return null;
   const Icon = sort.direction === 'asc' ? ArrowUp : ArrowDown;
   return <Icon aria-hidden className="size-3" />;
 }
 
-function sorted(players: readonly SideStatsPlayer[], sort: Sort | null): SideStatsPlayer[] {
-  if (sort === null) return [...players];
-  const sign = sort.direction === 'asc' ? 1 : -1;
-  return [...players].sort((a, b) => {
-    const x = lineOf(a)[sort.key];
-    const y = lineOf(b)[sort.key];
-    if (x === null) return y === null ? 0 : 1;
-    if (y === null) return -1;
-    return (x - y) * sign;
-  });
+function isColumnKey(key: string): key is ColumnKey {
+  return COLUMNS.some((column) => column.key === key);
 }
 
 /** Rendimiento de jugadores, EDGE's Player Performance: a row per player with an arrow against the group, and the team's line under them. */
 export function TeamPlayerPerformance(props: TeamSideStatsQuery): ReactNode {
   const data = useTeamSideStats(props);
-  const [sort, setSort] = useState<Sort | null>(null);
+  const [sort, setSort] = useState<TableSort | null>(null);
+  const rows = useMemo(
+    () => (data === null || data === 'failed' ? [] : sortRows(data.players, sort, (player, key) => (isColumnKey(key) ? player[key] : null))),
+    [data, sort],
+  );
   const state = sideStatsState(data);
   if (state !== null || data === null || data === 'failed') return state;
   const group = data.players_group_avg;
-  const rows = sorted(data.players, sort);
-  const toggle = (key: ColumnKey): void =>
-    setSort((current) => (current?.key === key ? { key, direction: current.direction === 'desc' ? 'asc' : 'desc' } : { key, direction: 'desc' }));
+  const toggle = (key: ColumnKey): void => setSort((current) => nextSort(current, key));
   return (
     <section aria-label="Rendimiento de jugadores" className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -177,17 +146,14 @@ export function TeamPlayerPerformance(props: TeamSideStatsQuery): ReactNode {
             </tr>
           </thead>
           <tbody>
-            {rows.map((player) => {
-              const line = lineOf(player);
-              return (
-                <tr key={player.steamid64} className="bg-surface-2 [&>*:first-child]:rounded-l-sm [&>*:last-child]:rounded-r-sm">
-                  <PlayerCell player={player} />
-                  {COLUMNS.map((column) => (
-                    <Cell key={column.key} value={line[column.key]} column={column} group={group[column.key]} />
-                  ))}
-                </tr>
-              );
-            })}
+            {rows.map((player) => (
+              <tr key={player.steamid64} className="bg-surface-2 [&>*:first-child]:rounded-l-sm [&>*:last-child]:rounded-r-sm">
+                <PlayerCell player={player} />
+                {COLUMNS.map((column) => (
+                  <Cell key={column.key} value={player[column.key]} column={column} group={group[column.key]} />
+                ))}
+              </tr>
+            ))}
           </tbody>
           <tfoot>
             <tr>
@@ -197,7 +163,6 @@ export function TeamPlayerPerformance(props: TeamSideStatsQuery): ReactNode {
               {COLUMNS.map((column) => (
                 <td key={column.key} className="px-2 pt-3 text-right font-num font-bold text-fg-2 tabular-nums">
                   {formatCell(data.players_average[column.key], column)}
-                  <span aria-hidden className="ml-1 inline-block w-2" />
                 </td>
               ))}
             </tr>

@@ -5,7 +5,7 @@ import type { ReportSide } from '@/lib/api/scout';
 import type { SideStat, SideStatKey, SideStats } from '@/lib/api/side-stats';
 import { deltaArrow } from '@/lib/analysis/compare';
 import { DELTA_TONE_CLASS } from '@/components/ui/delta-value';
-import { SIDE_STAT_TILES, dimmedSide, formatSideValue, sideDelta, type SideKey, type SideStatTile } from '@/lib/analysis/side-stats';
+import { SIDE_STAT_TILES, dimmedSide, formatSideValue, groupMeanText, sideDelta, type SideKey, type SideStatTile } from '@/lib/analysis/side-stats';
 import { prettyMapName } from '@/lib/format';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import { cn } from '@/lib/utils';
@@ -29,11 +29,6 @@ const VERSUS: Record<'better' | 'worse' | 'even', string> = {
   worse: 'por debajo de la media',
   even: 'en la media',
 };
-
-function deltaTitle(stat: SideStat, tile: SideStatTile): string {
-  if (stat.group_avg === null) return 'Sin media del grupo';
-  return `Media del grupo ${formatSideValue(stat.group_avg, tile.unit)}`;
-}
 
 /** One side's half of the banner: the map picture tinted in the side's colour, its round win rate and the rounds behind it. */
 function SidePanel({ id, stats, map, dimmed }: { id: SideKey; stats: SideStats; map: string; dimmed: boolean }): ReactNode {
@@ -71,12 +66,11 @@ function Value({ stat, tile, dimmed, align }: { stat: SideStat; tile: SideStatTi
   const arrow = delta === null || delta.tone === 'even' || stat.value === null || stat.group_avg === null ? '' : deltaArrow(stat.value - stat.group_avg);
   return (
     <span
-      title={deltaTitle(stat, tile)}
-      className={cn('flex items-center gap-1.5 font-num text-body font-bold tabular-nums', align === 'end' ? 'justify-end' : 'justify-start', dimmed ? 'text-fg-4' : 'text-fg-1')}
+      title={groupMeanText(stat, tile.unit)}
+      className={cn('flex items-center gap-1.5 font-num text-body font-bold tabular-nums', align === 'end' && 'flex-row-reverse', dimmed ? 'text-fg-4' : 'text-fg-1')}
     >
-      {align === 'end' ? <span className={cn('text-[0.5rem]', delta ? DELTA_TONE_CLASS[delta.tone] : '')}>{arrow}</span> : null}
       {formatSideValue(stat.value, tile.unit)}
-      {align === 'start' ? <span className={cn('text-[0.5rem]', delta ? DELTA_TONE_CLASS[delta.tone] : '')}>{arrow}</span> : null}
+      <span className={cn('text-[0.5rem]', delta ? DELTA_TONE_CLASS[delta.tone] : '')}>{arrow}</span>
     </span>
   );
 }

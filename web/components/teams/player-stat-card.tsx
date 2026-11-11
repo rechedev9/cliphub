@@ -5,7 +5,7 @@ import { LIBRARY_ROLES } from '@/lib/api/library';
 import type { ReportSide } from '@/lib/api/scout';
 import type { SideStatsPlayer } from '@/lib/api/side-stats';
 import { mapRoleChips } from '@/lib/analysis/map-role';
-import { RATING_FORMULA_TEXT } from '@/lib/analysis/rating';
+import { RATING_FORMULA_TEXT, RATING_LABEL } from '@/lib/analysis/rating';
 import { formatDecimal } from '@/lib/format';
 import { ROLE_LABEL } from '@/lib/library/partidas';
 import { InfoTip } from '@/components/analysis/info-tip';
@@ -18,7 +18,7 @@ function roleText(role: string): string {
 }
 
 /** The map role of the side in scope, as EDGE's "T Mid"; without one, the library role. */
-function RoleChips({ player, side }: { player: SideStatsPlayer; side: ReportSide }): ReactNode {
+export function RoleChips({ player, side }: { player: SideStatsPlayer; side: ReportSide }): ReactNode {
   const chips = mapRoleChips(player.map_roles, side);
   if (chips.length > 0) {
     return (
@@ -64,7 +64,7 @@ export function PlayerStatCard({ player, side }: { player: SideStatsPlayer; side
             <br />
             ClipHub
           </span>
-          <InfoTip label="Rating de ClipHub" text={RATING_FORMULA_TEXT} />
+          <InfoTip label={RATING_LABEL} text={RATING_FORMULA_TEXT} />
         </p>
         <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
           {lines.map((line) => (

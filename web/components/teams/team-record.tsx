@@ -173,8 +173,8 @@ const STATS_TABS = ['estadisticas', 'rendimiento', 'posiciones', 'sitios', 'mapa
 const TEAM_TABS = [...STATS_TABS, 'plantilla', 'partidas', 'veto', 'preparar', 'playbook', 'replay'];
 /** The tab a team opens on, the EDGE Overview; a link without `?tab=` lands here. */
 const DEFAULT_TAB = 'estadisticas';
-/** Tabs of the statistics pages: their content sits in the centred document column under the full-width header. */
-const COLUMN_TABS = new Set(['estadisticas', 'rendimiento', 'plantilla', 'posiciones', 'sitios', 'veto', 'partidas', 'mapas']);
+/** Record view tabs whose content sits in the centred document column; the stats view wraps its tabs itself. */
+const COLUMN_TABS = new Set(['plantilla', 'veto', 'partidas']);
 /** Tabs of older links: Scouting is in Preparar, the series are under Partidas, and the radar and the grenades are forms of the Replay. */
 const LEGACY_TABS: Readonly<Record<string, string>> = { scouting: 'preparar', series: 'partidas', radar: 'replay', granadas: 'replay' };
 const QUERY_TABS = [...TEAM_TABS, ...Object.keys(LEGACY_TABS)];
@@ -352,27 +352,25 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
     );
   }
 
-  function scopeBody(id: string, content: ReactNode): ReactNode {
-    const fields = TAB_FIELDS[id] ?? [];
-    return (
-      <SampleLineupProvider showEveryone={fields.includes('lineup') && lineup.length > 0 ? showEveryone : null}>
-        {COLUMN_TABS.has(id) && !statsView ? <div className={DOCUMENT_COLUMN}>{content}</div> : content}
-      </SampleLineupProvider>
-    );
-  }
-
   // The stats view draws one bar above the tabs; the record view keeps a bar inside each tab.
   function withScope(id: string, content: ReactNode): ReactNode {
-    if (statsView) return scopeBody(id, content);
+    const fields = TAB_FIELDS[id] ?? [];
+    const body = (
+      <SampleLineupProvider showEveryone={fields.includes('lineup') && lineup.length > 0 ? showEveryone : null}>
+        {COLUMN_TABS.has(id) ? <div className={DOCUMENT_COLUMN}>{content}</div> : content}
+      </SampleLineupProvider>
+    );
+    if (statsView) return body;
     return (
       <div className="flex flex-col gap-4">
         {scopeBar(id)}
-        {scopeBody(id, content)}
+        {body}
       </div>
     );
   }
 
-  const unordered: RecordTab[] = [
+  // In TEAM_TABS order.
+  const tabList: RecordTab[] = [
       {
         id: 'estadisticas',
         label: 'Resumen',
@@ -390,18 +388,6 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
         ),
       },
       {
-        id: 'plantilla',
-        label: 'Plantilla',
-        count: team.roster?.length ?? 0,
-        content: withScope(
-          'plantilla',
-          <div className="flex flex-col gap-3">
-            <TeamRoster roster={team.roster ?? []} map={scope.map} reference={scope.reference} />
-            <TeamTrend teamId={team.id} matches={matches.filter((match) => scope.map === '' || match.map === scope.map)} map={scope.map} />
-          </div>,
-        ),
-      },
-      {
         id: 'posiciones',
         label: 'Posiciones',
         content: withScope('posiciones', <TeamPositions teamId={team.id} scope={scope} lineup={lineup} />),
@@ -412,9 +398,22 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
         content: withScope('sitios', <TeamBombsites teamId={team.id} scope={scope} lineup={lineup} onCounts={onCounts} />),
       },
       {
-        id: 'veto',
-        label: 'Veto',
-        content: withScope('veto', <TeamVeto teamId={team.id} opponent={scope.opponent} teams={teams} />),
+        id: 'mapas',
+        label: 'Mapas',
+        count: maps.length,
+        content: withScope('mapas', <TeamMapHistory teamId={team.id} matches={matches} scope={scope} onCounts={onCounts} />),
+      },
+      {
+        id: 'plantilla',
+        label: 'Plantilla',
+        count: team.roster?.length ?? 0,
+        content: withScope(
+          'plantilla',
+          <div className="flex flex-col gap-3">
+            <TeamRoster roster={team.roster ?? []} map={scope.map} reference={scope.reference} />
+            <TeamTrend teamId={team.id} matches={matches.filter((match) => scope.map === '' || match.map === scope.map)} map={scope.map} />
+          </div>,
+        ),
       },
       {
         id: 'partidas',
@@ -432,10 +431,9 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
         ),
       },
       {
-        id: 'mapas',
-        label: 'Mapas',
-        count: maps.length,
-        content: withScope('mapas', <TeamMapHistory teamId={team.id} matches={matches} scope={scope} onCounts={onCounts} />),
+        id: 'veto',
+        label: 'Veto',
+        content: withScope('veto', <TeamVeto teamId={team.id} opponent={scope.opponent} teams={teams} />),
       },
       {
         id: 'preparar',
@@ -494,7 +492,6 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
         ),
       },
   ];
-  const tabList = TEAM_TABS.flatMap((id) => unordered.filter((entry) => entry.id === id));
   const changeTab = (next: string): void => {
     setReported(null);
     setTab(next);
