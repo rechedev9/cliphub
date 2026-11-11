@@ -269,6 +269,10 @@ export function ReplayWorkspace({
   // mode the shared clock keeps its place so the same second can be compared.
   const multiRef = useRef(multi);
   multiRef.current = multi;
+  // One round plays from the live round when the user hides the freeze time; superposed rounds already do.
+  const liveStart = !multi && !mapSettings.show.freezetime && focusTimeline !== null ? focusTimeline.freezeSeconds : 0;
+  const liveStartRef = useRef(liveStart);
+  liveStartRef.current = liveStart;
   const entryTickRef = useRef(entry?.tick);
   entryTickRef.current = entry?.tick;
   useEffect(() => {
@@ -276,7 +280,7 @@ export function ReplayWorkspace({
     const tick = pendingTick.current ?? entryTickRef.current;
     pendingTick.current = null;
     if (multiRef.current && tick === undefined) return;
-    const seconds = tick === undefined ? 0 : clampToTimeline(focusTimeline, timelineSeconds(focusTimeline, tick));
+    const seconds = tick === undefined ? liveStartRef.current : clampToTimeline(focusTimeline, timelineSeconds(focusTimeline, tick));
     seekedRef.current = tick !== undefined;
     clock.set(multiRef.current ? toLiveSeconds(focusTimeline, seconds) : seconds);
   }, [focusKey, focusTimeline, clock]);
@@ -343,6 +347,7 @@ export function ReplayWorkspace({
         scrubbing: scrubbingRef.current,
         seeked: seekedRef.current || clock.seconds !== written,
         hasNext: !multi && index < entries.length - 1,
+        startSeconds: liveStart,
       });
       last = now;
       if (span !== null && next.action !== 'hold') {
@@ -364,16 +369,16 @@ export function ReplayWorkspace({
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [playing, ready, speed, loop, transport, clock, multi, index, entries.length, select, span, fps]);
+  }, [playing, ready, speed, loop, transport, clock, multi, index, entries.length, select, span, fps, liveStart]);
 
   const togglePlay = useCallback(() => {
     setPlaying((value) => {
       if (value) return false;
       seekedRef.current = false;
-      clock.set(playStartSeconds(clock.seconds, transport.durationSeconds));
+      clock.set(playStartSeconds(clock.seconds, transport.durationSeconds, liveStart));
       return true;
     });
-  }, [clock, transport]);
+  }, [clock, transport, liveStart]);
 
   const copyPlayerSetpos = (slot: number): void => {
     if (focused === null) return;

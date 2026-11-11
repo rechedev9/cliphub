@@ -110,6 +110,7 @@ export function ReplayPreferences({
               {show('tlUtility')}
               {show('tlKills')}
             </Setting>
+            <Setting label="Reproducción">{show('freezetime')}</Setting>
             <Setting label="Mapa">
               {show('killfeed')}
               {show('scoreline')}

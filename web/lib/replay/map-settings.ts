@@ -40,7 +40,7 @@ export function frameRateLabel(rate: FrameRate): string {
 }
 
 /** What the replay draws on and around the players and on its timeline, each on or off. */
-export const MAP_SHOWS = ['killfeed', 'scoreline', 'flashed', 'damage', 'trajectories', 'bullets', 'held', 'bomb', 'kit', 'tlEvents', 'tlUtility', 'tlKills'] as const;
+export const MAP_SHOWS = ['killfeed', 'scoreline', 'flashed', 'damage', 'trajectories', 'bullets', 'held', 'bomb', 'kit', 'tlEvents', 'tlUtility', 'tlKills', 'freezetime'] as const;
 export type MapShow = (typeof MAP_SHOWS)[number];
 export type MapShows = Readonly<Record<MapShow, boolean>>;
 
@@ -57,6 +57,7 @@ export const MAP_SHOW_LABELS: Record<MapShow, string> = {
   tlEvents: 'Eventos',
   tlUtility: 'Utilidades',
   tlKills: 'Bajas',
+  freezetime: 'Freeze time',
 };
 
 export const MAP_SHOW_HINTS: Record<MapShow, string> = {
@@ -72,6 +73,7 @@ export const MAP_SHOW_HINTS: Record<MapShow, string> = {
   tlEvents: 'Las marcas de la bomba en la línea de tiempo',
   tlUtility: 'Una marca por cada granada en la línea de tiempo',
   tlKills: 'Una marca por cada baja en la línea de tiempo',
+  freezetime: 'Sin marcar, cada ronda empieza y vuelve a empezar cuando ya está en vivo',
 };
 
 /** How the Replay's map is drawn, kept per user across matches. Names are on or off per mode. */
@@ -99,6 +101,7 @@ const DEFAULT_SHOWS: MapShows = {
   tlEvents: true,
   tlUtility: true,
   tlKills: true,
+  freezetime: true,
 };
 
 export const DEFAULT_MAP_SETTINGS: MapSettings = { dots: 'm', names: 'm', floors: 'both', zoom: 'm', fps: 0, show: DEFAULT_SHOWS, namesOne: true, namesMulti: true };
