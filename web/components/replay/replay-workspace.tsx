@@ -58,13 +58,12 @@ import { useSavedPlaylists, type SavedPlaylistsControl } from './use-saved-playl
 import { PlaylistRoundCard } from './playlist-round-card';
 import type { FocusControl } from './replay-players';
 import { useMapSettings } from './use-map-settings';
-import { ReplayPreferences } from './replay-preferences';
+import { ReplayPreferences, type PreferencesTab } from './replay-preferences';
 import { RadarCentre } from './radar-centre';
 import { ReplaySidePanel } from './replay-side-panel';
 import { ReplayTransport, superposeCopy } from './replay-transport';
 import { SetposNotice } from './setpos-notice';
 import { ReplayStackOverlay, type ReplayStack } from './replay-stack-overlay';
-import { ShortcutHelp } from './shortcut-help';
 import { useFullscreen } from './use-fullscreen';
 import { useSetposCopies } from './use-setpos-copies';
 import { useReplayVoice } from './use-replay-voice';
@@ -178,9 +177,25 @@ export function ReplayWorkspace({
   }, []);
   const [uiTick, setUiTick] = useState(0);
   const [eventsOpen, setEventsOpen] = useState(false);
-  const [help, setHelp] = useState(false);
   const [preferences, setPreferences] = useState(false);
+  const [preferencesTab, setPreferencesTab] = useState<PreferencesTab>('general');
   const preferencesChip = useRef<HTMLButtonElement>(null);
+  // What had the focus when the dialog opened (the gear, the shortcuts button or the map), so closing gives it back.
+  const preferencesOpener = useRef<HTMLElement | null>(null);
+  const showPreferences = useCallback((tab: PreferencesTab) => {
+    const active = document.activeElement;
+    // "?" inside the open dialog only switches the tab and keeps the first opener.
+    if (!(active instanceof HTMLElement && active.closest('[data-replay-preferences]') !== null)) {
+      preferencesOpener.current = active instanceof HTMLElement ? active : null;
+    }
+    setPreferencesTab(tab);
+    setPreferences(true);
+  }, []);
+  const showShortcuts = useCallback(() => showPreferences('keys'), [showPreferences]);
+  const openPreferences = useCallback(() => {
+    if (preferences) setPreferences(false);
+    else showPreferences('general');
+  }, [preferences, showPreferences]);
   // The dialog opens inside the replay only in full screen, so entering or leaving it closes the dialog instead of moving it.
   const [rootElement, setRootElement] = useState<HTMLElement | null>(null);
   const setRoot = useCallback((element: HTMLElement | null) => {
@@ -441,9 +456,8 @@ export function ReplayWorkspace({
     }
     event.preventDefault();
     if (shortcut === 'help') {
-      // Dialogs open outside the full-screen layer, so leave it to show them.
-      if (fullscreen.active) fullscreen.toggle();
-      setHelp((value) => !value);
+      if (preferences && preferencesTab === 'keys') setPreferences(false);
+      else showShortcuts();
     } else if (shortcut === 'fullscreen') fullscreen.toggle();
     else if (shortcut === 'multi') toggleMulti();
     else if (shortcut === 'follow') {
@@ -675,12 +689,8 @@ export function ReplayWorkspace({
           <ReplayToolbar
             draft={library ? draft : null}
             gif={{ open: gif.open, onToggle: gif.toggle }}
-            preferences={{ open: preferences, onOpen: () => setPreferences((value) => !value), triggerRef: preferencesChip }}
-            onHelp={() => {
-              // Dialogs open outside the full-screen layer, so leave it to show them.
-              if (fullscreen.active) fullscreen.toggle();
-              setHelp(true);
-            }}
+            preferences={{ open: preferences, onOpen: openPreferences, triggerRef: preferencesChip }}
+            onHelp={showShortcuts}
             follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
           />
         }
@@ -727,14 +737,15 @@ export function ReplayWorkspace({
       <ReplayPreferences
         open={preferences}
         onOpenChange={setPreferences}
+        tab={preferencesTab}
+        onTabChange={setPreferencesTab}
         settings={mapSettings}
         onSettings={setMapSettings}
         twoFloors={focused !== null && isMultiLevelMap(focused.doc.geometry.calibration)}
         drawing={library}
         container={fullscreen.active ? rootElement : null}
-        returnFocus={preferencesChip}
+        returnFocus={preferencesOpener}
       />
-      <ShortcutHelp open={help} onOpenChange={setHelp} />
     </section>
   );
 }
