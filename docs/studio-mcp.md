@@ -51,7 +51,7 @@ Decide in phase 1 whether the WebMCP preview stays.
 - With the switch off, every tool answers with a clear message saying where to turn it on.
 - Starting a Short, a Full Demo or a round POV (`record_round_pov`) launches CS2 and records for minutes, so all ask for approval
   in the chat before they run. Rendering stream videos (`render_stream`, `render_stream_summary`)
-  encodes for minutes and deleting (`delete_video`, `delete_stream`, `delete_demo`, `delete_captures`,
+  encodes for minutes and deleting (`delete_video`, `delete_stream`, `delete_stream_video`, `delete_demo`, `delete_captures`,
   `delete_storage_file`) or merging teams (`merge_teams`), and deleting a report or a play
   (`delete_report`, `delete_play`) cannot be undone, so they ask too.
   So do `retry_video` and `change_video_music`, which render a Short again.
@@ -143,7 +143,7 @@ safe. Only uploads are limited (2 concurrent).
   rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
 - The same approval guards `render_stream` (layout, how many videos, which are saved moments and
   which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
-  `delete_stream`, `delete_demo` (the file names; one approval for every demo in `ids`), `merge_teams` (both team names and the match count of the one that goes),
+  `delete_stream`, `delete_stream_video` (the video title and its stream), `delete_demo` (the file names; one approval for every demo in `ids`), `merge_teams` (both team names and the match count of the one that goes),
   `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video`, `change_video_music`,
   `delete_report`, `delete_play`, `delete_lineup`, `delete_call` and `delete_pattern` (the title), `delete_playlist` (name and round count), `delete_voice` (track count and length), `delete_voice_recording` (start, track count and length), `install_transcriber` (version and download size), `delete_library_series` (format and teams),
   `launch_practice` (map and spot count) and `launch_bot_replay` (round and side).
@@ -303,6 +303,7 @@ Write:
 | `retry_video` | `GET /api/jobs/{id}?view=status` and `GET .../renders/{variant}` (a `failed` render with the effective `edit`, `music` and `segment_ids` of its edit document), then `POST .../renders/{variant}` with them. Studio keeps those choices only for the last finished version (a failed render points at it), so a Short that never finished cannot be retried this way and a failed replacement renders that version again. A failed capture, a failure that needs a new capture (`recording_not_reusable:` and the others of `requiresRecapture`) or a Full Demo is refused with a pointer to `generate_short` or `render_full_demo` | yes |
 | `change_video_music` | the same reads on a `ready` Short, or on a `failed` one that has a finished version (this retries a failed music change), then `POST .../renders/{variant}` with the new `music` (`{key, volume, game_volume}`, or none) and the stored `edit` and `segment_ids`; the same mix as now is refused, as in the UI | yes |
 | `delete_stream` | `DELETE /api/stream-jobs/{id}` | yes |
+| `delete_stream_video` | `GET /api/stream-jobs/{id}` (the video must be one of its `rendered_outputs`), then `DELETE /api/stream-jobs/{id}/renders/{variant}/videos/{clip_id}`: the MP4 and its upload-ready copy go, the stream and its other videos stay | yes |
 | `delete_captures` | `GET /api/storage` (the job must be `freeable`), then `DELETE /api/jobs/{id}/captures` | yes |
 | `rescan_storage_files` | `POST /api/storage/files/scan`, then `GET /api/storage/files` | no |
 | `delete_storage_file` | `GET /api/storage/files` (the server only accepts a path its last list returned; a `studio_demo` goes with `delete_demo`), then `POST /api/storage/files/delete` | yes |

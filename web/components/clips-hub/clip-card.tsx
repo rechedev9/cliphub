@@ -3,8 +3,10 @@
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Download, Ellipsis, FolderOpen, Music, Play, UploadCloud } from 'lucide-react';
+import { api } from '@/lib/api';
 import { prettifyMap } from '@/lib/api/map';
 import { PLAYBACK_REVIEW, demoPlaybackItem, type MediaPlaybackItem, type PlaybackFormat } from '@/lib/api/playback';
+import { streamsApi } from '@/lib/api/streams';
 import { CLIP_SIZE, OUTPUT_TYPE, type ClipSize, type HubModel } from '@/lib/clips/hub';
 import { CREATE_AGAIN_LABEL, videoKind, type VideoKind } from '@/lib/clips/results';
 import { ORPHAN_MATCH_SEGMENT, PRODUCE_FORMAT, matchHref, produceHref, publishHref } from '@/lib/clips/routes';
@@ -225,7 +227,13 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
           </DropdownMenuContent>
         </DropdownMenu>
       </span>
-      <DeleteVideoDialog video={video} open={deleteOpen} onOpenChange={setDeleteOpen} onDeleted={onChange} />
+      <DeleteVideoDialog
+        title={clip.title}
+        onConfirm={() => api.deleteVideo(video.id)}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onDeleted={onChange}
+      />
       {canChangeMusic ? (
         <LibraryMusicDialog open={musicOpen} video={video} onOpenChange={setMusicOpen} onApplied={onChange} />
       ) : null}
@@ -236,14 +244,18 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
 export type StreamClipCardProps = {
   item: MediaPlaybackItem;
   size: ClipSize;
+  onChange: () => void;
   onPlay: (button: HTMLElement) => void;
 };
 
-export function StreamClipCard({ item, size, onPlay }: StreamClipCardProps): ReactNode {
+/** A rendered stream moment: Reproducir and MP4 up front, the project and Borrar behind "Más acciones". */
+export function StreamClipCard({ item, size, onChange, onPlay }: StreamClipCardProps): ReactNode {
   const warning = item.review === PLAYBACK_REVIEW.stale;
   const isShort = item.format === '9:16';
   const iconOnly = size === CLIP_SIZE.s;
-  const projectIconOnly = size !== CLIP_SIZE.l;
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  // The server names a stream clip's MP4 after its clip id.
+  const clipId = item.artifactName.replace(/\.mp4$/, '');
   return (
     <article className={cn(CARD_CLASS, warning && 'ring-1 ring-warning/45')}>
       <CardStage
@@ -281,18 +293,33 @@ export function StreamClipCard({ item, size, onPlay }: StreamClipCardProps): Rea
           <Download aria-hidden />
           {iconOnly ? null : 'MP4'}
         </Button>
-        {/* The project link is the third action: icon only until the large card has room for its word. */}
-        <Button asChild size={projectIconOnly ? 'icon-sm' : 'sm'} variant="ghost">
-          <Link
-            href={`/streams/${item.jobId}`}
-            aria-label={projectIconOnly ? 'Abrir proyecto' : undefined}
-            title={projectIconOnly ? 'Abrir proyecto' : undefined}
-          >
-            <FolderOpen aria-hidden />
-            {projectIconOnly ? null : 'Proyecto'}
-          </Link>
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" size="icon-sm" variant="ghost" className="ml-auto" aria-label={`Más acciones de ${item.title}`}>
+              <Ellipsis aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href={`/streams/${item.jobId}`}>
+                <FolderOpen aria-hidden />
+                Abrir proyecto
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+              Borrar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </span>
+      <DeleteVideoDialog
+        title={item.title}
+        onConfirm={() => streamsApi.deleteVideo(item.jobId, item.variant, clipId)}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onDeleted={onChange}
+      />
     </article>
   );
 }

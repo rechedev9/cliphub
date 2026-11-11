@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -54,6 +55,73 @@ func (h *Handlers) DeleteStreamJob(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.streamRepo.Delete(r.Context(), j.ID); err != nil {
 		internalError(w, "delete stream job", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DeleteStreamVideo handles DELETE /api/stream-jobs/{id}/renders/{variant}/videos/{clip_id}:
+// it removes one published stream clip (its MP4 and its upload-ready copy) and
+// drops it from the render state. Idempotent: a clip already gone answers 204.
+func (h *Handlers) DeleteStreamVideo(w http.ResponseWriter, r *http.Request) {
+	release := h.lockStreamJobRequest(r)
+	defer release()
+	j, ok := h.loadStreamJob(w, r)
+	if !ok {
+		return
+	}
+	variant := chi.URLParam(r, "variant")
+	clipID := chi.URLParam(r, "clip_id")
+	if _, err := streamclips.RenderVideoKey(j.ID, variant, clipID); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	state, exists, err := h.readStreamRenderState(j.ID, variant)
+	if err != nil {
+		internalError(w, "read stream render state", err)
+		return
+	}
+	if !exists || !state.HasPublishedRender() {
+		writeError(w, http.StatusNotFound, "stream render has no published videos")
+		return
+	}
+	if state.Status == streamclips.StatusQueued || state.Status == streamclips.StatusRendering {
+		writeError(w, http.StatusConflict, fmt.Sprintf("stream render %s is %s; wait for it to settle before deleting", variant, state.Status))
+		return
+	}
+	deleter, ok := h.storage.(renderArtifactDeleter)
+	if !ok {
+		writeError(w, http.StatusNotImplemented, "storage backend does not support delete")
+		return
+	}
+	isClip := func(v streamclips.VideoEntry) bool { return v.ClipID == clipID }
+	isCopy := func(d streamclips.DeliveryEntry) bool { return d.Kind == "video" && d.Name == clipID+".mp4" }
+	var keys []string
+	if i := slices.IndexFunc(state.Videos, isClip); i >= 0 {
+		keys = append(keys, state.Videos[i].Key)
+	} else if len(state.Videos) == 0 {
+		// A legacy state lists its clips only in the render result.
+		key, err := h.streamVideoKey(j.ID, variant, clipID)
+		if err != nil {
+			internalError(w, "resolve stream video for deletion", err)
+			return
+		}
+		keys = append(keys, key)
+	}
+	if i := slices.IndexFunc(state.Delivery, isCopy); i >= 0 {
+		keys = append(keys, state.Delivery[i].Key)
+	}
+	for _, key := range keys {
+		if err := deleter.Delete(key); err != nil {
+			internalError(w, "delete stream video", err)
+			return
+		}
+	}
+	// Files first, state last: a failed write leaves a clip the list already hides.
+	state.Videos = slices.DeleteFunc(state.Videos, isClip)
+	state.Delivery = slices.DeleteFunc(state.Delivery, isCopy)
+	if err := h.writeStreamRenderState(state); err != nil {
+		internalError(w, "write stream render state", err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

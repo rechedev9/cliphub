@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 type deleteVideoIn struct {
@@ -16,6 +19,13 @@ type deleteVideoIn struct {
 
 type deleteStreamIn struct {
 	ID      string `json:"id" jsonschema:"stream_id from list_streams"`
+	Approve string `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
+}
+
+type deleteStreamVideoIn struct {
+	ID      string `json:"id" jsonschema:"stream_id from list_all_videos or list_streams"`
+	Variant string `json:"variant" jsonschema:"variant from list_all_videos or list_stream_videos"`
+	ClipID  string `json:"clip_id" jsonschema:"clip_id from list_all_videos or list_stream_videos"`
 	Approve string `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
 }
 
@@ -75,6 +85,39 @@ func registerDeleteTools(server *mcp.Server, s *studio) {
 			}
 			return approveAndDelete(req, approvalSpec{Tool: "delete_stream", JobID: in.ID, Request: j.UpdatedAt, Summary: summary, Given: in.Approve, Question: "¿Borrar ahora?"},
 				func() error { return c.DeleteStreamJob(ctx, in.ID) })
+		})
+
+	mcp.AddTool(server, &mcp.Tool{Name: "delete_stream_video", Annotations: destructive,
+		Description: "Delete one rendered stream video from the PC, as Borrar does on a Clip de stream in Mis vídeos. The stream and its other videos stay. " +
+			"It cannot be undone, so the user must approve it. " + deleteApprovalHint},
+		func(ctx context.Context, req *mcp.CallToolRequest, in deleteStreamVideoIn) (*mcp.CallToolResult, deleteOut, error) {
+			if err := checkUUID("id", in.ID); err != nil {
+				return nil, deleteOut{}, err
+			}
+			if err := checkArtifactName("variant", in.Variant); err != nil {
+				return nil, deleteOut{}, err
+			}
+			if err := checkArtifactName("clip_id", in.ClipID); err != nil {
+				return nil, deleteOut{}, err
+			}
+			c, err := s.client(ctx)
+			if err != nil {
+				return nil, deleteOut{}, toolError(err)
+			}
+			j, err := c.GetStreamJob(ctx, in.ID)
+			if err != nil {
+				return nil, deleteOut{}, toolError(err)
+			}
+			i := slices.IndexFunc(j.RenderedOutputs, func(o tuiclient.StreamRenderedOutput) bool {
+				return o.Variant == in.Variant && o.ClipID == in.ClipID
+			})
+			if i < 0 {
+				return nil, deleteOut{}, fmt.Errorf("%s has no rendered video %s in %s", streamName(j), in.ClipID, in.Variant)
+			}
+			summary := fmt.Sprintf("Borrar del PC el vídeo %s de %s. El stream y sus otros vídeos se quedan. No se puede deshacer.",
+				quotedName(j.RenderedOutputs[i].Title, in.ClipID), streamName(j))
+			return approveAndDelete(req, approvalSpec{Tool: "delete_stream_video", JobID: in.ID, Request: [2]string{in.Variant, in.ClipID}, Summary: summary, Given: in.Approve, Question: "¿Borrar ahora?"},
+				func() error { return c.DeleteStreamVideo(ctx, in.ID, in.Variant, in.ClipID) })
 		})
 }
 
