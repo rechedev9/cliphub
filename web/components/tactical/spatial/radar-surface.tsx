@@ -287,7 +287,14 @@ function RadarPlate({
       repaintRef.current();
     });
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    // A GPU process reset hands the canvas back blank, and the baked background with it.
+    const onRestored = (): void => {
+      backgroundRef.current = null;
+      repaintRef.current();
+    };
+    canvas.addEventListener('contextrestored', onRestored);
     return () => {
+      canvas.removeEventListener('contextrestored', onRestored);
       observer.disconnect();
       themeObserver.disconnect();
       window.removeEventListener('resize', measure);
