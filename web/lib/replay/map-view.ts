@@ -27,7 +27,7 @@ export function zoomLevel(view: RadarRect, base: RadarRect): number {
 
 /** Keeps the window's centre over the base window, so the map can never be panned away. */
 export function clampView(view: RadarRect, base: RadarRect): RadarRect {
-  if (view.width >= base.width && view.height >= base.height) return base;
+  if (view.width > base.width && view.height > base.height) return base;
   const cx = Math.min(base.x + base.width, Math.max(base.x, view.x + view.width / 2));
   const cy = Math.min(base.y + base.height, Math.max(base.y, view.y + view.height / 2));
   return { x: cx - view.width / 2, y: cy - view.height / 2, width: view.width, height: view.height };
@@ -61,7 +61,6 @@ export function zoomViewAt(options: {
 /** The window after dragging the map by `dx`, `dy` CSS pixels. */
 export function panView(options: { box: { width: number; height: number }; view: RadarRect; base: RadarRect; dx: number; dy: number }): RadarRect {
   const { box, view, base, dx, dy } = options;
-  if (zoomLevel(view, base) <= 1) return base;
   const { size } = fit(box, view);
   return clampView({ ...view, x: view.x - dx / size, y: view.y - dy / size }, base);
 }

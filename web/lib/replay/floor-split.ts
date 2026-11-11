@@ -88,13 +88,13 @@ export const WHOLE_FLOORS: FloorView = { zoom: 1, panX: 0, panY: 0 };
 const VIEW_ORIGIN = 0.5;
 
 export function isWholeView(view: FloorView): boolean {
-  return view.zoom <= 1;
+  return view.zoom <= 1 && view.panX === 0 && view.panY === 0;
 }
 
 /** The part of a floor's extent the view shows; its centre never leaves the extent. */
 export function floorWindow(rect: RadarRect, view: FloorView): RadarRect {
   const zoom = Math.max(1, view.zoom);
-  if (zoom === 1) return rect;
+  if (isWholeView(view)) return rect;
   const width = rect.width / zoom;
   const height = rect.height / zoom;
   const cx = Math.min(rect.x + rect.width, Math.max(rect.x, VIEW_ORIGIN + view.panX));
@@ -104,9 +104,12 @@ export function floorWindow(rect: RadarRect, view: FloorView): RadarRect {
 
 /** The view that makes `window` the part of `rect` on show. */
 export function viewOfWindow(rect: RadarRect, window: RadarRect): FloorView {
-  const zoom = rect.width / window.width;
-  if (!(zoom > 1)) return WHOLE_FLOORS;
-  return { zoom, panX: window.x + window.width / 2 - VIEW_ORIGIN, panY: window.y + window.height / 2 - VIEW_ORIGIN };
+  const zoom = Math.max(1, rect.width / window.width);
+  const cx = window.x + window.width / 2;
+  const cy = window.y + window.height / 2;
+  // The whole map moved by the hand keeps its pan; centred again, it is the whole view.
+  if (zoom === 1 && Math.abs(cx - (rect.x + rect.width / 2)) < 1e-9 && Math.abs(cy - (rect.y + rect.height / 2)) < 1e-9) return WHOLE_FLOORS;
+  return { zoom, panX: cx - VIEW_ORIGIN, panY: cy - VIEW_ORIGIN };
 }
 
 /** Where the view puts a pane's floor, in canvas coordinates; the size is the same for every pane. */

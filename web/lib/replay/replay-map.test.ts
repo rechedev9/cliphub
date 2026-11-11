@@ -31,7 +31,10 @@ test('map view: a drag pans a zoomed map and never past its edge', () => {
   assert.ok(moved.x < zoomed.x);
   const far = panView({ box, view: zoomed, base, dx: 100000, dy: 0 });
   assert.equal(far.x + far.width / 2, base.x);
-  assert.deepEqual(panView({ box, view: base, base, dx: 50, dy: 50 }), base);
+  const whole = panView({ box, view: base, base, dx: 50, dy: 50 });
+  assert.ok(whole.x < base.x && whole.y < base.y, 'the hand moves the whole map too');
+  const wholeFar = panView({ box, view: base, base, dx: 100000, dy: 0 });
+  assert.ok(Math.abs(wholeFar.x + wholeFar.width / 2 - base.x) < 1e-9);
 });
 
 test('nav radar: areas become polygons sorted by height with a trimmed range', () => {

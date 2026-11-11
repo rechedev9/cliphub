@@ -148,8 +148,12 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
   const navFailed = navArt?.map === map && navArt.failed;
   // The zoom outlives a remount, per map.
   const view = zoomState?.map === map ? zoomState.view : rememberedFloorView(map);
+  // Pointer moves can arrive faster than renders; each drag step builds on the last one, not on a stale render.
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const setView = useCallback(
     (next: FloorView) => {
+      viewRef.current = next;
       rememberFloorView(map, next);
       setZoomState({ map, view: next });
     },
@@ -620,7 +624,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
             drag.x = at.x;
             drag.y = at.y;
             const pane = panes.find((entry) => entry.level === drag.level) ?? panes[0];
-            setView(panFloors({ pane, view, dx, dy }));
+            setView(panFloors({ pane, view: viewRef.current, dx, dy }));
             return;
           }
           const slot = playerAt(at.x, at.y);
