@@ -215,14 +215,25 @@ export function overlayRoundKey(round: Pick<OverlayRound, 'match_id' | 'round'>)
  * points; undefined before it starts and after its last point.
  */
 export function trackPositionAt(track: OverlayTrack, seconds: number, step: number): [number, number] | undefined {
+  const point = trackPointAt(track, seconds, step);
+  return point === undefined ? undefined : [point[0], point[1]];
+}
+
+/** `trackPositionAt` with the height, and the index of the point at or before `seconds`. */
+export function trackPointAt(track: OverlayTrack, seconds: number, step: number): [number, number, number, number] | undefined {
   if (!(step > 0) || track.points.length === 0) return undefined;
   const at = seconds / step - track.start;
   if (at < 0 || at > track.points.length - 1) return undefined;
   const i = Math.floor(at);
-  const from = track.points[i];
-  const to = track.points[Math.min(i + 1, track.points.length - 1)];
+  const a = track.points[i];
+  const b = track.points[Math.min(i + 1, track.points.length - 1)];
   const t = at - i;
-  return [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, i];
+}
+
+/** When a track that ended in a death died, in seconds after freeze end; null for a survivor. */
+export function trackDeathSeconds(track: OverlayTrack, step: number): number | null {
+  return track.died && track.points.length > 0 ? (track.start + track.points.length - 1) * step : null;
 }
 
 /** The track's path from its start (or `trailSeconds` back) up to `seconds`. */
@@ -239,7 +250,8 @@ export function trackTrail(track: OverlayTrack, seconds: number, step: number, t
 
 /** Whether the track ended with a death at or before `seconds`. */
 export function trackDeadAt(track: OverlayTrack, seconds: number, step: number): boolean {
-  return track.died && seconds / step - track.start > track.points.length - 1;
+  const death = trackDeathSeconds(track, step);
+  return death !== null && seconds > death;
 }
 
 /** A note's moment as seconds after its round's freeze end. */

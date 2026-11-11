@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LIVE_SAMPLE_SECONDS, liveHeat, liveSpan, trackPointAt } from './heat-live.ts';
+import { LIVE_SAMPLE_SECONDS, liveHeat, trackLevels, tramoSpan } from './heat-live.ts';
+import { trackPointAt } from './tactical-spatial.ts';
 import type { LiveHeatInput } from './heat-live.ts';
 import type { OverlayRound, OverlayTrack } from './api/spatial.ts';
 import type { RadarCalibration } from './api/tactical.ts';
@@ -25,18 +26,18 @@ function input(rounds: OverlayRound[], overrides: Partial<LiveHeatInput> = {}): 
 
 test('a track point interpolates its height and is undefined outside the track', () => {
   const t = track({ start: 2, points: [[0, 0, 0], [10, 20, 30]] });
-  assert.deepEqual(trackPointAt(t, 1.25, 0.5), [5, 10, 15]);
+  assert.deepEqual(trackPointAt(t, 1.25, 0.5), [5, 10, 15, 0]);
   assert.equal(trackPointAt(t, 0.5, 0.5), undefined);
   assert.equal(trackPointAt(t, 2, 0.5), undefined);
 });
 
 test('the span follows the tramo, the round end and the plant', () => {
   const planted = round([], { duration_seconds: 90, events: [{ seconds: 40, tick: 0, kind: 'plant', pos: [0, 0, 0], subject: false }] });
-  assert.deepEqual(liveSpan(planted, { from: 0, to: 0 }), { from: 0, to: 90 });
-  assert.deepEqual(liveSpan(planted, { from: 10, to: 30 }), { from: 10, to: 30 });
-  assert.deepEqual(liveSpan(planted, { from: 0, to: 0, fromPlant: true }), { from: 40, to: 90 });
-  assert.equal(liveSpan(round([]), { from: 0, to: 0, fromPlant: true }), null);
-  assert.equal(liveSpan(round([], { duration_seconds: 20 }), { from: 30, to: 50 }), null);
+  assert.deepEqual(tramoSpan(planted, { from: 0, to: 0 }), { from: 0, to: 90 });
+  assert.deepEqual(tramoSpan(planted, { from: 10, to: 30 }), { from: 10, to: 30 });
+  assert.deepEqual(tramoSpan(planted, { from: 0, to: 0, fromPlant: true }), { from: 40, to: 90 });
+  assert.equal(tramoSpan(round([]), { from: 0, to: 0, fromPlant: true }), null);
+  assert.equal(tramoSpan(round([], { duration_seconds: 20 }), { from: 30, to: 50 }), null);
 });
 
 test('positions count one instant per sample of the tramo while the player lives, on their side only', () => {
@@ -55,6 +56,12 @@ test('the lower floor gets its own layer', () => {
   const below = track({ points: [[200, 200, -300], [200, 200, -300], [200, 200, -300]] });
   const heat = liveHeat(input([round([below])]));
   assert.deepEqual(heat?.layers.map((layer) => layer.level), ['lower']);
+});
+
+test('a player crossing the cut on a ramp keeps the floor they came from inside the dead band', () => {
+  // The cut is -100; -130 is within the 48-unit band, so the walker stays upstairs until -200.
+  const ramp = track({ points: [[200, 200, 0], [200, 200, -130], [200, 200, -200]] });
+  assert.deepEqual(trackLevels({ track: ramp, step: 0.5, tickrate: 64, calibration: CALIBRATION }), ['default', 'default', 'lower']);
 });
 
 test('timing counts the first arrival of each player at each cell, with its median seconds', () => {

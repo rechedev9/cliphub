@@ -1,9 +1,10 @@
 import { TACTICAL_EVENT_KINDS } from './api/tactical.ts';
 import type { RadarCalibration, RadarLevel, TacticalSide } from './api/tactical.ts';
 import type { OverlayRound, OverlayTrack } from './api/spatial.ts';
-import { levelForAltitude } from './tactical-transform.ts';
+import { pathLevels } from './replay/floor-assign.ts';
 import { isWholeRound, tramoEnd } from './replay/tramo.ts';
 import type { Tramo } from './replay/tramo.ts';
+import { trackPointAt } from './tactical-spatial.ts';
 
 // The position and timing heatmaps rebuilt in the browser from the overlay's tracks, so a tramo
 // drag repaints at once. They follow `tacticalplan` (heat_density.go addInstants, addArrivals).
@@ -31,7 +32,7 @@ export type LiveHeatInput = {
 };
 
 /** The part of a round the tramo keeps, in seconds after freeze end; null when none. */
-export function liveSpan(round: OverlayRound, tramo: Tramo): { from: number; to: number } | null {
+export function tramoSpan(round: OverlayRound, tramo: Tramo): { from: number; to: number } | null {
   let from = tramo.from;
   if (tramo.fromPlant === true) {
     const plant = round.events.find((event) => event.kind === TACTICAL_EVENT_KINDS.plant);
@@ -42,19 +43,23 @@ export function liveSpan(round: OverlayRound, tramo: Tramo): { from: number; to:
   return end > from ? { from, to: end } : null;
 }
 
-/** Where a track is at `seconds` with its height, interpolated; undefined before it starts and after its last point. */
-export function trackPointAt(track: OverlayTrack, seconds: number, step: number): [number, number, number] | undefined {
-  if (!(step > 0) || track.points.length === 0) return undefined;
-  const at = seconds / step - track.start;
-  if (at < 0 || at > track.points.length - 1) return undefined;
-  const i = Math.floor(at);
-  const a = track.points[i];
-  const b = track.points[Math.min(i + 1, track.points.length - 1)];
-  const k = at - i;
-  return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+// Each track's floors are settled once: a drag recomputes the heat many times over the same tracks.
+const settledFloors = new WeakMap<OverlayTrack, RadarLevel[]>();
+
+/** The floor of each point of a track, by the replay's rule (dead band, standing still drops it). */
+export function trackLevels(options: { track: OverlayTrack; step: number; tickrate: number; calibration: RadarCalibration }): RadarLevel[] {
+  const { track, step, tickrate, calibration } = options;
+  const known = settledFloors.get(track);
+  if (known !== undefined) return known;
+  const ticks = track.points.map((_, i) => (track.start + i) * step * tickrate);
+  const levels = pathLevels({ calibration, ticks, heights: track.points.map((point) => point[2]) });
+  settledFloors.set(track, levels);
+  return levels;
 }
 
 type Acc = { count: number; seconds: number[] };
+type Add = (point: { x: number; y: number; level: RadarLevel }, seconds: number) => void;
+type TrackRead = { track: OverlayTrack; levels: readonly RadarLevel[]; window: { from: number; to: number }; step: number; add: Add };
 
 /** The heatmap of the tramo, or null when the calibration cannot place a mark. */
 export function liveHeat(input: LiveHeatInput): LiveHeat | null {
@@ -62,11 +67,10 @@ export function liveHeat(input: LiveHeatInput): LiveHeat | null {
   const span = calibration.size * calibration.scale;
   if (!(span > 0) || !(grid > 0) || !(step > 0)) return null;
   const floors = new Map<RadarLevel, Map<number, Acc>>();
-  const add = (point: readonly [number, number, number], seconds: number): void => {
-    const column = Math.floor(((point[0] - calibration.pos_x) / span) * grid);
-    const row = Math.floor(((calibration.pos_y - point[1]) / span) * grid);
+  const add: Add = ({ x, y, level }, seconds) => {
+    const column = Math.floor(((x - calibration.pos_x) / span) * grid);
+    const row = Math.floor(((calibration.pos_y - y) / span) * grid);
     if (column < 0 || row < 0 || column >= grid || row >= grid) return;
-    const level = levelForAltitude(calibration, point[2]);
     let bins = floors.get(level);
     if (bins === undefined) {
       bins = new Map();
@@ -82,12 +86,13 @@ export function liveHeat(input: LiveHeatInput): LiveHeat | null {
   };
   const arrivals = new Map<string, number[]>();
   for (const round of rounds) {
-    const window = liveSpan(round, tramo);
+    const window = tramoSpan(round, tramo);
     if (window === null) continue;
     for (const track of round.tracks) {
       if (track.side !== side) continue;
-      if (kind === 'position') addInstants({ track, window, step, add });
-      else addArrivals({ track, window, step, cellSize, calibration, add, arrivals });
+      const read = { track, levels: trackLevels({ track, step, tickrate: round.tickrate, calibration }), window, step, add };
+      if (kind === 'position') addInstants(read);
+      else addArrivals({ ...read, cellSize, arrivals });
     }
   }
   let maxSeconds = 0;
@@ -104,40 +109,31 @@ export function liveHeat(input: LiveHeatInput): LiveHeat | null {
   return { layers, maxSeconds };
 }
 
-type Add = (point: readonly [number, number, number], seconds: number) => void;
-
-/** One mark per `LIVE_SAMPLE_SECONDS` of the window while the player is alive. */
-function addInstants({ track, window, step, add }: { track: OverlayTrack; window: { from: number; to: number }; step: number; add: Add }): void {
+/** One mark per `LIVE_SAMPLE_SECONDS` of the window while the player is alive, on the floor of the point before it. */
+function addInstants({ track, levels, window, step, add }: TrackRead): void {
   const n = Math.floor((window.to - window.from) / LIVE_SAMPLE_SECONDS);
   const lead = (window.to - window.from - n * LIVE_SAMPLE_SECONDS) / 2;
   for (let i = 0; i < n; i++) {
     const seconds = window.from + lead + (i + 0.5) * LIVE_SAMPLE_SECONDS;
     const point = trackPointAt(track, seconds, step);
-    if (point !== undefined) add(point, seconds);
+    if (point !== undefined) add({ x: point[0], y: point[1], level: levels[point[3]] }, seconds);
   }
 }
 
 /** The first point of the window in each cell the player reaches, with its time. */
-function addArrivals(options: {
-  track: OverlayTrack;
-  window: { from: number; to: number };
-  step: number;
-  cellSize: number;
-  calibration: RadarCalibration;
-  add: Add;
-  arrivals: Map<string, number[]>;
-}): void {
-  const { track, window, step, cellSize, calibration, add, arrivals } = options;
+function addArrivals(options: TrackRead & { cellSize: number; arrivals: Map<string, number[]> }): void {
+  const { track, levels, window, step, add, cellSize, arrivals } = options;
   const seen = new Set<string>();
   const first = Math.max(0, Math.ceil(window.from / step - track.start));
   for (let i = first; i < track.points.length; i++) {
     const seconds = (track.start + i) * step;
     if (seconds > window.to) break;
-    const point = track.points[i];
-    const cell = `${levelForAltitude(calibration, point[2])}|${Math.floor(point[0] / cellSize)}|${Math.floor(point[1] / cellSize)}`;
+    const [x, y] = track.points[i];
+    const level = levels[i];
+    const cell = `${level}|${Math.floor(x / cellSize)}|${Math.floor(y / cellSize)}`;
     if (seen.has(cell)) continue;
     seen.add(cell);
-    add(point, seconds);
+    add({ x, y, level }, seconds);
     const list = arrivals.get(cell);
     if (list === undefined) arrivals.set(cell, [seconds]);
     else list.push(seconds);

@@ -33,11 +33,11 @@ const LOWER = 1;
  * The frames in which a living player stands still: their height stays within
  * `STILL_RISE` for at least `STILL_TICKS`. Frames where the slot is missing or dead break a run.
  */
-function stillFrames(options: { frames: readonly TacticalFrame[]; heights: Float64Array; living: Uint8Array }): Uint8Array {
-  const { frames, heights, living } = options;
-  const still = new Uint8Array(frames.length);
+function stillFrames(options: { ticks: ArrayLike<number>; heights: Float64Array; living: Uint8Array }): Uint8Array {
+  const { ticks, heights, living } = options;
+  const still = new Uint8Array(ticks.length);
   let start = 0;
-  while (start < frames.length) {
+  while (start < ticks.length) {
     if (living[start] === 0) {
       start += 1;
       continue;
@@ -45,15 +45,45 @@ function stillFrames(options: { frames: readonly TacticalFrame[]; heights: Float
     let low = heights[start];
     let high = low;
     let end = start;
-    while (end + 1 < frames.length && living[end + 1] === 1 && Math.max(high, heights[end + 1]) - Math.min(low, heights[end + 1]) <= STILL_RISE) {
+    while (end + 1 < ticks.length && living[end + 1] === 1 && Math.max(high, heights[end + 1]) - Math.min(low, heights[end + 1]) <= STILL_RISE) {
       end += 1;
       low = Math.min(low, heights[end]);
       high = Math.max(high, heights[end]);
     }
-    if (frames[end].tick - frames[start].tick >= STILL_TICKS) still.fill(1, start, end + 1);
+    if (ticks[end] - ticks[start] >= STILL_TICKS) still.fill(1, start, end + 1);
     start = end + 1;
   }
   return still;
+}
+
+/** One player's floor at each sample in order: 0 where the sample is missing (NaN height) and nothing came before. */
+function settleFloors(options: { calibration: RadarCalibration; ticks: ArrayLike<number>; heights: Float64Array; living: Uint8Array }): Uint8Array {
+  const { calibration, heights } = options;
+  const still = stillFrames(options);
+  const levels = new Uint8Array(heights.length);
+  let previous: RadarLevel | undefined;
+  let held = 0;
+  for (let index = 0; index < heights.length; index += 1) {
+    const z = heights[index];
+    // A frame without the slot keeps the floor it was on.
+    if (Number.isNaN(z)) {
+      levels[index] = held;
+      continue;
+    }
+    const level = still[index] === 1 ? levelForAltitude(calibration, z) : assignFloor({ calibration, z, previous });
+    previous = level;
+    held = level === RADAR_LEVELS.lower ? LOWER : 2;
+    levels[index] = held;
+  }
+  return levels;
+}
+
+/** The floor of each point of a living player's path sampled at `ticks`, by the replay's rule. */
+export function pathLevels(options: { calibration: RadarCalibration; ticks: ArrayLike<number>; heights: readonly number[] }): RadarLevel[] {
+  const { calibration, ticks, heights } = options;
+  if (!isMultiLevelMap(calibration)) return heights.map(() => RADAR_LEVELS.default);
+  const levels = settleFloors({ calibration, ticks, heights: Float64Array.from(heights), living: new Uint8Array(heights.length).fill(1) });
+  return [...levels].map((code) => (code === LOWER ? RADAR_LEVELS.lower : RADAR_LEVELS.default));
 }
 
 /**
@@ -75,25 +105,8 @@ export function createFloorTimeline(calibration: RadarCalibration, frames: reado
         track.living[index] = hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.alive) ? 1 : 0;
       }
     });
-    for (const [slot, track] of heights) {
-      const still = stillFrames({ frames, heights: track.z, living: track.living });
-      const levels = new Uint8Array(frames.length);
-      let previous: RadarLevel | undefined;
-      let held = 0;
-      for (let index = 0; index < frames.length; index += 1) {
-        const z = track.z[index];
-        // A frame without the slot keeps the floor it was on.
-        if (Number.isNaN(z)) {
-          levels[index] = held;
-          continue;
-        }
-        const level = still[index] === 1 ? levelForAltitude(calibration, z) : assignFloor({ calibration, z, previous });
-        previous = level;
-        held = level === RADAR_LEVELS.lower ? LOWER : 2;
-        levels[index] = held;
-      }
-      bySlot.set(slot, levels);
-    }
+    const ticks = frames.map((frame) => frame.tick);
+    for (const [slot, track] of heights) bySlot.set(slot, settleFloors({ calibration, ticks, heights: track.z, living: track.living }));
   }
   return {
     levelAt: (slot, index, fallback) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Flame, Pause, Play, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InfoTip } from '@/components/analysis/info-tip';
@@ -25,6 +25,7 @@ import {
   heatmapSide,
   mergeHeatmapLayers,
   nearestCallout,
+  overlayDuration,
 } from '@/lib/tactical-spatial';
 import type { HeatmapLayer } from '@/lib/tactical-spatial';
 import { heatPlaces } from '@/lib/heat-places';
@@ -101,9 +102,11 @@ export function HeatmapView({
   const { kind, killAt, grenades } = choice;
   const surfaceRef = useRef<RadarSurfaceHandle | null>(null);
   const repaint = useCallback(() => surfaceRef.current?.repaint(), []);
-  const playback = useHeatPlayback({ control: tramoControl, onFrame: repaint });
-  const { tramo, setTramo, playing } = playback;
+  const scopeKey = JSON.stringify(scope);
   const [tracks, setTracks] = useState<Tracks | null>(null);
+  const overlay = tracks !== null && tracks.scopeKey === scopeKey ? tracks.overlay : null;
+  const playback = useHeatPlayback({ control: tramoControl, onFrame: repaint, duration: overlay === null ? 0 : overlayDuration(overlay.rounds) });
+  const { tramo, setTramo, playing } = playback;
   const whole = isWholeRound(tramo);
   const tramoFrom = whole ? 0 : tramo.from;
   const tramoTo = whole ? 0 : tramo.to;
@@ -115,11 +118,16 @@ export function HeatmapView({
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
-  const scopeKey = JSON.stringify(scope);
   const scopeRef = useRef(scope);
   const imagesRef = useRef(new WeakMap<Uint8ClampedArray<ArrayBuffer>, HTMLCanvasElement>());
   const grenadeKey = grenades.join(',');
   const loadedScope = useRef('');
+  // A newer request makes an older answer stale; playback waits for the one in flight.
+  const requestSeq = useRef(0);
+  const inFlight = useRef(false);
+  const askedFor = useRef('');
+  const playingRef = useRef(playing);
+  const [answers, setAnswers] = useState(0);
 
   useEffect(() => {
     scopeRef.current = scope;
@@ -142,42 +150,52 @@ export function HeatmapView({
     };
   }, [scopeKey, attempt]);
 
+  // Positions and arrivals redraw from the tracks when they hold every round of the scope.
+  const liveKind = overlay !== null && overlay.total <= overlay.rounds.length && (kind === 'position' || kind === 'timing');
+
   useEffect(() => {
-    // Playback paints from the tracks; the zone list catches up when it stops.
-    if (playing) return;
-    let active = true;
-    // The first answer of a scope asks at once; a new window or kind waits for the drag to settle.
+    playingRef.current = playing;
+  });
+
+  useEffect(() => {
+    // During playback a live map needs no answer, and a server map asks again only once the last answer lands
+    // and only for a tramo it has not asked about yet.
+    const ask = [scopeKey, kind, killAt, tramoFrom, tramoTo, fromPlant, grenadeKey, attempt].join('|');
+    if (playing && (liveKind || inFlight.current || askedFor.current === ask)) return;
+    const seq = ++requestSeq.current;
+    const latest = (): boolean => seq === requestSeq.current;
     setBusy(loadedScope.current === scopeKey);
-    const timer = window.setTimeout(
-      () => {
-        getSpatialHeatmap(scopeRef.current, {
-          kind,
-          killAt,
-          from: tramoFrom,
-          to: tramoTo,
-          fromPlant,
-          grenades: kind === 'utility' && grenadeKey !== '' ? grenadeKey.split(',').filter(isGrenade) : [],
+    // The first answer of a scope and playback ask at once; a drag waits for the tramo to settle.
+    const delay = playing || loadedScope.current !== scopeKey ? 0 : RUN_DELAY_MS;
+    const timer = window.setTimeout(() => {
+      inFlight.current = true;
+      askedFor.current = ask;
+      getSpatialHeatmap(scopeRef.current, {
+        kind,
+        killAt,
+        from: tramoFrom,
+        to: tramoTo,
+        fromPlant,
+        grenades: kind === 'utility' && grenadeKey !== '' ? grenadeKey.split(',').filter(isGrenade) : [],
+      })
+        .then((answer) => {
+          inFlight.current = false;
+          if (!latest()) return;
+          loadedScope.current = scopeKey;
+          setBusy(false);
+          setLoad({ kind: 'ready', data: answer, scopeKey });
+          onLoaded?.(answer);
+          if (playingRef.current) setAnswers((n) => n + 1);
         })
-          .then((answer) => {
-            if (!active) return;
-            loadedScope.current = scopeKey;
-            setBusy(false);
-            setLoad({ kind: 'ready', data: answer, scopeKey });
-            onLoaded?.(answer);
-          })
-          .catch(() => {
-            if (!active) return;
-            setBusy(false);
-            setLoad({ kind: 'failed' });
-          });
-      },
-      loadedScope.current === scopeKey ? RUN_DELAY_MS : 0,
-    );
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [scopeKey, kind, killAt, tramoFrom, tramoTo, fromPlant, grenadeKey, onLoaded, attempt, playing]);
+        .catch(() => {
+          inFlight.current = false;
+          if (!latest()) return;
+          setBusy(false);
+          setLoad({ kind: 'failed' });
+        });
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [scopeKey, kind, killAt, tramoFrom, tramoTo, fromPlant, grenadeKey, onLoaded, attempt, playing, liveKind, answers]);
 
   const data = load.kind === 'ready' && load.scopeKey === scopeKey ? load.data : null;
   const heatmap = data?.heatmap;
@@ -216,22 +234,22 @@ export function HeatmapView({
   );
   const selectedPlace = places.find((place) => place.key === selected);
 
-  const overlay = tracks !== null && tracks.scopeKey === scopeKey ? tracks.overlay : null;
-  // Positions and arrivals redraw from the tracks when they hold every round of the scope.
+  // A drag can outrun the heat: React drops the tramos it has no time to paint, the players never lag.
+  const heatTramo = useDeferredValue(tramo);
   const live = useMemo(() => {
-    if (overlay === null || overlay.total > overlay.rounds.length || !heatmap || !geometry) return null;
+    if (!liveKind || overlay === null || !heatmap || !geometry) return null;
     if (heatmap.kind !== 'position' && heatmap.kind !== 'timing') return null;
     return liveHeat({
       rounds: overlay.rounds,
       step: overlay.step_seconds,
       side: shownSide,
       kind: heatmap.kind,
-      tramo,
+      tramo: heatTramo,
       calibration: geometry.calibration,
       grid: heatmap.density_grid,
       cellSize: heatmap.cell_size,
     });
-  }, [overlay, heatmap, geometry, shownSide, tramo]);
+  }, [liveKind, overlay, heatmap, geometry, shownSide, heatTramo]);
 
   const densities = useMemo<FloorDensity[]>(() => {
     if (!heatmap || !geometry || !layer) return [];
@@ -356,8 +374,8 @@ export function HeatmapView({
       );
     }
     return (
-      // A live map is already right while the zone list waits for the server, so only the list dims.
-      <div className={cn('grid gap-4 transition-opacity @[56rem]:grid-cols-[minmax(0,1fr)_300px]', busy && live === null && 'opacity-60')} aria-busy={busy}>
+      // A live map is already right while the zone list waits, and playback keeps the map bright.
+      <div className={cn('grid gap-4 transition-opacity @[56rem]:grid-cols-[minmax(0,1fr)_300px]', busy && live === null && !playing && 'opacity-60')} aria-busy={busy}>
         <RadarSurface
           geometry={geometry}
           level={shownLevels[0] ?? RADAR_LEVELS.default}
@@ -371,7 +389,7 @@ export function HeatmapView({
         <HeatmapSidebar
           kind={heatmap.kind}
           layer={live === null ? layer : { ...layer, maxSeconds: live.maxSeconds }}
-          stale={live !== null && (busy || playing)}
+          stale={playing || (busy && live !== null)}
           rounds={heatmap.rounds}
           matchCount={heatmap.matches}
           missing={heatmap.missing_positions}
@@ -461,7 +479,8 @@ export function HeatmapView({
       <div className="flex flex-wrap items-center justify-end gap-1.5">
         <div className="flex min-w-[min(100%,28rem)] flex-1 items-center gap-1.5">
           <HeatPlayButton playback={playback} />
-          <div className="min-w-0 flex-1">
+          {/* Releasing a grip or a key hands the tramo to the other forms at once. */}
+          <div className="min-w-0 flex-1" onPointerUp={playback.flush} onKeyUp={playback.flush}>
             <TramoBar tramo={tramo} onChange={setTramo} />
           </div>
         </div>
@@ -484,19 +503,14 @@ function floorPictures(grids: readonly { level: RadarLevel; density: HeatDensity
 function HeatPlayButton({ playback }: { playback: HeatPlayback }): ReactNode {
   const { playing, toggle, canPlay } = playback;
   const label = playing ? 'Pausar' : 'Reproducir la ronda';
+  const reason = canPlay ? label : 'Desde el plant cada ronda tiene su reloj: elige otro tramo para reproducir';
+  // A disabled button shows no tooltip, so the wrapper carries the reason.
   return (
-    <Button
-      type="button"
-      size="icon-sm"
-      variant="outline"
-      className="size-10 shrink-0"
-      aria-label={label}
-      title={canPlay ? label : 'Desde el plant cada ronda tiene su reloj: elige otro tramo para reproducir'}
-      disabled={!canPlay}
-      onClick={toggle}
-    >
-      {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
-    </Button>
+    <span title={reason} className="shrink-0">
+      <Button type="button" size="icon-sm" variant="outline" className="size-10" aria-label={reason} disabled={!canPlay} onClick={toggle}>
+        {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
+      </Button>
+    </span>
   );
 }
 
