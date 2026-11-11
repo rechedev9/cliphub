@@ -117,7 +117,7 @@ func flashAssistsBySlot(v roundView) map[uint8]int {
 	var blinds []blind
 	assists := map[uint8]int{}
 	for _, ev := range v.Events {
-		if ev.ActorSlot == nil || v.sides[*ev.ActorSlot] != v.side {
+		if !v.ours(ev.ActorSlot) {
 			continue
 		}
 		actor := *ev.ActorSlot
@@ -147,11 +147,14 @@ func flashAssistsBySlot(v roundView) map[uint8]int {
 	return assists
 }
 
-// utilityDamageBySlot is the enemy damage of each side player's HE grenades and fires.
+// ours says whether the slot plays on the team's side this round.
+func (v roundView) ours(slot *uint8) bool { return slot != nil && v.sides[*slot] == v.side }
+
+// utilityDamageBySlot is the enemy damage of each side player's grenades; only HE and fire carry it.
 func utilityDamageBySlot(v roundView) map[uint8]int {
 	damage := map[uint8]int{}
 	for _, ev := range v.Events {
-		if (ev.Kind == EventHE || ev.Kind == EventMolotov) && ev.Effect != nil && ev.ActorSlot != nil && v.sides[*ev.ActorSlot] == v.side {
+		if ev.Effect != nil && v.ours(ev.ActorSlot) {
 			damage[*ev.ActorSlot] += ev.Effect.EnemyDamage
 		}
 	}
@@ -162,10 +165,7 @@ func utilityDamageBySlot(v roundView) map[uint8]int {
 func headshotsBySlot(v roundView) map[uint8]int {
 	hs := map[uint8]int{}
 	for _, ev := range v.Events {
-		if ev.Kind != EventKill || !ev.Headshot || ev.ActorSlot == nil || ev.TargetSlot == nil {
-			continue
-		}
-		if v.sides[*ev.ActorSlot] == v.side && v.sides[*ev.TargetSlot] != v.side {
+		if ev.Kind == EventKill && ev.Headshot && ev.TargetSlot != nil && v.ours(ev.ActorSlot) && !v.ours(ev.TargetSlot) {
 			hs[*ev.ActorSlot]++
 		}
 	}
