@@ -58,6 +58,12 @@ func TestGameAssetErrors(t *testing.T) {
 		{"", "/api/maps/de_mirage/radar", http.StatusNotFound, "cs2_not_found"},
 		{"", "/api/equipment/ak47/icon", http.StatusNotFound, "cs2_not_found"},
 		{empty, "/api/maps/de_mirage/radar?layer=lower", http.StatusNotFound, "radar_not_found"},
+		{empty, "/api/maps/DE_MIRAGE/shot", http.StatusBadRequest, "invalid_request"},
+		{empty, "/api/maps/de_mirage/shot", http.StatusNotFound, "map_picture_not_found"},
+		{empty, "/api/teams/logo", http.StatusBadRequest, "invalid_request"},
+		{empty, "/api/teams/logo?name=" + strings.Repeat("a", 65), http.StatusBadRequest, "invalid_request"},
+		{empty, "/api/teams/logo?name=Equipo%20Inventado", http.StatusNotFound, "team_logo_not_found"},
+		{empty, "/api/teams/logo?name=FURIA", http.StatusNotFound, "team_logo_not_found"},
 		{empty, "/api/equipment/ak47/icon", http.StatusNotFound, "icon_not_found"},
 		{junk, "/api/maps/de_mirage/radar", http.StatusUnprocessableEntity, "game_asset_unreadable"},
 	}

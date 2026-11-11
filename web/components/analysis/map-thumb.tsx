@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import type { TacticalGeometry } from '@/lib/api/tactical';
-import { radarImageUrl } from '@/lib/api/game-assets';
+import { mapShotUrl, radarImageUrl } from '@/lib/api/game-assets';
 import { mapSilhouette } from '@/lib/analysis/map-silhouette';
 import { prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -18,15 +18,17 @@ export function MapLabel({ map }: { map: string }): ReactNode {
 }
 
 /**
- * A map's thumbnail cut from CS2's own radar, darkened so text can sit beside
- * or over it. Without CS2 it falls back to the play-derived silhouette, and
- * without that to an empty tile of the same size, so rows never shift.
+ * A map's thumbnail from CS2's own files, darkened so text can sit beside or over it:
+ * the loading-screen picture when `photo` asks for it, else the radar. Each missing
+ * picture falls back to the next, then to the play-derived silhouette, then to an
+ * empty tile of the same size, so rows never shift.
  */
 export function MapThumb({
   map,
   geometry,
   className,
   crop = 1.25,
+  photo = false,
 }: {
   map: string;
   /** Play-derived geometry for the fallback silhouette. */
@@ -35,9 +37,16 @@ export function MapThumb({
   className?: string;
   /** How far the radar is zoomed in to cut its empty margin. */
   crop?: number;
+  /** Lead with the map's picture; `crop` then applies to the radar fallback only. */
+  photo?: boolean;
 }): ReactNode {
-  const [failed, setFailed] = useState(false);
-  const shape = failed && geometry ? mapSilhouette(geometry, 100) : null;
+  const sources = photo ? [mapShotUrl(map), radarImageUrl(map)] : [radarImageUrl(map)];
+  // Counted per map, so a reused tile retries the pictures when its map changes.
+  const [miss, setMiss] = useState({ map, count: 0 });
+  const missing = miss.map === map ? miss.count : 0;
+  const source = sources[missing];
+  const shot = photo && missing === 0;
+  const shape = source === undefined && geometry ? mapSilhouette(geometry, 100) : null;
   return (
     <span aria-hidden className={cn('relative inline-block shrink-0 overflow-hidden rounded-sm bg-surface-0', className)}>
       {shape ? (
@@ -45,16 +54,17 @@ export function MapThumb({
           <path d={shape.path} fill="currentColor" />
         </svg>
       ) : null}
-      {failed ? null : (
-        // A plain img: the radar is served by the local API, not a static asset Next could optimise.
+      {source === undefined ? null : (
+        // A plain img: the picture is served by the local API, not a static asset Next could optimise.
         <img
-          src={radarImageUrl(map)}
+          key={source}
+          src={source}
           alt=""
           loading="lazy"
           decoding="async"
-          onError={() => setFailed(true)}
-          className="absolute inset-0 size-full object-cover brightness-[0.8] saturate-[0.7]"
-          style={{ transform: `scale(${crop})` }}
+          onError={() => setMiss({ map, count: missing + 1 })}
+          className={cn('absolute inset-0 size-full object-cover', shot ? 'brightness-[0.85]' : 'brightness-[0.8] saturate-[0.7]')}
+          style={shot ? undefined : { transform: `scale(${crop})` }}
         />
       )}
     </span>

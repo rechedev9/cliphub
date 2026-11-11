@@ -6,6 +6,7 @@ import { PRO_PERIODS, DEFAULT_PRO_QUERY, type ProMatchQuery, type ProMatchesPage
 import { prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MapThumb } from '@/components/analysis/map-thumb';
+import { TeamLogo } from '@/components/matches/team-logo';
 import { FOCUS_RING } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -49,7 +50,7 @@ function TeamPicker({ label, any, value, teams, onChange }: TeamPickerProps): Re
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button type="button" aria-label={label} className={cn(TRIGGER, 'w-48 justify-between', value !== '' && 'border-destructive/60 bg-destructive/10')}>
-          <Users aria-hidden />
+          {chosen ? <TeamLogo name={chosen.name} className="size-4" /> : <Users aria-hidden />}
           <span className="min-w-0 flex-1 truncate text-left">{value === '' ? any : (chosen?.name ?? value)}</span>
           <ChevronDown aria-hidden />
         </button>
@@ -70,6 +71,7 @@ function TeamPicker({ label, any, value, teams, onChange }: TeamPickerProps): Re
           {shown.length === 0 ? <p className="px-2 py-2 text-body-sm text-fg-3">Ningún equipo se llama así.</p> : null}
           {shown.map((team) => (
             <button key={team.id} type="button" className={cn(ROW, String(team.id) === value && 'text-primary')} onClick={() => pick(String(team.id))}>
+              <TeamLogo name={team.name} />
               <span className="min-w-0 flex-1 truncate">{team.name}</span>
               {team.rank ? <span className="text-meta text-fg-3 tabular-nums">#{team.rank}</span> : null}
               <span className="w-6 text-right text-meta text-fg-3 tabular-nums">{team.matches}</span>
@@ -99,15 +101,15 @@ function MapPicker({ value, maps, onChange }: { value: string; maps: ProMatchesP
           <ChevronDown aria-hidden />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-60 p-1">
+      <PopoverContent className="w-72 p-1">
         <button type="button" className={ROW} onClick={() => pick('')}>
           <span className="flex-1">Todos los mapas</span>
           {value === '' ? <Check aria-hidden className="size-4 text-primary" /> : null}
         </button>
         {listed.map((map) => (
-          <button key={map.name} type="button" className={cn(ROW, 'relative mt-0.5 h-9 overflow-hidden p-0')} onClick={() => pick(map.name)}>
-            <MapThumb map={map.name} className="absolute inset-0 size-full rounded-none" crop={1.5} />
-            <span aria-hidden className="absolute inset-0 bg-linear-to-r from-black/75 via-black/40 to-black/60" />
+          <button key={map.name} type="button" className={cn(ROW, 'relative mt-0.5 h-12 overflow-hidden p-0')} onClick={() => pick(map.name)}>
+            <MapThumb map={map.name} photo className="absolute inset-0 size-full rounded-none" crop={1.5} />
+            <span aria-hidden className="absolute inset-0 bg-linear-to-r from-black/75 via-black/30 to-black/55" />
             <span className="relative flex w-full items-center gap-2 px-2 text-white">
               <span className={cn('flex-1 font-semibold', value === map.name && 'text-primary')}>{prettyMapName(map.name)}</span>
               <span className="text-meta text-white/70 tabular-nums">{map.matches}</span>

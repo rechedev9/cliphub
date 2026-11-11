@@ -9,6 +9,7 @@ import { PARSE_STATE_LABEL, demoErrorLabel, matchTitle, scoreline, withoutDemo, 
 import { cn } from '@/lib/utils';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { OpenInCrearButton } from '@/components/matches/open-in-crear-button';
+import { TeamLogo } from '@/components/matches/team-logo';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -35,8 +36,9 @@ export function ScoreStack({ match }: { match: LibraryMatch }): ReactNode {
   return (
     <span title={matchTitle(match)} className="flex min-w-40 flex-col gap-0.5 text-body-sm">
       {scoreline(match).map((side, index) => (
-        <span key={index} className="grid grid-cols-[1.75rem_minmax(0,1fr)] items-baseline gap-2">
+        <span key={index} className="grid grid-cols-[1.75rem_1rem_minmax(0,1fr)] items-center gap-2">
           <span className={cn('text-right font-bold tabular-nums', STACK_SCORE[side.outcome])}>{side.score}</span>
+          <TeamLogo name={side.name} className="size-4" />
           <span className={cn('truncate', STACK_NAME[side.outcome])}>{side.name}</span>
         </span>
       ))}

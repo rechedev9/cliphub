@@ -5,6 +5,7 @@ import { prettyMapName } from '@/lib/format';
 import { slashDayLabel } from '@/lib/library/day-label';
 import { cn } from '@/lib/utils';
 import { MapThumb } from '@/components/analysis/map-thumb';
+import { TeamLogo } from '@/components/matches/team-logo';
 import { Button } from '@/components/ui/button';
 
 /** The EDGE series block, shared by the library series and the public ones: a header strip, then one row per map. */
@@ -22,7 +23,7 @@ function bansByTeam(bans: readonly StripBan[]): { team: string; maps: string }[]
   return [...groups].map(([team, maps]) => ({ team, maps: maps.join(', ') }));
 }
 
-/** Format, both teams with the series score, the event, and at the right the bans of each team. */
+/** Format, both teams with their logos and the series score, the event, at the right the bans of each team, then `actions`. */
 export function SeriesStrip({
   format,
   title,
@@ -30,6 +31,7 @@ export function SeriesStrip({
   score,
   event,
   bans,
+  actions,
 }: {
   format: string | null;
   title: string;
@@ -38,6 +40,8 @@ export function SeriesStrip({
   score: readonly [number, number] | null;
   event?: string;
   bans: readonly StripBan[];
+  /** Controls at the far right, such as the block's kebab menu. */
+  actions?: ReactNode;
 }): ReactNode {
   const banGroups = bansByTeam(bans);
   return (
@@ -45,6 +49,7 @@ export function SeriesStrip({
       {format ? <span className="font-bold tracking-wider text-fg-1">{format}</span> : null}
       {teams ? (
         <span className="flex min-w-0 items-center gap-2 font-semibold text-fg-1">
+          <TeamLogo name={teams[0]} />
           <span className="truncate">{teams[0]}</span>
           {score ? (
             <span className="font-bold tabular-nums">
@@ -57,6 +62,7 @@ export function SeriesStrip({
             <span aria-hidden className="text-fg-3">vs</span>
           )}
           <span className="truncate">{teams[1]}</span>
+          <TeamLogo name={teams[1]} />
         </span>
       ) : (
         <span className="truncate font-semibold text-fg-1">{title}</span>
@@ -73,6 +79,7 @@ export function SeriesStrip({
           ))}
         </span>
       ) : null}
+      {actions ? <span className={cn('flex shrink-0 items-center gap-1', banGroups.length === 0 && 'ml-auto')}>{actions}</span> : null}
     </div>
   );
 }
@@ -92,12 +99,12 @@ export function mapTag(label: string): MapTag {
   return { text: label.startsWith('DECIDER') ? 'DECIDER' : 'PICK', title: label };
 }
 
-/** The map thumbnail with its day or its PICK tag on top, the bold name below and a coloured left edge. */
+/** The map's picture with its day or its PICK tag on top, the bold name below and a coloured left edge. */
 export function MapCell({ map, day, name, tag, edge = 'none' }: { map: string | null; day: string; name: ReactNode; tag?: MapTag; edge?: MapEdge }): ReactNode {
   return (
-    <div className={cn('relative h-16 w-40 shrink-0 overflow-hidden border-l-[3px] bg-surface-0', EDGE_CLASS[edge])}>
-      {map === null ? null : <MapThumb map={map} className="absolute inset-0 size-full rounded-none" crop={1.5} />}
-      <div className="absolute inset-0 bg-linear-to-r from-black/70 via-black/30 to-transparent" />
+    <div className={cn('relative h-16 w-44 shrink-0 overflow-hidden border-l-[3px] bg-surface-0', EDGE_CLASS[edge])}>
+      {map === null ? null : <MapThumb map={map} photo className="absolute inset-0 size-full rounded-none" crop={1.5} />}
+      <div className="absolute inset-0 bg-linear-to-r from-black/75 via-black/35 to-black/5" />
       <div className="relative flex h-full flex-col justify-between px-2 py-1.5 text-white">
         {tag ? (
           <span title={tag.title} className="text-meta leading-none font-semibold tracking-wider">

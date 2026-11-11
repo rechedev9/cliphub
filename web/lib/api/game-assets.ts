@@ -125,6 +125,19 @@ export function radarImageUrl(map: string, layer: RadarLayer = 'upper'): string 
   return `/api/maps/${encodeURIComponent(map)}/radar?layer=${layer}`;
 }
 
+/** URL of the map's loading-screen picture, served by `GET /api/maps/{map}/shot`. */
+export function mapShotUrl(map: string): string {
+  return `/api/maps/${encodeURIComponent(map)}/shot`;
+}
+
+/** The longest team name the logo route accepts. */
+export const TEAM_LOGO_NAME_MAX = 64;
+
+/** URL of a team's Major sticker logo, served by `GET /api/teams/logo`; teams without one answer 404. */
+export function teamLogoUrl(name: string): string {
+  return `/api/teams/logo?name=${encodeURIComponent(name)}`;
+}
+
 /** URL of an equipment icon, served by `GET /api/equipment/{name}/icon`. */
 export function equipmentIconUrl(name: EquipmentIconName): string {
   return `/api/equipment/${encodeURIComponent(name)}/icon`;

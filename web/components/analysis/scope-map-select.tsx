@@ -25,7 +25,7 @@ export type ScopeMapSelectProps = {
 function MapName({ map }: { map: string }): ReactNode {
   return (
     <span className="flex items-center gap-2">
-      <MapThumb map={map} className="h-4 w-6" crop={1.6} />
+      <MapThumb map={map} photo className="h-5 w-9" crop={1.6} />
       {prettyMapName(map)}
     </span>
   );
