@@ -6,11 +6,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/mediaassets"
+	"github.com/rechedev9/cliphub/internal/reconcile"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/timelineplan"
 )
@@ -199,26 +202,31 @@ func TestDeleteEditorAssetRefusesWhileRenderingProjectUsesIt(t *testing.T) {
 }
 
 func TestDeleteStreamVideo(t *testing.T) {
-	streamRepo := newFakeStreamRepo()
-	store, err := storage.NewLocal(t.TempDir())
+	ctx := context.Background()
+	streamRepo := store.NewMemoryStreamJobRepository()
+	files, err := storage.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	j := streamclips.Job{ID: uuid.New(), Status: streamclips.StatusRendered}
-	streamRepo.jobs[j.ID] = j
-	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithStreamRepository(streamRepo), WithStreamJobLocks(streamclips.NewJobLocks()))
+	j := &streamclips.Job{Status: streamclips.StatusRendered, SourcePath: "stream-jobs/x/source.mp4", SourceSHA256: "sha"}
+	if err := streamRepo.Create(ctx, j); err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(newFakeRepo(), files, &fakeQueue{}, WithStreamRepository(streamRepo), WithStreamJobLocks(streamclips.NewJobLocks()))
 	variant := streamclips.DefaultVariant().Name
 	revision := uuid.New()
+	put := func(key string) {
+		if err := files.Put(key, bytes.NewReader([]byte("x"))); err != nil {
+			t.Fatal(err)
+		}
+	}
 	var videos []streamclips.VideoEntry
 	var delivery []streamclips.DeliveryEntry
 	for _, clip := range []string{"keep", "drop"} {
 		videoKey, _ := streamclips.RenderRevisionVideoKey(j.ID, variant, revision, clip)
 		copyKey, _ := streamclips.RenderRevisionDeliveryKey(j.ID, variant, revision, clip+".mp4")
-		for _, key := range []string{videoKey, copyKey} {
-			if err := store.Put(key, bytes.NewReader([]byte("mp4"))); err != nil {
-				t.Fatal(err)
-			}
-		}
+		put(videoKey)
+		put(copyKey)
 		videos = append(videos, streamclips.VideoEntry{ClipID: clip, Key: videoKey})
 		delivery = append(delivery, streamclips.DeliveryEntry{Name: clip + ".mp4", Kind: "video", Key: copyKey})
 	}
@@ -230,46 +238,71 @@ func TestDeleteStreamVideo(t *testing.T) {
 	state.ResultKey, _ = streamclips.RenderRevisionResultKey(j.ID, variant, revision)
 	state.GalleryKey, _ = streamclips.RenderRevisionGalleryKey(j.ID, variant, revision)
 	state.Delivery = delivery
-	if err := h.writeStreamRenderState(state); err != nil {
-		t.Fatal(err)
-	}
-	url := "/api/stream-jobs/" + j.ID.String() + "/renders/" + variant + "/videos/drop"
-
-	// Twice: the second delete finds nothing left and still succeeds.
-	for range 2 {
-		rw := httptest.NewRecorder()
-		Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodDelete, url, nil))
-		if rw.Code != http.StatusNoContent {
-			t.Fatalf("status = %d; body=%s", rw.Code, rw.Body.String())
-		}
-	}
-	for i, want := range []bool{true, false} {
-		for _, key := range []string{videos[i].Key, delivery[i].Key} {
-			present, err := store.Exists(key)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if present != want {
-				t.Fatalf("%s present = %v, want %v", key, present, want)
-			}
-		}
-	}
-	after, _, err := h.readStreamRenderState(j.ID, variant)
+	put(state.GalleryKey)
+	result, err := streamclips.NewRenderResult(j.ID, variant, videos, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(after.Videos) != 1 || after.Videos[0].ClipID != "keep" || len(after.Delivery) != 1 || after.Delivery[0].Name != "keep.mp4" {
-		t.Fatalf("state after delete: videos=%+v delivery=%+v", after.Videos, after.Delivery)
-	}
-
-	after.Status = streamclips.StatusRendering
-	after.Published = true
-	if err := h.writeStreamRenderState(after); err != nil {
+	if err := h.putStreamJSON(state.ResultKey, result); err != nil {
 		t.Fatal(err)
 	}
-	rw := httptest.NewRecorder()
-	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodDelete, "/api/stream-jobs/"+j.ID.String()+"/renders/"+variant+"/videos/keep", nil))
-	if rw.Code != http.StatusConflict {
-		t.Fatalf("delete while rendering = %d, want 409", rw.Code)
+	if err := h.writeStreamRenderState(state); err != nil {
+		t.Fatal(err)
+	}
+	deleteClip := func(clip string) int {
+		rw := httptest.NewRecorder()
+		Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodDelete, "/api/stream-jobs/"+j.ID.String()+"/renders/"+variant+"/videos/"+clip, nil))
+		return rw.Code
+	}
+	exists := func(key string) bool {
+		ok, err := files.Exists(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+
+	// Twice: the second delete finds nothing left and still succeeds.
+	for range 2 {
+		if code := deleteClip("drop"); code != http.StatusNoContent {
+			t.Fatalf("delete drop = %d", code)
+		}
+	}
+	if exists(videos[1].Key) || exists(delivery[1].Key) || !exists(videos[0].Key) || !exists(delivery[0].Key) {
+		t.Fatal("delete removed the wrong files")
+	}
+	// A restart must still find the remaining clip's render whole.
+	swept, err := reconcile.InterruptedWork(ctx, store.NewMemoryJobRepository(), streamRepo, store.NewMemoryEditorProjectRepository(), files, nil)
+	if err != nil || swept.StreamRenderStates != 0 {
+		t.Fatalf("restart reconciliation = %+v, %v", swept, err)
+	}
+	if got := getStreamListOutput(t, h, j.ID); got.ClipID != "keep" {
+		t.Fatalf("listed after delete = %+v", got)
+	}
+
+	rendering := state
+	rendering.Status = streamclips.StatusRendering
+	rendering.Published = true
+	rendering.Videos, rendering.Delivery = videos[:1], delivery[:1]
+	if err := h.writeStreamRenderState(rendering); err != nil {
+		t.Fatal(err)
+	}
+	if code := deleteClip("keep"); code != http.StatusConflict {
+		t.Fatalf("delete while rendering = %d, want 409", code)
+	}
+	rendering.Status = streamclips.StatusRendered
+	if err := h.writeStreamRenderState(rendering); err != nil {
+		t.Fatal(err)
+	}
+
+	// The last clip takes the whole render, and the stream is ready to export again.
+	if code := deleteClip("keep"); code != http.StatusNoContent {
+		t.Fatalf("delete last clip = %d", code)
+	}
+	if _, found, err := h.readStreamRenderState(j.ID, variant); err != nil || found || exists(videos[0].Key) {
+		t.Fatalf("render left after last delete: found=%v err=%v", found, err)
+	}
+	if after, _ := streamRepo.Get(ctx, j.ID); after.Status != streamclips.StatusReady {
+		t.Fatalf("stream status after last delete = %s, want ready", after.Status)
 	}
 }
