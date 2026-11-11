@@ -26,6 +26,14 @@ change for the installed Windows app. The UI is in Spanish.
   instructions (`serverInstructions` in `cmd/zv-mcp/main.go`) in the same change, and the tool
   table in `docs/studio-mcp.md`.
 
+## Browser support
+- `web/` runs only in the Chromium that Electron bundles (`electron` in `desktop/package.json`). Use any
+  web platform feature that Chromium ships, with no fallback and no polyfill.
+- `landing/` is a public site. Baseline Widely available features need no fallback; a newer feature
+  needs feature detection and a fallback of at most 20 lines with no new dependency.
+- Type a newly shipped HTML attribute by augmenting React's attribute types in a `.d.ts`. This
+  replaces the `as any` spread that the `modern-web-guidance` skill suggests.
+
 ## Build and check
 - Go: `go vet ./...`, `go test ./...`, and `go run ./cmd/zv check`. One test:
   `go test ./internal/<pkg> -run TestName -count=1`. A few Full Demo editor tests depend on the

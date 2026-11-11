@@ -51,7 +51,7 @@
     "typeAware": true
   },
   "overrides": [
-    { "files": ["src/main.ts"], "rules": { "max-lines": ["error", { "max": 1049 }] } },
+    { "files": ["src/main.ts"], "rules": { "max-lines": ["error", { "max": 1047 }] } },
     { "files": ["scripts/build-publication.test.mjs"], "rules": { "max-lines": ["error", { "max": 1348 }] } }
   ]
 }

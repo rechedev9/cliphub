@@ -86,6 +86,10 @@ import { isAllowedStudioPermission } from './studio-permission-policy';
 // ClipHub never reads this; drop an inherited operator key before spawning children.
 delete process.env.XAI_API_KEY;
 
+// Probing hardware encoders loads AMD's amdihk64.dll, which kills the sandboxed GPU process
+// when the exe path passes 186 chars. Studio never encodes video in Chromium.
+app.commandLine.appendSwitch('disable-accelerated-video-encode');
+
 // Electron documents GPU feature status as usable only after this event.
 let gpuInformationReady = false;
 let playbackInfoCache: PlaybackInfoCache | null = null;
@@ -114,14 +118,8 @@ function resourcePath(...parts: string[]): string {
 }
 
 // Spawn the orchestrator directly: killing `zv serve` would orphan the real server.
-const orchestratorExe = resourcePath(
-  'bin',
-  process.platform === 'win32' ? 'zv-orchestrator.exe' : 'zv-orchestrator',
-);
-const recorderExe = resourcePath(
-  'bin',
-  process.platform === 'win32' ? 'zv-recorder.exe' : 'zv-recorder',
-);
+const orchestratorExe = resourcePath('bin', process.platform === 'win32' ? 'zv-orchestrator.exe' : 'zv-orchestrator');
+const recorderExe = resourcePath('bin', process.platform === 'win32' ? 'zv-recorder.exe' : 'zv-recorder');
 // Packaged builds bundle zv-mcp next to the other binaries; from source it is the repo's bin/.
 const mcpExe = app.isPackaged
   ? resourcePath('bin', process.platform === 'win32' ? 'zv-mcp.exe' : 'zv-mcp')
