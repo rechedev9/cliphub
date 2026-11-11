@@ -188,7 +188,6 @@ func run() error {
 	parserWorker := workers.NewParserWorker(repo, files)
 	taskHandlers[tasks.TypeParseDemo] = parserWorker.HandleParseDemo
 	taskHandlers[tasks.TypeScanRoster] = parserWorker.HandleScanRoster
-	taskHandlers[tasks.TypeAnalyzeAnticheat] = parserWorker.HandleAnalyzeAnticheat
 	tacticalWorker := workers.NewTacticalWorker(repo, files)
 	taskHandlers[tasks.TypeAnalyzeTactical] = tacticalWorker.HandleAnalyzeTactical
 	libraryWorker := workers.NewLibraryWorker(repos.Library, files)

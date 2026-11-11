@@ -217,7 +217,6 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerFirstMovementTool(server, s)
 	registerPlayerReportTools(server, s)
 	registerStreamTools(server, s)
-	registerIntegrityTools(server, s)
 	registerRealMapTools(server, s)
 	registerDeleteTools(server, s)
 	registerLibraryDemoTools(server, s)

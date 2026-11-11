@@ -17,7 +17,6 @@ const RAIL = [
   ['analyze', 'Libreta', '/libreta'],
   ['analyze', 'Lineups pro', '/lineups'],
   ['analyze', 'Informes', '/informes'],
-  ['analyze', 'Integridad', '/integridad'],
   ['chrome', 'Almacenamiento', '/almacenamiento'],
   ['chrome', 'Ajustes', '/settings'],
 ] as const;

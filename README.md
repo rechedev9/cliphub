@@ -43,7 +43,6 @@ The app updates itself from the latest GitHub Release.
 | Clips de stream | Cut moments from a Twitch, YouTube or Kick link or an MP4 into vertical Shorts, with facecam framing. |
 | Jugadores | Follow FACEIT players and turn their matches into clips. |
 | Replay | Round classification, the replay of every round on the map and tendencies, all derived from the demo. |
-| Anti-cheat | CheaterDetect compares each player's aim, information and reaction times with a measured baseline. It flags what to review by hand and gives no verdict. |
 | Ajustes | Get this PC ready to record and manage optional connections such as Steam and diagnostics. |
 
 Long videos cover every round from one player's view, with a HUD, team voices, round transitions and optional intro, sponsor and outro clips. Shorts add beat-synced cuts, kill effects and transitions.

@@ -22,7 +22,6 @@ export const NAV_SECTIONS = [
   { label: 'Libreta', href: '/libreta', area: 'analyze' },
   { label: 'Lineups pro', href: '/lineups', area: 'analyze' },
   { label: 'Informes', href: '/informes', area: 'analyze' },
-  { label: 'Integridad', href: '/integridad', area: 'analyze' },
   { label: 'Almacenamiento', href: '/almacenamiento', area: 'chrome' },
   { label: 'Ajustes', href: '/settings', area: 'chrome' },
 ] as const satisfies readonly { label: string; href: `/${string}`; area: NavArea }[];
@@ -65,7 +64,6 @@ export const RETIRED_ROUTES = {
   '/feed': '/mis-videos',
   '/nube': '/mis-videos',
   '/resultados': '/mis-videos',
-  '/cheaters': '/integridad',
   '/algoritmos': '/ideas',
   '/players': '/jugadores/faceit',
   '/tactical': '/partidas',

@@ -26,7 +26,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/cliphub/internal/anticheat"
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/composition"
 	"github.com/rechedev9/cliphub/internal/deathplan"
@@ -129,7 +128,6 @@ type Handlers struct {
 	rosterCache         rosterSummaryCache
 	jobsListJSON        cachedJSON
 	streamListJSON      cachedJSON
-	anticheatJobLocks   *anticheat.JobLocks
 	streamJobLocks      *streamclips.JobLocks
 	streamRenderBoard   *streamclips.RenderProgressBoard
 	acquireProgress     *streamclips.AcquireProgress
@@ -273,8 +271,7 @@ func NewHandlers(repo JobRepository, store storage.Storage, queue Enqueuer, opts
 		queue:             queue,
 		publishAssistant:  newPublishAssistantCache(),
 		streamJobLocks:    streamclips.NewJobLocks(),
-		anticheatJobLocks: anticheat.NewJobLocks(),
-	}
+		}
 	for _, opt := range opts {
 		opt(h)
 	}

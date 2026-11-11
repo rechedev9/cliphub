@@ -5846,30 +5846,6 @@ func TestJobReadsThatIgnoreTheKillPlanUseGetMeta(t *testing.T) {
 			},
 			wantStatus: http.StatusConflict,
 		},
-		{
-			name:   "anticheat start",
-			method: http.MethodPost,
-			path: func(j job.Job) string {
-				return fmt.Sprintf("/api/jobs/%s/anticheat", j.ID)
-			},
-			wantStatus: http.StatusAccepted,
-		},
-		{
-			name:   "anticheat document",
-			method: http.MethodGet,
-			path: func(j job.Job) string {
-				return fmt.Sprintf("/api/jobs/%s/anticheat", j.ID)
-			},
-			wantStatus: http.StatusConflict,
-		},
-		{
-			name:   "anticheat dossier",
-			method: http.MethodGet,
-			path: func(j job.Job) string {
-				return fmt.Sprintf("/api/jobs/%s/anticheat/dossier/76561198000000000", j.ID)
-			},
-			wantStatus: http.StatusConflict,
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

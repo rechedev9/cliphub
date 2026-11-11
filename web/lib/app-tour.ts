@@ -405,29 +405,6 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/informes', label: 'Ir a Informes' },
   },
   {
-    id: 'integrity',
-    kicker: 'Integridad',
-    label: 'Integridad',
-    title: 'Detecta comportamientos anómalos',
-    lead:
-      'Suelta una demo y ClipHub puntúa a los diez jugadores. Es un detector de anomalías para decidir qué revisar a mano, no un veredicto.',
-    points: [
-      {
-        term: 'Niveles',
-        text: 'Muy anómalo, anómalo, no concluyente, sin anomalías o datos insuficientes, con los momentos que merece la pena revisar.',
-      },
-      {
-        term: 'Expediente',
-        text: 'En los casos anómalos puedes preparar un expediente con la evidencia para denunciarlo tú. ClipHub no envía nada.',
-      },
-      {
-        term: 'Sin tocar tus partidas',
-        text: 'El análisis no abre CS2 ni modifica la partida que tengas cargada.',
-      },
-    ],
-    link: { href: '/integridad', label: 'Ir a Integridad' },
-  },
-  {
     id: 'storage',
     kicker: 'Almacenamiento',
     label: 'Almacenamiento',

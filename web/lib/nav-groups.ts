@@ -127,7 +127,6 @@ export function activeEntryId(where: { pathname: string; tab: string | null }): 
   // Tools reached from inside another screen light that screen's row.
   if (under(pathname, '/libreta')) return 'playbook';
   if (under(pathname, '/informes')) return 'preparar-rival';
-  if (under(pathname, '/integridad')) return 'partidas';
   const section = sectionForPath(pathname);
   if (section === null) return null;
   const all = [...SIDEBAR_GROUPS.flatMap((group) => group.entries), ...SIDEBAR_FOOTER_ENTRIES];

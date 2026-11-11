@@ -40,7 +40,6 @@ test('rail: each page lights exactly one entry, the tools inside a section light
   assert.equal(at('/partidas/series'), 'partidas');
   assert.equal(at('/libreta'), 'playbook');
   assert.equal(at('/informes/prep'), 'preparar-rival');
-  assert.equal(at('/integridad'), 'partidas');
   assert.equal(at('/lineups/de_nuke'), 'lineups-pro');
   assert.equal(at('/settings'), 'ajustes');
   assert.equal(at('/nope'), null);

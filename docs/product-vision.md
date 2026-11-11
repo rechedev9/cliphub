@@ -47,7 +47,6 @@ el lenguaje visual.
 - `internal/radarmap`: calibración de radares. `internal/lineups`: catálogo de lineups.
   `internal/utilityaudit`: auditoría de cada granada (tick de lanzamiento, postura, movimiento).
 - `internal/voicecomms`: voz de los jugadores extraída de la demo.
-- `internal/anticheat`: señales estadísticas de sospecha contra una distribución de referencia.
 - `internal/faceit`: API de FACEIT (la clave ya va embebida en `zv-orchestrator.exe`).
 - Parser: `github.com/markus-wa/demoinfocs-golang/v5` (Go). Base de datos local: SQLite
   (`modernc.org/sqlite`, `internal/store`).
@@ -120,7 +119,6 @@ ANALIZAR
   Jugadores            (fichas de jugador, FACEIT, roles)
   Stratbook            (jugadas guardadas, propias y del rival)
   Informes             (informes de scouting exportables)
-  Integridad           (antes "Anti-cheat")
 
 Ajustes
 ```
@@ -331,8 +329,8 @@ cuentas; se puede cubrir exportando informes y stratbooks como fichero).
    FACEIT que quiere mejorar. Cambia la densidad, el precio y la prioridad de F1 frente a métricas
    individuales tipo Leetify.
 2. **Modelo de negocio**: si el análisis es de pago, cómo se cobra en una app local.
-3. **Qué hacer con Integridad (anti-cheat) e Ideas (algoritmos)**: mantenerlas, moverlas o
-   retirarlas.
+3. **Qué hacer con Ideas (algoritmos)**: mantenerla, moverla o retirarla. Integridad (anti-cheat)
+   se retiró el 2026-11-11.
 4. **Tipografía y acento** del nuevo lenguaje visual.
 5. **Fuentes de demos**: solo importación manual y FACEIT, o también ayuda para descargar demos
    de torneo.

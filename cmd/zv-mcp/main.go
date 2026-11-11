@@ -173,8 +173,6 @@ pass its keys and limits on to the user.
 One match: get_round (a round ref's buys, patterns, kills and win probability), match_metrics (every
 player and each round's biggest swing) and match_tendencies (one side key's rounds, filtered: the tables of the match's Métricas tab;
 replay_rounds with the same buy, site or shape gives the rounds behind one of its figures).
-check_integrity screens a match's players for unusual aim: a statistical signal, never proof;
-integrity_dossier is one screened player's evidence pack and the official ways to report them.
 replay_rounds reads the rounds of one match that a Replay scope keeps (team, side, result, buys, site, round shapes, tags, players,
 round range, phase, AWP of each side, numeric advantage); its studio_path opens the Replay on that scope in one of its four forms: repeticion, calor, recorridos or granadas.
 Its focus (SteamID64s) puts players in the foreground of every form without dropping rounds, as a click on a player does.

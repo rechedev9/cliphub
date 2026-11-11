@@ -28,14 +28,6 @@ func matchTacticalStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 		{"seconds":10,"kind":"kill","actor_slot":0,"target_slot":5,"probability_ct":0.35},
 		{"seconds":20,"kind":"kill","actor_slot":5,"target_slot":0,"probability_ct":0.05},{"seconds":60,"kind":"end","probability_ct":1}]}]}`)
 	rec.handle(mux, "GET /api/library/matches/{id}/tactical/aggregate", `{"round_count":12,"wins":9,"buys":[{"buy":"full","rounds":10,"share":{"pct":83.3},"win_rate":{"pct":80,"reliable":true}}]}`)
-	mux.HandleFunc("GET /api/jobs/{id}/anticheat/dossier/{steamid}", func(w http.ResponseWriter, r *http.Request) {
-		if r.PathValue("id") != testJobID {
-			http.Error(w, `{"error":"anticheat analysis is not ready"}`, http.StatusConflict)
-			return
-		}
-		_, _ = w.Write([]byte(`{"steamid64":"` + testSteamID + `","name":"ZywOo","verdict":"clean","score":12,"confidence":0.8,"markdown":"# Dossier\n\nline",
-			"channels":[{"label":"Overwatch","instructions":"in game","effective":true}],"policy":{"summary":"no mass reports","rules":["one at a time"],"rejected":"never sends reports"}}`))
-	})
 	cs := serveTools(t, mux, func(server *mcp.Server, s *studio) { registerMatchTacticalTools(server, s) })
 	return cs, rec
 }
@@ -78,7 +70,7 @@ func TestMatchMetricsFindsTheBiggestSwing(t *testing.T) {
 	}
 }
 
-func TestMatchTendenciesAndDossier(t *testing.T) {
+func TestMatchTendencies(t *testing.T) {
 	cs, rec := matchTacticalStudio(t)
 	var tend tendenciesOut
 	callTool(t, cs, "match_tendencies", map[string]any{"match_id": testMatchID, "team_key": "t-start", "buy": []string{"full", "force"}, "result": "lost", "round_from": 13}, &tend)
@@ -94,10 +86,4 @@ func TestMatchTendenciesAndDossier(t *testing.T) {
 	toolFails(t, cs, "match_tendencies", map[string]any{"match_id": testMatchID, "team_key": "t-start", "round_from": 10, "round_to": 5}, "in order")
 	toolFails(t, cs, "match_tendencies", map[string]any{"match_id": testMatchID, "team_key": "T"}, "team_key")
 
-	var d dossierOut
-	callTool(t, cs, "integrity_dossier", map[string]any{"job_id": testJobID, "steamid": testSteamID}, &d)
-	if d.Markdown != "# Dossier\n\nline" || len(d.Channels) != 1 || d.Policy != "no mass reports" || d.PolicyRejected != "never sends reports" {
-		t.Errorf("dossier = %+v", d)
-	}
-	toolFails(t, cs, "integrity_dossier", map[string]any{"job_id": testMatchID, "steamid": testSteamID}, "call check_integrity until status is ready")
 }

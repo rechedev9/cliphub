@@ -335,20 +335,3 @@ func TestClockSpellsHours(t *testing.T) {
 		}
 	}
 }
-
-func TestDescribeIntegrityRanksPlayersAndMetrics(t *testing.T) {
-	doc := tuiclient.AnticheatDocument{Status: "ready", Report: &tuiclient.AnticheatReport{
-		Limitations: []string{"No es una prueba."},
-		Players: []tuiclient.AnticheatPlayer{
-			{SteamID64: "1", Name: "calm", Score: 10, Verdict: "clean"},
-			{SteamID64: "2", Name: "sus\u0000", Score: 80, Verdict: "anomalous", Metrics: []tuiclient.AnticheatMetric{
-				{Label: "a", Suspicion: 10}, {Label: "b", Suspicion: 90}, {Label: "c", Suspicion: 50}, {Label: "d", Suspicion: 70}}},
-		}}}
-	out := describeIntegrity(doc)
-	if out.Players[0].Name != "sus" || len(out.Players[0].TopMetrics) != maxIntegrityMetrics || out.Players[0].TopMetrics[0].Label != "b" || out.Players[0].TopMetrics[2].Label != "c" {
-		t.Errorf("got %+v", out.Players)
-	}
-	if len(out.Limitations) != 1 {
-		t.Errorf("limitations %v", out.Limitations)
-	}
-}

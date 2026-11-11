@@ -29,11 +29,6 @@ func runDemo(args []string, stdout, stderr io.Writer, stdin io.Reader, runner co
 			return writeCanonicalValidationError(args[1:], issue, stdout, stderr)
 		}
 		return runDemoSelect(args[1:], stdout, stderr)
-	case "anticheat":
-		if issue := validateSkillCommand(append([]string{"demo"}, args...)); issue != "" {
-			return writeCanonicalValidationError(args[1:], issue, stdout, stderr)
-		}
-		return runDemoAnticheat(args[1:], stdout, stderr)
 	case "probe":
 		if issue := validateSkillCommand(append([]string{"demo"}, args...)); issue != "" {
 			return writeCanonicalValidationError(args[1:], issue, stdout, stderr)

@@ -53,8 +53,8 @@ func validateSkillCommand(command []string) string {
 			return issue
 		}
 	case "demo":
-		if len(command) < 2 || (command[1] != "parse" && command[1] != "players" && command[1] != "moments" && command[1] != "select" && command[1] != "anticheat" && command[1] != "probe" && command[1] != "voice") {
-			return `uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", "demo anticheat", "demo probe", or "demo voice"`
+		if len(command) < 2 || (command[1] != "parse" && command[1] != "players" && command[1] != "moments" && command[1] != "select" && command[1] != "probe" && command[1] != "voice") {
+			return `uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", "demo probe", or "demo voice"`
 		}
 		switch command[1] {
 		case "parse":
@@ -69,15 +69,6 @@ func validateSkillCommand(command []string) string {
 			return validateRequiredFlags(`"demo probe"`, command[2:], requiredFlagsForRunArgs("demo", "probe")...)
 		case "voice":
 			return validateRequiredFlags(`"demo voice"`, command[2:], requiredFlagsForRunArgs("demo", "voice")...)
-		case "anticheat":
-			// The screening pass has no workflow entry, so its required flags
-			// are stated here rather than derived from the catalog. Without
-			// this a documented line missing --demo passed the canonical check
-			// and only failed once someone ran it.
-			if len(command) > 2 && command[2] == "calibrate" {
-				return validateRequiredFlags(`"demo anticheat calibrate"`, command[3:], "--demos", "--id")
-			}
-			return validateRequiredFlags(`"demo anticheat"`, command[2:], "--demo")
 		}
 	case "utility":
 		if len(command) < 2 || command[1] != "audit" {
@@ -585,10 +576,6 @@ func commandValueFlags(commandName string, required []string) []string {
 		flags = append(flags, "--format")
 	case `"demo voice"`:
 		flags = append(flags, "--format", "--extract")
-	case `"demo anticheat"`:
-		flags = append(flags, "--baseline", "--out", "--dossier", "--format")
-	case `"demo anticheat calibrate"`:
-		flags = append(flags, "--out", "--format")
 	case `"utility audit"`:
 		flags = append(flags, "--format")
 	case `"short"`:
@@ -702,7 +689,7 @@ func commandBoolFlags(commandName string) []string {
 		return []string{"--dry-run"}
 	case `"demo voice"`:
 		return []string{"--dry-run"}
-	case `"demo select"`, `"demo anticheat"`, `"demo anticheat calibrate"`:
+	case `"demo select"`:
 		return []string{"--dry-run"}
 	case `"short"`:
 		return []string{"--dry-run", "--intro", "--outro", "--hook", "--kill-counter", "--covers", "--cover-sheets", "--cover-first-frame"}
