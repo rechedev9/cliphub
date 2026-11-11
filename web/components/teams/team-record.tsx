@@ -43,7 +43,7 @@ import { DOCUMENT_COLUMN } from '@/components/records/document-page';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { SlashTitle } from '@/components/records/document-page';
-import { RecordTabs } from '@/components/records/record-tabs';
+import { RecordTabs, type RecordTab } from '@/components/records/record-tabs';
 import { useTableView } from '@/components/records/use-table-view';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
@@ -68,6 +68,7 @@ import { TeamSeries } from './team-series';
 import { TeamVeto } from './team-veto';
 import { TeamTrend } from './team-trend';
 import { TeamSideStats } from './team-side-stats';
+import { TeamPlayerPerformance } from './team-player-performance';
 
 /** `lineups` and `profile` are null when they could not be read; the views then count every round. */
 type Loaded = { team: LibraryTeam; matches: LibraryMatch[]; lineups: TeamLineups | null; profile: TeamProfile | null };
@@ -142,12 +143,14 @@ export function TeamRecord({ teamId }: { teamId: string }): ReactNode {
   return <TeamRecordView data={state.data} onChanged={reload} />;
 }
 
+const SIDE_STATS_FIELDS: readonly ScopeField[] = ['lineup', 'map', 'side', 'period', 'buy', 'opponentBuy', 'opponent', 'excludeTactics', 'matchTags', 'excludeMatchTags', 'events'];
 /** The scope controls each tab reads, in the order the bar shows them. */
 const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   plantilla: ['map', 'reference'],
   partidas: ['map', 'period', 'opponent'],
   mapas: ['map', 'period'],
-  estadisticas: ['lineup', 'map', 'side', 'period', 'buy', 'opponentBuy', 'opponent', 'excludeTactics', 'matchTags', 'excludeMatchTags', 'events'],
+  estadisticas: SIDE_STATS_FIELDS,
+  rendimiento: SIDE_STATS_FIELDS,
   posiciones: ['lineup', 'map', 'side', 'period', 'opponent'],
   veto: ['opponent'],
   sitios: ['lineup', 'map', 'period', 'opponent'],
@@ -159,14 +162,19 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   'replay-patrones': ['lineup', 'map', ...TEAM_REPLAY_FIELDS.filter((field) => field !== 'lineup' && field !== 'side')],
 };
 /** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
-const REPORTING_TABS = new Set(['mapas', 'estadisticas', 'sitios', 'preparar', 'playbook', 'replay']);
+const REPORTING_TABS = new Set(['mapas', 'estadisticas', 'rendimiento', 'sitios', 'preparar', 'playbook', 'replay']);
 /** Tabs whose view reads the matches through the server scope pipeline, the one the map counts follow. */
-const COUNTED_TABS = new Set(['estadisticas', 'posiciones', 'sitios', 'preparar', 'playbook', 'replay']);
-const TEAM_TABS = ['estadisticas', 'plantilla', 'posiciones', 'sitios', 'veto', 'partidas', 'mapas', 'preparar', 'playbook', 'replay'];
+const COUNTED_TABS = new Set(['estadisticas', 'rendimiento', 'posiciones', 'sitios', 'preparar', 'playbook', 'replay']);
+/**
+ * EDGE's Team Stats tabs in its order, shown under the scope bar without the record header. Mapas holds
+ * the vetoes EDGE's Vetos tab lists; the Veto tab is the simulator, a page of its own in EDGE.
+ */
+const STATS_TABS = ['estadisticas', 'rendimiento', 'posiciones', 'sitios', 'mapas'];
+const TEAM_TABS = [...STATS_TABS, 'plantilla', 'partidas', 'veto', 'preparar', 'playbook', 'replay'];
 /** The tab a team opens on, the EDGE Overview; a link without `?tab=` lands here. */
 const DEFAULT_TAB = 'estadisticas';
 /** Tabs of the statistics pages: their content sits in the centred document column under the full-width header. */
-const COLUMN_TABS = new Set(['estadisticas', 'plantilla', 'posiciones', 'sitios', 'veto', 'partidas', 'mapas']);
+const COLUMN_TABS = new Set(['estadisticas', 'rendimiento', 'plantilla', 'posiciones', 'sitios', 'veto', 'partidas', 'mapas']);
 /** Tabs of older links: Scouting is in Preparar, the series are under Partidas, and the radar and the grenades are forms of the Replay. */
 const LEGACY_TABS: Readonly<Record<string, string>> = { scouting: 'preparar', series: 'partidas', radar: 'replay', granadas: 'replay' };
 const QUERY_TABS = [...TEAM_TABS, ...Object.keys(LEGACY_TABS)];
@@ -310,14 +318,14 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
     recents: true,
     hrefFor: teamHref,
   };
+  const statsView = STATS_TABS.includes(tab);
   const activeScopeId = tab === 'replay' && (replayForm === 'granadas' || replayForm === 'patrones') ? `replay-${replayForm}` : tab;
   const mapCounts = useTeamMapCounts({ teamId: team.id, scope, fields: TAB_FIELDS[activeScopeId] ?? [], lineup, enabled: COUNTED_TABS.has(tab) });
 
-  function withScope(id: string, content: ReactNode): ReactNode {
+  function scopeBar(id: string): ReactNode {
     const fields = TAB_FIELDS[id] ?? [];
     return (
-      <div className="flex flex-col gap-4">
-        <ScopeBar
+      <ScopeBar
           scope={scope}
           onChange={changeScope}
           onReset={resetScope}
@@ -336,14 +344,182 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           results={id === 'veto' || id === 'series' ? undefined : results}
           matches={id === 'veto' || id === 'series' ? undefined : scopeMatches}
           comparison={
-            id === 'estadisticas' ? (
+            id === 'estadisticas' || id === 'rendimiento' ? (
               <CompareGroupPicker value={compare} teams={(teams ?? []).map((entry) => ({ value: entry.id, label: entry.name }))} onChange={setCompare} />
             ) : undefined
           }
         />
-        <SampleLineupProvider showEveryone={fields.includes('lineup') && lineup.length > 0 ? showEveryone : null}>
-          {COLUMN_TABS.has(id) ? <div className={DOCUMENT_COLUMN}>{content}</div> : content}
-        </SampleLineupProvider>
+    );
+  }
+
+  function scopeBody(id: string, content: ReactNode): ReactNode {
+    const fields = TAB_FIELDS[id] ?? [];
+    return (
+      <SampleLineupProvider showEveryone={fields.includes('lineup') && lineup.length > 0 ? showEveryone : null}>
+        {COLUMN_TABS.has(id) && !statsView ? <div className={DOCUMENT_COLUMN}>{content}</div> : content}
+      </SampleLineupProvider>
+    );
+  }
+
+  // The stats view draws one bar above the tabs; the record view keeps a bar inside each tab.
+  function withScope(id: string, content: ReactNode): ReactNode {
+    if (statsView) return scopeBody(id, content);
+    return (
+      <div className="flex flex-col gap-4">
+        {scopeBar(id)}
+        {scopeBody(id, content)}
+      </div>
+    );
+  }
+
+  const unordered: RecordTab[] = [
+      {
+        id: 'estadisticas',
+        label: 'Resumen',
+        content: withScope(
+          'estadisticas',
+          <TeamSideStats teamId={team.id} scope={scope} lineup={lineup} compare={compare} onCounts={onCounts} />,
+        ),
+      },
+      {
+        id: 'rendimiento',
+        label: 'Rendimiento de jugadores',
+        content: withScope(
+          'rendimiento',
+          <TeamPlayerPerformance teamId={team.id} scope={scope} lineup={lineup} compare={compare} onCounts={onCounts} />,
+        ),
+      },
+      {
+        id: 'plantilla',
+        label: 'Plantilla',
+        count: team.roster?.length ?? 0,
+        content: withScope(
+          'plantilla',
+          <div className="flex flex-col gap-3">
+            <TeamRoster roster={team.roster ?? []} map={scope.map} reference={scope.reference} />
+            <TeamTrend teamId={team.id} matches={matches.filter((match) => scope.map === '' || match.map === scope.map)} map={scope.map} />
+          </div>,
+        ),
+      },
+      {
+        id: 'posiciones',
+        label: 'Posiciones',
+        content: withScope('posiciones', <TeamPositions teamId={team.id} scope={scope} lineup={lineup} />),
+      },
+      {
+        id: 'sitios',
+        label: 'Bombsites',
+        content: withScope('sitios', <TeamBombsites teamId={team.id} scope={scope} lineup={lineup} onCounts={onCounts} />),
+      },
+      {
+        id: 'veto',
+        label: 'Veto',
+        content: withScope('veto', <TeamVeto teamId={team.id} opponent={scope.opponent} teams={teams} />),
+      },
+      {
+        id: 'partidas',
+        label: 'Partidas',
+        count: matches.length,
+        content: withScope(
+          'partidas',
+          <div className="flex flex-col gap-6">
+            <TeamMatches team={team} matches={scoped} />
+            <section className="flex flex-col gap-2">
+              <SlashTitle>Series</SlashTitle>
+              <TeamSeries team={team} />
+            </section>
+          </div>,
+        ),
+      },
+      {
+        id: 'mapas',
+        label: 'Mapas',
+        count: maps.length,
+        content: withScope('mapas', <TeamMapHistory teamId={team.id} matches={matches} scope={scope} onCounts={onCounts} />),
+      },
+      {
+        id: 'preparar',
+        label: 'Preparar',
+        content: withScope(
+          'preparar',
+          <TeamPrepare
+            team={team}
+            maps={teamMaps}
+            mapCounts={mapCounts}
+            scope={scope}
+            lineup={lineup}
+            onMapChange={onMapChange}
+            onOpenReplay={openReplay}
+            onCounts={onCounts}
+          />,
+        ),
+      },
+      {
+        id: 'playbook',
+        label: 'Playbook',
+        content: withScope(
+          'playbook',
+          <div className="flex flex-col gap-2">
+            <Button asChild variant="ghost" size="xs" className="self-end">
+              <Link href={teamLibretaHref(team.id, false)}>
+                <BookMarked aria-hidden />
+                Libreta del equipo
+              </Link>
+            </Button>
+            <TeamPlaybook teamId={team.id} scope={scope} lineup={lineup} maps={teamMaps} onScopeChange={setScope} onCounts={onCounts} />
+          </div>,
+        ),
+      },
+      {
+        id: 'replay',
+        label: 'Replay',
+        content: withScope(
+          replayForm === 'granadas' || replayForm === 'patrones' ? `replay-${replayForm}` : 'replay',
+          <TeamReplay
+            teamId={team.id}
+            scope={scope}
+            lineup={lineup}
+            matches={matches}
+            mapCounts={mapCounts}
+            roster={team.roster ?? []}
+            form={replayForm}
+            onFormChange={(form) => {
+              setReported(null);
+              openReplay(form);
+            }}
+            onMapChange={onMapChange}
+            onScopeChange={setScope}
+            onCounts={onCounts}
+          />,
+        ),
+      },
+  ];
+  const tabList = TEAM_TABS.flatMap((id) => unordered.filter((entry) => entry.id === id));
+  const changeTab = (next: string): void => {
+    setReported(null);
+    setTab(next);
+  };
+
+  if (statsView) {
+    const recordHref = `${pathname}?${writeTab(search.toString(), 'plantilla', DEFAULT_TAB)}`;
+    return (
+      <div className="flex flex-col gap-5">
+        {scopeBar(activeScopeId)}
+        <div className={DOCUMENT_COLUMN}>
+          <RecordTabs
+            value={tab}
+            onValueChange={changeTab}
+            tabs={tabList.filter((entry) => STATS_TABS.includes(entry.id))}
+            actions={
+              <Button asChild variant="ghost" size="xs">
+                <Link href={recordHref}>
+                  <Shield aria-hidden />
+                  Ficha del equipo
+                </Link>
+              </Button>
+            }
+          />
+        </div>
       </div>
     );
   }
@@ -397,127 +573,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           </>
         }
       />
-      <RecordTabs
-        value={tab}
-        onValueChange={(next) => {
-          setReported(null);
-          setTab(next);
-        }}
-        tabs={[
-          {
-            id: 'estadisticas',
-            label: 'Resumen',
-            content: withScope(
-              'estadisticas',
-              <TeamSideStats teamId={team.id} scope={scope} lineup={lineup} compare={compare} onCounts={onCounts} />,
-            ),
-          },
-          {
-            id: 'plantilla',
-            label: 'Plantilla',
-            count: team.roster?.length ?? 0,
-            content: withScope(
-              'plantilla',
-              <div className="flex flex-col gap-3">
-                <TeamRoster roster={team.roster ?? []} map={scope.map} reference={scope.reference} />
-                <TeamTrend teamId={team.id} matches={matches.filter((match) => scope.map === '' || match.map === scope.map)} map={scope.map} />
-              </div>,
-            ),
-          },
-          {
-            id: 'posiciones',
-            label: 'Posiciones',
-            content: withScope('posiciones', <TeamPositions teamId={team.id} scope={scope} lineup={lineup} />),
-          },
-          {
-            id: 'sitios',
-            label: 'Bombsites',
-            content: withScope('sitios', <TeamBombsites teamId={team.id} scope={scope} lineup={lineup} onCounts={onCounts} />),
-          },
-          {
-            id: 'veto',
-            label: 'Veto',
-            content: withScope('veto', <TeamVeto teamId={team.id} opponent={scope.opponent} teams={teams} />),
-          },
-          {
-            id: 'partidas',
-            label: 'Partidas',
-            count: matches.length,
-            content: withScope(
-              'partidas',
-              <div className="flex flex-col gap-6">
-                <TeamMatches team={team} matches={scoped} />
-                <section className="flex flex-col gap-2">
-                  <SlashTitle>Series</SlashTitle>
-                  <TeamSeries team={team} />
-                </section>
-              </div>,
-            ),
-          },
-          {
-            id: 'mapas',
-            label: 'Mapas',
-            count: maps.length,
-            content: withScope('mapas', <TeamMapHistory teamId={team.id} matches={matches} scope={scope} onCounts={onCounts} />),
-          },
-          {
-            id: 'preparar',
-            label: 'Preparar',
-            content: withScope(
-              'preparar',
-              <TeamPrepare
-                team={team}
-                maps={teamMaps}
-                mapCounts={mapCounts}
-                scope={scope}
-                lineup={lineup}
-                onMapChange={onMapChange}
-                onOpenReplay={openReplay}
-                onCounts={onCounts}
-              />,
-            ),
-          },
-          {
-            id: 'playbook',
-            label: 'Playbook',
-            content: withScope(
-              'playbook',
-              <div className="flex flex-col gap-2">
-                <Button asChild variant="ghost" size="xs" className="self-end">
-                  <Link href={teamLibretaHref(team.id, false)}>
-                    <BookMarked aria-hidden />
-                    Libreta del equipo
-                  </Link>
-                </Button>
-                <TeamPlaybook teamId={team.id} scope={scope} lineup={lineup} maps={teamMaps} onScopeChange={setScope} onCounts={onCounts} />
-              </div>,
-            ),
-          },
-          {
-            id: 'replay',
-            label: 'Replay',
-            content: withScope(
-              replayForm === 'granadas' || replayForm === 'patrones' ? `replay-${replayForm}` : 'replay',
-              <TeamReplay
-                teamId={team.id}
-                scope={scope}
-                lineup={lineup}
-                matches={matches}
-                mapCounts={mapCounts}
-                roster={team.roster ?? []}
-                form={replayForm}
-                onFormChange={(form) => {
-                  setReported(null);
-                  openReplay(form);
-                }}
-                onMapChange={onMapChange}
-                onScopeChange={setScope}
-                onCounts={onCounts}
-              />,
-            ),
-          },
-        ]}
-      />
+      <RecordTabs value={tab} onValueChange={changeTab} tabs={tabList} />
       <EditTeamDialog open={editing} onOpenChange={setEditing} team={team} profile={profile} onSaved={onChanged} />
       <MergeTeamDialog open={merging} onOpenChange={setMerging} team={team} />
     </div>

@@ -35,7 +35,7 @@ func sideStatsDocument() Document {
 		{Tick: 1000, Kind: EventFlash, ActorSlot: slotPtr(0), Effect: &UtilityEffect{Blinded: []BlindHit{{Slot: 2, Seconds: 2, Enemy: true}}}},
 		{Tick: 1100, Kind: EventKill, ActorSlot: slotPtr(1), TargetSlot: slotPtr(2)},
 		// The thrower's own kill of the blinded player is no assist.
-		{Tick: 1110, Kind: EventKill, ActorSlot: slotPtr(0), TargetSlot: slotPtr(2)},
+		{Tick: 1110, Kind: EventKill, ActorSlot: slotPtr(0), TargetSlot: slotPtr(2), Headshot: true},
 		{Tick: 1200, Kind: EventHE, ActorSlot: slotPtr(1), Effect: &UtilityEffect{EnemyDamage: 40, TeamDamage: 10}},
 		{Tick: 1300, Kind: EventMolotov, ActorSlot: slotPtr(2), Effect: &UtilityEffect{EnemyDamage: 70}},
 	}
@@ -148,6 +148,35 @@ func TestTeamSideStatsPlayerCards(t *testing.T) {
 	}
 }
 
+func TestTeamSideStatsPlayerPerformance(t *testing.T) {
+	r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}})
+	h0, h1 := r.Players[0], r.Players[1]
+	// h0 kills in rounds 1 and 3 and does nothing else, so KAST is 2 of 4; one of its 3 kills is a headshot.
+	if h0.KAST != 50 || h0.HS == nil || *h0.HS != 33.3 {
+		t.Fatalf("h0 KAST and HS = %v, %v", h0.KAST, h0.HS)
+	}
+	// h0's flash blinded the player h1 killed; h1's HE did 40 to enemies.
+	if h0.FAR == nil || *h0.FAR != 0.25 || h0.UDR == nil || *h0.UDR != 0 {
+		t.Fatalf("h0 utility = %v, %v", h0.FAR, h0.UDR)
+	}
+	if h1.UDR == nil || *h1.UDR != 10 || h1.HS == nil || *h1.HS != 0 {
+		t.Fatalf("h1 utility and HS = %v, %v", h1.UDR, h1.HS)
+	}
+	avg := r.PlayersAverage
+	if avg.KPR == nil || *avg.KPR != 0.5 || *avg.KD != 2 || *avg.DPR != 0.25 || *avg.UDR != 5 {
+		t.Fatalf("average = %+v", avg)
+	}
+	if r.PlayersGroupAvg.KPR != nil {
+		t.Fatalf("no group, yet a group line %+v", r.PlayersGroupAvg)
+	}
+	doc := sideStatsDocument()
+	doc.UtilityEffects = false
+	plain := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{{MatchID: uuid.New(), Document: doc, TeamKey: "home"}}})
+	if plain.Players[0].UDR != nil || plain.PlayersAverage.FAR != nil {
+		t.Fatalf("a demo without utility effects has UDR %v and FAR %v", plain.Players[0].UDR, plain.PlayersAverage.FAR)
+	}
+}
+
 func TestTeamSideStatsGroupFoldsMatchesAndNeedsTwentyRounds(t *testing.T) {
 	group := NewSideStatsGroup(SideStatsOptions{Lineup: Lineup{"999"}})
 	for i := range 5 {
@@ -181,6 +210,10 @@ func TestTeamSideStatsGroupFoldsMatchesAndNeedsTwentyRounds(t *testing.T) {
 	// Five pistol rounds are too few for the pistol mean.
 	if pw := r.Overall.PistolsWon; pw.GroupAvg != nil || pw.GroupTeams != 0 {
 		t.Fatalf("pistols won group = %+v", pw)
+	}
+	// Away's players die twice in each 8 player rounds; thin has too few rounds to count.
+	if dpr := r.PlayersGroupAvg.DPR; dpr == nil || *dpr != 0.25 {
+		t.Fatalf("group player DPR = %v", dpr)
 	}
 }
 
