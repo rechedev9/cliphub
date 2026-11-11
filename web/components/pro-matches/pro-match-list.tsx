@@ -12,6 +12,7 @@ import {
   parseProQuery,
   proCatalogNotice,
   proQueryAddress,
+  refreshedProPage,
   unfollowProTeam,
   type ProMatch,
   type ProMatchMap,
@@ -19,6 +20,7 @@ import {
   type ProMatchTeam,
   type ProMatchesPage,
 } from '@/lib/api/pro-matches';
+import { startPollLoop } from '@/lib/poll-loop';
 import { DayHeading } from '@/components/matches/series-block';
 import { EmptyState } from '@/components/records/empty-state';
 import { TableSkeleton } from '@/components/records/table-skeleton';
@@ -29,7 +31,13 @@ import { ProFilters } from './pro-match-filters';
 /** The address key of the second team of "VS."; the catalog filters one team, so this one narrows the page read. */
 const RIVAL_KEY = 'contra';
 
-type Load = { kind: 'loading' } | { kind: 'offline' } | { kind: 'page'; page: ProMatchesPage };
+const PRO_REFRESH_MS = 10 * 60_000;
+/** While the local service is not answering yet, such as right after Studio starts. */
+const PRO_RETRY_MS = 15_000;
+/** Switching windows often reads the catalog at most once a minute. */
+const PRO_REFRESH_GAP_MS = 60_000;
+
+type Load ={ kind: 'loading' } | { kind: 'offline' } | { kind: 'page'; page: ProMatchesPage };
 
 const IMPORT_ERROR: Record<string, string> = {
   no_pro_map: 'El servidor de ClipHub ya no tiene el análisis de este mapa.',
@@ -64,13 +72,34 @@ export function ProMatchList(): ReactNode {
     window.history.replaceState(null, '', address === '' ? window.location.pathname : `${window.location.pathname}?${address}`);
   }, [query, rival]);
 
+  // The server adds matches every day and the follow sync imports maps: read again on a timer and when the window comes back.
   useEffect(() => {
     let active = true;
-    listProMatches(query)
-      .then((page) => active && setLoad({ kind: 'page', page }))
-      .catch((err: unknown) => active && setLoad(isLibraryOffline(err) ? { kind: 'offline' } : { kind: 'page', page: unavailablePage(query) }));
+    let first = true;
+    let readAt = 0;
+    const stop = startPollLoop({
+      tick: async () => {
+        if (Date.now() - readAt < PRO_REFRESH_GAP_MS) return 'idle';
+        const shown = first;
+        first = false;
+        try {
+          const page = await listProMatches(query);
+          if (active) setLoad((prev) => ({ kind: 'page', page: refreshedProPage(prev.kind === 'page' ? prev.page : null, page) }));
+          // A server that did not answer is asked again on the next focus, not every few seconds.
+          if (page.status !== 'unavailable') readAt = Date.now();
+          return 'idle';
+        } catch (err: unknown) {
+          // A failed refresh keeps what is on screen; only the first read shows the error.
+          if (active && shown) setLoad(isLibraryOffline(err) ? { kind: 'offline' } : { kind: 'page', page: unavailablePage(query) });
+          return 'fast';
+        }
+      },
+      fastMs: PRO_RETRY_MS,
+      idleMs: PRO_REFRESH_MS,
+    });
     return () => {
       active = false;
+      stop();
     };
   }, [query, attempt]);
 

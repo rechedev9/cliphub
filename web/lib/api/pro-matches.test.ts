@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_PRO_QUERY, groupByDay, parseProQuery, proQueryAddress, proCatalogNotice, proMapDemos, proMatchSearch, proMatchTitle, proSeriesVeto, type ProMatch } from './pro-matches.ts';
+import { DEFAULT_PRO_QUERY, groupByDay, parseProQuery, proQueryAddress, proCatalogNotice, proMapDemos, proMatchSearch, proMatchTitle, proSeriesVeto, refreshedProPage, type ProMatch, type ProMatchesPage } from './pro-matches.ts';
 
 const match = (id: number, playedAt: string): ProMatch => ({
   id,
@@ -71,4 +71,17 @@ test('a pro series reads its bans and how each map came to be played', () => {
   assert.deepEqual(veto.bans, [{ map: 'de_mirage', team: 'FaZe' }, { map: 'de_train', team: 'Faze Clan' }]);
   assert.deepEqual([...veto.marks], [['de_ancient', 'PICK de Vitality'], ['de_dust2', 'PICK'], ['de_nuke', 'DECIDER']]);
   assert.deepEqual(proSeriesVeto(match(2, '2026-11-08T15:00:00Z')), { format: null, bans: [], marks: new Map() });
+});
+
+test('a refresh while the server is down keeps the catalog on screen', () => {
+  const page = (status: ProMatchesPage['status'], ids: number[]): ProMatchesPage => ({
+    status, days: 7, page: 1, pages: 1, total: ids.length, matches: ids.map((id) => match(id, '2026-11-09T15:00:00Z')),
+    facets: { teams: [], events: [], maps: [] }, follows: [],
+  });
+  const shown = page('ok', [1]);
+  assert.equal(refreshedProPage(shown, page('unavailable', [])), shown);
+  assert.deepEqual(refreshedProPage(shown, page('ok', [2, 1])).matches.map((m) => m.id), [2, 1], 'new matches replace the old page');
+  assert.equal(refreshedProPage(page('unavailable', []), page('ok', [1])).status, 'ok', 'the server coming back shows its catalog');
+  assert.equal(refreshedProPage(shown, page('disabled', [])).status, 'disabled');
+  assert.equal(refreshedProPage(null, page('unavailable', [])).status, 'unavailable');
 });

@@ -144,6 +144,11 @@ export function listProMatches(q: ProMatchQuery): Promise<ProMatchesPage> {
   return request<ProMatchesPage>(`/pro-matches${proMatchSearch(q)}`);
 }
 
+/** A refresh while the server is down keeps the catalog on screen; any other read replaces it. */
+export function refreshedProPage(current: ProMatchesPage | null, next: ProMatchesPage): ProMatchesPage {
+  return current?.status === 'ok' && next.status === 'unavailable' ? current : next;
+}
+
 export function importProMatch(matchId: number, entry: string): Promise<ProImport> {
   return request<ProImport>(`/pro-matches/${matchId}/${encodeURIComponent(entry)}/import`, jsonInit('POST'));
 }
