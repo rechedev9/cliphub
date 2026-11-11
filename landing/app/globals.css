@@ -1,49 +1,35 @@
 @import "tailwindcss";
 
-/* layout.tsx decides the mode before first paint: "3d" for the ciber scene, "lite" for the plain page. */
-@custom-variant three-d (&:where([data-ciber="3d"], [data-ciber="3d"] *));
-@custom-variant lite (&:where(:root:not([data-ciber="3d"]) *));
-
 @theme {
-  --font-display: var(--font-chakra-petch), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-share-tech-mono), ui-monospace, monospace;
+  --font-display: var(--font-saira), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
   --color-bg: var(--bg);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-fg: var(--fg);
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
+  --color-primary: var(--primary);
+  --color-blue: var(--blue);
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 :root {
-  /* Masking tape and paper: the labels, tools and 3D panels look stuck onto the desk. */
-  --tape-bg: linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(0 0 0 / 0.05)), #e6d8ae;
-  --tape-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 3px 8px rgb(0 0 0 / 0.5);
-  --ink: #211d16;
-  --ink-accent: #b23a0a;
-  --bg: #0a0d11;
-  --surface: #11161d;
-  --fg: #eef2f6;
-  --muted: #a7b0bc;
-  --line: rgb(255 255 255 / 0.12);
-  --accent: #fb923c;
-  --accent-fg: #1c0e04;
+  --bg: #0b0e0d;
+  --surface: #121715;
+  --surface-2: #18201c;
+  --fg: #eef3f0;
+  --muted: #9aa8a1;
+  --line: rgb(255 255 255 / 0.1);
+  --accent: #ff5d4f;
+  --accent-fg: #1a0705;
+  --primary: #22e07c;
+  --blue: #3b82f6;
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
   color-scheme: dark;
-}
-
-@media (prefers-color-scheme: light) {
-  :root:not([data-ciber="3d"]) {
-    --bg: #f5f1e8;
-    --surface: #fffdf8;
-    --fg: #1d1b18;
-    --muted: #57534c;
-    --line: rgb(0 0 0 / 0.12);
-    --accent: #c2410c;
-    --accent-fg: #ffffff;
-    color-scheme: light;
-  }
 }
 
 html,
@@ -52,391 +38,59 @@ body {
   color: var(--fg);
 }
 
+body {
+  overflow-x: clip;
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* The stage only exists in 3D mode. */
-.ciber-stage {
-  display: none;
+::selection {
+  background: var(--accent);
+  color: var(--accent-fg);
 }
 
-[data-ciber="3d"] body {
-  overflow: hidden;
-  height: 100dvh;
+/* Warm red glow behind the hero only; the rest of the page stays flat and quiet. */
+.hero-backdrop {
+  background:
+    radial-gradient(70rem 40rem at 85% -15%, rgb(255 93 79 / 0.14), transparent 60%),
+    radial-gradient(45rem 30rem at 5% 0%, rgb(34 224 124 / 0.06), transparent 60%);
 }
 
-[data-ciber="3d"] .ciber-stage {
-  display: block;
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  background: #020304;
-}
-
-.ciber-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  opacity: 0;
-  transition: opacity 800ms ease;
-  touch-action: manipulation;
-}
-
-/* The still stays opaque under the canvas while it fades in, then drops out. */
-.ciber-still {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  transition: visibility 0s linear 850ms;
-}
-
-/* ciber-stage.tsx sizes and places the image in px, then shows it. */
-.ciber-still img {
-  position: absolute;
-  max-width: none;
-  opacity: 0;
-  transition: opacity 200ms ease-out;
-}
-
-.ciber-still img[data-placed="true"] {
-  opacity: 1;
-}
-
-.ciber-stage:not([data-shape="tall"]) .ciber-still img[data-shape="tall"],
-.ciber-stage[data-shape="tall"] .ciber-still img[data-shape="wide"] {
-  display: none;
-}
-
-.ciber-stage[data-ready="true"] .ciber-canvas {
-  opacity: 1;
-}
-
-.ciber-stage[data-ready="true"] .ciber-still {
-  visibility: hidden;
-}
-
-.ciber-labels {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.ciber-label {
-  position: absolute;
-  left: 0;
-  top: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-height: 2.25rem;
-  padding: 0 0.85rem;
-  border-radius: 2px;
-  background: var(--tape-bg);
-  box-shadow: var(--tape-shadow);
-  color: var(--ink);
-  font-family: var(--font-permanent-marker), cursive;
-  font-size: 0.95rem;
-  white-space: nowrap;
-  pointer-events: auto;
-  will-change: transform;
-  --tilt: -1.6deg;
+/* reveal.tsx adds data-reveal="pending" after mount, so global CSS keeps the page readable without JS. */
+.reveal {
   transition:
-    opacity 160ms ease,
-    color 160ms ease,
-    visibility 0s linear 160ms;
+    opacity 600ms var(--ease-out-strong),
+    transform 600ms var(--ease-out-strong);
 }
 
-.ciber-label:nth-child(even) {
-  --tilt: 1.4deg;
-}
-
-/* A 44px touch target around the 36px pill. */
-.ciber-label::after {
-  content: "";
-  position: absolute;
-  inset: -4px;
-}
-
-
-.ciber-label[data-visible="false"] {
+.reveal[data-reveal="pending"] {
   opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
+  transform: translateY(12px);
 }
 
-.ciber-label[data-visible="true"] {
-  transition-delay: 0s;
-}
-
-.ciber-label[data-hover="true"],
-.ciber-label:hover,
-.ciber-label:focus-visible {
-  color: var(--ink-accent);
-}
-
-.ciber-loading {
-  position: absolute;
-  left: 50%;
-  bottom: 1.25rem;
-  transform: translateX(-50%);
-  padding: 0.5rem 0.9rem;
-  border-radius: 2px;
-  background: var(--tape-bg);
-  box-shadow: var(--tape-shadow);
-  color: var(--ink);
-  font-family: var(--font-permanent-marker), cursive;
-  font-size: 0.95rem;
-  rotate: -1deg;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Bottom right of the free region, clear of the panel and of the desk labels near the bottom left. */
-.ciber-tools {
-  position: absolute;
-  right: calc(min(25rem, 36vw) + 2rem);
-  bottom: 1rem;
-  display: flex;
-  gap: 0.5rem;
-  z-index: 3;
-}
-
-.ciber-tool {
-  min-height: 2.25rem;
-  padding: 0 0.85rem;
-  border-radius: 2px;
-  background: var(--tape-bg);
-  box-shadow: var(--tape-shadow);
-  color: var(--ink);
-  font-family: var(--font-permanent-marker), cursive;
-  font-size: 0.875rem;
-  rotate: 1deg;
-  transition:
-    color 160ms ease,
-    transform 120ms ease-out;
-}
-
-.ciber-tool + .ciber-tool {
-  rotate: -1.2deg;
-}
-
-.ciber-tool:hover {
-  color: var(--ink-accent);
-}
-
-.ciber-tool:active {
-  transform: scale(0.97);
-}
-
-@media (pointer: coarse) {
-  .ciber-tool {
-    min-height: 2.75rem;
-  }
-}
-
-.lite-3d-link {
-  min-height: 2.75rem;
-  color: var(--fg);
-  font-size: 0.9375rem;
-  font-weight: 500;
-  text-decoration: underline;
-  text-decoration-color: var(--line);
-  text-underline-offset: 4px;
-  transition: text-decoration-color 160ms ease;
-}
-
-.lite-3d-link:hover {
-  text-decoration-color: var(--accent);
-}
-
-/* In 3D mode each section becomes the panel of its station. */
-[data-ciber="3d"] .ciber-main {
-  position: fixed;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
-@utility tape {
-  --fg: var(--ink);
-  --muted: #5d5546;
-  --color-fg: var(--ink);
-  --color-muted: #5d5546;
-  background: var(--tape-bg);
-  box-shadow: var(--tape-shadow);
-  color: var(--ink);
-}
-
-/* Paper tokens, set on the element itself because the theme colors resolve at :root. */
-[data-ciber="3d"] [data-panel] {
-  --surface: #efe8d6;
-  --fg: #1f1c17;
-  --muted: #564f43;
-  --line: rgb(31 28 23 / 0.16);
-  --accent: #c2410c;
-  --accent-fg: #ffffff;
-  --color-surface: #efe8d6;
-  --color-fg: #1f1c17;
-  --color-muted: #564f43;
-  --color-line: rgb(31 28 23 / 0.16);
-  --color-accent: #c2410c;
-  --color-accent-fg: #ffffff;
-  color: var(--fg);
-  position: absolute;
-  top: 4.75rem;
-  right: 1rem;
-  width: min(25rem, 36vw);
-  max-height: calc(100dvh - 5.75rem);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border: 0;
-  border-radius: 3px;
-  background: radial-gradient(130% 90% at 15% 0%, #f7f1e3 0%, #ede4cf 55%, #e1d4b7 100%);
-  box-shadow:
-    0 22px 50px rgb(0 0 0 / 0.55),
-    0 2px 6px rgb(0 0 0 / 0.35);
-  pointer-events: auto;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateX(14px);
-  transition:
-    opacity 200ms ease-out,
-    transform 260ms var(--ease-out-strong),
-    visibility 0s linear 260ms;
-}
-
-/* A strip of tape holding the sheet up. */
-[data-ciber="3d"] [data-panel]::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 6.5rem;
-  height: 1.3rem;
-  translate: -50% -35%;
-  rotate: -2deg;
-  background: var(--tape-bg);
-  opacity: 0.9;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
-  pointer-events: none;
-}
-
-[data-ciber="3d"][data-station="inicio"] [data-panel="inicio"],
-[data-ciber="3d"][data-station="short"] [data-panel="short"],
-[data-ciber="3d"][data-station="demo-completa"] [data-panel="demo-completa"],
-[data-ciber="3d"][data-station="clips"] [data-panel="clips"],
-[data-ciber="3d"][data-station="analisis"] [data-panel="analisis"],
-[data-ciber="3d"][data-station="descargar"] [data-panel="descargar"] {
-  opacity: 1;
-  visibility: visible;
-  transform: none;
-  transition-delay: 420ms;
-}
-
-[data-ciber="3d"] .lite-only,
-:root:not([data-ciber="3d"]) .only-3d,
-[data-webgl="0"] .lite-3d-link {
-  display: none;
-}
-
-[data-ciber="3d"] .site-footer {
-  display: none;
-}
-
-[data-ciber="3d"][data-station="inicio"] .header-cta,
-[data-ciber="3d"][data-station="descargar"] .header-cta {
-  visibility: hidden;
-}
-
-/* Phones and portrait tablets: the panel is a bottom sheet, since a side column would leave a sliver of desk. */
-@media (max-width: 767px), (orientation: portrait) and (max-width: 1100px) {
-  [data-ciber="3d"] [data-panel] {
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: auto;
-    max-height: 52dvh;
-    border-width: 1px 0 0;
-    border-radius: 16px 16px 0 0;
-    transform: translateY(18px);
-  }
-
-  [data-ciber="3d"] [data-panel] > div {
-    max-width: 40rem;
-    margin-inline: auto;
-  }
-
-  /* The sheet is short: title, then the download, then the flow; the flow already tells the lead. */
-  [data-ciber="3d"] [data-panel="inicio"] > div {
-    display: flex;
-    flex-direction: column;
-  }
-
-  [data-ciber="3d"] [data-panel="inicio"] h1 {
-    order: -2;
-  }
-
-  [data-ciber="3d"] .inicio-cta {
-    order: -1;
-    margin-top: 1rem;
-  }
-
-  [data-ciber="3d"] .inicio-lead {
-    display: none;
-  }
-
-  .ciber-tools {
-    top: 4.25rem;
-    bottom: auto;
-    left: 0.75rem;
-    right: auto;
-  }
-}
-
-/* Short side panels: the download moves under the title so it never needs a scroll. */
-@media (max-height: 860px) {
-  [data-ciber="3d"] [data-panel="inicio"] > div {
-    display: flex;
-    flex-direction: column;
-  }
-
-  [data-ciber="3d"] [data-panel="inicio"] h1 {
-    order: -2;
-  }
-
-  [data-ciber="3d"] .inicio-cta {
-    order: -1;
-    margin-top: 1rem;
-  }
-}
-
-@media (max-height: 800px) {
-  [data-ciber="3d"] .inicio-lead {
-    display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-ciber="3d"] [data-panel] {
-    transform: none;
-  }
-
-  [data-ciber="3d"][data-station] [data-panel] {
-    transition-delay: 0s;
-  }
-}
-
-/* The product flow in the home panel; components/product-flow.tsx steps data-on through the loop. */
+/* The product flow in section 2; components/product-flow.tsx steps data-on through the loop. */
 .flow {
   padding: 0.85rem 0.9rem 0.75rem;
   border: 1px dashed var(--line);
-  border-radius: 6px;
-  background: rgb(255 255 255 / 0.3);
+  border-radius: 10px;
+  background: var(--surface);
   color: var(--fg);
 }
 
@@ -472,8 +126,8 @@ body {
 .flow-dem {
   padding: 0 0.35rem;
   border-radius: 3px;
-  background: var(--fg);
-  color: var(--surface);
+  background: var(--primary);
+  color: #04120a;
   font-size: 0.75rem;
 }
 
@@ -501,7 +155,7 @@ body {
 }
 
 .flow-meter span {
-  background: var(--fg);
+  background: var(--primary);
 }
 
 .flow-note {
@@ -520,12 +174,12 @@ body {
 
 .flow-chip {
   padding: 0.1rem 0.6rem;
-  border-radius: 2px;
-  background: var(--tape-bg);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
-  color: var(--ink);
-  font-family: var(--font-permanent-marker), cursive;
-  font-size: 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
   opacity: 0.35;
   translate: 0 3px;
   transition:
@@ -535,7 +189,7 @@ body {
 
 .flow-chip::before {
   content: "\2713\00a0";
-  color: var(--ink-accent);
+  color: var(--primary);
   visibility: hidden;
 }
 
@@ -580,7 +234,7 @@ body {
   border: 2px solid var(--accent);
   border-radius: 4px;
   color: var(--accent);
-  font-family: var(--font-permanent-marker), cursive;
+  font-family: var(--font-mono);
   font-size: 0.9rem;
   opacity: 0;
   rotate: -5deg;
@@ -618,6 +272,19 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .reveal {
+    transition: none;
+  }
+
+  .reveal[data-reveal="pending"] {
+    opacity: 1;
+    transform: none;
+  }
+
   .flow * {
     transition: none;
   }
