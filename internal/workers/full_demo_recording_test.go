@@ -67,7 +67,7 @@ func fullDemoPublicationFixture(t *testing.T, content string, mutations ...func(
 		artifacts = append(artifacts, recording.RecordingArtifact{SegmentID: segment.ID, Role: "segment", Type: "video", Path: clip, SizeBytes: int64(len(content)), FrameCount: frames, FrameRate: "60/1", DurationSeconds: float64(frames) / 60})
 		evidence.CertifiedEnds[segment.ID] = segment.TickEnd
 	}
-	for _, name := range []string{"voice_modenable", "snd_voipvolume", "tv_listen_voice_indices", "tv_listen_voice_indices_h", "spec_show_xray", "spec_autodirector", "cl_show_observer_crosshair"} {
+	for _, name := range []string{"voice_modenable", "snd_voipvolume", "tv_listen_voice_indices", "tv_listen_voice_indices_h", "snd_mute_losefocus", "spec_show_xray", "spec_autodirector", "cl_show_observer_crosshair"} {
 		value := json.RawMessage("0")
 		if name == "cl_show_observer_crosshair" {
 			value = json.RawMessage("2")

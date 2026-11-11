@@ -135,6 +135,8 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		{name: "missing voice mute cvar", outcome: "failed", trim: true, missing: []string{"voice_modenable"}},
 		{name: "voice mute readback mismatch", outcome: "failed", trim: true, refuse: []string{"snd_voipvolume"}},
 		{name: "restoration must precede success attestation", outcome: "failed", trim: true, refuseRestore: []string{"snd_voipvolume"}},
+		{name: "missing background mute cvar", outcome: "failed", trim: true, missing: []string{"snd_mute_losefocus"}},
+		{name: "background mute refused", outcome: "failed", trim: true, refuse: []string{"snd_mute_losefocus"}},
 		{name: "provided crosshair values", outcome: "verified", trim: true, wantEnd: 892, providedCode: true},
 		{name: "crosshair readback mismatch", outcome: "failed", trim: true, refuse: []string{"cl_crosshairgap"}, providedCode: true},
 		{name: "missing crosshair cvar", outcome: "failed", trim: true, missing: []string{"cl_fixedcrosshairgap"}, providedCode: true},
@@ -248,6 +250,9 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 				}
 				if result.FinalCvars["snd_voipvolume"] != 0.63 || result.FinalCvars["tv_listen_voice_indices"] != float64(7) || result.FinalCvars["cl_show_observer_crosshair"] != float64(1) {
 					t.Fatal("restoration guessed defaults instead of restoring actual values")
+				}
+				if result.FinalCvars["snd_mute_losefocus"] != true {
+					t.Fatalf("snd_mute_losefocus restored to %v, want the player's true", result.FinalCvars["snd_mute_losefocus"])
 				}
 				wantPredict := "0"
 				if tc.trueView {
