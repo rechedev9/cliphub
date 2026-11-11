@@ -3,6 +3,8 @@ package tacticalplan
 import (
 	"reflect"
 	"testing"
+
+	"github.com/rechedev9/cliphub/internal/radarmap"
 )
 
 // spatialMatch is scoutDocument with positions for round 1: slot 0 walks +X at
@@ -156,27 +158,27 @@ func TestHeatmapUtilityByGrenadeAndWindow(t *testing.T) {
 
 func TestHeatmapPositionsAndTimingsFromTheBlob(t *testing.T) {
 	m := spatialMatch(t, Filter{TeamKey: "ct-start", RoundTo: 1})
-	// The first 2 s: all 50 instants fall while the walker lives, about half in each of cells 0 and 1.
+	// The first 2 s: every instant falls while the walker lives, half in each of cells 0 and 1.
 	pos, err := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatPosition, Window: SpatialWindow{To: 2}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pos.Cells) != 2 || pos.MissingPositions != 0 || pos.SamplesPerRound != HeatmapSamplesPerRound {
+	if len(pos.Cells) != 2 || pos.MissingPositions != 0 || pos.SampleSeconds != HeatmapSampleSeconds {
 		t.Fatalf("positions = %+v, want the walker in cells 0 and 1", pos.Cells)
 	}
 	first, _ := findCell(pos, SideCT, 0, 0)
 	second, _ := findCell(pos, SideCT, 1, 0)
-	if first.Count+second.Count != HeatmapSamplesPerRound || first.Count < 20 || second.Count < 20 || first.Examples[0].Tick >= 640+64 {
-		t.Fatalf("cells = %+v and %+v, want 50 samples split over the two seconds", first, second)
+	if first.Count != 4 || second.Count != 4 || first.Examples[0].Tick >= 640+64 {
+		t.Fatalf("cells = %+v and %+v, want 8 samples split over the two seconds", first, second)
 	}
 	again, _ := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatPosition, Window: SpatialWindow{To: 2}})
 	if !reflect.DeepEqual(pos, again) {
 		t.Fatal("the same rounds gave a different heatmap: the instants must be seeded by match and round")
 	}
-	// Over the whole round only the instants of its first 2.4 s find the walker alive.
+	// Over the whole round only the instants of its first 2.5 s find the walker alive: time, not a share of the round.
 	whole, _ := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatPosition})
-	if total := whole.Sides[0].Total; total < 1 || total > 3 {
-		t.Fatalf("whole round = %d samples, want the two or so instants before the death", total)
+	if total := whole.Sides[0].Total; total < 9 || total > 11 {
+		t.Fatalf("whole round = %d samples, want about ten instants (%v s each) before the death", total, HeatmapSampleSeconds)
 	}
 	timing, err := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatTiming})
 	if err != nil {
@@ -230,5 +232,114 @@ func TestOverlaySyncsRoundsFromFreezeEnd(t *testing.T) {
 	again, _ := BuildOverlay([]SpatialMatch{spatialMatch(t, Filter{TeamKey: "ct-start"})}, 2)
 	if !reflect.DeepEqual(o, again) {
 		t.Fatal("the same input built a different overlay")
+	}
+}
+
+// floorMatch is spatialMatch on a two-floor map: slot 0 climbs from 105 units under the altitude cut
+// at 1.5 units a tick and stays up, slot 2 stands just over the cut inside the dead band.
+func floorMatch(t *testing.T) SpatialMatch {
+	t.Helper()
+	m := spatialMatch(t, Filter{TeamKey: "ct-start", RoundTo: 1})
+	cut := -495.0
+	m.Document.Geometry.Calibration.LowerAltitudeMax = &cut
+	var frames []Frame
+	for tick := 640; tick <= 640+8*64; tick += 8 {
+		z := min(-600+float64(tick-640)*1.5, -300)
+		frames = append(frames, Frame{Tick: tick, Samples: []Sample{
+			{Slot: 0, X: 10, Y: 10, Z: z, Flags: FlagAlive},
+			{Slot: 2, X: 500, Y: 500, Z: -480, Flags: FlagAlive | FlagSideT},
+		}})
+	}
+	blob, err := EncodePositions([]RoundFrames{{Round: 1, Frames: frames}}, 8, 64)
+	if err != nil {
+		t.Fatalf("EncodePositions: %v", err)
+	}
+	m.Document.Positions = blob.Descriptor
+	m.Blob = func() ([]byte, error) { return blob.Data, nil }
+	return m
+}
+
+func TestAssignFloorKeepsTheFloorInsideTheDeadBand(t *testing.T) {
+	cut := -495.0
+	cal := radarmap.Calibration{Scale: 7, Size: 1024, LowerAltitudeMax: &cut}
+	cases := []struct {
+		z        float64
+		previous string
+		want     string
+	}{
+		{-480, "", "default"}, // the hard cut when nothing is known
+		{-500, "", "lower"},
+		{-480, "lower", "lower"}, // above the cut, but inside the band
+		{-447, "lower", "lower"},
+		{-446, "lower", "default"},
+		{-500, "default", "default"}, // below the cut, but inside the band
+		{-542, "default", "default"},
+		{-543, "default", "lower"},
+	}
+	for _, c := range cases {
+		if got := assignFloor(cal, c.z, c.previous); got != c.want {
+			t.Errorf("assignFloor(z=%v, previous=%q) = %q, want %q", c.z, c.previous, got, c.want)
+		}
+	}
+	if got := assignFloor(radarmap.Calibration{Scale: 7, Size: 1024}, -900, "lower"); got != "default" {
+		t.Errorf("a one-floor map answered %q, want default", got)
+	}
+}
+
+func TestHeatmapFloorFollowsTheReplayNotTheHardCut(t *testing.T) {
+	h, err := BuildHeatmap([]SpatialMatch{floorMatch(t)}, HeatmapOptions{Kind: HeatPosition, Window: SpatialWindow{To: 8}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lower, upper int
+	for _, s := range h.Sides {
+		switch {
+		case s.Side == SideCT && s.Level == "lower":
+			lower = s.Total
+		case s.Side == SideCT && s.Level == "default":
+			upper = s.Total
+		}
+	}
+	// The climber leaves the band above -447, at 102 ticks (1.6 s): about 6 of the 32 instants are on the
+	// lower floor. A hard cut at -495 would have split at 70 ticks (1.1 s), about 4, which the replay never does.
+	if lower < 5 || lower > 7 || lower+upper != 32 {
+		t.Fatalf("lower %d, upper %d, want 32 instants with the first 6 or so on the lower floor", lower, upper)
+	}
+	timing, _ := BuildHeatmap([]SpatialMatch{floorMatch(t)}, HeatmapOptions{Kind: HeatTiming})
+	for _, c := range timing.Cells {
+		if c.Side == SideT && c.Level != "default" {
+			t.Fatalf("T cell = %+v, want the player standing in the band on the floor they started on", c)
+		}
+	}
+}
+
+func TestAFloorTimelineLetsACamperTakeTheFloorOfTheCut(t *testing.T) {
+	cut := -495.0
+	cal := radarmap.Calibration{Scale: 7, Size: 1024, LowerAltitudeMax: &cut}
+	var frames []Frame
+	for tick := 0; tick <= 8*40; tick += 8 {
+		// One second under the cut, then still at -480 (inside the band, above the cut) for the rest.
+		z := -600.0
+		if tick >= 64 {
+			z = -480
+		}
+		frames = append(frames, Frame{Tick: tick, Samples: []Sample{{Slot: 0, Z: z, Flags: FlagAlive}}})
+	}
+	floors := newFloorTimeline(cal, frames)
+	if got := floors.at(0, 0); got != "lower" {
+		t.Fatalf("frame 0 = %q, want lower", got)
+	}
+	// The band alone would keep the player on the lower floor from here on; standing 5 s drops it.
+	if got := floors.at(len(frames)-1, 0); got != "default" {
+		t.Fatalf("last frame = %q, want default: a camper at -480 is above the cut", got)
+	}
+	// A player who dies in the band keeps the floor they were on: the dead are not still.
+	dead := make([]Frame, len(frames))
+	copy(dead, frames)
+	for i := 8; i < len(dead); i++ {
+		dead[i] = Frame{Tick: frames[i].Tick, Samples: []Sample{{Slot: 0, Z: -480}}}
+	}
+	if got := newFloorTimeline(cal, dead).at(len(dead)-1, 0); got != "lower" {
+		t.Fatalf("a body in the band = %q, want the floor it fell on (lower)", got)
 	}
 }

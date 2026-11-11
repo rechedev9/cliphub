@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Layers, Pause, Play, RotateCcw } from 'lucide-react';
+import { Layers, Pause, Play, RotateCcw, Timer } from 'lucide-react';
 import { getSpatialOverlay } from '@/lib/api/library';
 import type { SpatialScope } from '@/lib/api/library';
 import type { OverlayRound, SpatialMatchRef, SpatialResponse } from '@/lib/api/spatial';
 import { RADAR_LEVELS, TACTICAL_EVENT_KINDS, TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { RadarLevel, TacticalSide } from '@/lib/api/tactical';
 import { matchHref } from '@/lib/clips/routes';
-import { formatRate, formatShortDate, prettyMapName } from '@/lib/format';
+import { formatShortDate, prettyMapName } from '@/lib/format';
 import { roundEvidenceHref } from '@/lib/library/rounds';
 import { buyLabel, ctPatternLabel, siteLabel, tPatternLabel } from '@/lib/tactical-labels';
 import {
@@ -24,7 +24,6 @@ import {
   trackTrail,
   visibleFocus,
 } from '@/lib/tactical-spatial';
-import { TACTICAL_REPLAY_SPEEDS } from '@/lib/tactical-timeline';
 import { isMultiLevelMap, worldToRendered } from '@/lib/tactical-transform';
 import { floorAlpha, labelOnFloor } from '@/lib/analysis/floors';
 import { EmptySample } from '@/components/analysis/empty-sample';
@@ -39,6 +38,8 @@ import { Segmented } from '@/components/ui/segmented';
 import { TelestratorLayer, useTelestratorDraft } from './telestrator';
 import { TramoBar, useTramo } from '@/components/replay/tramo-bar';
 import type { TramoControl } from '@/components/replay/tramo-bar';
+import { CLOCK_BOX, PLAYING_STRIP, SCRUB_INPUT, SpeedPicker } from '@/components/replay/time-strip';
+import { InfoTip } from '@/components/analysis/info-tip';
 import { isWholeRound, tramoEnd } from '@/lib/replay/tramo';
 
 /** Seconds of path drawn behind each dot. */
@@ -411,6 +412,17 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
     <section aria-label="Rondas superpuestas" className="@container" onKeyDown={onKeyDown}>
       <div className="grid gap-4 @[56rem]:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-3">
+          {twoFloors ? (
+            <Segmented<RadarLevel | 'both'>
+              label="Piso"
+              value={floor}
+              options={[
+                { value: 'both', label: 'Los dos' },
+                ...[RADAR_LEVELS.default, RADAR_LEVELS.lower].map((value) => ({ value, label: LEVEL_LABEL[value] })),
+              ]}
+              onChange={setFloor}
+            />
+          ) : null}
           <RadarSurface
             geometry={geometry}
             level={levels[0] ?? RADAR_LEVELS.default}
@@ -430,60 +442,12 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
               />
             )}
           </RadarSurface>
-          <div className="mx-auto flex w-full flex-wrap items-center gap-2">
-            <Button type="button" size="icon-sm" variant="outline" aria-label={playing ? 'Pausar' : 'Reproducir'} onClick={togglePlay}>
-              {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
-            </Button>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              aria-label="Volver al final del tiempo de compra"
-              onClick={() => {
-                setPlaying(false);
-                show(0);
-              }}
-            >
-              <RotateCcw aria-hidden />
-            </Button>
-            <input
-              ref={scrubRef}
-              type="range"
-              min={0}
-              max={duration}
-              step={0.1}
-              defaultValue={0}
-              aria-label="Segundos desde el final del tiempo de compra"
-              onChange={(event) => show(Number(event.target.value))}
-              className="min-w-40 flex-1 accent-primary"
-            />
-            <span ref={clockRef} className="w-12 text-body-sm tabular-nums text-fg-1">
-              0:00
-            </span>
-            <Segmented
-              label="Velocidad"
-              value={String(speed)}
-              options={TACTICAL_REPLAY_SPEEDS.filter((s) => s >= 0.5).map((s) => ({ value: String(s), label: formatRate(s) }))}
-              onChange={(value) => setSpeed(Number(value))}
-            />
-            {twoFloors ? (
-              <Segmented<RadarLevel | 'both'>
-                label="Piso"
-                value={floor}
-                options={[
-                  { value: 'both', label: 'Los dos' },
-                  ...[RADAR_LEVELS.default, RADAR_LEVELS.lower].map((value) => ({ value, label: LEVEL_LABEL[value] })),
-                ]}
-                onChange={setFloor}
-              />
-            ) : null}
-          </div>
-          <TramoBar tramo={tramo} onChange={setTramo} />
-          <p className="text-meta text-fg-3">
-            Cada ronda empieza en su final del tiempo de compra. Puntos cada {step} s, interpolados.
-            {overlay.total > rounds.length ? ` Se muestran ${rounds.length} de ${overlay.total} rondas: afina el filtro para ver otras.` : ''}
-            {overlay.missing_positions > 0 ? ` ${overlay.missing_positions} sin posiciones guardadas.` : ''}
-          </p>
+          {overlay.total > rounds.length || overlay.missing_positions > 0 ? (
+            <p className="text-meta text-fg-3">
+              {overlay.total > rounds.length ? `Se muestran ${rounds.length} de ${overlay.total} rondas: afina el filtro para ver otras.` : ''}
+              {overlay.missing_positions > 0 ? ` ${overlay.missing_positions} sin posiciones guardadas.` : ''}
+            </p>
+          ) : null}
         </div>
         <aside className="flex min-w-0 flex-col gap-4">
           <RoundList
@@ -514,6 +478,54 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
             onCreate={save}
           />
         </aside>
+      </div>
+      <div className="mt-4 flex flex-col gap-2">
+        <div className="flex items-center gap-1.5">
+          <Button type="button" size="icon-sm" variant="outline" className="mr-1.5 size-10" aria-label={playing ? 'Pausar' : 'Reproducir'} onClick={togglePlay}>
+            {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
+          </Button>
+          <div className={CLOCK_BOX}>
+            <Timer aria-hidden className="size-4 text-fg-3" />
+            <span ref={clockRef} className="min-w-[6ch] text-center">
+              0:00
+            </span>
+          </div>
+          <div className={PLAYING_STRIP}>
+            <input
+              ref={scrubRef}
+              type="range"
+              min={0}
+              max={duration}
+              step={0.1}
+              defaultValue={0}
+              aria-label="Segundos desde el final del tiempo de compra"
+              onChange={(event) => show(Number(event.target.value))}
+              className={SCRUB_INPUT}
+            />
+          </div>
+          <div className={CLOCK_BOX}>
+            <Timer aria-hidden className="size-4 text-fg-3" />
+            {elapsedLabel(duration)}
+          </div>
+          <div className="ml-1.5 flex h-10 items-center gap-1">
+            <SpeedPicker speed={speed} onChange={setSpeed} min={0.5} />
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              className="size-8"
+              aria-label="Volver al final del tiempo de compra"
+              onClick={() => {
+                setPlaying(false);
+                show(0);
+              }}
+            >
+              <RotateCcw aria-hidden />
+            </Button>
+            <InfoTip label="los recorridos" text={`Cada ronda empieza en su final del tiempo de compra. Puntos cada ${step} s, interpolados.`} />
+          </div>
+        </div>
+        <TramoBar tramo={tramo} onChange={setTramo} />
       </div>
     </section>
   );

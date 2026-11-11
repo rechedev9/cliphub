@@ -4,7 +4,7 @@ import type { LibretaStatus } from './libreta.ts';
 import type { LibraryLineup } from './lineups.ts';
 import type { RoleSlot } from './roles.ts';
 import type { ScoutEvidence, ScoutSkipReason } from './scout.ts';
-import type { TacticalBuyType, TacticalEventKind, TacticalRate, TacticalSide, TacticalSite } from './tactical.ts';
+import type { TacticalBuyType, TacticalRate, TacticalSide, TacticalSite } from './tactical.ts';
 
 /**
  * Browser-side contract of the stratbook (`library.Play`, `tacticalplan.PlayDetection`
@@ -111,41 +111,6 @@ export type PlayDetection = {
   rounds: number;
   compared: number;
   plays: DetectedPlay[];
-};
-
-export type LineupStatus = 'matched' | 'unmatched' | 'no_catalog' | 'not_covered';
-
-export type LineupMatch = {
-  id?: string;
-  destination?: string;
-  from_area?: string;
-  side?: string;
-  confidence?: number;
-  distance_units?: number;
-};
-
-export type RoundLineupGrenade = {
-  tick: number;
-  seconds: number;
-  kind: TacticalEventKind;
-  side?: TacticalSide;
-  player?: string;
-  steamid64?: string;
-  pos: [number, number, number];
-  callout?: string;
-  status: LineupStatus;
-  lineup?: LineupMatch;
-};
-
-export type RoundLineups = {
-  match_id: string;
-  round: number;
-  map: string;
-  catalog_size: number;
-  throw_checked: boolean;
-  smokes: number;
-  matched: number;
-  grenades: RoundLineupGrenade[];
 };
 
 /** The exported stratbook (`stratbookFile` in the orchestrator). */

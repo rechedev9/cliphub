@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { Crosshair } from 'lucide-react';
 import { prettifyWeapon } from '@/lib/api/map';
 import { TACTICAL_EVENT_KINDS, TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalEvent } from '@/lib/api/tactical';
@@ -77,11 +78,14 @@ export function TacticalEventList({
   events,
   names,
   onSeek,
+  onCopyThrow,
 }: {
   timeline: RoundTimeline;
   events: readonly TimelineEvent[];
   names: ReadonlyMap<number, string>;
   onSeek: (seconds: number) => void;
+  /** Gives each grenade that has a recorded throw a button that copies its setpos. */
+  onCopyThrow?: (event: TacticalEvent) => void;
 }): ReactNode {
   if (events.length === 0) {
     return (
@@ -103,13 +107,13 @@ export function TacticalEventList({
             // tick, and neither carries a target. The list is a fixed ordered
             // slice of one round, so the index is stable for its lifetime.
             key={`${event.kind}-${event.tick}-${event.actor_slot ?? 'x'}-${event.target_slot ?? 'x'}-${index}`}
-            className="border-b border-border-subtle last:border-b-0"
+            className="flex items-stretch border-b border-border-subtle last:border-b-0"
           >
             <button
               type="button"
               onClick={() => onSeek(entry.seconds)}
               className={cn(
-                'flex min-h-9 w-full items-baseline gap-2 px-2 py-1.5 text-left outline-none transition-colors hover:bg-surface-3',
+                'flex min-h-9 min-w-0 flex-1 items-baseline gap-2 px-2 py-1.5 text-left outline-none transition-colors hover:bg-surface-3',
                 FOCUS_RING,
                 'focus-visible:outline-offset-[-2px]',
               )}
@@ -140,6 +144,17 @@ export function TacticalEventList({
                 ) : null}
               </span>
             </button>
+            {onCopyThrow === undefined || event.throw === undefined ? null : (
+              <button
+                type="button"
+                onClick={() => onCopyThrow(event)}
+                aria-label={`Copiar el setpos del lanzamiento de ${nameOf(names, event.actor_slot)} (${eventKindLabel(event.kind)})`}
+                title="Copiar el setpos desde donde se lanzó"
+                className={cn('grid w-9 shrink-0 place-items-center text-fg-3 outline-none transition-colors hover:bg-surface-3 hover:text-fg-1', FOCUS_RING, 'focus-visible:outline-offset-[-2px]')}
+              >
+                <Crosshair className="size-3.5" aria-hidden />
+              </button>
+            )}
           </li>
         );
       })}

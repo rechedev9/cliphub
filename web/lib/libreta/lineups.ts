@@ -67,9 +67,14 @@ export function setposCommand(aim: SetposAim): string {
   return `setpos ${fixed(x)} ${fixed(y)} ${fixed(z)};setang ${fixed(aim.pitch)} ${fixed(aim.yaw)} 0`;
 }
 
-/** The console line that puts you where a replay player stands and looks, from one position sample. */
-export function sampleSetpos(sample: { x: number; y: number; z: number; yaw: number; pitch?: number }): string {
-  return setposCommand({ origin: [sample.x, sample.y, sample.z], pitch: setangPitch(sample.pitch ?? 0), yaw: setangYaw(sample.yaw) });
+/**
+ * The console line that puts you where a replay player stands and looks, from one position sample
+ * or one grenade throw. Null when a number is not finite: "NaN" must never reach the console.
+ */
+export function sampleSetpos(sample: { x: number; y: number; z: number; yaw: number; pitch?: number }): string | null {
+  const pitch = sample.pitch ?? 0;
+  if (![sample.x, sample.y, sample.z, sample.yaw, pitch].every(Number.isFinite)) return null;
+  return setposCommand({ origin: [sample.x, sample.y, sample.z], pitch: setangPitch(pitch), yaw: setangYaw(sample.yaw) });
 }
 
 /** CT throws an incendiary, T a molotov; CS2 hands them out as different weapons. */

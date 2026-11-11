@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -313,4 +314,35 @@ func TestPlayerPositionsAndLeaderboard(t *testing.T) {
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "from": "2026-10-01"}, "for the library scope")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "top": 20}, "top must be")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "limit": 101}, "limit")
+}
+
+func TestTeamGrenadesKeepsTheThrowsInTheClockWindow(t *testing.T) {
+	cs := fakeAnalysisStudio(t)
+	base := func(extra map[string]any) map[string]any {
+		in := map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": []string{"smoke", "flash"}}
+		maps.Copy(in, extra)
+		return in
+	}
+	var early teamGrenadesOut
+	callTool(t, cs, "team_grenades", base(map[string]any{"clock_from": 4, "clock_to": 8}), &early)
+	if early.Total != 2 || early.Rounds != 4 || len(early.Clock) != 1 || early.Clock[0].Throws != 2 {
+		t.Errorf("4 s to 8 s = %+v, want the smokes at 5 s and 7 s over the same 4 rounds", early)
+	}
+	var open teamGrenadesOut
+	callTool(t, cs, "team_grenades", base(map[string]any{"clock_from": 8}), &open)
+	if open.Total != 2 {
+		t.Errorf("from 8 s = %d throws, want the smokes at 9 s and 60 s", open.Total)
+	}
+	var planted teamGrenadesOut
+	callTool(t, cs, "team_grenades", base(map[string]any{"from_plant": true}), &planted)
+	if planted.Total != 1 || planted.Grenades[0].Seconds != 60 {
+		t.Errorf("from the plant = %+v, want the smoke thrown after round 3's plant", planted)
+	}
+	var whole teamGrenadesOut
+	callTool(t, cs, "team_grenades", base(map[string]any{"clock_to": 115}), &whole)
+	if whole.Total != 5 {
+		t.Errorf("up to the clock's end = %d throws, want all 5 as the whole-round window", whole.Total)
+	}
+	toolFails(t, cs, "team_grenades", base(map[string]any{"clock_from": 20, "clock_to": 10}), "clock_to must not be before clock_from")
+	toolFails(t, cs, "team_grenades", base(map[string]any{"clock_to": 400}), "clock_from and clock_to must be from 0 to")
 }

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Map as MapIcon, PlugZap } from 'lucide-react';
+import Link from 'next/link';
+import { Layers, Map as MapIcon, PlugZap } from 'lucide-react';
 import { getMapCallouts, type MapCallout } from '@/lib/api/callouts';
 import { isLibraryOffline, type LibraryMatch, type LibraryRosterEntry, type TeamCriterion } from '@/lib/api/library';
 import {
@@ -23,23 +24,26 @@ import {
   blockTramo,
   defaultPattern,
   patternFromQuery,
+  patternReplayRefs,
   timedKind,
   withTramo,
   writePatternQuery,
   type AreaShape,
 } from '@/lib/analysis/pattern-finder';
+import { REPLAY_MAX_REFS, replayHref } from '@/lib/analysis/replay-link';
 import { busiestMap, inScopePeriod, scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
 import { rivalOf } from '@/lib/library/partidas';
-import { ROUND_CLOCK_SECONDS, WHOLE_ROUND, isWholeRound, tramoLabel, type Tramo } from '@/lib/replay/tramo';
+import { WHOLE_ROUND } from '@/lib/replay/tramo';
 import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap } from '@/lib/tactical-transform';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { EmptyState } from '@/components/records/empty-state';
-import { QuickTramos, TramoBracket } from '@/components/replay/tramo-bar';
+import { TramoBar } from '@/components/replay/tramo-bar';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FramedParts, type FinderFrame, type FinderParts } from './finder-frame';
 import { PatternBlocks } from './pattern-blocks';
 import { PatternRadar, type PatternPicture } from './pattern-radar';
 import { PatternResults } from './pattern-results';
@@ -56,6 +60,8 @@ const PICTURES: readonly { value: PatternPicture; label: string }[] = [
 ];
 
 type Props = {
+  /** Set when the Buscador's canvas hosts the finder: its parts go to the canvas slots instead of the tab's own layout. */
+  frame?: FinderFrame;
   teamId: string;
   scope: AnalysisScope;
   lineup: readonly string[];
@@ -70,7 +76,7 @@ type Props = {
 };
 
 /** A team's pattern finder on one map: blocks that add up, the rounds meeting them all, and their radar. */
-export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster, onMapChange, onScopeChange, onCounts }: Props): ReactNode {
+export function PatternFinder({ frame, teamId, scope, lineup, criteria, matches, roster, onMapChange, onScopeChange, onCounts }: Props): ReactNode {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
@@ -172,7 +178,7 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
     };
   }, [teamId, map, runScope, pattern, attempt, onCounts]);
 
-  if (map === '' && defaultMap !== '') return <FinderSkeleton />;
+  if (map === '' && defaultMap !== '') return <FinderSkeleton compact={frame !== undefined} />;
   if (map === '') {
     const maps = [...new Set(matches.map((match) => match.map))].sort();
     return (
@@ -208,7 +214,7 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
       />
     );
   }
-  if (load.kind === 'loading') return <FinderSkeleton />;
+  if (load.kind === 'loading') return <FinderSkeleton compact={frame !== undefined} />;
   const { data } = load;
   const geometry = data.geometry;
   if (geometry === null) {
@@ -230,136 +236,182 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
   };
   const blockShape = block?.area === undefined ? shape : areaShape(block.area);
   const teamName = data.team_name ?? '';
-  const shownTramo: Tramo = isWholeRound(tramo) ? { from: 0, to: ROUND_CLOCK_SECONDS } : tramo;
+
+  const sideSegmented = (
+    <Segmented<TacticalSide>
+      label="Lado"
+      value={side}
+      options={[
+        { value: 'T', label: 'Ataque (T)' },
+        { value: 'CT', label: 'Defensa (CT)' },
+      ]}
+      onChange={(next) => setPattern({ ...pattern, side: next })}
+    />
+  );
+  const blocks = (
+    <PatternBlocks
+      pattern={pattern}
+      active={active}
+      onActive={setActive}
+      onChange={setPattern}
+      onReset={() => {
+        setActive(0);
+        setPattern(defaultPattern());
+      }}
+      result={data.result}
+      players={players}
+      shape={shape}
+      onShape={setShape}
+      callouts={callouts}
+    />
+  );
+  const savedList = (
+    <SavedPatterns
+      map={map}
+      teamId={teamId}
+      teamName={data.team_name ?? ''}
+      scope={runScope}
+      version={saved}
+      onOpen={(entry) => {
+        setActive(0);
+        setOpened(entry);
+        setPattern(entry.pattern);
+        onScopeChange({ limit: entry.scope.matches ?? null, buy: entry.scope.buy ?? '', opponentBuy: entry.scope.opponent_buy ?? '' });
+      }}
+    />
+  );
+  const toolbar = (
+    <div className="flex flex-wrap items-center gap-2">
+      {data.maps.length > 1 && frame === undefined ? (
+        <Segmented<string> label="Mapa" value={data.map} options={data.maps.map((entry) => ({ value: entry.map, label: prettyMapName(entry.map) }))} onChange={onMapChange} />
+      ) : null}
+      <Segmented<PatternPicture> label="Qué se dibuja" value={picture} options={PICTURES} onChange={setPicture} />
+      {multiLevel ? (
+        <Segmented<RadarLevel | 'both'>
+          label="Piso"
+          value={floor}
+          options={[{ value: 'both', label: 'Los dos' }, ...[RADAR_LEVELS.default, RADAR_LEVELS.lower].map((value) => ({ value, label: LEVEL_LABEL[value] }))]}
+          onChange={setFloor}
+        />
+      ) : null}
+    </div>
+  );
+  const radar = (
+    <PatternRadar
+      geometry={geometry}
+      levels={levels}
+      multiLevel={multiLevel}
+      picture={picture}
+      overlay={data.overlay ?? null}
+      heatmap={data.heatmap ?? null}
+      side={side}
+      focus={focusBlock?.rival === true ? [] : (focusBlock?.players ?? [])}
+      tramo={focusBlock === undefined ? WHOLE_ROUND : blockTramo(focusBlock)}
+      area={block?.area ?? null}
+      others={pattern.blocks.flatMap((entry) => (entry === block || entry.area === undefined ? [] : [entry.area]))}
+      tool={blockShape === 'callouts' ? 'none' : blockShape}
+      onArea={onArea}
+    />
+  );
+  const tramoBlock =
+    block === undefined ? null : <TramoBar tramo={tramo} plant={false} onChange={(next) => setBlock(withTramo(block, next))} />;
+  const results = (
+    <PatternResults
+      result={data.result}
+      timed={timedKind(pattern)}
+      title={`${teamName === '' ? 'Patrón' : teamName} en ${prettyMapName(data.map)}`}
+      widen={
+        block === undefined ? undefined : (
+          <>
+            {block.invert === true ? null : (
+              <Button type="button" variant="outline" size="sm" onClick={() => setBlock({ ...block, invert: true })}>
+                {INVERT_LABEL[block.kind]}
+              </Button>
+            )}
+            {pattern.blocks.some((entry) => entry.area !== undefined) ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setPattern({
+                    ...pattern,
+                    blocks: pattern.blocks.map((entry) => {
+                      const next = { ...entry };
+                      delete next.area;
+                      return next;
+                    }),
+                  })
+                }
+              >
+                Quitar zona
+              </Button>
+            ) : null}
+          </>
+        )
+      }
+      actions={<SavePatternButton map={data.map} teamId={teamId} teamName={teamName} pattern={pattern} scope={saveScope} opened={opened} onSaved={() => setSaved((n) => n + 1)} />}
+    />
+  );
+
+  if (frame !== undefined) {
+    const refs = patternReplayRefs(data.result).slice(0, REPLAY_MAX_REFS);
+    const parts: FinderParts = {
+      panel: (
+        <div className="flex flex-col gap-3">
+          {sideSegmented}
+          {blocks}
+        </div>
+      ),
+      map: (
+        <div className="flex flex-col gap-2">
+          {toolbar}
+          {radar}
+        </div>
+      ),
+      rounds: results,
+      tactics: savedList,
+      footer: (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Button asChild variant="outline" size="sm" className={refs.length === 0 ? 'pointer-events-none opacity-50' : undefined}>
+              <Link href={replayHref(refs, `${teamName === '' ? 'Patrón' : teamName} en ${prettyMapName(data.map)}`)} aria-disabled={refs.length === 0}>
+                <Layers aria-hidden />
+                Reproducir {refs.length}/{data.result.rounds} rondas
+              </Link>
+            </Button>
+          </div>
+          {tramoBlock}
+        </div>
+      ),
+      count: { matched: data.result.matched, total: data.result.rounds },
+    };
+    return <FramedParts frame={frame} parts={parts} />;
+  }
 
   return (
     <div className="grid items-start gap-4 xl:grid-cols-[17rem_minmax(0,1fr)_20rem]">
       <aside className="flex flex-col gap-3">
-        <Segmented<TacticalSide>
-          label="Lado"
-          value={side}
-          options={[
-            { value: 'T', label: 'Ataque (T)' },
-            { value: 'CT', label: 'Defensa (CT)' },
-          ]}
-          onChange={(next) => setPattern({ ...pattern, side: next })}
-        />
-        <PatternBlocks
-          pattern={pattern}
-          active={active}
-          onActive={setActive}
-          onChange={setPattern}
-          onReset={() => {
-            setActive(0);
-            setPattern(defaultPattern());
-          }}
-          result={data.result}
-          players={players}
-          shape={shape}
-          onShape={setShape}
-          callouts={callouts}
-        />
-        <SavedPatterns
-          map={map}
-          teamId={teamId}
-          teamName={data.team_name ?? ''}
-          scope={runScope}
-          version={saved}
-          onOpen={(entry) => {
-            setActive(0);
-            setOpened(entry);
-            setPattern(entry.pattern);
-            onScopeChange({ limit: entry.scope.matches ?? null, buy: entry.scope.buy ?? '', opponentBuy: entry.scope.opponent_buy ?? '' });
-          }}
-        />
+        {sideSegmented}
+        {blocks}
+        {savedList}
       </aside>
 
       <section aria-label="Radar" className="flex min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {data.maps.length > 1 ? (
-            <Segmented<string> label="Mapa" value={data.map} options={data.maps.map((entry) => ({ value: entry.map, label: prettyMapName(entry.map) }))} onChange={onMapChange} />
-          ) : null}
-          <Segmented<PatternPicture> label="Qué se dibuja" value={picture} options={PICTURES} onChange={setPicture} />
-          {multiLevel ? (
-            <Segmented<RadarLevel | 'both'>
-              label="Piso"
-              value={floor}
-              options={[{ value: 'both', label: 'Los dos' }, ...[RADAR_LEVELS.default, RADAR_LEVELS.lower].map((value) => ({ value, label: LEVEL_LABEL[value] }))]}
-              onChange={setFloor}
-            />
-          ) : null}
-        </div>
-        <PatternRadar
-          geometry={geometry}
-          levels={levels}
-          multiLevel={multiLevel}
-          picture={picture}
-          overlay={data.overlay ?? null}
-          heatmap={data.heatmap ?? null}
-          side={side}
-          focus={focusBlock?.rival === true ? [] : (focusBlock?.players ?? [])}
-          tramo={focusBlock === undefined ? WHOLE_ROUND : blockTramo(focusBlock)}
-          area={block?.area ?? null}
-          others={pattern.blocks.flatMap((entry) => (entry === block || entry.area === undefined ? [] : [entry.area]))}
-          tool={blockShape === 'callouts' ? 'none' : blockShape}
-          onArea={onArea}
-        />
-        {block === undefined ? null : (
-          <div role="group" aria-label="Tramo del bloque" className="flex flex-col gap-2 rounded-md border border-border bg-surface-2 px-3 py-2.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-body-sm font-medium text-fg-1">{tramoLabel(tramo)}</span>
-              <QuickTramos tramo={tramo} plant={false} onChange={(next) => setBlock(withTramo(block, next))} />
-            </div>
-            <div className="relative h-7 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]">
-              <TramoBracket tramo={shownTramo} duration={ROUND_CLOCK_SECONDS} onChange={(next) => setBlock(withTramo(block, next))} />
-            </div>
-          </div>
-        )}
+        {toolbar}
+        {radar}
+        {tramoBlock}
       </section>
 
       <aside className="flex flex-col gap-3 xl:sticky xl:top-[calc(var(--shell-strip-height)+3.5rem)] xl:max-h-[calc(100dvh-var(--shell-strip-height)-4.5rem)] xl:overflow-y-auto">
-        <PatternResults
-          result={data.result}
-          timed={timedKind(pattern)}
-          title={`${teamName === '' ? 'Patrón' : teamName} en ${prettyMapName(data.map)}`}
-          widen={
-            block === undefined ? undefined : (
-              <>
-                {block.invert === true ? null : (
-                  <Button type="button" variant="outline" size="sm" onClick={() => setBlock({ ...block, invert: true })}>
-                    {INVERT_LABEL[block.kind]}
-                  </Button>
-                )}
-                {pattern.blocks.some((entry) => entry.area !== undefined) ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setPattern({
-                        ...pattern,
-                        blocks: pattern.blocks.map((entry) => {
-                          const next = { ...entry };
-                          delete next.area;
-                          return next;
-                        }),
-                      })
-                    }
-                  >
-                    Quitar zona
-                  </Button>
-                ) : null}
-              </>
-            )
-          }
-          actions={<SavePatternButton map={data.map} teamId={teamId} teamName={teamName} pattern={pattern} scope={saveScope} opened={opened} onSaved={() => setSaved((n) => n + 1)} />}
-        />
+        {results}
       </aside>
     </div>
   );
 }
 
-function FinderSkeleton(): ReactNode {
+function FinderSkeleton({ compact }: { compact: boolean }): ReactNode {
+  if (compact) return <Skeleton role="status" aria-label="Buscando el patrón" className="aspect-square w-full max-w-[44rem]" />;
   return (
     <div role="status" aria-label="Buscando el patrón" className="grid gap-4 xl:grid-cols-[17rem_minmax(0,1fr)_20rem]">
       <Skeleton className="h-80 w-full" />

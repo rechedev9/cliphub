@@ -136,6 +136,9 @@ func (h *Handlers) teamCandidates(ctx context.Context, q candidateQuery) (map[uu
 			skipped = append(skipped, scoutSkipped{MatchID: m.ID, Reason: scoutSkipTeamMissing})
 			continue
 		}
+		if err := h.matchFacts(ctx, q.scope, &c); err != nil {
+			return nil, nil, nil, err
+		}
 		// The catalog rank is one read per match: only the level filter needs it.
 		if m.Source == library.SourcePro && q.scope.OpponentTop > 0 && q.scope.KeepsMatch(c.scout) {
 			c.scout.OpponentRank = h.proRivalRank(ctx, c)
@@ -144,6 +147,25 @@ func (h *Handlers) teamCandidates(ctx context.Context, q candidateQuery) (map[uu
 		pending = append(pending, c.scout)
 	}
 	return candidates, pending, skipped, nil
+}
+
+// matchFacts fills the demo tags and the series event of a candidate, only when the scope reads them.
+func (h *Handlers) matchFacts(ctx context.Context, scope tacticalplan.ScoutFilter, c *scoutCandidate) error {
+	if scope.ReadsTags() {
+		d, err := h.libraryRepo.GetDemo(ctx, c.match.DemoID)
+		if err != nil && !errors.Is(err, library.ErrNotFound) {
+			return fmt.Errorf("read demo tags: %w", err)
+		}
+		c.scout.Tags = d.Tags
+	}
+	if scope.ReadsEvent() && c.match.SeriesID != nil {
+		s, err := h.libraryRepo.GetSeries(ctx, *c.match.SeriesID)
+		if err != nil && !errors.Is(err, library.ErrNotFound) {
+			return fmt.Errorf("read series event: %w", err)
+		}
+		c.scout.Event = s.Event
+	}
+	return nil
 }
 
 // keptMatch is a selected match whose document is read and whose lineup played it.

@@ -9,7 +9,6 @@ import type {
   PlayDetection,
   PlayInput,
   PlayPatch,
-  RoundLineups,
   StratbookFile,
   StratbookImport,
   StratbookUpload,
@@ -679,19 +678,6 @@ export function patchLibraryPlay(playId: string, patch: PlayPatch): Promise<Libr
 
 export function deleteLibraryPlay(playId: string): Promise<void> {
   return request<void>(`/plays/${id(playId)}`, { method: 'DELETE' });
-}
-
-/** The draft of the play one side's team ran in a round, with positions read at `tick`. */
-export async function getRoundPlayDraft(matchId: string, round: number, teamKey: LibraryTeamKey, tick?: number): Promise<LibraryPlay> {
-  const params = new URLSearchParams({ team_key: teamKey });
-  if (tick !== undefined) params.set('tick', String(Math.round(tick)));
-  const body = await request<{ draft: LibraryPlay }>(`/matches/${id(matchId)}/tactical/rounds/${round}/play?${params.toString()}`);
-  return body.draft;
-}
-
-/** A round's grenades compared with the bundled smoke lineup catalog. */
-export function getRoundLineups(matchId: string, round: number): Promise<RoundLineups> {
-  return request<RoundLineups>(`/matches/${id(matchId)}/tactical/rounds/${round}/lineups`);
 }
 
 /** The plays a team repeats across its matches, grouped by utility and positions. */

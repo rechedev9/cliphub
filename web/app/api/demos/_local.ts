@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { localAPIRequestError } from '@/lib/api/local-request-guard';
 import { projectBatchStatusItem, type BatchStatusUpstreamItem } from '@/lib/api/batch-status';
 import { parseControlJSONObject, prepareLocalUploadBody, readBoundedText } from '@/lib/api/bounded-request-body';
-import { ANTICHEAT_DOCUMENT_KEYS } from '@/lib/api/anticheat';
 import { parseFaceitScoreboard } from '@/lib/api/faceit-scoreboard';
 import {
   TACTICAL_DOCUMENT_KEYS,
@@ -346,27 +345,6 @@ export async function localTacticalPositions(jobId: string, request: Request): P
   return proxyStream(url, 'application/octet-stream', request);
 }
 
-/** A SteamID64 as the dossier route accepts it: 17 digits, Steam's user range. */
-const STEAM_ID64_RE = /^7656119\d{10}$/;
-
-/** POST /api/demos/{jobId}/anticheat (local) - queue the CheaterDetect pass. */
-export async function localStartAnticheat(jobId: string): Promise<Response> {
-  const url = jobUrl(jobId, '/anticheat');
-  if (!url) return NextResponse.json({ error: 'invalid job id' }, { status: 400 });
-
-  const res = await callOrchestrator(url, { method: 'POST' });
-  if (res === null) return serviceUnavailable();
-  if (!res.ok) return forwardError(res);
-
-  const body = (await res.json()) as { id: string; status: string };
-  return NextResponse.json({ jobId: body.id, status: body.status }, { status: 202 });
-}
-
-/** GET /api/demos/{jobId}/anticheat (local) - proxy the analysis document. */
-export async function localAnticheat(jobId: string): Promise<Response> {
-  return forwardJson(jobUrl(jobId, '/anticheat'), ANTICHEAT_DOCUMENT_KEYS);
-}
-
 /** GET FACEIT scoreboard — reshaped and whitelisted; an unusable body is a 502. */
 export async function localFaceitScoreboard(jobId: string): Promise<Response> {
   const url = jobUrl(jobId, '/faceit-scoreboard');
@@ -378,20 +356,6 @@ export async function localFaceitScoreboard(jobId: string): Promise<Response> {
   const scoreboard = parseFaceitScoreboard(await res.json());
   if (scoreboard === null) return NextResponse.json({ error: 'FACEIT scoreboard is invalid' }, { status: 502 });
   return NextResponse.json({ scoreboard }, { headers: { 'cache-control': 'no-store' } });
-}
-
-/** GET anticheat dossier — validate SteamID64 before building the upstream URL. */
-export async function localAnticheatDossier(jobId: string, steamId: string): Promise<Response> {
-  if (!STEAM_ID64_RE.test(steamId)) {
-    return NextResponse.json({ error: 'invalid steam id' }, { status: 400 });
-  }
-  const url = jobUrl(jobId, `/anticheat/dossier/${steamId}`);
-  if (!url) return NextResponse.json({ error: 'invalid job id' }, { status: 400 });
-
-  const res = await callOrchestrator(url);
-  if (res === null) return serviceUnavailable();
-  if (!res.ok) return forwardError(res);
-  return NextResponse.json(await res.json());
 }
 
 const BATCH_VARIANT_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;

@@ -7,8 +7,11 @@ import {
   arrivalStrength,
   arrowHead,
   elapsedLabel,
+  emptyMessage,
   heatColor,
+  heatAmount,
   heatRgb,
+  secondsLabel,
   heatmapCellAt,
   heatmapLayer,
   heatmapLevels,
@@ -21,7 +24,6 @@ import {
   renderedToWorld,
   strokeAt,
   thinStroke,
-  topCells,
   trackDeadAt,
   trackPositionAt,
   trackTrail,
@@ -48,7 +50,7 @@ const HEATMAP: Heatmap = {
   kind: 'position',
   window: { from: 0, to: 0 },
   cell_size: 64,
-  samples_per_round: 50,
+  sample_seconds: 0.5,
   example_limit: 3,
   matches: 1,
   rounds: 3,
@@ -82,11 +84,11 @@ test('a heatmap layer is one side and level with its own scale', () => {
   assert.equal(heatmapSide(HEATMAP, 'CT'), 'CT');
 });
 
-test('the heat scale runs from dark green through green to yellow and clamps', () => {
-  assert.equal(heatColor(0), 'rgb(0 101 82)');
-  assert.equal(heatColor(0.5), 'rgb(100 189 80)');
-  assert.equal(heatColor(1), 'rgb(242 234 116)');
-  assert.deepEqual(heatRgb(0.25), [50, 145, 81]);
+test('the heat scale runs from blue through purple to pink and clamps', () => {
+  assert.equal(heatColor(0), 'rgb(58 110 255)');
+  assert.equal(heatColor(0.5), 'rgb(150 68 232)');
+  assert.equal(heatColor(1), 'rgb(255 74 178)');
+  assert.deepEqual(heatRgb(0.25), [104, 89, 244]);
   assert.equal(heatColor(-1), heatColor(0));
   assert.equal(heatColor(4), heatColor(1));
   assert.equal(heatColor(Number.NaN), heatColor(0));
@@ -153,7 +155,7 @@ test('labels and arrowheads', () => {
   assert.equal(arrowHead({ x: 0, y: 0 }, { x: 10, y: 0 }, 5).split(' ')[0], '10.0,0.0');
 });
 
-test('the nearest callout prefers the same level and the busiest cells come first', () => {
+test('the nearest callout prefers the same level', () => {
   const callouts = [
     { name: 'Ramp', level: 'default', center: [100, 100] as [number, number] },
     { name: 'Vents', level: 'lower', center: [0, 0] as [number, number] },
@@ -161,8 +163,6 @@ test('the nearest callout prefers the same level and the busiest cells come firs
   assert.equal(nearestCallout({ cell_size: 0, callouts }, 'default', 0, 0), 'Ramp');
   assert.equal(nearestCallout({ cell_size: 0, callouts }, 'lower', 90, 90), 'Vents');
   assert.equal(nearestCallout({ cell_size: 64, callouts: [] }, 'default', 0, 0), '');
-  const top = topCells(heatmapLayer(HEATMAP, 'CT', 'default'), 1);
-  assert.deepEqual(top.map((cell) => cell.count), [4]);
 });
 
 test('the nearest callout is the place that owns the cell, then its closest owned neighbour', () => {
@@ -212,4 +212,23 @@ test('the eraser picks the topmost stroke near the pointer, along its segments, 
   assert.equal(strokeAt(strokes, [90, 6], 10), 0);
   assert.equal(strokeAt(strokes, [90, 30], 10), null);
   assert.equal(strokeAt([{ points: [[5, 5]] }], [5, 5], 10), null);
+});
+
+test('a position count reads as the time it stands for, an event count as its unit', () => {
+  assert.equal(heatAmount({ kind: 'position', count: 18, sampleSeconds: 0.25 }), '4,5 s');
+  assert.equal(heatAmount({ kind: 'position', count: 168, sampleSeconds: 0.25 }), '42 s');
+  assert.equal(heatAmount({ kind: 'position', count: 7, sampleSeconds: 0 }), '7 muestras', 'an older answer without the step keeps its samples');
+  assert.equal(heatAmount({ kind: 'death', count: 3, sampleSeconds: 0.25 }), '3 muertes');
+  assert.equal(secondsLabel(60), '1 min');
+  assert.equal(secondsLabel(72.4), '1 min 12 s');
+  assert.equal(secondsLabel(0), '0 s');
+  assert.equal(secondsLabel(Number.NaN), '0 s');
+});
+
+test('an empty heatmap says what the filters left, not only that nothing is there', () => {
+  assert.match(emptyMessage({ kind: 'position', rounds: 0, missing: 0, matches: 2 }), /Ninguna ronda/);
+  assert.match(emptyMessage({ kind: 'position', rounds: 12, missing: 2, matches: 2 }), /no guardaron posiciones/);
+  assert.match(emptyMessage({ kind: 'position', rounds: 12, missing: 0, matches: 2 }), /tramo/);
+  assert.match(emptyMessage({ kind: 'death', rounds: 12, missing: 2, matches: 2 }), /muerte/, 'deaths need no positions');
+  assert.match(emptyMessage({ kind: 'utility', rounds: 12, missing: 0, matches: 2 }), /granadas/);
 });

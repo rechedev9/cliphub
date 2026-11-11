@@ -52,12 +52,42 @@ export const HEATMAP_UNIT_LABEL: Record<HeatmapKind, string> = {
 
 /** What the legend's scale measures for each kind. */
 export const HEATMAP_LEGEND_LABEL: Record<HeatmapKind, string> = {
-  position: 'Posiciones por zona',
+  position: 'Tiempo en cada zona',
   death: 'Muertes por zona',
   kill: 'Bajas por zona',
   utility: 'Granadas por zona',
   timing: 'Segundos hasta la primera llegada',
 };
+
+/** The ends of the legend's bar in words: the quiet end and the busy end of each kind. */
+export const HEATMAP_ENDS_LABEL: Record<HeatmapKind, { low: string; high: string }> = {
+  position: { low: 'Casi nada', high: 'Más tiempo' },
+  death: { low: 'Menos muertes', high: 'Más muertes' },
+  kill: { low: 'Menos bajas', high: 'Más bajas' },
+  utility: { low: 'Menos granadas', high: 'Más granadas' },
+  timing: { low: 'Llegan tarde', high: 'Llegan antes' },
+};
+
+/** A span of seconds as a coach reads it: "4,5 s" under ten, "42 s", then "1 min 12 s". */
+export function secondsLabel(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0 s';
+  if (seconds < 10) return `${(Math.round(seconds * 10) / 10).toString().replace('.', ',')} s`;
+  const whole = Math.round(seconds);
+  if (whole < 60) return `${whole} s`;
+  const minutes = Math.floor(whole / 60);
+  const rest = whole % 60;
+  return rest === 0 ? `${minutes} min` : `${minutes} min ${rest} s`;
+}
+
+/**
+ * What a cell's count reads as. Positions are read at a fixed step, so their count is
+ * time: `count * sampleSeconds`, in seconds. The other kinds count events.
+ */
+export function heatAmount(options: { kind: HeatmapKind; count: number; sampleSeconds: number }): string {
+  const { kind, count, sampleSeconds } = options;
+  if (kind === 'position' && sampleSeconds > 0) return secondsLabel(count * sampleSeconds);
+  return `${count} ${HEATMAP_UNIT_LABEL[kind]}`;
+}
 
 /** Where a kill heatmap puts each kill. */
 export const KILL_SPOT_LABEL: Record<KillSpot, string> = {
@@ -109,13 +139,14 @@ export function arrivalStrength(seconds: number, maxSeconds: number): number {
 }
 
 /**
- * The heat scale: dark green where little happens, green, then light yellow
- * where the most does (oklch 0.45 0.09 175, 0.72 0.17 140, 0.92 0.14 105). No side owns any of them.
+ * The heat scale the coaches asked for: blue where a player barely is, purple where they
+ * stay, pink where they stay most. Blue and pink sit far apart in hue, so the middle reads
+ * as its own step. No side owns any of them.
  */
 const HEAT_STOPS: readonly (readonly [number, number, number])[] = [
-  [0, 101, 82],
-  [100, 189, 80],
-  [242, 234, 116],
+  [58, 110, 255],
+  [150, 68, 232],
+  [255, 74, 178],
 ];
 
 /** A strength from 0 to 1 on the heat scale, as red, green and blue from 0 to 255. */
@@ -365,9 +396,18 @@ export function nearestCallout(geometry: CalloutGeometry, level: string, x: numb
   return '';
 }
 
-/** The busiest cells of a layer, for the text list beside the radar. */
-export function topCells(layer: HeatmapLayer, limit: number): HeatmapCell[] {
-  return [...layer.cells]
-    .sort((a, b) => b.count - a.count || a.seconds - b.seconds || a.y - b.y || a.x - b.x)
-    .slice(0, limit);
+/** What an empty heatmap says, by what it counted and what the rounds in the scope lacked. */
+export function emptyMessage({ kind, rounds, missing, matches }: { kind: HeatmapKind; rounds: number; missing: number; matches: number }): string {
+  if (rounds === 0) return 'Ninguna ronda cumple los filtros. Quita alguno para ver el mapa de calor.';
+  if ((kind === 'position' || kind === 'timing') && missing >= matches) {
+    return 'Estas partidas no guardaron posiciones, así que no hay mapa de calor de posiciones. Vuelve a analizarlas para generarlas.';
+  }
+  const what: Record<HeatmapKind, string> = {
+    position: 'Ningún jugador vivo en este tramo con estos filtros. Ensancha el tramo o cambia el jugador.',
+    death: 'Ninguna muerte con estos filtros y en este tramo. Ensancha el tramo para contarlas.',
+    kill: 'Ninguna baja con estos filtros y en este tramo. Ensancha el tramo para contarlas.',
+    utility: 'Ninguna granada con estos filtros y en este tramo. Ensancha el tramo o cambia las granadas.',
+    timing: 'Nadie llega a ninguna zona en este tramo con estos filtros. Ensancha el tramo.',
+  };
+  return what[kind];
 }

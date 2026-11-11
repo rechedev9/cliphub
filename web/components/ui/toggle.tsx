@@ -9,10 +9,10 @@ import { FOCUS_RING } from "@/components/ui/button"
 
 const toggleVariants = cva(
   [
-    "inline-flex items-center justify-center gap-2 rounded-md text-body-sm font-medium whitespace-nowrap",
+    "inline-flex items-center justify-center gap-1.5 rounded-md text-body-sm font-medium whitespace-nowrap",
     "transition-[color,background-color,border-color,box-shadow] duration-(--dur-fast) ease-standard",
     "disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive",
-    "data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground",
+    "data-[state=on]:border-primary data-[state=on]:bg-primary/16 data-[state=on]:text-primary",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
     FOCUS_RING,
   ],
@@ -21,20 +21,20 @@ const toggleVariants = cva(
       variant: {
         default: "border border-transparent bg-transparent text-fg-2 hover:bg-surface-3 hover:text-fg-1",
         outline:
-          "border border-border-strong bg-surface-3 text-fg-1 shadow-[var(--elev-0)] hover:border-fg-4 hover:bg-surface-4",
+          "border border-border-strong bg-transparent text-fg-1 hover:border-fg-4 hover:bg-surface-3",
         // The Studio segmented control: every filter chip in the app.
         filter:
-          "border border-border-strong bg-surface-2 text-meta text-fg-2 hover:border-fg-4 hover:bg-surface-3 hover:text-fg-1 data-[state=on]:font-semibold data-[state=on]:shadow-[var(--elev-1)]",
+          "border border-border-strong bg-surface-2 text-meta text-fg-2 hover:border-fg-4 hover:bg-surface-3 hover:text-fg-1 data-[state=on]:font-semibold",
       },
       size: {
-        default: "h-10 min-w-10 px-3",
-        sm: "h-9 min-w-9 px-2.5",
-        lg: "h-11 min-w-11 px-3.5",
+        default: "h-8 min-w-8 px-2.5",
+        sm: "h-7 min-w-7 px-2",
+        lg: "h-9 min-w-9 px-3",
       },
     },
     compoundVariants: [
-      // A filter chip is a 44px target with room for a word, not an icon box.
-      { variant: "filter", size: "default", class: "h-11 min-w-16 px-4" },
+      // A filter chip is a compact target with room for a word, not an icon box.
+      { variant: "filter", size: "default", class: "h-8 min-w-14 px-3" },
     ],
     defaultVariants: {
       variant: "default",

@@ -417,33 +417,6 @@ func isScoutUtility(kind EventKind) bool {
 
 var utilityOrder = map[EventKind]int{EventSmoke: 0, EventFlash: 1, EventMolotov: 2, EventHE: 3}
 
-// NearestCallout names the place CS2 reported most in the grid cell of a world
-// position; off the grid, the callout whose centre of play is closest on the
-// same level, or "" when the geometry has no callouts.
-func NearestCallout(g MapGeometry, pos [3]float64) string {
-	level := g.Calibration.Level(pos[2])
-	if name := calloutAt(g, level, pos[0], pos[1], pos[2]); name != "" {
-		return name
-	}
-	for _, sameLevel := range []bool{true, false} {
-		best, bestDist := "", math.Inf(1)
-		for _, c := range g.Callouts {
-			if sameLevel && c.Level != level {
-				continue
-			}
-			dx, dy := c.Center[0]-pos[0], c.Center[1]-pos[1]
-			d := dx*dx + dy*dy
-			if d < bestDist || (d == bestDist && c.Name < best) {
-				best, bestDist = c.Name, d
-			}
-		}
-		if best != "" {
-			return best
-		}
-	}
-	return ""
-}
-
 func playerIdentity(d Document, slot uint8) (string, string) {
 	p, ok := d.PlayerBySlot(slot)
 	if !ok {

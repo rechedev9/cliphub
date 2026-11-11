@@ -54,7 +54,8 @@ const RESULT_TAG: Record<LibraryImportResult['status'], { label: string; tone: S
 };
 
 /** Import of several demos into the library, one request per file so each one reports on its own. */
-export function DemoImport({ onImported }: { onImported: () => void }): ReactNode {
+/** `trigger` swaps the default Importar demos button for another opener, such as the sidebar's Demo button. */
+export function DemoImport({ onImported, trigger }: { onImported: () => void; trigger?: (openDialog: () => void) => ReactNode }): ReactNode {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [tag, setTag] = useState('');
@@ -111,10 +112,14 @@ export function DemoImport({ onImported }: { onImported: () => void }): ReactNod
 
   return (
     <>
-      <Button type="button" size="sm" onClick={() => setOpen(true)}>
-        <FileUp aria-hidden />
-        Importar demos
-      </Button>
+      {trigger === undefined ? (
+        <Button type="button" size="sm" onClick={() => setOpen(true)}>
+          <FileUp aria-hidden />
+          Importar demos
+        </Button>
+      ) : (
+        trigger(() => setOpen(true))
+      )}
       <Dialog open={open} onOpenChange={close}>
         <DialogContent className="sm:max-w-xl" showCloseButton={!busy}>
           <DialogHeader>

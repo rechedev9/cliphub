@@ -48,6 +48,8 @@ func traceHTTP(next http.Handler) http.Handler {
 			case status == http.StatusConflict && r.Method == http.MethodGet:
 				// A read answered 409 is a poll for something not ready yet.
 				outcome = ""
+			case status == http.StatusNotFound && optionalPictureRoutes[pattern]:
+				outcome = ""
 			case status >= 400:
 				level, outcome = "error", "error"
 			}

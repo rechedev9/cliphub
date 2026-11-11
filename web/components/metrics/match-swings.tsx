@@ -38,13 +38,17 @@ export function MatchSwings({
           const side = swing.delta > 0 ? 'CT' : 'T';
           const kill = winPointText(swing.point, names);
           return (
-            <li key={`${swing.round}:${swing.tick}`} className="flex min-w-0 flex-col gap-1.5 rounded-md border border-border-subtle bg-surface-1 p-3">
+            <li
+              key={`${swing.round}:${swing.tick}`}
+              className={cn('flex min-w-0 flex-col gap-1.5 border border-l-2 border-border bg-surface-2 px-3 py-2', side === 'CT' ? 'border-l-side-ct' : 'border-l-side-t')}
+            >
+              <span className="text-meta font-medium tracking-wider text-fg-3 uppercase">Ronda {swing.round}</span>
               <span className={cn('text-stat font-bold', side === 'CT' ? 'text-side-ct' : 'text-side-t')}>{ppText(Math.abs(swing.delta))}</span>
               <span className="line-clamp-2 text-body-sm font-semibold [overflow-wrap:anywhere] text-fg-1" title={kill}>
                 {kill}
               </span>
               <span className="text-meta [overflow-wrap:anywhere] text-fg-3">
-                Ronda {swing.round} · {secondsText(swing.seconds)} · a favor de {teamLabel(teamByKey(match, favouredTeam(ctTeams, swing)))} ({side})
+                {secondsText(swing.seconds)} · a favor de {teamLabel(teamByKey(match, favouredTeam(ctTeams, swing)))} ({side})
               </span>
               <Button asChild variant="ghost" size="xs" className="-ml-2 mt-auto self-start">
                 <Link href={roundEvidenceHref(matchHref(match.id), swing.round, swing.tick)} onClick={onOpenReplay}>

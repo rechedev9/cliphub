@@ -33,8 +33,46 @@ type teamGrenadesIn struct {
 	Opponents bool     `json:"opponents,omitempty" jsonschema:"true reads the grenades the team's rivals threw in the same rounds, as Rivales de <equipo> does; the scope's buy and AWP still read the scouted team"`
 	Spot      string   `json:"spot,omitempty" jsonschema:"a key from spots: reads that grenade in full, with what the team does after it and its rounds"`
 	Invert    bool     `json:"invert,omitempty" jsonschema:"true lists the rounds without the kept grenades (without the spot's grenade when spot is set), as Invertir does"`
+	clockWindowIn
 	analysisFilterIn
 	teamScopeIn
+}
+
+// clockWindowIn is the window of the round clock (the Tramo) that counts a throw by when it went off.
+type clockWindowIn struct {
+	ClockFrom float64 `json:"clock_from,omitempty" jsonschema:"start of the clock window (Tramo), in seconds after the round went live, keeping the throws that went off inside it; 0 by default. The round clock 1:40 is 15"`
+	ClockTo   float64 `json:"clock_to,omitempty" jsonschema:"end of the clock window, in seconds after the round went live; 0 runs to the end of the round"`
+	FromPlant bool    `json:"from_plant,omitempty" jsonschema:"keep only the throws from each round's plant on; a round without a plant keeps none"`
+}
+
+func (w clockWindowIn) check() error {
+	if w.ClockFrom < 0 || w.ClockTo < 0 || w.ClockFrom > maxHeatSeconds || w.ClockTo > maxHeatSeconds {
+		return fmt.Errorf("clock_from and clock_to must be from 0 to %d seconds", maxHeatSeconds)
+	}
+	if w.ClockTo > 0 && w.ClockTo < w.ClockFrom {
+		return errors.New("clock_to must not be before clock_from")
+	}
+	return nil
+}
+
+// whole reports a window that cuts nothing, as the web's whole-round Tramo.
+func (w clockWindowIn) whole() bool {
+	return !w.FromPlant && w.ClockFrom <= 0 && (w.ClockTo <= 0 || w.ClockTo >= roundClockSeconds)
+}
+
+// keeps reports whether a throw at seconds falls in the window; plant is the round's plant, nil without one.
+func (w clockWindowIn) keeps(seconds float64, plant *float64) bool {
+	if w.whole() {
+		return true
+	}
+	if w.FromPlant {
+		return plant != nil && seconds >= *plant
+	}
+	end := float64(roundClockSeconds)
+	if w.ClockTo > 0 {
+		end = math.Min(w.ClockTo, end)
+	}
+	return seconds >= w.ClockFrom && seconds <= end
 }
 
 type throwerOut struct {
@@ -92,7 +130,7 @@ func registerTeamGrenadesTool(server *mcp.Server, s *studio) {
 		Description: "Read the grenades a team threw, as the Granadas form of its Replay: per kind how many, on which side, when, by whom and the callouts they went off in (each with a studio_path that opens those rounds in the 2D Replay with the zone marked; show_zones draws them); " +
 			"when on the round clock by player; the repeated throws (spots) with what the team does in the 20 s after each; then compact rows. " +
 			"Pass a spot key to read one grenade in full: how many of the scope's rounds it was thrown in, what follows it, its rounds and a studio_path that superposes them. " +
-			"map is required. Filter by kind and players, then the team scope every team tool takes (side, dates, opponent_id, match_id, lineup, " +
+			"map is required. Filter by kind and players, by a clock window (clock_from and clock_to in seconds after the round went live, or from_plant: the Tramo bar of the Buscador de patrones), then the team scope every team tool takes (side, dates, opponent_id, match_id, lineup, " +
 			"max_matches, last_days, opponent_top, whose, buy, opponent_buy, awp, opponent_awp, advantage, round_from/round_to); " +
 			"opponents=true for the rivals' utility (the scope still reads the scouted team) and invert for the rounds without it."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamGrenadesIn) (*mcp.CallToolResult, teamGrenadesOut, error) {
@@ -165,6 +203,9 @@ func (in teamGrenadesIn) read() (tuiclient.TeamGrenadeQuery, error) {
 			return tuiclient.TeamGrenadeQuery{}, fmt.Errorf("players: %q is not a SteamID64", cleanName(p))
 		}
 	}
+	if err := in.clockWindowIn.check(); err != nil {
+		return tuiclient.TeamGrenadeQuery{}, err
+	}
 	q, err := teamQuery(in.analysisFilterIn, in.teamScopeIn)
 	if err != nil {
 		return tuiclient.TeamGrenadeQuery{}, err
@@ -175,14 +216,27 @@ func (in teamGrenadesIn) read() (tuiclient.TeamGrenadeQuery, error) {
 	return tuiclient.TeamGrenadeQuery{TeamID: in.TeamID, Query: q, Kinds: kinds, Opponents: in.Opponents}, nil
 }
 
-// keepGrenades keeps the throws of the chosen players; the server already applied the team scope to the rounds.
+// keepGrenades keeps the throws of the chosen players that went off inside the clock window; the server already applied the team scope to the rounds.
 func keepGrenades(list tuiclient.TeamGrenades, in teamGrenadesIn) tacticalplan.TeamGrenades {
 	out := tacticalplan.TeamGrenades{Grenades: []tacticalplan.TeamGrenade{}, RoundList: list.RoundList, Rounds: list.Rounds}
 	if out.RoundList == nil {
 		out.RoundList = []tacticalplan.GrenadeRound{}
 	}
+	plants := map[string]float64{}
+	for _, r := range list.RoundList {
+		if r.PlantSeconds != nil {
+			plants[roundRef(r.MatchID.String(), r.Round)] = *r.PlantSeconds
+		}
+	}
 	for _, g := range list.Grenades {
-		if len(in.Players) == 0 || slices.Contains(in.Players, g.ThrowerSteamID64) {
+		if len(in.Players) > 0 && !slices.Contains(in.Players, g.ThrowerSteamID64) {
+			continue
+		}
+		var plant *float64
+		if p, ok := plants[roundRef(g.MatchID.String(), g.Round)]; ok {
+			plant = &p
+		}
+		if in.clockWindowIn.keeps(g.Seconds, plant) {
 			out.Grenades = append(out.Grenades, g)
 		}
 	}

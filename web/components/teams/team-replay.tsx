@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { ListVideo } from 'lucide-react';
 import { getTeamRounds, type LibraryMatch, type LibraryRosterEntry, type TeamCriterion } from '@/lib/api/library';
 import { REPLAY_MAX_REFS, replayHref, type ReplayRef } from '@/lib/analysis/replay-link';
-import { scopeDateRange, type AnalysisScope, type ScopeField } from '@/lib/analysis/scope';
+import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
+import { teamReplayEntries } from '@/lib/analysis/team-replay-fields';
 import type { MapCounts } from '@/lib/analysis/map-counts';
-import { teamScopeEntries } from '@/lib/analysis/team-scope';
 import type { ReplayForm } from '@/lib/replay/forms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { PatternFinder } from '@/components/patterns/pattern-finder';
@@ -19,14 +19,6 @@ import { TeamSpatial } from './team-spatial';
 /** The forms a team's rounds are read in; one round at a time opens from any figure as a playlist. */
 export const TEAM_REPLAY_FORMS = ['calor', 'recorridos', 'granadas', 'patrones'] as const satisfies readonly ReplayForm[];
 export type TeamReplayForm = (typeof TEAM_REPLAY_FORMS)[number];
-
-/** The filters bar of the team's Replay, in the order it shows them; every one is applied by the server. */
-export const TEAM_REPLAY_FIELDS: readonly ScopeField[] = [
-  'lineup', 'side', 'period', 'limit', 'buy', 'opponentBuy', 'equip', 'opponentEquip', 'awp', 'opponentAwp', 'weapon', 'opponentWeapon',
-  'advantage', 'site', 'outcome', 'endReason', 'postPlant', 'phase', 'secondRound', 'tactic', 'rounds', 'opponent', 'opponentTop', 'whose',
-];
-/** The match counts the Replay offers; with none in the URL it reads the server's cap. */
-export const TEAM_REPLAY_LIMITS = { options: [3, 5, 10, 20, 50], fallback: 50 } as const;
 
 /** "Ver 42 rondas en Repetición": the rounds the figure on screen counts, as one playlist, newest match first. */
 function RoundsLink({ refs }: { refs: readonly ReplayRef[] | null }): ReactNode {
@@ -104,7 +96,7 @@ export function TeamReplay({
   onScopeChange: (patch: Partial<AnalysisScope>) => void;
   onCounts: (counts: ScopeCounts | null) => void;
 }): ReactNode {
-  const criteria = useMemo(() => teamScopeEntries(scope, TEAM_REPLAY_FIELDS), [scope]);
+  const criteria = useMemo(() => teamReplayEntries(scope), [scope]);
   const [spatialRefs, setSpatialRefs] = useState<readonly ReplayRef[] | null>(null);
   const onRounds = useCallback((refs: readonly ReplayRef[]) => setSpatialRefs(refs), []);
   const grenadeRefs = useGrenadeRounds({ teamId, scope, lineup, criteria, active: form === 'granadas' });

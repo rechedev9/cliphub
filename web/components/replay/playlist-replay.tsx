@@ -7,7 +7,6 @@ import { ListVideo } from 'lucide-react';
 import { parseReplayRefs } from '@/lib/analysis/replay-link';
 import { listLibraryMatches } from '@/lib/api/library';
 import type { LibraryMatch } from '@/lib/api/library';
-import type { PlaylistRound } from '@/lib/api/playlists';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { matchTitle } from '@/lib/library/partidas';
 import { teamFocusFromQuery } from '@/lib/replay/player-focus';
@@ -20,10 +19,10 @@ import { EmptyState } from '@/components/records/empty-state';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ReplayHome } from './replay-home';
 import { ReplayWorkspace } from './replay-workspace';
-import { SavedPlaylistPanel } from './saved-playlist-panel';
-import { useOpenPlaylist, usePlaylistRoundNotes } from './use-saved-playlists';
+import { PlaylistRoundCard } from './playlist-round-card';
+import { TeamReplayHome } from './team-replay-home';
+import { useOpenPlaylist } from './use-saved-playlists';
 
 function matchLabel(match: LibraryMatch): string {
   return `${prettyMapName(match.map)} · ${matchTitle(match)}`;
@@ -62,7 +61,7 @@ function useMatchDate(matches: ReadonlyMap<string, LibraryMatch> | null): (match
 
 /**
  * The Replay of a list of rounds from any matches: a saved playlist (`?p=`)
- * with its panel, or a passing list from `replayHref`. Each match's analysis
+ * with its comment card, or a passing list from `replayHref`. Each match's analysis
  * loads when the strip reaches it.
  */
 export function PlaylistReplay(): ReactNode {
@@ -72,7 +71,7 @@ export function PlaylistReplay(): ReactNode {
   return <PassingPlaylistReplay />;
 }
 
-/** A saved playlist for the team meeting: J and K walk its rounds, each with its comment and drawings. */
+/** A saved playlist for the team meeting: J and K walk its rounds, each with its comment. */
 function SavedPlaylistReplay({ id }: { id: string }): ReactNode {
   const { playlist, replace } = useOpenPlaylist(id);
   const matches = useLibraryMatches();
@@ -80,7 +79,6 @@ function SavedPlaylistReplay({ id }: { id: string }): ReactNode {
   const entries = useMemo(() => (playlist ? playlistRefs(playlist) : []), [playlist]);
   const index = indexOfKey(entries, currentKey);
   const entry = entries[index];
-  const notes = usePlaylistRoundNotes({ playlist, at: entry, onSaved: replace });
   const name = playlist?.name ?? 'Playlist';
   useRouteTitle(name);
   useDocumentTitle(`${name} · ClipHub`);
@@ -92,7 +90,6 @@ function SavedPlaylistReplay({ id }: { id: string }): ReactNode {
     [matches],
   );
   const matchDate = useMatchDate(matches);
-  const labelOf = (round: PlaylistRound): string => groupLabel(round.match_id) ?? prettyMapName(round.map);
 
   if (playlist === undefined) return <Skeleton className="h-[60vh] w-full rounded-lg" />;
   if (playlist === null) {
@@ -110,24 +107,20 @@ function SavedPlaylistReplay({ id }: { id: string }): ReactNode {
     );
   }
 
-  const panel = (
-    <SavedPlaylistPanel
-      playlist={playlist}
-      current={entry}
-      labelOf={labelOf}
-      onSelect={(ref) => setCurrentKey(entryKey(ref))}
-      onChange={replace}
-    />
-  );
   if (entries.length === 0) {
     const empty =
       playlist.rounds.length === 0
-        ? 'Esta playlist aún no tiene rondas. Abre una partida en el Replay y pulsa B o «Añadir a playlist» en la ronda que quieras.'
+        ? 'Esta playlist aún no tiene rondas. Abre una partida en el Replay y pulsa B o el marcador de la ronda que quieras.'
         : 'Ninguna ronda de esta playlist está en tu biblioteca. Importa sus demos en Partidas y las rondas aparecerán solas.';
     return (
-      <section className="studio-panel grid gap-5 p-4 sm:p-5 lg:grid-cols-[260px_minmax(0,1fr)]" aria-label="Repetición">
-        <div className="flex flex-col gap-3">{panel}</div>
-        <p className="self-center text-body text-fg-2">{empty}</p>
+      <section className="studio-panel flex flex-col gap-3 p-4 sm:p-5" aria-label="Repetición">
+        <h3 className="truncate font-display text-body font-bold text-fg-1" title={playlist.name}>
+          {playlist.name}
+        </h3>
+        <p className="text-body text-fg-2">{empty}</p>
+        <Link href={PLAYLISTS_HREF} className="text-body-sm text-fg-2 underline decoration-fg-4 underline-offset-2 hover:text-fg-1">
+          Todas las playlists
+        </Link>
       </section>
     );
   }
@@ -139,15 +132,15 @@ function SavedPlaylistReplay({ id }: { id: string }): ReactNode {
       onIndexChange={(next) => setCurrentKey(entries[next] === undefined ? null : entryKey(entries[next]))}
       groupLabel={groupLabel}
       matchDate={matchDate}
-      filters={panel}
       title={playlist.name}
-      roundNotes={{ store: notes, where: `«${playlist.name}»` }}
+      back={{ href: PLAYLISTS_HREF, label: 'Volver' }}
       openPlaylistId={playlist.id}
+      roundCard={<PlaylistRoundCard playlist={playlist} current={entry} onChange={replace} />}
     />
   );
 }
 
-/** A list of rounds that is not saved, such as the rounds behind a figure; the left panel narrows it to some matches. */
+/** A list of rounds that is not saved, such as the rounds behind a figure. */
 function PassingPlaylistReplay(): ReactNode {
   const search = useSearchParams();
   const refs = useMemo(() => parseReplayRefs(search), [search]);
@@ -166,20 +159,18 @@ function PassingPlaylistReplay(): ReactNode {
     [pathname, router, search],
   );
   const matches = useLibraryMatches();
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [currentKey, setCurrentKey] = useState<string | null>(null);
-  useRouteTitle(title ?? 'Replay');
-  useDocumentTitle(`${title ?? 'Replay'} · ClipHub`);
+  // With no rounds the page is the team Replay, which names the tab itself.
+  const tabTitle = refs.length === 0 ? undefined : (title ?? 'Replay');
+  useRouteTitle(tabTitle);
+  useDocumentTitle(tabTitle === undefined ? undefined : `${tabTitle} · ClipHub`);
 
   const matchIds = useMemo(() => [...new Set(refs.map((ref) => ref.matchId))], [refs]);
   const missing = useMemo(
     () => new Set(matches === null || matches.size === 0 ? [] : matchIds.filter((id) => !matches.has(id))),
     [matchIds, matches],
   );
-  const entries = useMemo(
-    () => refs.filter((ref) => !hidden.has(ref.matchId) && !missing.has(ref.matchId)),
-    [hidden, missing, refs],
-  );
+  const entries = useMemo(() => refs.filter((ref) => !missing.has(ref.matchId)), [missing, refs]);
   const index = indexOfKey(entries, currentKey);
   const groupLabel = useCallback((matchId: string) => {
     const match = matches?.get(matchId);
@@ -187,46 +178,7 @@ function PassingPlaylistReplay(): ReactNode {
   }, [matches]);
   const matchDate = useMatchDate(matches);
 
-  if (refs.length === 0) return <ReplayHome />;
-
-  const filters = matchIds.length < 2 && missing.size === 0 ? undefined : (
-    <section className="flex flex-col gap-2" aria-label="Partidas de la lista">
-      <h3 className="text-meta text-fg-3">Partidas</h3>
-      <ul className="flex flex-col gap-1">
-        {matchIds.map((id) => {
-          const match = matches?.get(id);
-          const count = refs.filter((ref) => ref.matchId === id).length;
-          const gone = missing.has(id);
-          return (
-            <li key={id}>
-              <label className="flex items-start gap-2 py-1 text-body-sm text-fg-1">
-                <input
-                  type="checkbox"
-                  className="mt-1 accent-primary"
-                  checked={!gone && !hidden.has(id)}
-                  disabled={gone}
-                  onChange={() =>
-                    setHidden((current) => {
-                      const next = new Set(current);
-                      if (next.has(id)) next.delete(id);
-                      else next.add(id);
-                      return next;
-                    })
-                  }
-                />
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate">{match === undefined ? 'Partida' : matchLabel(match)}</span>
-                  <span className="text-meta text-fg-3">
-                    {gone ? 'Ya no está en la biblioteca' : `${count} ${count === 1 ? 'ronda' : 'rondas'}`}
-                  </span>
-                </span>
-              </label>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
+  if (refs.length === 0) return <TeamReplayHome />;
 
   return (
     <ReplayWorkspace
@@ -236,7 +188,6 @@ function PassingPlaylistReplay(): ReactNode {
       onIndexChange={(next) => setCurrentKey(entries[next] === undefined ? null : entryKey(entries[next]))}
       groupLabel={groupLabel}
       matchDate={matchDate}
-      filters={filters}
       title={title}
       focusPlayers={focusPlayers}
       tramo={{ tramo, onChange: setTramo }}

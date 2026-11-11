@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RADAR_LEVELS, TACTICAL_SAMPLE_FLAGS } from './api/tactical.ts';
-import type { RadarCalibration, TacticalFrame, TacticalSample } from './api/tactical.ts';
+import type { RadarCalibration, RadarLevel, TacticalFrame, TacticalSample } from './api/tactical.ts';
 import {
   createInterpolatedSampleReader,
   createSampleTrailReader,
@@ -233,4 +233,19 @@ test('dominantLevel: dead players do not vote', () => {
     sample({ slot: 3, z: 100 }),
   ];
   assert.equal(dominantLevel(SPLIT, samples), RADAR_LEVELS.default);
+});
+
+test('sampleTrails: each point carries the floor the player was on there when the caller knows it', () => {
+  const frames = [frame(0, [sample({ slot: 1, x: 1, z: -400 })]), frame(1, [sample({ slot: 1, x: 2, z: -600 })])];
+  const levelOf = (_slot: number, index: number): RadarLevel => (index === 0 ? RADAR_LEVELS.default : RADAR_LEVELS.lower);
+  const trails = sampleTrails(frames, { index: 1, alpha: 0 }, 64, 2, levelOf);
+  assert.deepEqual(trails.get(1)?.map((point) => point.level), [RADAR_LEVELS.default, RADAR_LEVELS.lower]);
+  assert.equal(sampleTrails(frames, { index: 1, alpha: 0 }, 64, 2).get(1)?.[0].level, undefined);
+});
+
+test('dominantLevel: a tie keeps the floor the view was on, and a caller can settle the floors itself', () => {
+  const tied = [sample({ slot: 1, z: -900 }), sample({ slot: 2, z: 100 })];
+  assert.equal(dominantLevel(SPLIT, tied, { previous: RADAR_LEVELS.lower }), RADAR_LEVELS.lower);
+  assert.equal(dominantLevel(SPLIT, tied, { previous: RADAR_LEVELS.default }), RADAR_LEVELS.default);
+  assert.equal(dominantLevel(SPLIT, tied, { levelOf: () => RADAR_LEVELS.lower }), RADAR_LEVELS.lower);
 });

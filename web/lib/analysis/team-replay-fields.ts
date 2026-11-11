@@ -1,0 +1,21 @@
+import type { AnalysisScope, ScopeField } from './scope.ts';
+import { MATCH_SAMPLE_OPTIONS } from './match-sample.ts';
+import { teamScopeEntries, type TeamScopeEntry } from './team-scope.ts';
+
+/** The filters bar of a team's Replay, in the order it shows them; every one is applied by the server. */
+export const TEAM_REPLAY_FIELDS: readonly ScopeField[] = [
+  'lineup', 'side', 'period', 'limit', 'buy', 'opponentBuy', 'equip', 'opponentEquip', 'awp', 'opponentAwp', 'weapon', 'opponentWeapon',
+  'advantage', 'site', 'outcome', 'endReason', 'postPlant', 'phase', 'secondRound', 'tactic', 'excludeTactics', 'rounds', 'opponent', 'opponentTop', 'whose',
+  'matchTags', 'excludeMatchTags', 'events',
+];
+
+/** The match counts the Replay offers; with none in the URL it reads the last 3, where a rival's habits show cleanest. */
+export const TEAM_REPLAY_LIMITS = { options: MATCH_SAMPLE_OPTIONS, fallback: 3 } as const;
+
+/** The query of a team's Replay, its heatmaps and the pattern finder: the scope with the 3-match default filled in. */
+export function teamReplayEntries(scope: AnalysisScope): TeamScopeEntry[] {
+  return teamScopeEntries({ ...scope, limit: scope.limit ?? TEAM_REPLAY_LIMITS.fallback }, TEAM_REPLAY_FIELDS);
+}
+
+/** The same filters with the map choice, for the stack that floats over the 2D replay of a team. */
+export const TEAM_REPLAY_STACK_FIELDS: readonly ScopeField[] = ['lineup', 'map', ...TEAM_REPLAY_FIELDS.filter((field) => field !== 'lineup')];

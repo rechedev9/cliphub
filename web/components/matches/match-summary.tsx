@@ -5,6 +5,7 @@ import type { LibraryDemo, LibraryMatch } from '@/lib/api/library';
 import { matchStory, type TeamNames } from '@/lib/library/match-story';
 import { teamByKey, teamLabel } from '@/lib/library/partidas';
 import { MatchDemoDetails } from '@/components/matches/match-demo-details';
+import { MatchTiles } from '@/components/matches/match-tiles';
 import { MatchScoreboard } from '@/components/matches/match-scoreboard';
 import { MatchStoryPanel } from '@/components/matches/match-story-panel';
 import { MatchTeamPanel, playerAdr } from '@/components/matches/match-team-panel';
@@ -40,6 +41,7 @@ export function MatchSummary({
 
   return (
     <div className="flex flex-col gap-5">
+      <MatchTiles match={match} rows={rounds.kind === 'ready' ? rounds.rows : null} best={bestAdr} />
       <MatchScoreboard teams={[ctStart, tStart]} names={names} rounds={rounds} pathname={pathname} onOpenRound={onOpenReplay} />
       {facts.length > 0 ? <MatchStoryPanel facts={facts} pathname={pathname} onOpenReplay={onOpenReplay} /> : null}
       <div className="grid gap-5 @[64rem]/content:grid-cols-2">

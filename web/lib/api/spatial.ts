@@ -49,7 +49,7 @@ export type HeatDensityLayer = {
   side: TacticalSide;
   level: string;
   bins: [number, number, number][];
-  /** Each bin's mean seconds after freeze end, in `bins` order; only for timing. */
+  /** Each bin's median seconds after freeze end, in `bins` order; only for timing. */
   seconds?: number[];
 };
 
@@ -59,8 +59,8 @@ export type Heatmap = {
   window: HeatmapWindow;
   grenades?: TacticalEventKind[];
   cell_size: number;
-  /** Instants of each round the position kind reads. */
-  samples_per_round: number;
+  /** The seconds one count of the position kind stands for: every round is read at this step, so a count is time spent. */
+  sample_seconds: number;
   example_limit: number;
   matches: number;
   rounds: number;

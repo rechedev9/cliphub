@@ -1,7 +1,6 @@
 import { REPLAY_MAX_REFS } from '../analysis/replay-link.ts';
 import type { ReplayRef } from '../analysis/replay-link.ts';
-import type { PlaylistNote, PlaylistRound, PlaylistRoundInput, SavedPlaylist } from '../api/playlists.ts';
-import type { Annotation } from '../api/spatial.ts';
+import type { PlaylistRound, PlaylistRoundInput, SavedPlaylist } from '../api/playlists.ts';
 
 /** Where the Replay kept the rounds set aside with B before playlists were saved in the library. */
 export const LEGACY_PLAYLIST_KEY = 'cliphub.replay.playlist';
@@ -39,30 +38,6 @@ export function playlistRefs(playlist: Pick<SavedPlaylist, 'rounds'>): ReplayRef
 
 export function playlistRound(playlist: Pick<SavedPlaylist, 'rounds'>, ref: ReplayRef): PlaylistRound | undefined {
   return playlist.rounds.find((r) => sameRound({ matchId: r.match_id, round: r.round }, ref));
-}
-
-/** A round's notes as the Replay's notes panel reads a match's notes. */
-export function roundAnnotations(round: PlaylistRound): Annotation[] {
-  return (round.notes ?? []).map((note, i) => ({
-    id: note.id ?? `nueva-${i}`,
-    match_id: round.match_id,
-    round: round.round,
-    tick: note.tick,
-    text: note.text,
-    strokes: note.strokes,
-    created_at: '',
-    updated_at: '',
-  }));
-}
-
-/** The round's notes after one is added, edited or removed, ready to send back whole. */
-export function editRoundNotes(
-  notes: readonly PlaylistNote[],
-  edit: { add: Omit<PlaylistNote, 'id'> } | { id: string; text: string } | { remove: string },
-): PlaylistNote[] {
-  if ('add' in edit) return [...notes, edit.add];
-  if ('remove' in edit) return notes.filter((note) => note.id !== edit.remove);
-  return notes.map((note) => (note.id === edit.id ? { ...note, text: edit.text } : note));
 }
 
 /** A round as a playlist edit sends it back. */

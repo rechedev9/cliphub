@@ -21,28 +21,27 @@ import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { InfoTip } from '@/components/analysis/info-tip';
 import { FOCUS_RING } from '@/components/ui/button';
 import { DELTA_TONE_CLASS } from '@/components/ui/delta-value';
+import { SlashTitle } from '@/components/records/document-page';
+import { EdgeTile, EdgeTileGrid, type EdgeTone } from '@/components/records/edge-tile';
 import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { PlayerStatCard } from './player-stat-card';
 import { TeamSidesCard } from './team-sides-card';
 
-const BORDER: Record<DeltaTone, string> = { better: 'border-l-outcome-win', worse: 'border-l-outcome-loss', even: 'border-l-border' };
+const TONE: Record<DeltaTone, EdgeTone> = { better: 'good', worse: 'bad', even: 'neutral' };
 
 function StatTile({ tile, stat }: { tile: SideStatTile; stat: SideStat }): ReactNode {
   const delta = sideDelta(stat, tile.unit);
   return (
-    <div className={cn('flex min-w-0 flex-col gap-1 rounded-md border-l-4 bg-surface-2 px-3 py-2', BORDER[delta?.tone ?? 'even'])}>
-      <dt className="flex items-center gap-1 text-meta leading-tight text-fg-3">
-        {tile.label}
-        {tile.formula ? <InfoTip label={tile.label} text={tile.formula} /> : null}
-      </dt>
-      <dd className="flex flex-col gap-0.5">
-        <span className="text-title font-semibold text-fg-1 tabular-nums">{formatSideValue(stat.value, tile.unit)}</span>
-        {delta ? <span className={cn('text-meta font-medium tabular-nums', DELTA_TONE_CLASS[delta.tone])}>{delta.text}</span> : null}
-        <span className="text-meta text-fg-3 tabular-nums">{groupMeanText(stat, tile.unit)}</span>
-      </dd>
-    </div>
+    <EdgeTile
+      label={tile.label}
+      info={tile.formula ? <InfoTip label={tile.label} text={tile.formula} /> : null}
+      tone={TONE[delta?.tone ?? 'even']}
+      value={formatSideValue(stat.value, tile.unit)}
+      note={delta ? <span className={cn('font-medium', DELTA_TONE_CLASS[delta.tone])}>{delta.text}</span> : null}
+      detail={groupMeanText(stat, tile.unit)}
+    />
   );
 }
 
@@ -89,7 +88,7 @@ export type TeamSideStatsProps = {
 };
 
 /** The scope fields Estadísticas sends beyond map, side, period, rival and lineup. */
-const SIDE_STATS_CRITERIA: readonly ScopeField[] = ['buy', 'opponentBuy'];
+const SIDE_STATS_CRITERIA: readonly ScopeField[] = ['buy', 'opponentBuy', 'excludeTactics', 'matchTags', 'excludeMatchTags', 'events'];
 
 /** Estadísticas: the team's figures in the scope against the "Comparar con" group, and a card per player. */
 export function TeamSideStats({ teamId, scope, lineup, compare, onCounts }: TeamSideStatsProps): ReactNode {
@@ -150,30 +149,30 @@ export function TeamSideStats({ teamId, scope, lineup, compare, onCounts }: Team
     );
   }
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
-        <TeamSidesCard ct={data.ct} t={data.t} side={side} />
-        <p className="measure-read text-body-sm text-fg-2">{groupText(data)}</p>
+        <div className="flex items-center gap-2">
+          <SlashTitle>Lados</SlashTitle>
+          {data.group_teams === 0 ? null : <InfoTip label="la media del grupo" text={groupText(data)} />}
+        </div>
+        <TeamSidesCard ct={data.ct} t={data.t} overall={data.overall} side={side} map={map} />
+        {data.group_teams === 0 ? <p className="measure-read text-body-sm text-fg-2">{groupText(data)}</p> : null}
       </div>
-      <section aria-labelledby="side-stats-overall" className="flex flex-col gap-2">
-        <h2 id="side-stats-overall" className="text-body font-semibold text-fg-1">
-          Estadísticas generales
-        </h2>
-        <dl className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-2">
-          {SIDE_STAT_TILES.map((tile) => (
-            <StatTile key={tile.key} tile={tile} stat={data.overall[tile.key]} />
-          ))}
-        </dl>
-      </section>
-      <section aria-labelledby="side-stats-players" className="flex flex-col gap-2">
-        <h2 id="side-stats-players" className="text-body font-semibold text-fg-1">
-          Rendimiento de jugadores
-        </h2>
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2">
+      <section aria-label="Jugadores" className="flex flex-col gap-2">
+        <SlashTitle>Jugadores</SlashTitle>
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2">
           {data.players.map((player) => (
             <PlayerStatCard key={player.steamid64} player={player} side={side} />
           ))}
         </ul>
+      </section>
+      <section aria-label="Estadísticas generales" className="flex flex-col gap-2">
+        <SlashTitle>Estadísticas generales</SlashTitle>
+        <EdgeTileGrid label="Estadísticas generales" className="grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))]">
+          {SIDE_STAT_TILES.map((tile) => (
+            <StatTile key={tile.key} tile={tile} stat={data.overall[tile.key]} />
+          ))}
+        </EdgeTileGrid>
       </section>
       <MatchList report={data} />
       {data.skipped.length > 0 ? (

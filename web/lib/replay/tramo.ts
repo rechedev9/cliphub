@@ -76,6 +76,49 @@ export function moveTramoEdge(tramo: Tramo, edge: 'from' | 'to', seconds: number
   return { from: tramo.from, to: Math.max(value, tramo.from + TRAMO_MIN_SECONDS) };
 }
 
+/** The seconds a handle may reach: the start up to the minimum before the end, the end from the minimum after the start. */
+export function edgeBounds(tramo: Tramo, edge: 'from' | 'to'): { min: number; max: number } {
+  if (edge === 'from') return { min: 0, max: Math.max(0, tramoEnd(tramo) - TRAMO_MIN_SECONDS) };
+  return { min: Math.min(ROUND_CLOCK_SECONDS, tramo.from + TRAMO_MIN_SECONDS), max: ROUND_CLOCK_SECONDS };
+}
+
+/** Seconds a Page key moves a handle: one opening tramo of the first-death list. */
+export const TRAMO_PAGE_SECONDS = 15;
+
+/**
+ * Where a key puts a handle: the arrows move it 1 s (5 s with Shift), Page Up and Down 15 s,
+ * Home and End to the ends of what it can reach. Left is earlier on the bar, so Page Down
+ * and the left arrow both lower the seconds. Null for any other key.
+ */
+export function keyedEdge(options: { tramo: Tramo; edge: 'from' | 'to'; key: string; shift: boolean }): number | null {
+  const { tramo, edge, key, shift } = options;
+  const now = edge === 'from' ? tramo.from : tramoEnd(tramo);
+  const bounds = edgeBounds(tramo, edge);
+  switch (key) {
+    case 'ArrowLeft':
+    case 'ArrowDown':
+      return Math.max(bounds.min, now - (shift ? 5 : 1));
+    case 'ArrowRight':
+    case 'ArrowUp':
+      return Math.min(bounds.max, now + (shift ? 5 : 1));
+    case 'PageDown':
+      return Math.max(bounds.min, now - TRAMO_PAGE_SECONDS);
+    case 'PageUp':
+      return Math.min(bounds.max, now + TRAMO_PAGE_SECONDS);
+    case 'Home':
+      return bounds.min;
+    case 'End':
+      return bounds.max;
+    default:
+      return null;
+  }
+}
+
+/** The handle a click at `seconds` on the track should move: the one it is closer to; the start on a tie, so a click on a whole-round bar before the middle pulls the start in. */
+export function nearestEdge(tramo: Tramo, seconds: number): 'from' | 'to' {
+  return Math.abs(seconds - tramo.from) <= Math.abs(seconds - tramoEnd(tramo)) ? 'from' : 'to';
+}
+
 /** Query key of the tramo: `15-45` in seconds, or `plant`. The whole round is left out. */
 export const TRAMO_QUERY = 'tramo';
 
@@ -97,4 +140,19 @@ export function writeTramo(current: string, tramo: Tramo): string {
   else if (isWholeRound(tramo)) params.delete(TRAMO_QUERY);
   else params.set(TRAMO_QUERY, `${tramo.from}-${tramoEnd(tramo)}`);
   return params.toString();
+}
+
+/** Where a moment sits on the strip, as a percentage of the round clock. */
+export function clockPercent(seconds: number): number {
+  return Math.min(100, Math.max(0, (seconds / ROUND_CLOCK_SECONDS) * 100));
+}
+
+/**
+ * The seconds a pointer at `clientX` means on a strip that spans `left` to `left + width`.
+ * `grab` is how far inside the handle the press landed, so the handle follows the pointer without jumping.
+ */
+export function dragSeconds(options: { clientX: number; left: number; width: number; grab: number }): number | null {
+  const { clientX, left, width, grab } = options;
+  if (width <= 0) return null;
+  return ((clientX - grab - left) / width) * ROUND_CLOCK_SECONDS;
 }

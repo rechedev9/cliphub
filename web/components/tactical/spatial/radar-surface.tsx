@@ -11,19 +11,21 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { RADAR_LEVELS, type RadarLevel, type TacticalGeometry } from '@/lib/api/tactical';
+import type { RadarLevel, TacticalGeometry } from '@/lib/api/tactical';
 import { isCalibrationUsable, radarViewRect } from '@/lib/tactical-transform';
 import type { RadarRect, WorldMark } from '@/lib/tactical-transform';
 import { LEVEL_LABEL, radarProjection, renderedToWorld } from '@/lib/tactical-spatial';
 import type { RadarProjection } from '@/lib/tactical-spatial';
-import { renderRadarBackground } from '@/components/tactical/radar-draw';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { readRadarStyle } from '@/components/tactical/radar-style';
-import { useRadarImage } from '@/hooks/use-radar-image';
 import { cn } from '@/lib/utils';
-import { useMapZoom } from '@/hooks/use-map-zoom';
-import type { MapZoom } from '@/hooks/use-map-zoom';
-import { radarImageFits } from '@/lib/replay/map-view';
+import { useFloorZoom } from '@/hooks/use-floor-zoom';
+import type { FloorZoom } from '@/hooks/use-floor-zoom';
+import { floorRectsOf, navFloorRects } from '@/lib/replay/floor-split';
+import type { NavRadarModel } from '@/lib/replay/nav-radar';
+import { loadNavRadar } from '@/components/replay/radar/map-art';
+import { bakeMapPlate } from '@/components/replay/radar/radar-bake';
+import type { MapArt } from '@/components/replay/radar/radar-bake';
 import { MapZoomControls } from '@/components/analysis/map-zoom-controls';
 
 /** What a paint callback draws with: the context already panned to the radar square of `level`. */
@@ -42,46 +44,18 @@ const NO_MARKS: readonly WorldMark[] = [];
 
 /** Same height ceiling as the round replay, so the two views share one plate size. */
 const RADAR_MAX_HEIGHT_VH = 74;
-/** Greys CS2's radar down so team colours and marks stay the loudest thing on it. */
-const RADAR_IMAGE_FILTER = 'grayscale(0.55) brightness(0.78) contrast(1.05)';
+const GRID: MapArt = { kind: 'grid' };
 
 /**
- * The background bitmap from CS2's own radar image: the 1024 px overview covers
- * the calibration's native square, so it scales by `size / calibration.size`.
- */
-function renderImageBackground(
-  image: HTMLImageElement,
-  geometry: TacticalGeometry,
-  frame: { size: number; dpr: number; style: RadarStyle; view: RadarRect },
-): HTMLCanvasElement {
-  const { size, dpr, style, view } = frame;
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(view.width * size * dpr));
-  canvas.height = Math.max(1, Math.round(view.height * size * dpr));
-  const ctx = canvas.getContext('2d');
-  if (ctx === null) return canvas;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.fillStyle = style.panel;
-  ctx.fillRect(0, 0, view.width * size, view.height * size);
-  ctx.translate(-view.x * size, -view.y * size);
-  const scale = size / geometry.calibration.size;
-  ctx.filter = RADAR_IMAGE_FILTER;
-  ctx.drawImage(image, 0, 0, image.naturalWidth * scale, image.naturalHeight * scale);
-  ctx.filter = 'none';
-  return canvas;
-}
-
-function radarLayer(level: RadarLevel): 'upper' | 'lower' {
-  return level === RADAR_LEVELS.lower ? 'lower' : 'upper';
-}
-
-/**
- * A radar plate for the multi-round views: the play-derived map of one level,
+ * A radar plate for the multi-round views: the replay's own flat plate from the
+ * nav mesh (the play-derived cells only while it loads or when it is missing),
  * baked once per size, with the owner's marks painted over it. The canvas is
  * `aria-hidden`; each view lists the same facts as text beside it. `children`
  * receives the projection, for layers such as the telestrator that sit on top,
  * and whether the map is zoomed, when a plain drag pans instead.
- * With two `levels` (Nuke, Vertigo) both floors sit side by side on one zoom.
+ * With two `levels` (Nuke, Vertigo) both floors sit side by side (stacked in a
+ * narrow box), the upper one first, each cropped to its own extent on one scale
+ * (`lib/replay/floor-split`, the replay's arrangement) and on one zoom.
  */
 export function RadarSurface({
   geometry,
@@ -107,21 +81,43 @@ export function RadarSurface({
   label: string;
   children?: (projection: RadarProjection, zoomed: boolean, level: RadarLevel) => ReactNode;
 }): ReactNode {
-  const shown: readonly RadarLevel[] = levels !== undefined && levels.length > 1 ? levels.slice(0, 2) : [level];
-  const split = shown.length > 1;
+  // Primitives, so a caller's fresh `levels` array does not look like a new framing and reset the zoom.
+  const split = levels !== undefined && levels.length > 1;
+  const firstLevel = split ? levels[0] : level;
+  const secondLevel = split ? levels[1] : undefined;
+  const shown = useMemo<readonly RadarLevel[]>(() => (secondLevel === undefined ? [firstLevel] : [firstLevel, secondLevel]), [firstLevel, secondLevel]);
   const repaints = useRef(new Map<RadarLevel, () => void>());
   const drawable = isCalibrationUsable(geometry.calibration) && geometry.cell_size > 0;
-  // CS2's radar when the game is installed; the play-derived cells only while it loads or when it is missing.
-  // A derived calibration does not line up with the image, so such a map keeps its cells.
-  const fits = radarImageFits(geometry.calibration);
-  const first = useRadarImage(fits ? geometry.map : '', radarLayer(shown[0]));
-  const second = useRadarImage(fits && split ? geometry.map : '', radarLayer(shown[1] ?? RADAR_LEVELS.lower));
-  const images = split ? [first, second] : [first];
-  // Until every image settles nothing is drawn, so the cells never flash before it, and the map takes no zoom.
-  const settled = images.every((image) => image !== undefined);
-  // Image or cells, both floors are cropped to where people played and the marks: a tall map stays tall, a wide one wide.
-  const base = useMemo(() => radarViewRect(geometry, marks), [geometry, marks]);
-  const zoom = useMapZoom(base, { enabled: settled });
+  // The replay's flat plate from the nav mesh, so a coach sees one map everywhere; nothing is drawn until it
+  // answers, so the cells never flash before it, and the map takes no zoom meanwhile.
+  const map = geometry.map;
+  const [navArt, setNavArt] = useState<{ map: string; model: NavRadarModel | null } | null>(null);
+  useEffect(() => {
+    let active = true;
+    void loadNavRadar(map).then((model) => {
+      if (active) setNavArt({ map, model });
+    });
+    return () => {
+      active = false;
+    };
+  }, [map]);
+  const settled = navArt?.map === map;
+  const model = settled ? navArt.model : null;
+  const art = useMemo<MapArt>(() => (model === null ? GRID : { kind: 'nav', model }), [model]);
+  // Each floor is cropped to its walkable ground and where people played on it, with the marks: the replay's layout.
+  const rects = useMemo(() => {
+    const navRects = model === null || !drawable ? null : navFloorRects({ geometry, model, marks });
+    if (navRects !== null) return shown.map((plateLevel) => navRects[plateLevel]);
+    if (!split) return shown.map(() => radarViewRect(geometry, marks));
+    const floorRects = floorRectsOf(geometry, marks);
+    return shown.map((plateLevel) => floorRects[plateLevel]);
+  }, [drawable, geometry, marks, model, shown, split]);
+  const zoom = useFloorZoom({ enabled: settled });
+  const { reset } = zoom;
+  // A different map, or different marks that move the crop, is a different framing: the whole map again.
+  // Compared by value, so a refreshed answer with the same crop (a dragged time window) keeps the zoom.
+  const framing = rects.map((rect) => `${rect.x.toFixed(4)},${rect.y.toFixed(4)},${rect.width.toFixed(4)},${rect.height.toFixed(4)}`).join('|');
+  useEffect(() => reset(), [reset, framing]);
 
   useEffect(() => {
     if (handleRef === undefined) return;
@@ -132,68 +128,79 @@ export function RadarSurface({
     };
   }, [handleRef]);
 
-  const plateHeight = (RADAR_MAX_HEIGHT_VH * base.width) / base.height;
+  // Both floors at one scale: a plate is as wide as its floor's extent, so the row's widths follow them.
+  const widest = Math.max(...rects.map((rect) => rect.width));
+  const tallest = Math.max(...rects.map((rect) => rect.height));
+  const rowWidth = rects.reduce((sum, rect) => sum + rect.width, 0);
   const plateVars: CSSProperties & { '--radar-max': string } = {
-    '--radar-max': split ? `min(100%, calc(${(2 * plateHeight).toFixed(2)}vh + 0.5rem))` : `min(100%, ${plateHeight.toFixed(2)}vh)`,
+    '--radar-max': split ? `min(100%, calc(${((RADAR_MAX_HEIGHT_VH * rowWidth) / tallest).toFixed(2)}vh + 1rem))` : `min(100%, ${((RADAR_MAX_HEIGHT_VH * rects[0].width) / rects[0].height).toFixed(2)}vh)`,
   };
 
   return (
     <div className={cn('mx-auto w-full max-w-(--radar-max)', split && '@container')} style={plateVars}>
-      <div className={cn(split && 'grid grid-cols-1 gap-2 @[32rem]:grid-cols-2')}>
+      <div className={cn(split && 'flex flex-col items-center gap-2 @[32rem]:flex-row @[32rem]:gap-4')}>
         {shown.map((plateLevel, index) => (
-          <RadarPlate
+          <div
             key={plateLevel}
-            geometry={geometry}
-            level={plateLevel}
-            image={images[index] ?? null}
-            settled={settled}
-            drawable={drawable}
-            base={base}
-            zoom={zoom}
-            paint={paint}
-            repaints={repaints.current}
-            onPoint={onPoint}
-            label={split ? `${label} ${LEVEL_LABEL[plateLevel]}.` : label}
-            floorLabel={split ? LEVEL_LABEL[plateLevel] : null}
-            controls={index === shown.length - 1}
+            className={cn('w-full', split && 'w-(--share) @[32rem]:w-auto @[32rem]:min-w-0 @[32rem]:grow-(--grow) @[32rem]:basis-0')}
+            style={split ? sharesOf(rects[index], widest) : undefined}
           >
-            {children}
-          </RadarPlate>
+            <RadarPlate
+              geometry={geometry}
+              level={plateLevel}
+              art={art}
+              settled={settled}
+              drawable={drawable}
+              rect={rects[index]}
+              zoom={zoom}
+              paint={paint}
+              repaints={repaints.current}
+              onPoint={onPoint}
+              label={split ? `${label} ${LEVEL_LABEL[plateLevel]}.` : label}
+              controls={index === shown.length - 1}
+            >
+              {children}
+            </RadarPlate>
+          </div>
         ))}
       </div>
     </div>
   );
 }
 
+/** A plate's share of the widest one in a narrow box, and its weight in a row: both follow its floor's width. */
+function sharesOf(rect: RadarRect, widest: number): CSSProperties & { '--share': string; '--grow': number } {
+  return { '--share': `${((100 * rect.width) / widest).toFixed(2)}%`, '--grow': rect.width };
+}
+
 /** One floor's canvas: its own bitmap and size, the zoom shared with the other floor. */
 function RadarPlate({
   geometry,
   level,
-  image,
+  art,
   settled,
   drawable,
-  base,
+  rect,
   zoom,
   paint,
   repaints,
   onPoint,
   label,
-  floorLabel,
   controls,
   children,
 }: {
   geometry: TacticalGeometry;
   level: RadarLevel;
-  image: HTMLImageElement | null;
+  art: MapArt;
   settled: boolean;
   drawable: boolean;
-  base: RadarRect;
-  zoom: MapZoom;
+  /** The floor's extent, as a window of the radar square. */
+  rect: RadarRect;
+  zoom: FloorZoom;
   paint: (frame: RadarFrame) => void;
   repaints: Map<RadarLevel, () => void>;
   onPoint?: (world: { x: number; y: number }, level: RadarLevel) => void;
   label: string;
-  floorLabel: string | null;
   controls: boolean;
   children?: (projection: RadarProjection, zoomed: boolean, level: RadarLevel) => ReactNode;
 }): ReactNode {
@@ -205,9 +212,11 @@ function RadarPlate({
   const repaintRef = useRef<() => void>(() => {});
   const [box, setBox] = useState({ width: 1, height: 1 });
   const [dpr, setDpr] = useState(1);
-  const view = zoom.view;
+  const view = zoom.windowOf(rect);
+  const { surfaceFor } = zoom;
+  const surface = useMemo(() => surfaceFor(rect), [surfaceFor, rect]);
   const projection = useMemo<RadarProjection>(() => radarProjection(box, view), [box, view]);
-  const bindZoom = zoom.surface.ref;
+  const bindZoom = surface.ref;
   const bindContainer = useCallback(
     (element: HTMLDivElement | null) => {
       containerRef.current = element;
@@ -231,12 +240,9 @@ function RadarPlate({
       ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
       return;
     }
-    const key = `${size}|${dpr}|${level}|${geometry.map}|${view.x},${view.y},${view.width},${view.height}|${style.map}|${image ? 'cs2' : 'cells'}`;
+    const key = `${size}|${dpr}|${level}|${geometry.map}|${view.x},${view.y},${view.width},${view.height}|${style.map}|${art.kind}`;
     if (backgroundRef.current?.key !== key) {
-      const canvas = image
-        ? renderImageBackground(image, geometry, { size, dpr, style, view })
-        : renderRadarBackground(geometry, level, size, dpr, style, view);
-      backgroundRef.current = { key, canvas };
+      backgroundRef.current = { key, canvas: bakeMapPlate({ art, geometry, level, size, dpr, view, style }) };
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = style.background;
@@ -245,7 +251,7 @@ function RadarPlate({
     ctx.drawImage(backgroundRef.current.canvas, view.x * size, view.y * size, view.width * size, view.height * size);
     paintRef.current({ ctx, size, view, style, level });
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-  }, [drawable, dpr, geometry, image, level, projection, settled, view]);
+  }, [art, drawable, dpr, geometry, level, projection, settled, view]);
 
   useEffect(() => {
     paintRef.current = paint;
@@ -315,7 +321,7 @@ function RadarPlate({
 
   return (
     <div
-      {...zoom.surface}
+      {...surface}
       ref={bindContainer}
       role="img"
       aria-label={label}
@@ -325,17 +331,12 @@ function RadarPlate({
         zoom.zoomed && 'touch-none',
         zoom.cursor,
       )}
-      style={{ aspectRatio: `${base.width} / ${base.height}` }}
+      style={{ aspectRatio: `${rect.width} / ${rect.height}` }}
     >
       <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full" />
       {drawable ? (
         <>
           {children?.(projection, zoom.zoomed, level)}
-          {floorLabel !== null ? (
-            <span aria-hidden className="pointer-events-none absolute top-2 left-2 rounded-sm border border-border bg-surface-1 px-1.5 py-0.5 text-meta text-fg-2">
-              {floorLabel}
-            </span>
-          ) : null}
           {controls ? (
             <MapZoomControls
               zoom={zoom.zoom}

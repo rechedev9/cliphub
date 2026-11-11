@@ -23,3 +23,8 @@ export function labelOnFloor(floor: ShownFloor, z: number): boolean {
 export function floorAlpha(floor: ShownFloor, z: number): number {
   return onShownFloor(floor, z) ? 1 : (floor.offFloorAlpha ?? OFF_FLOOR_ALPHA);
 }
+
+/** The same strength for a mark whose floor is already settled (see `lib/replay/floor-assign`), not read off its height. */
+export function levelAlpha(floor: { level: RadarLevel; offFloorAlpha?: number }, level: RadarLevel): number {
+  return level === floor.level ? 1 : (floor.offFloorAlpha ?? OFF_FLOOR_ALPHA);
+}

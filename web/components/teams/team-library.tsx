@@ -2,10 +2,12 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { PlugZap, Shield, Swords } from 'lucide-react';
 import { isLibraryOffline, listLibraryTeams, type LibraryTeam } from '@/lib/api/library';
-import { MATCHES_HREF, teamHref } from '@/lib/clips/routes';
+import { MATCHES_HREF } from '@/lib/clips/routes';
 import { formatShortDate } from '@/lib/format';
+import { hubTeamHref } from '@/lib/nav-scope';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
@@ -37,6 +39,7 @@ const COLUMNS: readonly DataTableColumn<LibraryTeam>[] = [
 
 /** Equipos: every team the library resolved from the clan names of its demos. */
 export function TeamLibrary(): ReactNode {
+  const tab = useSearchParams().get('tab');
   const [teams, setTeams] = useState<LibraryTeam[] | null>(null);
   const [offline, setOffline] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -127,7 +130,7 @@ export function TeamLibrary(): ReactNode {
         rows={shown}
         columns={columns}
         rowKey={(team) => team.id}
-        rowHref={(team) => teamHref(team.id)}
+        rowHref={(team) => hubTeamHref(team.id, tab)}
         view={view}
         empty={<p className="text-body-sm text-fg-2">Ningún equipo cumple esta búsqueda.</p>}
       />

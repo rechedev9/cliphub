@@ -9,8 +9,6 @@ import {
   STRATBOOK_FORMAT,
   STRATBOOK_VERSION,
   type DetectedPlay,
-  type LibraryPlay,
-  type LineupStatus,
   type PlayGrenadeKind,
   type PlayInput,
   type PlayOrigin,
@@ -39,13 +37,6 @@ export const GRENADE_LABEL: Record<PlayGrenadeKind, string> = {
   he: 'HE',
 };
 
-export const LINEUP_STATUS_LABEL: Record<LineupStatus, string> = {
-  matched: 'En el catálogo',
-  unmatched: 'No coincide con ningún lineup',
-  no_catalog: 'Sin lineups de este mapa',
-  not_covered: 'El catálogo solo tiene humos',
-};
-
 /** The kinds a play of one side can take: that side's round patterns. */
 export function playKinds(side: TacticalSide): readonly string[] {
   return side === 'T' ? TACTICAL_T_PATTERN_ORDER : TACTICAL_CT_PATTERN_ORDER;
@@ -61,11 +52,6 @@ export function playShapeLabel(play: { kind: string; site: TacticalSite }): stri
   return play.site === 'none' ? kind : `${kind} ${siteLabel(play.site)}`;
 }
 
-/** A starting title for a play saved from a round. */
-export function suggestPlayTitle(play: { kind: string; site: TacticalSite; side: TacticalSide }, round: number): string {
-  return `${playShapeLabel(play)} (${play.side}, ronda ${round})`;
-}
-
 /** The share of a detected play's rounds, as a whole percent. */
 export function shareLabel(share: number | undefined): string {
   return share === undefined ? '' : `${Math.round(share * 100)} %`;
@@ -74,24 +60,6 @@ export function shareLabel(share: number | undefined): string {
 /** Seconds after freeze end, as the replay clock counts them. */
 export function playSecondsLabel(seconds: number): string {
   return `${seconds.toFixed(1).replace('.', ',')} s`;
-}
-
-/** A play saved from a round draft, with the coach's title and notes. */
-export function playFromDraft(draft: LibraryPlay, title: string, notes: string): PlayInput {
-  return {
-    title: title.trim(),
-    team_id: draft.team_id,
-    map: draft.map,
-    side: draft.side,
-    kind: draft.kind,
-    site: draft.site,
-    origin: 'round',
-    positions_seconds: draft.positions_seconds,
-    grenades: draft.grenades,
-    positions: draft.positions,
-    notes: notes.trim(),
-    examples: draft.examples.slice(0, MAX_PLAY_EXAMPLES),
-  };
 }
 
 /** A play saved from a repeated play the detection found, with all its rounds as examples. */

@@ -3,7 +3,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { ChevronDown, ListOrdered } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
-import type { TacticalSide } from '@/lib/api/tactical';
+import type { TacticalEvent, TacticalSide } from '@/lib/api/tactical';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import { docNames } from '@/lib/replay/centre-round';
 import { BOMB_SECONDS, aliveCounts, bombState, hudClock, killFeed, killMarks, teamNamesFor } from '@/lib/replay/map-hud';
@@ -32,16 +32,25 @@ export function MapHud({
   roundSeconds,
   eventsOpen,
   onToggleEvents,
+  onCopyThrow,
   onSeek,
   showFeed,
+  showScore,
+  scoreCentred = false,
 }: {
   focused: CentreRound;
+  /** Marcador arriba in the replay preferences. */
+  showScore: boolean;
+  /** The score bug sits at the top centre when the filter stack floats over the top left. */
+  scoreCentred?: boolean;
   /** Feed de bajas in Ajustes del mapa. */
   showFeed: boolean;
   /** The playhead in seconds on the focused round's own bar. */
   roundSeconds: number;
   eventsOpen: boolean;
   onToggleEvents: () => void;
+  /** Copies the setpos of a grenade's throw, from its row in the list of events. */
+  onCopyThrow: (event: TacticalEvent) => void;
   /** Seeks to a moment given in seconds on the round's own bar. */
   onSeek: (roundSeconds: number) => void;
 }): ReactNode {
@@ -57,11 +66,13 @@ export function MapHud({
 
   return (
     <>
-      <div className={cn(HUD_SCOPE, 'pointer-events-none absolute top-2 left-2 flex h-11 items-stretch overflow-hidden rounded-md text-body-sm', HUD_SURFACE)}>
-        <TeamCell side={TACTICAL_SIDES.ct} name={teams.CT} score={score.CT} alive={alive.CT} />
-        <ClockCell bomb={bomb} clock={hudClock(roundClockSeconds(focused.timeline, roundSeconds))} />
-        <TeamCell side={TACTICAL_SIDES.t} name={teams.T} score={score.T} alive={alive.T} mirrored />
-      </div>
+      {showScore ? (
+        <div className={cn(HUD_SCOPE, 'pointer-events-none absolute top-2 flex h-11 items-stretch overflow-hidden rounded-md text-body-sm', scoreCentred ? 'left-1/2 -translate-x-1/2' : 'left-2', HUD_SURFACE)}>
+          <TeamCell side={TACTICAL_SIDES.ct} name={teams.CT} score={score.CT} alive={alive.CT} />
+          <ClockCell bomb={bomb} clock={hudClock(roundClockSeconds(focused.timeline, roundSeconds))} />
+          <TeamCell side={TACTICAL_SIDES.t} name={teams.T} score={score.T} alive={alive.T} mirrored />
+        </div>
+      ) : null}
 
       <div className={cn(HUD_SCOPE, 'pointer-events-none absolute top-2 right-2 bottom-14 flex w-80 max-w-[45%] flex-col items-end gap-1')}>
         <button
@@ -81,7 +92,7 @@ export function MapHud({
         </button>
         {eventsOpen ? (
           <div className="pointer-events-auto min-h-0 w-full overflow-y-auto overscroll-contain rounded-md border border-border-strong bg-surface-1/95 shadow-[var(--elev-4)] [scrollbar-width:thin] motion-safe:animate-in motion-safe:slide-in-from-top-1">
-            <TacticalEventList timeline={focused.timeline} events={focused.events} names={names} onSeek={onSeek} />
+            <TacticalEventList timeline={focused.timeline} events={focused.events} names={names} onSeek={onSeek} onCopyThrow={onCopyThrow} />
           </div>
         ) : (
           <ol aria-label="Últimas bajas" className="flex flex-col items-end gap-1">

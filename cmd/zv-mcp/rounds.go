@@ -131,7 +131,7 @@ func (in findRoundsIn) check() (tuiclient.AnalysisQuery, error) {
 	if in.SteamID != "" {
 		s := in.teamRoundScopeIn
 		if len(in.Lineup) > 0 || s.teamOnly() {
-			return tuiclient.AnalysisQuery{}, errors.New("lineup, max_matches, opponent_top, whose and the Replay filters (awp, advantage, site, outcome, post_plant, phase, second_round, end_reason, weapon, equip ranges, tactic) are team scope keys: pass team_id")
+			return tuiclient.AnalysisQuery{}, errors.New("lineup, max_matches, opponent_top, whose and the Replay filters (awp, advantage, site, outcome, post_plant, phase, second_round, end_reason, weapon, equip ranges, tactic, exclude_tactic, match_tag, exclude_match_tag, event) are team scope keys: pass team_id")
 		}
 	}
 	return teamQuery(in.analysisFilterIn, in.teamScopeIn)

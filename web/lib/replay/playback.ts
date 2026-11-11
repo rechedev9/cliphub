@@ -16,6 +16,8 @@ export type PlaybackFrame = {
   seeked: boolean;
   /** A round ending here hands over to the next one: a playlist with more rounds. */
   hasNext: boolean;
+  /** Where playing starts, past the freeze time when the user hides it; 0 by default. */
+  startSeconds?: number;
 };
 
 export type PlaybackAction = 'play' | 'hold' | 'next' | 'stop';
@@ -32,13 +34,14 @@ export function playbackStep(frame: PlaybackFrame): PlaybackStep {
     { position: frame.position, playing: true },
     { elapsedMs: frame.elapsedMs, speed: frame.speed, durationSeconds: frame.durationSeconds, loop: frame.loop },
   );
-  if (next.playing) return { position: next.position, action: 'play' };
+  if (next.playing) return { position: Math.max(next.position, frame.startSeconds ?? 0), action: 'play' };
   return { position: next.position, action: frame.hasNext && !frame.seeked ? 'next' : 'stop' };
 }
 
-/** Play from the start when the playhead sits at the end, within a scrubber step. */
-export function playStartSeconds(position: number, durationSeconds: number): number {
-  return atEnd(position, durationSeconds) ? 0 : position;
+/** Play from `startSeconds` when the playhead sits at the end, within a scrubber step, or before it. */
+export function playStartSeconds(options: { position: number; durationSeconds: number; startSeconds?: number }): number {
+  const { position, durationSeconds, startSeconds = 0 } = options;
+  return atEnd(position, durationSeconds) ? startSeconds : Math.max(position, startSeconds);
 }
 
 function atEnd(position: number, durationSeconds: number): boolean {

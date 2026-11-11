@@ -10,7 +10,7 @@ export type MapCounts = Readonly<Record<string, number>>;
 export const NO_MATCHES_TEXT = 'Sin partidas en este alcance';
 
 /** The scope fields that decide which matches a map has; the round criteria only filter rounds. */
-const MATCH_FIELDS: readonly ScopeField[] = ['limit', 'opponentTop', 'whose'];
+const MATCH_FIELDS: readonly ScopeField[] = ['limit', 'opponentTop', 'whose', 'matchTags', 'excludeMatchTags', 'events'];
 
 export type MapCountsQueryOptions = {
   scope: AnalysisScope;

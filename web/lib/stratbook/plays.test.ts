@@ -5,12 +5,10 @@ import {
   importSummary,
   parseStratbookFile,
   playFromDetected,
-  playFromDraft,
   playKinds,
   playShapeLabel,
   shareLabel,
   stratbookFileName,
-  suggestPlayTitle,
 } from './plays.ts';
 
 const MATCH = '11111111-1111-4111-8111-111111111111';
@@ -37,15 +35,6 @@ const draft: LibraryPlay = {
   updated_at: '',
 };
 
-test('a play from a round keeps its round as the example and trims the coach text', () => {
-  const input = playFromDraft(draft, '  Ejecución A  ', ' humo CT primero ');
-  assert.equal(input.title, 'Ejecución A');
-  assert.equal(input.notes, 'humo CT primero');
-  assert.equal(input.origin, 'round');
-  assert.deepEqual(input.examples, draft.examples);
-  assert.equal('id' in input, false);
-});
-
 test('a detected play becomes a play with every round as an example, capped at 50', () => {
   const detected: DetectedPlay = {
     map: 'de_nuke', side: 'CT', kind: 'hold', site: 'B', rounds: 60,
@@ -65,7 +54,6 @@ test('a detected play becomes a play with every round as an example, capped at 5
 test('play labels follow the round classifier vocabulary', () => {
   assert.equal(playShapeLabel({ kind: 'execute', site: 'A' }), 'Ejecución A');
   assert.equal(playShapeLabel({ kind: 'hold', site: 'none' }), 'Defensa');
-  assert.equal(suggestPlayTitle({ kind: 'hold', site: 'B', side: 'CT' }, 4), 'Defensa B (CT, ronda 4)');
   assert.ok(playKinds('T').includes('execute'));
   assert.equal(playKinds('CT').includes('execute'), false);
   assert.equal(shareLabel(0.666), '67 %');

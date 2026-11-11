@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -105,6 +106,14 @@ func teamScopeQuery(q url.Values, f *tacticalplan.ScoutFilter) error {
 	if f.Whose, err = tacticalplan.ParseWhose(strings.TrimSpace(q.Get("whose"))); err != nil {
 		return err
 	}
+	for _, l := range []struct {
+		name string
+		into *[]string
+	}{{"match_tag", &f.Tags}, {"exclude_match_tag", &f.ExcludeTags}, {"event", &f.Events}} {
+		if *l.into, err = textList(q, l.name); err != nil {
+			return err
+		}
+	}
 	rounds := url.Values{}
 	for _, key := range teamRoundKeys {
 		if list, ok := q[key]; ok {
@@ -113,6 +122,31 @@ func teamScopeQuery(q url.Values, f *tacticalplan.ScoutFilter) error {
 	}
 	f.Rounds, err = tacticalplan.FilterFromValues(rounds)
 	return err
+}
+
+// maxScopeTexts bounds the tags or events one scope names, and maxScopeTextRunes each one.
+const (
+	maxScopeTexts     = 20
+	maxScopeTextRunes = 80
+)
+
+// textList reads a repeated text parameter, trimmed and without blanks or repeats.
+func textList(q url.Values, name string) ([]string, error) {
+	var out []string
+	for _, raw := range q[name] {
+		v := strings.TrimSpace(raw)
+		if v == "" || slices.Contains(out, v) {
+			continue
+		}
+		if len([]rune(v)) > maxScopeTextRunes {
+			return nil, fmt.Errorf("%s values must be at most %d characters", name, maxScopeTextRunes)
+		}
+		out = append(out, v)
+	}
+	if len(out) > maxScopeTexts {
+		return nil, fmt.Errorf("%s takes at most %d values", name, maxScopeTexts)
+	}
+	return out, nil
 }
 
 // teamRoundKeys are the round filter's names a team view reads; team, side,
@@ -136,6 +170,9 @@ func (h *Handlers) teamScope(ctx context.Context, s scopeRequest) (tacticalplan.
 	q := s.q
 	f, matchIDs, err := scoutQuery(q)
 	if err != nil {
+		return f, nil, err
+	}
+	if f.SkipRounds, err = h.excludedTactics(ctx, s); err != nil {
 		return f, nil, err
 	}
 	raw := strings.TrimSpace(q.Get("tactic"))
@@ -162,6 +199,39 @@ func (h *Handlers) teamScope(ctx context.Context, s scopeRequest) (tacticalplan.
 		f.PlayRounds[e.MatchID] = append(f.PlayRounds[e.MatchID], e.Round)
 	}
 	return f, matchIDs, nil
+}
+
+// excludedTactics reads `exclude_tactic`, Libreta play ids whose example rounds the scope drops.
+// A play deleted since drops nothing; a play of another team is refused.
+func (h *Handlers) excludedTactics(ctx context.Context, s scopeRequest) (map[uuid.UUID][]int, error) {
+	raws := s.q["exclude_tactic"]
+	if len(raws) == 0 {
+		return nil, nil
+	}
+	if len(raws) > maxScopeTexts {
+		return nil, fmt.Errorf("exclude_tactic takes at most %d plays", maxScopeTexts)
+	}
+	out := map[uuid.UUID][]int{}
+	for _, raw := range raws {
+		id, err := uuid.Parse(strings.TrimSpace(raw))
+		if err != nil {
+			return nil, errors.New("exclude_tactic must be Libreta play ids")
+		}
+		play, err := h.libraryRepo.GetPlay(ctx, id)
+		if errors.Is(err, library.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read excluded tactic: %w", err)
+		}
+		if play.TeamID != nil && *play.TeamID != s.teamID {
+			return nil, errors.New("exclude_tactic names a Libreta play of another team")
+		}
+		for _, e := range play.Examples {
+			out[e.MatchID] = append(out[e.MatchID], e.Round)
+		}
+	}
+	return out, nil
 }
 
 // intParam names an optional query integer from 1 to limit.

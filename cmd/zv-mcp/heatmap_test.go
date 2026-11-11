@@ -36,6 +36,7 @@ func TestHeatmapViewReadsAsTheOrchestratorAndTheReplayURL(t *testing.T) {
 		"a grenade outside utility":   {Kind: "position", Grenade: []string{"smoke"}},
 		"a window that ends too soon": {ClockFrom: 30, ClockTo: 10},
 		"too many cells":              {Limit: 51},
+		"a floor that does not exist": {Floor: "roof"},
 	} {
 		if _, err := bad.query(); err == nil {
 			t.Errorf("%s: no error", name)
@@ -153,5 +154,89 @@ func TestSummarizeHeatmapNamesAndSumsTheHottestCells(t *testing.T) {
 	}
 	if len(out.Zones) != 2 || out.Zones[0].Callout != "Outside" || out.Zones[0].Count != 8 || out.Zones[0].Cells != 2 || out.Zones[1].Callout != "Ramp" {
 		t.Fatalf("zones = %+v, want Outside with both near cells, then Ramp", out.Zones)
+	}
+}
+
+func TestFloorNarrowsTheCellsAndTotalsAndOpensTheSameFloorInStudio(t *testing.T) {
+	got := tuiclient.SpatialHeatmap{Heatmap: &tacticalplan.Heatmap{
+		Cells: []tacticalplan.HeatmapCell{{X: 1, Y: 1, Count: 3}, {X: 1, Y: 1, Level: "lower", Count: 2}},
+		Sides: []tacticalplan.HeatmapSide{{Side: tacticalplan.SideCT, Level: "default", Total: 3}, {Side: tacticalplan.SideCT, Level: "lower", Total: 2}},
+	}}
+	lower := restrictToFloor(got, "Lower")
+	if len(lower.Heatmap.Cells) != 1 || lower.Heatmap.Cells[0].Count != 2 || len(lower.Heatmap.Sides) != 1 || lower.Heatmap.Sides[0].Total != 2 {
+		t.Fatalf("lower = %+v, want the lower floor's cell and total only", lower.Heatmap)
+	}
+	if upper := restrictToFloor(got, "upper"); len(upper.Heatmap.Cells) != 1 || upper.Heatmap.Cells[0].Count != 3 || len(upper.Heatmap.Sides) != 1 {
+		t.Fatalf("upper = %+v, want the upper floor's cell and total only", upper.Heatmap)
+	}
+	if both := restrictToFloor(got, "both"); len(both.Heatmap.Cells) != 2 || len(got.Heatmap.Cells) != 2 {
+		t.Fatalf("both = %+v, want everything, and the answer read from untouched", both.Heatmap)
+	}
+	page := url.Values{}
+	heatmapViewIn{Floor: "lower"}.studioQuery(page)
+	if page.Get("piso") != "inferior" {
+		t.Fatalf("studio query = %s, want piso=inferior", page.Encode())
+	}
+	page = url.Values{}
+	heatmapViewIn{Floor: "upper", Kind: "death"}.studioQuery(page)
+	if page.Get("piso") != "superior" || page.Get("cuenta") != "death" {
+		t.Fatalf("studio query = %s, want piso=superior on deaths", page.Encode())
+	}
+}
+
+func TestHeatmapZonesNameOnePlacePerLineAndTellFloorsApart(t *testing.T) {
+	got := tuiclient.SpatialHeatmap{
+		Map: "de_nuke",
+		Geometry: &tacticalplan.MapGeometry{Callouts: []tacticalplan.Callout{
+			{Name: "Rafters", Level: "default", Center: [2]float64{864, -288}},
+			{Name: "BombsiteA", Level: "default", Center: [2]float64{640, -1040}},
+			{Name: "Ramp", Level: "default", Center: [2]float64{600, 330}},
+			{Name: "Ramp", Level: "lower", Center: [2]float64{650, 160}},
+		}},
+		Heatmap: &tacticalplan.Heatmap{Kind: tacticalplan.HeatPosition, CellSize: 64,
+			Sides: []tacticalplan.HeatmapSide{{Side: tacticalplan.SideCT, Level: "default", Total: 156}, {Side: tacticalplan.SideCT, Level: "lower", Total: 25}},
+			Cells: []tacticalplan.HeatmapCell{
+				// Three hot cells of the one place CS2 calls Rafters, as the real match had them.
+				{Side: tacticalplan.SideCT, Level: "default", X: 13, Y: -5, Z: -128, Count: 49},
+				{Side: tacticalplan.SideCT, Level: "default", X: 14, Y: -5, Z: -128, Count: 47},
+				{Side: tacticalplan.SideCT, Level: "default", X: 10, Y: -10, Z: -207, Count: 30},
+				{Side: tacticalplan.SideCT, Level: "default", X: 9, Y: -17, Count: 20},
+				{Side: tacticalplan.SideCT, Level: "default", X: 9, Y: 5, Count: 10},
+				{Side: tacticalplan.SideCT, Level: "lower", X: 10, Y: 2, Count: 25},
+			}},
+	}
+	out := summarizeHeatmap(got, 50)
+	var lines []string
+	seen := map[string]bool{}
+	for _, z := range out.Zones {
+		lines = append(lines, z.Place)
+		if seen[z.Place+"|"+z.Side] {
+			t.Errorf("%s appears twice in the zone list: %+v", z.Place, out.Zones)
+		}
+		seen[z.Place+"|"+z.Side] = true
+	}
+	if len(out.Zones) != 4 || out.Zones[0].Place != "Rafters" || out.Zones[0].Count != 126 || out.Zones[0].Cells != 3 {
+		t.Fatalf("zones = %v, want Rafters once with its three cells summed (126), then three more places", lines)
+	}
+	if out.Zones[1].Place != "Ramp (piso inferior)" || out.Zones[1].Callout != "Ramp" || out.Zones[1].Level != "lower" || out.Zones[2].Place != "Bombsite A" || out.Zones[3].Place != "Ramp" {
+		t.Fatalf("zones = %v, want the lower Ramp told apart from the upper one", lines)
+	}
+	if out.Cells[0].Place != "Rafters" || out.Cells[4].Place != "Bombsite A" {
+		t.Fatalf("cells = %+v, want each cell to carry its place", out.Cells)
+	}
+
+	// With one floor in the answer nothing needs telling apart.
+	got.Heatmap.Sides = got.Heatmap.Sides[:1]
+	got.Heatmap.Cells = got.Heatmap.Cells[:5]
+	if only := summarizeHeatmap(got, 50); len(only.Zones) != 3 || only.Zones[1].Place != "Bombsite A" || only.Zones[2].Place != "Ramp" {
+		t.Fatalf("zones = %+v, want plain names on one floor", only.Zones)
+	}
+
+	// A cell no callout names is a place of its own, as the list names it.
+	bare := summarizeHeatmap(tuiclient.SpatialHeatmap{Heatmap: &tacticalplan.Heatmap{CellSize: 64,
+		Sides: []tacticalplan.HeatmapSide{{Side: tacticalplan.SideT, Level: "default", Total: 5}},
+		Cells: []tacticalplan.HeatmapCell{{Side: tacticalplan.SideT, Level: "default", X: 1, Y: 2, Count: 3}, {Side: tacticalplan.SideT, Level: "default", X: 3, Y: 4, Count: 2}}}}, 50)
+	if len(bare.Zones) != 2 || bare.Zones[0].Place != "Celda 1, 2" || bare.Zones[1].Place != "Celda 3, 4" {
+		t.Fatalf("zones = %+v, want one place per unnamed cell", bare.Zones)
 	}
 }

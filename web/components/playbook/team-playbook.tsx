@@ -23,16 +23,23 @@ import { EmptySample } from '@/components/analysis/empty-sample';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { Map as MapIcon, Swords } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
+import { SlashTitle } from '@/components/records/document-page';
 import { EmptyState } from '@/components/records/empty-state';
+import { RecordTabs } from '@/components/records/record-tabs';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryGrid, SiteBars, SkippedNote, TempoChart } from './playbook-summary';
 import { ComboBar, TacticBoard, comboLabeler } from './tactic-board';
+import { ManagePlays } from './manage-plays';
+
+/** The playbook's two views, in the URL so a link opens the same one. */
+const SUB_TABS = { tactics: 'tacticas', rounds: 'ronda-a-ronda', manage: 'gestionar' } as const;
+const SUB_QUERY = 'vista';
 
 function Section({ title, children, className }: { title: string; children: ReactNode; className?: string }): ReactNode {
   return (
     <section aria-label={title} className={className ?? 'studio-panel flex flex-col gap-3 p-4'}>
-      <h2 className="text-body font-semibold text-fg-1">{title}</h2>
+      <SlashTitle>{title}</SlashTitle>
       {children}
     </section>
   );
@@ -116,6 +123,18 @@ export function TeamPlaybook({
   );
   const toggle = useCallback((key: string, mode: ComboMode) => setCombo(toggleTactic(combo, key, mode)), [setCombo, combo]);
   const clear = useCallback(() => setCombo(EMPTY_COMBO), [setCombo]);
+  const asked = new URLSearchParams(query).get(SUB_QUERY);
+  const subTab = Object.values(SUB_TABS).find((id) => id === asked) ?? SUB_TABS.tactics;
+  const setSubTab = useCallback(
+    (next: string) => {
+      const params = new URLSearchParams(query);
+      if (next === SUB_TABS.tactics) params.delete(SUB_QUERY);
+      else params.set(SUB_QUERY, next);
+      const search = params.toString();
+      router.replace(search === '' ? pathname : `${pathname}?${search}`, { scroll: false });
+    },
+    [router, pathname, query],
+  );
   const { map, side, opponent } = scope;
   const { from, to } = scopeDateRange(scope.period, now);
   const ready = map !== '' && side !== '';
@@ -178,12 +197,23 @@ export function TeamPlaybook({
 
   const narrowed = !comboIsEmpty(combo);
   const note = positionsNote(view);
-  return (
+  const combinePanel = (
+    <section aria-label="Combinación" className="studio-panel flex flex-col gap-2 p-4">
+      <SlashTitle>Combina tácticas</SlashTitle>
+      <ComboBar teamId={teamId} view={view} labelOf={labelOf} onToggle={toggle} onClear={clear} />
+    </section>
+  );
+  const tacticsView = (
     <div className="flex flex-col gap-4">
-      <section aria-label="Combinación" className="studio-panel flex flex-col gap-2 p-4">
-        <h2 className="text-body font-semibold text-fg-1">Combina tácticas</h2>
-        <ComboBar teamId={teamId} view={view} labelOf={labelOf} onToggle={toggle} onClear={clear} />
-      </section>
+      {combinePanel}
+      <Section title="Tácticas">
+        {note === '' ? null : <p className="text-meta text-fg-3">{note}</p>}
+        <TacticBoard teamId={teamId} playbook={playbook} view={view} onToggle={toggle} />
+      </Section>
+    </div>
+  );
+  const roundsView = (
+    <div className="flex flex-col gap-4">
       <Section title="Tipos de ronda" className="flex flex-col gap-3">
         <p className="text-body-sm text-fg-2">
           {narrowed
@@ -202,10 +232,19 @@ export function TeamPlaybook({
           <SiteBars playbook={view} />
         </Section>
       </div>
-      <Section title="Tácticas">
-        {note === '' ? null : <p className="text-meta text-fg-3">{note}</p>}
-        <TacticBoard teamId={teamId} playbook={playbook} view={view} onToggle={toggle} />
-      </Section>
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-4">
+      <RecordTabs
+        value={subTab}
+        onValueChange={setSubTab}
+        tabs={[
+          { id: SUB_TABS.tactics, label: 'Tácticas', content: tacticsView },
+          { id: SUB_TABS.rounds, label: 'Ronda a ronda', content: roundsView },
+          { id: SUB_TABS.manage, label: 'Gestionar', content: <ManagePlays teamId={teamId} map={map} side={side} /> },
+        ]}
+      />
       <SkippedNote skipped={playbook.skipped} />
     </div>
   );

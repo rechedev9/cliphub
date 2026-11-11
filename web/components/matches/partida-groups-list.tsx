@@ -2,37 +2,24 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { MonitorPlay, TriangleAlert, Video } from 'lucide-react';
+import { EllipsisVertical, FileText, TriangleAlert, Video } from 'lucide-react';
 import type { LibrarySource } from '@/lib/api/library';
 import type { LibrarySeries } from '@/lib/api/veto';
 import { matchHref, matchReplayHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
+import { dayMonthLabel } from '@/lib/library/day-label';
 import { SERIES_FORMAT_LABEL } from '@/lib/library/veto';
 import { hasPov, ownOutcome, seriesScore, seriesVeto, type DayGroup, type PartidaGroup, type VetoMark } from '@/lib/library/partida-groups';
 import type { VoiceByMatch } from '@/lib/library/voice-summary';
-import { OUTCOME_LABEL, matchTitle, type Outcome, type PartidaRow } from '@/lib/library/partidas';
-import { cn } from '@/lib/utils';
-import { MapThumb } from '@/components/analysis/map-thumb';
-import { DemoStatus, RowActions, Scoreline, type RowHandlers } from '@/components/matches/partida-cells';
+import { OUTCOME_LABEL, matchTitle, partidaDate, type Outcome, type PartidaRow } from '@/lib/library/partidas';
+import { DayHeading, MapCell, SeriesStrip, TwoDCell, TwoDLink, mapTag, type MapEdge, type MapTag } from '@/components/matches/series-block';
+import { DemoStatus, RowActions, ScoreStack, type RowHandlers } from '@/components/matches/partida-cells';
 import { PartidaSource } from '@/components/matches/partida-source';
 import { PartidaTags } from '@/components/matches/partida-tags';
 import { PartidaVoice } from '@/components/matches/partida-voice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-
-const OUTCOME_EDGE: Record<Outcome, string> = {
-  win: 'border-l-success',
-  loss: 'border-l-destructive',
-  draw: 'border-l-transparent',
-};
-
-const DAY_FORMAT = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-
-/** "lunes, 5 de octubre de 2026" for a YYYY-MM-DD day; the raw day when it does not parse. */
-function dayHeading(day: string): string {
-  const at = new Date(`${day}T12:00:00`);
-  return Number.isNaN(at.getTime()) ? day : DAY_FORMAT.format(at);
-}
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 /** Groups drawn before "Mostrar más", so a long library does not paint every row at once. */
 const GROUPS_PER_PAGE = 40;
@@ -54,12 +41,35 @@ export type GroupListContext = {
   onSourceChange: (demoId: string, source: LibrarySource) => void;
 };
 
-function markLabel(mark: VetoMark): string {
-  if (mark.action === 'decider') return 'DECIDER';
-  return mark.team === '' ? 'PICK' : `PICK de ${mark.team}`;
+function markTagOf(mark: VetoMark): MapTag {
+  if (mark.action === 'decider') return mapTag('DECIDER');
+  return mapTag(mark.team === '' ? 'PICK' : `PICK de ${mark.team}`);
 }
 
-/** One map of the library: result edge, name with its veto mark, score, POV, tags and the 2D button. */
+const EDGE_OF_OUTCOME: Record<Outcome, MapEdge> = { win: 'win', loss: 'loss', draw: 'none' };
+
+/** The row kebab: the way into the record of the partida, which the 2D button skips. */
+function RowMenu({ matchId, name }: { matchId: string; name: string }): ReactNode {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-xs" aria-label={`Más acciones de ${name}`}>
+          <EllipsisVertical aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link href={matchHref(matchId)}>
+            <FileText aria-hidden />
+            Detalles de la demo
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** One map of the library: result edge, name with its veto tag, scores, POV, voice, source, tags and the 2D cell. */
 function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; context: GroupListContext }): ReactNode {
   const { demo, match } = row;
   const outcome = ownOutcome(row, context.ownTeam);
@@ -68,66 +78,70 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
   const edgeLabel = outcome === null ? undefined : `Resultado de ${context.ownName}: ${OUTCOME_LABEL[outcome]}`;
   const name = match ? prettyMapName(match.map) : demo.file_name;
   const failed = demo.state === 'failed' ? <TriangleAlert aria-hidden className="size-4 shrink-0 text-destructive" /> : null;
+  const label = (
+    <span className="flex items-center gap-1.5">
+      {failed}
+      <span className="truncate" title={match ? matchTitle(match) : demo.file_name}>
+        {name}
+      </span>
+    </span>
+  );
   return (
-    <li
-      title={edgeLabel}
-      className={cn(
-        'relative flex flex-wrap items-center gap-x-4 gap-y-2 border-l-2 px-3 py-2.5 transition-colors hover:bg-surface-2',
-        OUTCOME_EDGE[outcome ?? 'draw'],
-      )}
-    >
-      <input
-        type="checkbox"
-        aria-label={`Elegir ${name}`}
-        checked={context.selected.has(demo.id)}
-        onChange={() => context.onToggle(demo.id)}
-        className="relative z-10 size-4 accent-primary"
-      />
+    <li title={edgeLabel} className="relative flex items-stretch border-t border-border-subtle transition-colors first:border-t-0 hover:bg-surface-3">
+      <div className="flex w-8 shrink-0 items-center justify-center">
+        <input
+          type="checkbox"
+          aria-label={`Elegir ${name}`}
+          checked={context.selected.has(demo.id)}
+          onChange={() => context.onToggle(demo.id)}
+          className="size-4 accent-primary"
+        />
+      </div>
       {edgeLabel ? <span className="sr-only">{edgeLabel}</span> : null}
-      {match ? <MapThumb map={match.map} className="h-10 w-16" crop={1.5} /> : null}
-      <div className="flex w-44 shrink-0 flex-col">
-        <span className="flex items-center gap-2 font-semibold">
-          {failed}
-          {match ? (
-            <Link href={matchHref(match.id)} title={matchTitle(match)} className="rounded-sm outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring">
-              {name}
+      <MapCell
+        map={match ? match.map : null}
+        day={dayMonthLabel(partidaDate(row))}
+        name={
+          match ? (
+            <Link href={matchHref(match.id)} className="block rounded-sm outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring">
+              {label}
             </Link>
           ) : (
-            <span className="truncate text-fg-2" title={demo.file_name}>{name}</span>
-          )}
-        </span>
-        {mark ? <span className="text-meta font-medium tracking-wide text-fg-3">{markLabel(mark)}</span> : null}
-      </div>
-      <div className="min-w-56 flex-1">
-        {match && demo.state !== 'failed' ? <Scoreline match={match} /> : <DemoStatus row={row} />}
-      </div>
-      {pov ? (
-        <Badge variant="accent" shape="square">
-          <Video aria-hidden />
-          POV
-        </Badge>
-      ) : null}
-      {voice ? (
-        <div className="relative z-10">
-          <PartidaVoice summary={voice} onResynced={context.onVoiceResynced} />
+            label
+          )
+        }
+        tag={mark ? markTagOf(mark) : undefined}
+        edge={outcome === null ? 'none' : EDGE_OF_OUTCOME[outcome]}
+      />
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2">
+        {match && demo.state !== 'failed' ? (
+          <ScoreStack match={match} />
+        ) : (
+          <div className="min-w-40">
+            <DemoStatus row={row} />
+          </div>
+        )}
+        <span aria-hidden className="hidden h-8 w-px bg-border @min-[44rem]/content:block" />
+        <div className="flex flex-wrap items-center gap-2">
+          {pov ? (
+            <Badge variant="secondary" shape="square">
+              <Video aria-hidden />
+              POV
+            </Badge>
+          ) : null}
+          {voice ? <PartidaVoice summary={voice} onResynced={context.onVoiceResynced} /> : null}
+          <PartidaSource demo={demo} onChange={context.onSourceChange} />
+          <PartidaTags demo={demo} allTags={context.allTags} onChanged={context.onTagsChanged} />
         </div>
+      </div>
+      {match && demo.state === 'ready' ? (
+        <TwoDCell>
+          <TwoDLink href={matchReplayHref(match.id)} label={`Abrir el replay 2D de ${name}`} />
+        </TwoDCell>
       ) : null}
-      <div className="relative z-10">
-        <PartidaSource demo={demo} onChange={context.onSourceChange} />
-      </div>
-      <div className="relative z-10">
-        <PartidaTags demo={demo} allTags={context.allTags} onChanged={context.onTagsChanged} />
-      </div>
-      <div className="relative z-10 flex items-center gap-1">
-        {match && demo.state === 'ready' ? (
-          <Button asChild variant="outline" size="xs">
-            <Link href={matchReplayHref(match.id)} aria-label={`Abrir el replay 2D de ${name}`}>
-              <MonitorPlay aria-hidden />
-              2D
-            </Link>
-          </Button>
-        ) : null}
+      <div className="flex shrink-0 items-center gap-1 px-2">
         <RowActions row={row} handlers={context.handlers} />
+        {match ? <RowMenu matchId={match.id} name={name} /> : null}
       </div>
     </li>
   );
@@ -140,33 +154,22 @@ function seriesTitle(series: LibrarySeries, rows: readonly PartidaRow[]): string
   return first ? matchTitle(first) : series.event || `Serie ${SERIES_FORMAT_LABEL[series.format]}`;
 }
 
-/** A series: its title, format and event, the bans, and its maps with how each was picked. */
-function SeriesCard({ series, rows, context }: { series: LibrarySeries; rows: readonly PartidaRow[]; context: GroupListContext }): ReactNode {
+/** A series: the strip with format, teams, score and bans, then its maps with how each was picked. */
+function SeriesBlock({ series, rows, context }: { series: LibrarySeries; rows: readonly PartidaRow[]; context: GroupListContext }): ReactNode {
   const veto = seriesVeto(series);
   const score = seriesScore(series, context.libraryRows.filter((row) => row.match?.series_id === series.id));
+  const a = series.teams.find((team) => team.slot === 'a');
+  const b = series.teams.find((team) => team.slot === 'b');
   return (
-    <section aria-label={seriesTitle(series, rows)} className="studio-panel overflow-hidden">
-      <header className="flex flex-col gap-1 border-b border-border-subtle bg-surface-2 px-3 py-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" shape="square">{SERIES_FORMAT_LABEL[series.format]}</Badge>
-          <h3 className="text-body font-semibold">{seriesTitle(series, rows)}</h3>
-          {score ? (
-            <span className="text-body font-semibold tabular-nums">
-              {score[0]}
-              <span aria-hidden className="px-1.5 text-fg-3">:</span>
-              <span className="sr-only"> a </span>
-              {score[1]}
-            </span>
-          ) : null}
-          {series.event ? <span className="truncate text-body-sm text-fg-2">{series.event}</span> : null}
-        </div>
-        {veto.bans.length > 0 ? (
-          <p className="text-meta text-fg-3">
-            <span className="font-medium tracking-wide">BANS</span>{' '}
-            {veto.bans.map((ban) => (ban.team === '' ? prettyMapName(ban.map) : `${prettyMapName(ban.map)} (${ban.team})`)).join(', ')}
-          </p>
-        ) : null}
-      </header>
+    <section aria-label={seriesTitle(series, rows)} className="overflow-hidden border border-border bg-surface-2">
+      <SeriesStrip
+        format={SERIES_FORMAT_LABEL[series.format]}
+        title={seriesTitle(series, rows)}
+        teams={a && b ? [a.name, b.name] : null}
+        score={score}
+        event={series.event}
+        bans={veto.bans}
+      />
       <ul>
         {rows.map((row) => (
           <MapRow key={row.demo.id} row={row} mark={row.match ? veto.marks.get(row.match.map) : undefined} context={context} />
@@ -176,9 +179,9 @@ function SeriesCard({ series, rows, context }: { series: LibrarySeries; rows: re
   );
 }
 
-function SingleCard({ row, context }: { row: PartidaRow; context: GroupListContext }): ReactNode {
+function SingleBlock({ row, context }: { row: PartidaRow; context: GroupListContext }): ReactNode {
   return (
-    <div className="studio-panel overflow-hidden">
+    <div className="overflow-hidden border border-border bg-surface-2">
       <ul>
         <MapRow row={row} context={context} />
       </ul>
@@ -186,12 +189,12 @@ function SingleCard({ row, context }: { row: PartidaRow; context: GroupListConte
   );
 }
 
-function GroupCard({ group, context }: { group: PartidaGroup; context: GroupListContext }): ReactNode {
-  if (group.kind === 'single') return <SingleCard row={group.row} context={context} />;
-  return <SeriesCard series={group.series} rows={group.rows} context={context} />;
+function GroupBlock({ group, context }: { group: PartidaGroup; context: GroupListContext }): ReactNode {
+  if (group.kind === 'single') return <SingleBlock row={group.row} context={context} />;
+  return <SeriesBlock series={group.series} rows={group.rows} context={context} />;
 }
 
-/** Partidas grouped by day, each series as one card with its bans and the pick of every map. */
+/** Partidas grouped by day under slash headings, each series as one block with its bans and the pick of every map. */
 export function PartidaGroupsList({ days, context }: { days: readonly DayGroup[]; context: GroupListContext }): ReactNode {
   const [limit, setLimit] = useState(GROUPS_PER_PAGE);
   if (days.length === 0) return <p className="text-body-sm text-fg-2">Ninguna partida cumple estos filtros.</p>;
@@ -205,10 +208,10 @@ export function PartidaGroupsList({ days, context }: { days: readonly DayGroup[]
   return (
     <div className="flex flex-col gap-5">
       {visible.map((day) => (
-        <section key={day.day} aria-label={dayHeading(day.day)} className="flex flex-col gap-2">
-          <h2 className="text-body-sm font-medium text-fg-2 first-letter:uppercase">{dayHeading(day.day)}</h2>
+        <section key={day.day} className="flex flex-col gap-2">
+          <DayHeading day={day.day} />
           {day.groups.map((group) => (
-            <GroupCard key={group.kind === 'series' ? group.series.id : group.row.demo.id} group={group} context={context} />
+            <GroupBlock key={group.kind === 'series' ? group.series.id : group.row.demo.id} group={group} context={context} />
           ))}
         </section>
       ))}

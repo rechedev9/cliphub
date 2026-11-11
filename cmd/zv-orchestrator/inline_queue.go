@@ -56,7 +56,7 @@ func defaultInlineTaskPolicy(taskType string) inlineTaskPolicy {
 	switch taskType {
 	// A tactical analysis is one idempotent parse pass, so it retries like the
 	// other demo scans rather than like a capture.
-	case tasks.TypeParseDemo, tasks.TypeScanRoster, tasks.TypeAnalyzeAnticheat, tasks.TypeAnalyzeTactical, tasks.TypeAnalyzeLibraryDemo:
+	case tasks.TypeParseDemo, tasks.TypeScanRoster, tasks.TypeAnalyzeTactical, tasks.TypeAnalyzeLibraryDemo:
 		return inlineTaskPolicy{
 			attemptTimeout: inlineParseAttemptTimeout,
 			maxRetries:     1,
@@ -554,7 +554,6 @@ func (q *inlineQueue) finishClosePending(ctx context.Context) error {
 var demoReadingTasks = map[string]bool{
 	tasks.TypeParseDemo:          true,
 	tasks.TypeScanRoster:         true,
-	tasks.TypeAnalyzeAnticheat:   true,
 	tasks.TypeAnalyzeTactical:    true,
 	tasks.TypeAnalyzeLibraryDemo: true,
 }

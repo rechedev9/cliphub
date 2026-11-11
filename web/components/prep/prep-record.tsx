@@ -79,7 +79,10 @@ export function PrepRecord(): ReactNode {
               <div className="flex items-center gap-3">
                 <MapThumb map={prep.map} className="h-12 w-20 print:hidden" crop={1.3} />
                 <div className="flex flex-col gap-0.5">
-                  <h1 className="text-title font-semibold text-fg-1">
+                  <h1 className="flex items-baseline gap-2 text-title font-semibold text-fg-1">
+                    <span aria-hidden className="text-slash">
+                      /
+                    </span>
                     {prep.team_name} en {prettyMapName(prep.map)}
                   </h1>
                   <p className="text-body-sm text-fg-2 tabular-nums">

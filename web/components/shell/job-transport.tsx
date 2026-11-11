@@ -23,7 +23,7 @@ const STAGE_META: Record<ShellJobStage, { tag: string; sub: string; tone: string
 };
 
 const PILL_CLASS =
-  'flex min-h-10 min-w-0 items-center gap-2.5 rounded-md border border-border-strong bg-surface-2 px-3 text-meta';
+  'flex min-h-7 min-w-0 items-center gap-2 rounded-md border border-border-strong bg-transparent px-2.5 text-meta';
 
 /** Command-strip job pill plus the 400px dropdown listing every live job. */
 export function JobTransport(): ReactElement | null {
@@ -102,7 +102,7 @@ export function JobTransport(): ReactElement | null {
           id={panelId}
           role="dialog"
           aria-label="Trabajos en marcha"
-          className="absolute top-full right-0 z-40 mt-1 w-[400px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg border border-border bg-surface-4 shadow-[var(--elev-4)]"
+          className="absolute top-full right-0 z-40 mt-1 w-[400px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg border border-border bg-surface-4"
         >
           <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border-strong px-3.5 py-2 text-meta text-fg-3">
             <span>

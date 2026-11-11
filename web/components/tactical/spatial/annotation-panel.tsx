@@ -173,9 +173,7 @@ export function AnnotationPanel({
 
 function NoteList({ store, items }: { store: AnnotationStore; items: readonly NoteItem[] }): ReactNode {
   if (store.notes === null) return <p className="text-body-sm text-fg-3">Leyendo notas…</p>;
-  if (items.length === 0) {
-    return <p className="text-body-sm text-fg-3">Aún no hay notas aquí. Pausa en un momento, dibuja y guarda.</p>;
-  }
+  if (items.length === 0) return null;
   return (
     <ul className="flex flex-col divide-y divide-border-subtle">
       {items.map((item) => (

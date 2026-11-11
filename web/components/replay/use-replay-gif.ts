@@ -8,7 +8,6 @@ import { gifCaption, gifFrames, gifSpan, plantSecondsOf, replayGifFileName } fro
 import type { GifSpan } from '@/lib/replay/replay-gif';
 import { pickGifTarget, writeGifTarget } from '@/lib/replay/save-gif';
 import type { Tramo } from '@/lib/replay/tramo';
-import { noteVisibleAt } from '@/lib/tactical-spatial';
 import type { RoundTimeline, TimelineEvent } from '@/lib/tactical-timeline';
 import { encodeReplayGif } from './gif-export';
 import type { GifOverlay, MapCapture } from './gif-export';
@@ -69,11 +68,10 @@ export function useReplayGif(source: {
   speed: number;
   /** The drawing being made, shown all along, and the saved ones at their moment on the transport's clock. */
   draft: readonly Stroke[];
-  notes: readonly { at: number; strokes: readonly Stroke[] }[];
   /** Called as the recording starts, so playback stops. */
   onStart: () => void;
 }): ReplayGif {
-  const { captureRef, focused, multi, rounds, transport, events, tramo, speed, draft, notes, onStart } = source;
+  const { captureRef, focused, multi, rounds, transport, events, tramo, speed, draft, onStart } = source;
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<GifState>({ kind: 'idle' });
   const abortRef = useRef<AbortController | null>(null);
@@ -107,9 +105,8 @@ export function useReplayGif(source: {
       freezeSeconds,
     });
     const shownDraft = [...draft];
-    const shownNotes = [...notes];
     const overlay: GifOverlay = {
-      strokesAt: (seconds) => [...shownDraft, ...shownNotes.filter((note) => noteVisibleAt(note.at, seconds)).flatMap((note) => note.strokes)],
+      strokesAt: () => shownDraft,
       captionAt: (seconds) => gifCaption({ rounds: roundsLabel, events, seconds, freezeSeconds }),
     };
     const frames = gifFrames(span, speed);
@@ -144,7 +141,9 @@ export function useReplayGif(source: {
         }
         setState({ kind: 'saving' });
         const written = await writeGifTarget(target.token, bytes);
-        setState(written.kind === 'saved' ? { kind: 'done', message: `GIF guardado: ${written.name === '' ? fileName : written.name}` } : { kind: 'failed', message: written.message });
+        if (written.kind === 'failed') return setState({ kind: 'failed', message: written.message });
+        const name = written.name === '' ? fileName : written.name;
+        setState({ kind: 'done', message: written.copied ? `GIF guardado y copiado: ${name}. Pégalo con Ctrl+V en un documento.` : `GIF guardado: ${name}` });
       } catch (error) {
         if (controller.signal.aborted) return setState({ kind: 'idle' });
         console.error('Replay: the GIF could not be made', error);
@@ -153,7 +152,7 @@ export function useReplayGif(source: {
         if (abortRef.current === controller) abortRef.current = null;
       }
     })();
-  }, [blocked, busy, captureRef, draft, events, focused, freezeSeconds, multi, notes, onStart, rounds, span, speed]);
+  }, [blocked, busy, captureRef, draft, events, focused, freezeSeconds, multi, onStart, rounds, span, speed]);
 
   const cancel = useCallback(() => abortRef.current?.abort(), []);
   const toggle = useCallback(() => setOpen((value) => !value), []);

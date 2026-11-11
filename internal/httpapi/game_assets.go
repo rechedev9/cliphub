@@ -24,6 +24,8 @@ var equipmentIconPattern = regexp.MustCompile(`^[a-z0-9]+(_[a-z0-9]+){0,4}$`)
 const (
 	codeRadarNotFound       = "radar_not_found"
 	codeIconNotFound        = "icon_not_found"
+	codeShotNotFound        = "map_picture_not_found"
+	codeLogoNotFound        = "team_logo_not_found"
 	codeGameAssetUnreadable = "game_asset_unreadable"
 	maxCachedGameAsset      = 16 << 20
 	maxEquipmentIconName    = 40
@@ -164,6 +166,10 @@ func writeGameAssetError(w http.ResponseWriter, name string, err error) {
 		writeCodedError(w, http.StatusNotFound, codeRadarNotFound, fmt.Sprintf("the CS2 install has no radar for %q", name))
 	case errors.Is(err, gameassets.ErrIconNotFound):
 		writeCodedError(w, http.StatusNotFound, codeIconNotFound, fmt.Sprintf("the CS2 install has no icon named %q", name))
+	case errors.Is(err, gameassets.ErrShotNotFound):
+		writeCodedError(w, http.StatusNotFound, codeShotNotFound, fmt.Sprintf("the CS2 install has no picture for %q", name))
+	case errors.Is(err, gameassets.ErrLogoNotFound):
+		writeCodedError(w, http.StatusNotFound, codeLogoNotFound, fmt.Sprintf("the CS2 install has no logo for %q", name))
 	default:
 		// A CS2 update may change a format; the UI needs a stable code, the log the cause.
 		log.Printf("httpapi: read game asset %s: %v", name, err)

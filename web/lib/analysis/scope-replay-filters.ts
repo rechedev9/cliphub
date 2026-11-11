@@ -27,6 +27,13 @@ export type ReplayFilters = {
   readonly opponentEquip: ScopeEquip;
   /** A Libreta play id; its example rounds are the only ones kept. */
   readonly tactic: string;
+  /** Libreta play ids whose example rounds are dropped. */
+  readonly excludeTactics: readonly string[];
+  /** Demo tags: a match carrying one of `matchTags` is kept, one carrying any of `excludeMatchTags` is dropped. */
+  readonly matchTags: readonly string[];
+  readonly excludeMatchTags: readonly string[];
+  /** Events of the match's series. */
+  readonly events: readonly string[];
 };
 
 export const REPLAY_FILTER_PARAMS = {
@@ -43,7 +50,15 @@ export const REPLAY_FILTER_PARAMS = {
   opponentEquipFrom: 'opponent_equip_from',
   opponentEquipTo: 'opponent_equip_to',
   tactic: 'tactic',
+  excludeTactic: 'exclude_tactic',
+  matchTag: 'match_tag',
+  excludeMatchTag: 'exclude_match_tag',
+  event: 'event',
 } as const;
+
+/** The server's bounds on a tag or event list (`maxScopeTexts`, `maxScopeTextRunes`). */
+export const SCOPE_TEXTS_MAX = 20;
+const SCOPE_TEXT_RUNES_MAX = 80;
 
 /** The `tag` value post-plant stands for (`tacticalplan.TagPostPlant`). */
 export const POST_PLANT_TAG = 'postplant';
@@ -63,6 +78,10 @@ export const DEFAULT_REPLAY_FILTERS: ReplayFilters = {
   equip: OPEN_EQUIP,
   opponentEquip: OPEN_EQUIP,
   tactic: '',
+  excludeTactics: [],
+  matchTags: [],
+  excludeMatchTags: [],
+  events: [],
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -111,7 +130,21 @@ export function parseReplayFilters(query: Query): ReplayFilters {
     equip: parseEquip(query.get(p.equipFrom), query.get(p.equipTo)),
     opponentEquip: parseEquip(query.get(p.opponentEquipFrom), query.get(p.opponentEquipTo)),
     tactic: UUID_RE.test(tactic) ? tactic.toLowerCase() : '',
+    excludeTactics: textList(query.getAll(p.excludeTactic).filter((id) => UUID_RE.test(id)).map((id) => id.toLowerCase())),
+    matchTags: textList(query.getAll(p.matchTag)),
+    excludeMatchTags: textList(query.getAll(p.excludeMatchTag)),
+    events: textList(query.getAll(p.event)),
   };
+}
+
+/** A repeated text parameter, trimmed, without blanks or repeats, inside the server's bounds. */
+function textList(values: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const raw of values) {
+    const value = raw.trim();
+    if (value !== '' && [...value].length <= SCOPE_TEXT_RUNES_MAX && !out.includes(value)) out.push(value);
+  }
+  return out.slice(0, SCOPE_TEXTS_MAX);
 }
 
 function countText(value: number | null): string {
@@ -135,6 +168,10 @@ export function replayFilterEntries(filters: ReplayFilters): [string, string][] 
     [p.opponentEquipFrom, countText(filters.opponentEquip.from)],
     [p.opponentEquipTo, countText(filters.opponentEquip.to)],
     [p.tactic, filters.tactic],
+    ...filters.excludeTactics.map((id): [string, string] => [p.excludeTactic, id]),
+    ...filters.matchTags.map((tag): [string, string] => [p.matchTag, tag]),
+    ...filters.excludeMatchTags.map((tag): [string, string] => [p.excludeMatchTag, tag]),
+    ...filters.events.map((event): [string, string] => [p.event, event]),
   ];
   return entries.filter(([, value]) => value !== '');
 }

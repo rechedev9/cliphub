@@ -136,13 +136,6 @@ func FullDemoSourceKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "full-demo-source.json")
 }
 
-// AnticheatKey is the storage key for a job's CheaterDetect analysis. The
-// analysis is a side lane on the same demo: it never advances the job status,
-// so its progress lives entirely inside this document.
-func AnticheatKey(id uuid.UUID) string {
-	return path.Join(JobPrefix(id), "anticheat.json")
-}
-
 // TacticalIndexKey is the storage key for a job's tactical document: the round
 // index, its classification, and the descriptor of the position blob.
 func TacticalIndexKey(id uuid.UUID) string {

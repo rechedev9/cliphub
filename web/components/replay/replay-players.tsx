@@ -11,12 +11,12 @@ import { cn } from '@/lib/utils';
 /** The players in the foreground and how to change them; the Replay keeps them in the URL. */
 export type FocusControl = { focus: PlayerFocus; onChange: (focus: number[]) => void };
 
-export const FOCUS_HINT = 'Clic deja solo a ese jugador. Mayús y clic suma otro.';
+const FOCUS_HINT = 'Clic deja solo a ese jugador. Mayús y clic suma otro.';
 /** The hint of a player's own card, where F also centres the map on the chosen player. */
 export const FOLLOW_HINT = `${FOCUS_HINT} F centra el mapa en él.`;
 
 /** The first row of every player list: nobody chosen, so the whole team counts. */
-export function AllTeamRow({ focus, onChange, className }: FocusControl & { className?: string }): ReactNode {
+function AllTeamRow({ focus, onChange, className }: FocusControl & { className?: string }): ReactNode {
   const all = focus.length === 0;
   return (
     <button
@@ -47,7 +47,7 @@ export function ReplayPlayers({ doc, teamKey, focus, onChange }: FocusControl & 
   const names = new Map(doc.players.map((player) => [player.slot, player.name]));
   const pick = (slot: number) => (event: MouseEvent) => onChange(pickPlayer(focus, slot, event.shiftKey));
   return (
-    <section aria-label="Jugadores" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-border bg-surface-1 px-2 py-1.5">
+    <section aria-label="Jugadores" className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <AllTeamRow focus={focus} onChange={onChange} />
       {teams.map((team) => (
         <div key={team.key} role="group" aria-label={team.name || team.key} className="flex flex-wrap items-center gap-1">

@@ -97,7 +97,7 @@ function TableView({
       ) : (
         <div className="overflow-x-auto">
           <table aria-label={table.caption} className="w-full border-collapse text-left text-body-sm">
-            <thead className="bg-surface-2 text-meta text-fg-3">
+            <thead className="bg-surface-2 text-meta tracking-wider text-fg-3 uppercase">
               <tr className="border-b border-border">
                 {table.columns.map((column) => (
                   <th key={column} scope="col" className="h-8 px-2.5 font-medium whitespace-nowrap">
@@ -156,7 +156,7 @@ export function SectionView({
         <dl className="flex flex-wrap gap-x-6 gap-y-1.5">
           {section.facts.map((fact) => (
             <div key={fact.label} className="flex flex-col gap-0.5">
-              <dt className="text-meta text-fg-3">{fact.label}</dt>
+              <dt className="text-meta tracking-wider text-fg-3 uppercase">{fact.label}</dt>
               <dd className="text-body-sm text-fg-1">{fact.value}</dd>
             </div>
           ))}

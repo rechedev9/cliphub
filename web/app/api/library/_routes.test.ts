@@ -130,6 +130,12 @@ test('series, map history and the veto simulator are reachable with their own na
     libraryUpstreamQuery(mapCounts, new URLSearchParams(`map=de_nuke&opponent_id=${ID}&max_matches=5&whose=own&token=x`)),
     `map=de_nuke&opponent_id=${ID}&max_matches=5&whose=own`,
   );
+  const tagged = matchLibraryRoute('GET', ['teams', ID, 'side-stats']);
+  assert.ok(tagged);
+  assert.equal(
+    libraryUpstreamQuery(tagged, new URLSearchParams(`match_tag=scrim&match_tag=LAN&exclude_match_tag=oficial&event=IEM&exclude_tactic=${ID}`)),
+    `exclude_tactic=${ID}&match_tag=scrim&match_tag=LAN&exclude_match_tag=oficial&event=IEM`,
+  );
   const veto = matchLibraryRoute('GET', ['teams', ID, 'veto']);
   assert.ok(veto);
   assert.equal(

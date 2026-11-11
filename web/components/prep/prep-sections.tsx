@@ -14,6 +14,8 @@ import { buyLabel, placeLabel } from '@/lib/tactical-labels';
 import { HeatTable, type HeatCell, type HeatColumn, type HeatRow } from '@/components/ui/heat-table';
 import { BarList } from '@/components/playbook/bars';
 import { CategoryTable, SiteBars, TempoChart } from '@/components/playbook/playbook-summary';
+import { SlashTitle } from '@/components/records/document-page';
+import { PlayerCard } from './player-card';
 import { CtPositionsMap, playerColor } from './ct-positions-map';
 import type { RatePool } from '@/lib/analysis/library-pool';
 
@@ -35,7 +37,7 @@ export function PrepSection({
   return (
     <section aria-label={title} className="flex flex-col gap-2 print:break-inside-avoid">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="text-body font-semibold text-fg-1">{title}</h2>
+        <SlashTitle>{title}</SlashTitle>
         {hint === undefined ? null : <p className="text-meta text-fg-3 print:hidden">{hint}</p>}
         {action === undefined ? null : <div className="ml-auto">{action}</div>}
       </div>
@@ -145,17 +147,11 @@ export function roleText(role: string): string {
 function PlayerPositions({ prep, player, index }: { prep: TeamPrep; player: PrepPlayer; index: number }): ReactNode {
   const role = cardRoleText({ side: 'CT', mapRole: player.map_role, role: roleText(player.role) });
   return (
-    <article aria-label={player.name} className="studio-panel flex flex-col gap-2 px-3 py-2.5 print:break-inside-avoid">
-      <header className="flex flex-wrap items-baseline gap-x-2">
-        <h3 className="flex items-center gap-1.5 text-body font-semibold text-fg-1">
-          <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: playerColor(index) }} />
-          {player.name}
-        </h3>
-        <p className="text-meta text-fg-3">
-          {role === '' ? '' : `${role}. `}
-          {player.rounds} rondas de CT
-        </p>
-      </header>
+    <PlayerCard
+      name={player.name}
+      color={playerColor(index)}
+      facts={`${role === '' ? '' : `${role}. `}${player.rounds} rondas de CT`}
+    >
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 print:grid-cols-4">
         {player.windows.map((window) => (
           <div key={window.from_seconds} className="flex min-w-0 flex-col gap-1">
@@ -184,7 +180,7 @@ function PlayerPositions({ prep, player, index }: { prep: TeamPrep; player: Prep
           </div>
         ))}
       </div>
-    </article>
+    </PlayerCard>
   );
 }
 

@@ -11,11 +11,12 @@ import (
 	"github.com/rechedev9/cliphub/internal/radarmap"
 )
 
-// As in cs2lens, a round is read at fixed instants of the tramo, and every mark
-// also lands on a fine grid over the radar that the web turns into density contours.
+// A round is read at a fixed step of seconds inside the tramo, so a count is time spent: a player
+// who stood somewhere for 10 s adds the same in a short round as in a long one. Every mark
+// also lands on a fine grid over the radar that the web turns into a smooth density.
 const (
-	// HeatmapSamplesPerRound is how many instants of a round the position heatmap reads.
-	HeatmapSamplesPerRound = 50
+	// HeatmapSampleSeconds is the time one instant of the position heatmap stands for.
+	HeatmapSampleSeconds = 0.25
 	// HeatDensityGrid is the side of the density grid over the radar square.
 	HeatDensityGrid = 150
 )
@@ -136,35 +137,39 @@ type roundSpan struct {
 	from, to float64
 }
 
-// instants spreads HeatmapSamplesPerRound instants over the span, each nudged up to a quarter
-// of the spacing by a jitter seeded by the match and round, so a heatmap never changes.
+// instants spreads one instant per HeatmapSampleSeconds over the span, centred in it, each nudged
+// up to a quarter of the step by a jitter seeded by the match and round, so a heatmap never changes
+// and never beats against the frame rate.
 func (s roundSpan) instants() []float64 {
-	n := HeatmapSamplesPerRound
+	n := int(math.Floor((s.to - s.from) / HeatmapSampleSeconds))
+	if n < 1 {
+		return nil
+	}
 	h := fnv.New64a()
 	_, _ = h.Write(s.match[:])
 	rng := rand.New(rand.NewPCG(h.Sum64(), uint64(s.round)))
-	step := (s.to - s.from) / float64(n)
+	lead := (s.to - s.from - float64(n)*HeatmapSampleSeconds) / 2
 	out := make([]float64, n)
 	for i := range out {
-		out[i] = s.from + (float64(i)+0.5+(rng.Float64()-0.5)*0.5)*step
+		out[i] = s.from + lead + (float64(i)+0.5+(rng.Float64()-0.5)*0.5)*HeatmapSampleSeconds
 	}
 	return out
 }
 
-// framesAt answers the two frames around a tick and how far between them it
-// sits; false before the first frame or after the last.
-func framesAt(frames []Frame, tick float64) (Frame, Frame, float64, bool) {
+// framesAt answers the two frames around a tick, how far between them it sits and
+// the index of the earlier one; false before the first frame or after the last.
+func framesAt(frames []Frame, tick float64) (before, after Frame, k float64, index int, ok bool) {
 	i := sort.Search(len(frames), func(i int) bool { return float64(frames[i].Tick) >= tick })
 	switch {
 	case i == len(frames):
-		return Frame{}, Frame{}, 0, false
+		return Frame{}, Frame{}, 0, 0, false
 	case float64(frames[i].Tick) == tick:
-		return frames[i], frames[i], 0, true
+		return frames[i], frames[i], 0, i, true
 	case i == 0:
-		return Frame{}, Frame{}, 0, false
+		return Frame{}, Frame{}, 0, 0, false
 	}
 	a, b := frames[i-1], frames[i]
-	return a, b, (tick - float64(a.Tick)) / float64(b.Tick-a.Tick), true
+	return a, b, (tick - float64(a.Tick)) / float64(b.Tick-a.Tick), i - 1, true
 }
 
 // addInstants reads the position heatmap of one round: at each instant, every
@@ -176,14 +181,15 @@ func (b *heatmapBuilder) addInstants(m SpatialMatch, r Round, team map[uint8]Sid
 	if !ok {
 		return
 	}
+	floors := newFloorTimeline(doc.Geometry.Calibration, frames)
 	for _, seconds := range (roundSpan{match: m.MatchID, round: r.Number, from: from, to: to}).instants() {
 		tick := float64(r.TickFreezeEnd) + seconds*tickrate
-		before, after, k, ok := framesAt(frames, tick)
+		before, after, k, index, ok := framesAt(frames, tick)
 		if !ok {
 			continue
 		}
 		e := Evidence{MatchID: m.MatchID, Round: r.Number, Tick: int(math.Round(tick))}
-		for _, s := range before.Samples {
+		for i, s := range before.Samples {
 			side, counted := team[s.Slot]
 			if !counted || !s.Flags.Has(FlagAlive) {
 				continue
@@ -193,7 +199,8 @@ func (b *heatmapBuilder) addInstants(m SpatialMatch, r Round, team map[uint8]Sid
 				continue
 			}
 			pos := [3]float64{s.X + (next.X-s.X)*k, s.Y + (next.Y-s.Y)*k, s.Z + (next.Z-s.Z)*k}
-			b.add(doc.Geometry.Calibration, side, pos, seconds, e)
+			// The floor is the one the replay shows the player on at the frame before the instant.
+			b.add(side, pos, floors.at(index, i), seconds, e)
 		}
 	}
 }

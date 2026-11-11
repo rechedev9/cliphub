@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, type ReactNode } from 'react';
-import { ArrowLeftRight, Bomb, Clock3, Scissors, Skull, type LucideIcon } from 'lucide-react';
+import { Bomb, Clock3, Scissors, Skull, type LucideIcon } from 'lucide-react';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalSide } from '@/lib/api/tactical';
@@ -53,10 +53,17 @@ function sideBar(winner: TacticalSide | '' | undefined): string {
   return 'bg-transparent';
 }
 
+/** The selected chip is filled with the colour of the side that won the round. */
+function selectedFill(winner: TacticalSide | '' | undefined): string {
+  if (winner === TACTICAL_SIDES.ct) return 'bg-side-ct text-white';
+  if (winner === TACTICAL_SIDES.t) return 'bg-side-t text-black';
+  return 'bg-surface-5 text-fg-1';
+}
+
 /**
  * The rounds of the playlist in play order, grouped by match, each group under
  * its match and date so a round number always says whose it is: the number, how
- * it ended in the winner's colour, and a gap at the half. In multi-round mode a
+ * it ended and who won it in the winner's colour, and a dotted divider at the half. In multi-round mode a
  * second press of a round adds it to the map instead of opening it.
  */
 export function RoundStrip({
@@ -122,11 +129,7 @@ export function RoundStrip({
               if (toggles) hint = blocked ?? 'Pulsa para superponer, doble clic para abrir';
               return (
                 <li key={key} className={cn('flex', !halfBreak && offset > 0 && 'ml-0.5')}>
-                  {halfBreak ? (
-                    <span className="flex w-5 items-center justify-center text-fg-3" title="Cambio de lado" role="img" aria-label="Cambio de lado">
-                      <ArrowLeftRight className="size-3" aria-hidden />
-                    </span>
-                  ) : null}
+                  {halfBreak ? <span className="mx-1 self-stretch border-l border-dotted border-fg-3" title="Cambio de lado" role="img" aria-label="Cambio de lado" /> : null}
                   <button
                     type="button"
                     onClick={() => (toggles ? onToggleMulti(key) : onSelect(at))}
@@ -137,17 +140,20 @@ export function RoundStrip({
                     aria-pressed={multi === null ? undefined : included || selected}
                     aria-label={summary}
                     className={cn(
-                      'relative flex h-11 w-9 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-sm text-fg-2 outline-none',
+                      'relative flex h-9 w-7 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-sm text-fg-2 outline-none',
                       'transition-[background-color,color] duration-(--dur-fast) disabled:opacity-40',
                       FOCUS_RING,
-                      selected ? 'bg-surface-5 text-fg-1 shadow-[inset_0_0_0_1px_var(--fg-2)]' : 'bg-surface-1 hover:bg-surface-3 hover:text-fg-1',
+                      selected ? selectedFill(info?.winner) : 'bg-transparent hover:bg-surface-3 hover:text-fg-1',
                       included && !selected && 'bg-surface-4 text-fg-1 shadow-[inset_0_0_0_1px_var(--border-accent)]',
                     )}
                   >
-                    <span className="text-meta leading-none font-medium tabular-nums">{entry.round}</span>
-                    <span className="text-meta leading-none tabular-nums text-fg-3">{info === null ? '·' : info.score}</span>
-                    {Icon === null ? null : <Icon className={cn('absolute top-0.5 right-0.5 size-2.5', sideText(info?.winner))} aria-hidden />}
-                    <span className={cn('absolute inset-x-0 bottom-0 h-0.5', sideBar(info?.winner))} aria-hidden />
+                    <span className="text-meta leading-none font-semibold tabular-nums">{entry.round}</span>
+                    {Icon === null ? (
+                      <span className={cn('size-1.5 rounded-full', selected ? 'bg-current' : sideBar(info?.winner))} aria-hidden />
+                    ) : (
+                      <Icon className={cn('size-2.5', selected ? 'text-current' : sideText(info?.winner))} aria-hidden />
+                    )}
+                    <span className={cn('absolute inset-x-1 bottom-0 h-0.5', selected ? 'bg-transparent' : sideBar(info?.winner))} aria-hidden />
                   </button>
                 </li>
               );

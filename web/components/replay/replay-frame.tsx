@@ -120,7 +120,7 @@ export function ReplayScopeBar({
 /** The four forms as tabs under the scope; the open one carries the accent underline. */
 export function ReplayFormTabs({ forms, value, onChange }: { forms: readonly ReplayForm[]; value: ReplayForm; onChange: (form: ReplayForm) => void }): ReactNode {
   return (
-    <div role="tablist" aria-label="Cómo leer las rondas" className="flex items-end gap-1 border-b border-border-subtle">
+    <div role="tablist" aria-label="Cómo leer las rondas" className="flex items-end gap-1 overflow-x-auto border-b border-border-subtle">
       {forms.map((form) => (
         <button
           key={form}
@@ -129,7 +129,7 @@ export function ReplayFormTabs({ forms, value, onChange }: { forms: readonly Rep
           aria-selected={value === form}
           onClick={() => onChange(form)}
           className={cn(
-            '-mb-px h-8 border-b-2 px-3 text-body-sm outline-none transition-colors duration-(--dur-fast)',
+            'h-8 shrink-0 whitespace-nowrap border-b-2 px-3 text-body-sm outline-none transition-colors duration-(--dur-fast)',
             FOCUS_RING,
             value === form ? 'border-primary font-medium text-fg-1' : 'border-transparent text-fg-2 hover:text-fg-1',
           )}

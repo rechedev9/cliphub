@@ -94,6 +94,8 @@ func teamReplayPath(p replayPathIn) (string, error) {
 			v.Set(key, buy)
 		case (key == "advantage" || key == "site" || key == "end_reason") && len(list) > 1:
 			return "", fmt.Errorf("the team Replay holds one %s: pass one", key)
+		case key == "exclude_tactic" || key == "match_tag" || key == "exclude_match_tag" || key == "event":
+			v[key] = slices.Clone(list)
 		default:
 			v.Set(key, list[0])
 		}

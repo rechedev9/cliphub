@@ -34,7 +34,6 @@ export function CompareGroupPicker({ value, teams, onChange }: CompareGroupPicke
   const label = pickedLabel(value, teams);
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-meta whitespace-nowrap text-fg-3">Comparar con</span>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -42,7 +41,7 @@ export function CompareGroupPicker({ value, teams, onChange }: CompareGroupPicke
             variant="outline"
             size="sm"
             aria-label={`Comparar con: ${label}`}
-            className={cn('h-8 max-w-56 gap-1.5 px-2.5 text-body-sm', value.length > 0 && 'border-fg-3 text-fg-1')}
+            className={cn('h-7 max-w-56 gap-1.5 px-2 text-body-sm normal-case tracking-normal', value.length > 0 && 'border-primary text-fg-1')}
           >
             <Scale aria-hidden />
             <span className="truncate">{label}</span>

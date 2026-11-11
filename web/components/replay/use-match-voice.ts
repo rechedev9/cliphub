@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { LibraryApiError } from '@/lib/api/library';
+import { attachVoiceRecording } from '@/lib/api/voice-plugin';
 import {
   autoSyncVoice,
   deleteMatchVoice,
@@ -35,6 +36,8 @@ export type MatchVoiceControl = {
   remove: () => void;
   install: () => void;
   transcribe: (language: string) => void;
+  /** Gives this match a recording the TeamSpeak plugin left in Studio's inbox. */
+  attachRecording: (recordingId: string) => void;
 };
 
 /** The Spanish text of a failed request: its error code's, else the action's own. */
@@ -107,5 +110,6 @@ export function useMatchVoice(matchId: string | null): MatchVoiceControl {
     remove: () => void run((id) => deleteMatchVoice(id), 'No se pudo quitar la voz.'),
     install: () => void run(() => installTranscriber(), 'No se pudo instalar la transcripción.'),
     transcribe: (language) => void run((id) => transcribeMatchVoice(id, language), 'No se pudo empezar la transcripción.'),
+    attachRecording: (recordingId) => void run((id) => attachVoiceRecording({ id: recordingId, matchId: id }), 'No se pudo asociar la grabación.'),
   };
 }

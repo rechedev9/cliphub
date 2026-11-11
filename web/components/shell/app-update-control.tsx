@@ -65,7 +65,7 @@ export function AppUpdateControl(): ReactElement | null {
       type="button"
       variant={buttonVariant(status.state)}
       size="sm"
-      className="h-10 shrink-0"
+      className="shrink-0"
       loading={busy}
       loadingText={label}
       disabled={blocked}

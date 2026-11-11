@@ -1,8 +1,10 @@
 import { TACTICAL_EVENT_KINDS, TACTICAL_SAMPLE_FLAGS, TACTICAL_SIDES, hasSampleFlags } from '@/lib/api/tactical';
 import type { RadarCalibration, RadarLevel, TacticalEventKind, TacticalSample, TacticalSide } from '@/lib/api/tactical';
-import { floorAlpha } from '@/lib/analysis/floors';
+import { OFF_FLOOR_ALPHA, levelAlpha } from '@/lib/analysis/floors';
+import { arcLevels } from '@/lib/replay/floor-assign';
 import { equipmentIconUrl } from '@/lib/api/game-assets';
 import type { EquipmentIconName } from '@/lib/api/game-assets';
+import type { HitLine } from '@/lib/replay/hit-lines';
 import { inFocus } from '@/lib/replay/player-focus';
 import type { PlayerFocus } from '@/lib/replay/player-focus';
 import type { MapShows } from '@/lib/replay/map-settings';
@@ -13,11 +15,11 @@ import { bombVisual, grenadeArc, utilityVisuals } from '@/lib/replay/three/utili
 import type { UtilityVisual } from '@/lib/replay/three/utility-visuals';
 import type { TrailPoint } from '@/lib/tactical-replay';
 import type { TimelineEvent } from '@/lib/tactical-timeline';
-import { worldToRendered, yawToRadarAngle } from '@/lib/tactical-transform';
+import { levelForAltitude, worldToRendered, yawToRadarAngle } from '@/lib/tactical-transform';
 import type { RadarPoint } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
-import { drawHitLabels, drawHitLines, drawSightPairs, drawViewWedges } from './radar-analysis';
-import type { FrameAnalysis } from './radar-analysis';
+import { drawHitLabels, drawHitLines } from './radar-analysis';
+import type { AcrossFloors } from './radar-analysis';
 
 /** World radii of the grenade effects, in CS2 units. */
 const SMOKE_RADIUS = 144;
@@ -41,7 +43,16 @@ export type RoundFrame = {
   offFloorAlpha?: number;
   /** Side of the radar square in CSS pixels. */
   size: number;
+  /** The players drawn on this plate: with one floor per pane, those standing on its floor. */
   samples: readonly TacticalSample[];
+  /** Every player of the round the layers keep, on whichever floor: trails are drawn for all of them. */
+  everyone: readonly TacticalSample[];
+  /** The floor each player stands on (`lib/replay/floor-assign`), with the dead band applied. */
+  levels: ReadonlyMap<number, RadarLevel>;
+  /** The floor each thrower stood on as a grenade left the hand, by the grenade's index in `events`; the arc starts on it. */
+  throwLevels?: ReadonlyMap<number, RadarLevel>;
+  /** With one floor per pane: which way the other pane lies, for lines that cross to it. */
+  across?: AcrossFloors;
   trails: ReadonlyMap<number, readonly TrailPoint[]>;
   events: readonly TimelineEvent[];
   nowSeconds: number;
@@ -51,8 +62,6 @@ export type RoundFrame = {
   labels: ReadonlyMap<number, string>;
   /** The players in the foreground; the rest are drawn translucent, without trail or name. */
   focus: PlayerFocus;
-  /** Players taken off the map in the side panel: drawn translucent too, never hidden. */
-  dimmed: readonly number[];
   /** Ajustes del mapa: what is drawn on and around each player. */
   show: MapShows;
   /** Players just hurt, with how strongly their dot still shows it. */
@@ -63,8 +72,8 @@ export type RoundFrame = {
   utility: boolean;
   bomb: boolean;
   style: RadarStyle;
-  /** Sight and hit lines; only the focused round carries them. */
-  analysis: FrameAnalysis | null;
+  /** Hit lines; only the focused round carries them. */
+  hits: readonly HitLine[];
   /** Players heard on the team voice right now, by slot; only the focused round carries them. */
   speaking?: ReadonlySet<number>;
 };
@@ -88,10 +97,10 @@ export function discRadius(size: number, scale = 1): number {
 }
 
 /** A player outside the focus is drawn at this strength. */
-const UNFOCUSED_ALPHA = 0.3;
+const UNFOCUSED_ALPHA = 0.35;
 
 function foreground(frame: RoundFrame, slot: number): boolean {
-  return inFocus(frame.focus, slot) && !frame.dimmed.includes(slot);
+  return inFocus(frame.focus, slot);
 }
 
 const GRENADE_PIP: Partial<Record<TacticalEquipment, string>> = {
@@ -126,9 +135,13 @@ function softDisc(ctx: CanvasRenderingContext2D, options: { at: RadarPoint; radi
   ctx.fill();
 }
 
+function levelOfSample(frame: RoundFrame, sample: TacticalSample): RadarLevel {
+  return frame.levels.get(sample.slot) ?? levelForAltitude(frame.calibration, sample.z);
+}
+
 /** Draws with everything faded when `z` is on the floor the plate is not showing. */
 function onFloor(ctx: CanvasRenderingContext2D, frame: RoundFrame, z: number, draw: () => void): void {
-  const alpha = floorAlpha(frame, z);
+  const alpha = levelAlpha(frame, levelForAltitude(frame.calibration, z));
   if (alpha <= 0) return;
   if (alpha >= 1) {
     draw();
@@ -198,35 +211,65 @@ function grenadeBadge(ctx: CanvasRenderingContext2D, kind: TacticalEventKind, at
   ctx.globalAlpha = 1;
 }
 
+/** The flight of a throw: each stretch on the pane of its own floor, so it never hops panes mid-air. */
+function drawArc(ctx: CanvasRenderingContext2D, frame: RoundFrame, options: { to: UtilityVisual['at']; from: NonNullable<UtilityVisual['from']>; fromLevel: RadarLevel; arc: NonNullable<UtilityVisual['arc']>; landing: RadarLevel }): void {
+  const { to, from, fromLevel, arc, landing } = options;
+  const { calibration, size } = frame;
+  const world = grenadeArc(from, to, 16);
+  const path = world.map((point) => worldToRendered(calibration, point.x, point.y, size));
+  const levels = arcLevels(calibration, world, { from: fromLevel, landing });
+  const reach = Math.max(1, Math.round(arc.progress * (path.length - 1)));
+  ctx.strokeStyle = '#e6e9ec';
+  ctx.lineWidth = 1.25;
+  ctx.setLineDash([3, 3]);
+  for (let i = 1; i <= reach; i += 1) {
+    const strength = levels[i] === frame.level || levels[i - 1] === frame.level ? 1 : (frame.offFloorAlpha ?? OFF_FLOOR_ALPHA);
+    if (strength <= 0) continue;
+    ctx.globalAlpha = 0.7 * arc.fade * strength;
+    ctx.beginPath();
+    ctx.moveTo(path[i - 1].x, path[i - 1].y);
+    ctx.lineTo(path[i].x, path[i].y);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  // The throw point, which a click on copies the throw's setpos (see `lib/replay/throw-hit`).
+  const originStrength = levelAlpha(frame, levels[0]);
+  if (originStrength > 0) {
+    ctx.globalAlpha = 0.9 * arc.fade * originStrength;
+    ctx.fillStyle = '#e6e9ec';
+    ctx.strokeStyle = '#0b0c0e';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(path[0].x, path[0].y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  const head = path[reach];
+  const headStrength = levelAlpha(frame, levels[reach]);
+  if (arc.progress < 1 && headStrength > 0) {
+    ctx.globalAlpha = headStrength;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(head.x, head.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** The arc stays on the thrower's floor until it reaches the landing one; the effect is on the landing floor. */
 function drawGrenade(ctx: CanvasRenderingContext2D, frame: RoundFrame, visual: UtilityVisual): void {
   const { calibration, size } = frame;
-  const at = worldToRendered(calibration, visual.at.x, visual.at.y, size);
-  if (frame.show.trajectories && visual.arc !== null && visual.from !== null) {
-    const path = grenadeArc(visual.from, visual.at, 16).map((point) => worldToRendered(calibration, point.x, point.y, size));
-    const reach = Math.max(1, Math.round(visual.arc.progress * (path.length - 1)));
-    ctx.globalAlpha = 0.7 * visual.arc.fade;
-    ctx.strokeStyle = '#e6e9ec';
-    ctx.lineWidth = 1.25;
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath();
-    ctx.moveTo(path[0].x, path[0].y);
-    for (let i = 1; i <= reach; i += 1) ctx.lineTo(path[i].x, path[i].y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    if (visual.arc.progress < 1) {
-      const head = path[reach];
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(head.x, head.y, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  }
+  const landing = levelForAltitude(calibration, visual.at.z);
+  if (frame.show.trajectories && visual.arc !== null && visual.from !== null) drawArc(ctx, frame, { to: visual.at, from: visual.from, fromLevel: frame.throwLevels?.get(visual.index) ?? levelForAltitude(calibration, visual.from.z), arc: visual.arc, landing });
   const effect = visual.effect;
-  if (effect === null) return;
+  const alpha = levelAlpha(frame, landing);
+  if (effect === null || alpha <= 0) return;
+  const at = worldToRendered(calibration, visual.at.x, visual.at.y, size);
+  // A filter fades the whole drawing, whatever globalAlpha each stroke sets.
+  if (alpha < 1) ctx.filter = `opacity(${alpha})`;
   drawEffect(ctx, frame, visual, at);
   grenadeBadge(ctx, visual.kind, at, Math.min(1, effect.strength * 1.5));
+  ctx.filter = 'none';
 }
 
 function drawEffect(ctx: CanvasRenderingContext2D, frame: RoundFrame, visual: UtilityVisual, at: RadarPoint): void {
@@ -299,18 +342,21 @@ function drawBombAt(ctx: CanvasRenderingContext2D, frame: RoundFrame, bomb: NonN
   ctx.fillRect(at.x - 4, at.y + 1, 5, 1.5);
 }
 
+/** Each segment of a trail is drawn on the floor its points belong to; one that crosses floors shows on both panes. */
 function drawTrails(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.lineWidth = 1.5;
-  for (const sample of frame.samples) {
+  const off = frame.offFloorAlpha ?? OFF_FLOOR_ALPHA;
+  for (const sample of frame.everyone) {
     const points = frame.trails.get(sample.slot);
     if (points === undefined || points.length < 2 || !inFocus(frame.focus, sample.slot)) continue;
     ctx.strokeStyle = sideColor(frame.style, sampleSide(sample));
-    // A trail recedes with its player, by the floor the player stands on now.
-    const strength = floorAlpha(frame, sample.z);
-    if (strength <= 0) continue;
     for (let i = 1; i < points.length; i += 1) {
+      const before = points[i - 1].level ?? frame.level;
+      const after = points[i].level ?? frame.level;
+      const strength = before === frame.level || after === frame.level ? 1 : off;
+      if (strength <= 0) continue;
       const from = worldToRendered(frame.calibration, points[i - 1].x, points[i - 1].y, frame.size);
       const to = worldToRendered(frame.calibration, points[i].x, points[i].y, frame.size);
       ctx.globalAlpha = (0.05 + 0.35 * (i / (points.length - 1))) * strength;
@@ -326,8 +372,7 @@ function drawTrails(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
 function drawDead(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: TacticalSample, at: RadarPoint): void {
   const age = frame.deadFor.get(sample.slot) ?? DEAD_FADE_SECONDS;
   const arm = discRadius(frame.size, frame.dotScale) * 0.75;
-  const strength = frame.dimmed.includes(sample.slot) ? UNFOCUSED_ALPHA : 1;
-  ctx.globalAlpha = strength * (DEAD_REST_ALPHA + (1 - DEAD_REST_ALPHA) * Math.max(0, 1 - age / DEAD_FADE_SECONDS));
+  ctx.globalAlpha = DEAD_REST_ALPHA + (1 - DEAD_REST_ALPHA) * Math.max(0, 1 - age / DEAD_FADE_SECONDS);
   ctx.lineCap = 'round';
   ctx.strokeStyle = '#0b0c0e';
   ctx.lineWidth = 4;
@@ -352,20 +397,18 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
   const color = sideColor(style, side);
   const radius = discRadius(frame.size, frame.dotScale);
   const heading = (yawToRadarAngle(sample.yaw) * Math.PI) / 180;
-  if (frame.analysis?.sight?.wedges.has(sample.slot) !== true) {
-    const reach = radius * 6;
-    const cone = ctx.createRadialGradient(at.x, at.y, radius, at.x, at.y, reach);
-    cone.addColorStop(0, color);
-    cone.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.globalAlpha = 0.42;
-    ctx.fillStyle = cone;
-    ctx.beginPath();
-    ctx.moveTo(at.x, at.y);
-    ctx.arc(at.x, at.y, reach, heading - 0.4, heading + 0.4);
-    ctx.closePath();
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
+  const reach = radius * 6;
+  const cone = ctx.createRadialGradient(at.x, at.y, radius, at.x, at.y, reach);
+  cone.addColorStop(0, color);
+  cone.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.globalAlpha = 0.42;
+  ctx.fillStyle = cone;
+  ctx.beginPath();
+  ctx.moveTo(at.x, at.y);
+  ctx.arc(at.x, at.y, reach, heading - 0.4, heading + 0.4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
 
   if (frame.focus.includes(sample.slot)) {
     ctx.strokeStyle = '#ffffff';
@@ -422,7 +465,7 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
       ctx.stroke();
     }
   }
-  if (frame.show.held) drawHeld(ctx, { frame, sample, at, radius });
+  drawHeld(ctx, { frame, sample, at, radius });
   if (hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.defusing)) {
     ctx.strokeStyle = style.defuse;
     ctx.lineWidth = 2;
@@ -439,7 +482,7 @@ function drawHeld(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; s
   const { frame, sample, at, radius } = options;
   const { style } = frame;
   const s = Math.max(6, radius * 0.95);
-  if (sample.defuser === true) {
+  if (frame.show.kit && sample.defuser === true) {
     ctx.fillStyle = style.defuse;
     ctx.strokeStyle = '#0b0c0e';
     ctx.lineWidth = 1.25;
@@ -449,7 +492,7 @@ function drawHeld(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; s
     ctx.stroke();
   }
   const pips: string[] = [];
-  for (const entry of sample.inventory ?? []) {
+  for (const entry of frame.show.held ? (sample.inventory ?? []) : []) {
     const color = GRENADE_PIP[entry.item];
     for (let i = 0; color !== undefined && i < entry.count; i += 1) pips.push(color);
   }
@@ -463,7 +506,7 @@ function drawHeld(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; s
     ctx.fill();
     ctx.stroke();
   });
-  if (hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.hasBomb)) {
+  if (frame.show.bomb && hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.hasBomb)) {
     ctx.fillStyle = style.bomb;
     ctx.strokeStyle = '#0b0c0e';
     ctx.lineWidth = 1.25;
@@ -521,18 +564,15 @@ function drawTags(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; p
 
 /**
  * Paints one round over the baked plate: smokes, fires and throws first, the
- * view wedges and trails, the bomb on the ground, the dead, sight and hit
- * lines, the living, and the name tags on top. Answers where each player was
+ * trails, the bomb on the ground, the dead, the hit lines, the living, and the name tags on top. Answers where each player was
  * drawn, for hover and click.
  */
 export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame, tags: { visible: TagRect; spots: Map<number, number> } | null): DrawnPlayer[] {
   if (frame.utility) {
-    for (const visual of utilityVisuals(frame.events, frame.nowSeconds, frame.secondsOf)) onFloor(ctx, frame, visual.at.z, () => drawGrenade(ctx, frame, visual));
+    for (const visual of utilityVisuals(frame.events, frame.nowSeconds, frame.secondsOf)) drawGrenade(ctx, frame, visual);
   }
-  const canvas = { ctx, calibration: frame.calibration, size: frame.size, style: frame.style, samples: frame.samples };
-  const sight = frame.analysis?.sight ?? null;
-  const hits = frame.analysis?.hits ?? [];
-  if (sight !== null) drawViewWedges(canvas, sight);
+  const canvas = { ctx, calibration: frame.calibration, size: frame.size, style: frame.style, samples: frame.samples, across: frame.across };
+  const { hits } = frame;
   drawTrails(ctx, frame);
   if (frame.bomb) drawBomb(ctx, frame);
   const players: DrawnPlayer[] = [];
@@ -540,15 +580,20 @@ export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame,
     const at = worldToRendered(frame.calibration, sample.x, sample.y, frame.size);
     const alive = hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.alive);
     players.push({ slot: sample.slot, x: at.x, y: at.y, side: sampleSide(sample), alive });
-    if (!alive) onFloor(ctx, frame, sample.z, () => drawDead(ctx, frame, sample, at));
+    if (alive) continue;
+    const strength = levelAlpha(frame, levelOfSample(frame, sample));
+    if (strength <= 0) continue;
+    // A filter fades the whole cross, whatever globalAlpha it sets.
+    if (strength < 1) ctx.filter = `opacity(${strength})`;
+    drawDead(ctx, frame, sample, at);
+    ctx.filter = 'none';
   }
-  if (sight !== null) drawSightPairs(canvas, sight);
   drawHitLines(canvas, hits);
   for (const sample of frame.samples) {
     const player = players.find((entry) => entry.slot === sample.slot);
     if (player === undefined || !player.alive) continue;
     // A filter fades the whole player, whatever globalAlpha each stroke sets.
-    const alpha = floorAlpha(frame, sample.z) * (foreground(frame, sample.slot) ? 1 : UNFOCUSED_ALPHA);
+    const alpha = levelAlpha(frame, levelOfSample(frame, sample)) * (foreground(frame, sample.slot) ? 1 : UNFOCUSED_ALPHA);
     if (alpha <= 0) continue;
     if (alpha < 1) ctx.filter = `opacity(${alpha})`;
     drawAlive(ctx, frame, sample, player);

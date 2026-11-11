@@ -37,8 +37,9 @@ import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
 import { lastResults } from '@/lib/analysis/context-bar';
 import { MapLabel } from '@/components/analysis/map-thumb';
-import { ScopeBar, type ScopeCounts, type ScopeEntity, type ScopeOption } from '@/components/analysis/scope-bar';
+import { ScopeBar, type ScopeCounts, type ScopeEntity, type ScopeMatch, type ScopeOption } from '@/components/analysis/scope-bar';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
+import { DOCUMENT_COLUMN } from '@/components/records/document-page';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
@@ -180,6 +181,8 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
 };
 /** Tabs that read the shared metrics report; its sample is the count they show. */
 const REPORT_TABS = new Set(['intro', 'compras', 'mapas', 'metricas']);
+/** Tabs whose content sits in the centred document column; the heat tables of the others need the width. */
+const COLUMN_TABS = new Set(['intro', 'roles', 'partidas', 'faceit']);
 const PLAYER_TABS = ['intro', 'roles', 'compras', 'mapas', 'partidas', 'metricas', 'faceit'];
 /** The picker lists the most played; a library of thousands would not fit a menu. */
 const PICKER_PLAYERS = 200;
@@ -265,6 +268,13 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
     scopedRows.map((row) => ({ playedAt: row.match.played_at, outcome: row.outcome })),
     10,
   );
+  const scopeMatches: ScopeMatch[] = scopedRows.map((row) => ({
+    id: row.match.id,
+    href: matchHref(row.match.id),
+    label: `${prettyMapName(row.match.map)} contra ${row.rivalName}`,
+    date: formatShortDate(row.match.played_at),
+    outcome: row.outcome,
+  }));
   const entity: ScopeEntity = {
     noun: 'Jugador',
     id: player.steamid64,
@@ -286,8 +296,9 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
           limits={{ options: PLAYER_METRICS_LIMITS, fallback: PLAYER_METRICS_LIMIT }}
           counts={id === 'faceit' ? undefined : countsFor(id)}
           results={id === 'faceit' ? undefined : results}
+          matches={id === 'faceit' ? undefined : scopeMatches}
         />
-        {content}
+        {COLUMN_TABS.has(id) ? <div className={DOCUMENT_COLUMN}>{content}</div> : content}
       </div>
     );
   }
@@ -347,7 +358,9 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
                 {withReport('intro', (report) => (
                   <PlayerIntro report={report} details={details} map={scope.map} bothSides={scope.side === ''} reference={scope.reference} />
                 ))}
-                <PlayerSummary player={player} />
+                <div className={DOCUMENT_COLUMN}>
+                  <PlayerSummary player={player} />
+                </div>
               </div>
             ),
           },

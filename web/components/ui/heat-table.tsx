@@ -114,7 +114,7 @@ function CellView({
     <td
       className={cn(
         'px-2.5 py-1.5 whitespace-nowrap',
-        column.align === 'end' && 'text-right tabular-nums',
+        column.align === 'end' && 'font-num text-right tabular-nums',
         low ? 'text-fg-3' : 'text-fg-1',
         cell.tone && !low && TONE[cell.tone],
         first ? sticky : tint(level),
@@ -173,7 +173,7 @@ export function HeatTable({
       ) : (
         <div className="overflow-x-auto">
           <table aria-label={label} className="w-full border-collapse text-left text-body-sm">
-            <thead className="bg-surface-2 text-meta text-fg-3">
+            <thead className="bg-surface-2 text-meta tracking-wider text-fg-3 uppercase">
               <tr className="border-b border-border">
                 {columns.map((column, index) => (
                   <th

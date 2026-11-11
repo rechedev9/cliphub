@@ -1,37 +1,40 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Flame } from 'lucide-react';
+import { Flame, Settings2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { InfoTip } from '@/components/analysis/info-tip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { getSpatialHeatmap } from '@/lib/api/library';
 import type { SpatialScope } from '@/lib/api/library';
 import { HEATMAP_GRENADES, HEATMAP_KINDS, KILL_SPOTS } from '@/lib/api/spatial';
 import type { HeatmapCell, HeatmapGrenade, HeatmapKind, SpatialMatchRef, SpatialResponse } from '@/lib/api/spatial';
 import { RADAR_LEVELS, TACTICAL_SIDES } from '@/lib/api/tactical';
-import type { RadarLevel, TacticalGeometry, TacticalSide } from '@/lib/api/tactical';
+import type { RadarLevel, TacticalSide } from '@/lib/api/tactical';
 import { eventKindLabel, placeLabel } from '@/lib/tactical-labels';
 import {
   HEATMAP_KIND_LABEL,
-  HEATMAP_LEGEND_LABEL,
-  HEATMAP_UNIT_LABEL,
   KILL_SPOT_LABEL,
   LEVEL_LABEL,
-  HEAT_GRADIENT,
   arrivalStrength,
+  emptyMessage,
+  heatAmount,
   heatmapCellAt,
   heatmapLayer,
   heatmapLevels,
   heatmapSide,
   mergeHeatmapLayers,
   nearestCallout,
-  topCells,
 } from '@/lib/tactical-spatial';
 import type { HeatmapLayer } from '@/lib/tactical-spatial';
+import { heatPlaces } from '@/lib/heat-places';
+import type { HeatPlace } from '@/lib/heat-places';
 import { SMOOTHING_DEFAULT, SMOOTHING_MAX, SMOOTHING_MIN, densityPicture, heatBandwidth, heatDensity } from '@/lib/heat-density';
 import type { DensityPicture } from '@/lib/heat-density';
 import { worldRectToRadarRect } from '@/lib/tactical-transform';
 import type { WorldMark } from '@/lib/tactical-transform';
 import { DEFAULT_HEAT } from '@/lib/replay/heat-choice';
-import type { HeatChoice } from '@/lib/replay/heat-choice';
+import type { HeatChoice, HeatFloor } from '@/lib/replay/heat-choice';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptySample } from '@/components/analysis/empty-sample';
 import { cn } from '@/lib/utils';
@@ -39,26 +42,24 @@ import { RadarSurface } from './radar-surface';
 import type { RadarFrame } from './radar-surface';
 import { Segmented } from '@/components/ui/segmented';
 import { EvidenceChips } from './spatial-controls';
+import { HeatLegend } from './heat-legend';
 import { TramoBar, useTramo } from '@/components/replay/tramo-bar';
 import type { TramoControl } from '@/components/replay/tramo-bar';
 import { isWholeRound } from '@/lib/replay/tramo';
 
-const TOP_CELLS = 8;
+const TOP_PLACES = 8;
 
-type Load = { kind: 'loading' } | { kind: 'ready'; data: SpatialResponse } | { kind: 'failed' };
+/** `ready` keeps the scope its answer belongs to: a new window or kind keeps the old picture up meanwhile, a new scope does not. */
+type Load = { kind: 'loading' } | { kind: 'ready'; data: SpatialResponse; scopeKey: string } | { kind: 'failed' };
 
-/** One floor or both side by side, on a two-floor map. */
-type FloorChoice = RadarLevel | 'both';
+/** Waits this long after the last change before asking again, so dragging the tramo asks once. */
+const RUN_DELAY_MS = 180;
 
 /** The owner's heat choice, kept in its URL; without it the view keeps its own. */
 export type HeatControl = { choice: HeatChoice; onChange: (next: HeatChoice) => void };
 
 /** One floor's density contours, already on the scale both floors share. */
 type FloorDensity = { level: RadarLevel; picture: DensityPicture };
-
-function cellKey(cell: HeatmapCell): string {
-  return `${cell.side}|${cell.level}|${cell.x}|${cell.y}`;
-}
 
 function useHeatChoice(control: HeatControl | undefined): HeatControl {
   const [choice, setChoice] = useState<HeatChoice>(DEFAULT_HEAT);
@@ -93,14 +94,17 @@ export function HeatmapView({
   const tramoTo = whole ? 0 : tramo.to;
   const fromPlant = tramo.fromPlant === true;
   const [side, setSide] = useState<TacticalSide | ''>(sideHint);
-  const [floor, setFloor] = useState<FloorChoice>('both');
+  const floor: HeatFloor = choice.floor;
   const [smoothing, setSmoothing] = useState(SMOOTHING_DEFAULT);
   const [selected, setSelected] = useState<string | null>(null);
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
+  const [attempt, setAttempt] = useState(0);
+  const [busy, setBusy] = useState(false);
   const scopeKey = JSON.stringify(scope);
   const scopeRef = useRef(scope);
   const imagesRef = useRef(new WeakMap<Uint8ClampedArray<ArrayBuffer>, HTMLCanvasElement>());
   const grenadeKey = grenades.join(',');
+  const loadedScope = useRef('');
 
   useEffect(() => {
     scopeRef.current = scope;
@@ -110,35 +114,46 @@ export function HeatmapView({
 
   useEffect(() => {
     let active = true;
-    setLoad({ kind: 'loading' });
-    getSpatialHeatmap(scopeRef.current, {
-      kind,
-      killAt,
-      from: tramoFrom,
-      to: tramoTo,
-      fromPlant,
-      grenades: kind === 'utility' && grenadeKey !== '' ? grenadeKey.split(',').filter(isGrenade) : [],
-    })
-      .then((data) => {
-        if (!active) return;
-        setLoad({ kind: 'ready', data });
-        onLoaded?.(data);
-      })
-      .catch(() => {
-        if (active) setLoad({ kind: 'failed' });
-      });
+    // The first answer of a scope asks at once; a new window or kind waits for the drag to settle.
+    setBusy(loadedScope.current === scopeKey);
+    const timer = window.setTimeout(
+      () => {
+        getSpatialHeatmap(scopeRef.current, {
+          kind,
+          killAt,
+          from: tramoFrom,
+          to: tramoTo,
+          fromPlant,
+          grenades: kind === 'utility' && grenadeKey !== '' ? grenadeKey.split(',').filter(isGrenade) : [],
+        })
+          .then((answer) => {
+            if (!active) return;
+            loadedScope.current = scopeKey;
+            setBusy(false);
+            setLoad({ kind: 'ready', data: answer, scopeKey });
+            onLoaded?.(answer);
+          })
+          .catch(() => {
+            if (!active) return;
+            setBusy(false);
+            setLoad({ kind: 'failed' });
+          });
+      },
+      loadedScope.current === scopeKey ? RUN_DELAY_MS : 0,
+    );
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
-  }, [scopeKey, kind, killAt, tramoFrom, tramoTo, fromPlant, grenadeKey, onLoaded]);
+  }, [scopeKey, kind, killAt, tramoFrom, tramoTo, fromPlant, grenadeKey, onLoaded, attempt]);
 
-  const data = load.kind === 'ready' ? load.data : null;
+  const data = load.kind === 'ready' && load.scopeKey === scopeKey ? load.data : null;
   const heatmap = data?.heatmap;
   const geometry = data?.geometry ?? null;
   const levels = useMemo(() => (heatmap ? heatmapLevels(heatmap) : []), [heatmap]);
   const twoFloors = levels.length > 1;
   const shownSide = heatmap ? heatmapSide(heatmap, side) : TACTICAL_SIDES.ct;
-  const shownFloor: FloorChoice = twoFloors && (floor === 'both' || levels.includes(floor)) ? floor : (levels[0] ?? RADAR_LEVELS.default);
+  const shownFloor: HeatFloor = twoFloors && (floor === 'both' || levels.includes(floor)) ? floor : (levels[0] ?? RADAR_LEVELS.default);
   const shownLevels = useMemo<RadarLevel[]>(() => (shownFloor === 'both' ? levels : [shownFloor]), [levels, shownFloor]);
   const layers = useMemo(
     () => (heatmap ? shownLevels.map((level) => ({ level, layer: heatmapLayer(heatmap, shownSide, level) })) : []),
@@ -147,7 +162,27 @@ export function HeatmapView({
   // Both floors read on one scale, so a colour means the same on either plate.
   const layer = useMemo(() => (layers.length === 0 ? null : mergeHeatmapLayers(layers.map((entry) => entry.layer))), [layers]);
   const matches = useMemo(() => new Map<string, SpatialMatchRef>((data?.matches ?? []).map((m) => [m.match_id, m])), [data]);
-  const selectedCell = layer?.cells.find((cell) => cellKey(cell) === selected);
+  const bothFloors = shownLevels.length > 1;
+  // The list names places, not 64 unit cells: a place CS2 names by many cells is one line.
+  const placeOf = useCallback(
+    (cell: HeatmapCell): string => {
+      if (!heatmap || !geometry) return '';
+      const cellSize = heatmap.cell_size;
+      return placeLabel(nearestCallout(geometry, cell.level, (cell.x + 0.5) * cellSize, (cell.y + 0.5) * cellSize, cell.z)) || `Celda ${cell.x}, ${cell.y}`;
+    },
+    [geometry, heatmap],
+  );
+  // The floor suffix is only shown, never part of the key, so a selection survives a floor switch.
+  const places = useMemo(
+    () =>
+      layer === null
+        ? []
+        : heatPlaces({ cells: layer.cells, nameOf: placeOf }).map((place) =>
+            bothFloors && place.level === RADAR_LEVELS.lower ? { ...place, name: `${place.name} (piso inferior)` } : place,
+          ),
+    [bothFloors, layer, placeOf],
+  );
+  const selectedPlace = places.find((place) => place.key === selected);
 
   const densities = useMemo<FloorDensity[]>(() => {
     if (!heatmap || !geometry || !layer) return [];
@@ -181,34 +216,38 @@ export function HeatmapView({
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(image, x * unit, y * unit, width * unit, height * unit);
       }
-      if (selectedCell !== undefined && selectedCell.level === level) {
+      if (selectedPlace !== undefined) {
         const cs = heatmap.cell_size;
-        const rect = worldRectToRadarRect(
-          calibration,
-          { minX: selectedCell.x * cs, minY: selectedCell.y * cs, maxX: (selectedCell.x + 1) * cs, maxY: (selectedCell.y + 1) * cs },
-          size,
-        );
         ctx.strokeStyle = style.text;
         ctx.lineWidth = Math.max(1.5, size * 0.003);
-        ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        for (const cell of selectedPlace.cells) {
+          if (cell.level !== level) continue;
+          const rect = worldRectToRadarRect(calibration, { minX: cell.x * cs, minY: cell.y * cs, maxX: (cell.x + 1) * cs, maxY: (cell.y + 1) * cs }, size);
+          ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        }
       }
     },
-    [densities, geometry, heatmap, selectedCell],
+    [densities, geometry, heatmap, selectedPlace],
   );
-  // Every side and level, so switching between them keeps the framing.
+  // Every side and level, so switching between them keeps the framing. Each mark carries an altitude
+  // on its own floor's side of the cut, so a floor's crop only grows for the cells that stand on it.
   const marks = useMemo(() => {
     const cs = heatmap?.cell_size ?? 0;
-    return (heatmap?.cells ?? []).flatMap((cell): WorldMark[] => [[cell.x * cs, cell.y * cs], [(cell.x + 1) * cs, (cell.y + 1) * cs]]);
-  }, [heatmap]);
+    const cut = geometry?.calibration.lower_altitude_max;
+    return (heatmap?.cells ?? []).flatMap((cell): WorldMark[] => {
+      const z = cut === undefined ? [] : [cell.level === RADAR_LEVELS.lower ? cut - 1 : cut + 1];
+      return [[cell.x * cs, cell.y * cs, ...z], [(cell.x + 1) * cs, (cell.y + 1) * cs, ...z]];
+    });
+  }, [heatmap, geometry]);
 
   const onPoint = useCallback(
     (world: { x: number; y: number }, level: RadarLevel) => {
       if (!heatmap) return;
       const floorLayer = layers.find((entry) => entry.level === level)?.layer;
       const cell = floorLayer ? heatmapCellAt(floorLayer, heatmap.cell_size, world.x, world.y) : undefined;
-      setSelected(cell ? cellKey(cell) : null);
+      setSelected(cell ? `${cell.level}|${placeOf(cell)}` : null);
     },
-    [heatmap, layers],
+    [heatmap, layers, placeOf],
   );
 
   const setKind = (next: HeatmapKind): void => {
@@ -218,15 +257,21 @@ export function HeatmapView({
   const toggleGrenade = (grenade: HeatmapGrenade): void =>
     setChoice({ ...choice, grenades: grenades.includes(grenade) ? grenades.filter((g) => g !== grenade) : [...grenades, grenade] });
 
+  const otherSide = shownSide === TACTICAL_SIDES.ct ? TACTICAL_SIDES.t : TACTICAL_SIDES.ct;
+  const otherSideTotal = heatmap ? heatmap.sides.filter((entry) => entry.side === otherSide).reduce((sum, entry) => sum + entry.total, 0) : 0;
+
   const body = (): ReactNode => {
     if (load.kind === 'failed') {
       return (
-        <p role="alert" className="text-body-sm text-destructive">
-          No se pudo calcular el mapa de calor. Comprueba que ClipHub Studio sigue abierto.
-        </p>
+        <div role="alert" className="flex flex-wrap items-center gap-3">
+          <p className="text-body-sm text-destructive">No se pudo calcular el mapa de calor. Comprueba que ClipHub Studio sigue abierto.</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+            Reintentar
+          </Button>
+        </div>
       );
     }
-    if (load.kind === 'loading') {
+    if (data === null) {
       return (
         <div role="status" aria-label="Calculando el mapa de calor" className="grid gap-4 @[56rem]:grid-cols-[minmax(0,1fr)_300px]">
           <Skeleton className="aspect-square w-full" />
@@ -234,15 +279,23 @@ export function HeatmapView({
         </div>
       );
     }
-    if (!geometry || !heatmap || !layer) {
+    if (!geometry || !heatmap) {
       return (
         <EmptySample>
           <p className="text-body-sm text-fg-3">No hay partidas analizadas con este filtro.</p>
         </EmptySample>
       );
     }
+    if (!layer) {
+      // The scope has rounds but nothing counted in them: say what the filters left, not that matches are missing.
+      return (
+        <EmptySample>
+          <p className="text-body-sm text-fg-2">{emptyMessage({ kind: heatmap.kind, rounds: heatmap.rounds, missing: heatmap.missing_positions, matches: heatmap.matches })}</p>
+        </EmptySample>
+      );
+    }
     return (
-      <div className="grid gap-4 @[56rem]:grid-cols-[minmax(0,1fr)_300px]">
+      <div className={cn('grid gap-4 transition-opacity @[56rem]:grid-cols-[minmax(0,1fr)_300px]', busy && 'opacity-60')} aria-busy={busy}>
         <RadarSurface
           geometry={geometry}
           level={shownLevels[0] ?? RADAR_LEVELS.default}
@@ -259,12 +312,17 @@ export function HeatmapView({
           matchCount={heatmap.matches}
           missing={heatmap.missing_positions}
           cellSize={heatmap.cell_size}
-          samplesPerRound={heatmap.samples_per_round}
-          geometry={geometry}
+          sampleSeconds={heatmap.sample_seconds}
+          places={places}
           matches={matches}
-          selected={selectedCell}
-          bothFloors={shownLevels.length > 1}
-          onSelect={(cell) => setSelected(cellKey(cell))}
+          selected={selectedPlace}
+          bothFloors={bothFloors}
+          otherSide={otherSideTotal > 0 ? otherSide : null}
+          onOtherSide={() => {
+            setSide(otherSide);
+            setSelected(null);
+          }}
+          onSelect={(place) => setSelected(place.key)}
         />
       </div>
     );
@@ -292,19 +350,16 @@ export function HeatmapView({
           }}
         />
         {twoFloors ? (
-          <Segmented<FloorChoice>
+          <Segmented<HeatFloor>
             label="Piso"
             value={shownFloor}
             options={[{ value: 'both', label: 'Los dos' }, ...levels.map((value) => ({ value, label: LEVEL_LABEL[value] }))]}
             onChange={(next) => {
-              setFloor(next);
+              setChoice({ ...choice, floor: next });
               setSelected(null);
             }}
           />
         ) : null}
-      </div>
-      <TramoBar tramo={tramo} onChange={setTramo} />
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {kind === 'kill' ? (
           <Segmented
             label="Qué punto de cada baja cuenta"
@@ -317,8 +372,7 @@ export function HeatmapView({
           />
         ) : null}
         {kind === 'utility' ? (
-          <div role="group" aria-label="Granadas" className="flex flex-wrap items-center gap-1.5">
-            <span className="text-body-sm text-fg-3">Granadas:</span>
+          <div role="group" aria-label="Granadas" title="Sin selección cuenta todas" className="flex flex-wrap items-center gap-1.5">
             {HEATMAP_GRENADES.map((grenade) => (
               <button
                 key={grenade}
@@ -333,25 +387,13 @@ export function HeatmapView({
                 {eventKindLabel(grenade)}
               </button>
             ))}
-            <span className="text-meta text-fg-3">{grenades.length === 0 ? 'Sin selección cuenta todas.' : ''}</span>
           </div>
         ) : null}
-        <label className="flex min-w-56 items-center gap-2 text-body-sm text-fg-2">
-          Suavizado
-          <input
-            type="range"
-            min={Math.round(SMOOTHING_MIN * 100)}
-            max={Math.round(SMOOTHING_MAX * 100)}
-            step={1}
-            value={Math.round(smoothing * 100)}
-            onChange={(event) => setSmoothing(Number(event.target.value) / 100)}
-            className="h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary"
-          />
-          <span className="w-10 text-right text-meta tabular-nums text-fg-3">{Math.round(smoothing * 100)} %</span>
-        </label>
+        <HeatSettings smoothing={smoothing} onChange={setSmoothing} />
       </div>
 
       {body()}
+      <TramoBar tramo={tramo} onChange={setTramo} />
     </div>
   );
 }
@@ -383,11 +425,13 @@ function HeatmapSidebar({
   matchCount,
   missing,
   cellSize,
-  samplesPerRound,
-  geometry,
+  sampleSeconds,
+  places,
   matches,
   selected,
   bothFloors,
+  otherSide,
+  onOtherSide,
   onSelect,
 }: {
   kind: HeatmapKind;
@@ -396,48 +440,63 @@ function HeatmapSidebar({
   matchCount: number;
   missing: number;
   cellSize: number;
-  samplesPerRound: number;
-  geometry: TacticalGeometry;
+  sampleSeconds: number;
+  places: readonly HeatPlace[];
   matches: ReadonlyMap<string, SpatialMatchRef>;
-  selected: HeatmapCell | undefined;
+  selected: HeatPlace | undefined;
   bothFloors: boolean;
-  onSelect: (cell: HeatmapCell) => void;
+  /** The other side when it has data and this one is empty, so the empty list can offer it. */
+  otherSide: TacticalSide | null;
+  onOtherSide: () => void;
+  onSelect: (place: HeatPlace) => void;
 }): ReactNode {
-  const unit = HEATMAP_UNIT_LABEL[kind];
-  const zone = (cell: HeatmapCell): string => {
-    const name =
-      placeLabel(nearestCallout(geometry, cell.level, (cell.x + 0.5) * cellSize, (cell.y + 0.5) * cellSize, cell.z)) || `Celda ${cell.x}, ${cell.y}`;
-    return bothFloors && cell.level === RADAR_LEVELS.lower ? `${name} (piso inferior)` : name;
-  };
-  const top = topCells(layer, TOP_CELLS);
+  const amount = (count: number): string => heatAmount({ kind, count, sampleSeconds });
+  const top = places.slice(0, TOP_PLACES);
   const timing = kind === 'timing';
+  const method = [
+    `Cada zona suma las celdas de ${cellSize} unidades que cuenta su lugar; el radar las suaviza.`,
+    kind === 'position' ? `El tiempo es el de los jugadores vivos, medido cada ${String(sampleSeconds).replace('.', ',')} s del tramo: una ronda larga pesa más que una corta.` : '',
+    kind === 'kill' ? 'Las bajas a compañeros no cuentan.' : '',
+    timing ? 'Cada jugador cuenta su primera llegada a cada zona en cada ronda.' : '',
+    `${layer.rounds} de ${rounds} rondas, ${matchCount} ${matchCount === 1 ? 'partida' : 'partidas'}.`,
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
-    <aside className="flex min-w-0 flex-col gap-3 rounded-lg border border-border-strong bg-surface-1 p-3">
-      <p className="text-body-sm text-fg-2">
-        {layer.total} {unit} en {layer.rounds} de {rounds} rondas ({matchCount} {matchCount === 1 ? 'partida' : 'partidas'}).
-        {missing > 0 ? ` ${missing} sin posiciones guardadas.` : ''}
-      </p>
-      <Legend kind={kind} maxCount={layer.maxCount} maxSeconds={layer.maxSeconds} />
+    <aside className="flex min-w-0 flex-col gap-3">
+      <HeatLegend kind={kind} maxSeconds={layer.maxSeconds} />
+      {missing > 0 ? <p className="text-meta text-fg-3">{missing} rondas sin posiciones guardadas.</p> : null}
       {selected ? (
-        <div className="flex flex-col gap-1.5 rounded-md border border-border p-2.5">
-          <span className="text-body-sm font-medium text-fg-1">{zone(selected)}</span>
+        <div className="flex flex-col gap-1.5 rounded-md bg-surface-2 p-2.5">
+          <span className="text-body-sm font-medium text-fg-1">{selected.name}</span>
           <span className="text-meta tabular-nums text-fg-2">
-            {selected.count} {unit} · {selected.rounds} {selected.rounds === 1 ? 'ronda' : 'rondas'}
+            {amount(selected.count)} · {selected.cells.length > 1 ? 'al menos ' : ''}
+            {selected.rounds} {selected.rounds === 1 ? 'ronda' : 'rondas'}
             {timing ? ` · mediana ${selected.seconds} s` : ''}
           </span>
           <EvidenceChips examples={selected.examples} matches={matches} />
         </div>
-      ) : (
-        <p className="text-meta text-fg-3">Pulsa una zona del radar para ver de qué rondas sale.</p>
-      )}
+      ) : null}
       {top.length === 0 ? (
-        <p className="flex items-center gap-2 text-body-sm text-fg-3">
-          <Flame className="size-4" aria-hidden />
-          {bothFloors ? 'Nada que contar en este lado.' : 'Nada que contar en este lado y piso.'}
-        </p>
+        <div className="flex flex-col items-start gap-2">
+          <p className="flex items-center gap-2 text-body-sm text-fg-3">
+            <Flame className="size-4" aria-hidden />
+            {bothFloors ? 'Nada que contar en este lado.' : 'Nada que contar en este lado y piso.'}
+          </p>
+          {otherSide === null ? null : (
+            <Button type="button" variant="outline" size="xs" onClick={onOtherSide}>
+              Ver el lado {otherSide}
+            </Button>
+          )}
+        </div>
       ) : (
         <table className="w-full text-body-sm">
-          <caption className="pb-1 text-left text-meta text-fg-3">{timing ? 'Primeras llegadas' : 'Zonas con más actividad'}</caption>
+          <caption className="pb-1 text-left text-meta text-fg-3">
+            <span className="flex items-center justify-between gap-2">
+              {timing ? 'Primeras llegadas' : 'Zonas con más actividad'}
+              <InfoTip label="el mapa de calor" text={method} />
+            </span>
+          </caption>
           <thead className="sr-only">
             <tr>
               <th>Zona</th>
@@ -446,47 +505,48 @@ function HeatmapSidebar({
             </tr>
           </thead>
           <tbody>
-            {top.map((cell) => (
-              <tr key={cellKey(cell)} className={cn('border-t border-border-subtle', selected && cellKey(selected) === cellKey(cell) && 'bg-surface-3')}>
+            {top.map((place) => (
+              <tr key={place.key} className={cn('border-t border-border-subtle', selected?.key === place.key && 'bg-surface-3')}>
                 <td className="py-1 pr-2">
-                  <button type="button" onClick={() => onSelect(cell)} className="text-left text-fg-1 hover:underline">
-                    {zone(cell)}
+                  <button type="button" onClick={() => onSelect(place)} className="text-left text-fg-1 hover:underline">
+                    {place.name}
                   </button>
                 </td>
-                <td className="py-1 text-right tabular-nums text-fg-2">{cell.count}</td>
-                {timing ? <td className="py-1 pl-2 text-right tabular-nums text-fg-3">{cell.seconds} s</td> : null}
+                <td className="py-1 text-right tabular-nums text-fg-2">{amount(place.count)}</td>
+                {timing ? <td className="py-1 pl-2 text-right tabular-nums text-fg-3">{place.seconds} s</td> : null}
               </tr>
             ))}
           </tbody>
         </table>
       )}
-      <p className="text-meta text-fg-3">
-        Zonas de {cellSize} unidades; el radar las suaviza.
-        {kind === 'position' ? ` Cada ronda se lee en ${samplesPerRound} instantes del tramo, una muestra por jugador vivo en cada uno.` : ''}
-        {kind === 'kill' ? ' Las bajas a compañeros no cuentan.' : ''}
-        {timing ? ' Cada jugador cuenta su primera llegada a cada zona en cada ronda.' : ''}
-      </p>
     </aside>
   );
 }
 
-/** The heat scale, dark green to yellow, with ends in what the map counts; timing runs reversed. */
-function Legend({ kind, maxCount, maxSeconds }: { kind: HeatmapKind; maxCount: number; maxSeconds: number }): ReactNode {
-  const timing = kind === 'timing';
-  const unit = HEATMAP_UNIT_LABEL[kind];
+/** Secondary options of the heatmap in one menu, so the filter row carries only what changes the question. */
+function HeatSettings({ smoothing, onChange }: { smoothing: number; onChange: (smoothing: number) => void }): ReactNode {
   return (
-    <div className="flex flex-col gap-1" aria-label={`Leyenda: ${HEATMAP_LEGEND_LABEL[kind]}`}>
-      <span className="text-meta text-fg-2">{HEATMAP_LEGEND_LABEL[kind]}</span>
-      <div className="h-2 rounded-sm" style={{ background: HEAT_GRADIENT }} aria-hidden />
-      <div className="flex justify-between text-meta tabular-nums text-fg-3">
-        <span>{timing ? `${maxSeconds} s, más tarde` : `Menos ${unit}`}</span>
-        <span>{timing ? '0 s, antes' : `Más ${unit}`}</span>
-      </div>
-      {timing ? null : (
-        <span className="text-meta tabular-nums text-fg-2">
-          Zona más activa: {maxCount} {unit}
-        </span>
-      )}
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label="Ajustes del mapa de calor" className="ml-auto">
+          <Settings2 aria-hidden />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64">
+        <label className="flex items-center gap-2 text-body-sm text-fg-2">
+          Suavizado
+          <input
+            type="range"
+            min={Math.round(SMOOTHING_MIN * 100)}
+            max={Math.round(SMOOTHING_MAX * 100)}
+            step={1}
+            value={Math.round(smoothing * 100)}
+            onChange={(event) => onChange(Number(event.target.value) / 100)}
+            className="h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary"
+          />
+          <span className="w-10 text-right text-meta tabular-nums text-fg-3">{Math.round(smoothing * 100)} %</span>
+        </label>
+      </PopoverContent>
+    </Popover>
   );
 }

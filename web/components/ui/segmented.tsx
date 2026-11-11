@@ -4,8 +4,8 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * A row of mutually exclusive buttons. The active one is marked with the
- * accent edge, never filled with it.
+ * A row of mutually exclusive buttons. The active segment is tinted with the
+ * accent, as in EDGE; the border stays grey.
  */
 export function Segmented<T extends string>({
   label,
@@ -19,9 +19,9 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
 }): ReactNode {
   return (
-    <div role="group" aria-label={label} className="inline-flex flex-wrap rounded-md border border-border-strong bg-surface-1 p-0.5">
+    <div role="group" aria-label={label} className="inline-flex flex-wrap overflow-hidden rounded-md border border-border-strong bg-surface-1">
       {options.map((option) => (
-        <span key={option.value} title={option.disabled ? option.reason : undefined} className="inline-flex">
+        <span key={option.value} title={option.disabled ? option.reason : undefined} className="inline-flex border-l border-border-strong first:border-l-0">
           <button
             type="button"
             aria-pressed={value === option.value}
@@ -29,9 +29,9 @@ export function Segmented<T extends string>({
             disabled={option.disabled}
             onClick={() => onChange(option.value)}
             className={cn(
-              'h-6.5 rounded-sm px-2 text-body-sm whitespace-nowrap text-fg-2 outline-none transition-colors',
-              'hover:text-fg-1 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-45',
-              value === option.value && 'bg-surface-3 font-medium text-fg-1 shadow-[inset_0_-2px_0_0_var(--primary)]',
+              'h-6.5 rounded-none px-2.5 text-body-sm whitespace-nowrap text-fg-2 outline-none transition-colors',
+              'hover:bg-surface-3 hover:text-fg-1 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-45',
+              value === option.value && 'bg-primary/16 font-semibold text-primary hover:bg-primary/16 hover:text-primary',
             )}
           >
             {option.label}

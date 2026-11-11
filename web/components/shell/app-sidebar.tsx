@@ -1,25 +1,29 @@
 'use client';
 
 import Link, { useLinkStatus } from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import type { ReactElement } from 'react';
 import {
-  NotebookPen,
+  BookOpen,
+  ChartColumn,
   Clapperboard,
   Crosshair,
-  FileText,
   Film,
   HardDrive,
   Lightbulb,
+  ListChecks,
   MonitorPlay,
-  Radar,
+  NotebookPen,
+  Play,
+  Search,
   Settings,
-  ShieldCheck,
   Shield,
   Smartphone,
   Swords,
   Trophy,
+  Upload,
   UserSearch,
+  Vote,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -34,42 +38,51 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
 import { BrandMark, Wordmark } from '@/components/brand/wordmark';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
+import { SidebarDemoImport } from '@/components/shell/sidebar-demo-import';
 import { RESULTS_HREF } from '@/lib/clips/routes';
-import { NAV_AREA_LABEL, NAV_SECTIONS, sectionForPath, type NavArea, type NavHref, type NavSection } from '@/lib/nav';
+import {
+  SIDEBAR_FOOTER_ENTRIES,
+  SIDEBAR_GROUPS,
+  VOICE_HREF,
+  activeEntryId,
+  type SidebarEntry,
+  type SidebarEntryId,
+} from '@/lib/nav-groups';
+import { sidebarHref, type PageLocation } from '@/lib/nav-scope';
 import { cn } from '@/lib/utils';
 
-// The Crear formats tint their icon with the colour their flow uses.
-const NAV_META: Record<NavHref, { icon: LucideIcon; tone?: string }> = {
-  '/videos-largos': { icon: MonitorPlay, tone: 'text-format-full' },
-  '/shorts': { icon: Smartphone, tone: 'text-format-short' },
-  '/streams': { icon: Clapperboard, tone: 'text-format-stream' },
-  '/jugadores/faceit': { icon: UserSearch },
-  '/mis-videos': { icon: Film },
-  '/ideas': { icon: Lightbulb },
-  '/partidas': { icon: Swords },
-  '/replay': { icon: Radar },
-  '/equipos': { icon: Shield },
-  '/ranking': { icon: Trophy },
-  '/libreta': { icon: NotebookPen },
-  '/lineups': { icon: Crosshair },
-  '/informes': { icon: FileText },
-  '/integridad': { icon: ShieldCheck },
-  '/almacenamiento': { icon: HardDrive },
-  '/settings': { icon: Settings },
+// The Crear formats tint a small dot with the colour their flow uses; the icon stays neutral.
+const ENTRY_META: Record<SidebarEntryId, { icon: LucideIcon; dot?: string }> = {
+  'demo-completa': { icon: MonitorPlay, dot: 'bg-format-full' },
+  short: { icon: Smartphone, dot: 'bg-format-short' },
+  'clips-de-stream': { icon: Clapperboard, dot: 'bg-format-stream' },
+  'jugadores-faceit': { icon: UserSearch },
+  'mis-videos': { icon: Film },
+  ideas: { icon: Lightbulb },
+  partidas: { icon: Swords },
+  replay: { icon: Play },
+  'buscador-de-patrones': { icon: Search },
+  'estadisticas-de-equipo': { icon: Shield },
+  'estadisticas-de-jugador': { icon: ChartColumn },
+  ranking: { icon: Trophy },
+  'editor-de-tacticas': { icon: NotebookPen },
+  playbook: { icon: BookOpen },
+  'lineups-pro': { icon: Crosshair },
+  'simulacion-de-veto': { icon: Vote },
+  'preparar-rival': { icon: ListChecks },
+  almacenamiento: { icon: HardDrive },
+  ajustes: { icon: Settings },
 };
 
-const LABELLED_AREAS = ['create', 'analyze'] as const;
-
-function sectionsOf(area: NavArea): NavSection[] {
-  return NAV_SECTIONS.filter((section) => section.area === area);
-}
-
-/** Brand lockup, one group per work area, then settings and the capture pill in the footer. */
+/** Brand lockup, the EDGE rail groups with slash labels, then Demo, Voz, settings and the capture pill in the footer. */
 export function AppSidebar(): ReactElement {
   const pathname = usePathname();
-  const activeHref = sectionForPath(pathname)?.href ?? null;
+  const params = useSearchParams();
+  const activeId = activeEntryId({ pathname, tab: params.get('tab') });
+  const where: PageLocation = { pathname, search: params.toString() };
 
   return (
     <Sidebar collapsible="icon">
@@ -78,33 +91,53 @@ export function AppSidebar(): ReactElement {
         <Link
           href={RESULTS_HREF}
           aria-label="Ir a Mis vídeos"
-          className="inline-flex min-h-10 items-center group-data-[collapsible=icon]:justify-center"
+          className="inline-flex min-h-8 items-center group-data-[collapsible=icon]:justify-center"
         >
           <Wordmark className="group-data-[collapsible=icon]:hidden" />
           <BrandMark className="hidden size-7 group-data-[collapsible=icon]:block" />
         </Link>
       </SidebarHeader>
 
-      <SidebarContent className="gap-0 pt-3">
-        {LABELLED_AREAS.map((area) => (
-          <SidebarGroup key={area} className="gap-0.5 px-2 pb-4">
+      <SidebarContent className="gap-0 pt-2">
+        {SIDEBAR_GROUPS.map((group) => (
+          <SidebarGroup key={group.id} className="gap-0.5 px-2 pt-1 pb-3">
             {/* [font-size:…] rather than `text-meta`: tailwind-merge files an unknown `text-*` under text colour. */}
-            <SidebarGroupLabel className="h-7 px-2 font-mono [font-size:var(--text-meta)] font-medium tracking-wider text-fg-3 uppercase">
-              {NAV_AREA_LABEL[area]}
+            <SidebarGroupLabel className="h-6 gap-1.5 px-2 [font-size:var(--text-meta)] font-semibold tracking-widest text-fg-3 uppercase">
+              <span aria-hidden className="text-slash">
+                /
+              </span>
+              <span className="truncate whitespace-nowrap">{group.label}</span>
+              <span aria-hidden className="ml-1 h-px min-w-0 flex-1 bg-border" />
+              <span aria-hidden className="h-px w-1.5 bg-fg-4" />
             </SidebarGroupLabel>
             <SidebarMenu className="gap-px">
-              {sectionsOf(area).map((section) => (
-                <NavRow key={section.href} section={section} active={section.href === activeHref} />
+              {group.entries.map((entry) => (
+                <NavRow key={entry.id} entry={entry} href={sidebarHref(entry, where)} active={entry.id === activeId} />
               ))}
             </SidebarMenu>
           </SidebarGroup>
         ))}
       </SidebarContent>
 
-      <SidebarFooter className="gap-2 border-t border-sidebar-border p-0 px-2 pt-2 pb-3">
+      <SidebarFooter className="gap-2 border-t border-sidebar-border p-0 px-2 pt-2 pb-2">
+        <div className="flex gap-1.5 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
+          <SidebarDemoImport />
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            title="Importar voz del equipo"
+            className="min-w-0 flex-1 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:px-0"
+          >
+            <Link href={VOICE_HREF}>
+              <Upload aria-hidden className="stroke-[1.5]" />
+              <span className="group-data-[collapsible=icon]:sr-only">Voz</span>
+            </Link>
+          </Button>
+        </div>
         <SidebarMenu className="gap-px">
-          {sectionsOf('chrome').map((section) => (
-            <NavRow key={section.href} section={section} active={section.href === activeHref} />
+          {SIDEBAR_FOOTER_ENTRIES.map((entry) => (
+            <NavRow key={entry.id} entry={entry} href={sidebarHref(entry, where)} active={entry.id === activeId} />
           ))}
         </SidebarMenu>
         <CaptureReadiness />
@@ -116,8 +149,8 @@ export function AppSidebar(): ReactElement {
   );
 }
 
-function NavRow({ section, active }: { section: NavSection; active: boolean }): ReactElement {
-  const meta = NAV_META[section.href];
+function NavRow({ entry, href, active }: { entry: SidebarEntry; href: string; active: boolean }): ReactElement {
+  const meta = ENTRY_META[entry.id];
   const Icon = meta.icon;
 
   return (
@@ -125,22 +158,22 @@ function NavRow({ section, active }: { section: NavSection; active: boolean }): 
       <SidebarMenuButton
         asChild
         isActive={active}
-        tooltip={section.label}
+        tooltip={entry.label}
         className={cn(
-          'shell-nav-key h-8 gap-2.5 rounded-md px-2 font-medium text-fg-2',
+          'shell-nav-key h-7 gap-2.5 rounded-md px-2 font-medium text-fg-2',
           'transition-colors duration-(--dur-instant) ease-standard',
           'hover:bg-sidebar-accent hover:text-fg-1',
-          'data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-fg-1',
+          'data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-fg-1',
           'group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!',
         )}
       >
-        <Link href={section.href} aria-current={active ? 'page' : undefined}>
-          <Icon
-            className={cn('size-4 shrink-0', meta.tone ?? (active ? 'text-fg-1' : 'text-fg-3'))}
-            aria-hidden
-          />
+        <Link href={href} aria-current={active ? 'page' : undefined}>
+          <Icon className={cn('size-4 shrink-0 stroke-[1.5]', active ? 'text-fg-1' : 'text-fg-3')} aria-hidden />
           {/* sr-only, not hidden: the icon rail keeps the link's name for screen readers. */}
-          <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:sr-only">{section.label}</span>
+          <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:sr-only">{entry.label}</span>
+          {meta.dot === undefined ? null : (
+            <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full group-data-[collapsible=icon]:hidden', meta.dot)} />
+          )}
           <NavPending />
         </Link>
       </SidebarMenuButton>

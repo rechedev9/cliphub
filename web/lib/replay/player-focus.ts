@@ -61,9 +61,3 @@ export function writeTeamFocus(query: string, focus: readonly string[]): string 
 export function toggleTeamFocus(focus: readonly string[], id: string): string[] {
   return focus.includes(id) ? focus.filter((entry) => entry !== id) : [...focus, id].slice(0, TEAM_FOCUS_MAX);
 }
-
-/** Two letters that stand for a player in the folded panel: the first two letters or digits of the name. */
-export function playerInitials(name: string): string {
-  const letters = [...name].filter((char) => /[\p{L}\p{N}]/u.test(char));
-  return (letters.slice(0, 2).join('') || '?').toUpperCase();
-}

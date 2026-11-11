@@ -16,19 +16,15 @@ export type RecordHeaderProps = {
   className?: string;
 };
 
-/** Top of a record page or list in one row, Skybox style: name, key fields beside it, actions at the right. */
+/** Top of a record page in one flat row, EDGE style: name, key facts as tiny caps labels over values, actions at the right. */
 export function RecordHeader({ kind, title, icon: Icon, subtitle, fields, actions, className }: RecordHeaderProps): ReactNode {
   return (
-    <header className={cn('flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border pb-2', className)}>
+    <header className={cn('flex flex-wrap items-center gap-x-6 gap-y-2 pb-1', className)}>
       <div className="flex min-w-0 items-center gap-2.5">
-        {Icon ? (
-          <span className="grid size-8 shrink-0 place-items-center rounded-md border border-border bg-surface-2 text-fg-2">
-            <Icon className="size-4.5" aria-hidden />
-          </span>
-        ) : null}
+        {Icon ? <Icon className="size-4.5 shrink-0 text-fg-3" aria-hidden /> : null}
         <div className="flex min-w-0 flex-col">
           <span className="sr-only">{kind}: </span>
-          <h1 className="truncate text-title leading-tight font-semibold text-fg-1">{title}</h1>
+          <h1 className="truncate text-title leading-tight font-bold text-fg-1">{title}</h1>
           {subtitle ? <div className="truncate text-meta text-fg-3">{subtitle}</div> : null}
         </div>
       </div>
@@ -36,7 +32,7 @@ export function RecordHeader({ kind, title, icon: Icon, subtitle, fields, action
         <dl className="flex flex-wrap items-center gap-x-5 gap-y-1">
           {fields.map((field) => (
             <div key={field.label} className="flex min-w-0 flex-col">
-              <dt className="text-meta leading-tight whitespace-nowrap text-fg-3">{field.label}</dt>
+              <dt className="text-meta leading-tight font-medium tracking-wider whitespace-nowrap text-fg-3 uppercase">{field.label}</dt>
               <dd className="text-body-sm leading-tight font-medium whitespace-nowrap text-fg-1">{field.value}</dd>
             </div>
           ))}

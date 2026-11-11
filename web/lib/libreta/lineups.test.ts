@@ -7,6 +7,7 @@ import {
   lineupThrow,
   parseSetpos,
   practiceBlockReason,
+  sampleSetpos,
   setposCommand,
   techniqueLabel,
 } from './lineups.ts';
@@ -87,4 +88,17 @@ test('lineupThrow needs the origin, the view and the throw tick', () => {
   assert.equal(lineupThrow({ ...grenade, throw_tick: null }), null);
   assert.equal(lineupThrow({ ...grenade, view: null }), null);
   assert.equal(lineupThrow({ ...grenade, origin: null }), null);
+});
+
+// The same vector is pinned in cmd/zv-mcp (TestSetposCommandMatchesTheWebByteForByte): both sides must agree.
+test('setposCommand has a dot decimal, no thousands separator, no -0 and rounds a half away from zero', () => {
+  assert.equal(setposCommand({ origin: [-0.001, 0.125, -167.96875], pitch: -0.625, yaw: 1.005 }), 'setpos 0.00 0.13 -167.97;setang -0.63 1.00 0');
+  assert.equal(setposCommand({ origin: [-1234567.891, 1000, -0.004], pitch: 0, yaw: -0 }), 'setpos -1234567.89 1000.00 0.00;setang 0.00 0.00 0');
+});
+
+test('sampleSetpos normalizes the demo angles and refuses a number that is not finite', () => {
+  assert.equal(sampleSetpos({ x: 1, y: 2, z: 3, yaw: 359.5, pitch: 270 }), 'setpos 1.00 2.00 3.00;setang -90.00 -0.50 0');
+  assert.equal(sampleSetpos({ x: 1, y: 2, z: 3, yaw: -180 }), 'setpos 1.00 2.00 3.00;setang 0.00 180.00 0');
+  assert.equal(sampleSetpos({ x: Number.NaN, y: 2, z: 3, yaw: 0 }), null);
+  assert.equal(sampleSetpos({ x: 1, y: 2, z: 3, yaw: Number.POSITIVE_INFINITY, pitch: 0 }), null);
 });

@@ -10,6 +10,7 @@ import { RatePool, bombsiteKey, libraryMatchesText, poolBombsites, type AttackFi
 import { replayHref } from '@/lib/analysis/replay-link';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
+import { SlashTitle } from '@/components/records/document-page';
 import { EmptySample } from '@/components/analysis/empty-sample';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
@@ -121,13 +122,13 @@ function MapTables({
   }));
   return (
     <section aria-label={name} className="flex flex-col gap-2">
-      <h2 className="flex items-center gap-2 text-body font-semibold text-fg-1">
+      <SlashTitle className="items-center">
         <MapThumb map={entry.map} className="h-6 w-10" crop={1.4} />
         {name}
         <span className="text-body-sm font-normal text-fg-2">
           {entry.matches === 1 ? '1 partida' : `${entry.matches} partidas`}, {entry.ct_rounds} rondas de CT y {entry.t_rounds} de T
         </span>
-      </h2>
+      </SlashTitle>
       <div className="grid gap-2 @[96rem]/content:grid-cols-2">
         <HeatTable label={`Defendiendo en ${name}`} columns={heads.ct} rows={ct} minSample={minSample} sampleNoun="rondas" empty="Sin rondas de CT." reference={reference} legend={false} />
         <HeatTable label={`Atacando en ${name}`} columns={heads.t} rows={t} minSample={minSample} sampleNoun="rondas" empty="Sin rondas de T." reference={reference} />

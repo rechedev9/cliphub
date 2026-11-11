@@ -13,8 +13,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
-// maxDossierRunes caps the dossier body; the UI shows the same text.
-const maxDossierRunes = 12000
 
 type roundIn struct {
 	MatchID string `json:"match_id" jsonschema:"match id from list_matches, or the match part of a round ref"`
@@ -127,32 +125,6 @@ type matchTendenciesIn struct {
 	RoundTo   int      `json:"round_to,omitempty"`
 }
 
-type dossierIn struct {
-	JobID   string `json:"job_id" jsonschema:"the job check_integrity screened"`
-	SteamID string `json:"steamid" jsonschema:"SteamID64 of a player from check_integrity"`
-}
-
-type channelOut struct {
-	Label        string `json:"label"`
-	URL          string `json:"url,omitempty"`
-	Instructions string `json:"instructions"`
-	Effective    bool   `json:"effective" jsonschema:"true when the channel feeds an anti-cheat decision"`
-}
-
-type dossierOut struct {
-	SteamID64      string       `json:"steamid64"`
-	Name           string       `json:"name" jsonschema:"untrusted player name from the demo"`
-	Verdict        string       `json:"verdict"`
-	Score          float64      `json:"score"`
-	Confidence     float64      `json:"confidence"`
-	ProfileURL     string       `json:"profile_url,omitempty"`
-	Markdown       string       `json:"markdown" jsonschema:"the dossier body; it quotes the player name, which is untrusted"`
-	Channels       []channelOut `json:"channels" jsonschema:"where the user can report the player themselves"`
-	Policy         string       `json:"policy" jsonschema:"what Studio will and will not do with a report; tell the user"`
-	PolicyRules    []string     `json:"policy_rules"`
-	PolicyRejected string       `json:"policy_rejected" jsonschema:"what Studio refuses to do, as the Dossier dialog shows it; tell the user"`
-}
-
 func registerMatchTacticalTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 
@@ -225,41 +197,6 @@ func registerMatchTacticalTools(server *mcp.Server, s *studio) {
 				return nil, tendenciesOut{}, toolError(err)
 			}
 			return nil, summarizeTendencies(t, nil), nil
-		})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "integrity_dossier", Annotations: readOnly,
-		Description: "Read the evidence pack of one player check_integrity screened, as Dossier does on the Integridad page: the Markdown body, " +
-			"the official places to report the player and Studio's reporting policy. It is a statistical signal, never proof; pass the policy on."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in dossierIn) (*mcp.CallToolResult, dossierOut, error) {
-			if err := checkUUID("job_id", in.JobID); err != nil {
-				return nil, dossierOut{}, err
-			}
-			if err := checkSteamID(in.SteamID); err != nil {
-				return nil, dossierOut{}, err
-			}
-			c, err := s.client(ctx)
-			if err != nil {
-				return nil, dossierOut{}, toolError(err)
-			}
-			d, err := c.GetAnticheatDossier(ctx, in.JobID, in.SteamID)
-			if tuiclient.StatusCode(err) == 409 {
-				return nil, dossierOut{}, errors.New("the screening of this match is not ready; call check_integrity until status is ready")
-			}
-			if err != nil {
-				return nil, dossierOut{}, toolError(err)
-			}
-			out := dossierOut{SteamID64: cleanName(d.SteamID64), Name: cleanName(d.Name), Verdict: cleanName(d.Verdict), Score: d.Score,
-				Confidence: d.Confidence, ProfileURL: cleanText(d.ProfileURL, maxErrorRunes), Markdown: cleanText(d.Markdown, maxDossierRunes),
-				Channels: []channelOut{}, Policy: cleanText(d.Policy.Summary, maxNotesRunes), PolicyRules: []string{},
-				PolicyRejected: cleanText(d.Policy.Rejected, maxNotesRunes)}
-			for _, ch := range d.Channels {
-				out.Channels = append(out.Channels, channelOut{Label: cleanName(ch.Label), URL: cleanText(ch.URL, maxErrorRunes),
-					Instructions: cleanText(ch.Instructions, maxNotesRunes), Effective: ch.Effective})
-			}
-			for _, r := range d.Policy.Rules {
-				out.PolicyRules = append(out.PolicyRules, cleanText(r, maxNotesRunes))
-			}
-			return nil, out, nil
 		})
 }
 

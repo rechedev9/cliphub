@@ -135,7 +135,7 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
           aria-label={`Captura: ${label}`}
           title={`Captura: ${label}`}
           className={cn(
-            'flex min-h-9 items-center gap-2 rounded-md border bg-surface-1 px-2.5 py-2 text-left [font-size:var(--text-body-sm)]',
+            'flex min-h-7 items-center gap-2 rounded-md border bg-surface-1 px-2.5 py-1 text-left [font-size:var(--text-meta)]',
             'transition-colors duration-(--dur-fast) ease-standard hover:bg-surface-2',
             'group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0',
             pillTone,

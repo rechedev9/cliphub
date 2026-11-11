@@ -98,7 +98,6 @@ export type VoiceComms = {
   lines: VoiceCommsLine[];
 };
 
-export type VoiceSearchHit = VoiceCommsLine & { match_id: string; map: string; played_at: string; teams: string[] };
 
 export type DemoVoiceState = 'none' | 'extracting' | 'ready' | 'failed' | 'unavailable';
 
@@ -169,15 +168,6 @@ export function transcribeMatchVoice(matchId: string, language: string): Promise
 
 export function getVoiceComms(matchId: string): Promise<VoiceComms> {
   return request<VoiceComms>(`${voicePath(matchId)}/comms`);
-}
-
-/** Finds a phrase in every transcript; `phase` keeps one round phase before the limit. */
-export function searchVoice(query: { q: string; teamId?: string; phase?: VoicePhase; limit?: number }): Promise<{ hits: VoiceSearchHit[]; truncated: boolean }> {
-  const params = new URLSearchParams({ q: query.q });
-  if (query.teamId) params.set('team_id', query.teamId);
-  if (query.phase) params.set('phase', query.phase);
-  if (query.limit !== undefined) params.set('limit', String(query.limit));
-  return request(`/voice/search?${params.toString()}`);
 }
 
 export function installTranscriber(): Promise<VoiceTranscriber> {

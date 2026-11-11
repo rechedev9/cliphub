@@ -74,7 +74,7 @@ holding 40% of the side's rounds).
 team_grenades is the Granadas finder of one map (map required): clock (throws per 10 s of the round clock by player, then
 a Tras la plant bin), spots (repeated throws with what the team does in the 20 s after) and, with spot, one grenade in full: its
 rounds over the scope's rounds, what follows, a setpos and a studio_path that superposes its rounds. players, opponents (the
-rivals' utility; the team scope below still reads the scouted team) and invert (rounds without it) narrow it.
+rivals' utility; the team scope below still reads the scouted team), invert (rounds without it) and a clock window (clock_from and clock_to in seconds after the round went live, or from_plant, the Tramo bar) narrow it.
 prepare_team is the team's Preparar tab in one call: scout_team and team_prep over the same matches of one map;
 team_prep's warnings are the data warnings Preparar shows on top (the team's newest match over 14 days old, the five changed
 in N of M matches, under 30 rounds): say them before the figures. side is the bar's side: the warnings (and prepare_team's
@@ -96,7 +96,9 @@ kills), advantage (4v5, 5v4 at some moment), round_from/round_to, site, outcome 
 (regulation or overtime), second_round, end_reason (elimination, bomb_exploded, bomb_defused, time_expired), weapon
 and opponent_weapon (scout, no_scout, hero_ak, hero_awp; docs/studio-mcp.md has each rule), a custom buy range per
 player (equip_from/equip_to, opponent_equip_from/opponent_equip_to, in dollars of equipment) and tactic (a Libreta
-play id of the same team: only its example rounds; a deleted play keeps none). Team views read every match the team played and keep the newest 50; older ones come
+play id of the same team: only its example rounds; a deleted play keeps none), exclude_tactic (play ids whose example rounds
+are left out), match_tag and exclude_match_tag (demo tags, any case) and event (the series' event). The Playbook's Gestionar
+view is list_plays with team_id, map and side, then update_play or delete_play. Team views read every match the team played and keep the newest 50; older ones come
 back as over_match_limit skips. One view opens at most 200 analyses (the lineup and a single map or date range are
 applied first); the rest come back as over_read_limit skips. Say when more_matches is true. team_rounds lists those rounds over
 the matches, with the Replay's studio_path and a playlist_path to play them one after another. The Replay
@@ -171,15 +173,14 @@ pass its keys and limits on to the user.
 One match: get_round (a round ref's buys, patterns, kills and win probability), match_metrics (every
 player and each round's biggest swing) and match_tendencies (one side key's rounds, filtered: the tables of the match's Métricas tab;
 replay_rounds with the same buy, site or shape gives the rounds behind one of its figures).
-check_integrity screens a match's players for unusual aim: a statistical signal, never proof;
-integrity_dossier is one screened player's evidence pack and the official ways to report them.
 replay_rounds reads the rounds of one match that a Replay scope keeps (team, side, result, buys, site, round shapes, tags, players,
 round range, phase, AWP of each side, numeric advantage); its studio_path opens the Replay on that scope in one of its four forms: repeticion, calor, recorridos or granadas.
 Its focus (SteamID64s) puts players in the foreground of every form without dropping rounds, as a click on a player does.
 replay_overlay superposes those rounds from the end of freeze time, as Superponer does, with the same scope and focus.
 match_heatmap is the Mapa de calor of those rounds: kind position, death, kill (kill_at killer or victim), utility or timing,
-in a clock window (clock_from and clock_to, seconds after the round went live, or from_plant); it lists the hottest cells
-with their callout and counts. team_heatmap reads a team's matches on one map the same way, with players (SteamID64s) as the focus; by_player adds one heatmap per player (at most 5), and area (a zone in world units) keeps the cells inside it.
+in a clock window (clock_from and clock_to, seconds after the round went live, or from_plant) and on one floor of Nuke or Vertigo (floor upper or lower, as Piso does); it lists the hottest cells
+with their callout and counts, and the zones: the cells summed by place, one line each as Studio's Zonas con más actividad list names it. A position count is time: count times sample_seconds is the seconds the players spent there, read every sample_seconds of the window. team_heatmap reads a team's matches on one map the same way, with players (SteamID64s) as the focus; by_player adds one heatmap per player (at most 5), and area (a zone in world units) keeps the cells inside it.
+Buscador de patrones (the 2D tool with the Granadas, Jugadores and Patrón panels, opened at /patrones/<team id>): its Granadas panel is team_grenades with players and the clock window; its Jugadores panel is team_heatmap (players, by_player for one heat per player, clock_from and clock_to for the time window, area for the box) plus team_first_movement, the Primer movimiento list and histogram: when each player first leaves the spot the round starts on, over the newest 40 rounds of the scope, with players, a clock window and an area the player must pass through; its Patrón panel and the Tácticas tab are find_pattern_rounds, find_player_pattern and the saved-pattern tools.
 Replay > Patrones of a team: find_player_pattern finds the rounds in which a player passes through a zone in a clock window,
 or does not with invert; find_pattern_rounds adds up blocks (player, utility, plant), each with its own count. A zone is a world
 rectangle (optionally one floor), a polygon of world points, or callouts (place tokens from list_callouts); min_players asks a
@@ -192,8 +193,9 @@ pattern_rounds runs one (without a team, from its stored detection over the newe
 and delete_pattern removes it. Studio keeps each saved pattern's detection stored and refreshes it when a demo is analysed or the
 pattern is edited. match_patterns lists the saved patterns a match's rounds meet (round for one), as the Replay's Patrones panel does;
 get_play lists the patterns linked to a play.
-player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay).
-export_replay_gif saves a round's tramo as a looping GIF with the radar, players, utility, clock and saved drawings, as Exportar GIF (G) does.
+player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay); with grenades it
+also lists the player's grenades of the round, each with the setpos of its throw (the button on a grenade's row in the Replay's Eventos list).
+export_replay_gif saves a round's tramo as a looping GIF with the radar, players, utility, clock and saved drawings, as Exportar GIF (G) does; copy also puts the file on the clipboard to paste into a Google Doc, as Studio does after saving.
 export_replay_video saves the tramo of one round, or of several rounds one after another, as an H.264 MP4 (Exportar MP4), with layers
 to pick what is drawn, include_voice for the synced team voice cut to the same moments and freeze_only for its freeze-time comms only.
 record_round_pov is the Replay's "Grabar su POV de esta ronda": one player's first-person video of one round (match_id, round, steamid),

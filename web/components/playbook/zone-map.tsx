@@ -29,21 +29,27 @@ export function ZoneMap({
   zones,
   labels,
   selected,
+  onZone,
+  className,
 }: {
   teamId: string;
   map: string;
   zones: readonly string[];
   labels: ReadonlyMap<string, string>;
   selected: readonly string[];
+  /** Makes the zones clickable, such as the Editor de tácticas adding one as a condition. */
+  onZone?: (zone: string) => void;
+  /** Replaces the plate's `max-w-[26rem]` ceiling. */
+  className?: string;
 }): ReactNode {
   const geometry = useMapGeometry(teamId, [map]).get(map);
   const [level, setLevel] = useState<RadarLevel>(RADAR_LEVELS.default);
   const radar = useRadarImage(map, level === RADAR_LEVELS.lower ? 'lower' : 'upper');
-  if (geometry === undefined) return <div aria-hidden className="aspect-square w-full max-w-[26rem] rounded-md bg-surface-3" />;
+  if (geometry === undefined) return <div aria-hidden className={cn('aspect-square w-full rounded-md bg-surface-3', className ?? 'max-w-[26rem]')} />;
   if (geometry === null) return null;
   // A derived calibration does not line up with the game's image; the silhouette does.
   const image = radarImageFits(geometry.calibration) ? (radar ?? null) : null;
-  return <ZoneMapPlate geometry={geometry} radar={image} map={map} zones={zones} labels={labels} selected={selected} level={level} onLevel={setLevel} />;
+  return <ZoneMapPlate geometry={geometry} radar={image} map={map} zones={zones} labels={labels} selected={selected} level={level} onLevel={setLevel} onZone={onZone} className={className} />;
 }
 
 function ZoneMapPlate({
@@ -55,6 +61,8 @@ function ZoneMapPlate({
   selected,
   level,
   onLevel,
+  onZone,
+  className,
 }: {
   geometry: TacticalGeometry;
   radar: HTMLImageElement | null;
@@ -64,6 +72,8 @@ function ZoneMapPlate({
   selected: readonly string[];
   level: RadarLevel;
   onLevel: (level: RadarLevel) => void;
+  onZone?: (zone: string) => void;
+  className?: string;
 }): ReactNode {
   const silhouette = mapSilhouette(geometry, SIZE);
   const imageWidth = radar ? (SIZE * radar.naturalWidth) / geometry.calibration.size : 0;
@@ -81,7 +91,7 @@ function ZoneMapPlate({
   // Labels keep their screen size as the map zooms.
   const font = Math.max(1.6, base.width / 32) / zoom.zoom;
   const plate = (
-    <div {...zoom.surface} className={cn('relative aspect-square w-full max-w-[26rem] overflow-hidden rounded-md bg-surface-3', zoom.zoomed && 'touch-none', zoom.cursor)}>
+    <div {...zoom.surface} className={cn('relative aspect-square w-full overflow-hidden rounded-md bg-surface-3', className ?? 'max-w-[26rem]', zoom.zoomed && 'touch-none', zoom.cursor)}>
       <svg
         viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`}
         role="img"
@@ -101,7 +111,12 @@ function ZoneMapPlate({
           <path d={silhouette.path} className="fill-fg-4/50" />
         )}
         {shapes.map((shape) => (
-          <path key={`area-${shape.zone}`} d={shape.path} className={selected.includes(shape.zone) ? 'fill-primary/70' : 'fill-fg-3/25'} />
+          <path
+            key={`area-${shape.zone}`}
+            d={shape.path}
+            onClick={onZone === undefined ? undefined : () => onZone(shape.zone)}
+            className={cn(selected.includes(shape.zone) ? 'fill-primary/70' : 'fill-fg-3/25', onZone !== undefined && 'cursor-pointer hover:fill-primary/45')}
+          />
         ))}
         {shapes.map((shape) => (
           <text
@@ -111,7 +126,7 @@ function ZoneMapPlate({
             textAnchor="middle"
             dominantBaseline="middle"
             fontSize={font}
-            className={cn('[paint-order:stroke] stroke-surface-3', selected.includes(shape.zone) ? 'fill-fg-1 font-semibold' : 'fill-fg-2')}
+            className={cn('pointer-events-none [paint-order:stroke] stroke-surface-3', selected.includes(shape.zone) ? 'fill-fg-1 font-semibold' : 'fill-fg-2')}
             strokeWidth={font / 4}
           >
             {labels.get(shape.zone) ?? shape.zone}
@@ -123,7 +138,7 @@ function ZoneMapPlate({
   );
   if (!isMultiLevelMap(geometry.calibration)) return plate;
   return (
-    <div className="flex w-full max-w-[26rem] flex-col gap-2">
+    <div className={cn('flex w-full flex-col gap-2', className ?? 'max-w-[26rem]')}>
       <Segmented
         label="Piso"
         value={level}

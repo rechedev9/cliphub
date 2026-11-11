@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FOLLOW_ZOOM, MAX_ZOOM, boxWindow, followView, panView, radarImageFits, rememberZoom, rememberedZoom, zoomLevel, zoomViewAt } from './map-view.ts';
+import { FOLLOW_ZOOM, MAX_ZOOM, boxWindow, followView, panView, radarImageFits, zoomLevel, zoomViewAt } from './map-view.ts';
 import { radarProjection } from '../tactical-spatial.ts';
-import { heightTone, navRadarModel, polygonLevel, toneColor } from './nav-radar.ts';
+import { NAV_RADAR_PALETTE, floorBounds, floorPolygons, heightTone, navRadarModel, placeRegions, polygonLevel, toneColor, toneRange } from './nav-radar.ts';
 import { layoutTags, tagName } from './tag-layout.ts';
 
 const base = { x: 0.1, y: 0.1, width: 0.8, height: 0.8 };
@@ -31,7 +31,10 @@ test('map view: a drag pans a zoomed map and never past its edge', () => {
   assert.ok(moved.x < zoomed.x);
   const far = panView({ box, view: zoomed, base, dx: 100000, dy: 0 });
   assert.equal(far.x + far.width / 2, base.x);
-  assert.deepEqual(panView({ box, view: base, base, dx: 50, dy: 50 }), base);
+  const whole = panView({ box, view: base, base, dx: 50, dy: 50 });
+  assert.ok(whole.x < base.x && whole.y < base.y, 'the hand moves the whole map too');
+  const wholeFar = panView({ box, view: base, base, dx: 100000, dy: 0 });
+  assert.ok(Math.abs(wholeFar.x + wholeFar.width / 2 - base.x) < 1e-9);
 });
 
 test('nav radar: areas become polygons sorted by height with a trimmed range', () => {
@@ -113,16 +116,58 @@ test('map view: the plate window covers the whole box, beside the view too', () 
   assert.ok(window.width > zoomed.width);
 });
 
-test('map view: the zoom is remembered per map until it is reset', () => {
-  const view = { x: 0.2, y: 0.2, width: 0.4, height: 0.4 };
-  rememberZoom('de_mirage', view);
-  assert.deepEqual(rememberedZoom('de_mirage'), view);
-  assert.equal(rememberedZoom('de_inferno'), null);
-  rememberZoom('de_mirage', null);
-  assert.equal(rememberedZoom('de_mirage'), null);
-});
-
 test('map view: the official radar only sits under a calibration read from its overview', () => {
   assert.equal(radarImageFits({ source: 'overview' }), true);
   assert.equal(radarImageFits({ source: 'derived' }), false);
+});
+
+test('nav radar: one floor of a two-floor map is its own polygons and its own extent', () => {
+  // An upper square near the origin and a lower one far to the east.
+  const vertices = Float32Array.from([0, 0, 0, 10, 0, 0, 10, 10, 0, 100, 0, -700, 120, 0, -700, 120, 20, -700]);
+  const model = navRadarModel({ vertices, triangles: new Uint32Array(), areas: [{ id: 1, polygon: [0, 1, 2] }, { id: 2, polygon: [3, 4, 5] }] });
+  assert.ok(model !== null);
+  const upper = floorPolygons(model, -495, 'default');
+  const lower = floorPolygons(model, -495, 'lower');
+  assert.equal(upper.length, 1);
+  assert.equal(lower.length, 1);
+  assert.deepEqual(floorBounds(lower), { minX: 100, minY: 0, maxX: 120, maxY: 20 });
+  assert.deepEqual(floorBounds(upper), { minX: 0, minY: 0, maxX: 10, maxY: 10 });
+  assert.equal(floorBounds([]), null);
+  assert.equal(floorPolygons(model, undefined, 'lower').length, 2);
+});
+
+test('nav radar: a ramp area across the cut is on both floors, and bounds both', () => {
+  // The long ramp of Nuke's T side: corners from -548 to -412 and a mean of -480, so the mean alone puts it on the upper floor.
+  const vertices = Float32Array.from([1296, -2445, -412, 1503, -2445, -548, 1503, -2386, -548, 1296, -2386, -412, 0, 0, 0, 10, 0, 0, 10, 10, 0]);
+  const model = navRadarModel({ vertices, triangles: new Uint32Array(), areas: [{ id: 1, polygon: [0, 1, 2, 3] }, { id: 2, polygon: [4, 5, 6] }] });
+  assert.ok(model !== null);
+  assert.equal(floorPolygons(model, -495, 'default').length, 2);
+  const lower = floorPolygons(model, -495, 'lower');
+  assert.equal(lower.length, 1);
+  assert.deepEqual(floorBounds(lower), { minX: 1296, minY: -2445, maxX: 1503, maxY: -2386 });
+});
+
+test('nav radar: the greys are flat, the same range on any floor', () => {
+  const [low, high] = [NAV_RADAR_PALETTE.low, NAV_RADAR_PALETTE.high];
+  assert.ok(high[0] - low[0] <= 48);
+  const flat = [{ points: new Float64Array(), z: 5, lowZ: 5, highZ: 5, cx: 0, cy: 0 }, { points: new Float64Array(), z: 5, lowZ: 5, highZ: 5, cx: 0, cy: 0 }];
+  assert.deepEqual(toneRange(flat), { minZ: 5, maxZ: 5 });
+});
+
+test('nav radar: bombsites and the CT spawn are tinted from the ground near them, on their own floor', () => {
+  const square = (x: number, z: number): number[] => [x, 0, z, x + 10, 0, z, x + 10, 10, z];
+  const vertices = Float32Array.from([...square(0, 0), ...square(30, 0), ...square(2000, 0), ...square(10, 300), ...square(0, -700)]);
+  const areas = [0, 1, 2, 3, 4].map((id) => ({ id, polygon: [id * 3, id * 3 + 1, id * 3 + 2] }));
+  const model = navRadarModel({ vertices, triangles: new Uint32Array(), areas });
+  assert.ok(model !== null);
+  const callouts = [
+    { name: 'BombsiteA', level: 'default' as const, center: [5, 5] as [number, number], samples: 1 },
+    { name: 'CTSpawn', level: 'lower' as const, center: [5, 5] as [number, number], samples: 1 },
+    { name: 'Hell', level: 'default' as const, center: [5, 5] as [number, number], samples: 1 },
+  ];
+  // Each place is one box round its areas on its own floor; the far area (x 2000) stays out.
+  const regions = placeRegions(model, callouts, -495);
+  assert.deepEqual(regions.map((region) => [region.color, region.level]), [[NAV_RADAR_PALETTE.site, 'default'], [NAV_RADAR_PALETTE.spawn, 'lower']]);
+  assert.deepEqual([regions[0].minX, regions[0].maxX], [0, 40]);
+  assert.equal(placeRegions(model, callouts, -495), regions);
 });

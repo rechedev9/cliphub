@@ -13,7 +13,9 @@ import {
   winnerCounts,
   type PerTeam,
   type RoundFilter,
+  type RoundRow,
 } from '@/lib/library/rounds';
+import { EdgeTile, EdgeTileGrid } from '@/components/records/edge-tile';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
 import { RoundFilters } from '@/components/matches/round-filters';
 import { RoundTable, type ChanceStatus, type VisiblePick } from '@/components/matches/round-table';
@@ -104,6 +106,7 @@ function MatchRoundsView({ match, pathname, onOpenRound }: MatchRoundsProps): Re
 
   return (
     <div className="flex flex-col gap-4">
+      {rows.length > 0 ? <RoundTiles rows={rows} teamNames={teamNames} /> : null}
       {rows.length > 0 ? (
         <RoundFilters value={filter} onChange={setFilter} teamNames={teamNames} counts={winnerCounts(rows.filter((row) => keepsRound({ ...filter, winner: 'all' }, row)))} upsets={chance === 'ready'} />
       ) : null}
@@ -170,6 +173,23 @@ function MatchRoundsView({ match, pathname, onOpenRound }: MatchRoundsProps): Re
         />
       ) : null}
     </div>
+  );
+}
+
+function winnerTone(own: number, other: number): 'good' | 'bad' | 'neutral' {
+  if (own === other) return 'neutral';
+  return own > other ? 'good' : 'bad';
+}
+
+/** Rounds played and the rounds each team won, as tiles edged green for the team ahead and red for the one behind. */
+function RoundTiles({ rows, teamNames }: { rows: readonly RoundRow[]; teamNames: PerTeam<string> }): ReactNode {
+  const counts = winnerCounts(rows);
+  return (
+    <EdgeTileGrid label="Rondas de la partida">
+      <EdgeTile label="Rondas jugadas" value={counts.all} />
+      <EdgeTile label={teamNames['ct-start']} value={counts['ct-start']} note="rondas ganadas" tone={winnerTone(counts['ct-start'], counts['t-start'])} />
+      <EdgeTile label={teamNames['t-start']} value={counts['t-start']} note="rondas ganadas" tone={winnerTone(counts['t-start'], counts['ct-start'])} />
+    </EdgeTileGrid>
   );
 }
 

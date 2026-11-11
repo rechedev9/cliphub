@@ -1,7 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import type { ReactElement, ReactNode } from 'react';
-import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
+import { IBM_Plex_Mono, IBM_Plex_Sans, Saira } from 'next/font/google';
 import { DENSITY_BOOT_SCRIPT } from '@/lib/density';
 import { Toaster } from '@/components/ui/sonner';
 import { ServiceWorkerCleanup } from '@/components/shell/service-worker-cleanup';
@@ -10,6 +10,13 @@ import { WindowActivityPolicy } from '@/components/shell/window-activity-policy'
 import { DesktopPerformance } from '@/components/shell/desktop-performance';
 import { DesktopErrors } from '@/components/shell/desktop-errors';
 import { WebMCPNavigation } from '@/components/shell/webmcp-navigation';
+
+// Saira is the UI face (EDGE's wide technical sans); Plex Sans stays for figures.
+const saira = Saira({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-saira',
+});
 
 const plexSans = IBM_Plex_Sans({
   subsets: ['latin'],
@@ -29,7 +36,7 @@ export const metadata: Metadata = {
   description: 'Crea vídeos y analiza tus demos de CS2 en tu propio equipo.',
 };
 
-const fontVars = `${plexSans.variable} ${plexMono.variable}`;
+const fontVars = `${saira.variable} ${plexSans.variable} ${plexMono.variable}`;
 
 export default function RootLayout({ children }: { children: ReactNode }): ReactElement {
   return (

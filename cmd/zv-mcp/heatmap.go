@@ -34,12 +34,13 @@ var heatGrenades = []string{"smoke", "flash", "he", "molotov"}
 
 // heatmapViewIn is what the heatmap counts and in which clock window (the tramo).
 type heatmapViewIn struct {
-	Kind      string   `json:"kind,omitempty" jsonschema:"what the map counts: position (default; each round read at 50 instants spread over the clock window, one sample per alive player at each), death, kill, utility or timing (first arrival at each spot)"`
+	Kind      string   `json:"kind,omitempty" jsonschema:"what the map counts: position (default; every round read every half second of the clock window, one sample per alive player each time, so counts are time spent: see sample_seconds), death, kill, utility or timing (first arrival at each spot)"`
 	KillAt    string   `json:"kill_at,omitempty" jsonschema:"for kill: killer (default; where the counted players stood when they killed) or victim (where their victims fell). Team kills never count"`
 	Grenade   []string `json:"grenade,omitempty" jsonschema:"for utility: only smoke, flash, he or molotov; empty counts all four"`
 	ClockFrom float64  `json:"clock_from,omitempty" jsonschema:"start of the clock window (Tramo), in seconds after the round went live; 0 by default. The round clock 1:40 is 15"`
 	ClockTo   float64  `json:"clock_to,omitempty" jsonschema:"end of the clock window, in seconds after the round went live; 0 runs to the end of the round"`
 	FromPlant bool     `json:"from_plant,omitempty" jsonschema:"start the window at each round's plant instead; a round without a plant counts nothing"`
+	Floor     string   `json:"floor,omitempty" jsonschema:"on Nuke or Vertigo, only one floor, as Piso does: upper or lower; empty or both keeps both. A one-floor map has only the upper"`
 	Limit     int      `json:"limit,omitempty" jsonschema:"how many of the hottest cells to list; default 15, at most 50"`
 }
 
@@ -84,13 +85,18 @@ func (in heatmapViewIn) query() (url.Values, error) {
 	if in.ClockTo > 0 {
 		v.Set("t_to", strconv.FormatFloat(in.ClockTo, 'f', -1, 64))
 	}
+	switch floor := strings.ToLower(strings.TrimSpace(in.Floor)); floor {
+	case "", "both", "upper", "lower":
+	default:
+		return nil, fmt.Errorf("floor must be upper, lower or both, not %q", cleanName(in.Floor))
+	}
 	if in.Limit < 0 || in.Limit > maxHeatCells {
 		return nil, fmt.Errorf("limit must be from 1 to %d, or 0 for the default %d", maxHeatCells, defaultHeatCells)
 	}
 	return v, nil
 }
 
-// studioQuery is the view as the web keeps it in the URL: cuenta, baja, granada and tramo.
+// studioQuery is the view as the web keeps it in the URL: cuenta, baja, granada, piso and tramo.
 func (in heatmapViewIn) studioQuery(v url.Values) {
 	v.Set("forma", "calor")
 	if kind := strings.ToLower(strings.TrimSpace(in.Kind)); kind != "" && kind != heatKinds[0] {
@@ -101,6 +107,12 @@ func (in heatmapViewIn) studioQuery(v url.Values) {
 	}
 	for _, g := range in.Grenade {
 		v.Add("granada", strings.ToLower(strings.TrimSpace(g)))
+	}
+	switch strings.ToLower(strings.TrimSpace(in.Floor)) {
+	case "upper":
+		v.Set("piso", "superior")
+	case "lower":
+		v.Set("piso", "inferior")
 	}
 	switch {
 	case in.FromPlant:
@@ -120,6 +132,7 @@ func (in heatmapViewIn) studioQuery(v url.Values) {
 
 type heatCellOut struct {
 	Callout       string   `json:"callout" jsonschema:"the place CS2 names at the cell; untrusted map text"`
+	Place         string   `json:"place" jsonschema:"the name the Studio list shows for it: the callout as players say it, with (piso inferior) on the lower floor when the answer has both floors; untrusted map text"`
 	Side          string   `json:"side"`
 	Level         string   `json:"level,omitempty" jsonschema:"lower on the lower floor of Nuke or Vertigo; empty on the upper floor"`
 	Center        [3]int   `json:"center" jsonschema:"world x and y of the cell's centre, and the median altitude of what it counted"`
@@ -132,6 +145,7 @@ type heatCellOut struct {
 
 type heatZoneOut struct {
 	Callout string  `json:"callout" jsonschema:"untrusted map text"`
+	Place   string  `json:"place" jsonschema:"one line of the Zonas con más actividad list, named as the Studio shows it: every cell of a place on a floor is summed into it, and a name shared by both floors reads (piso inferior) on the lower one; untrusted map text"`
 	Side    string  `json:"side"`
 	Level   string  `json:"level,omitempty"`
 	Count   int     `json:"count"`
@@ -151,14 +165,15 @@ type heatmapOut struct {
 	Kind             string        `json:"kind"`
 	KillAt           string        `json:"kill_at,omitempty"`
 	Unit             string        `json:"unit" jsonschema:"what one count is: samples, deaths, kills, grenades or arrivals"`
+	SampleSeconds    float64       `json:"sample_seconds,omitempty" jsonschema:"for position: the seconds one sample stands for, so count times sample_seconds is the time spent there"`
 	Matches          int           `json:"matches"`
 	Rounds           int           `json:"rounds" jsonschema:"the rounds the scope kept, whether or not they counted anything"`
 	MissingPositions int           `json:"missing_positions,omitempty" jsonschema:"matches with no saved positions: they add no position or timing"`
 	SkippedMatches   int           `json:"skipped_matches,omitempty"`
 	CellSize         float64       `json:"cell_size" jsonschema:"world units per cell side"`
 	Sides            []heatSideOut `json:"sides"`
-	Zones            []heatZoneOut `json:"zones" jsonschema:"the cells summed by callout, most first, at most 10"`
-	Cells            []heatCellOut `json:"cells" jsonschema:"the hottest cells, most first, as the Zonas con más actividad table lists them"`
+	Zones            []heatZoneOut `json:"zones" jsonschema:"the cells summed by place and side, most first, at most 10: the lines of the Zonas con más actividad list"`
+	Cells            []heatCellOut `json:"cells" jsonschema:"the hottest cells, most first; several cells can belong to one place"`
 	Truncated        bool          `json:"truncated,omitempty"`
 	StudioPath       string        `json:"studio_path" jsonschema:"the path that opens this heatmap in Studio with its scope, kind and tramo"`
 }
@@ -195,7 +210,43 @@ func restrictToArea(got tuiclient.SpatialHeatmap, area *tacticalplan.PatternArea
 	return got
 }
 
-// summarizeHeatmap names the hottest cells with their callout, sums them by callout and lists each side's total.
+// restrictToFloor keeps one floor's cells and totals; empty, both and a one-floor map's upper floor keep everything.
+func restrictToFloor(got tuiclient.SpatialHeatmap, floor string) tuiclient.SpatialHeatmap {
+	floor = strings.ToLower(strings.TrimSpace(floor))
+	if got.Heatmap == nil || (floor != "upper" && floor != "lower") {
+		return got
+	}
+	keep := func(level string) bool { return (floor == "lower") == (level == "lower") }
+	h := *got.Heatmap
+	h.Cells, h.Sides = nil, nil
+	for _, c := range got.Heatmap.Cells {
+		if keep(c.Level) {
+			h.Cells = append(h.Cells, c)
+		}
+	}
+	for _, s := range got.Heatmap.Sides {
+		if keep(s.Level) {
+			h.Sides = append(h.Sides, s)
+		}
+	}
+	got.Heatmap = &h
+	return got
+}
+
+// heatPlaceName is the line the Studio's zone list shows for a place: its callout as players say it, an unnamed cell
+// as its own place, and the lower floor told apart when the answer has both floors.
+func heatPlaceName(c tacticalplan.HeatmapCell, callout string, bothFloors bool) string {
+	name := placeLabel(callout)
+	if callout == "" {
+		name = fmt.Sprintf("Celda %d, %d", c.X, c.Y)
+	}
+	if bothFloors && c.Level == "lower" {
+		name += " (piso inferior)"
+	}
+	return name
+}
+
+// summarizeHeatmap names the hottest cells with their callout, sums them by place and lists each side's total.
 func summarizeHeatmap(got tuiclient.SpatialHeatmap, limit int) heatmapOut {
 	out := heatmapOut{Map: cleanName(got.Map), Matches: len(got.Matches), SkippedMatches: len(got.Skipped), Sides: []heatSideOut{}, Zones: []heatZoneOut{}, Cells: []heatCellOut{}}
 	h := got.Heatmap
@@ -204,8 +255,13 @@ func summarizeHeatmap(got tuiclient.SpatialHeatmap, limit int) heatmapOut {
 	}
 	out.Kind, out.KillAt, out.Unit = string(h.Kind), string(h.KillAt), heatUnits[string(h.Kind)]
 	out.Rounds, out.MissingPositions, out.CellSize = h.Rounds, h.MissingPositions, h.CellSize
+	if h.Kind == tacticalplan.HeatPosition {
+		out.SampleSeconds = h.SampleSeconds
+	}
 	totals := map[string]int{}
+	floors := map[string]bool{}
 	for _, s := range h.Sides {
+		floors[s.Level] = true
 		totals[string(s.Side)+"|"+s.Level] = s.Total
 		out.Sides = append(out.Sides, heatSideOut{Side: string(s.Side), Level: floorName(s.Level), Total: s.Total, Rounds: s.Rounds})
 	}
@@ -223,19 +279,21 @@ func summarizeHeatmap(got tuiclient.SpatialHeatmap, limit int) heatmapOut {
 		}
 		return a.X < b.X
 	})
+	bothFloors := floors["lower"] && len(floors) > 1
 	zones := map[string]*heatZoneOut{}
 	var order []string
 	for i, c := range cells {
 		center := [3]float64{(float64(c.X) + 0.5) * h.CellSize, (float64(c.Y) + 0.5) * h.CellSize, float64(c.Z)}
 		callout := ""
 		if got.Geometry != nil {
-			callout = cleanName(tacticalplan.NearestCallout(*got.Geometry, center))
+			callout = cleanName(tacticalplan.NearestCalloutOn(*got.Geometry, c.Level, center))
 		}
 		total := totals[string(c.Side)+"|"+c.Level]
-		key := callout + "|" + string(c.Side) + "|" + c.Level
+		place := heatPlaceName(c, callout, bothFloors)
+		key := place + "|" + string(c.Side) + "|" + c.Level
 		zone, ok := zones[key]
 		if !ok {
-			zone = &heatZoneOut{Callout: callout, Side: string(c.Side), Level: floorName(c.Level)}
+			zone = &heatZoneOut{Callout: callout, Place: place, Side: string(c.Side), Level: floorName(c.Level)}
 			zones[key] = zone
 			order = append(order, key)
 		}
@@ -246,7 +304,7 @@ func summarizeHeatmap(got tuiclient.SpatialHeatmap, limit int) heatmapOut {
 			out.Truncated = true
 			continue
 		}
-		row := heatCellOut{Callout: callout, Side: string(c.Side), Level: floorName(c.Level), Center: roundPos(center), Count: c.Count,
+		row := heatCellOut{Callout: callout, Place: place, Side: string(c.Side), Level: floorName(c.Level), Center: roundPos(center), Count: c.Count,
 			Share: ratio(c.Count, total), Rounds: c.Rounds, MedianSeconds: c.Seconds, Examples: []string{}}
 		for _, e := range c.Examples {
 			row.Examples = append(row.Examples, fmt.Sprintf("%s/%d", e.MatchID, e.Round))
@@ -356,7 +414,7 @@ func registerHeatmapTools(server *mcp.Server, s *studio) {
 		Description: "Read the Mapa de calor of one match's Replay: over the rounds a replay_rounds scope keeps, where the players stood (position), died (death), " +
 			"killed from or dropped their victims (kill with kill_at), landed grenades (utility) or first arrived (timing), inside a clock window (Tramo). " +
 			"focus counts only those players, as a click on a player does. The answer lists the hottest cells with their callout and counts, the same cells summed " +
-			"by callout, and studio_path to open it in Studio."},
+			"by place (the lines of the Zonas con más actividad list, named as Studio shows them), and studio_path to open it in Studio."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in matchHeatmapIn) (*mcp.CallToolResult, heatmapOut, error) {
 			if err := checkUUID("match_id", in.MatchID); err != nil {
 				return nil, heatmapOut{}, err
@@ -388,7 +446,7 @@ func registerHeatmapTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, heatmapOut{}, toolError(err)
 			}
-			out := summarizeHeatmap(got, heatLimit(in.Limit))
+			out := summarizeHeatmap(restrictToFloor(got, in.Floor), heatLimit(in.Limit))
 			scope.Set("tab", "replay")
 			in.heatmapViewIn.studioQuery(scope)
 			out.StudioPath = "/partidas/" + url.PathEscape(in.MatchID) + "?" + scope.Encode()
@@ -399,7 +457,7 @@ func registerHeatmapTools(server *mcp.Server, s *studio) {
 		Description: "Read a team's Mapa de calor over its matches on one map (the most played when map is empty), as the team's Replay shows it: " +
 			"the same kinds, clock window and kill_at as match_heatmap, filtered by side, dates, rivals (opponent_id), matches (match_id) and the whole team scope of team_rounds (buys, AWP, advantage, last N matches...). " +
 			"players counts only those players (SteamID64s), across demos where their slots change; by_player adds one heatmap per player and area keeps the cells inside a zone. The answer lists the hottest cells with their " +
-			"callout and counts, the same cells summed by callout, and studio_path to open it in Studio."},
+			"callout and counts, the same cells summed by place (the lines of the Zonas con más actividad list, named as Studio shows them), and studio_path to open it in Studio."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamHeatmapIn) (*mcp.CallToolResult, teamHeatmapOut, error) {
 			if err := checkUUID("team_id", in.TeamID); err != nil {
 				return nil, teamHeatmapOut{}, err
@@ -429,7 +487,7 @@ func registerHeatmapTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, teamHeatmapOut{}, toolError(err)
 			}
-			out := teamHeatmapOut{heatmapOut: summarizeHeatmap(restrictToArea(got, area), heatLimit(in.Limit))}
+			out := teamHeatmapOut{heatmapOut: summarizeHeatmap(restrictToFloor(restrictToArea(got, area), in.Floor), heatLimit(in.Limit))}
 			if in.ByPlayer {
 				// Every player is read on the map the main answer resolved, so a tie between maps cannot split them.
 				pinned := q
@@ -442,7 +500,7 @@ func registerHeatmapTools(server *mcp.Server, s *studio) {
 							return nil, teamHeatmapOut{}, fmt.Errorf("heatmap of player %s: %w", id, toolError(err))
 						}
 					}
-					out.ByPlayer = append(out.ByPlayer, playerHeat{SteamID64: id, Heatmap: summarizeHeatmap(restrictToArea(alone, area), heatLimit(in.Limit))})
+					out.ByPlayer = append(out.ByPlayer, playerHeat{SteamID64: id, Heatmap: summarizeHeatmap(restrictToFloor(restrictToArea(alone, area), in.Floor), heatLimit(in.Limit))})
 				}
 			}
 			if out.StudioPath, err = teamHeatmapPath(in, got.Map, q); err != nil {

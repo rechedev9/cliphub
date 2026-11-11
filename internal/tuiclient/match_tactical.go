@@ -77,35 +77,6 @@ func (c *Client) LibraryMatchMetrics(ctx context.Context, matchID string) (Match
 	return out, err
 }
 
-// AnticheatDossier is one player's evidence pack from a finished screening.
-type AnticheatDossier struct {
-	SteamID64  string  `json:"steamid64"`
-	Name       string  `json:"name"`
-	Verdict    string  `json:"verdict"`
-	Score      float64 `json:"score"`
-	Confidence float64 `json:"confidence"`
-	ProfileURL string  `json:"profile_url"`
-	Markdown   string  `json:"markdown"`
-	Channels   []struct {
-		Label        string `json:"label"`
-		URL          string `json:"url"`
-		Instructions string `json:"instructions"`
-		Effective    bool   `json:"effective"`
-	} `json:"channels"`
-	Policy struct {
-		Summary  string   `json:"summary"`
-		Rules    []string `json:"rules"`
-		Rejected string   `json:"rejected"`
-	} `json:"policy"`
-}
-
-// GetAnticheatDossier returns a player's dossier; 409 means the screening is not ready.
-func (c *Client) GetAnticheatDossier(ctx context.Context, jobID, steamID string) (AnticheatDossier, error) {
-	var out AnticheatDossier
-	err := c.getJSON(ctx, jobPath(jobID)+"/anticheat/dossier/"+url.PathEscape(steamID), &out)
-	return out, err
-}
-
 // LibraryTacticalPlan returns a library match's tactical document in the
 // orchestrator's own type, so a caller can run tacticalplan.Filter over it.
 func (c *Client) LibraryTacticalPlan(ctx context.Context, matchID string) (tacticalplan.Document, error) {

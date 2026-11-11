@@ -31,6 +31,8 @@ type SideStatsOptions struct {
 	MapRoles map[string]PlayerMapRoles
 	// PlayRounds, when not nil, keeps only a Libreta play's rounds of each match.
 	PlayRounds map[uuid.UUID][]int
+	// SkipRounds drops the rounds of the tactics the scope excludes, per match.
+	SkipRounds map[uuid.UUID][]int
 }
 
 // SideStat is one figure (nil Value without data; rates in percent) and the mean
@@ -318,6 +320,7 @@ func (run *teamRun) addMatch(m SideStatsMatch, opts SideStatsOptions) {
 	if opts.PlayRounds != nil {
 		filter.Numbers = append([]int{}, opts.PlayRounds[m.MatchID]...)
 	}
+	filter.Skip = append([]int(nil), opts.SkipRounds[m.MatchID]...)
 	run.overall.seenMatch, run.ct.seenMatch, run.t.seenMatch = false, false, false
 	kept := 0
 	names := map[uint8]Player{}

@@ -291,12 +291,27 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         term: 'Mapas y veto',
         text: 'El historial por mapa cuenta resultados, rondas por lado, pistolas, picks y bans. El simulador de veto recomienda cada paso de un BO1, BO2, BO3 o BO5 contra un rival y explica por qué.',
       },
-      {
-        term: 'Ficha de jugador',
-        text: 'Cada nombre de una plantilla, una partida o un informe abre su ficha: nicks, equipos por fecha, partidas, rol y métricas avanzadas.',
-      },
     ],
     link: { href: '/equipos', label: 'Ir a Equipos' },
+  },
+  {
+    id: 'players',
+    kicker: 'Jugadores',
+    label: 'Jugadores',
+    title: 'La ficha de cada jugador',
+    lead:
+      'Cada nombre de una plantilla, una partida o un informe abre su ficha: nicks, equipos por fecha, partidas, rol y métricas avanzadas frente a la media de la biblioteca.',
+    points: [
+      {
+        term: 'Un jugador, varios nicks',
+        text: 'Studio reconoce al jugador por su SteamID, así que sus nicks y sus equipos se juntan en una sola ficha.',
+      },
+      {
+        term: 'Rol y posiciones',
+        text: 'El rol sale de dónde juega en los primeros segundos de cada ronda, por mapa y por lado.',
+      },
+    ],
+    link: { href: '/jugadores', label: 'Ir a Jugadores' },
   },
   {
     id: 'ranking',
@@ -388,29 +403,6 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
     ],
     link: { href: '/informes', label: 'Ir a Informes' },
-  },
-  {
-    id: 'integrity',
-    kicker: 'Integridad',
-    label: 'Integridad',
-    title: 'Detecta comportamientos anómalos',
-    lead:
-      'Suelta una demo y ClipHub puntúa a los diez jugadores. Es un detector de anomalías para decidir qué revisar a mano, no un veredicto.',
-    points: [
-      {
-        term: 'Niveles',
-        text: 'Muy anómalo, anómalo, no concluyente, sin anomalías o datos insuficientes, con los momentos que merece la pena revisar.',
-      },
-      {
-        term: 'Expediente',
-        text: 'En los casos anómalos puedes preparar un expediente con la evidencia para denunciarlo tú. ClipHub no envía nada.',
-      },
-      {
-        term: 'Sin tocar tus partidas',
-        text: 'El análisis no abre CS2 ni modifica la partida que tengas cargada.',
-      },
-    ],
-    link: { href: '/integridad', label: 'Ir a Integridad' },
   },
   {
     id: 'storage',

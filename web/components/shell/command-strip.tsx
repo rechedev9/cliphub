@@ -13,7 +13,7 @@ import { ThemeMenu } from '@/components/shell/theme-menu';
 import { useCurrentRouteTitle } from '@/components/shell/route-title';
 import { FULL_SERIES_SEGMENT, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
-import { sectionForPath, type NavSection } from '@/lib/nav';
+import { isToolPage, sectionForPath, type NavSection } from '@/lib/nav';
 
 const TRAIL = {
   newShort: 'Nuevo Short',
@@ -31,6 +31,7 @@ export function CommandStrip(): ReactElement {
   const section = sectionForPath(pathname);
   const routeTitle = useCurrentRouteTitle();
   const trail = routeTitle ?? trailForPath(pathname, section);
+  const showTrail = !isToolPage(pathname);
 
   return (
     <header
@@ -38,27 +39,32 @@ export function CommandStrip(): ReactElement {
       className="shell-strip sticky top-0 z-30 flex h-(--shell-strip-height) shrink-0 items-center gap-2 px-2 sm:gap-3 sm:px-3 print:hidden"
     >
       <SidebarTrigger
-        className="size-10 shrink-0 text-fg-2 hover:text-fg-1"
+        className="size-8 shrink-0 text-fg-2 hover:text-fg-1"
         title="Barra lateral · Ctrl/⌘ B"
       />
 
       {/* 6px inside the label, 14px across the level break, so the breadcrumb
           reads as two levels. */}
-      <nav aria-label="Ruta actual" className="flex min-w-0 items-baseline gap-1.5">
-        <span className="truncate text-body-sm font-semibold text-fg-1">
-          {section?.label ?? 'ClipHub'}
-        </span>
-        {trail === null ? null : (
-          <>
-            <span className="shrink-0 px-1 text-fg-4" aria-hidden>
-              ›
+      {showTrail ? (
+        <nav aria-label="Ruta actual" className="flex min-w-0 items-baseline gap-1.5">
+          <span className="flex min-w-0 items-baseline gap-1.5 truncate text-body-sm font-semibold text-fg-1">
+            <span aria-hidden className="text-slash">
+              /
             </span>
-            <span title={trail} className="max-w-[32ch] truncate text-body-sm text-fg-2">
-              {trail}
-            </span>
-          </>
-        )}
-      </nav>
+            {section?.label ?? 'ClipHub'}
+          </span>
+          {trail === null ? null : (
+            <>
+              <span className="shrink-0 px-1 text-fg-4" aria-hidden>
+                ›
+              </span>
+              <span title={trail} className="max-w-[32ch] truncate text-body-sm text-fg-2">
+                {trail}
+              </span>
+            </>
+          )}
+        </nav>
+      ) : null}
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <GlobalSearch />
@@ -70,7 +76,7 @@ export function CommandStrip(): ReactElement {
           data-testid="app-tour-trigger"
           aria-label="Abrir la guía de ClipHub"
           title="Guía de ClipHub"
-          className="text-fg-2 hover:text-fg-1 max-sm:w-10 max-sm:px-0"
+          className="text-fg-2 hover:text-fg-1 max-sm:w-8 max-sm:px-0"
           onClick={() => openAppTour(0)}
         >
           <CircleHelp aria-hidden />

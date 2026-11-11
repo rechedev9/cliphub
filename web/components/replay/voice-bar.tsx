@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, Mic, Radio, RotateCcw, Upload, Volume2, VolumeX, Wand2, X } from 'lucide-react';
+import { AudioLines, Check, Info, Mic, Radio, RotateCcw, Upload, Volume2, VolumeX, Wand2, X } from 'lucide-react';
 import { MAX_VOICE_OFFSET_MS } from '@/lib/api/voice';
 import type { MatchVoice } from '@/lib/api/voice';
 import { ADJUST_RANGE_MS, NUDGE_STEPS_MS, clampOffset, deltaLabel, formatVoiceMs } from '@/lib/replay/voice-sync';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ReplayVoice } from './use-replay-voice';
+import { VoicePluginMenu } from './voice-plugin-menu';
 
 const AUDIO_ACCEPT = 'audio/*,.wav,.ogg,.opus,.mp3,.m4a,.flac';
 
@@ -58,38 +59,16 @@ function AudioPosition({ voice }: { voice: ReplayVoice }): ReactNode {
   return <span ref={ref} className="w-[7ch] font-mono text-body-sm tabular-nums text-fg-1" />;
 }
 
-/** The EDGE-style adjust bar: drag or nudge the offset while the round plays, then confirm or cancel. */
+/** The slim offset bar of sync mode: drag or nudge the offset while the round plays, then confirm or cancel. */
 function AdjustBar({ voice, saved }: { voice: ReplayVoice; saved: MatchVoice }): ReactNode {
   const [origin] = useState(saved.sync.offset_ms);
   const draft = voice.draft ?? origin;
   const set = (ms: number): void => voice.setDraft(clampOffset(ms, MAX_VOICE_OFFSET_MS));
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5" role="group" aria-label="Sincronizar la voz">
-      <span className="flex items-baseline gap-1.5 text-meta text-fg-3">
-        Audio
-        <AudioPosition voice={voice} />
-      </span>
-      <input
-        type="range"
-        min={origin - ADJUST_RANGE_MS}
-        max={origin + ADJUST_RANGE_MS}
-        step={100}
-        value={draft}
-        onChange={(event) => set(Number(event.target.value))}
-        aria-label="Desfase de la voz"
-        aria-valuetext={formatVoiceMs(draft, true)}
-        className={cn(RANGE, 'w-48 min-w-24 flex-1')}
-      />
-      <div className="flex items-center gap-0.5">
-        {NUDGE_STEPS_MS.map((step) => (
-          <Button key={step} type="button" size="xs" variant="ghost" className="tabular-nums" onClick={() => set(draft + step)}>
-            {step > 0 ? '+' : '-'}
-            {Math.abs(step) >= 1000 ? `${Math.abs(step) / 1000} s` : `0,${Math.abs(step) / 100} s`}
-          </Button>
-        ))}
-      </div>
-      <span className="font-mono text-body-sm tabular-nums text-fg-1" aria-live="polite">
-        {deltaLabel(draft, origin)}
+    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 rounded-sm border border-border-subtle bg-surface-0 px-2 py-1" role="group" aria-label="Sincronizar la voz">
+      <span className="flex items-center gap-1.5 font-mono text-body-sm tabular-nums text-fg-1" title="Desfase de la voz respecto a la demo">
+        {formatVoiceMs(draft, true)}
+        <Info className="size-3.5 text-fg-3" aria-hidden />
       </span>
       <Button type="button" size="xs" variant="ghost" onClick={() => set(saved.sync.auto_offset_ms)} title="Vuelve al desfase que calculó Studio">
         <RotateCcw aria-hidden />
@@ -112,6 +91,33 @@ function AdjustBar({ voice, saved }: { voice: ReplayVoice; saved: MatchVoice }):
       <Button type="button" size="icon-xs" variant="ghost" aria-label="Cancelar" onClick={() => voice.setDraft(null)}>
         <X aria-hidden />
       </Button>
+      <input
+        type="range"
+        min={origin - ADJUST_RANGE_MS}
+        max={origin + ADJUST_RANGE_MS}
+        step={100}
+        value={draft}
+        onChange={(event) => set(Number(event.target.value))}
+        aria-label="Desfase de la voz"
+        aria-valuetext={formatVoiceMs(draft, true)}
+        title="Arrastra para sincronizar"
+        className={cn(RANGE, 'w-48 min-w-24 flex-1')}
+      />
+      <div className="flex items-center gap-0.5">
+        {NUDGE_STEPS_MS.map((step) => (
+          <Button key={step} type="button" size="xs" variant="ghost" className="tabular-nums" onClick={() => set(draft + step)}>
+            {step > 0 ? '+' : '-'}
+            {Math.abs(step) >= 1000 ? `${Math.abs(step) / 1000} s` : `0,${Math.abs(step) / 100} s`}
+          </Button>
+        ))}
+      </div>
+      <span className="flex items-baseline gap-1.5 text-meta text-fg-3">
+        Audio
+        <AudioPosition voice={voice} />
+      </span>
+      <span className="rounded-sm border border-border-strong bg-surface-2 px-1.5 font-mono text-body-sm tabular-nums text-fg-1" aria-live="polite">
+        {deltaLabel(draft, origin)}
+      </span>
     </div>
   );
 }
@@ -156,8 +162,20 @@ function DemoVoiceToggle({ voice }: { voice: ReplayVoice }): ReactNode {
   );
 }
 
-/** The Replay's voice row: import, volume and mute, the sync state and the adjust bar. */
-export function VoiceBar({ voice }: { voice: ReplayVoice }): ReactNode {
+/** Whether the voice of the round is being synced: the transport then swaps its round row for the offset bar. */
+export function voiceSyncing(voice: ReplayVoice): boolean {
+  return voice.draft !== null && voice.state.kind === 'ready' && voice.state.voice.present;
+}
+
+/** The offset bar of sync mode; nothing while the voice is not being synced. */
+export function VoiceSyncBar({ voice }: { voice: ReplayVoice }): ReactNode {
+  const { state } = voice;
+  if (!voiceSyncing(voice) || state.kind !== 'ready') return null;
+  return <AdjustBar key={state.voice.match_id} voice={voice} saved={state.voice} />;
+}
+
+/** The Replay's voice row between the round chips and the timeline: import, waveform, volume and mute, and the sync state. */
+export function VoiceRow({ voice }: { voice: ReplayVoice }): ReactNode {
   const { state } = voice;
   if (state.kind === 'loading') return null;
   if (state.kind === 'unavailable') {
@@ -170,21 +188,25 @@ export function VoiceBar({ voice }: { voice: ReplayVoice }): ReactNode {
         <Mic className="size-3.5 text-fg-3" aria-hidden />
         <span className="text-meta text-fg-3">Escucha la voz del equipo con la ronda: importa la grabación de TeamSpeak.</span>
         <ImportButton voice={voice} label="Importar voz" />
+        <VoicePluginMenu voice={voice} />
         <div className="ml-auto">
           <DemoVoiceToggle voice={voice} />
         </div>
       </div>
     );
   }
-  if (voice.draft !== null) return <AdjustBar key={saved.match_id} voice={voice} saved={saved} />;
+  if (voice.draft !== null) return null;
+  const unsynced = saved.sync.state === 'unsynced';
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+      <AudioLines className="size-4 shrink-0 text-fg-3" aria-hidden />
       <Button
         type="button"
         size="icon-xs"
         variant="ghost"
         aria-pressed={voice.muted}
         aria-label={voice.muted ? 'Activar la voz' : 'Silenciar la voz'}
+        title="Voz del equipo"
         onClick={() => voice.setMuted(!voice.muted)}
       >
         {voice.muted ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
@@ -199,13 +221,27 @@ export function VoiceBar({ voice }: { voice: ReplayVoice }): ReactNode {
         aria-label="Volumen de la voz"
         className={cn(RANGE, 'w-24')}
       />
-      <span className="text-meta text-fg-2">Voz del equipo</span>
-      <SyncState saved={saved} />
-      <div className="ml-auto flex items-center gap-1">
+      <div className="flex h-7 min-w-48 flex-1 items-center justify-center rounded-sm border border-border-subtle bg-surface-0 px-2">
+        {unsynced ? (
+          <button
+            type="button"
+            onClick={() => voice.setDraft(saved.sync.offset_ms)}
+            title={saved.sync.note}
+            className={cn('h-5 max-w-full truncate rounded-sm border border-destructive px-2 text-meta font-medium text-destructive outline-none hover:bg-destructive/10', FOCUS_RING)}
+          >
+            La voz no está sincronizada. Pulsa para sincronizarla.
+          </button>
+        ) : (
+          <SyncState saved={saved} />
+        )}
+      </div>
+      <div className="flex items-center gap-1">
         <DemoVoiceToggle voice={voice} />
-        <Button type="button" size="xs" variant={saved.sync.state === 'unsynced' ? 'outline-primary' : 'outline'} onClick={() => voice.setDraft(saved.sync.offset_ms)}>
-          Sincronizar
-        </Button>
+        {unsynced ? null : (
+          <Button type="button" size="xs" variant="outline" onClick={() => voice.setDraft(saved.sync.offset_ms)}>
+            Sincronizar
+          </Button>
+        )}
         <Button type="button" size="xs" variant="ghost" loading={voice.busy} onClick={voice.autoSync} title="Studio vuelve a calcular cuándo empieza la grabación">
           <Wand2 aria-hidden />
           Calcular de nuevo

@@ -24,22 +24,20 @@ function fade(age: number): number | null {
 
 /**
  * The damage and enemy flashes of the last second at `nowSeconds`, newest
- * last. A hidden player's lines go with them, as attacker or as victim.
+ * last.
  */
 export function hitLines(options: {
   hits: readonly TacticalHit[];
   events: readonly TacticalEvent[];
   nowSeconds: number;
   secondsOf: (tick: number) => number;
-  hiddenSlots: readonly number[];
 }): HitLine[] {
-  const { nowSeconds, secondsOf, hiddenSlots } = options;
-  const shown = (from: number, to: number): boolean => !hiddenSlots.includes(from) && !hiddenSlots.includes(to);
+  const { nowSeconds, secondsOf } = options;
   const lines: { at: number; line: HitLine }[] = [];
   for (const hit of options.hits) {
     const at = secondsOf(hit.tick);
     const alpha = fade(nowSeconds - at);
-    if (alpha === null || !shown(hit.actor_slot, hit.target_slot)) continue;
+    if (alpha === null) continue;
     lines.push({ at, line: { from: hit.actor_slot, to: hit.target_slot, kind: hitKind(hit.weapon), amount: hit.damage, headshot: hit.headshot === true, alpha } });
   }
   for (const event of options.events) {
@@ -48,7 +46,7 @@ export function hitLines(options: {
     const alpha = fade(nowSeconds - at);
     if (alpha === null) continue;
     for (const blind of event.effect?.blinded ?? []) {
-      if (!blind.enemy || !shown(event.actor_slot, blind.slot)) continue;
+      if (!blind.enemy) continue;
       lines.push({ at, line: { from: event.actor_slot, to: blind.slot, kind: 'flash', amount: blind.seconds, headshot: false, alpha } });
     }
   }

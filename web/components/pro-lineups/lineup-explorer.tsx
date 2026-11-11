@@ -25,7 +25,7 @@ import {
 import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap, levelForAltitude } from '@/lib/tactical-transform';
 import { GRENADE_KIND_TOKEN } from '@/components/patterns/grenade-radar';
-import { StudioPageHeader } from '@/components/studio/page-header';
+import { SlashTitle } from '@/components/records/document-page';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -81,7 +81,14 @@ function ExplorerSkeleton(): ReactNode {
 export function LineupExplorer({ map }: { map: string }): ReactNode {
   const [attempt, setAttempt] = useState(0);
   const load = useProLineupMap(map, attempt);
-  const header = <StudioPageHeader title={`Lineups pro de ${prettyMapName(map)}`} description={<Summary load={load} />} />;
+  const header = (
+    <header className="flex flex-col gap-1.5">
+      <SlashTitle as="h1">{`Lineups pro de ${prettyMapName(map)}`}</SlashTitle>
+      <div className="text-body-sm text-fg-2">
+        <Summary load={load} />
+      </div>
+    </header>
+  );
   if (load.kind === 'loading') {
     return (
       <>
