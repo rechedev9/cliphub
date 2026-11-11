@@ -8,8 +8,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const testJobID = "5e6f7a8b-9cad-4ebf-a031-4c5d6e7f8091"
-
 func matchTacticalStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	t.Helper()
 	rec := &recorder{seen: map[string]string{}}
