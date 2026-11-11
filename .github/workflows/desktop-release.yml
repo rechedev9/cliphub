@@ -28,8 +28,12 @@ concurrency:
 jobs:
   checks:
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Studio is a Windows app and ships a Windows FFmpeg, so its editor is tested there.
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
     permissions:
       contents: read
     env:
@@ -60,10 +64,19 @@ jobs:
             web/pnpm-lock.yaml
             desktop/pnpm-lock.yaml
 
-      - name: Install media tools
+      - name: Install Studio's FFmpeg
+        # Studio's own installer and pins (FFmpeg 8.1.2 from our releases, checksummed), so a
+        # fresh install's downloads are proven too. The Go tests find ffmpeg on PATH.
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y ffmpeg
+          node --input-type=module -e "
+            import { appendFileSync } from 'node:fs';
+            import { EOL } from 'node:os';
+            import { dirname, join } from 'node:path';
+            import { provisionRuntimeTools } from './desktop/src/runtime-tools.ts';
+            const env = await provisionRuntimeTools({ toolsDir: join(process.env.RUNNER_TEMP, 'studio-tools'), logLine: (s) => process.stdout.write(s) });
+            if (!env.ZV_FFMPEG_PATH || !env.ZV_FFPROBE_PATH) throw new Error('Studio FFmpeg was not installed');
+            appendFileSync(process.env.GITHUB_PATH, dirname(env.ZV_FFMPEG_PATH) + EOL);
+          "
 
       - name: Install web and desktop dependencies
         run: |
@@ -71,10 +84,11 @@ jobs:
           pnpm --dir desktop install --frozen-lockfile
 
       - name: Go vet, test, zv check
-        # -short skips the FFmpeg renders: they need Studio's FFmpeg 8.1.2, not the runner's.
+        # -short skips the slowest FFmpeg renders; the full suite runs locally before a release.
         run: |
+          ffmpeg -hide_banner -version | head -1
           go vet ./...
-          go test -short ./... -count=1 -timeout 12m
+          go test -short ./... -count=1 -timeout 20m
           go run ./cmd/zv check
 
       - name: Capture simulator contracts
