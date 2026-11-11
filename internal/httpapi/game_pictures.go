@@ -11,6 +11,9 @@ import (
 
 const maxTeamNameRunes = 64
 
+// teamLogoRoute answers 404 for most teams, so a miss there is not an error.
+const teamLogoRoute = "/api/teams/logo"
+
 // GetMapShot handles GET /api/maps/{map}/shot: the map's loading-screen picture from the
 // user's CS2 install as PNG, cached per game build.
 func (h *Handlers) GetMapShot(w http.ResponseWriter, r *http.Request) {
