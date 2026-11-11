@@ -51,6 +51,7 @@ overlap. Format landscape-16x9 with preset gameplay-pov-60 gives the horizontal 
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
 list_all_videos lists the videos of every recent job and stream (Mis vídeos); retry_video renders a failed Short
 again from its last finished version and change_video_music changes a Short's music, both without a new capture.
+delete_video deletes a demo video and delete_stream_video one stream video, as Borrar on its card.
 In hosts with MCP Apps, import_demo, wait_for_demo, wait_for_job, generate_short, render_full_demo,
 retry_video, change_video_music and the stream renders show the user a live progress bar that
 updates on its own; keep calling the wait tools to learn when the job ends, without repeating
@@ -242,7 +243,7 @@ downloads one by share code and makes a job: wait_for_job, and on "scanned" job_
 pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_storage_files,
 rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
-delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
+delete_stream_video, delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
 delete_report, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
 install_transcriber, launch_practice, launch_bot_replay need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in

@@ -202,7 +202,7 @@ export function ClipsLens({ clips, streams, onChange }: ClipsLensProps): ReactNo
                 <ClipCard key={clip.id} clip={clip} size={size} onChange={onChange} onPlay={(item, button) => play(item.id, button)} />
               ))}
               {visibleStreams.map((item) => (
-                <StreamClipCard key={item.id} item={item} size={size} onPlay={(button) => play(item.id, button)} />
+                <StreamClipCard key={item.id} item={item} size={size} onChange={onChange} onPlay={(button) => play(item.id, button)} />
               ))}
             </div>
           )}

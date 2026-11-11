@@ -1,9 +1,12 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -57,6 +60,125 @@ func (h *Handlers) DeleteStreamJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// DeleteStreamVideo handles DELETE /api/stream-jobs/{id}/renders/{variant}/videos/{clip_id}:
+// it removes one published stream clip (its MP4 and its upload-ready copy).
+// Startup reconciliation fails a render whose state and result list different
+// clips, so both drop the clip together; the last clip takes the whole render.
+// Idempotent: a clip already gone answers 204.
+func (h *Handlers) DeleteStreamVideo(w http.ResponseWriter, r *http.Request) {
+	release := h.lockStreamJobRequest(r)
+	defer release()
+	j, ok := h.loadStreamJob(w, r)
+	if !ok {
+		return
+	}
+	variant := chi.URLParam(r, "variant")
+	clipID := chi.URLParam(r, "clip_id")
+	if _, err := streamclips.RenderVideoKey(j.ID, variant, clipID); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	state, exists, err := h.readStreamRenderState(j.ID, variant)
+	if err != nil {
+		internalError(w, "read stream render state", err)
+		return
+	}
+	isClip := func(v streamclips.VideoEntry) bool { return v.ClipID == clipID }
+	if !exists || !state.HasPublishedRender() || !slices.ContainsFunc(state.Videos, isClip) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if state.Status == streamclips.StatusQueued || state.Status == streamclips.StatusRendering {
+		writeError(w, http.StatusConflict, fmt.Sprintf("stream render %s is %s; wait for it to settle before deleting", variant, state.Status))
+		return
+	}
+	if len(state.Videos) == 1 {
+		h.deleteStreamRender(w, r, j, variant)
+		return
+	}
+	deleter, ok := h.storage.(renderArtifactDeleter)
+	if !ok {
+		writeError(w, http.StatusNotImplemented, "storage backend does not support delete")
+		return
+	}
+	isCopy := func(d streamclips.DeliveryEntry) bool { return d.Kind == "video" && d.Name == clipID+".mp4" }
+	keys := []string{state.Videos[slices.IndexFunc(state.Videos, isClip)].Key}
+	if i := slices.IndexFunc(state.Delivery, isCopy); i >= 0 {
+		keys = append(keys, state.Delivery[i].Key)
+	}
+	result, found, err := h.readPublishedStreamResult(state)
+	if err != nil {
+		internalError(w, "read published stream result", err)
+		return
+	}
+	if found {
+		result.Clips = slices.DeleteFunc(result.Clips, isClip)
+		if err := h.putStreamJSON(state.ResultKey, result); err != nil {
+			internalError(w, "write published stream result", err)
+			return
+		}
+	}
+	state.Videos = slices.DeleteFunc(state.Videos, isClip)
+	state.Delivery = slices.DeleteFunc(state.Delivery, isCopy)
+	if err := h.writeStreamRenderState(state); err != nil {
+		internalError(w, "write stream render state", err)
+		return
+	}
+	// Files last: a failure here leaves an orphan file, never a broken render.
+	for _, key := range keys {
+		if err := deleter.Delete(key); err != nil {
+			internalError(w, "delete stream video", err)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// deleteStreamRender removes a variant's whole render. A stream left with no
+// published render of any variant goes back to ready, as before its first export.
+func (h *Handlers) deleteStreamRender(w http.ResponseWriter, r *http.Request, j streamclips.Job, variant string) {
+	deleter, ok := h.storage.(jobArtifactDeleter)
+	if !ok {
+		writeError(w, http.StatusNotImplemented, "storage backend does not support delete")
+		return
+	}
+	prefix, err := streamclips.RenderPrefix(j.ID, variant)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := deleter.DeleteTree(prefix); err != nil {
+		internalError(w, "delete stream render", err)
+		return
+	}
+	for _, other := range streamclips.VariantNames() {
+		state, exists, err := h.readStreamRenderState(j.ID, other)
+		if err != nil {
+			internalError(w, "read stream render state", err)
+			return
+		}
+		if exists && state.HasPublishedRender() {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+	if j.Status == streamclips.StatusRendered {
+		if err := h.streamRepo.UpdateStatus(r.Context(), j.ID, streamclips.StatusReady, ""); err != nil {
+			internalError(w, "update stream job status", err)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handlers) putStreamJSON(key string, value any) error {
+	b, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return err
+	}
+	return h.storage.Put(key, bytes.NewReader(append(b, '\n')))
 }
 
 // DeleteEditorProject handles DELETE /api/editor/projects/{id}. Assets stay:

@@ -258,6 +258,8 @@ export interface StreamsApiClient {
   getJob(id: string): Promise<StreamJob | null>;
   /** 404 is success; 409 (still acquiring/rendering) and 503 throw with `code`. */
   deleteJob(id: string): Promise<void>;
+  /** One rendered clip; 404 is success, 409 (that variant still rendering) throws with `code`. */
+  deleteVideo(id: string, variant: string, clipId: string): Promise<void>;
   /** Same-origin URL for a <video> element to pull the job's source MP4. */
   sourceUrl(id: string): string;
   getEditPlan(id: string): Promise<StreamEditPlan>;
@@ -332,6 +334,11 @@ export class RealStreamsApiClient implements StreamsApiClient {
 
   async deleteJob(id: string): Promise<void> {
     const res = await fetch(`/api/streams/${id}`, { method: 'DELETE' });
+    if (res.status !== 404 && !res.ok) await throwResponseError(res);
+  }
+
+  async deleteVideo(id: string, variant: string, clipId: string): Promise<void> {
+    const res = await fetch(`/api/streams/${id}/renders/${variant}/videos/${clipId}`, { method: 'DELETE' });
     if (res.status !== 404 && !res.ok) await throwResponseError(res);
   }
 
