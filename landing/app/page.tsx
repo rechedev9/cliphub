@@ -2,7 +2,6 @@ import { Download } from "lucide-react";
 import AssistantChat from "@/components/assistant-chat";
 import FeatureBento from "@/components/feature-bento";
 import HudCarousel from "@/components/hud-carousel";
-import ImportSources from "@/components/import-sources";
 import PhoneFrame from "@/components/phone-frame";
 import ProductFlow from "@/components/product-flow";
 import Reveal from "@/components/reveal";
@@ -18,8 +17,6 @@ const NAV = [
   { href: "#analisis", label: "Análisis" },
   { href: "#asistentes", label: "Asistentes" },
 ] as const;
-
-const FACTS = ["Gratis", "En tu PC, sin subir nada", "Graba en CS2 con HLAE", "Windows 10 y 11"] as const;
 
 const STEPS = [
   {
@@ -65,9 +62,6 @@ const DEMO_POINTS = [
 ] as const;
 
 const STREAM_POINTS = [
-  "Pega un enlace o sube un MP4.",
-  "Studio encuentra tus kills y los picos de voz.",
-  "Cámara + juego, cámara doble o solo juego.",
   "Banner, música y color.",
   "Un Short por momento o un resumen 16:9.",
   "No necesita CS2.",
@@ -82,7 +76,6 @@ const VIDEO_POINTS = [
 
 const ASSISTANT_POINTS = [
   "Studio incluye un servidor MCP para Claude y ChatGPT.",
-  "Pídele un Short o un informe del rival en lenguaje normal.",
   "Unas 200 herramientas.",
   "Te pide permiso antes de grabar o borrar.",
   "Usa tu suscripción, sin API key.",
@@ -96,11 +89,10 @@ const REQUIREMENTS = [
   "Alrededor de 1 GB libre en el disco.",
 ] as const;
 
-const eyebrowClass = "font-mono text-xs font-medium uppercase tracking-[0.2em] text-primary";
-const h2Class = "mt-3 font-display text-3xl font-semibold leading-tight text-balance text-fg sm:text-4xl";
+const h2Class = "font-display text-3xl font-semibold leading-tight text-balance text-fg sm:text-4xl";
 const leadClass = "mt-4 text-base leading-relaxed text-pretty text-muted sm:text-lg";
 const pointsClass = "mt-6 space-y-3 text-[15px] leading-relaxed text-muted";
-const sectionClass = "mx-auto max-w-6xl scroll-mt-20 px-5 py-16 sm:px-8 md:py-28";
+const sectionClass = "mx-auto max-w-6xl scroll-mt-20 px-5 py-12 sm:px-8 md:py-20";
 
 function Wordmark() {
   return (
@@ -141,14 +133,11 @@ function DownloadMeta() {
   );
 }
 
-function SectionHead({ eyebrow, title, id }: { eyebrow: string; title: string; id: string }) {
+function SectionHead({ title, id }: { title: string; id: string }) {
   return (
-    <>
-      <p className={eyebrowClass}>{eyebrow}</p>
-      <h2 id={id} className={h2Class}>
-        {title}
-      </h2>
-    </>
+    <h2 id={id} className={h2Class}>
+      {title}
+    </h2>
   );
 }
 
@@ -165,17 +154,17 @@ function Points({ items }: { items: readonly string[] }) {
   );
 }
 
-function Split({
-  text,
-  media,
-  reverse = false,
-}: {
+interface SplitProps {
   text: React.ReactNode;
   media: React.ReactNode;
   reverse?: boolean;
-}) {
+  wideMedia?: boolean;
+}
+
+function Split({ text, media, reverse = false, wideMedia = false }: SplitProps) {
+  const columns = wideMedia ? "md:grid-cols-2 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]" : "md:grid-cols-2";
   return (
-    <div className="grid items-center gap-10 md:grid-cols-2 md:gap-14">
+    <div className={`grid items-center gap-10 md:gap-14 ${columns}`}>
       <Reveal className={`min-w-0 ${reverse ? "md:order-2" : ""}`}>{text}</Reveal>
       <Reveal className={`min-w-0 ${reverse ? "md:order-1" : ""}`} delay={90}>
         {media}
@@ -194,7 +183,7 @@ function Section({ id, children }: { id: string; children: React.ReactNode }) {
 
 function Steps() {
   return (
-    <ol className="mt-7 space-y-6">
+    <ol className="mt-8 space-y-6">
       {STEPS.map((step, index) => (
         <li key={step.title} className="flex gap-4">
           <span className="grid size-9 shrink-0 place-items-center rounded-full border border-line bg-surface font-mono text-sm text-primary">
@@ -213,14 +202,14 @@ function Steps() {
 function ShortMedia() {
   return (
     <div className="relative mx-auto w-full max-w-[22rem] md:max-w-none">
-      <div className="md:absolute md:right-0 md:top-12 md:w-[78%]">
+      <div className="hidden md:absolute md:right-0 md:top-12 md:block md:w-[78%]">
         <Shot
           name="short-producer"
           title="Short Producer"
           alt="Editor de Short de ClipHub Studio con las jugadas elegidas, la etiqueta ACE y la vista previa en el móvil"
         />
       </div>
-      <div className="relative z-10 mx-auto mt-6 w-[62%] min-w-[12rem] max-w-[18rem] md:ml-0 md:mt-0 md:w-[58%]">
+      <div className="relative z-10 mx-auto w-[62%] min-w-[12rem] max-w-[18rem] md:ml-0 md:w-[58%]">
         <PhoneFrame>
           <SectionVideo
             name="short"
@@ -241,7 +230,7 @@ function VideosMedia() {
         title="Mis vídeos"
         alt="Lista de vídeos de ClipHub Studio con los estados en cola, grabando, en edición y listo"
       />
-      <div className="mt-4 md:absolute md:-bottom-8 md:right-0 md:mt-0 md:w-[62%]">
+      <div className="hidden md:absolute md:-bottom-8 md:right-0 md:block md:w-[62%]">
         <Shot
           name="publicar"
           title="Publicar en YouTube"
@@ -279,20 +268,20 @@ export default function Home() {
 
       <main>
         <section id="inicio" aria-labelledby="inicio-titulo" className="hero-backdrop scroll-mt-20 border-b border-line">
-          <div className="mx-auto max-w-6xl px-5 pb-16 pt-12 sm:px-8 md:pb-24 md:pt-20">
+          <div className="mx-auto max-w-6xl px-5 pb-14 pt-10 sm:px-8 md:pb-20 md:pt-16">
             <Split
+              wideMedia
               text={
                 <>
-                  <p className={eyebrowClass}>CLIPHUB STUDIO · CS2 EN LOCAL</p>
                   <h1
                     id="inicio-titulo"
-                    className="mt-4 font-display text-4xl font-bold leading-[1.05] text-balance sm:text-5xl lg:text-[3.4rem]"
+                    className="font-display text-4xl font-bold leading-[1.05] text-balance sm:text-5xl lg:text-[3.4rem]"
                   >
                     De la demo al vídeo, sin editar a mano
                   </h1>
                   <p className={leadClass}>
-                    Studio lee tu demo de CS2, encuentra las mejores jugadas, las graba en el juego y monta el vídeo. Y
-                    analiza la partida ronda a ronda.
+                    Studio lee tu demo de CS2 en tu PC, encuentra las mejores jugadas, las graba en el juego y monta el
+                    vídeo. Y analiza la partida ronda a ronda.
                   </p>
                   <div className="mt-8">
                     <DownloadButton label="Descargar para Windows" />
@@ -315,18 +304,6 @@ export default function Home() {
                 </div>
               }
             />
-            <Reveal delay={160}>
-              <ul className="mt-14 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4">
-                {FACTS.map((fact) => (
-                  <li
-                    key={fact}
-                    className="bg-surface px-4 py-4 text-center font-mono text-[11px] uppercase tracking-wider text-muted sm:text-xs"
-                  >
-                    {fact}
-                  </li>
-                ))}
-              </ul>
-            </Reveal>
           </div>
         </section>
 
@@ -335,19 +312,11 @@ export default function Home() {
             reverse
             text={
               <>
-                <SectionHead eyebrow="01 / CÓMO FUNCIONA" title="Cómo funciona" id="como-funciona-titulo" />
-                <p className={leadClass}>
-                  Un flujo de tres pasos: de tu archivo a un vídeo terminado, sin abrir un editor.
-                </p>
+                <SectionHead title="Cómo funciona" id="como-funciona-titulo" />
                 <Steps />
               </>
             }
-            media={
-              <div className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
-                <p className="font-mono text-[11px] uppercase tracking-wider text-muted">Así trabaja Studio</p>
-                <ProductFlow />
-              </div>
-            }
+            media={<ProductFlow />}
           />
         </Section>
 
@@ -355,7 +324,7 @@ export default function Home() {
           <Split
             text={
               <>
-                <SectionHead eyebrow="02 / IMPORTAR" title="Importa de donde juegues" id="importar-titulo" />
+                <SectionHead title="Importa de donde juegues" id="importar-titulo" />
                 <p className={leadClass}>Tus demos, tus partidas y los torneos que sigues, en el mismo sitio.</p>
                 <Points items={SOURCES} />
               </>
@@ -367,7 +336,7 @@ export default function Home() {
                   title="Importar partida"
                   alt="Pantalla de importar de ClipHub Studio con la opción de elegir una demo o arrastrarla"
                 />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="hidden grid-cols-2 gap-4 md:grid">
                   <Shot
                     name="partidas-pro"
                     title="Partidas pro"
@@ -382,9 +351,6 @@ export default function Home() {
               </div>
             }
           />
-          <Reveal className="mt-14">
-            <ImportSources />
-          </Reveal>
         </Section>
 
         <Section id="short">
@@ -392,7 +358,7 @@ export default function Home() {
             reverse
             text={
               <>
-                <SectionHead eyebrow="03 / SHORT" title="Short: tus mejores jugadas en vertical" id="short-titulo" />
+                <SectionHead title="Short: tus mejores jugadas en vertical" id="short-titulo" />
                 <p className={leadClass}>
                   Elige al jugador y Studio encuentra sus jugadas, las graba en CS2 con HLAE y las monta en un vídeo
                   listo para subir.
@@ -408,11 +374,7 @@ export default function Home() {
           <Split
             text={
               <>
-                <SectionHead
-                  eyebrow="04 / DEMO COMPLETA"
-                  title="Demo completa: la partida entera desde un jugador"
-                  id="demo-completa-titulo"
-                />
+                <SectionHead title="Demo completa: la partida entera desde un jugador" id="demo-completa-titulo" />
                 <p className={leadClass}>Con la calidad de un directo: HUD de retransmisión, voces del equipo y tus propios vídeos.</p>
                 <Points items={DEMO_POINTS} />
               </>
@@ -426,15 +388,17 @@ export default function Home() {
                     label="Demo completa de CS2 grabada desde un jugador con el HUD de retransmisión"
                   />
                 </div>
-                <Shot
-                  name="demo-ajustes"
-                  title="Ajustes de Demo completa"
-                  alt="Ajustes de la demo completa con la vista previa del HUD, la intro, el sponsor y el outro"
-                />
+                <div className="hidden md:block">
+                  <Shot
+                    name="demo-ajustes"
+                    title="Ajustes de Demo completa"
+                    alt="Ajustes de la demo completa con la vista previa del HUD, la intro, el sponsor y el outro"
+                  />
+                </div>
               </div>
             }
           />
-          <Reveal className="mx-auto mt-16 max-w-4xl">
+          <Reveal className="mx-auto mt-12 max-w-4xl md:mt-16">
             <h3 className="mb-5 font-display text-xl font-semibold text-fg">Once HUD de retransmisión para elegir</h3>
             <HudCarousel />
           </Reveal>
@@ -445,11 +409,7 @@ export default function Home() {
             reverse
             text={
               <>
-                <SectionHead
-                  eyebrow="05 / STREAMS"
-                  title="Clips de stream: tus directos, en Shorts"
-                  id="streams-titulo"
-                />
+                <SectionHead title="Clips de stream: tus directos, en Shorts" id="streams-titulo" />
                 <p className={leadClass}>
                   Pega un enlace o sube un MP4. Studio encuentra tus kills y los momentos de voz y los convierte en
                   Shorts.
@@ -459,7 +419,7 @@ export default function Home() {
             }
             media={<StreamLayouts />}
           />
-          <Reveal className="mx-auto mt-16 max-w-4xl">
+          <Reveal className="mx-auto mt-16 hidden max-w-4xl md:block">
             <Shot
               name="stream-editor"
               title="Editor de clips"
@@ -472,7 +432,7 @@ export default function Home() {
           <Split
             text={
               <>
-                <SectionHead eyebrow="06 / MIS VÍDEOS" title="Mis vídeos y publicar" id="mis-videos-titulo" />
+                <SectionHead title="Mis vídeos y publicar" id="mis-videos-titulo" />
                 <p className={leadClass}>Todo lo que has mandado a grabar o editar, con su estado a la vista.</p>
                 <Points items={VIDEO_POINTS} />
               </>
@@ -483,7 +443,7 @@ export default function Home() {
 
         <Section id="analisis">
           <Reveal className="max-w-3xl">
-            <SectionHead eyebrow="07 / ANÁLISIS" title="Análisis: prepara cada partida" id="analisis-titulo" />
+            <SectionHead title="Análisis: prepara cada partida" id="analisis-titulo" />
             <p className={leadClass}>
               Cada demo se analiza en local una sola vez y queda en tu biblioteca. Las partidas pro llegan ya
               analizadas.
@@ -498,8 +458,8 @@ export default function Home() {
           <Split
             text={
               <>
-                <SectionHead eyebrow="08 / ASISTENTES" title="Con tu asistente de IA" id="asistentes-titulo" />
-                <p className={leadClass}>Pídele a tu asistente lo que antes hacías a mano, en lenguaje normal.</p>
+                <SectionHead title="Con tu asistente de IA" id="asistentes-titulo" />
+                <p className={leadClass}>Pídele un Short o un informe del rival en lenguaje normal y tu asistente lo prepara con Studio.</p>
                 <Points items={ASSISTANT_POINTS} />
               </>
             }
@@ -511,7 +471,7 @@ export default function Home() {
           <Split
             text={
               <>
-                <SectionHead eyebrow="09 / DESCARGAR" title="Descarga ClipHub Studio" id="descargar-titulo" />
+                <SectionHead title="Descarga ClipHub Studio" id="descargar-titulo" />
                 <p className={leadClass}>
                   Las demos se analizan, graban y editan en tu PC: no necesitas cuenta y tus archivos no se suben a
                   ningún sitio.
@@ -544,8 +504,8 @@ export default function Home() {
         </Section>
       </main>
 
-      <footer className="border-t border-line px-5 py-10 sm:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
+      <footer className="border-t border-line py-10">
+        <div className="mx-auto flex max-w-6xl flex-col px-5 sm:px-8 gap-4 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
           <p>Gratis y en local. ClipHub nunca sube tus demos, clips ni vídeos.</p>
           <p className="flex items-center gap-5">
             <a href={REPO_URL} className="transition-colors hover:text-fg">

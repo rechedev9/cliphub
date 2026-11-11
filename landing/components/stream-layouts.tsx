@@ -34,19 +34,10 @@ function CameraFeed({ compact = false }: CameraFeedProps) {
   return (
     <div
       className={`relative size-full overflow-hidden border border-white/10 bg-surface ${
-        compact ? "rounded-lg" : "rounded-xl"
+        compact ? "rounded-lg" : "border-x-0 border-t-0"
       }`}
       style={{ backgroundImage: "linear-gradient(145deg, #25312a 0%, #111713 58%, #080b09 100%)" }}
     >
-      <span
-        aria-hidden="true"
-        className="absolute inset-0 opacity-60"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgb(238 243 240 / 0.05) 1px, transparent 1px), linear-gradient(90deg, rgb(238 243 240 / 0.05) 1px, transparent 1px)",
-          backgroundSize: "1.5rem 1.5rem",
-        }}
-      />
       <svg
         aria-hidden="true"
         viewBox="0 0 160 120"
@@ -56,25 +47,12 @@ function CameraFeed({ compact = false }: CameraFeedProps) {
         <circle cx="80" cy="38" r="22" fill="#84928a" />
         <rect x="31" y="62" width="98" height="66" rx="31" fill="#68776f" />
       </svg>
-      <span
-        className={`absolute left-2 top-2 inline-flex items-center gap-1 rounded-sm bg-accent font-mono font-semibold uppercase tracking-[0.12em] text-accent-fg ${
-          compact ? "px-1 py-0.5 text-[7px]" : "px-1.5 py-1 text-[8px]"
-        }`}
-      >
-        <span className="size-1 rounded-full bg-current" aria-hidden="true" />
-        EN DIRECTO
-      </span>
-      <span
-        className={`absolute bottom-2 left-2 font-mono uppercase tracking-[0.14em] text-fg/80 ${
-          compact ? "text-[8px]" : "text-[9px]"
-        }`}
-      >
-        Tu cámara
-      </span>
-      <span
-        aria-hidden="true"
-        className="absolute inset-x-2 bottom-1 h-px bg-white/15"
-      />
+      {compact ? null : (
+        <span className="absolute bottom-2 left-3 inline-flex items-center gap-1.5 rounded-sm bg-black/55 px-1.5 py-0.5 text-xs text-fg">
+          <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
+          Tu cámara
+        </span>
+      )}
     </div>
   );
 }
@@ -131,6 +109,8 @@ export default function StreamLayouts() {
   function onTabKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, index: number) {
     let next = index;
     if (event.key === "ArrowRight") next = (index + 1) % LAYOUT_COUNT;
+    else if (event.key === "ArrowDown") next = (index + 1) % LAYOUT_COUNT;
+    else if (event.key === "ArrowUp") next = (index - 1 + LAYOUT_COUNT) % LAYOUT_COUNT;
     else if (event.key === "ArrowLeft") next = (index - 1 + LAYOUT_COUNT) % LAYOUT_COUNT;
     else if (event.key === "Home") next = 0;
     else if (event.key === "End") next = LAYOUT_COUNT - 1;
@@ -144,7 +124,7 @@ export default function StreamLayouts() {
     <section
       ref={rootRef}
       aria-label="Diseños de Short"
-      className="mx-auto w-full max-w-[17rem]"
+      className="mx-auto grid w-full max-w-[20rem] gap-4 lg:max-w-none lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-center lg:gap-6"
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
       onFocus={(event) => {
@@ -160,7 +140,7 @@ export default function StreamLayouts() {
       <div
         role="tablist"
         aria-label="Elegir el diseño del Short"
-        className="grid grid-cols-3 overflow-hidden rounded-md border border-line bg-surface"
+        className="grid grid-cols-3 overflow-hidden rounded-md border border-line bg-surface lg:grid-cols-1 lg:divide-y lg:divide-line"
       >
         {LAYOUTS.map((layout, index) => {
           const isActive = index === active;
@@ -174,17 +154,17 @@ export default function StreamLayouts() {
               role="tab"
               id={`${panelId}-tab-${layout.id}`}
               aria-selected={isActive}
-              aria-controls={panelId}
               tabIndex={isActive ? 0 : -1}
               onClick={() => selectLayout(index)}
               onKeyDown={(event) => onTabKeyDown(event, index)}
-              className={`flex min-h-11 items-center justify-center border-b-2 px-1.5 text-center text-[11px] font-medium leading-tight focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${
+              className={`relative flex min-h-11 flex-col justify-center px-1 text-center transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:px-4 lg:py-3 lg:text-left ${
                 isActive
-                  ? "border-accent bg-surface-2 text-fg"
-                  : "border-transparent text-muted hover:bg-surface-2/60 hover:text-fg"
+                  ? "bg-surface-2 text-fg after:absolute after:inset-x-0 after:bottom-0 after:border-b-2 after:border-accent lg:after:inset-x-auto lg:after:inset-y-0 lg:after:left-0 lg:after:border-b-0 lg:after:border-l-2"
+                  : "text-muted [@media(hover:hover)]:hover:bg-surface-2/60 [@media(hover:hover)]:hover:text-fg"
               }`}
             >
-              {layout.name}
+              <span className="whitespace-nowrap text-[13px] font-medium leading-tight lg:text-sm">{layout.name}</span>
+              <span className="mt-1 hidden text-sm leading-snug text-muted lg:block">{layout.description}</span>
             </button>
           );
         })}
@@ -195,7 +175,7 @@ export default function StreamLayouts() {
         id={panelId}
         aria-labelledby={`${panelId}-tab-${current.id}`}
         tabIndex={0}
-        className="mt-4 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+        className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
       >
         <figure className="mx-auto w-full max-w-[17rem]">
           <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[1.35rem] border border-line bg-black">
@@ -216,7 +196,7 @@ export default function StreamLayouts() {
 
             <div
               aria-hidden={primaryHidden}
-              className="absolute inset-x-2.5 top-2.5 h-[31%] transition-[transform,opacity] duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
+              className="absolute inset-x-0 top-0 h-[34%] transition-[transform,opacity] duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
               style={{
                 transform: primaryHidden ? "translateY(-10px) scale(0.94)" : "translateY(0) scale(1)",
                 opacity: primaryHidden ? 0 : 1,
@@ -244,22 +224,15 @@ export default function StreamLayouts() {
                 opacity: bannerVisible ? 1 : 0,
               }}
             >
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 px-3 py-1.5 font-mono text-[10px] text-fg">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 px-3 py-1.5 font-mono text-xs text-fg">
                 <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
                 @tucanal
               </span>
             </div>
 
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between p-1.5 font-mono text-[7px] uppercase tracking-[0.14em] text-fg/45"
-            >
-              <span>9:16</span>
-              <span>SHORT</span>
-            </span>
           </div>
 
-          <figcaption className="mt-3 min-h-5 text-center font-mono text-[11px] leading-relaxed text-muted">
+          <figcaption className="mt-3 min-h-5 text-center text-sm text-muted lg:hidden">
             {current.description}
           </figcaption>
         </figure>

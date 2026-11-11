@@ -85,13 +85,19 @@ h4 {
   transform: translateY(12px);
 }
 
-/* The product flow in section 2; components/product-flow.tsx steps data-on through the loop. */
+/* The product flow in "Cómo funciona"; components/product-flow.tsx steps data-on through the loop. */
 .flow {
-  padding: 0.85rem 0.9rem 0.75rem;
-  border: 1px dashed var(--line);
-  border-radius: 10px;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
   background: var(--surface);
   color: var(--fg);
+}
+
+@media (min-width: 40rem) {
+  .flow {
+    padding: 1.5rem;
+  }
 }
 
 .flow-row {

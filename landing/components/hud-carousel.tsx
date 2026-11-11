@@ -62,6 +62,12 @@ const HUD_DESIGNS = [
 
 const HUD_COUNT = HUD_DESIGNS.length;
 const AUTOPLAY_MS = 2600;
+// The poster already carries a HUD at its edges, so the backdrop shows only its middle.
+const GAMEPLAY = {
+  backgroundImage: "url(/media/video/demo-completa.webp)",
+  backgroundSize: "280% auto",
+  backgroundPosition: "50% 55%",
+} as const;
 
 export default function HudCarousel() {
   const rootRef = useRef<HTMLElement>(null);
@@ -154,26 +160,8 @@ export default function HudCarousel() {
       }}
     >
       <div className="relative aspect-video w-full overflow-hidden border border-line bg-surface">
-        <img
-          src="/media/video/demo-completa.webp"
-          alt=""
-          width={960}
-          height={540}
-          loading="lazy"
-          decoding="async"
-          aria-hidden="true"
-          className="absolute inset-0 size-full scale-105 object-cover opacity-70 blur-[1px]"
-        />
-        <span className="absolute inset-0 bg-bg/35" aria-hidden="true" />
-        <span
-          aria-hidden="true"
-          className="absolute inset-0 opacity-40"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgb(238 243 240 / 0.06) 1px, transparent 1px), linear-gradient(90deg, rgb(238 243 240 / 0.06) 1px, transparent 1px)",
-            backgroundSize: "3rem 3rem",
-          }}
-        />
+        <span aria-hidden="true" className="absolute inset-0 scale-105 opacity-80 blur-[2px]" style={GAMEPLAY} />
+        <span className="absolute inset-0 bg-bg/30" aria-hidden="true" />
 
         {HUD_DESIGNS.map((hud, index) => {
           const isActive = index === active;
@@ -198,14 +186,6 @@ export default function HudCarousel() {
             </div>
           );
         })}
-
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-3 top-3 z-20 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.2em] text-fg/60"
-        >
-          <span>Full Demo / HUD</span>
-          <span>16:9</span>
-        </span>
       </div>
 
       <div className="h-0.5 overflow-hidden bg-line" aria-hidden="true">
@@ -220,7 +200,7 @@ export default function HudCarousel() {
         <div className="min-w-0">
           <div className="flex items-baseline gap-2.5">
             <span className="size-1.5 shrink-0 bg-accent" aria-hidden="true" />
-            <h3 className="font-display text-lg font-semibold leading-tight text-fg sm:text-xl">{current.name}</h3>
+            <p className="font-display text-lg font-semibold leading-tight text-fg sm:text-xl">{current.name}</p>
           </div>
           <p className="mt-1.5 min-h-10 text-sm leading-snug text-muted sm:min-h-0">{current.description}</p>
         </div>
@@ -232,7 +212,7 @@ export default function HudCarousel() {
       <div
         role="group"
         aria-label="Elegir un diseño de HUD"
-        className="mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-3 pt-1 [scrollbar-width:thin]"
+        className="mt-4 flex snap-x snap-proximity gap-3 overflow-x-auto scroll-px-1 px-1 pb-3 pt-1 [scrollbar-width:thin]"
       >
         {HUD_DESIGNS.map((hud, index) => {
           const isActive = index === active;
@@ -243,24 +223,27 @@ export default function HudCarousel() {
               aria-pressed={isActive}
               aria-label={`Ver el HUD ${hud.name}`}
               onClick={() => selectHud(index)}
-              className={`relative aspect-video w-28 shrink-0 snap-start overflow-hidden rounded-md border bg-surface-2 text-left transition-transform duration-200 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent motion-safe:active:scale-[0.97] ${
-                isActive
-                  ? "border-accent ring-2 ring-accent ring-offset-2 ring-offset-bg"
-                  : "border-line hover:border-muted/60"
-              }`}
+              className="group w-32 shrink-0 snap-start rounded-md text-left transition-transform duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent motion-safe:active:scale-[0.97]"
             >
-              <img
-                src={`/media/hud/${hud.id}.webp`}
-                alt={`HUD ${hud.name}`}
-                width={1920}
-                height={1080}
-                loading="lazy"
-                decoding="async"
-                className={`size-full object-contain transition-opacity duration-200 ease-out ${
-                  isActive ? "opacity-100" : "opacity-70"
+              <span
+                className={`relative block aspect-video overflow-hidden rounded-md border bg-surface-2 transition-colors duration-150 ${
+                  isActive
+                    ? "border-accent ring-2 ring-accent ring-offset-2 ring-offset-bg"
+                    : "border-line [@media(hover:hover)]:group-hover:border-muted/60"
                 }`}
-              />
-              <span className="absolute inset-x-0 bottom-0 bg-bg/85 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.12em] text-fg/80">
+                style={GAMEPLAY}
+              >
+                <img
+                  src={`/media/hud/${hud.id}.webp`}
+                  alt=""
+                  width={1920}
+                  height={1080}
+                  loading="lazy"
+                  decoding="async"
+                  className="size-full object-contain"
+                />
+              </span>
+              <span className={`mt-1.5 block text-xs ${isActive ? "font-medium text-fg" : "text-muted"}`}>
                 {hud.name}
               </span>
             </button>

@@ -31,7 +31,7 @@ export default function ProductFlow() {
 
   return (
     <figure
-      className="flow mt-5"
+      className="flow"
       aria-label="Cómo funciona: cargas una demo, Studio la lee, tú eliges jugador, música y efectos, y sale un Short listo para subir junto con el análisis de la partida."
     >
       <ol aria-hidden="true" className="space-y-3">
