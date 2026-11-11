@@ -6,26 +6,14 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const desktopRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-
-/** Every copy of `name` in a hoisted tree: the top one and each nested under a dependent. */
-function installedCopies(modules, name) {
-  if (!existsSync(modules)) return [];
-  const found = [];
-  for (const entry of readdirSync(modules, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-    const packages = entry.name.startsWith('@')
-      ? readdirSync(join(modules, entry.name), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join(modules, entry.name, e.name))
-      : [join(modules, entry.name)];
-    for (const dir of packages) {
-      if (dir.endsWith(`${join('node_modules', name)}`) && existsSync(join(dir, 'package.json'))) found.push(join(dir, 'package.json'));
-      found.push(...installedCopies(join(dir, 'node_modules'), name));
-    }
-  }
-  return found;
-}
+const virtualStore = join(desktopRoot, 'node_modules', '.pnpm');
 
 test('every installed minimatch can expand brace globs with its compatible dependency API', () => {
-  const installations = installedCopies(join(desktopRoot, 'node_modules'), 'minimatch');
+  assert.equal(existsSync(virtualStore), true, `pnpm virtual store missing: ${virtualStore}`);
+  const installations = readdirSync(virtualStore)
+    .filter((name) => name.startsWith('minimatch@'))
+    .map((name) => join(virtualStore, name, 'node_modules', 'minimatch', 'package.json'))
+    .filter(existsSync);
   assert.ok(installations.length > 0, 'no minimatch installations found');
 
   for (const packageJSON of installations) {
