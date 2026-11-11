@@ -46,10 +46,9 @@ func TestKeyDropRenderBurnsCustomCode(t *testing.T) {
 	tests := []struct {
 		style string
 		code  string
-		frame string
 	}{
-		{style: "classic", code: "NUEVO99", frame: "/tmp/kd-e2e-frame.png"},
-		{style: "jcorko", code: "HUASO", frame: "/tmp/kd-jcorko-e2e-frame.png"},
+		{style: "classic", code: "NUEVO99"},
+		{style: "jcorko", code: "HUASO"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.style+"/"+tt.code, func(t *testing.T) {
@@ -89,18 +88,10 @@ func TestKeyDropRenderBurnsCustomCode(t *testing.T) {
 			if err != nil || info.Size() < 1000 {
 				t.Fatalf("output missing or tiny: %v size=%d", err, info.Size())
 			}
-			in, err := os.ReadFile(clipFrame)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(tt.frame, in, 0o644); err != nil {
-				t.Fatal(err)
-			}
 			banner := sampleBannerPixel(t, clipFrame)
 			if banner.R+banner.G+banner.B > 220 {
 				t.Fatalf("banner center looks like empty gray source: %+v", banner)
 			}
-			t.Logf("frame written to %s banner=%+v", tt.frame, banner)
 		})
 	}
 }
