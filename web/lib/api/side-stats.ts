@@ -43,6 +43,26 @@ export type SideStatsPlayer = {
   adr: number;
   kpr: number;
   dpr: number;
+  /** Percent of rounds with a kill, an assist, survival or a trade. */
+  kast: number;
+  /** Per round over the rounds scanned with utility effects; null when none was. */
+  udr: number | null;
+  far: number | null;
+  /** Percent of kills that were headshots; null without kills. */
+  hs: number | null;
+};
+
+/** The Rendimiento de jugadores footer: the team's players pooled, or the group's mean of that line. */
+export type PlayerLine = {
+  rating: number | null;
+  kpr: number | null;
+  kd: number | null;
+  dpr: number | null;
+  adr: number | null;
+  kast: number | null;
+  udr: number | null;
+  far: number | null;
+  hs: number | null;
 };
 
 export type SideStatsMatchRef = { match_id: string; map: string; played_at: string; opponent: string; rounds: number; won: boolean };
@@ -67,6 +87,8 @@ export type TeamSideStats = {
   ct: SideStats;
   t: SideStats;
   players: SideStatsPlayer[];
+  players_average: PlayerLine;
+  players_group_avg: PlayerLine;
   match_list: SideStatsMatchRef[];
   group_teams: number;
   rating_formula: string;
@@ -75,8 +97,8 @@ export type TeamSideStats = {
 export const TEAM_SIDE_STATS_KEYS = [
   'team_id', 'team_name', 'skipped', 'compare', 'compare_teams', 'matches', 'rounds', 'overall', 'ct', 't', 'players',
   'match_list', 'group_teams', 'compare_skipped', 'group_capped', 'group_matches', 'group_min_rounds', 'rating_formula',
-  'awp_estimated',
-] as const;
+  'awp_estimated', 'players_average', 'players_group_avg',
+] as const satisfies readonly (keyof TeamSideStats)[];
 export const TEAM_SIDE_STATS_QUERY = [
   'map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'compare_team',
 ] as const;

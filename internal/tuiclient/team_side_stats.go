@@ -41,6 +41,10 @@ type SideStatsPlayer struct {
 	ADR       float64                      `json:"adr"`
 	KPR       float64                      `json:"kpr"`
 	DPR       float64                      `json:"dpr"`
+	KAST      float64                      `json:"kast"`
+	UDR       *float64                     `json:"udr"`
+	FAR       *float64                     `json:"far"`
+	HS        *float64                     `json:"hs"`
 }
 
 // TeamSideStatsReport is GET /api/library/teams/{id}/side-stats.
@@ -73,6 +77,9 @@ type TeamSideStatsReport struct {
 	T             SideStats         `json:"t"`
 	Players       []SideStatsPlayer `json:"players"`
 	RatingFormula string            `json:"rating_formula"`
+	// PlayersAverage pools the team's players; PlayersGroupAvg is the comparison group's mean of that line.
+	PlayersAverage  tacticalplan.PlayerLine `json:"players_average"`
+	PlayersGroupAvg tacticalplan.PlayerLine `json:"players_group_avg"`
 }
 
 // SideStatsQuery is a side stats read: the team scope, buys included, and the

@@ -19,9 +19,12 @@ export function EdgeTile({
   detail,
   info,
   tone = 'neutral',
+  wrapLabel = false,
   className,
 }: {
   label: string;
+  /** Lets a long label take a second line, as EDGE's overall tiles do, instead of cutting it. */
+  wrapLabel?: boolean;
   value: ReactNode;
   note?: ReactNode;
   /** A second dim line under the note, such as the group mean. */
@@ -33,8 +36,8 @@ export function EdgeTile({
 }): ReactNode {
   return (
     <div className={cn('flex min-w-0 flex-col gap-0.5 border border-l-2 border-border bg-surface-2 px-3 py-2', EDGE[tone], className)}>
-      <dt className="flex min-w-0 items-center gap-1 text-meta font-medium tracking-wider text-fg-3 uppercase">
-        <span className="truncate">{label}</span>
+      <dt className={cn('flex min-w-0 gap-1 text-meta font-medium tracking-wider text-fg-3 uppercase', wrapLabel ? 'items-start' : 'items-center')}>
+        <span className={wrapLabel ? 'min-w-0' : 'truncate'}>{label}</span>
         {info}
       </dt>
       <dd className="flex min-w-0 flex-col gap-0.5">

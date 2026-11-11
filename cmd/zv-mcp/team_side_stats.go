@@ -35,6 +35,10 @@ type sidePlayerOut struct {
 	ADR       float64      `json:"adr"`
 	KPR       float64      `json:"kpr"`
 	DPR       float64      `json:"dpr"`
+	KAST      float64      `json:"kast" jsonschema:"percent of rounds with a kill, an assist, survival or a trade"`
+	UDR       *float64     `json:"udr" jsonschema:"utility damage per round; null when no demo of the scope has utility effects"`
+	FAR       *float64     `json:"far" jsonschema:"flash assists per round; null when no demo of the scope has utility effects"`
+	HS        *float64     `json:"hs" jsonschema:"percent of kills that were headshots; null without kills"`
 }
 
 type sideMatchOut struct {
@@ -47,24 +51,26 @@ type sideMatchOut struct {
 }
 
 type teamSideStatsOut struct {
-	Team           string              `json:"team" jsonschema:"untrusted team name"`
-	Matches        int                 `json:"matches"`
-	Rounds         int                 `json:"rounds"`
-	CompareTo      []string            `json:"compare_to" jsonschema:"untrusted names of the comparison teams; empty means the whole library"`
-	CompareSkipped []string            `json:"compare_skipped" jsonschema:"compare_to ids that are no team of the library, left out"`
-	GroupTeams     int                 `json:"group_teams" jsonschema:"comparison teams with rounds in the same map, side, dates and buys"`
-	GroupMatches   int                 `json:"group_matches" jsonschema:"comparison matches read, at most 20 per team"`
-	GroupCapped    bool                `json:"group_capped" jsonschema:"true when a team had more matches than the cap, so only its newest count"`
-	AWPEstimated   int                 `json:"awp_estimated,omitempty" jsonschema:"matches whose AWP filter was estimated from AWP kills and hits: their analysis predates the AWP flag"`
-	GroupMinRounds int                 `json:"group_min_rounds" jsonschema:"a team enters a figure's mean only with this many rounds behind it; each figure's group_teams says how many did"`
-	Overall        tuiclient.SideStats `json:"overall" jsonschema:"each figure: value (percent for rates, per round for utility damage and flash assists, a count for rounds_played; null without data) and group_avg, the plain mean of the comparison teams"`
-	CT             tuiclient.SideStats `json:"ct" jsonschema:"the figures on CT; maps_won is null on a side"`
-	T              tuiclient.SideStats `json:"t" jsonschema:"the figures on T; maps_won is null on a side"`
-	Players        []sidePlayerOut     `json:"players"`
-	MatchList      []sideMatchOut      `json:"match_list" jsonschema:"the matches the figures stand on, newest first"`
-	RatingFormula  string              `json:"rating_formula"`
-	StudioPath     string              `json:"studio_path" jsonschema:"the path that opens the team's Estadísticas tab in Studio with the filters it shows: map, side, dates, rival, lineup and buys"`
-	SkippedMatches int                 `json:"skipped_matches,omitempty"`
+	Team           string                  `json:"team" jsonschema:"untrusted team name"`
+	Matches        int                     `json:"matches"`
+	Rounds         int                     `json:"rounds"`
+	CompareTo      []string                `json:"compare_to" jsonschema:"untrusted names of the comparison teams; empty means the whole library"`
+	CompareSkipped []string                `json:"compare_skipped" jsonschema:"compare_to ids that are no team of the library, left out"`
+	GroupTeams     int                     `json:"group_teams" jsonschema:"comparison teams with rounds in the same map, side, dates and buys"`
+	GroupMatches   int                     `json:"group_matches" jsonschema:"comparison matches read, at most 20 per team"`
+	GroupCapped    bool                    `json:"group_capped" jsonschema:"true when a team had more matches than the cap, so only its newest count"`
+	AWPEstimated   int                     `json:"awp_estimated,omitempty" jsonschema:"matches whose AWP filter was estimated from AWP kills and hits: their analysis predates the AWP flag"`
+	GroupMinRounds int                     `json:"group_min_rounds" jsonschema:"a team enters a figure's mean only with this many rounds behind it; each figure's group_teams says how many did"`
+	Overall        tuiclient.SideStats     `json:"overall" jsonschema:"each figure: value (percent for rates, per round for utility damage and flash assists, a count for rounds_played; null without data) and group_avg, the plain mean of the comparison teams"`
+	CT             tuiclient.SideStats     `json:"ct" jsonschema:"the figures on CT; maps_won is null on a side"`
+	T              tuiclient.SideStats     `json:"t" jsonschema:"the figures on T; maps_won is null on a side"`
+	Players        []sidePlayerOut         `json:"players"`
+	PlayersAverage tacticalplan.PlayerLine `json:"players_average" jsonschema:"the Rendimiento de jugadores footer: every player of the team pooled (rating is the rounds-weighted mean of the players' ratings)"`
+	PlayersGroup   tacticalplan.PlayerLine `json:"players_group_avg" jsonschema:"the plain mean of the comparison teams' pooled player lines, each team with group_min_rounds rounds (for udr and far, rounds scanned for utility); the arrows of each player row compare with it"`
+	MatchList      []sideMatchOut          `json:"match_list" jsonschema:"the matches the figures stand on, newest first"`
+	RatingFormula  string                  `json:"rating_formula"`
+	StudioPath     string                  `json:"studio_path" jsonschema:"the path that opens the team's Estadísticas tab in Studio with the filters it shows: map, side, dates, rival, lineup and buys"`
+	SkippedMatches int                     `json:"skipped_matches,omitempty"`
 }
 
 func (in teamSideStatsIn) query() (tuiclient.SideStatsQuery, error) {
@@ -126,6 +132,7 @@ func summarizeSideStats(r tuiclient.TeamSideStatsReport, path string) teamSideSt
 		Team: cleanName(r.TeamName), Matches: r.Matches, Rounds: r.Rounds, CompareTo: []string{}, CompareSkipped: cleanNames(r.CompareSkipped),
 		GroupTeams: r.GroupTeams, GroupMatches: r.GroupMatches, GroupCapped: r.GroupCapped, GroupMinRounds: r.GroupMinRounds, AWPEstimated: r.AWPEstimated,
 		Overall: r.Overall, CT: r.CT, T: r.T, Players: []sidePlayerOut{}, MatchList: []sideMatchOut{}, RatingFormula: r.RatingFormula,
+		PlayersAverage: r.PlayersAverage, PlayersGroup: r.PlayersGroupAvg,
 		StudioPath: path, SkippedMatches: len(r.Skipped),
 	}
 	for _, team := range r.CompareTeams {
@@ -134,7 +141,7 @@ func summarizeSideStats(r tuiclient.TeamSideStatsReport, path string) teamSideSt
 	for _, p := range r.Players {
 		po := sidePlayerOut{
 			SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Role: cleanName(p.Role), Rounds: p.Rounds,
-			Rating: p.Rating, KD: p.KD, ADR: p.ADR, KPR: p.KPR, DPR: p.DPR,
+			Rating: p.Rating, KD: p.KD, ADR: p.ADR, KPR: p.KPR, DPR: p.DPR, KAST: p.KAST, UDR: p.UDR, FAR: p.FAR, HS: p.HS,
 		}
 		if p.MapRoles != nil {
 			for _, side := range []tacticalplan.Side{tacticalplan.SideT, tacticalplan.SideCT} {
@@ -158,8 +165,9 @@ func registerTeamSideStatsTool(server *mcp.Server, s *studio) {
 		Description: "Read a team's statistics, overall and per side, as the team's Estadísticas tab shows them: maps, rounds and pistols won, " +
 			"opening kills, 5v4 and 4v5 rounds won, trades, utility damage and flash assists per round and rounds played, each with group_avg, " +
 			"the mean of the comparison teams (compare_to, or the whole library) over the same map, side, dates and buys; and one card per player " +
-			"(library role, with one map the role per side as the Ranking reads it in map_roles, ClipHub rating, K/D, ADR, KPR, DPR). Narrow with map, side, dates, opponent_id, match_id, lineup and the team scope: buy and opponent_buy " +
-			"(lists; semi with force is a half buy), max_matches, last_days, opponent_top, whose, awp, opponent_awp, advantage and round_from/round_to. "+
+			"(library role, with one map the role per side as the Ranking reads it in map_roles, ClipHub rating, K/D, ADR, KPR, DPR) with the " +
+			"Rendimiento de jugadores columns KAST, UDR, FAR and HS, plus players_average (the team pooled) and players_group_avg (the comparison group). Narrow with map, side, dates, opponent_id, match_id, lineup and the team scope: buy and opponent_buy " +
+			"(lists; semi with force is a half buy), max_matches, last_days, opponent_top, whose, awp, opponent_awp, advantage and round_from/round_to. " +
 			"With side set, the ct and t blocks ignore the side filter (the other side keeps its real figures) while overall honours it."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamSideStatsIn) (*mcp.CallToolResult, teamSideStatsOut, error) {
 			q, err := in.query()

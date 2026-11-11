@@ -66,24 +66,6 @@ func (s *SideStats) fields() []*SideStat {
 	}
 }
 
-// SideStatsPlayer is one player's card: rating, K/D, ADR, KPR and DPR.
-type SideStatsPlayer struct {
-	SteamID64 string `json:"steamid64"`
-	Name      string `json:"name"`
-	Role      string `json:"role"`
-	// MapRoles is the player's role per side on the map, set when the scope reads one map.
-	MapRoles *PlayerMapRoles `json:"map_roles,omitempty"`
-	Rounds   int             `json:"rounds"`
-	Kills    int             `json:"kills"`
-	Deaths   int             `json:"deaths"`
-	Damage   int             `json:"damage"`
-	Rating   float64         `json:"rating"`
-	KD       float64         `json:"kd"`
-	ADR      float64         `json:"adr"`
-	KPR      float64         `json:"kpr"`
-	DPR      float64         `json:"dpr"`
-}
-
 // SideStatsMatchRef is a match the figures stand on, for "Ver partidas".
 type SideStatsMatchRef struct {
 	MatchID  uuid.UUID `json:"match_id"`
@@ -96,17 +78,20 @@ type SideStatsMatchRef struct {
 
 // SideStatsReport is a team's figures in the scope against a comparison group.
 type SideStatsReport struct {
-	Matches        int                 `json:"matches"`
-	Rounds         int                 `json:"rounds"`
-	Overall        SideStats           `json:"overall"`
-	CT             SideStats           `json:"ct"`
-	T              SideStats           `json:"t"`
-	Players        []SideStatsPlayer   `json:"players"`
-	MatchList      []SideStatsMatchRef `json:"match_list"`
-	GroupTeams     int                 `json:"group_teams"`
-	GroupMatches   int                 `json:"group_matches"`
-	GroupMinRounds int                 `json:"group_min_rounds"`
-	RatingFormula  string              `json:"rating_formula"`
+	Matches int               `json:"matches"`
+	Rounds  int               `json:"rounds"`
+	Overall SideStats         `json:"overall"`
+	CT      SideStats         `json:"ct"`
+	T       SideStats         `json:"t"`
+	Players []SideStatsPlayer `json:"players"`
+	// PlayersAverage pools every player of the team; PlayersGroupAvg is the group's mean of those lines.
+	PlayersAverage  PlayerLine          `json:"players_average"`
+	PlayersGroupAvg PlayerLine          `json:"players_group_avg"`
+	MatchList       []SideStatsMatchRef `json:"match_list"`
+	GroupTeams      int                 `json:"group_teams"`
+	GroupMatches    int                 `json:"group_matches"`
+	GroupMinRounds  int                 `json:"group_min_rounds"`
+	RatingFormula   string              `json:"rating_formula"`
 }
 
 // sideAcc adds up one side, or both, of a team's kept rounds.
@@ -186,63 +171,15 @@ func mapWon(doc Document, teamKey string) bool {
 }
 
 // roundView is one kept round seen from the team: its side, every slot's side
-// and whether the demo was scanned with utility effects.
+// and whether the demo was scanned with utility effects, with the side's utility per slot then.
 type roundView struct {
 	Round
 	side     Side
 	sides    map[uint8]Side
 	tickrate float64
 	utility  bool
-}
-
-// countFlashAssists counts the side's kills of an enemy a teammate of the
-// killer had blinded, while still blind; one assist per thrower and kill.
-func countFlashAssists(v roundView) int {
-	type blind struct {
-		thrower, victim uint8
-		from, to        int
-	}
-	var blinds []blind
-	assists := 0
-	for _, ev := range v.Events {
-		if ev.ActorSlot == nil || v.sides[*ev.ActorSlot] != v.side {
-			continue
-		}
-		actor := *ev.ActorSlot
-		switch ev.Kind {
-		case EventFlash:
-			if ev.Effect == nil {
-				continue
-			}
-			for _, b := range ev.Effect.Blinded {
-				if b.Enemy {
-					blinds = append(blinds, blind{thrower: actor, victim: b.Slot, from: ev.Tick, to: ev.Tick + int(b.Seconds*v.tickrate)})
-				}
-			}
-		case EventKill:
-			if ev.TargetSlot == nil {
-				continue
-			}
-			credited := map[uint8]bool{}
-			for _, b := range blinds {
-				if b.victim == *ev.TargetSlot && b.thrower != actor && !credited[b.thrower] && ev.Tick >= b.from && ev.Tick <= b.to {
-					credited[b.thrower] = true
-					assists++
-				}
-			}
-		}
-	}
-	return assists
-}
-
-func utilityDamage(v roundView) int {
-	total := 0
-	for _, ev := range v.Events {
-		if (ev.Kind == EventHE || ev.Kind == EventMolotov) && ev.Effect != nil && ev.ActorSlot != nil && v.sides[*ev.ActorSlot] == v.side {
-			total += ev.Effect.EnemyDamage
-		}
-	}
-	return total
+	// utilDamage and flashAssists are filled once per round when utility is set.
+	utilDamage, flashAssists map[uint8]int
 }
 
 func (a *sideAcc) addRound(v roundView) {
@@ -286,19 +223,12 @@ func (a *sideAcc) addRound(v roundView) {
 	}
 	if v.utility {
 		a.utilRounds++
-		a.utilDamage += utilityDamage(v)
-		a.flashAssists += countFlashAssists(v)
+		a.utilDamage += sumSlots(v.utilDamage)
+		a.flashAssists += sumSlots(v.flashAssists)
 	}
 }
 
-type playerAccum struct {
-	SideStatsPlayer
-	Assists    int
-	KASTRounds int
-	order      int
-}
-
-// teamRun adds up one team's matches; a group team skips the cards and the match list.
+// teamRun adds up one team's matches; a group team skips the match list and keeps its players only for players_group_avg.
 type teamRun struct {
 	overall, ct, t sideAcc
 	players        map[string]*playerAccum
@@ -335,6 +265,9 @@ func (run *teamRun) addMatch(m SideStatsMatch, opts SideStatsOptions) {
 		for _, pr := range r.Players {
 			v.sides[pr.Slot] = pr.Side
 		}
+		if v.utility {
+			v.utilDamage, v.flashAssists = utilityDamageBySlot(v), flashAssistsBySlot(v)
+		}
 		if v.side == SideCT {
 			run.ct.addRound(v)
 		} else {
@@ -345,9 +278,7 @@ func (run *teamRun) addMatch(m SideStatsMatch, opts SideStatsOptions) {
 		}
 		kept++
 		run.overall.addRound(v)
-		if !run.group {
-			run.addPlayers(v, names)
-		}
+		run.addPlayers(v, names)
 	}
 	if kept == 0 {
 		return
@@ -361,56 +292,6 @@ func (run *teamRun) addMatch(m SideStatsMatch, opts SideStatsOptions) {
 			MatchID: m.MatchID, Map: doc.Demo.Map, PlayedAt: m.PlayedAt, Opponent: m.Opponent, Rounds: kept, Won: won,
 		})
 	}
-}
-
-func (run *teamRun) addPlayers(v roundView, names map[uint8]Player) {
-	for _, pr := range v.Players {
-		p, ok := names[pr.Slot]
-		if pr.Side != v.side || !ok || p.SteamID64 == "" {
-			continue
-		}
-		acc := run.players[p.SteamID64]
-		if acc == nil {
-			acc = &playerAccum{SideStatsPlayer: SideStatsPlayer{SteamID64: p.SteamID64}, order: len(run.players)}
-			run.players[p.SteamID64] = acc
-		}
-		acc.Name = p.Name
-		acc.Rounds++
-		acc.Kills += pr.Kills
-		acc.Deaths += pr.Deaths
-		acc.Damage += pr.Damage
-		acc.Assists += pr.Assists
-		if pr.Kills > 0 || pr.Assists > 0 || pr.Survived || pr.Traded {
-			acc.KASTRounds++
-		}
-	}
-}
-
-func (run *teamRun) playerCards(opts SideStatsOptions) []SideStatsPlayer {
-	list := make([]*playerAccum, 0, len(run.players))
-	for _, p := range run.players {
-		list = append(list, p)
-	}
-	sort.Slice(list, func(i, j int) bool {
-		if list[i].Rounds != list[j].Rounds {
-			return list[i].Rounds > list[j].Rounds
-		}
-		return list[i].order < list[j].order
-	})
-	out := make([]SideStatsPlayer, 0, len(list))
-	for _, acc := range list {
-		p := acc.SideStatsPlayer
-		rounds := float64(p.Rounds)
-		p.KPR, p.DPR, p.ADR = round2(float64(p.Kills)/rounds), round2(float64(p.Deaths)/rounds), math.Round(float64(p.Damage)/rounds*10)/10
-		p.KD = round2(float64(p.Kills) / float64(max(p.Deaths, 1)))
-		p.Rating = round2(Rating(RatingLine{Rounds: p.Rounds, Kills: p.Kills, Deaths: p.Deaths, Assists: acc.Assists, Damage: p.Damage, KASTRounds: acc.KASTRounds}))
-		p.Role = opts.Roles[p.SteamID64]
-		if r, ok := opts.MapRoles[p.SteamID64]; ok {
-			p.MapRoles = &r
-		}
-		out = append(out, p)
-	}
-	return out
 }
 
 // SideStatsGroup folds the comparison teams' matches one at a time, so the
@@ -471,11 +352,13 @@ func TeamSideStats(in SideStatsInput) SideStatsReport {
 	report := SideStatsReport{
 		Matches: run.overall.matches, Rounds: run.overall.rounds,
 		Overall: run.overall.stats(), CT: sideOnly(run.ct.stats()), T: sideOnly(run.t.stats()),
-		Players: run.playerCards(in.Options), MatchList: run.refs, GroupMinRounds: GroupMinRounds, RatingFormula: RatingFormula,
+		Players: run.playerCards(in.Options), PlayersAverage: run.teamLine(),
+		MatchList: run.refs, GroupMinRounds: GroupMinRounds, RatingFormula: RatingFormula,
 	}
 	var overall, ct, t []groupTeam
 	if in.Group != nil {
 		report.GroupMatches = len(in.Group.matches)
+		report.PlayersGroupAvg = groupPlayerLine(in.Group.teams)
 		for _, g := range in.Group.teams {
 			if g.overall.rounds > 0 {
 				overall = append(overall, groupTeam{g.overall.stats(), g.overall.rounds})

@@ -20,6 +20,7 @@ import { formatShortDate, prettyMapName } from '@/lib/format';
 import { ROLE_LABEL } from '@/lib/library/partidas';
 import { FIRST_DEATH_TRAMOS, type FirstDeathTramoId } from '@/lib/replay/tramo';
 import { placeLabel } from '@/lib/tactical-labels';
+import { InfoTip } from '@/components/analysis/info-tip';
 import { CAPS_LABEL } from '@/components/analysis/scope-field-style';
 import { FirstDeathMap } from '@/components/prep/first-death-map';
 import { PlayerAvatar } from '@/components/players/player-avatar';
@@ -57,7 +58,7 @@ function ChipRow<T extends string>({
 }): ReactNode {
   return (
     <div role="group" aria-label={label} className="flex flex-wrap items-center gap-1.5">
-      <span className={cn(CAPS_LABEL, 'w-20 shrink-0')}>{label}</span>
+      <span className={cn(CAPS_LABEL, 'mr-1 shrink-0')}>{label}</span>
       {options.map((option) => (
         <button
           key={option.value}
@@ -102,12 +103,12 @@ function PlayerCard({ player, side, index, picked, onPick }: {
               {chips.map((chip) => (
                 <RoleChip key={chip.side} side={chip.side} label={chip.label} />
               ))}
-              {library === '' ? null : <RoleChip label={library} />}
+              {library === '' || chips.length > 0 ? null : <RoleChip label={library} />}
             </p>
           )}
         </div>
       </div>
-      <p className="flex items-baseline gap-2">
+      <p className="flex items-baseline justify-between gap-2 border-y border-border-subtle py-1.5">
         <span className={CAPS_LABEL}>Rondas jugadas</span>
         <span className="text-body font-bold text-fg-1 tabular-nums">{player.rounds}</span>
       </p>
@@ -146,7 +147,10 @@ function MapPanel({ teamId, data, picked, tramo }: PanelProps): ReactNode {
     <section aria-label="Posiciones en el mapa" className="flex flex-col gap-2">
       <SlashTitle>Posiciones en el mapa</SlashTitle>
       {player === undefined || zone === undefined ? (
-        <p className="border border-border bg-surface-2 px-3 py-2 text-body-sm text-fg-2">Elige un jugador y una zona. Sin datos todavía.</p>
+        <div className="flex flex-col gap-2">
+          <p className="w-fit border border-border bg-surface-3 px-2 py-1 text-meta text-fg-2">Ningún jugador ni zona elegidos</p>
+          <p className="grid min-h-40 place-items-center border border-border bg-surface-2 text-body-sm text-fg-3">Sin datos.</p>
+        </div>
       ) : (
         <div className="flex flex-col gap-2 lg:flex-row lg:items-start">
           <FirstDeathMap teamId={teamId} map={data.map} zone={zone} color={playerColor(index)} label={`${player.name} en ${prettyMapName(data.map)}`} />
@@ -237,8 +241,16 @@ export function TeamPositions({ teamId, scope, lineup }: TeamPositionsProps): Re
   const others = Math.max(0, players.length - MAIN_PLAYERS);
   return (
     <div className="flex flex-col gap-4">
-      <SlashTitle>Posiciones en {side} (hasta la primera muerte)</SlashTitle>
-      <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <SlashTitle>Posiciones en {side} (hasta la primera muerte)</SlashTitle>
+        {data !== null && data !== 'failed' && data.players.length > 0 ? (
+          <InfoTip
+            label="las posiciones"
+            text={`Segundos por ronda con posiciones, leídos en ${data.framed} rondas de ${data.side} con posiciones. Cuenta cada ronda hasta la primera muerte de la ronda, de cualquier jugador.`}
+          />
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         {scope.side === '' ? (
           <ChipRow
             label="Lado"
@@ -261,10 +273,7 @@ export function TeamPositions({ teamId, scope, lineup }: TeamPositionsProps): Re
       ) : null}
       {data !== null && data !== 'failed' && data.players.length > 0 ? (
         <>
-          <p className="text-meta text-fg-3">
-            Segundos por ronda con posiciones, leídos en {data.framed} rondas de {data.side} con posiciones. Cuenta cada ronda hasta la primera muerte de la ronda, de cualquier jugador.
-          </p>
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2">
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-2">
             {shown.map((player, index) => (
               <PlayerCard key={player.steamid64} player={player} side={data.side} index={index} picked={picked} onPick={setPicked} />
             ))}

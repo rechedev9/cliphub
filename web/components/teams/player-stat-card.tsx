@@ -12,44 +12,26 @@ import { InfoTip } from '@/components/analysis/info-tip';
 import { PlayerAvatar } from '@/components/players/player-avatar';
 import { RoleChip } from '@/components/ui/role-chip';
 
-function roleText(role: string): string {
-  const known = LIBRARY_ROLES.find((entry) => entry === role);
-  return known === undefined ? ROLE_LABEL.unknown : ROLE_LABEL[known];
-}
-
-function SideLabel({ side }: { side: ReportSide }): ReactNode {
-  if (side === 'CT') return <span className="font-semibold text-side-ct">CT</span>;
-  if (side === 'T') return <span className="font-semibold text-side-t">T</span>;
-  return (
-    <span className="font-semibold">
-      <span className="text-side-ct">CT</span> y <span className="text-side-t">T</span>
-    </span>
-  );
-}
-
-function RoleChips({ player, side }: { player: SideStatsPlayer; side: ReportSide }): ReactNode {
+/** The map role of the side in scope, as EDGE's "T Mid"; without one, the library role. */
+export function RoleChips({ player, side }: { player: SideStatsPlayer; side: ReportSide }): ReactNode {
   const chips = mapRoleChips(player.map_roles, side);
-  if (chips.length === 0) {
+  if (chips.length > 0) {
     return (
-      <p className="flex flex-wrap items-center gap-1 text-meta text-fg-2">
-        <SideLabel side={side} />
-        {player.role === 'unknown' ? null : <RoleChip label={roleText(player.role)} />}
+      <p className="flex flex-wrap items-center gap-1">
+        {chips.map((chip) => (
+          <RoleChip key={chip.side} side={chip.side} label={chip.label} />
+        ))}
       </p>
     );
   }
-  return (
-    <p className="flex flex-wrap items-center gap-1">
-      {chips.map((chip) => (
-        <RoleChip key={chip.side} side={chip.side} label={chip.label} />
-      ))}
-      {player.role === 'unknown' ? null : <RoleChip label={roleText(player.role)} />}
-    </p>
-  );
+  const known = LIBRARY_ROLES.find((entry) => entry === player.role);
+  if (known === undefined || known === 'unknown') return null;
+  return <RoleChip label={ROLE_LABEL[known]} />;
 }
 
 /**
- * A player's card in the EDGE Jugadores row: the nick and the avatar (FACEIT's when known, else the
- * initial), the role chips, the big rating and the 2x2 of K/D, ADR, KPR and DPR.
+ * A player's card in EDGE's Players row: the nick over the picture (FACEIT's avatar when known, else
+ * the initial), then the role, the big rating and the 2x2 of K/D, ADR, KPR and DPR.
  */
 export function PlayerStatCard({ player, side }: { player: SideStatsPlayer; side: ReportSide }): ReactNode {
   const name = player.name || player.steamid64;
@@ -60,28 +42,35 @@ export function PlayerStatCard({ player, side }: { player: SideStatsPlayer; side
     { label: 'DPR', value: formatDecimal(player.dpr, 2) },
   ];
   return (
-    <li className="flex min-w-0 flex-col gap-2 border border-border bg-surface-2 p-3">
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="truncate text-body font-bold text-fg-1">{name}</p>
-          <RoleChips player={player} side={side} />
-        </div>
-        <PlayerAvatar nickname={name} playerID={player.steamid64} size={32} />
+    <li
+      title={player.rounds === 1 ? '1 ronda' : `${player.rounds} rondas`}
+      className="relative isolate flex min-h-52 min-w-0 flex-col justify-between gap-3 overflow-hidden border border-border bg-surface-2 p-3"
+    >
+      <div aria-hidden className="absolute top-6 -right-3 -z-10 opacity-45">
+        <PlayerAvatar nickname={name} playerID={player.steamid64} size={112} />
       </div>
-      <p className="flex items-baseline gap-1.5">
-        <span className="text-stat leading-none font-bold text-fg-1 tabular-nums">{formatDecimal(player.rating, 2)}</span>
-        <span className="text-meta font-medium tracking-wider text-fg-3 uppercase">{RATING_LABEL}</span>
-        <InfoTip label={RATING_LABEL} text={RATING_FORMULA_TEXT} />
-      </p>
-      <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-        {lines.map((line) => (
-          <div key={line.label} className="flex flex-col">
-            <dt className="text-meta font-medium tracking-wider text-fg-3 uppercase">{line.label}</dt>
-            <dd className="text-body font-bold text-fg-1 tabular-nums">{line.value}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="text-meta text-fg-3 tabular-nums">{player.rounds === 1 ? '1 ronda' : `${player.rounds} rondas`}</p>
+      <div aria-hidden className="absolute inset-0 -z-10 bg-linear-to-t from-surface-2 via-surface-2/80 to-transparent" />
+      <p className="truncate text-body font-bold text-fg-1">{name}</p>
+      <div className="flex flex-col gap-2">
+        <RoleChips player={player} side={side} />
+        <p className="flex items-center gap-1.5">
+          <span className="font-num text-stat leading-none font-bold text-fg-1 tabular-nums">{formatDecimal(player.rating, 2)}</span>
+          <span className="text-[0.5625rem] leading-none font-bold tracking-wider text-fg-3 uppercase">
+            Rating
+            <br />
+            ClipHub
+          </span>
+          <InfoTip label={RATING_LABEL} text={RATING_FORMULA_TEXT} />
+        </p>
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+          {lines.map((line) => (
+            <div key={line.label} className="flex flex-col">
+              <dt className="text-meta font-medium tracking-wider text-fg-3 uppercase">{line.label}</dt>
+              <dd className="font-num text-body font-bold text-fg-1 tabular-nums">{line.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
     </li>
   );
 }
