@@ -7,7 +7,6 @@ import (
 	"math"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/recapplan"
@@ -261,11 +260,6 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 		sb.WriteString(fmt.Sprintf("    const fullDemoProCvars = %s;\n", proJSON))
 		sb.WriteString(fmt.Sprintf("    const fullDemoCapture = %s;\n    const fullDemoAllowTailTrim = %t;\n    const fullDemoToken = %q;\n", captureJSON, plan.FullDemo.Options.Editorial.AllowSafeTailTrim, attestationToken))
 		sb.WriteString(fmt.Sprintf("    const fullDemoAcquireLeadTicks = %d;\n", plan.Tickrate))
-		volumeJSON, err := json.Marshal(fullDemoGameVolumeCvars)
-		if err != nil {
-			return "", err
-		}
-		sb.WriteString(fmt.Sprintf("    const fullDemoGameVolumeCvars = %s;\n    const fullDemoMinGameVolume = %s;\n", volumeJSON, strconv.FormatFloat(fullDemoMinGameVolume, 'f', -1, 64)))
 		sb.WriteString(fullDemoRuntime)
 	}
 	sb.WriteString("    const run = (item) => {\n")

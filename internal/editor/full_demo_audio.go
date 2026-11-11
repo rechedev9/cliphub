@@ -47,8 +47,8 @@ func loudnessFilter(target recapplan.LoudnessOptions) string {
 	return "loudnorm=I=" + decimal(target.TargetILUFS) + ":TP=" + decimal(target.TargetTPDBTP) + ":LRA=" + decimal(target.TargetLRA)
 }
 
-// silentPeakDBTP is the true peak below which a program with no gated loudness
-// counts as silent: a CS2 capture at volume 0 still peaks near -70 dBTP.
+// silentPeakDBTP is the true peak below which a track with no gated loudness
+// counts as silent: a team voice track where nobody spoke still peaks near -70 dBTP.
 const silentPeakDBTP = -60
 
 func inaudiblePeak(value string) bool {

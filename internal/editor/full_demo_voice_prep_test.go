@@ -94,6 +94,29 @@ func TestFullDemoVoicePrepSerialAndParallelProduceIdenticalPCM(t *testing.T) {
 	}
 }
 
+// A team that barely spoke leaves CS2's voice track at a -70 dBTP residue with no
+// gated loudness; it must mix at unity gain instead of failing the render.
+func TestFullDemoVoicePrepAcceptsANearSilentTeamTrack(t *testing.T) {
+	mediaTest(t)
+	ffmpeg := fullDemoTestFFmpeg(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	dir := t.TempDir()
+	source := filepath.Join(dir, "team-voice.opus")
+	command := []string{ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "aevalsrc=0.0003*sin(2*PI*440*t):s=48000:d=3", "-ac", "1", "-c:a", "libopus", "-b:a", "32k", source}
+	if _, err := runFFmpegOutput(ctx, command, "voice fixture"); err != nil {
+		t.Fatal(err)
+	}
+	inputs := []fullDemoVoiceInput{{Path: source, StorageKey: "team/voice-0"}}
+	prepared, err := prepareFullDemoVoiceTracks(ctx, ffmpeg, dir, inputs, recapplan.DefaultOptions().Audio, 3, nil, 1)
+	if err != nil {
+		t.Fatalf("near-silent team voice failed the render: %v", err)
+	}
+	if prepared[0].Measurement.Status != "silent" || prepared[0].GainDB != 0 {
+		t.Fatalf("near-silent team voice = %s at %v dB, want silent at unity gain", prepared[0].Measurement.Status, prepared[0].GainDB)
+	}
+}
+
 // A bounded pool must actually overlap independent tracks but never exceed its
 // limit, and must still return results keyed by the original index.
 func TestFullDemoVoicePoolBoundsWorkersAndKeepsOrder(t *testing.T) {
