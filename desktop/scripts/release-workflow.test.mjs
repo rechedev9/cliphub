@@ -81,6 +81,15 @@ test('a release publishes only after the checks pass', () => {
   assert.match(jobs.publish, /needs: \[checks, windows-installer\]/);
 });
 
+// An Ubuntu mirror outage blocked 5.19.0 twice, and its FFmpeg 6.1 was not the 8.1.2 Studio ships.
+test('the checks test the editor on Windows with the FFmpeg Studio installs', () => {
+  const checks = jobs.checks;
+  assert.match(checks, /runs-on: windows-latest/);
+  assert.ok(checks.includes('provisionRuntimeTools'), 'checks must install FFmpeg with Studio\'s pinned runtime tools');
+  assert.ok(checks.includes('GITHUB_PATH'), 'the Go tests find ffmpeg and ffprobe on PATH');
+  assert.doesNotMatch(workflow, /apt-get|choco |winget /, 'no tool may come from a package mirror');
+});
+
 test('a manual run is a dry run by default', () => {
   assert.match(workflow, /dry_run:\n(?: {8}.*\n)*? {8}default: true/, 'dry_run must default to true');
   assert.match(
