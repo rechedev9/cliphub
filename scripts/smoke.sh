@@ -304,20 +304,20 @@ else
   HTTP_ADDR="${ZV_SMOKE_HTTP_ADDR:-127.0.0.1:18080}"
   OWNED_PORT="${HTTP_ADDR##*:}"
   BASE="http://$HTTP_ADDR"
-  ZV="./bin/zv"
-  if [ ! -x "$ZV" ] && [ -x "$ZV.exe" ]; then
-    ZV="$ZV.exe"
-  fi
-  if [ ! -x "$ZV" ]; then
-    echo "zv binary not found; build first with ./scripts/build.ps1" >&2
-    exit 1
-  fi
   if ! EXISTING_PID="$(listener_pid "$OWNED_PORT")"; then
     echo "could not inspect smoke port $OWNED_PORT for an existing listener" >&2
     exit 1
   fi
   if [ -n "$EXISTING_PID" ]; then
     echo "smoke port $OWNED_PORT is already owned by process $EXISTING_PID" >&2
+    exit 1
+  fi
+  ZV="./bin/zv"
+  if [ ! -x "$ZV" ] && [ -x "$ZV.exe" ]; then
+    ZV="$ZV.exe"
+  fi
+  if [ ! -x "$ZV" ]; then
+    echo "zv binary not found; build first with ./scripts/build.ps1" >&2
     exit 1
   fi
   OWNED_DATA="$(mktemp -d "${TMPDIR:-/tmp}/cliphub-smoke.XXXXXXXX")"
