@@ -836,7 +836,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, req recordRequest)
 		"--hlae", cfg.HLAEPath,
 		"--cs2", cfg.CS2Path,
 		"--hud", cfg.HUDMode,
-		"--timeout", cfg.Timeout,
+		"--timeout", captureTimeout(cfg.Timeout, recordPlan),
 	}
 	if portraitSafeKillfeed {
 		recorderArgs = append(recorderArgs, "--portrait-safe-killfeed")
