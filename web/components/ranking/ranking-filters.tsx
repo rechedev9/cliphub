@@ -189,8 +189,8 @@ export function RankingFilters({
           label="Datos"
           value={state.scope.reference}
           options={[
-            { value: 'library', label: 'Tu biblioteca' },
             { value: 'pro', label: 'Profesionales' },
+            { value: 'library', label: 'Tu biblioteca' },
           ]}
           onChange={onReference}
         />

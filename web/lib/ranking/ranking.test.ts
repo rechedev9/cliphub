@@ -34,7 +34,16 @@ test('an empty query is the default view', () => {
   assert.equal(state.role, '');
   assert.deepEqual(state.scope.period, { kind: 'preset', preset: '90d' });
   assert.equal(DEFAULT_MIN_ROUNDS, 50);
+  assert.equal(state.scope.reference, 'pro');
   assert.equal(writeRanking(state), '');
+});
+
+test('the library is asked for explicitly and survives the URL', () => {
+  const library = parse('ref=library');
+  assert.equal(library.scope.reference, 'library');
+  assert.equal(writeRanking(library), 'ref=library');
+  assert.equal(writeRanking(patchRanking(library, { scope: { reference: 'pro' } })), '');
+  assert.equal(parse('ref=pro').scope.reference, 'pro');
 });
 
 test('every date is asked for explicitly and survives the URL', () => {
@@ -88,20 +97,20 @@ test('a role needs a map and fixes the side', () => {
 });
 
 test('a library role and Todoterreno read every map on library data only', () => {
-  const awp = parse('role=awp');
+  const awp = parse('ref=library&role=awp');
   assert.equal(awp.role, 'awp');
   assert.equal(awp.scope.side, '');
   assert.equal(leaderboardRequest(awp, NOW).role, 'awp');
-  assert.equal(parse('map=de_anubis&role=rifler').role, 'rifler');
-  assert.equal(parse('ref=pro&role=awp').role, '');
+  assert.equal(parse('ref=library&map=de_anubis&role=rifler').role, 'rifler');
+  assert.equal(parse('role=awp').role, '');
   assert.equal(patchRanking(awp, { scope: { reference: 'pro' } }).role, '');
-  const allround = parse('side=T&posicion=allround');
+  const allround = parse('ref=library&side=T&posicion=allround');
   assert.equal(allround.mapRole, 'allround');
   assert.equal(leaderboardRequest(allround, NOW).map_role, 'allround');
-  assert.equal(parse('posicion=allround').mapRole, '');
-  assert.equal(parse('ref=pro&side=T&posicion=allround').mapRole, '');
+  assert.equal(parse('ref=library&posicion=allround').mapRole, '');
+  assert.equal(parse('side=T&posicion=allround').mapRole, '');
   assert.equal(patchRanking(allround, { scope: { side: 'CT' } }).mapRole, '');
-  assert.equal(patchRanking(parse(''), { mapRole: 'allround', scope: { side: 'CT' } }).mapRole, 'allround');
+  assert.equal(patchRanking(parse('ref=library'), { mapRole: 'allround', scope: { side: 'CT' } }).mapRole, 'allround');
 });
 
 test('choosing the other side or clearing the map drops the role', () => {
@@ -113,7 +122,7 @@ test('choosing the other side or clearing the map drops the role', () => {
 });
 
 test('the library request carries every filter and the pro request only the map', () => {
-  const state = parse('map=de_anubis&period=90d&role=b_lurk&nivel=hltv&min=50&orden=adr');
+  const state = parse('ref=library&map=de_anubis&period=90d&role=b_lurk&nivel=hltv&min=50&orden=adr');
   const library = leaderboardRequest(state, NOW);
   assert.deepEqual(
     { metric: library.metric, map: library.map, role: library.role, side: library.side, source: library.source, min: library.min_rounds, limit: library.limit },
@@ -128,8 +137,8 @@ test('the pro request names a period, rival and team level, event and position, 
     [full.map_role, full.team_top, full.top, full.event, full.days],
     ['Canal', 15, 30, 'IEM Cologne', 90],
   );
-  assert.equal(parse('equipo=15').teamTop, null);
-  assert.equal(parse('evento=x').event, '');
+  assert.equal(parse('ref=library&equipo=15').teamTop, null);
+  assert.equal(parse('ref=library&evento=x').event, '');
   assert.equal(leaderboardRequest(parse('map=de_anubis&side=T&posicion=Canal'), NOW).map_role, 'Canal');
   const pro = leaderboardRequest(parse('map=de_anubis&ref=pro&role=b_lurk&nivel=hltv&period=30d&rival=30'), NOW);
   assert.deepEqual(
@@ -139,8 +148,8 @@ test('the pro request names a period, rival and team level, event and position, 
   assert.equal(leaderboardRequest(parse('ref=pro'), NOW).days, 90);
   assert.equal(leaderboardRequest(parse('ref=pro&period=all'), NOW).days, 'all');
   assert.equal(leaderboardRequest(parse('ref=pro&rival=7'), NOW).top, undefined);
-  assert.equal(parse('rival=30').top, null);
-  assert.equal(parse('ref=pro&rival=30').top, 30);
+  assert.equal(parse('ref=library&rival=30').top, null);
+  assert.equal(parse('rival=30').top, 30);
   assert.equal(parse(writeRanking(parse('ref=pro&rival=15&map=de_anubis'))).top, 15);
 });
 
