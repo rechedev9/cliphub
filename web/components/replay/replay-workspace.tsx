@@ -58,13 +58,12 @@ import { useSavedPlaylists, type SavedPlaylistsControl } from './use-saved-playl
 import { PlaylistRoundCard } from './playlist-round-card';
 import type { FocusControl } from './replay-players';
 import { useMapSettings } from './use-map-settings';
-import { ReplayPreferences } from './replay-preferences';
+import { ReplayPreferences, type PreferencesTab } from './replay-preferences';
 import { RadarCentre } from './radar-centre';
 import { ReplaySidePanel } from './replay-side-panel';
 import { ReplayTransport, superposeCopy } from './replay-transport';
 import { SetposNotice } from './setpos-notice';
 import { ReplayStackOverlay, type ReplayStack } from './replay-stack-overlay';
-import { ShortcutHelp } from './shortcut-help';
 import { useFullscreen } from './use-fullscreen';
 import { useSetposCopies } from './use-setpos-copies';
 import { useReplayVoice } from './use-replay-voice';
@@ -178,8 +177,16 @@ export function ReplayWorkspace({
   }, []);
   const [uiTick, setUiTick] = useState(0);
   const [eventsOpen, setEventsOpen] = useState(false);
-  const [help, setHelp] = useState(false);
   const [preferences, setPreferences] = useState(false);
+  const [preferencesTab, setPreferencesTab] = useState<PreferencesTab>('general');
+  const showShortcuts = useCallback(() => {
+    setPreferencesTab('keys');
+    setPreferences(true);
+  }, []);
+  const openPreferences = useCallback(() => {
+    setPreferencesTab('general');
+    setPreferences((value) => !value);
+  }, []);
   const preferencesChip = useRef<HTMLButtonElement>(null);
   // The dialog opens inside the replay only in full screen, so entering or leaving it closes the dialog instead of moving it.
   const [rootElement, setRootElement] = useState<HTMLElement | null>(null);
@@ -441,10 +448,10 @@ export function ReplayWorkspace({
     }
     event.preventDefault();
     if (shortcut === 'help') {
-      // Dialogs open outside the full-screen layer, so leave it to show them.
-      if (fullscreen.active) fullscreen.toggle();
-      setHelp((value) => !value);
-    } else if (shortcut === 'fullscreen') fullscreen.toggle();
+      if (preferences && preferencesTab === 'keys') setPreferences(false);
+      else showShortcuts();
+    }
+    else if (shortcut === 'fullscreen') fullscreen.toggle();
     else if (shortcut === 'multi') toggleMulti();
     else if (shortcut === 'follow') {
       const slot = focus[0] ?? followSlot;
@@ -675,12 +682,8 @@ export function ReplayWorkspace({
           <ReplayToolbar
             draft={library ? draft : null}
             gif={{ open: gif.open, onToggle: gif.toggle }}
-            preferences={{ open: preferences, onOpen: () => setPreferences((value) => !value), triggerRef: preferencesChip }}
-            onHelp={() => {
-              // Dialogs open outside the full-screen layer, so leave it to show them.
-              if (fullscreen.active) fullscreen.toggle();
-              setHelp(true);
-            }}
+            preferences={{ open: preferences, onOpen: openPreferences, triggerRef: preferencesChip }}
+            onHelp={showShortcuts}
             follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
           />
         }
@@ -727,6 +730,8 @@ export function ReplayWorkspace({
       <ReplayPreferences
         open={preferences}
         onOpenChange={setPreferences}
+        tab={preferencesTab}
+        onTabChange={setPreferencesTab}
         settings={mapSettings}
         onSettings={setMapSettings}
         twoFloors={focused !== null && isMultiLevelMap(focused.doc.geometry.calibration)}
@@ -734,7 +739,6 @@ export function ReplayWorkspace({
         container={fullscreen.active ? rootElement : null}
         returnFocus={preferencesChip}
       />
-      <ShortcutHelp open={help} onOpenChange={setHelp} />
     </section>
   );
 }
