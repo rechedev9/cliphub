@@ -73,7 +73,7 @@ func TestLibraryTeamHeatmapAndOverlayFollowTheTeam(t *testing.T) {
 
 	for _, bad := range []string{
 		"/heatmap?kind=smell", "/heatmap?t_from=20&t_to=10", "/heatmap?grenade=decoy", "/heatmap?map=de_nuke&map=de_mirage",
-		"/overlay?limit=99", "/heatmap?buy=lots", "/heatmap?kind=kill&kill_at=elbow", "/heatmap?player=slot0",
+		"/overlay?limit=401", "/heatmap?buy=lots", "/heatmap?kind=kill&kill_at=elbow", "/heatmap?player=slot0",
 	} {
 		if rw := f.env.do(http.MethodGet, base+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Fatalf("GET %s = %d, want 400", bad, rw.Code)

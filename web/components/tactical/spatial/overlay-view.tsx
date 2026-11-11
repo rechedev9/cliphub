@@ -40,7 +40,8 @@ import { TramoBar, useTramo } from '@/components/replay/tramo-bar';
 import type { TramoControl } from '@/components/replay/tramo-bar';
 import { CLOCK_BOX, PLAYING_STRIP, SCRUB_INPUT, SpeedPicker } from '@/components/replay/time-strip';
 import { InfoTip } from '@/components/analysis/info-tip';
-import { isWholeRound, tramoEnd } from '@/lib/replay/tramo';
+import { isWholeRound } from '@/lib/replay/tramo';
+import { tramoSpan } from '@/lib/heat-live';
 
 /** Seconds of path drawn behind each dot. */
 const TRAIL_SECONDS = 4;
@@ -184,11 +185,7 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
   const spans = useMemo(() => {
     const out = new Map<string, { from: number; to: number } | null>();
     if (isWholeRound(tramo)) return out;
-    for (const round of rounds) {
-      const plant = round.events.find((event) => event.kind === TACTICAL_EVENT_KINDS.plant)?.seconds ?? null;
-      if (tramo.fromPlant === true) out.set(overlayRoundKey(round), plant === null ? null : { from: plant, to: round.duration_seconds });
-      else out.set(overlayRoundKey(round), { from: tramo.from, to: Math.min(tramoEnd(tramo), round.duration_seconds) });
-    }
+    for (const round of rounds) out.set(overlayRoundKey(round), tramoSpan(round, tramo));
     return out;
   }, [rounds, tramo]);
   // Playback stays inside the tramo and starts over at its end.

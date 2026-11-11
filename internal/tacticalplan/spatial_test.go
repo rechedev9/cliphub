@@ -235,6 +235,23 @@ func TestOverlaySyncsRoundsFromFreezeEnd(t *testing.T) {
 	}
 }
 
+func TestOverlayReadsNoPositionsPastTheLimit(t *testing.T) {
+	reads := 0
+	counted := func() SpatialMatch {
+		m := spatialMatch(t, Filter{TeamKey: "ct-start"})
+		read := m.Blob
+		m.Blob = func() ([]byte, error) { reads++; return read() }
+		return m
+	}
+	o, err := BuildOverlay([]SpatialMatch{counted(), counted()}, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.Total != 8 || len(o.Rounds) != 2 || reads != 1 {
+		t.Fatalf("total %d, %d rounds, %d position reads; want 8 matched, 2 drawn and only the first match read", o.Total, len(o.Rounds), reads)
+	}
+}
+
 // floorMatch is spatialMatch on a two-floor map: slot 0 climbs from 105 units under the altitude cut
 // at 1.5 units a tick and stays up, slot 2 stands just over the cut inside the dead band.
 func floorMatch(t *testing.T) SpatialMatch {

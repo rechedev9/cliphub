@@ -20,8 +20,10 @@ const (
 	HeatmapExampleLimit = 3
 	// OverlayStepSeconds is the spacing of the points of an overlaid track.
 	OverlayStepSeconds = 0.5
-	// OverlayRoundLimit caps how many rounds one overlay draws.
+	// OverlayRoundLimit is how many rounds one overlay draws when the caller names no limit.
 	OverlayRoundLimit = 40
+	// OverlayMaxRounds caps an asked limit: the heatmap reads every round's track to redraw its tramo live.
+	OverlayMaxRounds = 400
 )
 
 // HeatmapKind is what a heatmap counts.
@@ -155,9 +157,9 @@ type Heatmap struct {
 	// SampleSeconds is the time one count of the position kind stands for: every
 	// round is read at this step, so a cell's count times it is the time spent there.
 	SampleSeconds float64 `json:"sample_seconds"`
-	ExampleLimit    int `json:"example_limit"`
-	Matches         int `json:"matches"`
-	Rounds          int `json:"rounds"`
+	ExampleLimit  int     `json:"example_limit"`
+	Matches       int     `json:"matches"`
+	Rounds        int     `json:"rounds"`
 	// MissingPositions counts the matches with no position blob; they add
 	// deaths and grenades but no positions or timings.
 	MissingPositions int           `json:"missing_positions"`
@@ -545,7 +547,8 @@ type Overlay struct {
 	StepSeconds float64 `json:"step_seconds"`
 	Limit       int     `json:"limit"`
 	// Total is how many rounds matched before the limit cut the list.
-	Total            int            `json:"total"`
+	Total int `json:"total"`
+	// MissingPositions counts the matches read for the list that had no positions.
 	MissingPositions int            `json:"missing_positions"`
 	Rounds           []OverlayRound `json:"rounds"`
 }
@@ -557,12 +560,21 @@ func intPos(p [3]float64) [3]int {
 // BuildOverlay lays the selected rounds on one clock, at most limit of them, in
 // the matches' order and then by round number.
 func BuildOverlay(matches []SpatialMatch, limit int) (Overlay, error) {
-	if limit <= 0 || limit > OverlayRoundLimit {
+	switch {
+	case limit <= 0:
 		limit = OverlayRoundLimit
+	case limit > OverlayMaxRounds:
+		limit = OverlayMaxRounds
 	}
 	out := Overlay{StepSeconds: OverlayStepSeconds, Limit: limit, Rounds: []OverlayRound{}}
 	for _, m := range matches {
 		doc := m.Document
+		rounds := m.Filter.Apply(doc)
+		out.Total += len(rounds)
+		// Past the limit a match only adds to Total: its positions are never read.
+		if len(out.Rounds) >= limit {
+			continue
+		}
 		blob, header, hasBlob, err := m.positions()
 		if err != nil {
 			return Overlay{}, err
@@ -570,10 +582,9 @@ func BuildOverlay(matches []SpatialMatch, limit int) (Overlay, error) {
 		if !hasBlob {
 			out.MissingPositions++
 		}
-		for _, r := range m.Filter.Apply(doc) {
-			out.Total++
+		for _, r := range rounds {
 			if len(out.Rounds) >= limit {
-				continue
+				break
 			}
 			round := overlayRound(m, r)
 			if hasBlob {
