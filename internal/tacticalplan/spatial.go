@@ -20,8 +20,10 @@ const (
 	HeatmapExampleLimit = 3
 	// OverlayStepSeconds is the spacing of the points of an overlaid track.
 	OverlayStepSeconds = 0.5
-	// OverlayRoundLimit caps how many rounds one overlay draws.
+	// OverlayRoundLimit is how many rounds one overlay draws when the caller names no limit.
 	OverlayRoundLimit = 40
+	// OverlayMaxRounds caps an asked limit: the heatmap reads every round's track to redraw its tramo live.
+	OverlayMaxRounds = 400
 )
 
 // HeatmapKind is what a heatmap counts.
@@ -557,8 +559,11 @@ func intPos(p [3]float64) [3]int {
 // BuildOverlay lays the selected rounds on one clock, at most limit of them, in
 // the matches' order and then by round number.
 func BuildOverlay(matches []SpatialMatch, limit int) (Overlay, error) {
-	if limit <= 0 || limit > OverlayRoundLimit {
+	switch {
+	case limit <= 0:
 		limit = OverlayRoundLimit
+	case limit > OverlayMaxRounds:
+		limit = OverlayMaxRounds
 	}
 	out := Overlay{StepSeconds: OverlayStepSeconds, Limit: limit, Rounds: []OverlayRound{}}
 	for _, m := range matches {

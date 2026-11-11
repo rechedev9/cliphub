@@ -82,8 +82,8 @@ func parseSpatialRequest(q url.Values, overlay bool) (spatialRequest, error) {
 	if overlay {
 		if raw := q.Get("limit"); raw != "" {
 			limit, err := strconv.Atoi(raw)
-			if err != nil || limit < 1 || limit > tacticalplan.OverlayRoundLimit {
-				return req, fmt.Errorf("limit must be an integer from 1 to %d", tacticalplan.OverlayRoundLimit)
+			if err != nil || limit < 1 || limit > tacticalplan.OverlayMaxRounds {
+				return req, fmt.Errorf("limit must be an integer from 1 to %d", tacticalplan.OverlayMaxRounds)
 			}
 			req.limit = limit
 		}
