@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode, RefObject } from 'react';
+import { CircleDot, Keyboard, SlidersHorizontal } from 'lucide-react';
 import {
   DOT_SIZES,
   DOT_SIZE_LABELS,
@@ -16,49 +17,68 @@ import {
   frameRateLabel,
 } from '@/lib/replay/map-settings';
 import type { MapSettings, MapShow } from '@/lib/replay/map-settings';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Segmented } from '@/components/ui/segmented';
-import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShortcutTable } from './shortcut-table';
 
-function Group({ title, children }: { title: string; children: ReactNode }): ReactNode {
+export type PreferencesTab = 'general' | 'players' | 'keys';
+
+const PREFERENCES_TABS: readonly PreferencesTab[] = ['general', 'players', 'keys'];
+
+function isPreferencesTab(value: string): value is PreferencesTab {
+  return PREFERENCES_TABS.some((tab) => tab === value);
+}
+
+const PANEL = 'flex min-h-0 flex-col gap-5 overflow-y-auto overscroll-contain p-5 [scrollbar-width:thin]';
+const TRIGGER = 'h-9 flex-none px-2.5';
+
+function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
-    <section aria-label={title} className="flex flex-col gap-3 border-t border-border-subtle pt-4 first:border-t-0 first:pt-0">
-      <h3 className="border-b border-border-subtle pb-1.5 text-body-sm font-bold text-fg-1">{title}</h3>
-      <div className="grid gap-x-6 gap-y-4 sm:grid-cols-3">{children}</div>
+    <section aria-label={title} className="flex flex-col gap-2">
+      <h3 className="text-body-sm font-semibold text-fg-1">{title}</h3>
+      <div className="flex flex-col divide-y divide-border-subtle rounded-md border border-border-subtle bg-surface-1">{children}</div>
     </section>
   );
 }
 
-function Setting({ label, hint, className, children }: { label: string; hint?: string; className?: string; children: ReactNode }): ReactNode {
+function Text({ label, hint }: { label: string; hint?: string }): ReactNode {
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      <span className="text-meta font-semibold text-fg-1">{label}</span>
-      {children}
+    <span className="flex min-w-0 flex-col">
+      <span className="text-body-sm text-fg-1">{label}</span>
       {hint === undefined ? null : <span className="text-meta text-fg-3">{hint}</span>}
-    </div>
+    </span>
   );
 }
 
-function Check({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (checked: boolean) => void }): ReactNode {
+function Toggle({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (checked: boolean) => void }): ReactNode {
   return (
-    <label title={hint} className="flex cursor-pointer items-center gap-2 text-body-sm text-fg-2 has-[:focus-visible]:text-fg-1">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="size-3.5 cursor-pointer accent-primary" />
-      {label}
+    <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4 px-3 py-2 transition-colors hover:bg-surface-2">
+      <Text label={label} hint={hint} />
+      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
     </label>
   );
 }
 
+function Choice({ label, hint, children }: { label: string; hint?: string; children: ReactNode }): ReactNode {
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-4 px-3 py-2">
+      <Text label={label} hint={hint} />
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
 /**
- * Preferencias del replay, with the settings of EDGE's replayer: the timeline's
- * ticks, the kill feed, the scoreline and the floors; the effects, lines and
- * inventory on each player; the size of the dots and names; the zoom and the
- * frame rate. They apply at once and stay for every match.
+ * Preferencias del replay, with the settings of EDGE's replayer in three tabs: what the map and
+ * timeline draw, how each player is drawn, and every keyboard shortcut. They apply at once.
  */
 export function ReplayPreferences({
   open,
   onOpenChange,
+  tab,
+  onTabChange,
   settings,
   onSettings,
   twoFloors,
@@ -68,6 +88,8 @@ export function ReplayPreferences({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  tab: PreferencesTab;
+  onTabChange: (tab: PreferencesTab) => void;
   settings: MapSettings;
   onSettings: (settings: MapSettings) => void;
   /** The map has a lower floor (Nuke, Vertigo), so it can split the floors. */
@@ -76,11 +98,11 @@ export function ReplayPreferences({
   drawing: boolean;
   /** The full-screen replay, which sits in the top layer: the dialog opens inside it to stay visible. */
   container: HTMLElement | null;
-  /** The button that opened the dialog, which gets the focus back when it closes. */
-  returnFocus: RefObject<HTMLButtonElement | null>;
+  /** What had the focus when the dialog opened, which gets it back when it closes. */
+  returnFocus: RefObject<HTMLElement | null>;
 }): ReactNode {
   const show = (key: MapShow): ReactNode => (
-    <Check
+    <Toggle
       key={key}
       label={MAP_SHOW_LABELS[key]}
       hint={MAP_SHOW_HINTS[key]}
@@ -97,96 +119,114 @@ export function ReplayPreferences({
           event.preventDefault();
           returnFocus.current?.focus();
         }}
-        className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 p-0 sm:max-w-2xl"
+        className="h-[min(42rem,calc(100dvh-2rem))] grid-rows-[auto_minmax(0,1fr)] gap-0 p-0 sm:max-w-2xl"
       >
-        <DialogHeader className="border-b border-border-subtle p-4 pr-12">
+        <DialogHeader className="border-b border-border-subtle px-5 py-4 pr-12">
           <DialogTitle>Preferencias del replay</DialogTitle>
           <DialogDescription>Se aplican al momento y se guardan para todas las partidas.</DialogDescription>
         </DialogHeader>
-        <div className="flex min-h-0 flex-col gap-5 overflow-y-auto overscroll-contain p-4 [scrollbar-width:thin]">
-          <Group title="Interfaz">
-            <Setting label="Línea de tiempo">
-              {show('tlEvents')}
-              {show('tlUtility')}
-              {show('tlKills')}
-            </Setting>
-            <Setting label="Reproducción">{show('freezetime')}</Setting>
-            <Setting label="Mapa">
+        <Tabs
+          orientation="vertical"
+          value={tab}
+          onValueChange={(value) => {
+            if (isPreferencesTab(value)) onTabChange(value);
+          }}
+          className="min-h-0 flex-row gap-0"
+        >
+          <TabsList variant="line" className="w-40 shrink-0 justify-start gap-0.5 self-stretch border-r border-border-subtle py-2 pr-1 pl-2">
+            <TabsTrigger value="general" className={TRIGGER}>
+              <SlidersHorizontal aria-hidden />
+              General
+            </TabsTrigger>
+            <TabsTrigger value="players" className={TRIGGER}>
+              <CircleDot aria-hidden />
+              Jugadores
+            </TabsTrigger>
+            <TabsTrigger value="keys" className={TRIGGER}>
+              <Keyboard aria-hidden />
+              Atajos
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="general" className={PANEL}>
+            <Section title="Mapa">
               {show('killfeed')}
               {show('scoreline')}
               {twoFloors ? (
-                <Check
+                <Toggle
                   label={SEPARATE_FLOORS_LABEL}
                   hint={SEPARATE_FLOORS_HINT}
                   checked={floorsSeparated(settings)}
                   onChange={(checked) => onSettings({ ...settings, floors: checked ? 'both' : 'one' })}
                 />
               ) : null}
-            </Setting>
-          </Group>
-          <Group title="Jugador">
-            <Setting label="Efectos">
+              <Choice label="Zoom con la rueda">
+                <Segmented
+                  label="Zoom con la rueda"
+                  value={settings.zoom}
+                  options={MAP_SIZES.map((size) => ({ value: size, label: ZOOM_SPEED_LABELS[size] }))}
+                  onChange={(zoom) => onSettings({ ...settings, zoom })}
+                />
+              </Choice>
+            </Section>
+            <Section title="Línea de tiempo">
+              {show('tlEvents')}
+              {show('tlUtility')}
+              {show('tlKills')}
+            </Section>
+            <Section title="Reproducción">
+              {show('freezetime')}
+              <Choice label="Imágenes por segundo" hint="Menos imágenes descargan el PC mientras se reproduce">
+                <Segmented
+                  label="Límite de imágenes por segundo"
+                  value={String(settings.fps)}
+                  options={FRAME_RATES.map((rate) => ({ value: String(rate), label: frameRateLabel(rate) }))}
+                  onChange={(value) => onSettings({ ...settings, fps: FRAME_RATES.find((rate) => String(rate) === value) ?? 0 })}
+                />
+              </Choice>
+            </Section>
+          </TabsContent>
+          <TabsContent value="players" className={PANEL}>
+            <Section title="Puntos">
+              <Choice label="Tamaño">
+                <Segmented
+                  label="Tamaño de los puntos"
+                  value={settings.dots}
+                  options={DOT_SIZES.map((size) => ({ value: size, label: DOT_SIZE_LABELS[size] }))}
+                  onChange={(dots) => onSettings({ ...settings, dots })}
+                />
+              </Choice>
+            </Section>
+            <Section title="Nombres">
+              <Toggle label="En una ronda" checked={settings.namesOne} onChange={(checked) => onSettings({ ...settings, namesOne: checked })} />
+              <Toggle label="En varias rondas" checked={settings.namesMulti} onChange={(checked) => onSettings({ ...settings, namesMulti: checked })} />
+              <Choice label="Tamaño">
+                <Segmented
+                  label="Tamaño de los nombres"
+                  value={settings.names}
+                  options={MAP_SIZES.map((size) => ({ value: size, label: MAP_SIZE_LABELS[size] }))}
+                  onChange={(names) => onSettings({ ...settings, names })}
+                />
+              </Choice>
+            </Section>
+            <Section title="Efectos">
               {show('flashed')}
               {show('damage')}
-            </Setting>
-            <Setting label="Líneas">
+            </Section>
+            <Section title="Líneas">
               {show('trajectories')}
               {show('bullets')}
-            </Setting>
-            <Setting label="Inventario">
+            </Section>
+            <Section title="Inventario">
               {show('held')}
               {show('bomb')}
               {show('kit')}
-            </Setting>
-            <Setting label="Tamaño de los puntos">
-              <Segmented
-                label="Tamaño de los puntos"
-                value={settings.dots}
-                options={DOT_SIZES.map((size) => ({ value: size, label: DOT_SIZE_LABELS[size] }))}
-                onChange={(dots) => onSettings({ ...settings, dots })}
-              />
-            </Setting>
-            <Setting label="Mostrar nombres">
-              <Check label="En una ronda" checked={settings.namesOne} onChange={(checked) => onSettings({ ...settings, namesOne: checked })} />
-              <Check label="En varias rondas" checked={settings.namesMulti} onChange={(checked) => onSettings({ ...settings, namesMulti: checked })} />
-            </Setting>
-            <Setting label="Tamaño de los nombres">
-              <Segmented
-                label="Tamaño de los nombres"
-                value={settings.names}
-                options={MAP_SIZES.map((size) => ({ value: size, label: MAP_SIZE_LABELS[size] }))}
-                onChange={(names) => onSettings({ ...settings, names })}
-              />
-            </Setting>
-            <Setting label="Sensibilidad del zoom">
-              <Segmented
-                label="Sensibilidad del zoom"
-                value={settings.zoom}
-                options={MAP_SIZES.map((size) => ({ value: size, label: ZOOM_SPEED_LABELS[size] }))}
-                onChange={(zoom) => onSettings({ ...settings, zoom })}
-              />
-            </Setting>
-          </Group>
-          <Group title="Rendimiento">
-            <Setting label="Imágenes por segundo" hint="Menos imágenes por segundo descargan el PC mientras se reproduce." className="sm:col-span-3">
-              <Segmented
-                label="Límite de imágenes por segundo"
-                value={String(settings.fps)}
-                options={FRAME_RATES.map((rate) => ({ value: String(rate), label: frameRateLabel(rate) }))}
-                onChange={(value) => onSettings({ ...settings, fps: FRAME_RATES.find((rate) => String(rate) === value) ?? 0 })}
-              />
-            </Setting>
-          </Group>
-          <section aria-label="Atajos de teclado" className="flex flex-col gap-3 border-t border-border-subtle pt-4">
-            <h3 className="border-b border-border-subtle pb-1.5 text-body-sm font-bold text-fg-1">Atajos de teclado</h3>
+            </Section>
+          </TabsContent>
+          <TabsContent value="keys" className={PANEL}>
+            <p className="text-meta text-fg-3">Funcionan mientras el Replay está en pantalla y no escribes en un campo.</p>
             <ShortcutTable drawing={drawing} />
-          </section>
-        </div>
-        <DialogFooter className="border-t border-border-subtle p-3">
-          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Cerrar
-          </Button>
-        </DialogFooter>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

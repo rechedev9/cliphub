@@ -46,11 +46,11 @@ function Keys({ keys }: { keys: readonly string[] }): ReactNode {
 
 function Group({ title, items }: { title: string; items: readonly Shortcut[] }): ReactNode {
   return (
-    <section className="flex flex-col gap-1.5">
-      <h3 className="text-meta font-semibold text-fg-3">{title}</h3>
-      <dl className="flex flex-col gap-1">
+    <section aria-label={title} className="flex flex-col gap-2">
+      <h3 className="text-body-sm font-semibold text-fg-1">{title}</h3>
+      <dl className="flex flex-col divide-y divide-border-subtle rounded-md border border-border-subtle bg-surface-1">
         {items.map((item) => (
-          <div key={item.does} className="flex items-center justify-between gap-4">
+          <div key={item.does} className="flex min-h-10 items-center justify-between gap-4 px-3 py-1.5">
             <dt className="text-body-sm text-fg-1">{item.does}</dt>
             <dd className="flex shrink-0 items-center gap-1">
               <Keys keys={item.keys} />
@@ -71,7 +71,7 @@ function Group({ title, items }: { title: string; items: readonly Shortcut[] }):
 /** Every key the Replay reads, as `replayShortcut` maps them; the drawing keys only where notes can be drawn. */
 export function ShortcutTable({ drawing = true, className }: { drawing?: boolean; className?: string }): ReactNode {
   return (
-    <div className={cn('flex flex-col gap-4', className)}>
+    <div className={cn('flex flex-col gap-5', className)}>
       <Group title="Reproducción" items={PLAYBACK} />
       <Group title="Mapa" items={MAP} />
       {drawing ? <Group title="Dibujo, en las partidas de la biblioteca" items={DRAW} /> : null}

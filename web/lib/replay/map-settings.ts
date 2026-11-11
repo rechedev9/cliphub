@@ -21,7 +21,7 @@ export const MAP_FLOORS = ['one', 'both'] as const;
 export type MapFloors = (typeof MAP_FLOORS)[number];
 
 export const SEPARATE_FLOORS_LABEL = 'Separar pisos';
-export const SEPARATE_FLOORS_HINT = 'Cada piso en su bloque, a la misma escala. Sin marcar, el mapa muestra el piso donde está la mayoría';
+export const SEPARATE_FLOORS_HINT = 'Cada piso en su bloque, a la misma escala. Apagado, el mapa muestra el piso donde está la mayoría';
 
 export function floorsSeparated(settings: Pick<MapSettings, 'floors'>): boolean {
   return settings.floors === 'both';
@@ -73,7 +73,7 @@ export const MAP_SHOW_HINTS: Record<MapShow, string> = {
   tlEvents: 'Las marcas de la bomba en la línea de tiempo',
   tlUtility: 'Una marca por cada granada en la línea de tiempo',
   tlKills: 'Una marca por cada baja en la línea de tiempo',
-  freezetime: 'Sin marcar, cada ronda empieza y vuelve a empezar cuando ya está en vivo',
+  freezetime: 'Apagado, cada ronda empieza y vuelve a empezar cuando ya está en vivo',
 };
 
 /** How the Replay's map is drawn, kept per user across matches. Names are on or off per mode. */
