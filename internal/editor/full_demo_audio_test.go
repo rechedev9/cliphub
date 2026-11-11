@@ -23,7 +23,8 @@ func TestFullDemoLoudnessMeasurements(t *testing.T) {
 		{"finite", `{"input_i":"-21.50","input_tp":"-5.0","input_lra":"2.1","input_thresh":"-33","target_offset":"0.03"}`, "measured", false},
 		{"silence", `{"input_i":"-inf","input_tp":"-inf","input_lra":"0","input_thresh":"-70","target_offset":"inf"}`, "silent", false},
 		{"missing peak", `{"input_i":"-20"}`, "", true},
-		{"infinite non-silence", `{"input_i":"-inf","input_tp":"-3"}`, "", true},
+		{"inaudible residue", `{"input_i":"-inf","input_tp":"-69.55","input_lra":"0.00","input_thresh":"-70.00","target_offset":"inf"}`, "silent", false},
+		{"infinite non-silence",`{"input_i":"-inf","input_tp":"-3"}`, "", true},
 		{"NaN", `{"input_i":"NaN","input_tp":"-3"}`, "", true},
 		{"no measurement", "decoder error", "", true},
 	} {

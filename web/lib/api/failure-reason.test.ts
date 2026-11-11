@@ -11,9 +11,11 @@ import {
   JOB_RECAPTURE_FAILURE_MESSAGE,
   MISMATCH_REDRIVE_FAILURE_REASON,
   POV_DEMO_MESSAGE,
+  SILENT_CAPTURE_MESSAGE,
   UNPLAYABLE_START_PREFIX,
   jobFailureTitle,
   parseFailureReason,
+  requiresRecapture,
 } from './failure-reason.ts';
 
 test('parseFailureReason classifies each reason into its kind and retry hint', () => {
@@ -158,6 +160,19 @@ test('a demo cut before its first round asks for a full download', () => {
   assert.equal(result.kind, 'truncated-demo');
   assert.equal(result.retryCanHelp, false);
   assert.match(result.message, /incompleta/);
+});
+
+// zv-editor's error reaches the card after the stderr tail of the failed render.
+test('a silent game capture names the sound settings instead of offering a retry', () => {
+  const reason = '[path]: exit status 1: [path] 22:40:51 audio_silent: the program has no measurable audio; approve a muted program or correct its sources';
+  for (const context of [{}, { fullDemo: true }, { fullDemo: true, fullDemoPlannerVersion: 'full-demo-editorial-v1' }]) {
+    const result = parseFailureReason(reason, context);
+    assert.equal(result.kind, 'silent-capture');
+    assert.equal(result.retryCanHelp, false);
+    assert.equal(result.message, SILENT_CAPTURE_MESSAGE);
+  }
+  assert.equal(requiresRecapture(reason), false);
+  assert.equal(jobFailureTitle(reason), FAILED_STRIP_LABEL.capture);
 });
 
 test('observer-target failure explains how to regenerate without leaking the console path', () => {

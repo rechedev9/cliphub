@@ -10,6 +10,7 @@ import (
 	"math"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
@@ -151,6 +152,12 @@ func (e *FullDemoCaptureEvidence) Validate(plan RecordingPlan) error {
 			return failed("Required capture cvar was not disabled: " + name)
 		}
 	}
+	for _, name := range fullDemoGameVolumeCvars {
+		var volume float64
+		if err := json.Unmarshal(applied[name], &volume); err != nil || math.IsNaN(volume) || volume < fullDemoMinGameVolume-0.00001 {
+			return failed("Game volume was not raised to the capture floor: " + name)
+		}
+	}
 	if string(applied["cl_show_observer_crosshair"]) != fullDemoObserverCrosshair(plan) {
 		return failed("Crosshair source readback differs")
 	}
@@ -193,6 +200,12 @@ func (e *FullDemoCaptureEvidence) Validate(plan RecordingPlan) error {
 // fullDemoDisabledCaptureCvars must read back as disabled after a Full Demo
 // capture applied its settings.
 var fullDemoDisabledCaptureCvars = []string{"voice_modenable", "snd_voipvolume", "tv_listen_voice_indices", "tv_listen_voice_indices_h", "snd_mute_losefocus", "spec_show_xray", "spec_autodirector"}
+
+// fullDemoGameVolumeCvars are raised to fullDemoMinGameVolume when lower: CS2 at
+// volume 0 records a silent game track. A player's higher value is kept.
+var fullDemoGameVolumeCvars = []string{"volume", "snd_gamevolume"}
+
+const fullDemoMinGameVolume = 0.1
 
 // fullDemoObserverCrosshair is the cl_show_observer_crosshair readback the
 // approved crosshair source requires.
@@ -256,6 +269,9 @@ func FullDemoExpectedCaptureCvars(plan RecordingPlan) (map[string]json.RawMessag
 	expected := map[string]json.RawMessage{"cl_show_observer_crosshair": json.RawMessage(fullDemoObserverCrosshair(plan))}
 	for _, name := range fullDemoDisabledCaptureCvars {
 		expected[name] = json.RawMessage("0")
+	}
+	for _, name := range fullDemoGameVolumeCvars {
+		expected[name] = json.RawMessage(strconv.FormatFloat(fullDemoMinGameVolume, 'f', -1, 64))
 	}
 	for name, value := range required {
 		encoded, err := json.Marshal(value)

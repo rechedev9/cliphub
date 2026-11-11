@@ -47,6 +47,18 @@ func loudnessFilter(target recapplan.LoudnessOptions) string {
 	return "loudnorm=I=" + decimal(target.TargetILUFS) + ":TP=" + decimal(target.TargetTPDBTP) + ":LRA=" + decimal(target.TargetLRA)
 }
 
+// silentPeakDBTP is the true peak below which a program with no gated loudness
+// counts as silent: a CS2 capture at volume 0 still peaks near -70 dBTP.
+const silentPeakDBTP = -60
+
+func inaudiblePeak(value string) bool {
+	if value == "-inf" {
+		return true
+	}
+	peak, err := strconv.ParseFloat(value, 64)
+	return err == nil && !math.IsNaN(peak) && peak < silentPeakDBTP
+}
+
 func parseLoudnessMeasurement(output string) (LoudnessMeasurement, error) {
 	var m LoudnessMeasurement
 	// FFmpeg writes diagnostics before its single trailing loudnorm JSON block.
@@ -58,7 +70,7 @@ func parseLoudnessMeasurement(output string) (LoudnessMeasurement, error) {
 	if err := json.Unmarshal([]byte(output[start:end+1]), &raw); err != nil {
 		return m, fmt.Errorf("decode loudness measurement: %w", err)
 	}
-	if raw["input_i"] == "-inf" && raw["input_tp"] == "-inf" {
+	if raw["input_i"] == "-inf" && inaudiblePeak(raw["input_tp"]) {
 		m.Status = "silent"
 		return m, nil
 	}

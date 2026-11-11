@@ -75,6 +75,10 @@ func fullDemoPublicationFixture(t *testing.T, content string, mutations ...func(
 		evidence.Before = append(evidence.Before, recording.CvarValue{Name: name, Value: json.RawMessage("1")})
 		evidence.Applied = append(evidence.Applied, recording.CvarValue{Name: name, Value: value})
 	}
+	for _, name := range []string{"volume", "snd_gamevolume"} {
+		evidence.Before = append(evidence.Before, recording.CvarValue{Name: name, Value: json.RawMessage("0")})
+		evidence.Applied = append(evidence.Applied, recording.CvarValue{Name: name, Value: json.RawMessage("0.1")})
+	}
 	cvars := map[string]float64{"cl_drawhud": 1, "cl_draw_only_deathnotices": 0, "crosshair": 1, "cl_demo_predict": 0, "cl_trueview_show_status": 0, "cl_spec_show_bindings": 0, "cl_drawhud_specvote": 0, "cl_teamid_overhead_mode": 0, "cl_drawhud_force_teamid_overhead": -1, "hud_showtargetid": 0}
 	if customhud.IsCaptureProfile(p.FullDemo.Options.Capture.HUDProfile) {
 		cvars["cl_draw_only_deathnotices"] = 1

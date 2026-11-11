@@ -304,7 +304,7 @@ export async function runSimulation(scriptSource, rawScenario) {
   // Independent engine defaults for Full Demo's readback contract. Scenarios
   // can remove or refuse individual cvars; absent APIs must fail closed.
   const cvarValues = new Map(Object.entries({
-    voice_modenable: true, snd_voipvolume: 0.63, snd_mute_losefocus: true, tv_listen_voice_indices: 7, tv_listen_voice_indices_h: 9,
+    voice_modenable: true, snd_voipvolume: 0.63, snd_mute_losefocus: true, volume: 0, snd_gamevolume: 0.7, tv_listen_voice_indices: 7, tv_listen_voice_indices_h: 9,
     spec_show_xray: 1, spec_autodirector: true, cl_drawhud: true, cl_draw_only_deathnotices: false,
     cl_drawhud_force_radar: 0, cl_drawhud_force_deathnotices: 0,
     cl_hud_radar_background_alpha: .627, cl_hud_radar_map_additive: true, cl_hud_radar_scale: 1,

@@ -107,6 +107,8 @@
             });
             Object.assign(settings, fullDemoCrosshairCvars);
             Object.assign(settings, fullDemoProCvars);
+            // A master or game volume at 0 records a silent game track. Raise it to the floor only, so loudness never changes for players above it.
+            for (const name of fullDemoGameVolumeCvars) settings[name] = Math.max(Number(fullDemoFindCvar(name).value) || 0, fullDemoMinGameVolume);
             // Snapshot all values before changing the first one.
             for (const name of Object.keys(settings)) fullDemoSaveCvar(fullDemoFindCvar(name));
             fullDemoEvidence("settings_before", {values: Array.from(fullDemoSavedCvars, ([name, entry]) => ({name, value: entry.value}))});

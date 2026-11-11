@@ -10,6 +10,9 @@ const POV_DEMO_MARKER = 'pov_demo:' as const;
 /** Parser marker for a demo cut before its recording ends, carried like the POV marker. */
 const TRUNCATED_DEMO_MARKER = 'truncated_demo:' as const;
 
+/** Editor marker for a program whose game audio is silent, carried after the zv-editor stderr tail. */
+const SILENT_AUDIO_MARKER = 'audio_silent:' as const;
+
 /** Stable prefix the orchestrator stamps when a stored capture must be re-recorded. */
 const RECORDING_NOT_REUSABLE_PREFIX = 'recording_not_reusable:' as const;
 
@@ -48,6 +51,7 @@ export type FailureReason = {
     | 'unplayable-start'
     | 'pov-demo'
     | 'truncated-demo'
+    | 'silent-capture'
     | 'recording-not-reusable'
     | 'pov-verification'
     | 'pov-acquisition'
@@ -101,6 +105,7 @@ const CAPTURE_KINDS: ReadonlySet<FailureReason['kind']> = new Set([
   'pov-acquisition',
   'capture-flake',
   'recording-not-reusable',
+  'silent-capture',
 ]);
 
 const DEMO_INCOMPATIBLE_MESSAGE =
@@ -125,6 +130,11 @@ export const POV_DEMO_MESSAGE =
 /** Why a demo cut short is refused, wherever Studio meets one: import, scan or job. */
 export const TRUNCATED_DEMO_MESSAGE =
   'La demo está incompleta: el archivo se corta antes del final de la partida. Vuelve a descargarla entera y cárgala de nuevo.';
+
+// Not a retry: the render would reuse the same silent capture, and an automatic recapture could loop.
+export const SILENT_CAPTURE_MESSAGE =
+  'CS2 grabó la partida sin sonido. Comprueba que oyes el juego al ver una demo en CS2 (volumen principal y dispositivo de salida), ' +
+  'borra esta partida y vuelve a subir la demo para grabarla de nuevo.';
 
 const RECORDING_NOT_REUSABLE_MESSAGE =
   'La captura guardada no es reutilizable con esta versión de ClipHub. ' +
@@ -197,6 +207,10 @@ function classifyFailureReason(reason: string | undefined, context: FailureConte
 
   if (reason.includes(TRUNCATED_DEMO_MARKER)) {
     return { kind: 'truncated-demo', message: TRUNCATED_DEMO_MESSAGE, retryCanHelp: false };
+  }
+
+  if (reason.includes(SILENT_AUDIO_MARKER)) {
+    return { kind: 'silent-capture', message: SILENT_CAPTURE_MESSAGE, retryCanHelp: false };
   }
 
   // Client-minted and already user-facing Spanish: surface it verbatim.

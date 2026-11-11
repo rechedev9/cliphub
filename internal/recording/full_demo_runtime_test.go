@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -137,6 +138,8 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		{name: "restoration must precede success attestation", outcome: "failed", trim: true, refuseRestore: []string{"snd_voipvolume"}},
 		{name: "missing background mute cvar", outcome: "failed", trim: true, missing: []string{"snd_mute_losefocus"}},
 		{name: "background mute refused", outcome: "failed", trim: true, refuse: []string{"snd_mute_losefocus"}},
+		{name: "missing master volume cvar", outcome: "failed", trim: true, missing: []string{"volume"}},
+		{name: "master volume floor refused", outcome: "failed", trim: true, refuse: []string{"volume"}},
 		{name: "provided crosshair values", outcome: "verified", trim: true, wantEnd: 892, providedCode: true},
 		{name: "crosshair readback mismatch", outcome: "failed", trim: true, refuse: []string{"cl_crosshairgap"}, providedCode: true},
 		{name: "missing crosshair cvar", outcome: "failed", trim: true, missing: []string{"cl_fixedcrosshairgap"}, providedCode: true},
@@ -253,6 +256,15 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 				}
 				if result.FinalCvars["snd_mute_losefocus"] != true {
 					t.Fatalf("snd_mute_losefocus restored to %v, want the player's true", result.FinalCvars["snd_mute_losefocus"])
+				}
+				if result.FinalCvars["volume"] != float64(0) || result.FinalCvars["snd_gamevolume"] != 0.7 {
+					t.Fatalf("game volume restored to %v / %v, want the player's 0 / 0.7", result.FinalCvars["volume"], result.FinalCvars["snd_gamevolume"])
+				}
+				// A muted master volume is raised to the floor; a higher game volume is kept.
+				for name, want := range map[string]string{"volume": "0.1", "snd_gamevolume": "0.7"} {
+					if !slices.ContainsFunc(evidence.Applied, func(v CvarValue) bool { return v.Name == name && string(v.Value) == want }) {
+						t.Fatalf("%s was not applied as %s: %v", name, want, evidence.Applied)
+					}
 				}
 				wantPredict := "0"
 				if tc.trueView {

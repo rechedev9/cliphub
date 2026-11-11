@@ -88,6 +88,8 @@ func fullDemoEvidenceLog(t *testing.T) string {
 		recording.CvarValue{Name: "cl_drawhud_force_teamid_overhead", Value: json.RawMessage("-1")},
 		recording.CvarValue{Name: "cl_show_observer_crosshair", Value: json.RawMessage("2")},
 		recording.CvarValue{Name: "cl_drawhud", Value: json.RawMessage("1")},
+		recording.CvarValue{Name: "volume", Value: json.RawMessage("0.1")},
+		recording.CvarValue{Name: "snd_gamevolume", Value: json.RawMessage("1")},
 		recording.CvarValue{Name: "crosshair", Value: json.RawMessage("1")},
 		recording.CvarValue{Name: "cl_draw_only_deathnotices", Value: json.RawMessage("1")},
 		recording.CvarValue{Name: "cl_drawhud_force_radar", Value: json.RawMessage("1")},
