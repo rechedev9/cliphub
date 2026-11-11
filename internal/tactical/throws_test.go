@@ -74,3 +74,19 @@ func TestAMolotovThatNeverBurnedDoesNotLendItsThrowToTheNextFire(t *testing.T) {
 		t.Fatalf("fire at 700 claimed %+v, %v; want the throw at 600", got, ok)
 	}
 }
+
+func TestProjectileKindCoversEveryProjectileClass(t *testing.T) {
+	cases := map[string]tacticalplan.EventKind{
+		"CSmokeGrenadeProjectile": tacticalplan.EventSmoke, "CFlashbangProjectile": tacticalplan.EventFlash,
+		"CHEGrenadeProjectile": tacticalplan.EventHE, "CMolotovProjectile": tacticalplan.EventMolotov,
+		"CDecoyProjectile": tacticalplan.EventDecoy,
+	}
+	for class, want := range cases {
+		if got, ok := projectileKind(class); !ok || got != want {
+			t.Errorf("projectileKind(%q) = %q, %v; want %q", class, got, ok, want)
+		}
+	}
+	if _, ok := projectileKind("CInferno"); ok {
+		t.Error("a fire is not a thrown projectile")
+	}
+}

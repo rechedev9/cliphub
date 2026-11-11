@@ -109,12 +109,34 @@ func grenadeKind(eq *common.Equipment) (tacticalplan.EventKind, bool) {
 	}
 }
 
+// projectileKind maps a projectile's server class to its event kind. demoinfocs
+// leaves the type unknown when it never saw the projectile's model on a weapon.
+func projectileKind(class string) (tacticalplan.EventKind, bool) {
+	switch class {
+	case "CSmokeGrenadeProjectile":
+		return tacticalplan.EventSmoke, true
+	case "CFlashbangProjectile":
+		return tacticalplan.EventFlash, true
+	case "CHEGrenadeProjectile":
+		return tacticalplan.EventHE, true
+	case "CMolotovProjectile":
+		return tacticalplan.EventMolotov, true
+	case "CDecoyProjectile":
+		return tacticalplan.EventDecoy, true
+	default:
+		return "", false
+	}
+}
+
 func (s *scanner) onThrow(e events.GrenadeProjectileThrow) {
 	proj := e.Projectile
 	if s.current == nil || proj == nil {
 		return
 	}
 	kind, ok := grenadeKind(proj.WeaponInstance)
+	if !ok && proj.Entity != nil {
+		kind, ok = projectileKind(proj.Entity.ServerClass().Name())
+	}
 	thrower := proj.Thrower
 	if thrower == nil {
 		thrower = proj.Owner
