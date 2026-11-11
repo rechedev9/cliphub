@@ -4,14 +4,15 @@ import { useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import type { PlayerLine, SideStatsPlayer } from '@/lib/api/side-stats';
+import { compareDelta, deltaArrow, type DeltaTone } from '@/lib/analysis/compare';
 import { RATING_FORMULA_TEXT } from '@/lib/analysis/rating';
 import { playerHref } from '@/lib/clips/routes';
 import { formatDecimal } from '@/lib/format';
-import { nextSort, sortRows, type TableSort } from '@/lib/records/table-view';
+import { sortRows, type TableSort } from '@/lib/records/table-view';
 import { InfoTip } from '@/components/analysis/info-tip';
 import { PlayerAvatar } from '@/components/players/player-avatar';
 import { SlashTitle } from '@/components/records/document-page';
-import { DeltaValue } from '@/components/ui/delta-value';
+import { DELTA_TONE_CLASS } from '@/components/ui/delta-value';
 import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { RoleChips } from './player-stat-card';
@@ -49,21 +50,18 @@ function formatCell(value: number | null, column: Column): string {
   return column.pct ? `${Math.round(value)} %` : formatDecimal(value, column.digits);
 }
 
+const TONE_WORD: Record<DeltaTone, string> = { better: 'mejor', worse: 'peor', even: 'igual' };
+
+/** A figure with its arrow against the group in a fixed slot, so the column and the Media footer line up. */
 function Cell({ value, column, group }: { value: number | null; column: Column; group: number | null }): ReactNode {
+  const result = value === null || group === null ? null : compareDelta(value, group, { higherIsBetter: column.lowerIsBetter !== true, epsilon: column.epsilon });
   return (
-    <td className="px-2 py-3 text-right font-num font-bold text-fg-1 tabular-nums">
-      {value === null ? (
-        '-'
-      ) : (
-        <DeltaValue
-          value={value}
-          format={(v) => formatCell(v, column)}
-          reference={group}
-          higherIsBetter={column.lowerIsBetter !== true}
-          epsilon={column.epsilon}
-          referenceLabel="Media del grupo"
-        />
-      )}
+    <td title={group === null ? undefined : `Media del grupo: ${formatCell(group, column)}`} className="px-2 py-3 text-right font-num font-bold text-fg-1 tabular-nums">
+      {formatCell(value, column)}
+      <span aria-hidden className={cn('ml-1 inline-block w-2 text-[0.5rem]', result ? DELTA_TONE_CLASS[result.tone] : '')}>
+        {result ? deltaArrow(result.delta, column.epsilon) : ''}
+      </span>
+      {result && group !== null ? <span className="sr-only">, {TONE_WORD[result.tone]} que la media del grupo</span> : null}
     </td>
   );
 }
@@ -96,6 +94,13 @@ function SortIcon({ sort, column }: { sort: TableSort | null; column: ColumnKey 
   return <Icon aria-hidden className="size-3" />;
 }
 
+/** A stat column sorts high to low first, then low to high, then back to the default order. */
+function nextStatSort(current: TableSort | null, column: ColumnKey): TableSort | null {
+  if (current?.column !== column) return { column, direction: 'desc' };
+  if (current.direction === 'desc') return { column, direction: 'asc' };
+  return null;
+}
+
 function isColumnKey(key: string): key is ColumnKey {
   return COLUMNS.some((column) => column.key === key);
 }
@@ -111,7 +116,7 @@ export function TeamPlayerPerformance(props: TeamSideStatsQuery): ReactNode {
   const state = sideStatsState(data);
   if (state !== null || data === null || data === 'failed') return state;
   const group = data.players_group_avg;
-  const toggle = (key: ColumnKey): void => setSort((current) => nextSort(current, key));
+  const toggle = (key: ColumnKey): void => setSort((current) => nextStatSort(current, key));
   return (
     <section aria-label="Rendimiento de jugadores" className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -163,6 +168,7 @@ export function TeamPlayerPerformance(props: TeamSideStatsQuery): ReactNode {
               {COLUMNS.map((column) => (
                 <td key={column.key} className="px-2 pt-3 text-right font-num font-bold text-fg-2 tabular-nums">
                   {formatCell(data.players_average[column.key], column)}
+                  <span aria-hidden className="ml-1 inline-block w-2" />
                 </td>
               ))}
             </tr>

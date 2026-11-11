@@ -66,7 +66,7 @@ type teamSideStatsOut struct {
 	T              tuiclient.SideStats     `json:"t" jsonschema:"the figures on T; maps_won is null on a side"`
 	Players        []sidePlayerOut         `json:"players"`
 	PlayersAverage tacticalplan.PlayerLine `json:"players_average" jsonschema:"the Rendimiento de jugadores footer: every player of the team pooled (rating is the rounds-weighted mean of the players' ratings)"`
-	PlayersGroup   tacticalplan.PlayerLine `json:"players_group_avg" jsonschema:"the plain mean of the comparison teams' pooled player lines, each team with group_min_rounds rounds; the arrows of each player row compare with it"`
+	PlayersGroup   tacticalplan.PlayerLine `json:"players_group_avg" jsonschema:"the plain mean of the comparison teams' pooled player lines, each team with group_min_rounds rounds (for udr and far, rounds scanned for utility); the arrows of each player row compare with it"`
 	MatchList      []sideMatchOut          `json:"match_list" jsonschema:"the matches the figures stand on, newest first"`
 	RatingFormula  string                  `json:"rating_formula"`
 	StudioPath     string                  `json:"studio_path" jsonschema:"the path that opens the team's Estadísticas tab in Studio with the filters it shows: map, side, dates, rival, lineup and buys"`

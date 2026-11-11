@@ -12,11 +12,6 @@ import { InfoTip } from '@/components/analysis/info-tip';
 import { PlayerAvatar } from '@/components/players/player-avatar';
 import { RoleChip } from '@/components/ui/role-chip';
 
-function roleText(role: string): string {
-  const known = LIBRARY_ROLES.find((entry) => entry === role);
-  return known === undefined ? ROLE_LABEL.unknown : ROLE_LABEL[known];
-}
-
 /** The map role of the side in scope, as EDGE's "T Mid"; without one, the library role. */
 export function RoleChips({ player, side }: { player: SideStatsPlayer; side: ReportSide }): ReactNode {
   const chips = mapRoleChips(player.map_roles, side);
@@ -29,8 +24,9 @@ export function RoleChips({ player, side }: { player: SideStatsPlayer; side: Rep
       </p>
     );
   }
-  if (player.role === 'unknown') return null;
-  return <RoleChip label={roleText(player.role)} />;
+  const known = LIBRARY_ROLES.find((entry) => entry === player.role);
+  if (known === undefined || known === 'unknown') return null;
+  return <RoleChip label={ROLE_LABEL[known]} />;
 }
 
 /**

@@ -369,8 +369,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
     );
   }
 
-  // In TEAM_TABS order.
-  const tabList: RecordTab[] = [
+  const tabs: RecordTab[] = [
       {
         id: 'estadisticas',
         label: 'Resumen',
@@ -492,6 +491,8 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
         ),
       },
   ];
+  // TEAM_TABS alone sets the order the bar shows.
+  const tabList = TEAM_TABS.flatMap((id) => tabs.filter((entry) => entry.id === id));
   const changeTab = (next: string): void => {
     setReported(null);
     setTab(next);
