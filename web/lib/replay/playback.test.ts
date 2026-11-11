@@ -50,15 +50,15 @@ test('playback: a frame-rate cap skips screen frames that come too soon, and no 
 });
 
 test('playback: play restarts a round parked at its end', () => {
-  assert.equal(playStartSeconds(112.7, 112.7), 0);
-  assert.equal(playStartSeconds(112.7 - SCRUB_STEP_SECONDS / 2, 112.7), 0);
-  assert.equal(playStartSeconds(100, 112.7), 100);
+  assert.equal(playStartSeconds({ position: 112.7, durationSeconds: 112.7 }), 0);
+  assert.equal(playStartSeconds({ position: 112.7 - SCRUB_STEP_SECONDS / 2, durationSeconds: 112.7 }), 0);
+  assert.equal(playStartSeconds({ position: 100, durationSeconds: 112.7 }), 100);
 });
 
 test('playback: with the freeze time hidden, play, the loop and a parked end start at the live round', () => {
-  assert.equal(playStartSeconds(112.7, 112.7, 15), 15);
-  assert.equal(playStartSeconds(3, 112.7, 15), 15);
-  assert.equal(playStartSeconds(40, 112.7, 15), 40);
+  assert.equal(playStartSeconds({ position: 112.7, durationSeconds: 112.7, startSeconds: 15 }), 15);
+  assert.equal(playStartSeconds({ position: 3, durationSeconds: 112.7, startSeconds: 15 }), 15);
+  assert.equal(playStartSeconds({ position: 40, durationSeconds: 112.7, startSeconds: 15 }), 40);
   const wrapped = playbackStep({ ...frame, loop: true, seeked: true, position: 112.69, elapsedMs: 20, startSeconds: 15 });
   assert.deepEqual(wrapped, { position: 15, action: 'play' });
 });

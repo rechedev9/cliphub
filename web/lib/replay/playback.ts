@@ -39,7 +39,8 @@ export function playbackStep(frame: PlaybackFrame): PlaybackStep {
 }
 
 /** Play from `startSeconds` when the playhead sits at the end, within a scrubber step, or before it. */
-export function playStartSeconds(position: number, durationSeconds: number, startSeconds = 0): number {
+export function playStartSeconds(options: { position: number; durationSeconds: number; startSeconds?: number }): number {
+  const { position, durationSeconds, startSeconds = 0 } = options;
   return atEnd(position, durationSeconds) ? startSeconds : Math.max(position, startSeconds);
 }
 

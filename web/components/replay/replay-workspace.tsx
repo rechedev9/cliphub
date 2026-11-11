@@ -375,7 +375,7 @@ export function ReplayWorkspace({
     setPlaying((value) => {
       if (value) return false;
       seekedRef.current = false;
-      clock.set(playStartSeconds(clock.seconds, transport.durationSeconds, liveStart));
+      clock.set(playStartSeconds({ position: clock.seconds, durationSeconds: transport.durationSeconds, startSeconds: liveStart }));
       return true;
     });
   }, [clock, transport, liveStart]);

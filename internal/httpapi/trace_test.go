@@ -71,6 +71,14 @@ func TestHTTPTraceLogsNotReadyPollBelowErrorLevel(t *testing.T) {
 		t.Fatalf("logo miss trace = %s, want no error outcome", text)
 	}
 	logs.Reset()
+	r.Get(mapShotRoute, func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, http.StatusNotFound, "no picture")
+	})
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/maps/de_cache/shot", nil))
+	if text := logs.String(); strings.Contains(text, `"outcome":"error"`) {
+		t.Fatalf("map picture miss trace = %s, want no error outcome", text)
+	}
+	logs.Reset()
 	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/jobs/"+uuid.NewString()+"/parse", nil))
 	if text := logs.String(); !strings.Contains(text, `"level":"error"`) {
 		t.Fatalf("refused mutation trace = %s, want error level", text)

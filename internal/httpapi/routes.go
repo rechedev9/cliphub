@@ -80,7 +80,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/jobs/{id}/tactical/aggregate", h.GetTacticalAggregate)
 	r.Get("/api/maps/{map}/calibration", h.GetMapCalibration)
 	r.Get("/api/maps/{map}/radar", h.GetMapRadar)
-	r.Get("/api/maps/{map}/shot", h.GetMapShot)
+	r.Get(mapShotRoute, h.GetMapShot)
 	r.Get(teamLogoRoute, h.GetTeamLogo)
 	r.Post("/api/practice/launch", h.LaunchPractice)
 	r.Get("/api/maps/{map}/geometry", h.GetMapGeometry)

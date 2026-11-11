@@ -11,8 +11,13 @@ import (
 
 const maxTeamNameRunes = 64
 
-// teamLogoRoute answers 404 for most teams, so a miss there is not an error.
-const teamLogoRoute = "/api/teams/logo"
+const (
+	mapShotRoute  = "/api/maps/{map}/shot"
+	teamLogoRoute = "/api/teams/logo"
+)
+
+// optionalPictureRoutes answer 404 for many maps and teams; the UI falls back, so a miss is not an error.
+var optionalPictureRoutes = map[string]bool{mapShotRoute: true, teamLogoRoute: true}
 
 // GetMapShot handles GET /api/maps/{map}/shot: the map's loading-screen picture from the
 // user's CS2 install as PNG, cached per game build.
@@ -54,7 +59,7 @@ func (h *Handlers) GetTeamLogo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.serveGameAsset(w, name, []string{key}, func() ([]byte, string, error) {
-		body, err := install.TeamLogo(name)
+		body, err := install.TeamLogo(code)
 		return body, gameassets.ContentTypeSVG, err
 	})
 }

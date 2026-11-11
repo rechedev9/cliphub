@@ -76,9 +76,8 @@ func (i Install) MapShot(mapName string) ([]byte, error) {
 	return body, err
 }
 
-// TeamLogo returns the team's logo as sanitized SVG.
-func (i Install) TeamLogo(name string) ([]byte, error) {
-	code := TeamLogoCode(name)
+// TeamLogo returns the logo of a TeamLogoCode as sanitized SVG.
+func (i Install) TeamLogo(code string) ([]byte, error) {
 	if code == "" {
 		return nil, ErrLogoNotFound
 	}
