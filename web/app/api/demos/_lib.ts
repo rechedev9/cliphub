@@ -251,7 +251,7 @@ export async function proxyStream(
   return new Response(res.body, { status: res.status, headers });
 }
 
-const GAME_ASSET_TYPES: ReadonlySet<string> = new Set(['image/png', 'image/svg+xml']);
+const GAME_ASSET_TYPES: ReadonlySet<string> = new Set(['image/png', 'image/svg+xml', 'image/webp']);
 /** Keeps an icon opened on its own inert, on top of the orchestrator's sanitizing. */
 const SVG_ASSET_POLICY = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
 
