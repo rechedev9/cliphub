@@ -295,7 +295,7 @@ func run() error {
 	if err != nil {
 		log.Printf("lineup catalog: %v", err)
 	}
-	handlers := httpapi.NewHandlers(repo, files, queue,
+	handlerOpts := []httpapi.Option{
 		httpapi.WithMutationToken(cfg.MutationToken),
 		httpapi.WithRequireReadAuth(true),
 		// Remote binds are rejected. A per-IP limiter on loopback would give
@@ -327,7 +327,11 @@ func run() error {
 		httpapi.WithCommunity(communityDeps(cfg.DataDir)),
 		httpapi.WithVoice(voiceDeps(cfg)),
 		httpapi.WithReplayVideo(replayVideoDeps(cfg)),
-	)
+	}
+	if repos.DB() != nil {
+		handlerOpts = append(handlerOpts, httpapi.WithSyncLog(store.NewSyncLog(repos.DB())))
+	}
+	handlers := httpapi.NewHandlers(repo, files, queue, handlerOpts...)
 	// Settle every legacy render state once so Studio polls read durable
 	// state instead of migrating it on the request path. Reuses the job
 	// listing reconciliation already took, statuses included, so the jobs the

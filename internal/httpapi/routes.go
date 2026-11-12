@@ -36,6 +36,10 @@ func Routes(h *Handlers) chi.Router {
 	r.Delete("/api/faceit/followed/{playerID}", h.UnfollowFaceitPlayer)
 	r.Get("/api/loadouts", h.ListLoadouts)
 	r.Get("/api/presets", h.ListPresets)
+	if h.syncLog != nil {
+		r.Get("/api/sync/changes", h.GetSyncChanges)
+		r.Post("/api/sync/changes", h.ApplySyncChanges)
+	}
 	r.Get("/api/songs", h.ListSongs)
 	r.Get("/api/songs/{id}/audio", h.GetSongAudio)
 	r.Get("/api/stream-variants", h.ListStreamVariants)

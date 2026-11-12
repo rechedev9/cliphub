@@ -148,6 +148,14 @@ type Repositories struct {
 	db             *sql.DB
 }
 
+// DB exposes the shared SQLite connection, or nil for the in-memory store.
+func (r *Repositories) DB() *sql.DB {
+	if r == nil {
+		return nil
+	}
+	return r.db
+}
+
 func (r *Repositories) Close() error {
 	if r == nil || r.db == nil {
 		return nil
