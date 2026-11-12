@@ -122,3 +122,70 @@ func TestSyncLogApplyOrdersReferencesAndDeletes(t *testing.T) {
 		t.Fatalf("player s1 on the other device = %d (%v), want 0", n, err)
 	}
 }
+
+func TestSyncHubLogsAppliedChangesWithoutEchoToTheSender(t *testing.T) {
+	ctx := context.Background()
+	device, deviceLog := newTestSyncLog(t)
+	seedSyncScenario(t, device, `C:\demos\a.dem`)
+	pushed, err := deviceLog.Changes(ctx, 0, 1000)
+	if err != nil {
+		t.Fatalf("Changes: %v", err)
+	}
+
+	hub, hubLog := newTestSyncLog(t)
+	if err := hubLog.ApplyFrom(ctx, "", pushed.Changes); err == nil {
+		t.Fatal("ApplyFrom accepted an empty origin")
+	}
+	if err := hubLog.ApplyFrom(ctx, "phone", pushed.Changes); err != nil {
+		t.Fatalf("ApplyFrom: %v", err)
+	}
+	var matches int
+	if err := hub.QueryRowContext(ctx, `SELECT COUNT(*) FROM library_matches`).Scan(&matches); err != nil || matches != 1 {
+		t.Fatalf("hub matches = %d (%v), want 1", matches, err)
+	}
+	var markers int
+	if err := hub.QueryRowContext(ctx, `SELECT COUNT(*) FROM sync_meta`).Scan(&markers); err != nil || markers != 0 {
+		t.Fatalf("sync_meta rows after apply = %d (%v), want 0", markers, err)
+	}
+
+	own, err := hubLog.ChangesExcluding(ctx, 0, 1000, "phone")
+	if err != nil {
+		t.Fatalf("ChangesExcluding: %v", err)
+	}
+	if len(own.Changes) != 0 || own.Next == 0 {
+		t.Fatalf("the sender got its own push back: %d changes, next %d", len(own.Changes), own.Next)
+	}
+	other, err := hubLog.ChangesExcluding(ctx, 0, 1000, "laptop")
+	if err != nil || len(other.Changes) == 0 {
+		t.Fatalf("another device got %d changes (%v), want the pushed ones", len(other.Changes), err)
+	}
+}
+
+func TestSyncLogBackfillSendsExistingRows(t *testing.T) {
+	ctx := context.Background()
+	db, log := newTestSyncLog(t)
+	seedSyncScenario(t, db, `C:\demos\a.dem`)
+	if _, err := db.ExecContext(ctx, `DELETE FROM sync_changes`); err != nil {
+		t.Fatal(err)
+	}
+	if err := log.Backfill(ctx); err != nil {
+		t.Fatalf("Backfill: %v", err)
+	}
+	batch, err := log.Changes(ctx, 0, 1000)
+	if err != nil || len(batch.Changes) == 0 {
+		t.Fatalf("Changes after Backfill = %d (%v)", len(batch.Changes), err)
+	}
+	other, otherLog := newTestSyncLog(t)
+	if err := otherLog.Apply(ctx, batch.Changes); err != nil {
+		t.Fatalf("Apply of the backfill: %v", err)
+	}
+	var matches, rounds int
+	_ = other.QueryRowContext(ctx, `SELECT COUNT(*) FROM library_matches`).Scan(&matches)
+	_ = other.QueryRowContext(ctx, `SELECT COUNT(*) FROM library_playlist_rounds`).Scan(&rounds)
+	if matches != 1 || rounds != 2 {
+		t.Fatalf("other device has %d matches and %d playlist rounds, want 1 and 2", matches, rounds)
+	}
+	if n, err := log.Pending(ctx, 0); err != nil || n == 0 {
+		t.Fatalf("Pending = %d (%v)", n, err)
+	}
+}

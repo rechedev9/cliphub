@@ -40,6 +40,15 @@ func Routes(h *Handlers) chi.Router {
 		r.Get("/api/sync/changes", h.GetSyncChanges)
 		r.Post("/api/sync/changes", h.ApplySyncChanges)
 	}
+	if h.clipmind.sync != nil {
+		r.Get("/api/clipmind/account", h.GetClipMindAccount)
+		r.Post("/api/clipmind/account", h.ConnectClipMindAccount)
+		r.Delete("/api/clipmind/account", h.DisconnectClipMindAccount)
+		r.Post("/api/clipmind/sync", h.SyncClipMindNow)
+	}
+	if h.clipmind.libraryUploads && h.libraryRepo != nil {
+		r.Post("/api/library/uploads", h.UploadLibraryAnalysis)
+	}
 	r.Get("/api/songs", h.ListSongs)
 	r.Get("/api/songs/{id}/audio", h.GetSongAudio)
 	r.Get("/api/stream-variants", h.ListStreamVariants)

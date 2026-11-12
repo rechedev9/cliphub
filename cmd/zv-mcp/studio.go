@@ -45,6 +45,9 @@ var (
 
 type studio struct {
 	sessionPath string
+	// upstream is a ClipMind server: in remote mode every call uses the key the
+	// request arrived with instead of a Studio session file.
+	upstream string
 }
 
 func newStudio() *studio {
@@ -67,6 +70,13 @@ func (s *studio) uploadClient(ctx context.Context) (*tuiclient.Client, error) {
 }
 
 func (s *studio) clientWith(ctx context.Context, hc *http.Client) (*tuiclient.Client, error) {
+	if s.upstream != "" {
+		token, err := remoteToken(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return tuiclient.New(tuiclient.Config{BaseURL: s.upstream, Token: token, HTTPClient: hc}), nil
+	}
 	cfg, err := s.config()
 	if err != nil {
 		return nil, err

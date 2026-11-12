@@ -27,11 +27,40 @@ const DESKTOP_API_PREFIXES = [
   '/api/voice-plugin',
   '/api/steam',
   '/api/demos',
+  '/api/clipmind',
 ] as const;
 
 function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
+
+const WEB_ONLY_PAGE_ROUTES = [
+  '/iniciar-sesion',
+  '/crear-cuenta',
+  '/confirmar',
+  '/recuperar',
+  '/restablecer',
+  '/invitacion',
+  '/equipo',
+  '/cuenta',
+  '/importar',
+  '/api/cm',
+] as const;
+
+/** Reachable without a sign-in in the web edition; everything else asks for one. */
+const PUBLIC_WEB_ROUTES: readonly string[] = [
+  '/iniciar-sesion',
+  '/crear-cuenta',
+  '/confirmar',
+  '/recuperar',
+  '/restablecer',
+  '/descargar',
+  '/api/cm/auth/signup',
+  '/api/cm/auth/confirm',
+  '/api/cm/auth/login',
+  '/api/cm/auth/forgot',
+  '/api/cm/auth/reset',
+];
 
 const DESKTOP_RETIRED_ROUTES = Object.entries(RETIRED_ROUTES)
   .filter(([, target]) => DESKTOP_PAGE_ROUTES.some((route) => matchesPrefix(target, route)))
@@ -49,7 +78,12 @@ export function currentEdition(): Edition {
 }
 
 export function isPathAvailable(pathname: string, edition: Edition): boolean {
-  return edition === 'desktop' || !DESKTOP_ONLY_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
+  if (edition === 'desktop') return !WEB_ONLY_PAGE_ROUTES.some((prefix) => matchesPrefix(pathname, prefix));
+  return !DESKTOP_ONLY_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
+}
+
+export function isPublicWebPath(pathname: string): boolean {
+  return PUBLIC_WEB_ROUTES.includes(pathname.length > 1 ? pathname.replace(/\/$/, '') : pathname);
 }
 
 export function homePathFor(edition: Edition): string {

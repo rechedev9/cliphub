@@ -53,6 +53,13 @@ func NewSyncLog(db *sql.DB) *SyncLog { return &SyncLog{db: db} }
 // Changes returns log rows with seq > after, oldest first, at most limit rows.
 // Rows for the same (tbl, row_key) collapse to the last one.
 func (s *SyncLog) Changes(ctx context.Context, after int64, limit int) (SyncBatch, error) {
+	return s.ChangesExcluding(ctx, after, limit, "")
+}
+
+// ChangesExcluding is Changes without the rows a hub logged while applying the
+// named device's own push, so a device does not receive its own edits back.
+// The cursor still moves past them.
+func (s *SyncLog) ChangesExcluding(ctx context.Context, after int64, limit int, origin string) (SyncBatch, error) {
 	if limit <= 0 {
 		return SyncBatch{Changes: []SyncChange{}, Next: after}, nil
 	}
@@ -66,7 +73,7 @@ func (s *SyncLog) Changes(ctx context.Context, after int64, limit int) (SyncBatc
 	}
 	defer func() { _ = tx.Rollback() }()
 	rows, err := tx.QueryContext(ctx,
-		`SELECT seq, tbl, row_key, op, changed_at FROM sync_changes WHERE seq > ? ORDER BY seq ASC LIMIT ?`,
+		`SELECT seq, tbl, row_key, op, changed_at, origin FROM sync_changes WHERE seq > ? ORDER BY seq ASC LIMIT ?`,
 		after, limit)
 	if err != nil {
 		return SyncBatch{}, err
@@ -79,12 +86,13 @@ func (s *SyncLog) Changes(ctx context.Context, after int64, limit int) (SyncBatc
 		rowKey    string
 		op        string
 		changedAt int64
+		origin    string
 	}
 	byKey := map[string]logRow{}
 	next := after
 	for rows.Next() {
 		var r logRow
-		if err := rows.Scan(&r.seq, &r.tbl, &r.rowKey, &r.op, &r.changedAt); err != nil {
+		if err := rows.Scan(&r.seq, &r.tbl, &r.rowKey, &r.op, &r.changedAt, &r.origin); err != nil {
 			return SyncBatch{}, err
 		}
 		byKey[r.tbl+"\x00"+r.rowKey] = r
@@ -98,7 +106,9 @@ func (s *SyncLog) Changes(ctx context.Context, after int64, limit int) (SyncBatc
 	rows.Close()
 	collapsed := make([]logRow, 0, len(byKey))
 	for _, r := range byKey {
-		collapsed = append(collapsed, r)
+		if origin == "" || r.origin != origin {
+			collapsed = append(collapsed, r)
+		}
 	}
 	sort.Slice(collapsed, func(i, j int) bool { return collapsed[i].seq < collapsed[j].seq })
 
@@ -191,13 +201,30 @@ func currentSyncRow(ctx context.Context, tx *sql.Tx, table string, key []any) (m
 // Apply replays changes without logging them again. It runs in one transaction
 // and sets sync_meta.applying so the triggers stay silent.
 func (s *SyncLog) Apply(ctx context.Context, changes []SyncChange) error {
+	return s.apply(ctx, "", changes)
+}
+
+// ApplyFrom is what a hub runs for a device's push: the changes are applied
+// and logged, tagged with the device, so every other device receives them.
+func (s *SyncLog) ApplyFrom(ctx context.Context, origin string, changes []SyncChange) error {
+	if origin == "" {
+		return fmt.Errorf("sync origin is required")
+	}
+	return s.apply(ctx, origin, changes)
+}
+
+func (s *SyncLog) apply(ctx context.Context, origin string, changes []SyncChange) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	marker, value := "applying", "1"
+	if origin != "" {
+		marker, value = "origin", origin
+	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO sync_meta (key, value) VALUES ('applying', '1') ON CONFLICT(key) DO UPDATE SET value = '1'`); err != nil {
+		`INSERT INTO sync_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, marker, value); err != nil {
 		return err
 	}
 	described := map[string]map[string]syncColumn{}
@@ -206,7 +233,7 @@ func (s *SyncLog) Apply(ctx context.Context, changes []SyncChange) error {
 			return err
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM sync_meta WHERE key = 'applying'`); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sync_meta WHERE key = ?`, marker); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -388,4 +415,40 @@ func normalizeSyncValue(v any, declared string) (any, error) {
 	default:
 		return n.String(), nil
 	}
+}
+
+// Backfill logs every existing row of every syncable table as an upsert. It
+// is for the first connection to a hub: migration 26 only logs later edits.
+func (s *SyncLog) Backfill(ctx context.Context) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, table := range syncTables {
+		var present int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table.name).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			continue
+		}
+		keys := make([]string, len(table.keyColumns))
+		for i, col := range table.keyColumns {
+			keys[i] = col
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO sync_changes (tbl, row_key, op, changed_at) SELECT ?, json_array(`+strings.Join(keys, ", ")+`), 'upsert', CAST(unixepoch('subsec') * 1000 AS INTEGER) FROM `+table.name,
+			table.name); err != nil {
+			return fmt.Errorf("backfill %s: %w", table.name, err)
+		}
+	}
+	return tx.Commit()
+}
+
+// Pending counts log rows after the cursor, for a "changes waiting" figure.
+func (s *SyncLog) Pending(ctx context.Context, after int64) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sync_changes WHERE seq > ?`, after).Scan(&n)
+	return n, err
 }

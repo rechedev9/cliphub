@@ -29,6 +29,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/syncclient"
 	"github.com/rechedev9/cliphub/internal/tasks"
 	"github.com/rechedev9/cliphub/internal/workers"
 	"github.com/rechedev9/cliphub/internal/youtubetrends"
@@ -330,6 +331,20 @@ func run() error {
 	}
 	if repos.DB() != nil {
 		handlerOpts = append(handlerOpts, httpapi.WithSyncLog(store.NewSyncLog(repos.DB())))
+		device, _ := os.Hostname()
+		clipmind, err := syncclient.New(syncclient.Config{
+			StatePath:  filepath.Join(cfg.DataDir, "clipmind-sync.json"),
+			DB:         repos.DB(),
+			Library:    repos.Library,
+			Files:      files,
+			DeviceName: "ClipHub Studio en " + device,
+		})
+		if err != nil {
+			return fmt.Errorf("clipmind sync: %w", err)
+		}
+		handlerOpts = append(handlerOpts, httpapi.WithClipMindSync(clipmind))
+		// The account's changes arrive on their own; Ajustes can also sync on demand.
+		go clipmind.Run(ctx, 2*time.Minute)
 	}
 	handlers := httpapi.NewHandlers(repo, files, queue, handlerOpts...)
 	// Settle every legacy render state once so Studio polls read durable

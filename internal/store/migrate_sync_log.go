@@ -6,6 +6,9 @@ import (
 	"strings"
 )
 
+// syncOriginSQL is the device a hub is applying changes for, or '' for a local edit.
+const syncOriginSQL = `COALESCE((SELECT value FROM sync_meta WHERE key = 'origin'), '')`
+
 // migrateV26SyncLog records every change to a syncable table so another device
 // can replay it. It does not backfill existing rows: a later full sync sends them.
 func migrateV26SyncLog(tx *sql.Tx) error {
@@ -15,7 +18,8 @@ func migrateV26SyncLog(tx *sql.Tx) error {
 			tbl        TEXT    NOT NULL,
 			row_key    TEXT    NOT NULL,
 			op         TEXT    NOT NULL CHECK (op IN ('upsert','delete')),
-			changed_at INTEGER NOT NULL
+			changed_at INTEGER NOT NULL,
+			origin     TEXT    NOT NULL DEFAULT ''
 		)`,
 		`CREATE INDEX IF NOT EXISTS sync_changes_key ON sync_changes(tbl, row_key)`,
 		`CREATE TABLE IF NOT EXISTS sync_meta (
@@ -71,8 +75,8 @@ func syncKeyChangeTriggerSQL(t syncTable) string {
 	return fmt.Sprintf(`CREATE TRIGGER IF NOT EXISTS %s BEFORE UPDATE ON %s
 WHEN (%s) AND NOT EXISTS (SELECT 1 FROM sync_meta WHERE key = 'applying' AND value = '1')
 BEGIN
-	INSERT INTO sync_changes (tbl, row_key, op, changed_at)
-	VALUES ('%s', json_array(%s), 'delete', CAST(unixepoch('subsec') * 1000 AS INTEGER));
+	INSERT INTO sync_changes (tbl, row_key, op, changed_at, origin)
+	VALUES ('%s', json_array(%s), 'delete', CAST(unixepoch('subsec') * 1000 AS INTEGER), `+syncOriginSQL+`);
 END`,
 		syncTriggerName(t.name, "ak"), t.name, strings.Join(changed, " OR "), t.name, strings.Join(oldCols, ", "))
 }
@@ -87,8 +91,8 @@ func syncTriggerSQL(t syncTable, event, timing, op, row string) string {
 	return fmt.Sprintf(`CREATE TRIGGER IF NOT EXISTS %s %s ON %s
 WHEN NOT EXISTS (SELECT 1 FROM sync_meta WHERE key = 'applying' AND value = '1')
 BEGIN
-	INSERT INTO sync_changes (tbl, row_key, op, changed_at)
-	VALUES ('%s', json_array(%s), '%s', CAST(unixepoch('subsec') * 1000 AS INTEGER));
+	INSERT INTO sync_changes (tbl, row_key, op, changed_at, origin)
+	VALUES ('%s', json_array(%s), '%s', CAST(unixepoch('subsec') * 1000 AS INTEGER), `+syncOriginSQL+`);
 END`,
 		syncTriggerName(t.name, event), timing, t.name, t.name, strings.Join(cols, ", "), op)
 }

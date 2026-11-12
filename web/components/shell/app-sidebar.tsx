@@ -22,7 +22,9 @@ import {
   Swords,
   Trophy,
   Upload,
+  UserRound,
   UserSearch,
+  Users,
   Vote,
   type LucideIcon,
 } from 'lucide-react';
@@ -124,21 +126,23 @@ export function AppSidebar(): ReactElement {
       </SidebarContent>
 
       <SidebarFooter className="gap-2 border-t border-sidebar-border p-0 px-2 pt-2 pb-2">
-        <div className="flex gap-1.5 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
-          <SidebarDemoImport />
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            title="Importar voz del equipo"
-            className="min-w-0 flex-1 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:px-0"
-          >
-            <Link href={VOICE_HREF}>
-              <Upload aria-hidden className="stroke-[1.5]" />
-              <span className="group-data-[collapsible=icon]:sr-only">Voz</span>
-            </Link>
-          </Button>
-        </div>
+        {edition === 'web' ? <WebFooterActions pathname={pathname} /> : (
+          <div className="flex gap-1.5 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
+            <SidebarDemoImport />
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              title="Importar voz del equipo"
+              className="min-w-0 flex-1 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:px-0"
+            >
+              <Link href={VOICE_HREF}>
+                <Upload aria-hidden className="stroke-[1.5]" />
+                <span className="group-data-[collapsible=icon]:sr-only">Voz</span>
+              </Link>
+            </Button>
+          </div>
+        )}
         <SidebarMenu className="gap-px">
           {footerEntries.map((entry) => (
             <NavRow key={entry.id} entry={entry} href={sidebarHref(entry, where)} active={entry.id === activeId} />
@@ -150,6 +154,36 @@ export function AppSidebar(): ReactElement {
       {/* Without this the icon rail was reachable only through an undocumented Ctrl/Cmd+B. */}
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+/** The web edition's footer: import goes to the browser scanner, and the account and team live here. */
+function WebFooterActions({ pathname }: { pathname: string }): ReactElement {
+  const links = [
+    { href: '/equipo', label: 'Equipo', icon: Users },
+    { href: '/cuenta', label: 'Cuenta', icon: UserRound },
+  ] as const;
+  return (
+    <>
+      <Button asChild variant="outline" size="sm" title="Importar demos" className="group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:px-0">
+        <Link href="/importar">
+          <Upload aria-hidden className="stroke-[1.5]" />
+          <span className="group-data-[collapsible=icon]:sr-only">Importar demos</span>
+        </Link>
+      </Button>
+      <SidebarMenu className="gap-px">
+        {links.map(({ href, label, icon: Icon }) => (
+          <SidebarMenuItem key={href}>
+            <SidebarMenuButton asChild isActive={pathname === href} tooltip={label} className="h-7 gap-2.5 rounded-md px-2 font-medium text-fg-2">
+              <Link href={href}>
+                <Icon aria-hidden className="size-4 shrink-0 stroke-[1.5]" />
+                <span>{label}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ))}
+      </SidebarMenu>
+    </>
   );
 }
 

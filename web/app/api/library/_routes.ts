@@ -186,6 +186,8 @@ const fields = (names: readonly string[]) => ({ kind: 'json', fields: names }) a
 export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['demos'], query: ['state', 'source', 'tag', ...PAGING], response: json(['demos']) },
   { method: 'POST', segments: ['demos'], body: { kind: 'multipart' }, response: json(['demos']) },
+  // The web edition's import: the browser parsed the demo and sends its analysis, never the demo.
+  { method: 'POST', segments: ['uploads'], body: { kind: 'multipart', maxBytes: 200 * 1024 * 1024 }, response: json(['created', 'demo', 'match']) },
   { method: 'GET', segments: ['demos', UUID], response: json(LIBRARY_DEMO_KEYS) },
   { method: 'PATCH', segments: ['demos', UUID], body: fields(['source', 'tags']), response: json(LIBRARY_DEMO_KEYS) },
   { method: 'DELETE', segments: ['demos', UUID], response: { kind: 'empty' } },

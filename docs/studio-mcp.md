@@ -241,6 +241,7 @@ Read:
 | `storage_usage` | `GET /api/storage`: total bytes and the Full Demo captures a finished render covers (`freeable`), largest first |
 | `list_storage_files` | `GET /api/storage/files` (the first call starts the PC demo scan): PC demos, Studio demo copies and videos, newest first, 50 per list by default and at most 500, with totals; a path with control or format characters is left out |
 | `steam_matches` | `GET /api/steam/account`: recent matches and whether the history and a Steam session are set; secrets are never returned |
+| `clipmind_status` | `GET /api/clipmind/account` (Ajustes > Cuenta ClipMind): whether Studio is signed in to a ClipMind account, its workspace, the last sync and the changes waiting to be sent |
 | `job_players` | `GET /api/jobs/{id}/roster` of a job that `import_share_code` left `scanned` |
 | `get_round` | `GET /api/library/matches/{id}/tactical` (the document without positions; the round endpoint carries megabytes of frames) and `GET .../metrics` for the round's win probability timeline; buys, patterns with reasons, bomb, timeouts (the CT or T Timeout bands of the Replay's timeline), player lines, kill feed, seconds from freeze end |
 | `match_metrics` | `GET /api/library/matches/{id}/metrics` and `/tactical` for slot names; every player's metrics and, per round, the CT win chance at freeze end and the kill that moved it most |
@@ -309,6 +310,8 @@ Write:
 | `delete_storage_file` | `GET /api/storage/files` (the server only accepts a path its last list returned; a `studio_demo` goes with `delete_demo`), then `POST /api/storage/files/delete` | yes |
 | `reveal_storage_file` | `GET /api/storage/files`, then `POST /api/storage/files/reveal` (File Explorer on this PC) | no |
 | `sync_steam_matches` | `POST /api/steam/matches/sync`; `history_not_configured` and `need_known_code` point the user to Ajustes | no |
+| `clipmind_sync` | `POST /api/clipmind/sync` (Sincronizar ahora); `409` when Studio is not signed in | no |
+| `clipmind_disconnect` | `DELETE /api/clipmind/account` (Desconectar): the library on this PC stays | no |
 | `import_share_code` | `POST /api/steam/import` with `code` only: Studio downloads with the Steam session the user started in the UI, else `steam_credentials_required` asks the user to sign in there. Makes a Crear job | no |
 | `pick_player` | `POST /api/jobs/{id}/parse` with `target_steamid` | no |
 | `delete_demo` | `GET /api/library/demos/{id}` for the summary of each demo (`id`, or up to 50 `ids` as Borrar on the partidas chosen in Partidas), then `DELETE /api/library/demos/{id}` for each, in order (demo, match, analysis and corrections, the match's team voice and the in-game voice read from the demo; videos and jobs stay) | yes |
@@ -404,9 +407,23 @@ clave and Anti-estrategias (one counter per finding, as "if they do X, we do Y")
 Not covered yet (see the parity rule in AGENTS.md): the editor, report exports (the
 HTML page and the `.cliphub` package), `open_studio`, the Libreta's Modo partida window (its data is `plan_table` and
 `list_lineups`) and resources other than the app views. Steam sign-in, the authentication code
-and the Web API key stay in the UI on purpose: an assistant never handles Steam credentials. There is no tool to cancel a queued
+and the Web API key stay in the UI on purpose: an assistant never handles Steam credentials. The same goes for the
+ClipMind account: signing in (Ajustes > Cuenta ClipMind) is done by the user, so there is no `clipmind_connect`. There is no tool to cancel a queued
 render: the orchestrator has no cancel route, and Quitar on a queued video in Mis vídeos only drops
 the UI's local record of it.
+
+## Remote mode: ClipMind workspaces
+
+`zv-mcp --listen 127.0.0.1:8091 --upstream https://clipmind.example.com` serves a ClipMind workspace over MCP's
+streamable HTTP at `/mcp`, stateless, one request at a time. It does not read Studio's session file. Every request
+carries a key (`Authorization: Bearer cmk_...`) that the user creates in the web app (Ajustes > Asistentes); the
+server checks it with `GET /auth/me` on the ClipMind server and the tools then call that server with the same key
+in `X-ClipHub-Token`. A key reaches one workspace, can be revoked at once, and cannot manage members, keys or the account.
+
+The tool list is `remoteTools` in `cmd/zv-mcp/remote.go`: the library and analysis tools whose routes the ClipMind server
+exposes, plus `whoami` (`GET /auth/me`). Everything that needs the demo file or the PC (imports, capture, renders, voice
+audio, FACEIT, Steam, the voice plugin, storage) is removed in this mode. Demos are imported by the user in the web
+app, which parses them in the browser. Signing in with OAuth, so an assistant needs no pasted key, is a later step.
 
 ## Spike results (2026-11-01)
 

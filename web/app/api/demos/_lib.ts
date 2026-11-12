@@ -3,10 +3,22 @@
 // proxy.ts does. Webpack resolves both forms identically.
 import { NextResponse } from 'next/server.js';
 import { SERVICE_UNAVAILABLE_CODE, NOT_CONFIGURED_CODE } from '../../../lib/api/types.ts';
+import { ACCESS_HEADER, clipMindUrl } from '../../../lib/clipmind/session.ts';
+import { currentEdition } from '../../../lib/edition.ts';
 
 /** Server-side orchestrator base; local-first default. */
 export function orchestratorUrl(): string {
+  // The web edition talks to the ClipMind server; the routes and shapes are the orchestrator's.
+  if (currentEdition() === 'web') return clipMindUrl();
   return process.env.ORCHESTRATOR_URL ?? 'http://127.0.0.1:8080';
+}
+
+/** Who the upstream call is for: Studio's per-launch token, or the signed-in person's access token. */
+async function upstreamAuthHeaders(): Promise<Record<string, string>> {
+  if (currentEdition() !== 'web') return mutationHeaders();
+  const { headers } = await import('next/headers');
+  const access = (await headers()).get(ACCESS_HEADER);
+  return access ? { Authorization: `Bearer ${access}` } : {};
 }
 
 /**
@@ -26,7 +38,7 @@ export async function callOrchestrator(url: string, init?: RequestInit): Promise
   // Carry the required per-session orchestrator token on every call, reads
   // included. Desktop and standalone launchers keep it server-side; when the
   // environment is misconfigured, the loopback orchestrator fails closed.
-  const headers = { ...mutationHeaders(), ...((init?.headers as Record<string, string> | undefined) ?? {}) };
+  const headers = { ...(await upstreamAuthHeaders()), ...((init?.headers as Record<string, string> | undefined) ?? {}) };
   try {
     const response = await fetch(url, { ...init, headers, redirect: 'manual' });
     return rejectUpstreamRedirect(response, init?.method);
@@ -55,7 +67,7 @@ export async function callOrchestratorStreamingUpload(
   init: StreamingUploadInit,
   bodyLimitExceeded: () => boolean,
 ): Promise<Response | null | typeof UPLOAD_BODY_LIMIT_EXCEEDED> {
-  const headers = { ...mutationHeaders(), ...init.headers };
+  const headers = { ...(await upstreamAuthHeaders()), ...init.headers };
   try {
     const response = await fetch(url, { ...init, headers, redirect: 'manual' });
     return rejectUpstreamRedirect(response, init.method);

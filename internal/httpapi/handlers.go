@@ -173,6 +173,7 @@ type Handlers struct {
 	voice               *voiceService
 	replayVideo         *ReplayVideoDeps
 	syncLog             *store.SyncLog
+	clipmind            clipmindOptions
 	// labBundleMu serializes bundle writes: bundles of one job share a directory.
 	labBundleMu sync.Mutex
 }

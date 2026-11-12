@@ -1,3 +1,5 @@
+import { currentEdition } from '../edition.ts';
+
 const ALLOWED_FETCH_SITES = new Set(['none', 'same-origin']);
 
 const INVALID_HOST_ERROR = 'local API host rejected';
@@ -22,6 +24,8 @@ const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
  * never receives the orchestrator token or the capability value in JavaScript.
  */
 export async function localAPIRequestError(headers: Headers, method = 'GET'): Promise<string | undefined> {
+  // The web edition has no loopback capability: sign-in is the credential, and this keeps CSRF out.
+  if (currentEdition() === 'web') return webRequestError(headers, method);
   const localOrigin = localAPIOrigin(headers);
   if (localOrigin === undefined) return INVALID_HOST_ERROR;
   const host = new URL(localOrigin).host;
@@ -56,6 +60,21 @@ export async function localAPIRequestError(headers: Headers, method = 'GET'): Pr
   if (problem === undefined) return undefined;
   console.warn(`[local-api] ${method.toUpperCase()} refused: ${problem}`);
   return MUTATION_CAPABILITY_ERROR;
+}
+
+/** Same-origin only for browsers: a page of another site cannot drive a signed-in user's cookies. */
+function webRequestError(headers: Headers, method: string): string | undefined {
+  const fetchSite = headers.get('sec-fetch-site');
+  if (fetchSite !== null && !ALLOWED_FETCH_SITES.has(fetchSite.toLowerCase())) return CROSS_SITE_ERROR;
+  if (!MUTATION_METHODS.has(method.toUpperCase())) return undefined;
+  const origin = headers.get('origin');
+  if (origin === null) return undefined;
+  const host = (headers.get('x-forwarded-host') ?? headers.get('host') ?? '').toLowerCase();
+  try {
+    return new URL(origin).host.toLowerCase() === host ? undefined : CROSS_SITE_ERROR;
+  } catch {
+    return CROSS_SITE_ERROR;
+  }
 }
 
 export type MutationCapabilityProblem = 'unconfigured' | 'cookie_missing' | 'cookie_duplicate' | 'cookie_mismatch';

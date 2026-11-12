@@ -4,6 +4,7 @@ import { AssistantSettings } from '@/components/settings/assistant-settings';
 import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { StudioInfo } from '@/components/settings/studio-info';
 import { SteamAccount } from '@/components/settings/steam-account';
+import { ClipMindAccount } from '@/components/settings/clipmind-account';
 import { TelemetrySettings } from '@/components/settings/telemetry-settings';
 import { TeamSpeakSettings } from '@/components/settings/teamspeak-settings';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
@@ -20,6 +21,7 @@ export default function SettingsPage(): ReactNode {
       <div className="measure-work flex flex-col gap-7">
         <CaptureReadiness variant="settings" />
         <SteamAccount />
+        <ClipMindAccount />
         <AppearanceSettings />
         <StudioInfo />
         <AssistantSettings />

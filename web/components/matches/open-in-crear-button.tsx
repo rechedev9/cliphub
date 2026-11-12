@@ -7,6 +7,7 @@ import { createJobFromLibraryDemo, type LibraryDemo } from '@/lib/api/library';
 import { MATCH_STATUS_FAILED } from '@/lib/api/types';
 import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
 import { flowHref, type ProduceFormat } from '@/lib/clips/routes';
+import { currentEdition } from '@/lib/edition';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -61,6 +62,9 @@ export function OpenInCrearButton({
         setBusy(false);
       });
   }
+
+  // Making videos is Studio's job: the web edition only analyzes.
+  if (currentEdition() === 'web') return null;
 
   return (
     <span className={cn('inline-flex flex-wrap items-center gap-2', className === undefined ? undefined : 'min-w-0 flex-1')}>

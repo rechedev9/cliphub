@@ -257,8 +257,9 @@ func commandEntrypoints(root string) ([]string, error) {
 			}
 			return nil, fmt.Errorf("read command main %s: %w", entry.Name(), err)
 		}
-		// A js-only main is a browser module (WebAssembly), not a command the zv CLI can run.
-		if bytes.HasPrefix(src, []byte("//go:build js")) {
+		// A js-only main is a browser module (WebAssembly), and a main that opens
+		// with "// zv:server-binary" is a server for another host. Neither is a CLI command.
+		if bytes.HasPrefix(src, []byte("//go:build js")) || bytes.HasPrefix(src, []byte("// zv:server-binary")) {
 			continue
 		}
 		commands = append(commands, entry.Name())
