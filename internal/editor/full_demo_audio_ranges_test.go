@@ -112,7 +112,7 @@ func TestFullDemoRetargetStaysInRangeAndExhaustsForAnyMeasurement(t *testing.T) 
 			}
 
 			inRange("recovery target", aacHeadroomTarget(target))
-			master := initialAACRecoveryMaster(target)
+			master := initialAACRecoveryMaster(target, "aac_mf")
 			bounds := computedFilterRanges["alimiter"]["limit"]
 			for range 100 {
 				if limit := math.Pow(10, master.CeilingDBFS/20); limit < bounds[0] || limit > bounds[1] {

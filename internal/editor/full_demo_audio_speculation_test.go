@@ -23,9 +23,6 @@ func TestFullDemoAACRecoverySpeculationMatchesSerialAndDiscardsCleanly(t *testin
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	if !hasMediaFoundationAAC(ctx, ffmpeg) {
-		t.Skip("Windows Media Foundation AAC is required for this recovery canary")
-	}
 	dir := t.TempDir()
 	input := filepath.Join(dir, "program.nut")
 	const frames = 1819 // Does not end on a loudnorm analysis/AAC packet boundary.
@@ -43,7 +40,7 @@ func TestFullDemoAACRecoverySpeculationMatchesSerialAndDiscardsCleanly(t *testin
 	}
 	attempts := func(result fullDemoAACRecoveryResult) []fullDemoAACRecoveryAttempt {
 		t.Helper()
-		if result.err != nil || result.unavailable || result.candidate == "" {
+		if result.err != nil || result.candidate == "" {
 			t.Fatalf("recovery did not accept a candidate: %+v", result)
 		}
 		if _, err := os.Stat(result.candidate); err != nil {

@@ -3,6 +3,7 @@ package editor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math"
 	"os"
 	"os/exec"
@@ -24,7 +25,7 @@ func TestFullDemoLoudnessMeasurements(t *testing.T) {
 		{"silence", `{"input_i":"-inf","input_tp":"-inf","input_lra":"0","input_thresh":"-70","target_offset":"inf"}`, "silent", false},
 		{"missing peak", `{"input_i":"-20"}`, "", true},
 		{"inaudible residue", `{"input_i":"-inf","input_tp":"-69.55","input_lra":"0.00","input_thresh":"-70.00","target_offset":"inf"}`, "silent", false},
-		{"infinite non-silence",`{"input_i":"-inf","input_tp":"-3"}`, "", true},
+		{"infinite non-silence", `{"input_i":"-inf","input_tp":"-3"}`, "", true},
 		{"NaN", `{"input_i":"NaN","input_tp":"-3"}`, "", true},
 		{"no measurement", "decoder error", "", true},
 	} {
@@ -107,62 +108,125 @@ func TestFullDemoMasterDecodedAAC(t *testing.T) {
 	}
 }
 
+func TestFullDemoAACRecoveryProbePicksAnEncoderThatOpens(t *testing.T) {
+	mediaTest(t)
+	ffmpeg := fullDemoTestFFmpeg(t)
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	for _, tc := range []struct {
+		name  string
+		ctx   context.Context
+		probe aacRecoveryProbe
+		want  string
+	}{
+		{"encoder opens", context.Background(), aacRecoveryProbe{ffmpeg: ffmpeg, encoder: "pcm_s16le"}, "pcm_s16le"},
+		// Listed by -encoders but refuses to open, as aac_mf does without mfplat.dll.
+		{"listed but does not open", context.Background(), aacRecoveryProbe{ffmpeg: ffmpeg, encoder: "libx264"}, nativeAAC},
+		{"not built into ffmpeg", context.Background(), aacRecoveryProbe{ffmpeg: ffmpeg, encoder: "aac_mf_absent"}, nativeAAC},
+		{"ffmpeg missing", context.Background(), aacRecoveryProbe{ffmpeg: filepath.Join(t.TempDir(), "missing-ffmpeg.exe"), encoder: mediaFoundationAAC}, nativeAAC},
+		{"render cancelled", cancelled, aacRecoveryProbe{ffmpeg: ffmpeg, encoder: "pcm_s16le"}, nativeAAC},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.probe.pick(tc.ctx); got != tc.want {
+				t.Fatalf("encoder = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFullDemoAACRecoveryStopsOnCancelledRender(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	result := runFullDemoAACRecoveryAttempts(ctx, fullDemoAACRecoveryOptions{ffmpeg: "ffmpeg", encoder: nativeAAC})
+	if !errors.Is(result.err, context.Canceled) || len(result.attempts) != 0 || result.candidate != "" {
+		t.Fatalf("cancelled recovery ran or accepted audio: %+v", result)
+	}
+}
+
 func TestFullDemoAACRecoveryKeepsDecodedAcceptance(t *testing.T) {
 	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe := fullDemoTestFFprobe(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer cancel()
-	if !hasMediaFoundationAAC(ctx, ffmpeg) {
-		t.Skip("Windows Media Foundation AAC is required for this recovery canary")
-	}
-	dir := t.TempDir()
-	// Not a loudnorm analysis window nor an AAC packet boundary; delivery
-	// verification needs the real 1080p program geometry.
 	const frames = fullDemoAudioTestFrames
-	input, duration := fullDemoAudioTestProgram(t, ctx, ffmpeg, dir, frames, fullDemoAudioTestTransient, "1920x1080")
-	output := filepath.Join(dir, "final.mp4")
 	target := recapplan.DefaultOptions().Audio.Loudness
-	first, err := measureLoudness(ctx, ffmpeg, input, target, "", duration, nil)
-	if err != nil {
-		t.Fatal(err)
+	for _, tc := range []struct {
+		name    string
+		encoder string
+		want    string
+	}{
+		{name: "probed encoder"},
+		{name: "native aac", encoder: "aac", want: "aac"},
+		// Passed the probe, then fails on the real program: native aac takes over.
+		{name: "encoder fails on the program", encoder: "libx264", want: "aac"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+			defer cancel()
+			dir := t.TempDir()
+			// Not a loudnorm analysis window nor an AAC packet boundary; delivery
+			// verification needs the real 1080p program geometry.
+			input, duration := fullDemoAudioTestProgram(t, ctx, ffmpeg, dir, frames, fullDemoAudioTestTransient, "1920x1080")
+			output := filepath.Join(dir, "final.mp4")
+			logDir := filepath.Join(dir, "logs")
+			first, err := measureLoudness(ctx, ffmpeg, input, target, "", duration, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var last float64
+			progress := func(_ string, fraction float64) {
+				if fraction < last || fraction >= 1 {
+					t.Errorf("invalid recovery progress: %f after %f", fraction, last)
+				}
+				last = fraction
+			}
+			var result fullDemoAACRecoveryResult
+			if tc.encoder == "" {
+				result = runFullDemoAACRecovery(ctx, ffmpeg, input, output, logDir, target, duration, first, progress)
+			} else {
+				result = runFullDemoAACRecoveryAttempts(ctx, fullDemoAACRecoveryOptions{
+					ffmpeg: ffmpeg, input: input, output: output, logDir: logDir,
+					target: target, duration: duration, first: first, encoder: tc.encoder, progress: progress,
+				})
+			}
+			evidence, err := finishFullDemoAACRecovery(ctx, ffmpeg, committedFullDemoProgramVideo(input), output, logDir, target, duration, ProgramLoudnessEvidence{Policy: target.PolicyVersion, Input: first, MasterTargets: []recapplan.LoudnessOptions{}, DecodedAAC: []LoudnessMeasurement{}, Status: "unverified"}, result, progress)
+			if err != nil {
+				t.Fatalf("recovery: %v; evidence: %+v", err, evidence)
+			}
+			assertRecoveredAAC(t, evidence, target)
+			if tc.want != "" {
+				for _, master := range evidence.FallbackMasters {
+					if master.Encoder != tc.want {
+						t.Fatalf("fallback encoder = %q, want %q", master.Encoder, tc.want)
+					}
+				}
+			}
+			if evidence.FinalMuxedAAC == nil {
+				t.Fatal("recovery did not certify the final muxed AAC")
+			}
+			if _, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, output, frames, nil); err != nil {
+				t.Fatal("recovered AAC broke delivery:", err)
+			}
+			if got := fullDemoTestVideoHash(t, ctx, ffmpeg, output); got != fullDemoTestVideoHash(t, ctx, ffmpeg, input) {
+				t.Fatalf("recovery changed the copied video: %s", got)
+			}
+			if got := fullDemoTestVideoFrames(t, ctx, ffprobe, output); got != frames {
+				t.Fatalf("recovery output has %d frames, want %d", got, frames)
+			}
+			packets := fullDemoTestAudioPackets(t, ctx, ffprobe, output)
+			if _, end := fullDemoTestPacketClock(t, packets, "recovered"); end != int64(frames)*recapplan.SampleRate/recapplan.OutputFPS {
+				t.Fatalf("AAC packet padding escaped the approved timeline: reaches sample %d", end)
+			}
+			for i, packet := range packets {
+				if packet.Duration > 1024 {
+					t.Fatalf("recovered AAC packet %d is longer than one access unit: %+v", i, packet)
+				}
+			}
+			if final := packets[len(packets)-1]; final.Duration >= 1024 {
+				t.Fatalf("recovered audio did not exercise a short final packet: %+v", final)
+			}
+			fullDemoTestNoTemporaryAudioFiles(t, dir)
+		})
 	}
-	var last float64
-	evidence, err := recoverFullDemoAAC(ctx, ffmpeg, input, committedFullDemoProgramVideo(input), output, filepath.Join(dir, "logs"), target, duration, ProgramLoudnessEvidence{Policy: target.PolicyVersion, Input: first, MasterTargets: []recapplan.LoudnessOptions{}, DecodedAAC: []LoudnessMeasurement{}, Status: "unverified"}, func(_ string, fraction float64) {
-		if fraction < last || fraction >= 1 {
-			t.Errorf("invalid recovery progress: %f after %f", fraction, last)
-		}
-		last = fraction
-	})
-	if err != nil {
-		t.Fatalf("recovery: %v; evidence: %+v", err, evidence)
-	}
-	assertRecoveredAAC(t, evidence, target)
-	if evidence.FinalMuxedAAC == nil {
-		t.Fatal("recovery did not certify the final muxed AAC")
-	}
-	if _, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, output, frames, nil); err != nil {
-		t.Fatal("recovered AAC broke delivery:", err)
-	}
-	if got := fullDemoTestVideoHash(t, ctx, ffmpeg, output); got != fullDemoTestVideoHash(t, ctx, ffmpeg, input) {
-		t.Fatalf("recovery changed the copied video: %s", got)
-	}
-	if got := fullDemoTestVideoFrames(t, ctx, ffprobe, output); got != frames {
-		t.Fatalf("recovery output has %d frames, want %d", got, frames)
-	}
-	packets := fullDemoTestAudioPackets(t, ctx, ffprobe, output)
-	if _, end := fullDemoTestPacketClock(t, packets, "recovered"); end != int64(frames)*recapplan.SampleRate/recapplan.OutputFPS {
-		t.Fatalf("AAC packet padding escaped the approved timeline: reaches sample %d", end)
-	}
-	for i, packet := range packets {
-		if packet.Duration > 1024 {
-			t.Fatalf("recovered AAC packet %d is longer than one access unit: %+v", i, packet)
-		}
-	}
-	if final := packets[len(packets)-1]; final.Duration >= 1024 {
-		t.Fatalf("recovered audio did not exercise a short final packet: %+v", final)
-	}
-	fullDemoTestNoTemporaryAudioFiles(t, dir)
 }
 
 func TestFullDemoAACRecoveryCorrectionIsBounded(t *testing.T) {
@@ -226,13 +290,24 @@ func TestFullDemoMasterRetargetStaysWithinLoudnormRange(t *testing.T) {
 	}
 }
 
-func TestFullDemoAACRecoveryUnavailableDoesNotAcceptFailedAudio(t *testing.T) {
+func TestFullDemoAACRecoveryMissingFFmpegDoesNotAcceptFailedAudio(t *testing.T) {
 	dir := t.TempDir()
-	low, peak := -19.81, -.26
-	failed := ProgramLoudnessEvidence{Status: "unverified", DecodedAAC: []LoudnessMeasurement{{Status: "measured", IntegratedLUFS: &low, TruePeakDBTP: &peak}}}
+	low, peak, lra, threshold, offset := -19.81, -.26, 4.2, -30.0, 0.0
+	failed := ProgramLoudnessEvidence{
+		Status:     "unverified",
+		Input:      LoudnessMeasurement{Status: "measured", IntegratedLUFS: &low, TruePeakDBTP: &peak, LRA: &lra, Threshold: &threshold, Offset: &offset},
+		DecodedAAC: []LoudnessMeasurement{{Status: "measured", IntegratedLUFS: &low, TruePeakDBTP: &peak}},
+	}
 	evidence, err := recoverFullDemoAAC(context.Background(), filepath.Join(dir, "missing-ffmpeg.exe"), "input.nut", committedFullDemoProgramVideo("input.nut"), "output.mp4", dir, recapplan.DefaultOptions().Audio.Loudness, 4, failed, nil)
-	if err == nil || !strings.Contains(err.Error(), "audio_loudness_failed:") || !strings.Contains(err.Error(), "-19.81 LUFS / -0.26 dBTP") || evidence.Status != "unverified" || len(evidence.FallbackMasters) != 0 {
-		t.Fatalf("unavailable encoder bypassed failure or lost measurements: %+v, %v", evidence, err)
+	if err == nil || !strings.Contains(err.Error(), "audio_loudness_failed:") || evidence.Status != "unverified" || len(evidence.FallbackMasters) != 1 || evidence.FallbackMasters[0].Encoder != "aac" {
+		t.Fatalf("missing FFmpeg bypassed failure or lost evidence: %+v, %v", evidence, err)
+	}
+	if len(evidence.DecodedAAC) != 1 {
+		t.Fatalf("failed audio measurement lost: %+v", evidence.DecodedAAC)
+	}
+	kept := evidence.DecodedAAC[0]
+	if kept.IntegratedLUFS == nil || *kept.IntegratedLUFS != low || kept.TruePeakDBTP == nil || *kept.TruePeakDBTP != peak {
+		t.Fatalf("failed audio measurement changed: %+v", evidence.DecodedAAC)
 	}
 }
 
