@@ -56,6 +56,10 @@ export function homePathFor(edition: Edition): string {
   return edition === 'web' ? '/partidas' : RESULTS_HREF;
 }
 
+export function homeLabelFor(edition: Edition): string {
+  return edition === 'web' ? 'Partidas' : 'Mis vídeos';
+}
+
 export function navSectionsFor(edition: Edition): readonly NavSection[] {
   return NAV_SECTIONS.filter((section) => isPathAvailable(section.href, edition));
 }

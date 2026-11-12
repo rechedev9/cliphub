@@ -1,14 +1,12 @@
 import { parseProgressMessage, parseResultMessage, type ScanResult } from './scan-messages.ts';
 
-export type BrowserScanResult = ScanResult;
-
 export interface ScanDemoOptions {
   onProgress?: (read: number, total: number) => void;
   signal?: AbortSignal;
 }
 
-export function scanDemoInBrowser(file: File, options: ScanDemoOptions = {}): Promise<BrowserScanResult> {
-  return new Promise<BrowserScanResult>((resolve, reject) => {
+export function scanDemoInBrowser(file: File, options: ScanDemoOptions = {}): Promise<ScanResult> {
+  return new Promise<ScanResult>((resolve, reject) => {
     const id = crypto.randomUUID();
     const worker = new Worker('/wasm/scan-worker.js');
     let settled = false;
@@ -25,7 +23,7 @@ export function scanDemoInBrowser(file: File, options: ScanDemoOptions = {}): Pr
       reject(error);
     }
 
-    function finish(result: BrowserScanResult): void {
+    function finish(result: ScanResult): void {
       if (settled) return;
       settled = true;
       cleanup();
@@ -43,7 +41,15 @@ export function scanDemoInBrowser(file: File, options: ScanDemoOptions = {}): Pr
         return;
       }
       const result = parseResultMessage(event.data);
-      if (result !== undefined && result.id === id) finish(result.result);
+      if (result !== undefined) {
+        if (result.id === id) finish(result.result);
+        return;
+      }
+      fail(new Error('El escáner devolvió una respuesta no válida'));
+    }
+
+    function onMessageError(): void {
+      fail(new Error('El escáner devolvió una respuesta no válida'));
     }
 
     function onError(event: ErrorEvent): void {
@@ -52,6 +58,7 @@ export function scanDemoInBrowser(file: File, options: ScanDemoOptions = {}): Pr
 
     worker.addEventListener('message', onMessage);
     worker.addEventListener('error', onError);
+    worker.addEventListener('messageerror', onMessageError);
 
     if (options.signal !== undefined) {
       if (options.signal.aborted) {

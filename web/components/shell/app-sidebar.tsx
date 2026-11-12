@@ -42,7 +42,7 @@ import { Button } from '@/components/ui/button';
 import { BrandMark, Wordmark } from '@/components/brand/wordmark';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
 import { SidebarDemoImport } from '@/components/shell/sidebar-demo-import';
-import { currentEdition, homePathFor } from '@/lib/edition';
+import { currentEdition, homeLabelFor, homePathFor } from '@/lib/edition';
 import {
   VOICE_HREF,
   activeEntryId,
@@ -94,7 +94,7 @@ export function AppSidebar(): ReactElement {
       <SidebarHeader className="h-(--shell-strip-height) justify-center border-b border-sidebar-border p-0 px-3 group-data-[collapsible=icon]:px-2">
         <Link
           href={homePathFor(edition)}
-          aria-label={`Ir a ${edition === 'web' ? 'Partidas' : 'Mis vídeos'}`}
+          aria-label={`Ir a ${homeLabelFor(edition)}`}
           className="inline-flex min-h-8 items-center group-data-[collapsible=icon]:justify-center"
         >
           <Wordmark className="group-data-[collapsible=icon]:hidden" />

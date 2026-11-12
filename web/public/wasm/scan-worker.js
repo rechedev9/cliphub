@@ -25,6 +25,6 @@ self.onmessage = async (event) => {
     });
     postMessage({ id, type: 'result', result }, result.ok ? [result.positions.buffer] : []);
   } catch (error) {
-    postMessage({ id, type: 'result', result: { ok: false, error: error.message } });
+    postMessage({ id, type: 'result', result: { ok: false, error: error instanceof Error ? error.message : String(error) } });
   }
 };

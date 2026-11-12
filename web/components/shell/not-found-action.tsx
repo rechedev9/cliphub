@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { currentEdition, editionSectionForPath, homePathFor } from '@/lib/edition';
+import { currentEdition, editionSectionForPath, homeLabelFor, homePathFor } from '@/lib/edition';
 
 /** The way out of a 404: back to the section the address belongs to, else the edition's home. */
 export function NotFoundAction(): ReactElement {
@@ -13,7 +13,7 @@ export function NotFoundAction(): ReactElement {
   const fallback = homePathFor(edition);
   return (
     <Button asChild>
-      <Link href={section?.href ?? fallback}>Ir a {section?.label ?? (edition === 'web' ? 'Partidas' : 'Mis vídeos')}</Link>
+      <Link href={section?.href ?? fallback}>Ir a {section?.label ?? homeLabelFor(edition)}</Link>
     </Button>
   );
 }

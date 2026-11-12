@@ -59,7 +59,13 @@ func (s *SyncLog) Changes(ctx context.Context, after int64, limit int) (SyncBatc
 	if limit > syncLogBatchCap {
 		limit = syncLogBatchCap
 	}
-	rows, err := s.db.QueryContext(ctx,
+	// One read transaction gives the log and the rows one snapshot.
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return SyncBatch{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	rows, err := tx.QueryContext(ctx,
 		`SELECT seq, tbl, row_key, op, changed_at FROM sync_changes WHERE seq > ? ORDER BY seq ASC LIMIT ?`,
 		after, limit)
 	if err != nil {
@@ -89,6 +95,7 @@ func (s *SyncLog) Changes(ctx context.Context, after int64, limit int) (SyncBatc
 	if err := rows.Err(); err != nil {
 		return SyncBatch{}, err
 	}
+	rows.Close()
 	collapsed := make([]logRow, 0, len(byKey))
 	for _, r := range byKey {
 		collapsed = append(collapsed, r)
@@ -103,7 +110,7 @@ func (s *SyncLog) Changes(ctx context.Context, after int64, limit int) (SyncBatc
 		}
 		change := SyncChange{Seq: r.seq, Table: r.tbl, Key: key, Op: r.op, ChangedAt: r.changedAt}
 		if r.op == "upsert" {
-			row, found, err := s.currentSyncRow(ctx, r.tbl, key)
+			row, found, err := currentSyncRow(ctx, tx, r.tbl, key)
 			if err != nil {
 				return SyncBatch{}, err
 			}
@@ -138,7 +145,7 @@ func parseSyncKey(raw string) ([]any, error) {
 }
 
 // currentSyncRow reads the current non-local columns of one row.
-func (s *SyncLog) currentSyncRow(ctx context.Context, table string, key []any) (map[string]any, bool, error) {
+func currentSyncRow(ctx context.Context, tx *sql.Tx, table string, key []any) (map[string]any, bool, error) {
 	t, ok := syncTableByName[table]
 	if !ok {
 		return nil, false, &SyncInputError{Table: table}
@@ -147,7 +154,7 @@ func (s *SyncLog) currentSyncRow(ctx context.Context, table string, key []any) (
 	for i, col := range t.keyColumns {
 		where[i] = col + " = ?"
 	}
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := tx.QueryContext(ctx,
 		`SELECT * FROM `+table+` WHERE `+strings.Join(where, " AND "), key...)
 	if err != nil {
 		return nil, false, err
@@ -205,12 +212,36 @@ func (s *SyncLog) Apply(ctx context.Context, changes []SyncChange) error {
 	return tx.Commit()
 }
 
+// orderSyncChanges keeps the last change per row, then puts deletes first,
+// children before parents, and upserts after them, parents before children.
 func orderSyncChanges(changes []SyncChange) []SyncChange {
-	ordered := append([]SyncChange(nil), changes...)
-	sort.SliceStable(ordered, func(i, j int) bool {
-		return syncTableIndex[ordered[i].Table] < syncTableIndex[ordered[j].Table]
-	})
+	last := make(map[string]int, len(changes))
+	for i, c := range changes {
+		last[syncRowID(c)] = i
+	}
+	ordered := make([]SyncChange, 0, len(last))
+	for i, c := range changes {
+		if last[syncRowID(c)] == i {
+			ordered = append(ordered, c)
+		}
+	}
+	rank := func(c SyncChange) int {
+		if c.Op == "delete" {
+			return -1 - syncTableIndex[c.Table]
+		}
+		return syncTableIndex[c.Table]
+	}
+	sort.SliceStable(ordered, func(i, j int) bool { return rank(ordered[i]) < rank(ordered[j]) })
 	return ordered
+}
+
+// syncRowID names a change's row; JSON keeps "a","bc" apart from "ab","c".
+func syncRowID(c SyncChange) string {
+	key, err := json.Marshal(c.Key)
+	if err != nil {
+		return c.Table + "\x00" + fmt.Sprintf("%#v", c.Key)
+	}
+	return c.Table + "\x00" + string(key)
 }
 
 // applySyncChange applies one change; described caches each table's columns for the batch.

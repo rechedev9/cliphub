@@ -80,3 +80,45 @@ func TestSyncLogVoiceLinesRoundTrip(t *testing.T) {
 		t.Fatalf("voice lines on the other device = %d (%v), want 2", n, err)
 	}
 }
+
+func TestSyncLogApplyOrdersReferencesAndDeletes(t *testing.T) {
+	ctx := context.Background()
+	db, log := newTestSyncLog(t)
+	seedSyncScenario(t, db, `C:\demos\a.dem`)
+	for _, stmt := range []string{
+		`INSERT INTO library_plays (id, title, map, side, kind, origin, created_at, updated_at) VALUES ('p1', 'Rush B', 'de_dust2', 'T', 'execute', 'manual', 1, 1)`,
+		`INSERT INTO library_patterns (id, name, map, detail, play_id, created_at, updated_at) VALUES ('pa1', 'Rush B', 'de_dust2', '{}', 'p1', 1, 1)`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	first, err := log.Changes(ctx, 0, 1000)
+	if err != nil {
+		t.Fatalf("Changes: %v", err)
+	}
+	other, otherLog := newTestSyncLog(t)
+	if err := otherLog.Apply(ctx, first.Changes); err != nil {
+		t.Fatalf("Apply of a pattern and the play it points to: %v", err)
+	}
+
+	for _, stmt := range []string{
+		`DELETE FROM library_match_players WHERE steam_id = 's1'`,
+		`DELETE FROM library_players WHERE steam_id = 's1'`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	second, err := log.Changes(ctx, first.Next, 1000)
+	if err != nil {
+		t.Fatalf("Changes: %v", err)
+	}
+	if err := otherLog.Apply(ctx, second.Changes); err != nil {
+		t.Fatalf("Apply of a player delete with its match rows: %v", err)
+	}
+	var n int
+	if err := other.QueryRowContext(ctx, `SELECT COUNT(*) FROM library_players WHERE steam_id = 's1'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("player s1 on the other device = %d (%v), want 0", n, err)
+	}
+}
