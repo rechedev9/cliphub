@@ -3,8 +3,8 @@ import { GRENADE_KIND_LABEL } from '../analysis/grenade-patterns.ts';
 import { isLineupGrenade } from '../api/lineups.ts';
 import { isLibretaStatus } from '../api/libreta.ts';
 import { LIBRETA_TABS, libretaTabHref, lineupHref, matchHref, playerHref, playHref, teamHref } from '../clips/routes.ts';
+import { currentEdition, navSectionsFor } from '../edition.ts';
 import { STATUS_LABEL } from '../libreta/status.ts';
-import { NAV_SECTIONS } from '../nav.ts';
 import { playKindLabel } from '../stratbook/plays.ts';
 
 /** The section titles of the result list, in the order they show. */
@@ -36,7 +36,7 @@ export function foldSearch(text: string): string {
 export function sectionRows(query: string): SearchRow[] {
   const words = foldSearch(query).split(' ').filter((word) => word !== '');
   if (words.length === 0) return [];
-  return NAV_SECTIONS.filter((section) => words.every((word) => foldSearch(section.label).includes(word))).map((section) => ({
+  return navSectionsFor(currentEdition()).filter((section) => words.every((word) => foldSearch(section.label).includes(word))).map((section) => ({
     key: `section:${section.href}`,
     group: 'section',
     title: section.label,

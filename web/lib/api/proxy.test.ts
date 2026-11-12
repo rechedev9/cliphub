@@ -47,6 +47,53 @@ test('proxy rejects cross-origin and DNS-rebound reads', async () => {
 
 test('proxy preserves the API matcher and streaming-route exclusions', () => {
   assert.deepEqual(config, {
-    matcher: '/api/((?!demos/scan/?$|library/demos/?$|library/import-package/?$|library/matches/[^/]+/voice/?$|library/matches/[^/]+/replay-video/?$|streams/?$|editor/assets/?$|full-demo/overlay-images/?$|session/bootstrap/?$|voice-plugin/gamestate/?$).*)',
+    matcher: [
+      '/api/:path*',
+      '/((?!api|_next/|favicon|icon\\.svg|.*\\..*).*)',
+    ],
   });
+});
+
+test('proxy: excluded API routes keep their own in-handler guard', async () => {
+  for (const path of ['/api/streams', '/api/editor/assets', '/api/library/demos', '/api/session/bootstrap']) {
+    const response = await proxy(new NextRequest(`http://127.0.0.1:3000${path}`, {
+      headers: { host: 'attacker.example:3000' },
+    }));
+    assert.equal(response.headers.get('x-middleware-next'), '1', path);
+  }
+});
+
+test('proxy: the web edition redirects desktop pages to the download page', async () => {
+  const previous = process.env.NEXT_PUBLIC_CLIPHUB_EDITION;
+  process.env.NEXT_PUBLIC_CLIPHUB_EDITION = 'web';
+  try {
+    for (const path of ['/shorts', '/shorts/abc', '/mis-videos', '/jugadores/faceit', '/resultados/old?x=1']) {
+      const response = await proxy(new NextRequest(`http://127.0.0.1:3000${path}`));
+      assert.equal(response.status, 307, path);
+      const location = response.headers.get('location') ?? '';
+      assert.equal(new URL(location).pathname, '/descargar', path);
+      assert.equal(new URL(location).search, '', path);
+    }
+    const allowed = await proxy(new NextRequest('http://127.0.0.1:3000/partidas'));
+    assert.equal(allowed.headers.get('x-middleware-next'), '1');
+  } finally {
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_CLIPHUB_EDITION;
+    else process.env.NEXT_PUBLIC_CLIPHUB_EDITION = previous;
+  }
+});
+
+test('proxy: the web edition answers 404 for desktop API prefixes', async () => {
+  const previous = process.env.NEXT_PUBLIC_CLIPHUB_EDITION;
+  process.env.NEXT_PUBLIC_CLIPHUB_EDITION = 'web';
+  try {
+    const response = await proxy(new NextRequest('http://127.0.0.1:3000/api/demos/scan', { method: 'POST' }));
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), { error: 'not available in this edition' });
+
+    const allowed = await proxy(new NextRequest('http://127.0.0.1:3000/api/library/demos'));
+    assert.equal(allowed.headers.get('x-middleware-next'), '1');
+  } finally {
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_CLIPHUB_EDITION;
+    else process.env.NEXT_PUBLIC_CLIPHUB_EDITION = previous;
+  }
 });

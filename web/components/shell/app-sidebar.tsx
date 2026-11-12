@@ -42,12 +42,12 @@ import { Button } from '@/components/ui/button';
 import { BrandMark, Wordmark } from '@/components/brand/wordmark';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
 import { SidebarDemoImport } from '@/components/shell/sidebar-demo-import';
-import { RESULTS_HREF } from '@/lib/clips/routes';
+import { currentEdition, homePathFor } from '@/lib/edition';
 import {
-  SIDEBAR_FOOTER_ENTRIES,
-  SIDEBAR_GROUPS,
   VOICE_HREF,
   activeEntryId,
+  sidebarFooterEntriesFor,
+  sidebarGroupsFor,
   type SidebarEntry,
   type SidebarEntryId,
 } from '@/lib/nav-groups';
@@ -56,6 +56,7 @@ import { cn } from '@/lib/utils';
 
 // The Crear formats tint a small dot with the colour their flow uses; the icon stays neutral.
 const ENTRY_META: Record<SidebarEntryId, { icon: LucideIcon; dot?: string }> = {
+  'crear-videos': { icon: Clapperboard },
   'demo-completa': { icon: MonitorPlay, dot: 'bg-format-full' },
   short: { icon: Smartphone, dot: 'bg-format-short' },
   'clips-de-stream': { icon: Clapperboard, dot: 'bg-format-stream' },
@@ -81,6 +82,9 @@ const ENTRY_META: Record<SidebarEntryId, { icon: LucideIcon; dot?: string }> = {
 export function AppSidebar(): ReactElement {
   const pathname = usePathname();
   const params = useSearchParams();
+  const edition = currentEdition();
+  const groups = sidebarGroupsFor(edition);
+  const footerEntries = sidebarFooterEntriesFor(edition);
   const activeId = activeEntryId({ pathname, tab: params.get('tab') });
   const where: PageLocation = { pathname, search: params.toString() };
 
@@ -89,8 +93,8 @@ export function AppSidebar(): ReactElement {
       {/* Same band as the command strip, so the wordmark and the breadcrumb share one baseline. */}
       <SidebarHeader className="h-(--shell-strip-height) justify-center border-b border-sidebar-border p-0 px-3 group-data-[collapsible=icon]:px-2">
         <Link
-          href={RESULTS_HREF}
-          aria-label="Ir a Mis vídeos"
+          href={homePathFor(edition)}
+          aria-label={`Ir a ${edition === 'web' ? 'Partidas' : 'Mis vídeos'}`}
           className="inline-flex min-h-8 items-center group-data-[collapsible=icon]:justify-center"
         >
           <Wordmark className="group-data-[collapsible=icon]:hidden" />
@@ -99,7 +103,7 @@ export function AppSidebar(): ReactElement {
       </SidebarHeader>
 
       <SidebarContent className="gap-0 pt-2">
-        {SIDEBAR_GROUPS.map((group) => (
+        {groups.map((group) => (
           <SidebarGroup key={group.id} className="gap-0.5 px-2 pt-1 pb-3">
             {/* [font-size:…] rather than `text-meta`: tailwind-merge files an unknown `text-*` under text colour. */}
             <SidebarGroupLabel className="h-6 gap-1.5 px-2 [font-size:var(--text-meta)] font-semibold tracking-widest text-fg-3 uppercase">
@@ -136,7 +140,7 @@ export function AppSidebar(): ReactElement {
           </Button>
         </div>
         <SidebarMenu className="gap-px">
-          {SIDEBAR_FOOTER_ENTRIES.map((entry) => (
+          {footerEntries.map((entry) => (
             <NavRow key={entry.id} entry={entry} href={sidebarHref(entry, where)} active={entry.id === activeId} />
           ))}
         </SidebarMenu>

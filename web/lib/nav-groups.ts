@@ -1,6 +1,8 @@
+import { isPathAvailable, type Edition } from './edition.ts';
 import { sectionForPath } from './nav.ts';
 
 export type SidebarEntryId =
+  | 'crear-videos'
   | 'demo-completa'
   | 'short'
   | 'clips-de-stream'
@@ -94,6 +96,27 @@ export const SIDEBAR_FOOTER_ENTRIES: readonly SidebarEntry[] = [
   { id: 'almacenamiento', label: 'Almacenamiento', href: '/almacenamiento' },
   { id: 'ajustes', label: 'Ajustes', href: '/settings' },
 ];
+
+/** Web edition only: the creation flows live in the Windows app. */
+const CREATE_VIDEOS_ENTRY: SidebarEntry = { id: 'crear-videos', label: 'Crear vídeos', href: '/descargar' };
+
+function entryPath(href: string): string {
+  return href.split('?')[0];
+}
+
+export function sidebarGroupsFor(edition: Edition): readonly SidebarGroup[] {
+  return SIDEBAR_GROUPS
+    .map((group) => ({
+      ...group,
+      entries: group.entries.filter((entry) => isPathAvailable(entryPath(entry.href), edition)),
+    }))
+    .filter((group) => group.entries.length > 0);
+}
+
+export function sidebarFooterEntriesFor(edition: Edition): readonly SidebarEntry[] {
+  const entries = SIDEBAR_FOOTER_ENTRIES.filter((entry) => isPathAvailable(entryPath(entry.href), edition));
+  return edition === 'web' ? [CREATE_VIDEOS_ENTRY, ...entries] : entries;
+}
 
 /** Where the Voz button goes: TeamSpeak recordings are set up in Ajustes; the Replay voice row imports per match. */
 export const VOICE_HREF = '/settings';
