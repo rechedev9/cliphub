@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
@@ -21,29 +22,45 @@ type ProgramAACFallbackMaster struct {
 	CeilingDBFS float64 `json:"ceiling_dbfs"`
 }
 
-// recoveryAACEncoder returns "aac_mf" only when a Windows FFmpeg lists it;
-// every other build recovers with the native "aac" encoder.
+const (
+	mediaFoundationAAC = "aac_mf"
+	nativeAAC          = "aac"
+	// aacEncoderTrialTimeout bounds the trial encode; a hung probe means native aac.
+	aacEncoderTrialTimeout = 20 * time.Second
+)
+
+// recoveryAACEncoder returns "aac_mf" only when a Windows FFmpeg can really
+// encode with it here; every other machine recovers with native "aac".
 func recoveryAACEncoder(ctx context.Context, ffmpeg string) string {
 	if runtime.GOOS != "windows" {
-		return "aac"
+		return nativeAAC
 	}
-	output, err := runFFmpegOutput(ctx, []string{ffmpeg, "-hide_banner", "-encoders"}, "AAC recovery encoder probe")
-	if err != nil {
-		return "aac"
-	}
-	return recoveryAACEncoderFromEncoders(output)
+	return aacRecoveryProbe{ffmpeg: ffmpeg, encoder: mediaFoundationAAC}.pick(ctx)
 }
 
-// recoveryAACEncoderFromEncoders matches the encoder name as the second field
-// of an `ffmpeg -encoders` line.
-func recoveryAACEncoderFromEncoders(output string) string {
-	for _, line := range strings.Split(output, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) >= 2 && fields[1] == "aac_mf" {
-			return "aac_mf"
-		}
+// aacRecoveryProbe trial-encodes with encoder. `ffmpeg -encoders` lists aac_mf
+// on Windows builds without Media Foundation (Atlas OS, N editions) too; it
+// only fails when the encoder opens.
+type aacRecoveryProbe struct {
+	ffmpeg  string
+	encoder string
+}
+
+func (p aacRecoveryProbe) pick(ctx context.Context) string {
+	ctx, cancel := context.WithTimeout(ctx, aacEncoderTrialTimeout)
+	defer cancel()
+	// Same rate, layout and bitrate as the recovery candidates, so an encoder
+	// that opens but rejects that configuration is refused here.
+	command := []string{
+		p.ffmpeg, "-hide_banner", "-nostats", "-v", "error",
+		"-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "0.1",
+		"-c:a", p.encoder, "-b:a", "192k", "-ar", "48000", "-ac", "2",
+		"-f", "null", "-",
 	}
-	return "aac"
+	if _, err := runFFmpegOutput(ctx, command, "AAC recovery encoder probe"); err != nil {
+		return nativeAAC
+	}
+	return p.encoder
 }
 
 // alimiter accepts a linear limit in [1/16, 1].
@@ -131,6 +148,10 @@ func runFullDemoAACRecovery(ctx context.Context, ffmpeg, input, output, logDir s
 }
 
 func runFullDemoAACRecoveryAttempts(ctx context.Context, options fullDemoAACRecoveryOptions) (result fullDemoAACRecoveryResult) {
+	if err := ctx.Err(); err != nil {
+		result.err = err
+		return result
+	}
 	// Keep the initial normalization fixed. Feeding lossy peak overshoot back
 	// into loudnorm's target TP can lower the whole mix and defeat its LUFS
 	// target. Here gain and the post-normalization limiter are independent.
@@ -157,10 +178,21 @@ func runFullDemoAACRecoveryAttempts(ctx context.Context, options fullDemoAACReco
 			return result
 		}
 		filter := master.filter(base) + ",apad=whole_len=" + samples + ",atrim=end_sample=" + samples + ",asetpts=N/SR/TB"
-		command := fullDemoRecoveryCandidateCommand(options.ffmpeg, options.input, candidate, filter, master.Encoder, packetDuration)
-		encodeLog := filepath.Join(options.logDir, fmt.Sprintf("program-aac-recovery-%d.txt", attempt))
-		result.logs = append(result.logs, encodeLog)
-		if err := runFFmpegWithOptionalLogAndProgress(fullDemoTimingStageVariant(ctx, "audio_candidate_encode", attempt, master.Encoder, "recovery"), command, "Full Demo AAC recovery", encodeLog, options.duration, options.progress.pass(stage, start, start+.13)); err != nil {
+		encode := func(logName string) error {
+			command := fullDemoRecoveryCandidateCommand(options.ffmpeg, options.input, candidate, filter, master.Encoder, packetDuration)
+			encodeLog := filepath.Join(options.logDir, logName)
+			result.logs = append(result.logs, encodeLog)
+			return runFFmpegWithOptionalLogAndProgress(fullDemoTimingStageVariant(ctx, "audio_candidate_encode", attempt, master.Encoder, "recovery"), command, "Full Demo AAC recovery", encodeLog, options.duration, options.progress.pass(stage, start, start+.13))
+		}
+		err = encode(fmt.Sprintf("program-aac-recovery-%d.txt", attempt))
+		// An encoder that passed the probe can still fail on the real program;
+		// native aac finishes the chain instead of failing the render.
+		if err != nil && ctx.Err() == nil && master.Encoder != nativeAAC {
+			master.Encoder = nativeAAC
+			result.attempts[attempt].master = master
+			err = encode(fmt.Sprintf("program-aac-recovery-%d-native.txt", attempt))
+		}
+		if err != nil {
 			candidateCleanup()
 			result.err = fmt.Errorf("audio_loudness_failed: AAC recovery: %w", err)
 			return result

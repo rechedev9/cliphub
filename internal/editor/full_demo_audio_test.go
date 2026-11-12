@@ -3,6 +3,7 @@ package editor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math"
 	"os"
 	"os/exec"
@@ -107,20 +108,38 @@ func TestFullDemoMasterDecodedAAC(t *testing.T) {
 	}
 }
 
-func TestFullDemoAACRecoveryEncoderParsing(t *testing.T) {
+func TestFullDemoAACRecoveryProbePicksAnEncoderThatOpens(t *testing.T) {
+	mediaTest(t)
+	ffmpeg := fullDemoTestFFmpeg(t)
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
 	for _, tc := range []struct {
-		name, output, want string
+		name  string
+		ctx   context.Context
+		probe aacRecoveryProbe
+		want  string
 	}{
-		{"media foundation listed", "Encoders:\n A....D aac_mf              AAC via MediaFoundation\n A....D aac                 AAC\n", "aac_mf"},
-		{"native only", "Encoders:\n A....D aac                 AAC\n", "aac"},
-		{"empty", "", "aac"},
-		{"mentioned outside the name field", "Encoders:\n A....D aac                 AAC (aac_mf is separate)\n", "aac"},
+		{"encoder opens", context.Background(), aacRecoveryProbe{ffmpeg: ffmpeg, encoder: "pcm_s16le"}, "pcm_s16le"},
+		// Listed by -encoders but refuses to open, as aac_mf does without mfplat.dll.
+		{"listed but does not open", context.Background(), aacRecoveryProbe{ffmpeg: ffmpeg, encoder: "libx264"}, nativeAAC},
+		{"not built into ffmpeg", context.Background(), aacRecoveryProbe{ffmpeg: ffmpeg, encoder: "aac_mf_absent"}, nativeAAC},
+		{"ffmpeg missing", context.Background(), aacRecoveryProbe{ffmpeg: filepath.Join(t.TempDir(), "missing-ffmpeg.exe"), encoder: mediaFoundationAAC}, nativeAAC},
+		{"render cancelled", cancelled, aacRecoveryProbe{ffmpeg: ffmpeg, encoder: "pcm_s16le"}, nativeAAC},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := recoveryAACEncoderFromEncoders(tc.output); got != tc.want {
+			if got := tc.probe.pick(tc.ctx); got != tc.want {
 				t.Fatalf("encoder = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestFullDemoAACRecoveryStopsOnCancelledRender(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	result := runFullDemoAACRecoveryAttempts(ctx, fullDemoAACRecoveryOptions{ffmpeg: "ffmpeg", encoder: nativeAAC})
+	if !errors.Is(result.err, context.Canceled) || len(result.attempts) != 0 || result.candidate != "" {
+		t.Fatalf("cancelled recovery ran or accepted audio: %+v", result)
 	}
 }
 
@@ -137,6 +156,8 @@ func TestFullDemoAACRecoveryKeepsDecodedAcceptance(t *testing.T) {
 	}{
 		{name: "probed encoder"},
 		{name: "native aac", encoder: "aac", want: "aac"},
+		// Passed the probe, then fails on the real program: native aac takes over.
+		{name: "encoder fails on the program", encoder: "libx264", want: "aac"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)

@@ -60,6 +60,8 @@ Rules that follow from it:
 - Media Foundation (`aac_mf`) is a Windows OS component, not something the
   installer can bundle. Stripped builds such as Atlas OS and "N/KN" editions
   lack it, so recovery falls back to FFmpeg's native `aac`. Do not bundle it.
+  `ffmpeg -encoders` lists `aac_mf` there too: only a trial encode
+  (`aacRecoveryProbe`) proves it opens, and a failed real encode also falls back.
 
 ### How to diagnose a user's render failure
 
