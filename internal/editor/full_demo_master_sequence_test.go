@@ -56,7 +56,7 @@ func TestFullDemoMasterSequenceMatchesSavedReplay(t *testing.T) {
 	}
 
 	// Recovery chain: master_targets[3..4] and fallback_masters[0..1].
-	master := initialAACRecoveryMaster(target)
+	master := initialAACRecoveryMaster(target, "aac_mf")
 	var fallbackMasters []ProgramAACFallbackMaster
 	var acceptedAt = -1
 	for i, decoded := range recovered {

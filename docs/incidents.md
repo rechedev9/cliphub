@@ -58,9 +58,8 @@ Rules that follow from it:
   `program-*-input.txt`) always say `dynamic` because they run without
   `measured_*`. `TestFullDemoNativeMasterHandsOverWhenRetargetDiverges` pins it.
 - Media Foundation (`aac_mf`) is a Windows OS component, not something the
-  installer can bundle. It is present on all standard Windows editions and
-  the shipped FFmpeg exposes it; only "N/KN" editions lack it. Do not
-  propose bundling it.
+  installer can bundle. Stripped builds such as Atlas OS and "N/KN" editions
+  lack it, so recovery falls back to FFmpeg's native `aac`. Do not bundle it.
 
 ### How to diagnose a user's render failure
 
