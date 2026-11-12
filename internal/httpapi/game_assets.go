@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	mapdata "github.com/rechedev9/cliphub/data/maps"
 	"github.com/rechedev9/cliphub/internal/gameassets"
 	"github.com/rechedev9/cliphub/internal/mapgeo"
 )
@@ -54,6 +55,10 @@ func (h *Handlers) GetMapRadar(w http.ResponseWriter, r *http.Request) {
 	}
 	if layer != gameassets.LayerUpper && layer != gameassets.LayerLower {
 		writeError(w, http.StatusBadRequest, "layer must be upper or lower")
+		return
+	}
+	if body := mapdata.Radar(name, layer); body != nil {
+		writeGameAsset(w, body, mapdata.ContentTypePNG)
 		return
 	}
 	install := gameassets.Install{CS2Exe: h.cs2Path()}
