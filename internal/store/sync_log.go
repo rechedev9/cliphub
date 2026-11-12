@@ -193,8 +193,9 @@ func (s *SyncLog) Apply(ctx context.Context, changes []SyncChange) error {
 		`INSERT INTO sync_meta (key, value) VALUES ('applying', '1') ON CONFLICT(key) DO UPDATE SET value = '1'`); err != nil {
 		return err
 	}
+	described := map[string]map[string]syncColumn{}
 	for _, change := range orderSyncChanges(changes) {
-		if err := applySyncChange(ctx, tx, change); err != nil {
+		if err := applySyncChange(ctx, tx, change, described); err != nil {
 			return err
 		}
 	}
@@ -212,14 +213,19 @@ func orderSyncChanges(changes []SyncChange) []SyncChange {
 	return ordered
 }
 
-func applySyncChange(ctx context.Context, tx *sql.Tx, change SyncChange) error {
+// applySyncChange applies one change; described caches each table's columns for the batch.
+func applySyncChange(ctx context.Context, tx *sql.Tx, change SyncChange, described map[string]map[string]syncColumn) error {
 	table, ok := syncTableByName[change.Table]
 	if !ok {
 		return &SyncInputError{Table: change.Table}
 	}
-	columns, err := describeSyncTable(ctx, tx, table)
-	if err != nil {
-		return err
+	columns, ok := described[table.name]
+	if !ok {
+		var err error
+		if columns, err = describeSyncTable(ctx, tx, table); err != nil {
+			return err
+		}
+		described[table.name] = columns
 	}
 	switch change.Op {
 	case "delete":

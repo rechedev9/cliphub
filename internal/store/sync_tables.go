@@ -10,6 +10,7 @@ type syncTable struct {
 
 // syncTables lists every syncable table parents first, so a batch that holds a
 // parent and its child applies the parent before the child's foreign key check.
+// Migration 26 builds triggers from this list: a table added later needs a new step that creates its triggers.
 var syncTables = []syncTable{
 	{name: "library_demos", keyColumns: []string{"id"}, localColumns: []string{"path"}},
 	{name: "library_teams", keyColumns: []string{"id"}},
@@ -36,6 +37,7 @@ var syncTables = []syncTable{
 	{name: "library_match_voice", keyColumns: []string{"match_id"}},
 	{name: "library_voice_speakers", keyColumns: []string{"team_id", "speaker_key"}},
 	{name: "library_voice_tracks", keyColumns: []string{"match_id", "track"}},
+	{name: "library_voice_lines", keyColumns: []string{"match_id", "track", "start_ms"}},
 	{name: "library_voice_recordings", keyColumns: []string{"id"}},
 	{name: "library_pinned_players", keyColumns: []string{"steamid64"}},
 }

@@ -29,7 +29,7 @@ func schemaObjectExists(db *sql.DB, name string) bool {
 func rewindSyncLogToV25(t *testing.T, db *sql.DB) {
 	t.Helper()
 	for _, table := range syncTables {
-		for _, event := range []string{"ai", "au", "ad"} {
+		for _, event := range []string{"ai", "au", "ad", "ak"} {
 			if _, err := db.Exec(`DROP TRIGGER IF EXISTS ` + syncTriggerName(table.name, event)); err != nil {
 				t.Fatalf("drop trigger: %v", err)
 			}
