@@ -90,7 +90,16 @@ func ScanFile(ctx context.Context, path string, opts Options) (Result, error) {
 	defer f.Close()
 
 	opts.DemoPath = path
-	return scanHashed(ctx, f, opts, func(reader io.Reader) (Result, error) {
+	return ScanReader(ctx, f, opts)
+}
+
+// ScanReader scans a demo read from r, the same pipeline ScanFile runs once the
+// file is open: checksummed through scanHashed and parsed with a fresh parser.
+func ScanReader(ctx context.Context, r io.Reader, opts Options) (Result, error) {
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	return scanHashed(ctx, r, opts, func(reader io.Reader) (Result, error) {
 		p := demoinfocs.NewParser(reader)
 		defer p.Close()
 		return ScanWithContext(ctx, p, opts)

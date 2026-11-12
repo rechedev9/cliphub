@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack",
+    "build": "node scripts/build-wasm.mjs && next build --webpack",
+    "build:wasm": "node scripts/build-wasm.mjs",
     "start": "node scripts/start-standalone.mjs",
     "lint": "oxlint app components hooks lib scripts types proxy.ts next.config.mjs postcss.config.mjs",
     "typecheck": "tsc --noEmit",

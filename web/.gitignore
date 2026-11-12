@@ -2,6 +2,8 @@ node_modules
 .next
 out
 public/unrar.wasm
+public/wasm/zv-scan.wasm
+public/wasm/wasm_exec.js
 .env*
 !.env.example
 *.tsbuildinfo
