@@ -230,3 +230,24 @@ func TestNearestCalloutSplitsACellSharedByTwoFloors(t *testing.T) {
 		t.Errorf("NearestCallout without stacked cells = %q, want Catwalk", got)
 	}
 }
+
+func TestShippedGeometryCoversTheWholeRadar(t *testing.T) {
+	geo, ok := ShippedGeometry("de_inferno")
+	if !ok || geo.Source != GeometrySourceShipped || geo.CellSize <= 0 || len(geo.Levels) != 0 || len(geo.Callouts) != 0 {
+		t.Fatalf("shipped de_inferno = %+v, want a drawable radar with no play", geo)
+	}
+	// The bounds are the overview's corners: pixel (0,0) top-left and (size,size) bottom-right.
+	size := float64(geo.Calibration.Size)
+	for _, corner := range []struct{ x, y, px, py float64 }{
+		{geo.Bounds.MinX, geo.Bounds.MaxY, 0, 0},
+		{geo.Bounds.MaxX, geo.Bounds.MinY, size, size},
+	} {
+		px, py := geo.Calibration.WorldToPixel(corner.x, corner.y)
+		if math.Abs(px-corner.px) > 1e-6 || math.Abs(py-corner.py) > 1e-6 {
+			t.Fatalf("corner (%v,%v) maps to pixel (%v,%v), want (%v,%v)", corner.x, corner.y, px, py, corner.px, corner.py)
+		}
+	}
+	if _, ok := ShippedGeometry("de_workshop"); ok {
+		t.Fatal("an uncalibrated map has a shipped geometry")
+	}
+}

@@ -67,8 +67,17 @@ func TestLibraryTeamHeatmapAndOverlayFollowTheTeam(t *testing.T) {
 	}
 	var nuke spatialResponse
 	f.env.json(http.MethodGet, base+"/heatmap?map=de_nuke", nil, http.StatusOK, &nuke)
-	if len(nuke.Matches) != 0 || nuke.Geometry != nil || len(nuke.Heatmap.Cells) != 0 {
+	if len(nuke.Matches) != 0 || nuke.ReferenceMatchID != nil || len(nuke.Heatmap.Cells) != 0 {
 		t.Fatalf("nuke heatmap = %+v, want nothing read", nuke)
+	}
+	// No analysed match on Nuke still draws its shipped radar.
+	if nuke.Geometry == nil || nuke.Geometry.Source != tacticalplan.GeometrySourceShipped || nuke.Geometry.Map != "de_nuke" {
+		t.Fatalf("nuke geometry = %+v, want the shipped de_nuke radar", nuke.Geometry)
+	}
+	var workshop spatialResponse
+	f.env.json(http.MethodGet, base+"/heatmap?map=de_workshop", nil, http.StatusOK, &workshop)
+	if workshop.Geometry != nil {
+		t.Fatalf("uncalibrated map geometry = %+v, want none", workshop.Geometry)
 	}
 
 	for _, bad := range []string{
