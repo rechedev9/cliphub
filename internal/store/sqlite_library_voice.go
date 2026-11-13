@@ -183,7 +183,9 @@ func (r *SQLiteLibraryRepository) SetVoiceTranscript(ctx context.Context, update
 		if _, err := tx.ExecContext(ctx, `DELETE FROM library_voice_lines WHERE match_id = ?`, update.MatchID.String()); err != nil {
 			return err
 		}
-		stmt, err := tx.PrepareContext(ctx, `INSERT INTO library_voice_lines (match_id, track, start_ms, end_ms, text, text_key) VALUES (?, ?, ?, ?, ?, ?)`)
+		// (match_id, track, start_ms) is the sync key: a repeated start keeps the last line.
+		stmt, err := tx.PrepareContext(ctx, `INSERT INTO library_voice_lines (match_id, track, start_ms, end_ms, text, text_key) VALUES (?, ?, ?, ?, ?, ?)
+			ON CONFLICT (match_id, track, start_ms) DO UPDATE SET end_ms = excluded.end_ms, text = excluded.text, text_key = excluded.text_key`)
 		if err != nil {
 			return err
 		}

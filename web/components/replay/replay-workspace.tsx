@@ -623,7 +623,7 @@ export function ReplayWorkspace({
             </Button>
           </div>
         </header>
-        <div className={cn('relative flex-1', gif.open ? 'min-h-[200px]' : 'min-h-0')}>
+        <div className={cn('@container relative flex-1', gif.open ? 'min-h-[200px]' : 'min-h-0')}>
           {focused === null ? (
             <CentreState state={current} round={entry?.round} onRetry={() => entry !== undefined && retry(entry.matchId)} />
           ) : (

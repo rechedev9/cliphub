@@ -92,7 +92,8 @@ export function ReplayTimeline({
     width: `${((to - from) / timeline.durationSeconds) * 100}%`,
   });
   return (
-    <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-x-1.5 gap-y-2">
+    // A narrow transport drops the round length and moves the speeds to a second row.
+    <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-x-1.5 gap-y-2 @max-md:grid-cols-[auto_auto_minmax(0,1fr)]">
       <Button type="button" size="icon-sm" variant="outline" className="mr-1.5 size-10" onClick={onTogglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'} title="Espacio: reproducir o pausar · ←/→: 1 s · Mayús + ←/→: evento · [ ] o J K: ronda">
         {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
       </Button>
@@ -132,11 +133,11 @@ export function ReplayTimeline({
             className={SCRUB_INPUT}
           />
       </div>
-      <div className={CLOCK_BOX}>
+      <div className={cn(CLOCK_BOX, '@max-md:hidden')}>
         <Timer aria-hidden className="size-4 text-fg-3" />
         {roundClockLabelFor(timeline, timeline.durationSeconds)}
       </div>
-      <div className="ml-1.5 flex h-10 items-center gap-1">
+      <div className="ml-1.5 flex h-10 items-center gap-1 @max-md:col-span-full @max-md:ml-0">
         <SpeedPicker speed={speed} onChange={onSpeedChange} />
         <Button type="button" size="icon-xs" variant={loop ? 'outline-primary' : 'ghost'} onClick={onToggleLoop} aria-pressed={loop} aria-label="Repetir en bucle" className="size-8">
           <Repeat aria-hidden />

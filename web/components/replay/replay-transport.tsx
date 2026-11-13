@@ -64,7 +64,7 @@ export function ReplayTransport({
     <div
       data-replay-transport=""
       className={cn(
-        'flex min-w-0 flex-col gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-2',
+        '@container flex min-w-0 flex-col gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-2',
         fullscreen ? 'col-span-2 row-start-2' : 'min-[1180px]:col-span-2 min-[1180px]:row-start-2',
       )}
     >

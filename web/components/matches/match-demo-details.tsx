@@ -17,6 +17,7 @@ import { DEMO_DETAILS_ID } from '@/lib/library/rounds';
 import { PARSE_STATE_LABEL, SOURCE_LABEL, demoErrorLabel, withoutDemo, withoutDemoReason } from '@/lib/library/partidas';
 import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
+import { currentEdition } from '@/lib/edition';
 import {
   Dialog,
   DialogContent,
@@ -146,16 +147,18 @@ export function MatchDemoDetails({ demo, onDemoChange }: { demo: LibraryDemo; on
             Guardar etiquetas
           </Button>
           <span className="grow" />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy || demo.state === 'queued' || demo.state === 'parsing' || withoutDemo(demo.source)}
-            onClick={() => void act(async () => onDemoChange(await analyzeLibraryDemo(demo.id)), 'No se pudo poner la demo en cola.')}
-          >
-            <RefreshCw aria-hidden />
-            Volver a analizar
-          </Button>
+          {currentEdition() === 'web' ? null : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy || demo.state === 'queued' || demo.state === 'parsing' || withoutDemo(demo.source)}
+              onClick={() => void act(async () => onDemoChange(await analyzeLibraryDemo(demo.id)), 'No se pudo poner la demo en cola.')}
+            >
+              <RefreshCw aria-hidden />
+              Volver a analizar
+            </Button>
+          )}
           <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setConfirmDelete(true)}>
             <Trash2 aria-hidden />
             Quitar de la biblioteca

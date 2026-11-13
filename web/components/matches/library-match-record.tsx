@@ -9,6 +9,7 @@ import type { Video } from '@/lib/api/types';
 import type { LibraryDemo, LibraryMatch } from '@/lib/api/library';
 import { MATCHES_HREF, librarySeriesHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
+import { currentEdition } from '@/lib/edition';
 import { SOURCE_LABEL, matchTitle, scoreline } from '@/lib/library/partidas';
 import { LEGACY_REPLAY_TAB, MATCH_REPLAY_TAB, MATCH_SUMMARY_TAB } from '@/lib/library/rounds';
 import { useRecordTab } from '@/hooks/use-record-tab';
@@ -28,8 +29,10 @@ const TABS = [MATCH_SUMMARY_TAB, 'rondas', MATCH_REPLAY_TAB, 'metricas', 'videos
 type MatchTab = (typeof TABS)[number];
 const QUERY_TABS = [...TABS, LEGACY_REPLAY_TAB] as const;
 
-function tabFromQuery(raw: string | null): MatchTab | null {
+/** Videos are made on the PC, so the web edition has no Vídeos tab. */
+function tabFromQuery(raw: string | null, canVideo: boolean): MatchTab | null {
   if (raw === LEGACY_REPLAY_TAB) return MATCH_REPLAY_TAB;
+  if (raw === 'videos' && !canVideo) return null;
   return TABS.find((tab) => tab === raw) ?? null;
 }
 
@@ -75,12 +78,14 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
   const [demo, setDemo] = useState(loadedDemo);
   // The open tab lives in `?tab=`, so a reload or an evidence link lands on it.
   const [tabValue, setTab] = useRecordTab(QUERY_TABS, MATCH_SUMMARY_TAB);
-  const tab = tabFromQuery(tabValue) ?? MATCH_SUMMARY_TAB;
+  const canVideo = currentEdition() === 'desktop';
+  const tab = tabFromQuery(tabValue, canVideo) ?? MATCH_SUMMARY_TAB;
   // `undefined` while loading, `null` when the list could not be read.
   const [videos, setVideos] = useState<Video[] | null | undefined>(undefined);
   const jobKey = demo.job_ids.join(',');
 
   useEffect(() => {
+    if (!canVideo) return undefined;
     let active = true;
     const jobs = new Set(jobKey === '' ? [] : jobKey.split(','));
     api
@@ -94,7 +99,7 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
     return () => {
       active = false;
     };
-  }, [jobKey]);
+  }, [jobKey, canVideo]);
 
   const map = prettyMapName(match.map);
   useRouteTitle(`${map} · ${matchTitle(match)}`);
@@ -159,20 +164,24 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
               </div>
             ),
           },
-          {
-            id: 'videos',
-            label: 'Vídeos',
-            count: videos?.length ?? undefined,
-            content: (
-              <MatchVideos
-                matchId={demo.job_ids.at(-1) ?? match.id}
-                videos={videos}
-                onVideosChange={setVideos}
-                demo={demo}
-                onOpenRounds={() => setTab('rondas')}
-              />
-            ),
-          },
+          ...(canVideo
+            ? [
+                {
+                  id: 'videos',
+                  label: 'Vídeos',
+                  count: videos?.length ?? undefined,
+                  content: (
+                    <MatchVideos
+                      matchId={demo.job_ids.at(-1) ?? match.id}
+                      videos={videos}
+                      onVideosChange={setVideos}
+                      demo={demo}
+                      onOpenRounds={() => setTab('rondas')}
+                    />
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
     </div>

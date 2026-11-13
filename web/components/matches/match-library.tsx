@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { currentEdition } from '@/lib/edition';
 import { Link2, MonitorPlay, PlugZap, Swords, TriangleAlert } from 'lucide-react';
 import {
   LIBRARY_PARSE_STATES,
@@ -373,9 +374,10 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     }
   }
 
+  const webEdition = currentEdition() === 'web';
   // The frame is the root in every branch, so the importer keeps its open dialog when the first demo fills the table.
   const frame = (children: ReactNode): ReactNode => (
-    <PartidasFrame importer={<DemoImport onImported={() => pollRef.current()} />}>{children}</PartidasFrame>
+    <PartidasFrame importer={webEdition ? <WebImportLink /> : <DemoImport onImported={() => pollRef.current()} />}>{children}</PartidasFrame>
   );
 
   if (loaded === null) return frame(<LibrarySkeleton />);
@@ -419,19 +421,35 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
           <EmptyState
             icon={Swords}
             title="Aún no hay partidas"
-            description="Importa demos de CS2 (.dem o .dem.zst) de FACEIT, de matchmaking o de tus scrims. Las que cargues en Crear también entran aquí."
-            preview={[
-              'Varias demos a la vez; una demo repetida se detecta por su huella y no se duplica.',
-              'Cada demo se analiza en este PC: equipos, jugadores, rondas y táctica.',
-              'Desde la ficha de una partida puedes crear un Short o una demo completa.',
-            ]}
+            description={
+              webEdition
+                ? 'Importa demos de CS2 (.dem) de FACEIT, de matchmaking o de tus scrims. Tu navegador las analiza y tu equipo ve el resultado.'
+                : 'Importa demos de CS2 (.dem o .dem.zst) de FACEIT, de matchmaking o de tus scrims. Las que cargues en Crear también entran aquí.'
+            }
+            preview={
+              webEdition
+                ? [
+                    'Varias demos a la vez; una demo repetida se detecta por su huella y no se duplica.',
+                    'La demo no sale de tu ordenador: solo se guarda el análisis de equipos, jugadores, rondas y táctica.',
+                    'Todo el equipo del espacio ve y edita las mismas partidas.',
+                  ]
+                : [
+                    'Varias demos a la vez; una demo repetida se detecta por su huella y no se duplica.',
+                    'Cada demo se analiza en este PC: equipos, jugadores, rondas y táctica.',
+                    'Desde la ficha de una partida puedes crear un Short o una demo completa.',
+                  ]
+            }
             actions={
-              <Button asChild variant="outline" size="sm">
-                <Link href={LONG_VIDEOS_HREF}>
-                  <MonitorPlay aria-hidden />
-                  Ir a Crear
-                </Link>
-              </Button>
+              webEdition ? (
+                <WebImportLink />
+              ) : (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={LONG_VIDEOS_HREF}>
+                    <MonitorPlay aria-hidden />
+                    Ir a Crear
+                  </Link>
+                </Button>
+              )
             }
           />
           {noticeLine}
@@ -466,7 +484,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const shown = selectedMap === FILTER_ANY ? facet : facet.filter(({ match }) => match?.map === selectedMap);
   const chips = mapChips({ library: rows.map(({ match }) => match), listed: facet.map(({ match }) => match), selected: selectedMap });
   const pending = rows.filter(isPending).length;
-  const handlers: RowHandlers = { onRetry: (demoId) => void retry(demoId), onRemoved: () => pollRef.current() };
+  const handlers: RowHandlers = { onRetry: webEdition ? undefined : (demoId) => void retry(demoId), onRemoved: () => pollRef.current() };
   // Only rows the filters show count as chosen, so a bulk delete never reaches a hidden one.
   const chosenIds = shown.map((row) => row.demo.id).filter((demoId) => selected.has(demoId));
   const markScrimButton = (
@@ -654,5 +672,14 @@ function LibrarySkeleton(): ReactNode {
         ))}
       </div>
     </div>
+  );
+}
+
+/** The web edition's import: the browser scans the demo on its own page. */
+function WebImportLink(): ReactNode {
+  return (
+    <Button asChild variant="outline" size="sm">
+      <Link href="/importar">Importar demos</Link>
+    </Button>
   );
 }

@@ -1,3 +1,5 @@
+import { currentEdition } from '@/lib/edition';
+
 /** What the Replay says for each team voice error code; the server's own text stays in studio.log. */
 const VOICE_ERRORS: Readonly<Record<string, string>> = {
   voice_unavailable: 'La voz del equipo necesita FFmpeg, que esta instalación de Studio no tiene.',
@@ -15,6 +17,9 @@ const VOICE_ERRORS: Readonly<Record<string, string>> = {
   download_failed: 'No se pudo descargar la transcripción. Comprueba la conexión y vuelve a intentarlo.',
 };
 
+const WEB_VOICE_UNAVAILABLE = 'La voz del equipo se importa en ClipHub Studio y llega aquí al sincronizar.';
+
 export function voiceErrorText(code: string | undefined, fallback: string): string {
+  if (code === 'voice_unavailable' && currentEdition() === 'web') return WEB_VOICE_UNAVAILABLE;
   return (code !== undefined && VOICE_ERRORS[code]) || fallback;
 }

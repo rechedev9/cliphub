@@ -30,6 +30,7 @@ import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
+import { currentEdition } from '@/lib/edition';
 import {
   Dialog,
   DialogContent,
@@ -274,7 +275,7 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
           setCounts(null);
           setTab(next);
         }}
-        onRowVideo={(evidence) => setVideo(groupEvidenceByMatch(evidence))}
+        onRowVideo={currentEdition() === 'desktop' ? (evidence) => setVideo(groupEvidenceByMatch(evidence)) : undefined}
         leading={[
           { id: 'notas', label: 'Notas', content: <ReportNotes report={report} onSaved={onChanged} /> },
           {

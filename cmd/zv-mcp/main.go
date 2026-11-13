@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -17,8 +18,17 @@ var version = "dev"
 func main() {
 	// stdout carries the protocol, so diagnostics go to stderr.
 	log.SetOutput(os.Stderr)
+	listen := flag.String("listen", "", "serve a ClipMind workspace over MCP's HTTP transport at this address, instead of Studio over stdio")
+	upstream := flag.String("upstream", os.Getenv("CLIPMIND_URL"), "the ClipMind server, for --listen")
+	flag.Parse()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	if *listen != "" {
+		if err := runRemote(ctx, *listen, *upstream); err != nil && ctx.Err() == nil {
+			log.Fatalf("zv-mcp: %v", err)
+		}
+		return
+	}
 
 	server := mcp.NewServer(&mcp.Implementation{Name: "cliphub-studio", Title: "ClipHub Studio", Version: version}, &mcp.ServerOptions{
 		Instructions: serverInstructions,
@@ -246,6 +256,9 @@ generate_short, render_full_demo, render_stream, render_stream_summary, delete_v
 delete_stream_video, delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
 delete_report, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
 install_transcriber, launch_practice, launch_bot_replay need the user's approval.
+ClipMind (the web edition of ClipHub): clipmind_status says whether Studio is signed in to a ClipMind account, with its workspace and
+the changes waiting; clipmind_sync is Sincronizar ahora and clipmind_disconnect is Desconectar (the library on this PC stays).
+Signing in stays in Studio's Ajustes: never ask the user for a ClipMind password in chat.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
 version, support code and studio.log path the report needs.

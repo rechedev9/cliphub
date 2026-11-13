@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
-import { RESULTS_HREF } from '@/lib/clips/routes';
+import { currentEdition, homePathFor } from '@/lib/edition';
 
-/** Local Studio has no marketing root: open Mis vídeos, which offers the creation flows when empty. */
+/** The root opens the edition's home: Mis vídeos on desktop, Partidas on web. */
 export default function RootPage(): never {
-  redirect(RESULTS_HREF);
+  redirect(homePathFor(currentEdition()));
 }

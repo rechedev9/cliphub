@@ -16,6 +16,7 @@ import { RecordHeader } from '@/components/records/record-header';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practice-launch';
 import { Button } from '@/components/ui/button';
+import { currentEdition } from '@/lib/edition';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
@@ -132,10 +133,12 @@ function LineupRecordView({ lineup, onChanged }: { lineup: LibraryLineup; onChan
         ]}
         actions={
           <>
-            <Button type="button" size="sm" disabled={practice.state.kind === 'busy'} onClick={() => practice.launch([lineupSpot(lineup)])}>
-              <Crosshair aria-hidden />
-              Practicar en CS2
-            </Button>
+            {practice.launch === null ? null : (
+              <Button type="button" size="sm" disabled={practice.state.kind === 'busy'} onClick={() => practice.launch?.([lineupSpot(lineup)])}>
+                <Crosshair aria-hidden />
+                Practicar en CS2
+              </Button>
+            )}
             <Button type="button" variant="outline" size="sm" onClick={copySetpos}>
               <Copy aria-hidden />
               Copiar setpos
@@ -183,7 +186,8 @@ function LineupRecordView({ lineup, onChanged }: { lineup: LibraryLineup; onChan
             <h2 className="text-body font-semibold text-fg-1">En la consola</h2>
             <code className="block rounded-sm bg-surface-3 px-2 py-1.5 font-mono text-body-sm break-all text-fg-1">{command}</code>
             <p className="text-meta text-fg-3">
-              Te pone donde se lanza y apuntando adonde hay que apuntar. Necesita sv_cheats 1; Practicar en CS2 lo prepara todo por ti.
+              Te pone donde se lanza y apuntando adonde hay que apuntar. Necesita sv_cheats 1
+              {currentEdition() === 'desktop' ? '; Practicar en CS2 lo prepara todo por ti.' : '.'}
             </p>
           </section>
           {lineup.source ? (

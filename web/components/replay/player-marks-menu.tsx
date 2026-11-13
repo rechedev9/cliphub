@@ -19,7 +19,7 @@ export function PlayerMarksMenu({ settings, multi, onSettings }: { settings: Map
       <PopoverTrigger asChild>
         <Button type="button" variant="ghost" size="xs" aria-label="Jugadores en el mapa: tamaño y nombres" title="Tamaño de los jugadores y nombres">
           <CircleDot aria-hidden />
-          Jugadores
+          <span className="@max-sm:hidden">Jugadores</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="flex w-96 max-w-[92vw] flex-col gap-3 p-3">

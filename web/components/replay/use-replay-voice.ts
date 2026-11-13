@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { demoVoiceAudioUrl, voiceTrackAudioUrl } from '@/lib/api/voice';
+import { currentEdition } from '@/lib/edition';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { ReplayClock } from '@/lib/replay/clock';
 import { demoMsOfTick, silentOutsideFreeze } from '@/lib/replay/voice-sync';
@@ -62,7 +63,9 @@ export function useReplayVoice(options: {
 }): ReplayVoice {
   const { matchId, clock, focused, tickOf, playing, speed } = options;
   const control = useMatchVoice(matchId);
-  const demoVoice = useDemoVoice(matchId);
+  // The recordings and the .dem stay on the PC that imported them; the web reads only who speaks when.
+  const audible = currentEdition() === 'desktop';
+  const demoVoice = useDemoVoice(audible ? matchId : null);
   const [draft, setDraft] = useState<number | null>(null);
   const [volume, setVolumeState] = useState(0.8);
   const [muted, setMuted] = useState(false);
@@ -132,7 +135,7 @@ export function useReplayVoice(options: {
   );
   const teamTracks = useMemo<PlaybackTrack[]>(
     () =>
-      voice === null || matchId === null
+      voice === null || matchId === null || !audible
         ? []
         : voice.tracks.map((track) => ({
             id: `team-${track.track}`,
@@ -140,7 +143,7 @@ export function useReplayVoice(options: {
             durationMs: track.duration_ms,
             muted: mutedTracks.has(track.track),
           })),
-    [matchId, mutedTracks, voice],
+    [audible, matchId, mutedTracks, voice],
   );
   const demoTracks = useMemo<PlaybackTrack[]>(
     () =>

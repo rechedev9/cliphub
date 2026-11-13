@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AudioLines, Check, Info, Mic, Radio, RotateCcw, Upload, Volume2, VolumeX, Wand2, X } from 'lucide-react';
 import { MAX_VOICE_OFFSET_MS } from '@/lib/api/voice';
 import type { MatchVoice } from '@/lib/api/voice';
+import { currentEdition } from '@/lib/edition';
 import { ADJUST_RANGE_MS, NUDGE_STEPS_MS, clampOffset, deltaLabel, formatVoiceMs } from '@/lib/replay/voice-sync';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -162,6 +163,21 @@ function DemoVoiceToggle({ voice }: { voice: ReplayVoice }): ReactNode {
   );
 }
 
+/** The web's voice row: the recordings play in Studio, so it only says where the voice comes from. */
+function WebVoiceRow({ saved }: { saved: MatchVoice }): ReactNode {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Mic className="size-3.5 shrink-0 text-fg-3" aria-hidden />
+      <span className="truncate text-meta text-fg-3">
+        {saved.present
+          ? 'La voz del equipo se escucha en ClipHub Studio. Aquí se marca quién habla en cada momento.'
+          : 'La voz del equipo se importa en ClipHub Studio y llega aquí al sincronizar.'}
+      </span>
+      {saved.present ? <div className="ml-auto"><SyncState saved={saved} /></div> : null}
+    </div>
+  );
+}
+
 /** Whether the voice of the round is being synced: the transport then swaps its round row for the offset bar. */
 export function voiceSyncing(voice: ReplayVoice): boolean {
   return voice.draft !== null && voice.state.kind === 'ready' && voice.state.voice.present;
@@ -182,6 +198,7 @@ export function VoiceRow({ voice }: { voice: ReplayVoice }): ReactNode {
     return <p className="flex items-center gap-2 text-meta text-fg-3"><Mic className="size-3.5" aria-hidden />{state.reason}</p>;
   }
   const saved = state.voice;
+  if (currentEdition() === 'web') return <WebVoiceRow saved={saved} />;
   if (!saved.present) {
     return (
       <div className="flex items-center gap-2">

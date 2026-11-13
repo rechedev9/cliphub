@@ -276,10 +276,12 @@ export function LineupPreview({
       </dl>
       <SetposCopy lineup={lineup} />
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" disabled={practice.state.kind === 'busy'} onClick={() => practice.launch([practiceSpot(lineup)])}>
-          <Crosshair aria-hidden />
-          Practicar en CS2
-        </Button>
+        {practice.launch === null ? null : (
+          <Button type="button" size="sm" disabled={practice.state.kind === 'busy'} onClick={() => practice.launch?.([practiceSpot(lineup)])}>
+            <Crosshair aria-hidden />
+            Practicar en CS2
+          </Button>
+        )}
         <Button asChild variant="outline" size="sm">
           <Link href={lineupHref(map, lineup)}>Ver ficha completa</Link>
         </Button>

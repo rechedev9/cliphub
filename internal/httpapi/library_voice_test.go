@@ -212,12 +212,18 @@ func TestLibraryMatchVoiceImportSplitsChannelsAndRejectsNonAudio(t *testing.T) {
 	}
 }
 
-func TestLibraryMatchVoiceUnavailableWithoutFFmpeg(t *testing.T) {
+// Without FFmpeg, as on the web edition, the synced voice still reads; importing needs FFmpeg.
+func TestLibraryMatchVoiceReadsWithoutFFmpeg(t *testing.T) {
 	env := newLibraryTestEnv(t)
 	m := env.seedLibraryMatch("no-ffmpeg", "Alpha", "Bravo")
-	rw := env.do(http.MethodGet, "/api/library/matches/"+m.ID.String()+"/voice", nil, "")
+	var status voiceStatus
+	env.json(http.MethodGet, "/api/library/matches/"+m.ID.String()+"/voice", nil, http.StatusOK, &status)
+	if status.Present || status.Transcriber.State != teamvoice.TranscriberUnsupported {
+		t.Fatalf("voice without deps = %+v", status)
+	}
+	rw := env.do(http.MethodPost, "/api/library/matches/"+m.ID.String()+"/voice", nil, "")
 	if rw.Code != http.StatusServiceUnavailable || !strings.Contains(rw.Body.String(), codeVoiceUnavailable) {
-		t.Fatalf("voice without deps = %d: %s", rw.Code, rw.Body.String())
+		t.Fatalf("voice import without deps = %d: %s", rw.Code, rw.Body.String())
 	}
 	var tr teamvoice.TranscriberStatus
 	env.json(http.MethodGet, "/api/library/voice/transcriber", nil, http.StatusOK, &tr)

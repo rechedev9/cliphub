@@ -35,7 +35,7 @@ func (h *Handlers) GetMapSceneSummary(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rc, err := h.storage.Open(key)
+	rc, err := h.gameCache().Open(key)
 	if err != nil {
 		writeCodedError(w, http.StatusUnprocessableEntity, codeMapUnreadable, "could not read back the render scene of map "+chi.URLParam(r, "map"))
 		return
@@ -82,7 +82,7 @@ func (h *Handlers) mapSceneKey(w http.ResponseWriter, r *http.Request) (string, 
 	go func() {
 		writer.CloseWithError(mapgeo.WriteScene(writer, scene))
 	}()
-	if err := h.storage.Put(key, reader); err != nil {
+	if err := h.gameCache().Put(key, reader); err != nil {
 		_ = reader.CloseWithError(err)
 		log.Printf("httpapi: cache map scene %s: %v", key, err)
 		writeCodedError(w, http.StatusUnprocessableEntity, codeMapUnreadable, "could not store the render scene of map "+name)
@@ -101,7 +101,7 @@ type sceneCachePruner interface {
 
 // pruneStaleScenes removes the map's older scene files, which run to hundreds of MB each.
 func (h *Handlers) pruneStaleScenes(name, key string) {
-	store, ok := h.storage.(sceneCachePruner)
+	store, ok := h.gameCache().(sceneCachePruner)
 	if !ok {
 		return
 	}
@@ -125,13 +125,13 @@ func (h *Handlers) pruneStaleScenes(name, key string) {
 }
 
 func (h *Handlers) sceneCached(key string) bool {
-	ok, err := h.storage.Exists(key)
+	ok, err := h.gameCache().Exists(key)
 	return err == nil && ok
 }
 
 // serveCachedScene streams the cached scene file with its length, so the UI can show progress.
 func (h *Handlers) serveCachedScene(w http.ResponseWriter, r *http.Request, key string) bool {
-	rc, err := h.storage.Open(key)
+	rc, err := h.gameCache().Open(key)
 	if err != nil {
 		return false
 	}

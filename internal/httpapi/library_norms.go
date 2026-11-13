@@ -21,6 +21,7 @@ type referenceCaches struct {
 	norms      normsCache
 	community  CommunityDeps
 	pro        proMatchState
+	game       gameFiles
 }
 
 // normsCache keeps one pass per map and date range, valid while the matches

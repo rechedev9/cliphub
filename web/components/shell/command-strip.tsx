@@ -12,8 +12,9 @@ import { JobTransport } from '@/components/shell/job-transport';
 import { ThemeMenu } from '@/components/shell/theme-menu';
 import { useCurrentRouteTitle } from '@/components/shell/route-title';
 import { FULL_SERIES_SEGMENT, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
+import { currentEdition, editionSectionForPath } from '@/lib/edition';
 import { prettyMapName } from '@/lib/format';
-import { isToolPage, sectionForPath, type NavSection } from '@/lib/nav';
+import { isToolPage, type NavSection } from '@/lib/nav';
 
 const TRAIL = {
   newShort: 'Nuevo Short',
@@ -28,7 +29,7 @@ const SERIES_PREFIX = '/series/';
 // Full-inset ceiling: own padding, no max-w, opaque and flat (no backdrop-blur).
 export function CommandStrip(): ReactElement {
   const pathname = usePathname();
-  const section = sectionForPath(pathname);
+  const section = editionSectionForPath(pathname, currentEdition());
   const routeTitle = useCurrentRouteTitle();
   const trail = routeTitle ?? trailForPath(pathname, section);
   const showTrail = !isToolPage(pathname);

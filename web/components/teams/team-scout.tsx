@@ -13,6 +13,7 @@ import { ScoutView } from '@/components/reports/scout-view';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
 import { groupEvidenceByMatch, type VideoSource } from '@/lib/library/analysis-video';
 import { Button } from '@/components/ui/button';
+import { currentEdition } from '@/lib/edition';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -138,7 +139,7 @@ function ScoutResult({ failed, scout, teamId, actions }: { failed: boolean; scou
       </div>
     );
   }
-  const view = <ScoutView scout={scout} actions={actions} onRowVideo={(evidence) => setVideo(groupEvidenceByMatch(evidence))} />;
+  const view = <ScoutView scout={scout} actions={actions} onRowVideo={currentEdition() === 'desktop' ? (evidence) => setVideo(groupEvidenceByMatch(evidence)) : undefined} />;
   return (
     <>
       {/* An empty report empties every sub-tab, so the lineup's note replaces them all. */}

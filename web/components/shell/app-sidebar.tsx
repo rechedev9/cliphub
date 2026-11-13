@@ -8,6 +8,7 @@ import {
   ChartColumn,
   Clapperboard,
   Crosshair,
+  Download,
   Film,
   HardDrive,
   Lightbulb,
@@ -22,7 +23,9 @@ import {
   Swords,
   Trophy,
   Upload,
+  UserRound,
   UserSearch,
+  Users,
   Vote,
   type LucideIcon,
 } from 'lucide-react';
@@ -42,12 +45,12 @@ import { Button } from '@/components/ui/button';
 import { BrandMark, Wordmark } from '@/components/brand/wordmark';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
 import { SidebarDemoImport } from '@/components/shell/sidebar-demo-import';
-import { RESULTS_HREF } from '@/lib/clips/routes';
+import { currentEdition, homeLabelFor, homePathFor } from '@/lib/edition';
 import {
-  SIDEBAR_FOOTER_ENTRIES,
-  SIDEBAR_GROUPS,
   VOICE_HREF,
   activeEntryId,
+  sidebarFooterEntriesFor,
+  sidebarGroupsFor,
   type SidebarEntry,
   type SidebarEntryId,
 } from '@/lib/nav-groups';
@@ -81,6 +84,9 @@ const ENTRY_META: Record<SidebarEntryId, { icon: LucideIcon; dot?: string }> = {
 export function AppSidebar(): ReactElement {
   const pathname = usePathname();
   const params = useSearchParams();
+  const edition = currentEdition();
+  const groups = sidebarGroupsFor(edition);
+  const footerEntries = sidebarFooterEntriesFor(edition);
   const activeId = activeEntryId({ pathname, tab: params.get('tab') });
   const where: PageLocation = { pathname, search: params.toString() };
 
@@ -89,8 +95,8 @@ export function AppSidebar(): ReactElement {
       {/* Same band as the command strip, so the wordmark and the breadcrumb share one baseline. */}
       <SidebarHeader className="h-(--shell-strip-height) justify-center border-b border-sidebar-border p-0 px-3 group-data-[collapsible=icon]:px-2">
         <Link
-          href={RESULTS_HREF}
-          aria-label="Ir a Mis vídeos"
+          href={homePathFor(edition)}
+          aria-label={`Ir a ${homeLabelFor(edition)}`}
           className="inline-flex min-h-8 items-center group-data-[collapsible=icon]:justify-center"
         >
           <Wordmark className="group-data-[collapsible=icon]:hidden" />
@@ -99,7 +105,7 @@ export function AppSidebar(): ReactElement {
       </SidebarHeader>
 
       <SidebarContent className="gap-0 pt-2">
-        {SIDEBAR_GROUPS.map((group) => (
+        {groups.map((group) => (
           <SidebarGroup key={group.id} className="gap-0.5 px-2 pt-1 pb-3">
             {/* [font-size:…] rather than `text-meta`: tailwind-merge files an unknown `text-*` under text colour. */}
             <SidebarGroupLabel className="h-6 gap-1.5 px-2 [font-size:var(--text-meta)] font-semibold tracking-widest text-fg-3 uppercase">
@@ -120,32 +126,82 @@ export function AppSidebar(): ReactElement {
       </SidebarContent>
 
       <SidebarFooter className="gap-2 border-t border-sidebar-border p-0 px-2 pt-2 pb-2">
-        <div className="flex gap-1.5 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
-          <SidebarDemoImport />
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            title="Importar voz del equipo"
-            className="min-w-0 flex-1 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:px-0"
-          >
-            <Link href={VOICE_HREF}>
-              <Upload aria-hidden className="stroke-[1.5]" />
-              <span className="group-data-[collapsible=icon]:sr-only">Voz</span>
-            </Link>
-          </Button>
-        </div>
+        {edition === 'web' ? <WebFooterActions pathname={pathname} /> : (
+          <div className="flex gap-1.5 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
+            <SidebarDemoImport />
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              title="Importar voz del equipo"
+              className="min-w-0 flex-1 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:px-0"
+            >
+              <Link href={VOICE_HREF}>
+                <Upload aria-hidden className="stroke-[1.5]" />
+                <span className="group-data-[collapsible=icon]:sr-only">Voz</span>
+              </Link>
+            </Button>
+          </div>
+        )}
         <SidebarMenu className="gap-px">
-          {SIDEBAR_FOOTER_ENTRIES.map((entry) => (
+          {footerEntries.map((entry) => (
             <NavRow key={entry.id} entry={entry} href={sidebarHref(entry, where)} active={entry.id === activeId} />
           ))}
         </SidebarMenu>
-        <CaptureReadiness />
+        {/* The web has no PC that records: it offers Studio instead of a capture status. */}
+        {edition === 'web' ? <StudioDownload /> : <CaptureReadiness />}
       </SidebarFooter>
 
       {/* Without this the icon rail was reachable only through an undocumented Ctrl/Cmd+B. */}
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+/** The web edition's footer: import goes to the browser scanner, and the account and team live here. */
+function WebFooterActions({ pathname }: { pathname: string }): ReactElement {
+  const links = [
+    { href: '/equipo', label: 'Equipo', icon: Users },
+    { href: '/cuenta', label: 'Cuenta', icon: UserRound },
+  ] as const;
+  return (
+    <>
+      <Button asChild variant="outline" size="sm" title="Importar demos" className="group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:px-0">
+        <Link href="/importar">
+          <Upload aria-hidden className="stroke-[1.5]" />
+          <span className="group-data-[collapsible=icon]:sr-only">Importar demos</span>
+        </Link>
+      </Button>
+      <SidebarMenu className="gap-px">
+        {links.map(({ href, label, icon: Icon }) => (
+          <SidebarMenuItem key={href}>
+            <SidebarMenuButton asChild isActive={pathname === href} tooltip={label} className="h-7 gap-2.5 rounded-md px-2 font-medium text-fg-2">
+              <Link href={href}>
+                <Icon aria-hidden className="size-4 shrink-0 stroke-[1.5]" />
+                <span>{label}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ))}
+      </SidebarMenu>
+    </>
+  );
+}
+
+/** Where the desktop shows its capture status, the web offers Studio for the clipping features. */
+function StudioDownload(): ReactElement {
+  return (
+    <Link
+      href="/descargar"
+      title="Descargar ClipHub Studio para Windows"
+      className="flex items-center gap-2.5 rounded-md border border-sidebar-border px-2 py-1.5 transition-colors duration-(--dur-instant) ease-standard hover:bg-sidebar-accent group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+    >
+      <Download aria-hidden className="size-4 shrink-0 stroke-[1.5] text-fg-2" />
+      <span className="flex min-w-0 flex-col group-data-[collapsible=icon]:sr-only">
+        <span className="truncate text-body-sm font-semibold text-fg-1">Descargar Studio</span>
+        <span className="truncate [font-size:var(--text-meta)] text-fg-3">Clips, Shorts y vídeos</span>
+      </span>
+    </Link>
   );
 }
 

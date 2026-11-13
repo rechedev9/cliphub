@@ -46,6 +46,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/steamresolve"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
 	"github.com/rechedev9/cliphub/internal/timelineplan"
@@ -171,6 +172,8 @@ type Handlers struct {
 	references          referenceCaches
 	voice               *voiceService
 	replayVideo         *ReplayVideoDeps
+	syncLog             *store.SyncLog
+	clipmind            clipmindOptions
 	// labBundleMu serializes bundle writes: bundles of one job share a directory.
 	labBundleMu sync.Mutex
 }

@@ -170,7 +170,7 @@ type voiceSpeakersRequest struct {
 // PutLibraryMatchVoiceSpeakers handles PUT /api/library/matches/{id}/voice/speakers: who speaks on each
 // track, which the team keeps for the plugin's next recordings.
 func (h *Handlers) PutLibraryMatchVoiceSpeakers(w http.ResponseWriter, r *http.Request) {
-	m, ok := h.voiceMatch(w, r)
+	m, ok := h.voiceRecord(w, r)
 	if !ok {
 		return
 	}

@@ -33,7 +33,8 @@ export type RoundTableProps = {
   onToggleVisible: () => void;
   pathname: string;
   onOpenRound: () => void;
-  onVideo: (round: number) => void;
+  /** Absent where no video can be made (the web edition): no pick column and no video button. */
+  onVideo?: (round: number) => void;
 };
 
 const HEAD = 'h-9 px-2.5 font-medium whitespace-nowrap';
@@ -49,28 +50,31 @@ function buyClass(buy: TacticalBuyType): string {
 
 /** Every round of a partida grouped by half, with a checkbox to pick several for one video. */
 export function RoundTable(props: RoundTableProps): ReactNode {
-  const { halves, teamNames, chance, visiblePick, onToggleVisible } = props;
+  const { halves, teamNames, chance, visiblePick, onToggleVisible, onVideo } = props;
   const showSwing = chance !== 'none';
+  const canPick = onVideo !== undefined;
   return (
     <div className="overflow-x-auto">
       <table aria-label="Rondas" className="w-full border-collapse text-left text-body-sm tabular-nums">
         <thead className="text-meta text-fg-3">
           <tr>
-            <th scope="col" className="w-10 py-1 pr-1 pl-4">
-              <label className="grid size-8 cursor-pointer place-items-center">
-                <input
-                  type="checkbox"
-                  className="size-4 cursor-pointer accent-primary"
-                  checked={visiblePick === 'all'}
-                  ref={(input) => {
-                    if (input) input.indeterminate = visiblePick === 'some';
-                  }}
-                  onChange={onToggleVisible}
-                  aria-label="Elegir todas las rondas que se ven"
-                />
-              </label>
-            </th>
-            <th scope="col" className={HEAD}>Ronda</th>
+            {canPick ? (
+              <th scope="col" className="w-10 py-1 pr-1 pl-4">
+                <label className="grid size-8 cursor-pointer place-items-center">
+                  <input
+                    type="checkbox"
+                    className="size-4 cursor-pointer accent-primary"
+                    checked={visiblePick === 'all'}
+                    ref={(input) => {
+                      if (input) input.indeterminate = visiblePick === 'some';
+                    }}
+                    onChange={onToggleVisible}
+                    aria-label="Elegir todas las rondas que se ven"
+                  />
+                </label>
+              </th>
+            ) : null}
+            <th scope="col" className={cn(HEAD, !canPick && 'pl-4')}>Ronda</th>
             <th scope="col" className={HEAD}>Marcador</th>
             <th scope="col" className={HEAD}>Gana</th>
             <th scope="col" className={HEAD}>
@@ -90,7 +94,7 @@ export function RoundTable(props: RoundTableProps): ReactNode {
         {halves.map((half) => (
           <tbody key={`${half.half}:${half.title}`}>
             <tr className="border-t border-border bg-surface-1">
-              <th scope="colgroup" colSpan={showSwing ? 10 : 9} className="px-4 pt-3 pb-2 text-left font-normal">
+              <th scope="colgroup" colSpan={(showSwing ? 10 : 9) - (canPick ? 0 : 1)} className="px-4 pt-3 pb-2 text-left font-normal">
                 <span className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
                   <span className="text-body-sm font-semibold text-fg-1">{half.title}</span>
                   <span className="text-meta text-fg-2">
@@ -113,21 +117,24 @@ export function RoundTable(props: RoundTableProps): ReactNode {
 }
 
 function RoundTableRow({ row, table }: { row: RoundRow; table: RoundTableProps }): ReactNode {
-  const picked = table.picked.has(row.number);
+  const { onVideo } = table;
+  const picked = onVideo !== undefined && table.picked.has(row.number);
   return (
     <tr className={cn('border-t border-border-subtle hover:bg-surface-3', picked && 'bg-primary/8')}>
-      <td className="py-1 pr-1 pl-4">
-        <label className="grid size-8 cursor-pointer place-items-center">
-          <input
-            type="checkbox"
-            className="size-4 cursor-pointer accent-primary"
-            checked={picked}
-            onChange={() => table.onTogglePick(row.number)}
-            aria-label={`Elegir la ronda ${row.number} para un vídeo`}
-          />
-        </label>
-      </td>
-      <td className={cn(CELL, 'font-semibold text-fg-1')}>{row.number}</td>
+      {onVideo === undefined ? null : (
+        <td className="py-1 pr-1 pl-4">
+          <label className="grid size-8 cursor-pointer place-items-center">
+            <input
+              type="checkbox"
+              className="size-4 cursor-pointer accent-primary"
+              checked={picked}
+              onChange={() => table.onTogglePick(row.number)}
+              aria-label={`Elegir la ronda ${row.number} para un vídeo`}
+            />
+          </label>
+        </td>
+      )}
+      <td className={cn(CELL, 'font-semibold text-fg-1', onVideo === undefined && 'pl-4')}>{row.number}</td>
       <td className={cn(CELL, 'whitespace-nowrap text-fg-2')}>
         <span className={row.winnerTeamKey === 'ct-start' ? 'font-semibold text-fg-1' : 'text-fg-3'}>{row.scoreAfter['ct-start']}</span>
         <span className="text-fg-4">-</span>
@@ -162,16 +169,18 @@ function RoundTableRow({ row, table }: { row: RoundRow; table: RoundTableProps }
               Táctica
             </Link>
           </Button>
-          <Button
-            type="button"
-            size="icon-xs"
-            variant="ghost"
-            onClick={() => table.onVideo(row.number)}
-            aria-label={`Crear un vídeo de la ronda ${row.number}`}
-            title="Crear un vídeo de esta ronda"
-          >
-            <Clapperboard aria-hidden />
-          </Button>
+          {onVideo === undefined ? null : (
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              onClick={() => onVideo(row.number)}
+              aria-label={`Crear un vídeo de la ronda ${row.number}`}
+              title="Crear un vídeo de esta ronda"
+            >
+              <Clapperboard aria-hidden />
+            </Button>
+          )}
         </div>
       </td>
     </tr>

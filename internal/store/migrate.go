@@ -49,6 +49,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV23LibraryVoiceRecordings,
 	migrateV24PatternDetection,
 	migrateV25LibraryPinnedPlayers,
+	migrateV26SyncLog,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while

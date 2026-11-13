@@ -1,8 +1,10 @@
 package tactical
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"slices"
 	"testing"
@@ -138,6 +140,14 @@ func TestBackupRestoreReplacesTheReplayedRounds(t *testing.T) {
 // TestScanRealDemo exercises the whole pipeline against a real recording. It
 // skips without TEST_DEMO_PATH, the way the other demo-backed tests in this
 // repository do, because real demos are not committed.
+func TestScanReaderPreCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := ScanReader(ctx, bytes.NewReader(nil), Options{}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ScanReader with a cancelled context = %v, want context.Canceled", err)
+	}
+}
+
 func TestScanRealDemo(t *testing.T) {
 	path := os.Getenv("TEST_DEMO_PATH")
 	if path == "" {

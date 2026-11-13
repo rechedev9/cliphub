@@ -6,6 +6,7 @@ import { DENSITY_OPTIONS, parseDensity } from '@/lib/density';
 import { setDensity, useDensity } from '@/components/shell/density';
 import { THEME_OPTIONS } from '@/components/shell/theme-menu';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { currentEdition } from '@/lib/edition';
 import { SettingsSection } from './settings-section';
 
 export function AppearanceSettings(): ReactNode {
@@ -16,7 +17,7 @@ export function AppearanceSettings(): ReactNode {
   const densityHint = DENSITY_OPTIONS.find((option) => option.value === density)?.hint;
 
   return (
-    <SettingsSection id="appearance" title="Apariencia" description="El tema y el tamaño de la interfaz. Se guardan en este PC.">
+    <SettingsSection id="appearance" title="Apariencia" description={`El tema y el tamaño de la interfaz. Se guardan en este ${currentEdition() === 'web' ? 'navegador' : 'PC'}.`}>
       <div className="flex flex-col gap-2">
         <span id="appearance-theme" className="text-label font-medium text-fg-2">Tema</span>
         <ToggleGroup

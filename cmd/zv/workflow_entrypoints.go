@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -248,11 +249,18 @@ func commandEntrypoints(root string) ([]string, error) {
 			continue
 		}
 		mainPath := filepath.Join(cmdDir, entry.Name(), "main.go")
-		if _, err := os.Stat(mainPath); err != nil {
+		// #nosec G304 -- mainPath is a fixed file under the repo's cmd dir.
+		src, err := os.ReadFile(mainPath)
+		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
-			return nil, fmt.Errorf("stat command main %s: %w", entry.Name(), err)
+			return nil, fmt.Errorf("read command main %s: %w", entry.Name(), err)
+		}
+		// A js-only main is a browser module (WebAssembly), and a main that opens
+		// with "// zv:server-binary" is a server for another host. Neither is a CLI command.
+		if bytes.HasPrefix(src, []byte("//go:build js")) || bytes.HasPrefix(src, []byte("// zv:server-binary")) {
+			continue
 		}
 		commands = append(commands, entry.Name())
 	}

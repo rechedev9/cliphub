@@ -28,7 +28,8 @@ type Props = {
   /** True when no more spots fit in one practice cfg. */
   full: boolean;
   busy: boolean;
-  onPractice: (spots: PracticeSpot[]) => void;
+  /** Null in the web edition, which cannot launch CS2. */
+  onPractice: ((spots: PracticeSpot[]) => void) | null;
   onOpen: (key: string) => void;
 };
 
@@ -67,7 +68,7 @@ export function GrenadeSpotList({ spots, total, highlight, onHover, chosen, onCh
               <div className="flex items-start gap-2">
                 <input
                   type="checkbox"
-                  aria-label={`Elegir ${label} para practicar o crear una táctica`}
+                  aria-label={`Elegir ${label} para ${onPractice === null ? '' : 'practicar o '}crear una táctica`}
                   title={best === null ? NO_ORIGIN_REASON : undefined}
                   checked={isChosen}
                   disabled={best === null || (full && !isChosen)}
@@ -101,14 +102,16 @@ export function GrenadeSpotList({ spots, total, highlight, onHover, chosen, onCh
                         Reproducir {refs.length} {refs.length === 1 ? 'ronda' : 'rondas'}
                       </Link>
                     </Button>
-                    <PracticeButton
-                      busy={busy}
-                      disabledReason={best === null ? NO_ORIGIN_REASON : undefined}
-                      onClick={() => {
-                        const practice = best === null ? null : practiceSpotFor(best, label);
-                        if (practice !== null) onPractice([practice]);
-                      }}
-                    />
+                    {onPractice === null ? null : (
+                      <PracticeButton
+                        busy={busy}
+                        disabledReason={best === null ? NO_ORIGIN_REASON : undefined}
+                        onClick={() => {
+                          const practice = best === null ? null : practiceSpotFor(best, label);
+                          if (practice !== null) onPractice([practice]);
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
               </div>

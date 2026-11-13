@@ -29,6 +29,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/syncclient"
 	"github.com/rechedev9/cliphub/internal/tasks"
 	"github.com/rechedev9/cliphub/internal/workers"
 	"github.com/rechedev9/cliphub/internal/youtubetrends"
@@ -95,6 +96,9 @@ func run() error {
 	files, err := storage.NewLocal(cfg.DataDir)
 	if err != nil {
 		return fmt.Errorf("storage: %w", err)
+	}
+	if n, err := httpapi.PruneBundledMapPictures(cfg.DataDir); err != nil || n > 0 {
+		log.Printf("game cache: removed %d old map pictures (%v)", n, err)
 	}
 	observability, err := obs.InitializeDefault()
 	if err != nil {
@@ -306,7 +310,7 @@ func run() error {
 	if err != nil {
 		log.Printf("lineup catalog: %v", err)
 	}
-	handlers := httpapi.NewHandlers(repo, files, queue,
+	handlerOpts := []httpapi.Option{
 		httpapi.WithMutationToken(cfg.MutationToken),
 		httpapi.WithRequireReadAuth(true),
 		// Remote binds are rejected. A per-IP limiter on loopback would give
@@ -335,10 +339,33 @@ func run() error {
 		httpapi.WithLibrary(repos.Library),
 		httpapi.WithLineupCatalog(lineupCatalog),
 		httpapi.WithPractice(practice.SteamGame{CS2Path: cfg.CS2Path}),
-		httpapi.WithCommunity(communityDeps(cfg.DataDir)),
+		httpapi.WithCommunity(httpapi.OpenCommunity(cfg.DataDir, os.Getenv("ZV_COMMUNITY_URL"))),
 		httpapi.WithVoice(voiceDeps(cfg)),
 		httpapi.WithReplayVideo(replayVideoDeps(cfg)),
-	)
+	}
+	if repos.DB() != nil {
+		handlerOpts = append(handlerOpts, httpapi.WithSyncLog(store.NewSyncLog(repos.DB())))
+		device, _ := os.Hostname()
+		voiceFiles, err := storage.NewLocal(filepath.Join(cfg.DataDir, "voice"))
+		if err != nil {
+			return fmt.Errorf("clipmind sync voice folder: %w", err)
+		}
+		clipmind, err := syncclient.New(syncclient.Config{
+			StatePath:  filepath.Join(cfg.DataDir, "clipmind-sync.json"),
+			DB:         repos.DB(),
+			Library:    repos.Library,
+			Files:      files,
+			VoiceFiles: voiceFiles,
+			DeviceName: "ClipHub Studio en " + device,
+		})
+		if err != nil {
+			return fmt.Errorf("clipmind sync: %w", err)
+		}
+		handlerOpts = append(handlerOpts, httpapi.WithClipMindSync(clipmind))
+		// The account's changes arrive on their own; Ajustes can also sync on demand.
+		go clipmind.Run(ctx, 2*time.Minute)
+	}
+	handlers := httpapi.NewHandlers(repo, files, queue, handlerOpts...)
 	// Settle every legacy render state once so Studio polls read durable
 	// state instead of migrating it on the request path. Reuses the job
 	// listing reconciliation already took, statuses included, so the jobs the

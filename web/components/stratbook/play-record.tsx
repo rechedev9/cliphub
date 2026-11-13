@@ -26,6 +26,7 @@ import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
+import { currentEdition } from '@/lib/edition';
 import {
   Dialog,
   DialogContent,
@@ -121,6 +122,7 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
   const [deleting, setDeleting] = useState(false);
   /** The example rounds the video dialog offers; null while it is closed. */
   const [video, setVideo] = useState<{ sources: VideoSource[]; selected?: number[] } | null>(null);
+  const canVideo = currentEdition() === 'desktop';
   const [matches, setMatches] = useState<ReadonlyMap<string, LibraryMatch>>(new Map());
   const [message, setMessage] = useState<string | null>(null);
   useRouteTitle(play.title);
@@ -195,16 +197,18 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
         ]}
         actions={
           <>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={available.length === 0}
-              onClick={() => setVideo({ sources: groupEvidenceByMatch(available) })}
-            >
-              <Clapperboard aria-hidden />
-              Crear vídeo
-            </Button>
+            {canVideo ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={available.length === 0}
+                onClick={() => setVideo({ sources: groupEvidenceByMatch(available) })}
+              >
+                <Clapperboard aria-hidden />
+                Crear vídeo
+              </Button>
+            ) : null}
             <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
               <Pencil aria-hidden />
               Editar
@@ -287,7 +291,7 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
                 matches={matches}
                 missing={missing}
                 onRemove={(index) => void removeExample(index)}
-                onVideo={(example) => setVideo({ sources: groupEvidenceByMatch([example]), selected: [example.round] })}
+                onVideo={canVideo ? (example) => setVideo({ sources: groupEvidenceByMatch([example]), selected: [example.round] }) : undefined}
               />
             ),
           },
@@ -385,7 +389,7 @@ function ExampleList({
   matches: ReadonlyMap<string, LibraryMatch>;
   missing: ReadonlySet<string>;
   onRemove: (index: number) => void;
-  onVideo: (example: LibraryPlayDetail['examples'][number]) => void;
+  onVideo?: (example: LibraryPlayDetail['examples'][number]) => void;
 }): ReactNode {
   if (play.examples.length === 0) return <p className="text-body-sm text-fg-2">Esta jugada no tiene rondas de ejemplo.</p>;
   return (
@@ -406,10 +410,12 @@ function ExampleList({
                   <Button asChild variant="outline" size="sm">
                     <Link href={evidencePath(example)}>Abrir en el Replay</Link>
                   </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => onVideo(example)}>
-                    <Clapperboard aria-hidden />
-                    Vídeo
-                  </Button>
+                  {onVideo === undefined ? null : (
+                    <Button type="button" variant="outline" size="sm" onClick={() => onVideo(example)}>
+                      <Clapperboard aria-hidden />
+                      Vídeo
+                    </Button>
+                  )}
                 </>
               )}
               <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(index)}>

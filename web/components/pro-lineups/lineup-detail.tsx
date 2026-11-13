@@ -24,6 +24,7 @@ import { levelForAltitude } from '@/lib/tactical-transform';
 import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practice-launch';
 import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
+import { currentEdition } from '@/lib/edition';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProLoadProblem } from './lineup-maps';
@@ -147,10 +148,12 @@ function Detail({ data, lineup }: { data: ProLineupMap; lineup: ProLineup }): Re
               <NotebookPen aria-hidden />
               {save.kind === 'saved' ? 'Guardado' : 'Guardar en la Libreta'}
             </Button>
-            <Button type="button" size="sm" disabled={practice.state.kind === 'busy'} onClick={() => practice.launch([practiceSpot(lineup)])}>
-              <Crosshair aria-hidden />
-              Practicar en CS2
-            </Button>
+            {practice.launch === null ? null : (
+              <Button type="button" size="sm" disabled={practice.state.kind === 'busy'} onClick={() => practice.launch?.([practiceSpot(lineup)])}>
+                <Crosshair aria-hidden />
+                Practicar en CS2
+              </Button>
+            )}
           </div>
         </div>
         <PracticeResult state={practice.state} onDismiss={practice.dismiss} />
@@ -262,7 +265,8 @@ function HowToThrow({ lineup, hasClip }: { lineup: ProLineup; hasClip: boolean }
       <SetposCopy lineup={lineup} />
       {hasClip ? null : (
         <p className="text-meta text-fg-2">
-          Aún no hay vídeo de este lineup: se graba cuando entra una partida pro nueva con este lanzamiento. Con Practicar en CS2 apareces en la posición y la mira.
+          Aún no hay vídeo de este lineup: se graba cuando entra una partida pro nueva con este lanzamiento.
+          {currentEdition() === 'desktop' ? ' Con Practicar en CS2 apareces en la posición y la mira.' : null}
         </p>
       )}
     </section>
