@@ -8,6 +8,7 @@ import {
   ChartColumn,
   Clapperboard,
   Crosshair,
+  Download,
   Film,
   HardDrive,
   Lightbulb,
@@ -58,7 +59,6 @@ import { cn } from '@/lib/utils';
 
 // The Crear formats tint a small dot with the colour their flow uses; the icon stays neutral.
 const ENTRY_META: Record<SidebarEntryId, { icon: LucideIcon; dot?: string }> = {
-  'crear-videos': { icon: Clapperboard },
   'demo-completa': { icon: MonitorPlay, dot: 'bg-format-full' },
   short: { icon: Smartphone, dot: 'bg-format-short' },
   'clips-de-stream': { icon: Clapperboard, dot: 'bg-format-stream' },
@@ -148,8 +148,8 @@ export function AppSidebar(): ReactElement {
             <NavRow key={entry.id} entry={entry} href={sidebarHref(entry, where)} active={entry.id === activeId} />
           ))}
         </SidebarMenu>
-        {/* The web has no PC that records, so no capture status. */}
-        {edition === 'web' ? null : <CaptureReadiness />}
+        {/* The web has no PC that records: it offers Studio instead of a capture status. */}
+        {edition === 'web' ? <StudioDownload /> : <CaptureReadiness />}
       </SidebarFooter>
 
       {/* Without this the icon rail was reachable only through an undocumented Ctrl/Cmd+B. */}
@@ -185,6 +185,23 @@ function WebFooterActions({ pathname }: { pathname: string }): ReactElement {
         ))}
       </SidebarMenu>
     </>
+  );
+}
+
+/** Where the desktop shows its capture status, the web offers Studio for the clipping features. */
+function StudioDownload(): ReactElement {
+  return (
+    <Link
+      href="/descargar"
+      title="Descargar ClipHub Studio para Windows"
+      className="flex items-center gap-2.5 rounded-md border border-sidebar-border px-2 py-1.5 transition-colors duration-(--dur-instant) ease-standard hover:bg-sidebar-accent group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+    >
+      <Download aria-hidden className="size-4 shrink-0 stroke-[1.5] text-fg-2" />
+      <span className="flex min-w-0 flex-col group-data-[collapsible=icon]:sr-only">
+        <span className="truncate text-body-sm font-semibold text-fg-1">Descargar Studio</span>
+        <span className="truncate [font-size:var(--text-meta)] text-fg-3">Clips, Shorts y vídeos</span>
+      </span>
+    </Link>
   );
 }
 
