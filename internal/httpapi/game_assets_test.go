@@ -55,17 +55,17 @@ func TestGameAssetErrors(t *testing.T) {
 		{empty, "/api/equipment/..%2F..%2Fsecret/icon", http.StatusBadRequest, "invalid_request"},
 		{empty, "/api/equipment/knife__x/icon", http.StatusBadRequest, "invalid_request"},
 		{empty, "/api/equipment/" + strings.Repeat("a", 41) + "/icon", http.StatusBadRequest, "invalid_request"},
-		{"", "/api/maps/de_mirage/radar", http.StatusNotFound, "cs2_not_found"},
+		{"", "/api/maps/de_cbble/radar", http.StatusNotFound, "cs2_not_found"},
 		{"", "/api/equipment/ak47/icon", http.StatusNotFound, "cs2_not_found"},
-		{empty, "/api/maps/de_mirage/radar?layer=lower", http.StatusNotFound, "radar_not_found"},
+		{empty, "/api/maps/de_cbble/radar?layer=lower", http.StatusNotFound, "radar_not_found"},
 		{empty, "/api/maps/DE_MIRAGE/shot", http.StatusBadRequest, "invalid_request"},
-		{empty, "/api/maps/de_mirage/shot", http.StatusNotFound, "map_picture_not_found"},
+		{empty, "/api/maps/de_cbble/shot", http.StatusNotFound, "map_picture_not_found"},
 		{empty, "/api/teams/logo", http.StatusBadRequest, "invalid_request"},
 		{empty, "/api/teams/logo?name=" + strings.Repeat("a", 65), http.StatusBadRequest, "invalid_request"},
 		{empty, "/api/teams/logo?name=Equipo%20Inventado", http.StatusNotFound, "team_logo_not_found"},
 		{empty, "/api/teams/logo?name=FURIA", http.StatusNotFound, "team_logo_not_found"},
 		{empty, "/api/equipment/ak47/icon", http.StatusNotFound, "icon_not_found"},
-		{junk, "/api/maps/de_mirage/radar", http.StatusUnprocessableEntity, "game_asset_unreadable"},
+		{junk, "/api/maps/de_cbble/radar", http.StatusUnprocessableEntity, "game_asset_unreadable"},
 	}
 	for _, tc := range cases {
 		h, _ := geometryHandlers(tc.cs2)
@@ -82,7 +82,7 @@ func TestGameAssetsServeTheCache(t *testing.T) {
 	exe := fakeAssetInstall(t, emptyPak())
 	h, store := geometryHandlers(exe)
 	install := gameassets.Install{CS2Exe: exe}
-	seed := map[string]string{"radar/de_nuke_lower.png": "png-bytes", "icon/ak47.svg": "<svg/>", "icon/c4.png": "icon-png"}
+	seed := map[string]string{"radar/de_cbble_lower.png": "png-bytes", "icon/ak47.svg": "<svg/>", "icon/c4.png": "icon-png"}
 	for file, body := range seed {
 		kind, name, _ := strings.Cut(file, "/")
 		key, err := install.CacheKey(kind, name)
@@ -94,7 +94,7 @@ func TestGameAssetsServeTheCache(t *testing.T) {
 		}
 	}
 	cases := []struct{ path, body, contentType string }{
-		{"/api/maps/de_nuke/radar?layer=lower", "png-bytes", "image/png"},
+		{"/api/maps/de_cbble/radar?layer=lower", "png-bytes", "image/png"},
 		{"/api/equipment/ak47/icon", "<svg/>", "image/svg+xml"},
 		{"/api/equipment/c4/icon", "icon-png", "image/png"},
 	}
@@ -110,7 +110,7 @@ func TestGameAssetsServeTheCache(t *testing.T) {
 			t.Errorf("%s: content security policy %q", tc.path, rw.Header().Get("Content-Security-Policy"))
 		}
 	}
-	if rw := getAsset(h, "/api/maps/de_nuke/radar"); rw.Code != http.StatusNotFound {
+	if rw := getAsset(h, "/api/maps/de_cbble/radar"); rw.Code != http.StatusNotFound {
 		t.Errorf("the upper layer answered %d from the lower layer's cache", rw.Code)
 	}
 }
@@ -140,5 +140,27 @@ func TestServeGameAssetCachesUnderTheMatchingKey(t *testing.T) {
 	})
 	if rw.Code != http.StatusUnprocessableEntity || strings.Contains(rw.Body.String(), "format 99") {
 		t.Errorf("an extraction failure answered %d %s", rw.Code, rw.Body.String())
+	}
+}
+
+func TestBundledRadarIsServedWithoutCS2(t *testing.T) {
+	h, _ := geometryHandlers("")
+	rw := getAsset(h, "/api/maps/de_dust2/radar")
+	if rw.Code != http.StatusOK {
+		t.Fatalf("bundled radar answered %d, want 200", rw.Code)
+	}
+	if ct := rw.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("content-type = %q, want image/png", ct)
+	}
+}
+
+func TestBundledShotIsServedWithoutCS2(t *testing.T) {
+	h, _ := geometryHandlers("")
+	rw := getAsset(h, "/api/maps/de_dust2/shot")
+	if rw.Code != http.StatusOK {
+		t.Fatalf("bundled shot answered %d, want 200", rw.Code)
+	}
+	if ct := rw.Header().Get("Content-Type"); ct != "image/webp" {
+		t.Errorf("content-type = %q, want image/webp", ct)
 	}
 }

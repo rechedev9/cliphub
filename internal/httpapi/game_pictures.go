@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	mapdata "github.com/rechedev9/cliphub/data/maps"
 	"github.com/rechedev9/cliphub/internal/gameassets"
 )
 
@@ -25,6 +26,10 @@ func (h *Handlers) GetMapShot(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "map")
 	if !geometryMapPattern.MatchString(name) {
 		writeError(w, http.StatusBadRequest, "map must match "+geometryMapPattern.String())
+		return
+	}
+	if body := mapdata.Shot(name); body != nil {
+		writeGameAsset(w, body, mapdata.ContentTypeWebP)
 		return
 	}
 	install := gameassets.Install{CS2Exe: h.cs2Path()}
