@@ -484,7 +484,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const shown = selectedMap === FILTER_ANY ? facet : facet.filter(({ match }) => match?.map === selectedMap);
   const chips = mapChips({ library: rows.map(({ match }) => match), listed: facet.map(({ match }) => match), selected: selectedMap });
   const pending = rows.filter(isPending).length;
-  const handlers: RowHandlers = { onRetry: (demoId) => void retry(demoId), onRemoved: () => pollRef.current() };
+  const handlers: RowHandlers = { onRetry: webEdition ? undefined : (demoId) => void retry(demoId), onRemoved: () => pollRef.current() };
   // Only rows the filters show count as chosen, so a bulk delete never reaches a hidden one.
   const chosenIds = shown.map((row) => row.demo.id).filter((demoId) => selected.has(demoId));
   const markScrimButton = (

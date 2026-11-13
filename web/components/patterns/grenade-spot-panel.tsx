@@ -31,7 +31,8 @@ type Props = {
   place: (token: string) => string;
   matchLabel: (matchId: string) => string;
   busy: boolean;
-  onPractice: (spots: PracticeSpot[]) => void;
+  /** Null in the web edition, which cannot launch CS2. */
+  onPractice: ((spots: PracticeSpot[]) => void) | null;
   onSaveLineup: (from: LineupThrow, label: string) => void;
   /** Null where the grenades belong to no team of the library. */
   onSavePlay: (() => void) | null;
@@ -106,14 +107,16 @@ export function GrenadeSpotPanel({ spot: labelled, followUp, denominator, place,
           </Link>
         </Button>
         <CopySetpos grenade={best} />
-        <PracticeButton
-          busy={busy}
-          disabledReason={best === null ? NO_ORIGIN_REASON : undefined}
-          onClick={() => {
-            const practice = best === null ? null : practiceSpotFor(best, label);
-            if (practice !== null) onPractice([practice]);
-          }}
-        />
+        {onPractice === null ? null : (
+          <PracticeButton
+            busy={busy}
+            disabledReason={best === null ? NO_ORIGIN_REASON : undefined}
+            onClick={() => {
+              const practice = best === null ? null : practiceSpotFor(best, label);
+              if (practice !== null) onPractice([practice]);
+            }}
+          />
+        )}
         <SaveLineupButton disabledReason={bestThrow === null ? NO_ORIGIN_REASON : undefined} onClick={() => bestThrow !== null && onSaveLineup(bestThrow, label)} />
         {onSavePlay === null ? null : (
           <Button type="button" variant="ghost" size="xs" onClick={onSavePlay}>
@@ -177,15 +180,17 @@ export function GrenadeSpotPanel({ spot: labelled, followUp, denominator, place,
                     Reproducir
                   </Link>
                 </Button>
-                <PracticeButton
-                  busy={busy}
-                  label="Practicar"
-                  disabledReason={canPractice(grenade) ? undefined : NO_ORIGIN_REASON}
-                  onClick={() => {
-                    const practice = practiceSpotFor(grenade, `${label} (${grenade.thrower_name})`);
-                    if (practice !== null) onPractice([practice]);
-                  }}
-                />
+                {onPractice === null ? null : (
+                  <PracticeButton
+                    busy={busy}
+                    label="Practicar"
+                    disabledReason={canPractice(grenade) ? undefined : NO_ORIGIN_REASON}
+                    onClick={() => {
+                      const practice = practiceSpotFor(grenade, `${label} (${grenade.thrower_name})`);
+                      if (practice !== null) onPractice([practice]);
+                    }}
+                  />
+                )}
                 <SaveLineupButton
                   disabledReason={from === null ? NO_ORIGIN_REASON : undefined}
                   onClick={() => from !== null && onSaveLineup(from, `${label} (${grenade.thrower_name})`)}

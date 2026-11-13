@@ -22,6 +22,7 @@ import { RoundTable, type ChanceStatus, type VisiblePick } from '@/components/ma
 import { useMatchRoundRows } from '@/components/matches/use-match-round-rows';
 import { useWinTimelines, type WinTimelines } from '@/components/replay/use-win-timelines';
 import { Button } from '@/components/ui/button';
+import { currentEdition } from '@/lib/edition';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type MatchRoundsProps = { match: LibraryMatch; pathname: string; onOpenRound: () => void };
@@ -45,6 +46,8 @@ function MatchRoundsView({ match, pathname, onOpenRound }: MatchRoundsProps): Re
   const [picked, setPicked] = useState<readonly number[]>([]);
   /** The rounds the video dialog opens with checked; null while it is closed. */
   const [video, setVideo] = useState<readonly number[] | null>(null);
+  // Videos are recorded in CS2 on the PC: the web edition has no round picking for them.
+  const canVideo = currentEdition() === 'desktop';
   const loaded = useMatchRoundRows(match.id);
   const win = useWinTimelines(match.id);
 
@@ -125,12 +128,12 @@ function MatchRoundsView({ match, pathname, onOpenRound }: MatchRoundsProps): Re
             onToggleVisible={toggleVisible}
             pathname={pathname}
             onOpenRound={onOpenRound}
-            onVideo={(round) => setVideo([round])}
+            onVideo={canVideo ? (round) => setVideo([round]) : undefined}
           />
         ) : null}
         {rows.length > 0 ? (
           <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 rounded-b-lg border-t border-border bg-surface-1 px-4 py-3">
-            {picked.length > 0 ? (
+            {canVideo && picked.length > 0 ? (
               <>
                 <span className="text-body-sm font-semibold text-fg-1">
                   {picked.length === 1 ? '1 ronda elegida' : `${picked.length} rondas elegidas`}
@@ -149,7 +152,7 @@ function MatchRoundsView({ match, pathname, onOpenRound }: MatchRoundsProps): Re
               </>
             ) : (
               <>
-                <span className="text-body-sm text-fg-2">Marca varias rondas para hacer un solo vídeo con todas.</span>
+                {canVideo ? <span className="text-body-sm text-fg-2">Marca varias rondas para hacer un solo vídeo con todas.</span> : null}
                 <span className="grow" />
                 <span className="text-meta text-fg-3">
                   {visible.length === rows.length ? roundsText(rows.length) : `${visible.length} de ${roundsText(rows.length)}`}

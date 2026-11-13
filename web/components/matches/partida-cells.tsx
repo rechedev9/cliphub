@@ -87,7 +87,8 @@ export function DemoStatus({ row }: { row: PartidaRow }): ReactNode {
   );
 }
 
-export type RowHandlers = { onRetry: (demoId: string) => void; onRemoved: () => void };
+/** onRetry is absent in the web edition: the .dem stays in the browser that read it. */
+export type RowHandlers = { onRetry?: (demoId: string) => void; onRemoved: () => void };
 
 /** A demo already gone counts as removed: the row only has to leave the list. */
 export async function removeDemo(demoId: string): Promise<void> {
@@ -104,10 +105,12 @@ export function RowActions({ row, handlers }: { row: PartidaRow; handlers: RowHa
   if (demo.state === 'failed') {
     return (
       <span className="flex items-center justify-end gap-2">
-        <Button type="button" variant="outline" size="xs" onClick={() => handlers.onRetry(demo.id)}>
-          <RefreshCw aria-hidden />
-          Reintentar
-        </Button>
+        {handlers.onRetry === undefined ? null : (
+          <Button type="button" variant="outline" size="xs" onClick={() => handlers.onRetry?.(demo.id)}>
+            <RefreshCw aria-hidden />
+            Reintentar
+          </Button>
+        )}
         <DeleteMatchButton label={match ? prettyMapName(match.map) : demo.file_name} onConfirm={() => removeDemo(demo.id)} onDeleted={handlers.onRemoved} />
       </span>
     );

@@ -354,12 +354,14 @@ export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tra
       </Link>
     </Button>
   );
-  const practiceButton = (
-    <Button type="button" size="sm" disabled={chosenSpots.length === 0 || practice.state.kind === 'busy'} onClick={() => practice.launch(practiceSpotsForSpots(chosenSpots))}>
-      <Crosshair aria-hidden />
-      {chosenSpots.length === 0 ? 'Practicar selección' : `Practicar selección (${chosenSpots.length})`}
-    </Button>
-  );
+  const { launch } = practice;
+  const practiceButton =
+    launch === null ? null : (
+      <Button type="button" size="sm" disabled={chosenSpots.length === 0 || practice.state.kind === 'busy'} onClick={() => launch(practiceSpotsForSpots(chosenSpots))}>
+        <Crosshair aria-hidden />
+        {chosenSpots.length === 0 ? 'Practicar selección' : `Practicar selección (${chosenSpots.length})`}
+      </Button>
+    );
   const playButton =
     teamId === null || side === '' ? null : (
       <Button

@@ -25,6 +25,7 @@ import { MatchRecord } from '@/components/matches/match-record';
 import { ProMatchNotice } from '@/components/pro-matches/pro-match-notice';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
 import { Button } from '@/components/ui/button';
+import { currentEdition } from '@/lib/edition';
 
 type Resolved =
   | { kind: 'loading' }
@@ -150,7 +151,11 @@ export function PartidaRecord({ id }: { id: string }): ReactNode {
       return (
         <PendingDemo
           demo={resolved.demo}
-          onRetry={async () => setResolved({ kind: 'pending', demo: await analyzeLibraryDemo(resolved.demo.id), jobId: resolved.jobId })}
+          onRetry={
+            currentEdition() === 'web'
+              ? undefined
+              : async () => setResolved({ kind: 'pending', demo: await analyzeLibraryDemo(resolved.demo.id), jobId: resolved.jobId })
+          }
           onShowCrear={resolved.jobId === null ? undefined : () => setResolved({ kind: 'legacy' })}
         />
       );
@@ -163,7 +168,8 @@ function PendingDemo({
   onShowCrear,
 }: {
   demo: LibraryDemo;
-  onRetry: () => Promise<void>;
+  /** Absent in the web edition: the .dem stays in the browser that read it. */
+  onRetry?: () => Promise<void>;
   onShowCrear?: () => void;
 }): ReactNode {
   const [busy, setBusy] = useState(false);
@@ -181,19 +187,21 @@ function PendingDemo({
         }
         actions={
           <>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => {
-                setBusy(true);
-                void onRetry().finally(() => setBusy(false));
-              }}
-            >
-              <RefreshCw aria-hidden />
-              Reintentar
-            </Button>
+            {onRetry === undefined ? null : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  void onRetry().finally(() => setBusy(false));
+                }}
+              >
+                <RefreshCw aria-hidden />
+                Reintentar
+              </Button>
+            )}
             {onShowCrear ? (
               <Button type="button" variant="ghost" size="sm" onClick={onShowCrear}>
                 Ver la partida en Crear

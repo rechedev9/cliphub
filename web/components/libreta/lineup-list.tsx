@@ -199,7 +199,7 @@ export function LineupList({
           preview={[
             'Dónde ponerte y adónde apuntar, listo para copiar en la consola.',
             'Cómo se lanza: parado o corriendo, con salto o sin él, y con qué clic.',
-            'Practicar en CS2 con la granada en la mano, hasta 20 del mismo mapa a la vez.',
+            ...(practice.launch === null ? [] : ['Practicar en CS2 con la granada en la mano, hasta 20 del mismo mapa a la vez.']),
           ]}
           actions={
             <>
@@ -267,18 +267,20 @@ export function LineupList({
               onStatus={(next) => void bulkStatus(next)}
               onDelete={() => void bulkDelete()}
               extra={
-                <span title={blocked ?? undefined}>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    disabled={busy || blocked !== null || practice.state.kind === 'busy'}
-                    onClick={() => practice.launch(chosen.map(lineupSpot))}
-                  >
-                    <Crosshair aria-hidden />
-                    Practicar en CS2
-                  </Button>
-                </span>
+                practice.launch === null ? null : (
+                  <span title={blocked ?? undefined}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      disabled={busy || blocked !== null || practice.state.kind === 'busy'}
+                      onClick={() => practice.launch?.(chosen.map(lineupSpot))}
+                    >
+                      <Crosshair aria-hidden />
+                      Practicar en CS2
+                    </Button>
+                  </span>
+                )
               }
             />
           ),

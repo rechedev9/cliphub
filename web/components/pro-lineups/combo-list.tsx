@@ -170,10 +170,12 @@ export function ComboOpen({
           </li>
         ))}
       </ol>
-      <Button type="button" size="sm" className="self-start" disabled={practice.state.kind === 'busy' || lineups.length === 0} onClick={() => practice.launch(lineups.map(practiceSpot))}>
-        <Crosshair aria-hidden />
-        Practicar combo
-      </Button>
+      {practice.launch === null ? null : (
+        <Button type="button" size="sm" className="self-start" disabled={practice.state.kind === 'busy' || lineups.length === 0} onClick={() => practice.launch?.(lineups.map(practiceSpot))}>
+          <Crosshair aria-hidden />
+          Practicar combo
+        </Button>
+      )}
       <PracticeResult state={practice.state} onDismiss={practice.dismiss} />
     </div>
   );

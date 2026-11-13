@@ -4,14 +4,15 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { Copy, Crosshair } from 'lucide-react';
 import { launchPractice, type PracticeLaunchOutcome, type PracticeSpot } from '@/lib/api/practice';
 import { Button } from '@/components/ui/button';
+import { currentEdition } from '@/lib/edition';
 import { cn } from '@/lib/utils';
 
 export type PracticeState = { kind: 'idle' } | { kind: 'busy' } | { kind: 'done'; outcome: PracticeLaunchOutcome };
 
-/** Launches CS2 practice on a map and keeps the last answer for the panel. */
+/** Launches CS2 practice on a map and keeps the last answer for the panel. launch is null in the web edition: CS2 runs on the PC. */
 export function usePracticeLaunch(map: string): {
   state: PracticeState;
-  launch: (spots: PracticeSpot[]) => void;
+  launch: ((spots: PracticeSpot[]) => void) | null;
   dismiss: () => void;
 } {
   const [state, setState] = useState<PracticeState>({ kind: 'idle' });
@@ -24,7 +25,7 @@ export function usePracticeLaunch(map: string): {
     [map],
   );
   const dismiss = useCallback(() => setState({ kind: 'idle' }), []);
-  return { state, launch, dismiss };
+  return { state, launch: currentEdition() === 'desktop' ? launch : null, dismiss };
 }
 
 /** "Practicar en CS2": disabled with the reason as its title when the throw has no position. */
