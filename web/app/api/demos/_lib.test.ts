@@ -272,6 +272,23 @@ test('proxyGameAsset passes images through and hardens svg', async () => {
   assert.equal(png.response.headers.get('content-security-policy'), null);
 });
 
+test('proxyGameAsset revalidates a bundled picture by its ETag', async () => {
+  const request = new Request('http://127.0.0.1:3000/api/maps/de_mirage/radar', { headers: { 'If-None-Match': '"abc"' } });
+  const fresh = await withUpstream(
+    () => new Response('png', { status: 200, headers: { 'content-type': 'image/png', 'cache-control': 'private, no-cache', etag: '"abc"' } }),
+    () => proxyGameAsset('http://127.0.0.1:8080/api/maps/de_mirage/radar?layer=upper', request),
+  );
+  assert.equal(fresh.response.headers.get('etag'), '"abc"');
+  assert.equal(new Headers(fresh.init?.headers).get('If-None-Match'), '"abc"');
+
+  const same = await withUpstream(
+    () => new Response(null, { status: 304, headers: { etag: '"abc"' } }),
+    () => proxyGameAsset('http://127.0.0.1:8080/api/maps/de_mirage/radar?layer=upper', request),
+  );
+  assert.equal(same.response.status, 304);
+  assert.equal(same.response.headers.get('etag'), '"abc"');
+});
+
 test('proxyGameAsset refuses other content types and forwards coded errors', async () => {
   const html = await withUpstream(
     () => new Response('<script>x</script>', { status: 200, headers: { 'content-type': 'text/html' } }),
