@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"slices"
 	"sort"
 	"strings"
@@ -228,15 +229,36 @@ func (s *SyncLog) apply(ctx context.Context, origin string, changes []SyncChange
 		return err
 	}
 	described := map[string]map[string]syncColumn{}
+	skipped := 0
 	for _, change := range orderSyncChanges(changes) {
-		if err := applySyncChange(ctx, tx, change, described); err != nil {
+		err := applySyncChange(ctx, tx, change, described)
+		if isSyncClash(err) {
+			// The same demo imported on two devices under two ids, or a row whose parent
+			// was such a demo: this library keeps its own copy and the sync goes on.
+			skipped++
+			continue
+		}
+		if err != nil {
 			return err
 		}
+	}
+	if skipped > 0 {
+		log.Printf("sync: kept %d local rows that clash with received changes (same demo under another id)", skipped)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM sync_meta WHERE key = ?`, marker); err != nil {
 		return err
 	}
 	return tx.Commit()
+}
+
+// isSyncClash reports a received row that a unique key or a missing parent in
+// this library refuses. SQLite undoes only that statement.
+func isSyncClash(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "UNIQUE constraint failed") || strings.Contains(msg, "FOREIGN KEY constraint failed")
 }
 
 // orderSyncChanges keeps the last change per row, then puts deletes first,

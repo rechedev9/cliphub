@@ -116,7 +116,7 @@ func (h *Handlers) serveGameAsset(w http.ResponseWriter, name string, keys []str
 	}
 	for _, key := range keys {
 		if gameAssetContentType(key) == contentType {
-			if err := h.storage.Put(key, bytes.NewReader(body)); err != nil {
+			if err := h.gameCache().Put(key, bytes.NewReader(body)); err != nil {
 				log.Printf("httpapi: cache game asset %s: %v", key, err)
 			}
 			break
@@ -127,7 +127,7 @@ func (h *Handlers) serveGameAsset(w http.ResponseWriter, name string, keys []str
 
 func (h *Handlers) readCachedGameAsset(keys []string) ([]byte, string, bool) {
 	for _, key := range keys {
-		rc, err := h.storage.Open(key)
+		rc, err := h.gameCache().Open(key)
 		if err != nil {
 			continue
 		}

@@ -2,6 +2,7 @@ package clipmind
 
 import (
 	"container/list"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -28,21 +29,23 @@ type tenant struct {
 	elem    *list.Element
 	refs    int
 	closing bool
+	stop    context.CancelFunc
 }
 
 // tenants opens workspaces lazily and keeps the most recently used ones. A
 // tenant in use is never closed: eviction waits for its last request.
 type tenants struct {
-	root  string
-	token string
-	max   int
+	root   string
+	token  string
+	max    int
+	shared []httpapi.Option
 
 	mu    sync.Mutex
 	open  map[string]*tenant
 	order *list.List
 }
 
-func newTenants(root string, max int) (*tenants, error) {
+func newTenants(root string, max int, shared []httpapi.Option) (*tenants, error) {
 	if err := os.MkdirAll(root, 0o750); err != nil {
 		return nil, fmt.Errorf("workspaces folder: %w", err)
 	}
@@ -53,7 +56,7 @@ func newTenants(root string, max int) (*tenants, error) {
 	if max <= 0 {
 		max = 64
 	}
-	return &tenants{root: root, token: hex.EncodeToString(raw), max: max, open: map[string]*tenant{}, order: list.New()}, nil
+	return &tenants{root: root, token: hex.EncodeToString(raw), max: max, shared: shared, open: map[string]*tenant{}, order: list.New()}, nil
 }
 
 // workspaceDir is the folder of one workspace; the id is a UUID from the catalog.
@@ -103,7 +106,7 @@ func (t *tenants) openLocked(id string) (*tenant, error) {
 		_ = repos.Close()
 		return nil, fmt.Errorf("workspace storage: %w", err)
 	}
-	h := httpapi.NewHandlers(repos.Jobs, files, noQueue{},
+	opts := append([]httpapi.Option{
 		httpapi.WithMutationToken(t.token),
 		httpapi.WithRequireReadAuth(true),
 		httpapi.WithRateLimit(0, 0),
@@ -111,8 +114,11 @@ func (t *tenants) openLocked(id string) (*tenant, error) {
 		httpapi.WithLibrary(repos.Library),
 		httpapi.WithLibraryUploads(),
 		httpapi.WithSyncHub(store.NewSyncLog(repos.DB())),
-	)
-	tn := &tenant{id: id, repos: repos, files: files, handler: httpapi.Routes(h)}
+	}, t.shared...)
+	h := httpapi.NewHandlers(repos.Jobs, files, noQueue{}, opts...)
+	ctx, stop := context.WithCancel(context.Background())
+	h.StartProFollowSync(ctx)
+	tn := &tenant{id: id, repos: repos, files: files, handler: httpapi.Routes(h), stop: stop}
 	tn.elem = t.order.PushFront(tn)
 	t.open[id] = tn
 	return tn, nil
@@ -132,6 +138,7 @@ func (t *tenants) evictLocked() {
 func (t *tenants) dropLocked(tn *tenant) {
 	delete(t.open, tn.id)
 	t.order.Remove(tn.elem)
+	tn.stop()
 	tn.closing = true
 	if tn.refs == 0 {
 		_ = tn.repos.Close()

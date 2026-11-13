@@ -4,7 +4,7 @@ import { clearedCookies, resolveSession, sessionCookies, ACCESS_COOKIE, ACCESS_H
 import { currentEdition, isPathAvailable, isPublicWebPath } from './lib/edition.ts';
 
 /** The API routes this proxy guards; the rest check the guard in-handler. */
-const PROXY_GUARD_SCOPE = /^\/api\/(?!(?:demos\/scan\/?|library\/demos\/?|library\/import-package\/?|library\/matches\/[^/]+\/voice\/?|library\/matches\/[^/]+\/replay-video\/?|streams\/?|editor\/assets\/?|full-demo\/overlay-images\/?|session\/bootstrap\/?|voice-plugin\/gamestate\/?)$).*/;
+const PROXY_GUARD_SCOPE = /^\/api\/(?!(?:demos\/scan\/?|library\/demos\/?|library\/uploads\/?|library\/import-package\/?|library\/matches\/[^/]+\/voice\/?|library\/matches\/[^/]+\/replay-video\/?|streams\/?|editor\/assets\/?|full-demo\/overlay-images\/?|session\/bootstrap\/?|voice-plugin\/gamestate\/?)$).*/;
 
 function isAPI(pathname: string): boolean {
   return pathname === '/api' || pathname.startsWith('/api/');
@@ -74,9 +74,10 @@ async function webEdition(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  // Static assets skip the edition check; the API matcher keeps its own exclusions in the proxy.
+  // Uploads stream past the proxy: Next cuts a body it hands the proxy to 10 MB.
+  // Those handlers run the guard and read the session cookie themselves.
   matcher: [
-    '/api/:path*',
+    '/api/((?!demos/scan/?$|library/demos/?$|library/uploads/?$|library/import-package/?$|library/matches/[^/]+/voice/?$|library/matches/[^/]+/replay-video/?$|streams/?$|editor/assets/?$|full-demo/overlay-images/?$|session/bootstrap/?$|voice-plugin/gamestate/?$).*)',
     '/((?!api|_next/|favicon|icon\\.svg|.*\\..*).*)',
   ],
 };

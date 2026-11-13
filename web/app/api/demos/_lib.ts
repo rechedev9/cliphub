@@ -3,7 +3,7 @@
 // proxy.ts does. Webpack resolves both forms identically.
 import { NextResponse } from 'next/server.js';
 import { SERVICE_UNAVAILABLE_CODE, NOT_CONFIGURED_CODE } from '../../../lib/api/types.ts';
-import { ACCESS_HEADER, clipMindUrl } from '../../../lib/clipmind/session.ts';
+import { ACCESS_COOKIE, ACCESS_HEADER, accessExpiry, clipMindUrl } from '../../../lib/clipmind/session.ts';
 import { currentEdition } from '../../../lib/edition.ts';
 
 /** Server-side orchestrator base; local-first default. */
@@ -16,9 +16,17 @@ export function orchestratorUrl(): string {
 /** Who the upstream call is for: Studio's per-launch token, or the signed-in person's access token. */
 async function upstreamAuthHeaders(): Promise<Record<string, string>> {
   if (currentEdition() !== 'web') return mutationHeaders();
-  const { headers } = await import('next/headers');
-  const access = (await headers()).get(ACCESS_HEADER);
+  const { cookies, headers } = await import('next/headers');
+  const access = (await headers()).get(ACCESS_HEADER) ?? liveAccessCookie((await cookies()).get(ACCESS_COOKIE)?.value);
   return access ? { Authorization: `Bearer ${access}` } : {};
+}
+
+/**
+ * Upload routes skip the proxy, so nothing refreshed their sign-in: they use the
+ * access cookie while it lives and never rotate the refresh token themselves.
+ */
+function liveAccessCookie(token: string | undefined): string | undefined {
+  return token !== undefined && accessExpiry(token) > Date.now() ? token : undefined;
 }
 
 /**
@@ -191,7 +199,7 @@ export async function forwardError(res: Response): Promise<Response> {
   if (res.status === 503) {
     return NextResponse.json({ error: 'upstream error', code: NOT_CONFIGURED_CODE }, { status: res.status });
   }
-  return NextResponse.json({ error: text || `orchestrator error (${res.status})` }, { status: res.status });
+  return NextResponse.json({ error: text || `upstream error (${res.status})` }, { status: res.status });
 }
 
 /**

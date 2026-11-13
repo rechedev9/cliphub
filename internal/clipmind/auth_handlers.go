@@ -34,12 +34,13 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleConfirm(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Token string `json:"token"`
+		Token    string `json:"token"`
+		Password string `json:"password"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := s.accounts.ConfirmEmail(r.Context(), req.Token); err != nil {
+	if err := s.accounts.ConfirmEmail(r.Context(), req.Token, req.Password); err != nil {
 		writeAccountError(w, "confirm", err)
 		return
 	}

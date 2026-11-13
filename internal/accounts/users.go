@@ -76,6 +76,11 @@ func (s *Service) Signup(ctx context.Context, in SignupInput) error {
 			return s.enqueueEmail(ctx, tx, email, "Ya tienes una cuenta en ClipMind",
 				"Alguien intentó crear una cuenta con este correo, pero ya existe una.\n\nInicia sesión en "+s.publicURL+"/iniciar-sesion o restablece tu contraseña en "+s.publicURL+"/recuperar.\n\nSi no fuiste tú, ignora este mensaje.")
 		case err == nil:
+			// The confirmation link asks for the password: the latest sign-up sets it,
+			// so an earlier sign-up by someone else cannot keep the account.
+			if _, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ?, display_name = ? WHERE id = ?`, hash, name, id); err != nil {
+				return err
+			}
 			return s.sendConfirmation(ctx, tx, id, email)
 		case !errors.Is(err, sql.ErrNoRows):
 			return err
@@ -137,11 +142,19 @@ func (s *Service) useEmailToken(ctx context.Context, tx *sql.Tx, token, kind str
 }
 
 // ConfirmEmail activates the account the token belongs to.
-func (s *Service) ConfirmEmail(ctx context.Context, token string) error {
+func (s *Service) ConfirmEmail(ctx context.Context, token, password string) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		userID, err := s.useEmailToken(ctx, tx, token, "confirm")
 		if err != nil {
 			return err
+		}
+		// Only the person who chose the password confirms; a failure rolls back and keeps the link usable.
+		var hash string
+		if err := tx.QueryRowContext(ctx, `SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&hash); err != nil {
+			return err
+		}
+		if !verifyPassword(password, hash) {
+			return ErrInvalidCredentials
 		}
 		_, err = tx.ExecContext(ctx, `UPDATE users SET email_confirmed_at = COALESCE(email_confirmed_at, ?) WHERE id = ?`, s.nowMillis(), userID)
 		return err

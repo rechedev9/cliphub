@@ -79,7 +79,7 @@ func (h *Handlers) GetMapGeometry(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "encode map geometry", err)
 		return
 	}
-	if err := h.storage.Put(key, bytes.NewReader(body)); err != nil {
+	if err := h.gameCache().Put(key, bytes.NewReader(body)); err != nil {
 		log.Printf("httpapi: cache map geometry %s: %v", key, err)
 	}
 	writeRawJSON(w, body)
@@ -87,6 +87,9 @@ func (h *Handlers) GetMapGeometry(w http.ResponseWriter, r *http.Request) {
 
 // cs2Path is the CS2 executable the orchestrator detected at startup.
 func (h *Handlers) cs2Path() string {
+	if h.references.game.cs2Exe != "" {
+		return h.references.game.cs2Exe
+	}
 	for _, tool := range h.capabilities.RecordTools {
 		if tool.Name == "ZV_CS2_PATH" {
 			return tool.Path
@@ -96,7 +99,7 @@ func (h *Handlers) cs2Path() string {
 }
 
 func (h *Handlers) readCachedMesh(key string) ([]byte, bool) {
-	rc, err := h.storage.Open(key)
+	rc, err := h.gameCache().Open(key)
 	if err != nil {
 		return nil, false
 	}

@@ -64,9 +64,12 @@ export async function localAPIRequestError(headers: Headers, method = 'GET'): Pr
 
 /** Same-origin only for browsers: a page of another site cannot drive a signed-in user's cookies. */
 function webRequestError(headers: Headers, method: string): string | undefined {
+  const mutation = MUTATION_METHODS.has(method.toUpperCase());
+  // A link from an email or another site opens a page: a top-level navigation that reads, never writes.
+  const linkFollowed = !mutation && headers.get('sec-fetch-mode') === 'navigate' && headers.get('sec-fetch-dest') === 'document';
   const fetchSite = headers.get('sec-fetch-site');
-  if (fetchSite !== null && !ALLOWED_FETCH_SITES.has(fetchSite.toLowerCase())) return CROSS_SITE_ERROR;
-  if (!MUTATION_METHODS.has(method.toUpperCase())) return undefined;
+  if (!linkFollowed && fetchSite !== null && !ALLOWED_FETCH_SITES.has(fetchSite.toLowerCase())) return CROSS_SITE_ERROR;
+  if (!mutation) return undefined;
   const origin = headers.get('origin');
   if (origin === null) return undefined;
   const host = (headers.get('x-forwarded-host') ?? headers.get('host') ?? '').toLowerCase();

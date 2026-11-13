@@ -325,7 +325,7 @@ func run() error {
 		httpapi.WithLibrary(repos.Library),
 		httpapi.WithLineupCatalog(lineupCatalog),
 		httpapi.WithPractice(practice.SteamGame{CS2Path: cfg.CS2Path}),
-		httpapi.WithCommunity(communityDeps(cfg.DataDir)),
+		httpapi.WithCommunity(httpapi.OpenCommunity(cfg.DataDir, os.Getenv("ZV_COMMUNITY_URL"))),
 		httpapi.WithVoice(voiceDeps(cfg)),
 		httpapi.WithReplayVideo(replayVideoDeps(cfg)),
 	}

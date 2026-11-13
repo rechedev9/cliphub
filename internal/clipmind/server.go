@@ -39,6 +39,12 @@ type Config struct {
 	PBKDF2Iterations int
 	// Now is the clock; nil means time.Now.
 	Now func() time.Time
+	// CS2Path is a CS2 executable on this machine; maps and icons come from its install.
+	CS2Path string
+	// CommunityURL is the pro data server: empty for the default, "off" for none.
+	CommunityURL string
+	// FaceitAPIKey enables linking players to FACEIT; empty disables it.
+	FaceitAPIKey string
 }
 
 // Server is the ClipMind HTTP server.
@@ -76,7 +82,12 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	ts, err := newTenants(filepath.Join(cfg.DataDir, "workspaces"), cfg.MaxOpenWorkspaces)
+	sh, err := openShared(cfg)
+	if err != nil {
+		_ = svc.Close()
+		return nil, err
+	}
+	ts, err := newTenants(filepath.Join(cfg.DataDir, "workspaces"), cfg.MaxOpenWorkspaces, sh.opts)
 	if err != nil {
 		_ = svc.Close()
 		return nil, err
@@ -84,6 +95,9 @@ func New(cfg Config) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{cfg: cfg, accounts: svc, tenants: ts, limits: newLimiter(cfg.Now), kick: make(chan struct{}, 1), cancel: cancel}
 	go dispatchEmails(ctx, svc, cfg.Mailer, s.kick)
+	if sh.community.Reference != nil {
+		go sh.community.Reference.Run(ctx)
+	}
 	s.handler = s.routes()
 	return s, nil
 }
@@ -172,7 +186,7 @@ func (s *Server) routes() http.Handler {
 		r.Get("/api/sync/artifacts", s.withTenant(permSync, s.handleListArtifacts))
 		r.Get("/api/sync/artifacts/{demo}/{name}", s.withTenant(permSync, s.handleGetArtifact))
 		r.Put("/api/sync/artifacts/{demo}/{name}", s.withTenant(permSync, s.handlePutArtifact))
-		for _, rule := range workspaceRoutes {
+		for _, rule := range workspaceRoutes() {
 			r.Method(rule.method, rule.pattern, s.workspaceRoute(rule.perm))
 		}
 	})

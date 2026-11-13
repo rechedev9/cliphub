@@ -87,7 +87,7 @@ func (h headerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func TestRemoteModeServesTheWorkspaceToAnAssistantKey(t *testing.T) {
 	mail := &inbox{}
-	hub, err := clipmind.New(clipmind.Config{DataDir: t.TempDir(), PublicURL: "https://clipmind.test", Mailer: mail, PBKDF2Iterations: 1000})
+	hub, err := clipmind.New(clipmind.Config{DataDir: t.TempDir(), PublicURL: "https://clipmind.test", Mailer: mail, PBKDF2Iterations: 1000, CommunityURL: "off"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestRemoteModeServesTheWorkspaceToAnAssistantKey(t *testing.T) {
 	t.Cleanup(hubSrv.Close)
 
 	postJSON(t, hubSrv.URL+"/auth/signup", "", map[string]string{"email": "ana@example.com", "password": "correct horse battery"}, nil)
-	postJSON(t, hubSrv.URL+"/auth/confirm", "", map[string]string{"token": mail.confirmToken(t, "ana@example.com")}, nil)
+	postJSON(t, hubSrv.URL+"/auth/confirm", "", map[string]string{"token": mail.confirmToken(t, "ana@example.com"), "password": "correct horse battery"}, nil)
 	var login struct {
 		Access string `json:"access_token"`
 	}
@@ -147,12 +147,13 @@ func TestRemoteModeServesTheWorkspaceToAnAssistantKey(t *testing.T) {
 		}
 		names[tool.Name] = true
 	}
-	for _, want := range []string{"whoami", "list_teams", "list_matches", "scout_team", "find_rounds"} {
+	for _, want := range []string{"whoami", "list_teams", "list_matches", "scout_team", "find_rounds", "set_pinned_players", "set_team_roles", "list_pro_matches", "find_pro_lineups"} {
 		if !names[want] {
 			t.Errorf("remote mode lacks %s", want)
 		}
 	}
-	for _, gone := range []string{"import_demo", "create_job", "generate_short", "render_full_demo", "open_in_studio", "studio_status", "clipmind_sync", "steam_matches", "list_storage_files"} {
+	for _, gone := range []string{"import_demo", "create_job", "generate_short", "render_full_demo", "open_in_studio", "studio_status", "clipmind_sync", "steam_matches", "list_storage_files",
+		"export_libreta", "export_plays", "export_playlists", "import_plays", "import_playlists"} {
 		if names[gone] {
 			t.Errorf("remote mode still serves %s", gone)
 		}

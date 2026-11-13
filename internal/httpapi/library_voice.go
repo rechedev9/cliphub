@@ -141,9 +141,18 @@ func (h *Handlers) voiceReady(w http.ResponseWriter) bool {
 	return true
 }
 
-// voiceMatch reads the {id} match of a voice route.
+// voiceMatch reads the {id} match of a voice route that reads or writes recordings.
 func (h *Handlers) voiceMatch(w http.ResponseWriter, r *http.Request) (library.Match, bool) {
 	if !h.voiceReady(w) {
+		return library.Match{}, false
+	}
+	return h.voiceRecord(w, r)
+}
+
+// voiceRecord reads the {id} match of a voice route that touches only the
+// library rows, which sync: it works without FFmpeg, as on the web edition.
+func (h *Handlers) voiceRecord(w http.ResponseWriter, r *http.Request) (library.Match, bool) {
+	if !h.libraryReady(w) {
 		return library.Match{}, false
 	}
 	id, ok := libraryUUIDParam(w, r, "id")
@@ -179,8 +188,8 @@ func (h *Handlers) voiceStatusOf(matchID uuid.UUID, v *library.MatchVoice) voice
 	out := voiceStatus{MatchID: matchID, Tracks: []library.VoiceTrack{},
 		Sync:       library.VoiceSync{State: library.VoiceUnsynced},
 		Transcript: voiceTranscriptStatus{VoiceTranscript: library.VoiceTranscript{State: library.TranscriptNone}}}
-	if t := h.voice.deps.Transcriber; t != nil {
-		out.Transcriber = t.Status()
+	if h.voice != nil && h.voice.deps.Transcriber != nil {
+		out.Transcriber = h.voice.deps.Transcriber.Status()
 	} else {
 		out.Transcriber = teamvoice.TranscriberStatus{State: teamvoice.TranscriberUnsupported}
 	}
@@ -194,7 +203,7 @@ func (h *Handlers) voiceStatusOf(matchID uuid.UUID, v *library.MatchVoice) voice
 	}
 	out.SpeechMS = teamvoice.SpeechMS(teamvoice.UnionSpans(spans...))
 	out.Transcript.VoiceTranscript = v.Transcript
-	if v.Transcript.State == library.TranscriptRunning {
+	if v.Transcript.State == library.TranscriptRunning && h.voice != nil {
 		out.Transcript.Progress = h.voice.progressOf(matchID)
 	}
 	return out
@@ -222,7 +231,7 @@ func (h *Handlers) writeVoice(w http.ResponseWriter, r *http.Request, reply voic
 
 // GetLibraryMatchVoice handles GET /api/library/matches/{id}/voice.
 func (h *Handlers) GetLibraryMatchVoice(w http.ResponseWriter, r *http.Request) {
-	m, ok := h.voiceMatch(w, r)
+	m, ok := h.voiceRecord(w, r)
 	if !ok {
 		return
 	}
@@ -231,7 +240,7 @@ func (h *Handlers) GetLibraryMatchVoice(w http.ResponseWriter, r *http.Request) 
 
 // DeleteLibraryMatchVoice handles DELETE /api/library/matches/{id}/voice: the tracks, sync and transcript go.
 func (h *Handlers) DeleteLibraryMatchVoice(w http.ResponseWriter, r *http.Request) {
-	m, ok := h.voiceMatch(w, r)
+	m, ok := h.voiceRecord(w, r)
 	if !ok {
 		return
 	}
@@ -260,7 +269,7 @@ type voiceSyncRequest struct {
 
 // PatchLibraryMatchVoice handles PATCH /api/library/matches/{id}/voice: a confirmed offset, or auto to estimate again.
 func (h *Handlers) PatchLibraryMatchVoice(w http.ResponseWriter, r *http.Request) {
-	m, ok := h.voiceMatch(w, r)
+	m, ok := h.voiceRecord(w, r)
 	if !ok {
 		return
 	}
@@ -308,7 +317,7 @@ type voiceTrackRequest struct {
 
 // PatchLibraryMatchVoiceTrack handles PATCH /api/library/matches/{id}/voice/tracks/{track}: who speaks on it.
 func (h *Handlers) PatchLibraryMatchVoiceTrack(w http.ResponseWriter, r *http.Request) {
-	m, ok := h.voiceMatch(w, r)
+	m, ok := h.voiceRecord(w, r)
 	if !ok {
 		return
 	}

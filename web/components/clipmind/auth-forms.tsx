@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -224,54 +224,55 @@ export function ResetForm(): ReactNode {
   );
 }
 
-type Outcome = { state: 'working' } | { state: 'done' } | { state: 'failed'; message: string };
-
-const confirmations = new Map<string, ReturnType<typeof confirmToken>>();
-
-function confirmToken(token: string): ReturnType<typeof cm<true>> {
-  return cm('auth/confirm', { method: 'POST', body: { token }, parse: isDone });
-}
-
-/** The link works once; a remount (React strict mode, back/forward) must reuse the first answer. */
-function confirmOnce(token: string): ReturnType<typeof confirmToken> {
-  const known = confirmations.get(token);
-  if (known !== undefined) return known;
-  const started = confirmToken(token);
-  confirmations.set(token, started);
-  return started;
-}
-
-/** Confirms the email behind the link as soon as the page opens. */
+/** Confirms the email behind the link; the password proves who signed up. */
 export function ConfirmView(): ReactNode {
   const token = useSearchParams().get('token') ?? '';
-  const [outcome, setOutcome] = useState<Outcome>(token === '' ? { state: 'failed', message: 'El enlace no es válido o ha caducado.' } : { state: 'working' });
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | undefined>();
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    if (token === '') return;
-    let live = true;
-    void confirmOnce(token).then((result) => {
-      if (live) setOutcome(result.ok ? { state: 'done' } : { state: 'failed', message: result.message });
-    });
-    return () => {
-      live = false;
-    };
-  }, [token]);
+  async function submit(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    setBusy(true);
+    setError(undefined);
+    const result = await cm('auth/confirm', { method: 'POST', body: { token, password }, parse: isDone });
+    if (result.ok) setDone(true);
+    else setError(result.code === 'invalid_credentials' ? 'Esa no es la contraseña con la que creaste la cuenta.' : result.message);
+    setBusy(false);
+  }
 
-  if (outcome.state === 'working') return <FormShell title="Confirmando tu correo" lead="Un momento." />;
-  if (outcome.state === 'failed') {
+  if (token === '') {
     return (
-      <FormShell title="No se pudo confirmar" lead={outcome.message}>
+      <FormShell title="No se pudo confirmar" lead="El enlace no es válido o ha caducado.">
         <Link href="/crear-cuenta" className={link}>
           Crear la cuenta de nuevo
         </Link>
       </FormShell>
     );
   }
+  if (done) {
+    return (
+      <FormShell title="Correo confirmado" lead="Tu cuenta está lista.">
+        <Link href="/iniciar-sesion" className={link}>
+          Entrar
+        </Link>
+      </FormShell>
+    );
+  }
   return (
-    <FormShell title="Correo confirmado" lead="Tu cuenta está lista.">
-      <Link href="/iniciar-sesion" className={link}>
-        Entrar
-      </Link>
+    <FormShell title="Confirma tu correo" lead="Escribe la contraseña que elegiste al crear la cuenta.">
+      <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
+        <Field label="Contraseña" required>
+          {(control) => (
+            <Input {...control} type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          )}
+        </Field>
+        <FormError message={error} />
+        <Button type="submit" loading={busy}>
+          Confirmar
+        </Button>
+      </form>
     </FormShell>
   );
 }

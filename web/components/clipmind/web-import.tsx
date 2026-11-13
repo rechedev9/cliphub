@@ -71,6 +71,8 @@ export function WebImport(): ReactNode {
     form.set('size_bytes', String(file.size));
     form.set('cs2_build', String(scanned.cs2Build));
     try {
+      // The upload skips the proxy that renews the sign-in; a scan can outlast the access token.
+      await fetch('/api/cm/auth/me', { cache: 'no-store' });
       const response = await fetch('/api/library/uploads', { method: 'POST', body: form });
       if (!response.ok) {
         patch(key, { phase: 'failed', error: await describeFailure(response) });
@@ -105,7 +107,7 @@ export function WebImport(): ReactNode {
   function onDrop(event: DragEvent): void {
     event.preventDefault();
     setOver(false);
-    void start(Array.from(event.dataTransfer.files));
+    if (!busy) void start(Array.from(event.dataTransfer.files));
   }
 
   return (

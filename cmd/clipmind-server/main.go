@@ -14,6 +14,9 @@
 //	CLIPMIND_SMTP_PASS     smtp password
 //	CLIPMIND_SMTP_FROM     sender address
 //	CLIPMIND_TRUST_PROXY   "1" to read client addresses from X-Forwarded-For
+//	CLIPMIND_CS2_PATH      cs2.exe or the linux cs2 binary of a CS2 install (SteamCMD app 730); maps and icons come from it
+//	CLIPMIND_COMMUNITY_URL pro data server: empty for the default, "off" for none
+//	CLIPMIND_FACEIT_API_KEY FACEIT Data API key; empty disables linking players to FACEIT
 package main
 
 import (
@@ -71,10 +74,13 @@ func run() error {
 		return err
 	}
 	srv, err := clipmind.New(clipmind.Config{
-		DataDir:    env("CLIPMIND_DATA_DIR", "clipmind-data"),
-		PublicURL:  env("CLIPMIND_PUBLIC_URL", "http://localhost:3000"),
-		Mailer:     mailer,
-		TrustProxy: os.Getenv("CLIPMIND_TRUST_PROXY") == "1",
+		DataDir:      env("CLIPMIND_DATA_DIR", "clipmind-data"),
+		PublicURL:    env("CLIPMIND_PUBLIC_URL", "http://localhost:3000"),
+		Mailer:       mailer,
+		TrustProxy:   os.Getenv("CLIPMIND_TRUST_PROXY") == "1",
+		CS2Path:      os.Getenv("CLIPMIND_CS2_PATH"),
+		CommunityURL: os.Getenv("CLIPMIND_COMMUNITY_URL"),
+		FaceitAPIKey: os.Getenv("CLIPMIND_FACEIT_API_KEY"),
 	})
 	if err != nil {
 		return err

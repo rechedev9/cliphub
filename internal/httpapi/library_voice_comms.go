@@ -49,7 +49,7 @@ type voiceComms struct {
 
 // GetLibraryMatchVoiceComms handles GET /api/library/matches/{id}/voice/comms, with ?round= for one round.
 func (h *Handlers) GetLibraryMatchVoiceComms(w http.ResponseWriter, r *http.Request) {
-	m, ok := h.voiceMatch(w, r)
+	m, ok := h.voiceRecord(w, r)
 	if !ok {
 		return
 	}

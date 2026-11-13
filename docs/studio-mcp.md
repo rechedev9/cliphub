@@ -416,13 +416,20 @@ the UI's local record of it.
 
 `zv-mcp --listen 127.0.0.1:8091 --upstream https://clipmind.example.com` serves a ClipMind workspace over MCP's
 streamable HTTP at `/mcp`, stateless, one request at a time. It does not read Studio's session file. Every request
-carries a key (`Authorization: Bearer cmk_...`) that the user creates in the web app (Ajustes > Asistentes); the
+carries a key (`Authorization: Bearer cmk_...`) that the user creates in the web app (Cuenta, section Asistentes); the
 server checks it with `GET /auth/me` on the ClipMind server and the tools then call that server with the same key
 in `X-ClipHub-Token`. A key reaches one workspace, can be revoked at once, and cannot manage members, keys or the account.
 
 The tool list is `remoteTools` in `cmd/zv-mcp/remote.go`: the library and analysis tools whose routes the ClipMind server
 exposes, plus `whoami` (`GET /auth/me`). Everything that needs the demo file or the PC (imports, capture, renders, voice
-audio, FACEIT, Steam, the voice plugin, storage) is removed in this mode. Demos are imported by the user in the web
+audio, FACEIT, Steam, the voice plugin, storage) is removed in this mode. So are the tools that read or write a file by
+path (`export_libreta`, `export_plays`, `export_playlists`, `import_plays`, `import_playlists`), because the path would be
+on the server. Pinned players, team roles and the team profile save in the workspace library, which syncs with Studio, so
+`set_pinned_players`, `set_team_roles` and `update_team` work here. The pro tools (`list_pro_matches`, `import_pro_match`,
+`find_pro_lineups`, `get_pro_lineup`, `list_pro_lineup_maps`, `save_pro_lineup`, `list_pro_combos`, `pro_grenade_meta` and the
+pro follows) read the community server as Studio does, and `link_player_faceit` works when the server has a FACEIT key. Maps, radar and equipment icons come from a CS2 install on the server
+(`CLIPMIND_CS2_PATH`, for example SteamCMD app 730), as Studio reads them from the user's CS2.
+Demos are imported by the user in the web
 app, which parses them in the browser. Signing in with OAuth, so an assistant needs no pasted key, is a later step.
 
 ## Spike results (2026-11-01)

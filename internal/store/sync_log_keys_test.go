@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 )
 
@@ -187,5 +188,49 @@ func TestSyncLogBackfillSendsExistingRows(t *testing.T) {
 	}
 	if n, err := log.Pending(ctx, 0); err != nil || n == 0 {
 		t.Fatalf("Pending = %d (%v)", n, err)
+	}
+}
+
+// Two people import the same demo before syncing: each device gave it its own
+// id. Receiving the other copy must not stop the sync, and "our team" stays
+// each person's own choice.
+func TestSyncLogApplyKeepsGoingWhenTheSameDemoHasTwoIDs(t *testing.T) {
+	ctx := context.Background()
+	dbA, logA := newTestSyncLog(t)
+	seedSyncScenario(t, dbA, "C:/a/match.dem")
+	mustExec(t, dbA, `INSERT INTO library_team_profiles (team_id, own, hltv_rank, updated_at) VALUES ('t1', 1, 0, 1)`)
+	changes, err := logA.Changes(ctx, 0, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dbB, logB := newTestSyncLog(t)
+	mustExec(t, dbB, `INSERT INTO library_demos (id, sha256, file_name, path, size_bytes, source, state, imported_at, updated_at) VALUES ('dB', 'sha1', 'a.dem', 'C:/b/match.dem', 100, 'manual', 'ready', 1, 1)`)
+	mustExec(t, dbB, `INSERT INTO library_matches (id, demo_id, map, played_at, tickrate, duration_ticks, round_count, created_at, updated_at) VALUES ('mB', 'dB', 'de_dust2', 1000, 64.0, 100000, 24, 1, 1)`)
+	mustExec(t, dbB, `INSERT INTO library_teams (id, name, name_key, created_at, updated_at) VALUES ('tB', 'Team B', 'team b', 1, 1)`)
+	mustExec(t, dbB, `INSERT INTO library_team_profiles (team_id, own, hltv_rank, updated_at) VALUES ('tB', 1, 0, 1)`)
+
+	if err := logB.Apply(ctx, changes.Changes); err != nil {
+		t.Fatalf("Apply with the same demo under another id: %v", err)
+	}
+	var demos, teams, own int
+	if err := dbB.QueryRow(`SELECT COUNT(*) FROM library_demos`).Scan(&demos); err != nil {
+		t.Fatal(err)
+	}
+	if err := dbB.QueryRow(`SELECT COUNT(*) FROM library_teams`).Scan(&teams); err != nil {
+		t.Fatal(err)
+	}
+	if err := dbB.QueryRow(`SELECT COUNT(*) FROM library_team_profiles WHERE own = 1`).Scan(&own); err != nil {
+		t.Fatal(err)
+	}
+	if demos != 1 || teams != 2 || own != 1 {
+		t.Fatalf("after apply: %d demos (want B's own 1), %d teams (want 2), %d own teams (want 1)", demos, teams, own)
+	}
+}
+
+func mustExec(t *testing.T, db *sql.DB, stmt string) {
+	t.Helper()
+	if _, err := db.Exec(stmt); err != nil {
+		t.Fatalf("%s: %v", stmt, err)
 	}
 }

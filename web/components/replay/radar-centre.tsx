@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { currentEdition } from '@/lib/edition';
 import { RADAR_LEVELS } from '@/lib/api/tactical';
 import type { RadarLevel, TacticalSample } from '@/lib/api/tactical';
 import { OFF_FLOOR_ALPHA } from '@/lib/analysis/floors';
@@ -699,7 +700,9 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
       <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap items-end gap-2">
         {navFailed ? (
           <p className="pointer-events-auto max-w-72 rounded-md bg-surface-0/90 px-2 py-1 text-meta text-fg-2">
-            No se pudo leer el mapa de tu instalación de CS2: se dibuja con las posiciones de la demo.
+            {currentEdition() === 'web'
+              ? 'No se pudo leer este mapa en el servidor: se dibuja con las posiciones de la demo.'
+              : 'No se pudo leer el mapa de tu instalación de CS2: se dibuja con las posiciones de la demo.'}
           </p>
         ) : null}
       </div>

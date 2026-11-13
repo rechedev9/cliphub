@@ -48,14 +48,14 @@ test('proxy rejects cross-origin and DNS-rebound reads', async () => {
 test('proxy preserves the API matcher and streaming-route exclusions', () => {
   assert.deepEqual(config, {
     matcher: [
-      '/api/:path*',
+      '/api/((?!demos/scan/?$|library/demos/?$|library/uploads/?$|library/import-package/?$|library/matches/[^/]+/voice/?$|library/matches/[^/]+/replay-video/?$|streams/?$|editor/assets/?$|full-demo/overlay-images/?$|session/bootstrap/?$|voice-plugin/gamestate/?$).*)',
       '/((?!api|_next/|favicon|icon\\.svg|.*\\..*).*)',
     ],
   });
 });
 
 test('proxy: excluded API routes keep their own in-handler guard', async () => {
-  for (const path of ['/api/streams', '/api/editor/assets', '/api/library/demos', '/api/session/bootstrap']) {
+  for (const path of ['/api/streams', '/api/editor/assets', '/api/library/demos', '/api/library/uploads', '/api/session/bootstrap']) {
     const response = await proxy(new NextRequest(`http://127.0.0.1:3000${path}`, {
       headers: { host: 'attacker.example:3000' },
     }));
@@ -172,4 +172,19 @@ test('proxy: the desktop edition has no account pages or account API', async () 
   const page = await proxy(new NextRequest('http://127.0.0.1:3000/iniciar-sesion'));
   assert.equal(page.status, 307);
   assert.equal(new URL(page.headers.get('location') ?? '').pathname, '/');
+});
+
+test('proxy: the web edition opens a page reached from an email link, and still refuses a cross-site read', async () => {
+  await inWebEdition(async () => {
+    const link = { host: 'clipmind.test', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' };
+    for (const path of ['/confirmar?token=t', '/restablecer?token=t']) {
+      const response = await proxy(new NextRequest(`https://clipmind.test${path}`, { headers: link }));
+      assert.equal(response.headers.get('x-middleware-next'), '1', path);
+    }
+    // An invitation needs a sign-in first, and the link survives it.
+    const invite = await proxy(new NextRequest('https://clipmind.test/invitacion?token=t', { headers: link }));
+    assert.equal(new URL(invite.headers.get('location') ?? '').searchParams.get('next'), '/invitacion?token=t');
+    const read = await proxy(signedIn('/api/library/matches', { headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty' } }));
+    assert.equal(read.status, 403);
+  });
 });

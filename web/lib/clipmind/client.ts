@@ -161,5 +161,8 @@ export function parseSecret(value: unknown): string {
 
 /** Where to go after signing in: only a path inside this app, never another site. */
 export function safeNext(value: string | null): string {
-  return value !== null && value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\') ? value : '/partidas';
+  if (value === null || !value.startsWith('/')) return '/partidas';
+  // The URL parser drops tabs and reads backslashes as slashes, as the router does.
+  const url = URL.parse(value, 'http://cliphub.invalid');
+  return url?.origin === 'http://cliphub.invalid' ? `${url.pathname}${url.search}${url.hash}` : '/partidas';
 }

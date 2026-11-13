@@ -21,7 +21,8 @@ var syncTables = []syncTable{
 	{name: "library_match_players", keyColumns: []string{"match_id", "steam_id"}},
 	{name: "library_demo_tags", keyColumns: []string{"demo_id", "tag_key"}},
 	{name: "library_team_aliases", keyColumns: []string{"alias_key"}},
-	{name: "library_team_profiles", keyColumns: []string{"team_id"}},
+	// "Our team" is each person's own choice, and the schema allows one per library.
+	{name: "library_team_profiles", keyColumns: []string{"team_id"}, localColumns: []string{"own"}},
 	{name: "library_team_roles", keyColumns: []string{"team_id", "map"}},
 	{name: "library_annotations", keyColumns: []string{"id"}},
 	{name: "library_callout_names", keyColumns: []string{"map", "token"}},

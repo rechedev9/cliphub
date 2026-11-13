@@ -65,7 +65,7 @@ type testServer struct {
 func newTestServer(t *testing.T) *testServer {
 	t.Helper()
 	mailer := &captureMailer{}
-	srv, err := New(Config{DataDir: t.TempDir(), PublicURL: "https://clipmind.test", Mailer: mailer, PBKDF2Iterations: 1000})
+	srv, err := New(Config{DataDir: t.TempDir(), PublicURL: "https://clipmind.test", Mailer: mailer, PBKDF2Iterations: 1000, CommunityURL: httpapi.CommunityOff})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -119,7 +119,7 @@ func (ts *testServer) signUp(email string) session {
 	ts.t.Helper()
 	ts.want(http.StatusAccepted, http.MethodPost, "/auth/signup", "", map[string]string{"email": email, "password": "correct horse battery"})
 	token := ts.mailer.tokenFor(ts.t, email, "Confirma")
-	ts.want(http.StatusOK, http.MethodPost, "/auth/confirm", "", map[string]string{"token": token})
+	ts.want(http.StatusOK, http.MethodPost, "/auth/confirm", "", map[string]string{"token": token, "password": "correct horse battery"})
 	var s session
 	out := ts.want(http.StatusOK, http.MethodPost, "/auth/login", "", map[string]string{"email": email, "password": "correct horse battery", "device": "test"})
 	if err := json.Unmarshal(out, &s); err != nil {
@@ -197,7 +197,6 @@ func TestWebEditionClosesWhatNeedsTheDemoOrTheMachine(t *testing.T) {
 	ana := ts.signUp("ana@example.com")
 	for _, c := range []struct{ method, path string }{
 		{http.MethodPost, "/api/library/demos"},
-		{http.MethodPost, "/api/library/import-package"},
 		{http.MethodPost, "/api/library/demos/00000000-0000-0000-0000-000000000000/analyze"},
 		{http.MethodPost, "/api/library/matches/00000000-0000-0000-0000-000000000000/voice"},
 		{http.MethodGet, "/api/library/matches/00000000-0000-0000-0000-000000000000/voice/tracks/0/audio"},
@@ -226,7 +225,7 @@ func TestWorkspaceRoutesAreExactlyTheOnesTheOrchestratorServes(t *testing.T) {
 		t.Fatal(err)
 	}
 	seen := map[string]bool{}
-	for _, rule := range workspaceRoutes {
+	for _, rule := range workspaceRoutes() {
 		key := rule.method + " " + rule.pattern
 		if seen[key] {
 			t.Errorf("%s is listed twice", key)
@@ -285,7 +284,6 @@ func TestUnconfirmedAccountCannotLogInAndErrorsLeakNothing(t *testing.T) {
 // that none of them is in workspaceRoutes.
 var neverExposed = []routeRule{
 	{http.MethodPost, "/api/library/demos", permWrite},
-	{http.MethodPost, "/api/library/import-package", permWrite},
 	{http.MethodPost, "/api/library/demos/{id}/analyze", permWrite},
 	{http.MethodPost, "/api/library/demos/{id}/jobs", permWrite},
 	{http.MethodPost, "/api/library/jobs", permWrite},
@@ -297,12 +295,9 @@ var neverExposed = []routeRule{
 	{http.MethodGet, "/api/library/matches/{id}/voice/tracks/{track}/audio", permRead},
 	{http.MethodGet, "/api/library/matches/{id}/voice/demo/{steamid}/audio", permRead},
 	{http.MethodGet, "/api/library/replay-videos/{video}", permRead},
-	{http.MethodPost, "/api/library/players/{steamid}/faceit", permWrite},
-	{http.MethodPost, "/api/library/pro-matches/{match}/{entry}/import", permWrite},
 	{http.MethodPost, "/api/library/voice/plugin/setup", permWrite},
 	{http.MethodPost, "/api/library/voice/transcriber/install", permWrite},
 	{http.MethodPost, "/api/library/voice/recordings/{id}/attach", permWrite},
-	{http.MethodPost, "/api/library/reports/{id}/export", permWrite},
 	{http.MethodPost, "/api/jobs", permWrite},
 	{http.MethodPost, "/api/steam/import", permWrite},
 	{http.MethodGet, "/api/storage/files", permRead},

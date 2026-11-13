@@ -56,7 +56,7 @@ func confirmedUser(t *testing.T, s *Service, email string) User {
 	if err := s.Signup(ctx, SignupInput{Email: email, Password: "correct horse battery", DisplayName: "Test"}); err != nil {
 		t.Fatalf("Signup: %v", err)
 	}
-	if err := s.ConfirmEmail(ctx, lastToken(t, s, email)); err != nil {
+	if err := s.ConfirmEmail(ctx, lastToken(t, s, email), "correct horse battery"); err != nil {
 		t.Fatalf("ConfirmEmail: %v", err)
 	}
 	var u User
@@ -76,10 +76,10 @@ func TestSignupConfirmLogin(t *testing.T) {
 		t.Fatalf("login before confirming = %v, want ErrEmailNotConfirmed", err)
 	}
 	token := lastToken(t, s, "ana@example.com")
-	if err := s.ConfirmEmail(ctx, token); err != nil {
+	if err := s.ConfirmEmail(ctx, token, "correct horse battery"); err != nil {
 		t.Fatalf("ConfirmEmail: %v", err)
 	}
-	if err := s.ConfirmEmail(ctx, token); !errors.Is(err, ErrTokenInvalid) {
+	if err := s.ConfirmEmail(ctx, token, "correct horse battery"); !errors.Is(err, ErrTokenInvalid) {
 		t.Fatalf("second ConfirmEmail = %v, want ErrTokenInvalid", err)
 	}
 	tokens, err := s.Login(ctx, LoginInput{Email: "ANA@example.com", Password: "correct horse battery", Device: "PC"})
@@ -408,5 +408,31 @@ func TestAPITokenReachesOnlyItsWorkspaceAndCanBeRevoked(t *testing.T) {
 	}
 	if _, err := s.Authenticate(ctx, secret); !errors.Is(err, ErrTokenInvalid) {
 		t.Fatalf("a revoked token = %v, want ErrTokenInvalid", err)
+	}
+}
+
+// Someone who signs up first with another person's address must not keep the
+// account: only the password of the latest sign-up confirms it.
+func TestSignupBySomeoneElseCannotKeepTheAccount(t *testing.T) {
+	s, _ := newTestService(t)
+	ctx := context.Background()
+	if err := s.Signup(ctx, SignupInput{Email: "victim@example.com", Password: "attacker password"}); err != nil {
+		t.Fatalf("attacker Signup: %v", err)
+	}
+	if err := s.Signup(ctx, SignupInput{Email: "victim@example.com", Password: "victim password!"}); err != nil {
+		t.Fatalf("victim Signup: %v", err)
+	}
+	token := lastToken(t, s, "victim@example.com")
+	if err := s.ConfirmEmail(ctx, token, "attacker password"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("confirm with the earlier password = %v, want ErrInvalidCredentials", err)
+	}
+	if err := s.ConfirmEmail(ctx, token, "victim password!"); err != nil {
+		t.Fatalf("confirm after a wrong password should still work: %v", err)
+	}
+	if _, err := s.Login(ctx, LoginInput{Email: "victim@example.com", Password: "attacker password"}); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("attacker login = %v, want ErrInvalidCredentials", err)
+	}
+	if _, err := s.Login(ctx, LoginInput{Email: "victim@example.com", Password: "victim password!"}); err != nil {
+		t.Fatalf("victim login: %v", err)
 	}
 }

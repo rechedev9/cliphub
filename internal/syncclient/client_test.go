@@ -168,7 +168,7 @@ func (d *device) matchCount(t *testing.T) int {
 func TestTwoDevicesShareOneAccount(t *testing.T) {
 	hub, box := startHub(t)
 	postJSON(t, hub.URL+"/auth/signup", map[string]string{"email": "luis@example.com", "password": "correct horse battery"})
-	postJSON(t, hub.URL+"/auth/confirm", map[string]string{"token": box.token(t, "luis@example.com", "Confirma")})
+	postJSON(t, hub.URL+"/auth/confirm", map[string]string{"token": box.token(t, "luis@example.com", "Confirma"), "password": "correct horse battery"})
 	ctx := context.Background()
 
 	pc := newDevice(t, "PC de sobremesa")
