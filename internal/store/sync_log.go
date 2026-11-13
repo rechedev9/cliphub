@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 )
 
 const syncLogBatchCap = 1000
@@ -47,6 +48,10 @@ func (e *SyncInputError) Error() string {
 // SyncLog reads and applies the sync_changes log of one jobs.db.
 type SyncLog struct {
 	db *sql.DB
+
+	contractOnce sync.Once
+	contract     SyncContract
+	contractErr  error
 }
 
 func NewSyncLog(db *sql.DB) *SyncLog { return &SyncLog{db: db} }

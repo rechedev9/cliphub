@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -189,6 +190,14 @@ func (c *Client) do(ctx context.Context, method, path, access string, header htt
 	for k, v := range header {
 		req.Header[k] = v
 	}
+	if strings.HasPrefix(path, "/api/sync/changes") {
+		contract, err := c.syncLog.Contract(ctx)
+		if err != nil {
+			return err
+		}
+		req.Header.Set(store.SyncContractHeader, contract.Hash)
+		req.Header.Set(store.SyncSchemaHeader, strconv.Itoa(contract.Schema))
+	}
 	if access != "" {
 		req.Header.Set("Authorization", "Bearer "+access)
 	}
@@ -348,7 +357,7 @@ func (c *Client) Sync(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if err != nil {
-		c.st.LastError = err.Error()
+		c.st.LastError = syncErrorText(err)
 	} else {
 		c.st.LastError = ""
 		c.st.LastSyncAt = c.cfg.Now().UnixMilli()
@@ -538,4 +547,18 @@ func (c *Client) Run(ctx context.Context, interval time.Duration) {
 			}
 		}
 	}
+}
+
+// syncErrorText is what Ajustes shows; a version mismatch says who has to update.
+func syncErrorText(err error) string {
+	var api *apiError
+	if errors.As(err, &api) {
+		switch api.Code {
+		case store.CodeSyncClientOutdated:
+			return "Actualiza ClipHub Studio: el servidor de ClipMind tiene una versión más nueva y la sincronización está en pausa."
+		case store.CodeSyncServerOutdated:
+			return "El servidor de ClipMind aún no tiene esta versión de Studio. La sincronización sigue cuando se actualice."
+		}
+	}
+	return err.Error()
 }

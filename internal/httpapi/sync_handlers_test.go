@@ -108,3 +108,43 @@ func TestSyncEndpoints(t *testing.T) {
 		t.Fatalf("invalid after status = %d, want 400", resp.StatusCode)
 	}
 }
+
+// The hub refuses a device whose synced tables differ, and says which side is older.
+func TestSyncHubRefusesADifferentContract(t *testing.T) {
+	repo, err := store.NewSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = repo.Close() })
+	log := store.NewSyncLog(repo.DB())
+	own, err := log.Contract(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(Routes(NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithSyncHub(log))))
+	t.Cleanup(srv.Close)
+	get := func(hash, schema string) (int, string) {
+		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/sync/changes?after=0", nil)
+		req.Header.Set(store.SyncContractHeader, hash)
+		req.Header.Set(store.SyncSchemaHeader, schema)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(body)
+	}
+	if code, body := get(own.Hash, "1"); code != http.StatusOK {
+		t.Fatalf("same contract = %d %s", code, body)
+	}
+	if code, body := get("old", "1"); code != http.StatusConflict || !bytes.Contains([]byte(body), []byte(store.CodeSyncClientOutdated)) {
+		t.Fatalf("older device = %d %s", code, body)
+	}
+	if code, body := get("new", "100000"); code != http.StatusConflict || !bytes.Contains([]byte(body), []byte(store.CodeSyncServerOutdated)) {
+		t.Fatalf("newer device = %d %s", code, body)
+	}
+	if code, _ := get("", ""); code != http.StatusConflict {
+		t.Fatalf("no contract = %d", code)
+	}
+}

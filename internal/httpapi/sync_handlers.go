@@ -33,8 +33,33 @@ func WithSyncHub(log *store.SyncLog) Option {
 // SyncDeviceHeader names the pushing device; the server in front sets it from the session.
 const SyncDeviceHeader = "X-ClipMind-Device"
 
+// syncContractOK answers 409 when the device's synced tables differ from the hub's.
+func (h *Handlers) syncContractOK(w http.ResponseWriter, r *http.Request) bool {
+	if !h.clipmind.syncHub {
+		return true
+	}
+	own, err := h.syncLog.Contract(r.Context())
+	if err != nil {
+		internalError(w, "sync contract", err)
+		return false
+	}
+	if r.Header.Get(store.SyncContractHeader) == own.Hash {
+		return true
+	}
+	schema, err := strconv.Atoi(r.Header.Get(store.SyncSchemaHeader))
+	if err != nil || schema < own.Schema {
+		writeCodedError(w, http.StatusConflict, store.CodeSyncClientOutdated, "this Studio is older than the server: update it to sync")
+		return false
+	}
+	writeCodedError(w, http.StatusConflict, store.CodeSyncServerOutdated, "the server is older than this Studio: sync resumes when it is updated")
+	return false
+}
+
 // GetSyncChanges handles GET /api/sync/changes.
 func (h *Handlers) GetSyncChanges(w http.ResponseWriter, r *http.Request) {
+	if !h.syncContractOK(w, r) {
+		return
+	}
 	after, err := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "after must be an integer")
@@ -64,6 +89,9 @@ func (h *Handlers) GetSyncChanges(w http.ResponseWriter, r *http.Request) {
 
 // ApplySyncChanges handles POST /api/sync/changes.
 func (h *Handlers) ApplySyncChanges(w http.ResponseWriter, r *http.Request) {
+	if !h.syncContractOK(w, r) {
+		return
+	}
 	var req struct {
 		Changes []store.SyncChange `json:"changes"`
 	}

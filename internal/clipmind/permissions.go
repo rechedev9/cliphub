@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/accounts"
 	"github.com/rechedev9/cliphub/internal/httpapi"
 )
 
@@ -23,6 +24,15 @@ const (
 var rolePermissions = map[string][]permission{
 	"owner":  {permRead, permWrite, permUpload, permSync},
 	"member": {permRead, permWrite, permUpload, permSync},
+}
+
+// allows checks the principal's role; sync is for a person's devices only, since
+// it writes raw rows past the handlers' checks, so an assistant token never syncs.
+func allows(p accounts.Principal, need permission) bool {
+	if p.APIToken && need == permSync {
+		return false
+	}
+	return roleAllows(p.Role, need)
 }
 
 func roleAllows(role string, need permission) bool {

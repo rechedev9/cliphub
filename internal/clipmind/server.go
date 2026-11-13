@@ -283,7 +283,7 @@ func (s *Server) workspaceRoute(need permission) http.Handler {
 			writeError(w, http.StatusConflict, "no_workspace", "choose a workspace first")
 			return
 		}
-		if !roleAllows(p.Role, need) {
+		if !allows(p, need) {
 			writeError(w, http.StatusForbidden, "forbidden", "your role cannot do this")
 			return
 		}

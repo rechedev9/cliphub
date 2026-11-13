@@ -325,6 +325,7 @@ func TestAssistantTokenReadsTheLibraryButCannotManageTheAccount(t *testing.T) {
 		{http.MethodGet, "/auth/tokens"}, {http.MethodPost, "/auth/tokens"}, {http.MethodGet, "/auth/sessions"},
 		{http.MethodGet, "/auth/export"}, {http.MethodGet, "/workspaces"},
 		{http.MethodPost, "/workspaces/" + ana.Workspace + "/invitations"},
+		{http.MethodGet, "/api/sync/changes?after=0"}, {http.MethodPost, "/api/sync/changes"}, {http.MethodGet, "/api/sync/artifacts"},
 	} {
 		ts.want(http.StatusForbidden, c.method, c.path, created.Secret, map[string]string{"name": "x", "email": "x@example.com"})
 	}
