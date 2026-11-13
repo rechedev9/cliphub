@@ -207,7 +207,20 @@ func currentSyncRow(ctx context.Context, tx *sql.Tx, table string, key []any) (m
 // Apply replays changes without logging them again. It runs in one transaction
 // and sets sync_meta.applying so the triggers stay silent.
 func (s *SyncLog) Apply(ctx context.Context, changes []SyncChange) error {
-	return s.apply(ctx, "", changes)
+	return s.apply(ctx, syncApply{changes: changes})
+}
+
+// ApplyAdopting is Apply on a device pulling from its hub: a demo or match that
+// is here under another id takes the hub's id, and adopt runs inside the
+// transaction for each one, so the caller can copy the files kept by id.
+func (s *SyncLog) ApplyAdopting(ctx context.Context, changes []SyncChange, adopt func(SyncAdoption) error) error {
+	return s.apply(ctx, syncApply{changes: changes, adopt: adopt})
+}
+
+type syncApply struct {
+	origin  string
+	changes []SyncChange
+	adopt   func(SyncAdoption) error
 }
 
 // ApplyFrom is what a hub runs for a device's push: the changes are applied
@@ -216,10 +229,11 @@ func (s *SyncLog) ApplyFrom(ctx context.Context, origin string, changes []SyncCh
 	if origin == "" {
 		return fmt.Errorf("sync origin is required")
 	}
-	return s.apply(ctx, origin, changes)
+	return s.apply(ctx, syncApply{origin: origin, changes: changes})
 }
 
-func (s *SyncLog) apply(ctx context.Context, origin string, changes []SyncChange) error {
+func (s *SyncLog) apply(ctx context.Context, in syncApply) error {
+	origin := in.origin
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -235,11 +249,23 @@ func (s *SyncLog) apply(ctx context.Context, origin string, changes []SyncChange
 	}
 	described := map[string]map[string]syncColumn{}
 	skipped := 0
-	for _, change := range orderSyncChanges(changes) {
+	for _, change := range orderSyncChanges(in.changes) {
 		err := applySyncChange(ctx, tx, change, described)
+		if isSyncClash(err) && in.adopt != nil {
+			adoption, adopted, adoptErr := adoptSyncTwin(ctx, tx, change)
+			if adoptErr != nil {
+				return adoptErr
+			}
+			if adopted {
+				if err := in.adopt(adoption); err != nil {
+					return err
+				}
+				err = applySyncChange(ctx, tx, change, described)
+			}
+		}
 		if isSyncClash(err) {
-			// The same demo imported on two devices under two ids, or a row whose parent
-			// was such a demo: this library keeps its own copy and the sync goes on.
+			// A hub keeps its own copy of a demo that two devices imported under two ids;
+			// the devices adopt the hub's id on their next pull and push their rows again.
 			skipped++
 			continue
 		}
@@ -248,7 +274,7 @@ func (s *SyncLog) apply(ctx context.Context, origin string, changes []SyncChange
 		}
 	}
 	if skipped > 0 {
-		log.Printf("sync: kept %d local rows that clash with received changes (same demo under another id)", skipped)
+		log.Printf("sync: kept %d local rows that clash with received changes", skipped)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM sync_meta WHERE key = ?`, marker); err != nil {
 		return err

@@ -42,6 +42,9 @@ type Files interface {
 	Put(key string, r io.Reader) error
 	Open(key string) (io.ReadCloser, error)
 	Exists(key string) (bool, error)
+	List(key string) ([]string, error)
+	Link(srcKey, dstKey string) error
+	DeleteTree(key string) error
 }
 
 // Config sets up a Client.
@@ -51,6 +54,8 @@ type Config struct {
 	DB        *sql.DB
 	Library   Library
 	Files     Files
+	// VoiceFiles holds the team voice audio, one folder per match id; nil means none.
+	VoiceFiles Files
 	// HTTP is the HTTP client; nil means one with a 2 minute timeout.
 	HTTP *http.Client
 	// DeviceName labels this session in the account's device list.
@@ -400,7 +405,7 @@ func (c *Client) pull(ctx context.Context, access string) error {
 			return err
 		}
 		if len(batch.Changes) > 0 {
-			if err := c.syncLog.Apply(ctx, batch.Changes); err != nil {
+			if err := c.applyPulled(ctx, batch.Changes); err != nil {
 				return err
 			}
 		}

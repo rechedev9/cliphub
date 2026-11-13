@@ -94,6 +94,7 @@ func postJSON(t *testing.T, url string, body any) {
 type device struct {
 	repos  *store.Repositories
 	files  *storage.Local
+	voice  *storage.Local
 	client *syncclient.Client
 }
 
@@ -109,11 +110,15 @@ func newDevice(t *testing.T, name string) *device {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := syncclient.New(syncclient.Config{StatePath: filepath.Join(dir, "clipmind-sync.json"), DB: repos.DB(), Library: repos.Library, Files: files, DeviceName: name})
+	voice, err := storage.NewLocal(filepath.Join(dir, "voice"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &device{repos: repos, files: files, client: c}
+	c, err := syncclient.New(syncclient.Config{StatePath: filepath.Join(dir, "clipmind-sync.json"), DB: repos.DB(), Library: repos.Library, Files: files, VoiceFiles: voice, DeviceName: name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &device{repos: repos, files: files, voice: voice, client: c}
 }
 
 // addMatch stores one analysed demo the way the library worker does.

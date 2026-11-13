@@ -332,11 +332,16 @@ func run() error {
 	if repos.DB() != nil {
 		handlerOpts = append(handlerOpts, httpapi.WithSyncLog(store.NewSyncLog(repos.DB())))
 		device, _ := os.Hostname()
+		voiceFiles, err := storage.NewLocal(filepath.Join(cfg.DataDir, "voice"))
+		if err != nil {
+			return fmt.Errorf("clipmind sync voice folder: %w", err)
+		}
 		clipmind, err := syncclient.New(syncclient.Config{
 			StatePath:  filepath.Join(cfg.DataDir, "clipmind-sync.json"),
 			DB:         repos.DB(),
 			Library:    repos.Library,
 			Files:      files,
+			VoiceFiles: voiceFiles,
 			DeviceName: "ClipHub Studio en " + device,
 		})
 		if err != nil {
