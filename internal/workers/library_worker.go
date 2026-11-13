@@ -63,6 +63,7 @@ type LibraryWorker struct {
 	aloneWaiting atomic.Int32
 	boot         string
 	crashed      func(boot string) bool
+	faceitDates  FaceitMatchDates
 }
 
 // NewLibraryWorker returns a worker that processes library demo scans.
@@ -148,6 +149,7 @@ func (w *LibraryWorker) ProcessAnalyzeLibraryDemo(ctx context.Context, id uuid.U
 		return scanErr
 	}
 	logWorkerArtifacts(id, tasks.TypeAnalyzeLibraryDemo, []string{artifacts.LibraryTacticalIndexKey(id), artifacts.LibraryTacticalPositionsKey(id)})
+	w.dateFaceitMatch(ctx, d, match)
 	w.groupFaceitSeries(ctx, d)
 	w.detectPatterns(ctx, match)
 	return nil
@@ -207,6 +209,9 @@ func (w *LibraryWorker) analyze(ctx context.Context, d library.Demo) (library.An
 	analysis.Source = library.DetectSource(result.Header.ServerName, d.FileName)
 	analysis.CS2Build = result.Header.BuildNum
 	analysis.PatchVersion = result.Header.PatchVersion
+	if !result.PlayedAt.IsZero() {
+		analysis.PlayedAt = &result.PlayedAt
+	}
 	return analysis, nil
 }
 

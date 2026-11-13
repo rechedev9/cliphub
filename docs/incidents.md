@@ -461,6 +461,27 @@ its own death.
 - A crash from another worker during a scan also counts against the demo
   being scanned. To diagnose, read the non-empty files in `crashes/`.
 
+## Match dates (`library.MatchDate`, 2026-11-13)
+
+### Incident: FACEIT demos dated by their import day (Studio 5.21.1, 2026-11-13)
+
+Demos downloaded from FACEIT rooms and imported weeks later all took the import
+day as `played_at`, which broke the date filters, the `stale` warning in
+Preparar and the order of recent matches in scouting. The CS2 demo header has
+no date, and an import without `played_at` fell back to the import time.
+
+- A match takes, in order: the `played_at` the importer sent; the earliest
+  spray the game coordinator signed in the demo (`CPlayerSprayDecal.m_rtGcTime`,
+  `parser.TrackSprayClock`), the only wall clock a CS2 demo carries; for a demo
+  named after a FACEIT room (`1-<uuid>`), the start FACEIT gives
+  (`faceit.Client.MatchStartedAt`); the import time. A date after the import
+  is ignored.
+- Many demos have no signed spray, so the FACEIT start is not optional.
+- A rescan, or the FACEIT pass at each start (`workers.ReconcileFaceitMatchDates`),
+  replaces only a date still equal to the import time (`library.DatedByImport`),
+  so a date set by hand stays. Tests: `TestLibraryMatchDateContract`,
+  `TestReconcileFaceitMatchDatesDatesOnlyMatchesOnTheirImportTime`.
+
 ## Local test environment caveat
 
 `TestFullDemoConcatsTwoFixtureRounds`,

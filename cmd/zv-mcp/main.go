@@ -237,7 +237,7 @@ The library: list_matches reads Partidas as the Studio shows it (kind, has_pov, 
 series carries its format, event, veto and whether its map was a pick or the decider; kind is scrim, oficial (tournament demos and series with an
 event) or importada, and update_demo's source moves a match between them); import_demo takes tags; update_demo changes a demo's source or
 tags (add_tags and remove_tags for single ones); reanalyze_demo
-analyses it again, then wait_for_demo; delete_demo removes it from the library (videos stay), or several with ids.
+analyses it again (a match still dated by its import day takes the demo's or the FACEIT room's date), then wait_for_demo; delete_demo removes it from the library (videos stay), or several with ids.
 Steam: steam_matches lists recent matches (sync_steam_matches looks for new ones); import_share_code
 downloads one by share code and makes a job: wait_for_job, and on "scanned" job_players then
 pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_storage_files,

@@ -187,6 +187,7 @@ func registerLibraryDemoTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "reanalyze_demo",
 		Description: "Analyse a library demo again (Volver a analizar): after a failure, or to refresh a match after a Studio update. " +
+			"A match still dated by its import day takes the date the demo shows, or the start of its FACEIT room. " +
 			"A demo already queued or parsing is left as it is. Follow with wait_for_demo."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in idIn) (*mcp.CallToolResult, demoOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {

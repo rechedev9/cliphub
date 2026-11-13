@@ -441,21 +441,19 @@ func (r *SQLiteLibraryRepository) SaveAnalysis(ctx context.Context, analysis lib
 
 		if demo.MatchID == nil {
 			matchID = uuid.New()
-			playedAt := demo.ImportedAt
-			if demo.PlayedAt != nil {
-				playedAt = *demo.PlayedAt
-			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO library_matches
 				(id, demo_id, map, played_at, tickrate, duration_ticks, round_count, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				matchID.String(), demo.ID.String(), analysis.Map, millis(playedAt), analysis.Tickrate, analysis.DurationTicks,
+				matchID.String(), demo.ID.String(), analysis.Map, millis(library.MatchDate(demo, analysis.PlayedAt)), analysis.Tickrate, analysis.DurationTicks,
 				analysis.RoundCount, millis(now), millis(now)); err != nil {
 				return fmt.Errorf("insert match: %w", err)
 			}
 		} else {
 			matchID = *demo.MatchID
-			if _, err := tx.ExecContext(ctx, `UPDATE library_matches SET map = ?, tickrate = ?, duration_ticks = ?, round_count = ?, updated_at = ?
-				WHERE id = ?`, analysis.Map, analysis.Tickrate, analysis.DurationTicks, analysis.RoundCount, millis(now), matchID.String()); err != nil {
+			// Only a match still dated by its import takes the date a new scan read (library.DatedByImport).
+			if _, err := tx.ExecContext(ctx, `UPDATE library_matches SET map = ?, tickrate = ?, duration_ticks = ?, round_count = ?, updated_at = ?,
+				played_at = CASE played_at WHEN ? THEN ? ELSE played_at END WHERE id = ?`, analysis.Map, analysis.Tickrate, analysis.DurationTicks, analysis.RoundCount,
+				millis(now), millis(demo.ImportedAt), millis(library.MatchDate(demo, analysis.PlayedAt)), matchID.String()); err != nil {
 				return fmt.Errorf("update match: %w", err)
 			}
 		}
