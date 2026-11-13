@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,9 +58,11 @@ type LibraryWorker struct {
 	storage  storage.Storage
 	seriesMu sync.Mutex
 	// scanMu lets scans run together, except a demo suspected of a crash, which scans alone.
-	scanMu  sync.RWMutex
-	boot    string
-	crashed func(boot string) bool
+	scanMu sync.RWMutex
+	// aloneWaiting holds new scans back while a suspected demo waits, so they cannot starve it.
+	aloneWaiting atomic.Int32
+	boot         string
+	crashed      func(boot string) bool
 }
 
 // NewLibraryWorker returns a worker that processes library demo scans.
@@ -287,18 +290,23 @@ func (w *LibraryWorker) endScan(id uuid.UUID) {
 
 // lockScan waits for its turn to scan, alone when the demo is suspected of a crash, or until ctx ends.
 func (w *LibraryWorker) lockScan(ctx context.Context, alone bool) (func(), error) {
-	try, unlock := w.scanMu.TryRLock, w.scanMu.RUnlock
 	if alone {
-		try, unlock = w.scanMu.TryLock, w.scanMu.Unlock
+		w.aloneWaiting.Add(1)
+		defer w.aloneWaiting.Add(-1)
 	}
-	for !try() {
+	for {
+		if alone && w.scanMu.TryLock() {
+			return w.scanMu.Unlock, nil
+		}
+		if !alone && w.aloneWaiting.Load() == 0 && w.scanMu.TryRLock() {
+			return w.scanMu.RUnlock, nil
+		}
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-time.After(250 * time.Millisecond):
 		}
 	}
-	return unlock, nil
 }
 
 // scanText reads a small scan record; a missing or unreadable one is empty.

@@ -61,7 +61,7 @@ func (h *Handlers) GetMapRadar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body := mapdata.Radar(name, layer); body != nil {
-		writeBundledAsset(w, r, body, mapdata.ContentTypePNG)
+		bundledAsset{key: "radar/" + name + "/" + layer, body: body, contentType: mapdata.ContentTypePNG}.serve(w, r)
 		return
 	}
 	install := gameassets.Install{CS2Exe: h.cs2Path()}
@@ -155,15 +155,29 @@ func gameAssetContentType(key string) string {
 	return gameassets.ContentTypePNG
 }
 
-// writeBundledAsset serves a picture Studio ships, revalidated by its hash on every load,
+// bundledTags caches each bundled picture's ETag by its key, as the embedded bytes never change.
+var bundledTags sync.Map
+
+// bundledAsset is a picture Studio ships; key names it in bundledTags.
+type bundledAsset struct {
+	key         string
+	body        []byte
+	contentType string
+}
+
+// serve answers with the picture, revalidated by its hash on every load,
 // so an updated Studio never draws over the previous version's picture.
-func writeBundledAsset(w http.ResponseWriter, r *http.Request, body []byte, contentType string) {
-	sum := sha256.Sum256(body)
-	w.Header().Set("Content-Type", contentType)
+func (a bundledAsset) serve(w http.ResponseWriter, r *http.Request) {
+	tag, ok := bundledTags.Load(a.key)
+	if !ok {
+		sum := sha256.Sum256(a.body)
+		tag, _ = bundledTags.LoadOrStore(a.key, `"`+hex.EncodeToString(sum[:12])+`"`)
+	}
+	w.Header().Set("Content-Type", a.contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "private, no-cache")
-	w.Header().Set("ETag", `"`+hex.EncodeToString(sum[:12])+`"`)
-	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body))
+	w.Header().Set("ETag", fmt.Sprint(tag))
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(a.body))
 }
 
 func writeGameAsset(w http.ResponseWriter, body []byte, contentType string) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -141,7 +142,9 @@ func TestLibraryWorkerDoesNotBlameADemoForAClosedStudio(t *testing.T) {
 	files.files[artifacts.LibraryScanRunningKey(d.ID)] = []byte("earlier-boot")
 	files.files[artifacts.LibraryScanCrashesKey(d.ID)] = []byte("1")
 
-	if err := NewLibraryWorker(repo, files).ProcessAnalyzeLibraryDemo(context.Background(), d.ID); err == nil {
+	w := NewLibraryWorker(repo, files)
+	w.UseBoot("this-boot", func(string) bool { return false })
+	if err := w.ProcessAnalyzeLibraryDemo(context.Background(), d.ID); err == nil {
 		t.Fatal("ProcessAnalyzeLibraryDemo = nil, want the parse failure of a scan that ran")
 	}
 	got, _ := repo.GetDemo(context.Background(), d.ID)
@@ -151,4 +154,28 @@ func TestLibraryWorkerDoesNotBlameADemoForAClosedStudio(t *testing.T) {
 	if running, crashes := string(files.files[artifacts.LibraryScanRunningKey(d.ID)]), string(files.files[artifacts.LibraryScanCrashesKey(d.ID)]); running != "" || crashes != "0" {
 		t.Fatalf("running = %q, crashes = %q; want both cleared once the scan returned", running, crashes)
 	}
+}
+
+// A suspected demo waiting to scan alone holds back new scans, so a busy queue cannot starve it.
+func TestLibraryScanLockLetsASuspectedDemoGoFirst(t *testing.T) {
+	w := NewLibraryWorker(store.NewMemoryLibraryRepository(), newFakeStorage())
+	unlockFirst, err := w.lockScan(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan func(), 1)
+	go func() {
+		unlock, _ := w.lockScan(context.Background(), true)
+		got <- unlock
+	}()
+	for w.aloneWaiting.Load() == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if _, err := w.lockScan(ctx, false); err == nil {
+		t.Fatal("a new scan took the lock while a suspected demo waited")
+	}
+	unlockFirst()
+	(<-got)()
 }
