@@ -92,7 +92,7 @@ export function CtPositionsMap({ prep }: { prep: TeamPrep }): ReactNode {
     return <div aria-hidden className="h-96 rounded-md bg-surface-3" />;
   }
   if (geometry === null) return null;
-  const frame = radarPlateFrame(geometry, radar);
+  const frame = radarPlateFrame(geometry, radar !== null);
   if (frame === null) return null;
   return <CtPositionsPlates prep={prep} geometry={geometry} frame={frame} level={level} onLevel={setLevel} />;
 }

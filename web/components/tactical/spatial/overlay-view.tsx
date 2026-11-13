@@ -72,6 +72,8 @@ function patternText(round: OverlayRound): string {
   return `${tPatternLabel(round.t_pattern)} / ${ctPatternLabel(round.ct_pattern)}`;
 }
 
+const OVERLAY_VIEWER = { title: 'Recorridos' };
+
 /**
  * Several rounds on one radar, every one started at its own freeze end, so the
  * same second of each round plays at once. The focused round is drawn on top
@@ -81,11 +83,14 @@ export function OverlayView({
   scope,
   onLoaded,
   tramo: tramoControl,
+  inMatch = false,
 }: {
   scope: SpatialScope;
   onLoaded?: (response: SpatialResponse) => void;
   /** The owner's tramo; without it the view keeps its own. */
   tramo?: TramoControl;
+  /** Draws the map in the Replay's viewer, beside a column as wide as the Replay's. */
+  inMatch?: boolean;
 }): ReactNode {
   const tramo = useTramo(tramoControl);
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
@@ -122,8 +127,8 @@ export function OverlayView({
   }
   if (load.kind === 'loading') {
     return (
-      <div role="status" aria-label="Superponiendo las rondas" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <Skeleton className="aspect-square w-full" />
+      <div role="status" aria-label="Superponiendo las rondas" className={cn('grid', inMatch ? 'gap-2 lg:grid-cols-[minmax(0,1fr)_var(--replay-right)]' : 'gap-4 lg:grid-cols-[minmax(0,1fr)_320px]')}>
+        <Skeleton className={inMatch ? 'h-(--map-viewer-h) w-full' : 'aspect-square w-full'} />
         <Skeleton className="h-80 w-full" />
       </div>
     );
@@ -139,10 +144,10 @@ export function OverlayView({
       </EmptySample>
     );
   }
-  return <OverlayPlayer key={scopeKey} data={data} tramo={tramo} />;
+  return <OverlayPlayer key={scopeKey} data={data} tramo={tramo} inMatch={inMatch} />;
 }
 
-function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: SpatialResponse; tramo: TramoControl }): ReactNode {
+function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo }, inMatch }: { data: SpatialResponse; tramo: TramoControl; inMatch: boolean }): ReactNode {
   const overlay = data.overlay;
   const geometry = data.geometry;
   const rounds = useMemo(() => overlay?.rounds ?? [], [overlay]);
@@ -407,7 +412,7 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
 
   return (
     <section aria-label="Rondas superpuestas" className="@container" onKeyDown={onKeyDown}>
-      <div className="grid gap-4 @[56rem]:grid-cols-[minmax(0,1fr)_320px]">
+      <div className={cn('grid', inMatch ? 'gap-2 @[56rem]:grid-cols-[minmax(0,1fr)_var(--replay-right)]' : 'gap-4 @[56rem]:grid-cols-[minmax(0,1fr)_320px]')}>
         <div className="flex min-w-0 flex-col gap-3">
           {twoFloors ? (
             <Segmented<RadarLevel | 'both'>
@@ -428,6 +433,7 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
             marks={marks}
             handleRef={surfaceRef}
             label={`${rounds.length - hidden.size} rondas superpuestas desde el final del tiempo de compra. La lista de rondas las describe en texto.`}
+            viewer={inMatch ? OVERLAY_VIEWER : undefined}
           >
             {(projection, _zoomed, plateLevel) => (
               <TelestratorLayer

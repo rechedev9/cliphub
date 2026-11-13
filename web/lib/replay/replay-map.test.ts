@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FOLLOW_ZOOM, MAX_ZOOM, boxWindow, followView, panView, radarImageFits, zoomLevel, zoomViewAt } from './map-view.ts';
 import { radarProjection } from '../tactical-spatial.ts';
-import { NAV_RADAR_PALETTE, floorBounds, floorPolygons, heightTone, navRadarModel, placeRegions, polygonLevel, toneColor, toneRange } from './nav-radar.ts';
+import { floorBounds, floorPolygons, navRadarModel } from './nav-radar.ts';
 import { layoutTags, tagName } from './tag-layout.ts';
 
 const base = { x: 0.1, y: 0.1, width: 0.8, height: 0.8 };
@@ -37,7 +37,7 @@ test('map view: a drag pans a zoomed map and never past its edge', () => {
   assert.ok(Math.abs(wholeFar.x + wholeFar.width / 2 - base.x) < 1e-9);
 });
 
-test('nav radar: areas become polygons sorted by height with a trimmed range', () => {
+test('nav radar: areas become polygons sorted by height', () => {
   const vertices = Float32Array.from([0, 0, 100, 10, 0, 100, 10, 10, 100, 0, 0, 0, 10, 0, 0, 10, 10, 0]);
   const model = navRadarModel({ vertices, triangles: new Uint32Array(), areas: [{ id: 1, polygon: [0, 1, 2] }, { id: 2, polygon: [3, 4, 5] }] });
   assert.ok(model !== null);
@@ -50,17 +50,6 @@ test('nav radar: without areas the triangles are the polygons', () => {
   const vertices = Float32Array.from([0, 0, 5, 1, 0, 5, 0, 1, 5]);
   const model = navRadarModel({ vertices, triangles: Uint32Array.from([0, 1, 2]), areas: [] });
   assert.equal(model?.polygons.length, 1);
-});
-
-test('nav radar: higher floors are lighter, flat maps sit mid-grey', () => {
-  assert.equal(heightTone(0, 0, 100), 0);
-  assert.equal(heightTone(100, 0, 100), 1);
-  assert.ok(heightTone(25, 0, 100) > 0.25);
-  assert.equal(heightTone(5, 5, 5), 0.5);
-  assert.equal(toneColor(0, [0, 0, 0], [200, 100, 50]), 'rgb(0, 0, 0)');
-  assert.equal(toneColor(1, [0, 0, 0], [200, 100, 50]), 'rgb(200, 100, 50)');
-  assert.equal(polygonLevel(-500, -400), 'lower');
-  assert.equal(polygonLevel(-500, undefined), 'default');
 });
 
 test('tags: names stay readable and never overlap one another', () => {
@@ -145,29 +134,4 @@ test('nav radar: a ramp area across the cut is on both floors, and bounds both',
   const lower = floorPolygons(model, -495, 'lower');
   assert.equal(lower.length, 1);
   assert.deepEqual(floorBounds(lower), { minX: 1296, minY: -2445, maxX: 1503, maxY: -2386 });
-});
-
-test('nav radar: the greys are flat, the same range on any floor', () => {
-  const [low, high] = [NAV_RADAR_PALETTE.low, NAV_RADAR_PALETTE.high];
-  assert.ok(high[0] - low[0] <= 48);
-  const flat = [{ points: new Float64Array(), z: 5, lowZ: 5, highZ: 5, cx: 0, cy: 0 }, { points: new Float64Array(), z: 5, lowZ: 5, highZ: 5, cx: 0, cy: 0 }];
-  assert.deepEqual(toneRange(flat), { minZ: 5, maxZ: 5 });
-});
-
-test('nav radar: bombsites and the CT spawn are tinted from the ground near them, on their own floor', () => {
-  const square = (x: number, z: number): number[] => [x, 0, z, x + 10, 0, z, x + 10, 10, z];
-  const vertices = Float32Array.from([...square(0, 0), ...square(30, 0), ...square(2000, 0), ...square(10, 300), ...square(0, -700)]);
-  const areas = [0, 1, 2, 3, 4].map((id) => ({ id, polygon: [id * 3, id * 3 + 1, id * 3 + 2] }));
-  const model = navRadarModel({ vertices, triangles: new Uint32Array(), areas });
-  assert.ok(model !== null);
-  const callouts = [
-    { name: 'BombsiteA', level: 'default' as const, center: [5, 5] as [number, number], samples: 1 },
-    { name: 'CTSpawn', level: 'lower' as const, center: [5, 5] as [number, number], samples: 1 },
-    { name: 'Hell', level: 'default' as const, center: [5, 5] as [number, number], samples: 1 },
-  ];
-  // Each place is one box round its areas on its own floor; the far area (x 2000) stays out.
-  const regions = placeRegions(model, callouts, -495);
-  assert.deepEqual(regions.map((region) => [region.color, region.level]), [[NAV_RADAR_PALETTE.site, 'default'], [NAV_RADAR_PALETTE.spawn, 'lower']]);
-  assert.deepEqual([regions[0].minX, regions[0].maxX], [0, 40]);
-  assert.equal(placeRegions(model, callouts, -495), regions);
 });

@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -58,7 +61,7 @@ func (h *Handlers) GetMapRadar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body := mapdata.Radar(name, layer); body != nil {
-		writeGameAsset(w, body, mapdata.ContentTypePNG)
+		writeBundledAsset(w, r, body, mapdata.ContentTypePNG)
 		return
 	}
 	install := gameassets.Install{CS2Exe: h.cs2Path()}
@@ -150,6 +153,17 @@ func gameAssetContentType(key string) string {
 		return gameassets.ContentTypeSVG
 	}
 	return gameassets.ContentTypePNG
+}
+
+// writeBundledAsset serves a picture Studio ships, revalidated by its hash on every load,
+// so an updated Studio never draws over the previous version's picture.
+func writeBundledAsset(w http.ResponseWriter, r *http.Request, body []byte, contentType string) {
+	sum := sha256.Sum256(body)
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("ETag", `"`+hex.EncodeToString(sum[:12])+`"`)
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body))
 }
 
 func writeGameAsset(w http.ResponseWriter, body []byte, contentType string) {

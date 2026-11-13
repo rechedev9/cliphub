@@ -29,7 +29,7 @@ func (h *Handlers) GetMapShot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body := mapdata.Shot(name); body != nil {
-		writeGameAsset(w, body, mapdata.ContentTypeWebP)
+		writeBundledAsset(w, r, body, mapdata.ContentTypeWebP)
 		return
 	}
 	install := gameassets.Install{CS2Exe: h.cs2Path()}

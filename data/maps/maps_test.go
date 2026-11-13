@@ -1,6 +1,11 @@
 package mapdata
 
-import "testing"
+import (
+	"bytes"
+	"image/png"
+	"io/fs"
+	"testing"
+)
 
 func TestBundledRadarExists(t *testing.T) {
 	cases := []struct {
@@ -51,6 +56,28 @@ func TestBundledShotExists(t *testing.T) {
 		got := Shot(tc.mapName)
 		if (got == nil) != tc.wantNil {
 			t.Errorf("Shot(%q): nil=%v, want nil=%v", tc.mapName, got == nil, tc.wantNil)
+		}
+	}
+}
+
+// The 2D views draw a radar across the whole calibration square, so a radar
+// that is not square would stretch the map under the players.
+func TestBundledRadarsAreSquare(t *testing.T) {
+	names, err := fs.Glob(radarFiles, "radars/*.png")
+	if err != nil || len(names) == 0 {
+		t.Fatalf("radars: %v, %d files", err, len(names))
+	}
+	for _, name := range names {
+		data, err := radarFiles.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := png.DecodeConfig(bytes.NewReader(data))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if cfg.Width != 2048 || cfg.Height != 2048 {
+			t.Errorf("%s is %dx%d, want 2048x2048", name, cfg.Width, cfg.Height)
 		}
 	}
 }

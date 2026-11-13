@@ -29,7 +29,7 @@ export function FirstDeathMap({ teamId, map, zone, color, label }: FirstDeathMap
   const radar = useRadarImage(map, layer);
   if (geometry === undefined || radar === undefined) return <div aria-hidden className="aspect-square w-full max-w-xl rounded-md bg-surface-3" />;
   if (geometry === null) return null;
-  const frame = radarPlateFrame(geometry, radar);
+  const frame = radarPlateFrame(geometry, radar !== null);
   if (frame === null) return null;
   return <Plate geometry={geometry} frame={frame} zone={zone} color={color} label={label} image={radarImageUrl(map, layer)} />;
 }
