@@ -97,6 +97,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("storage: %w", err)
 	}
+	if n, err := httpapi.PruneBundledMapPictures(cfg.DataDir); err != nil || n > 0 {
+		log.Printf("game cache: removed %d old map pictures (%v)", n, err)
+	}
 	observability, err := obs.InitializeDefault()
 	if err != nil {
 		return fmt.Errorf("observability: %w", err)

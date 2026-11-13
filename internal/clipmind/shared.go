@@ -28,6 +28,9 @@ func openShared(cfg Config) (shared, error) {
 	if cfg.CS2Path == "" {
 		log.Printf("clipmind: no CS2 install configured; maps and icons answer cs2_not_found")
 	}
+	if n, err := httpapi.PruneBundledMapPictures(filepath.Join(cfg.DataDir, "gameassets")); err != nil || n > 0 {
+		log.Printf("clipmind: removed %d old map pictures from the game cache (%v)", n, err)
+	}
 	community := httpapi.OpenCommunity(cfg.DataDir, cfg.CommunityURL)
 	opts := []httpapi.Option{httpapi.WithGameFiles(cfg.CS2Path, cache), httpapi.WithCommunity(community)}
 	if catalog, err := lineups.LoadFS(lineupdata.Files); err != nil {
