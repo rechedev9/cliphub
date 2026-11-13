@@ -74,7 +74,8 @@ export function MapHud({
         </div>
       ) : null}
 
-      <div className={cn(HUD_SCOPE, 'pointer-events-none absolute top-2 right-2 bottom-14 flex w-80 max-w-[45%] flex-col items-end gap-1')}>
+      {/* On a narrow map the score bug fills the top row, so the events start under it at full width. */}
+      <div className={cn(HUD_SCOPE, 'pointer-events-none absolute top-2 right-2 bottom-14 flex w-80 max-w-[45%] flex-col items-end gap-1 @max-md:left-2 @max-md:w-auto @max-md:max-w-none', showScore && '@max-md:top-15', eventsOpen && 'z-40')}>
         <button
           type="button"
           aria-expanded={eventsOpen}
@@ -128,10 +129,10 @@ export function MapHud({
 
 function TeamCell({ side, name, score, alive, mirrored = false }: { side: TacticalSide; name: string; score: number; alive: number; mirrored?: boolean }): ReactNode {
   return (
-    <div className={cn('flex items-center gap-2 px-2.5', mirrored && 'flex-row-reverse')}>
+    <div className={cn('flex items-center gap-2 px-2.5 @max-md:px-2', mirrored && 'flex-row-reverse')}>
       <span className={cn('h-full w-1 shrink-0', SIDE_BG[side])} aria-hidden />
       <span className={cn('flex min-w-0 flex-col leading-4', mirrored && 'items-end')}>
-        <span className="max-w-24 truncate text-meta text-white/75">{name}</span>
+        <span className="max-w-24 truncate text-meta text-white/75 @max-md:max-w-16">{name}</span>
         <span className="flex gap-0.5" aria-label={`${alive} vivos`}>
           {[0, 1, 2, 3, 4].map((index) => (
             <span key={index} className={cn('h-1.5 w-2.5 rounded-[1px]', index < alive ? SIDE_BG[side] : 'bg-white/15')} />

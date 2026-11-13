@@ -482,8 +482,8 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo }, inMatch }: 
           />
         </aside>
       </div>
-      <div className="mt-4 flex flex-col gap-2">
-        <div className="flex items-center gap-1.5">
+      <div className="@container mt-4 flex flex-col gap-2">
+        <div className="flex items-center gap-1.5 @max-md:flex-wrap">
           <Button type="button" size="icon-sm" variant="outline" className="mr-1.5 size-10" aria-label={playing ? 'Pausar' : 'Reproducir'} onClick={togglePlay}>
             {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
           </Button>
@@ -506,11 +506,11 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo }, inMatch }: 
               className={SCRUB_INPUT}
             />
           </div>
-          <div className={CLOCK_BOX}>
+          <div className={cn(CLOCK_BOX, '@max-md:hidden')}>
             <Timer aria-hidden className="size-4 text-fg-3" />
             {elapsedLabel(duration)}
           </div>
-          <div className="ml-1.5 flex h-10 items-center gap-1">
+          <div className="ml-1.5 flex h-10 items-center gap-1 @max-md:ml-0 @max-md:basis-full">
             <SpeedPicker speed={speed} onChange={setSpeed} min={0.5} />
             <Button
               type="button"
