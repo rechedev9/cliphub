@@ -95,12 +95,12 @@ func TestRemoteModeServesTheWorkspaceToAnAssistantKey(t *testing.T) {
 	hubSrv := httptest.NewServer(hub.Handler())
 	t.Cleanup(hubSrv.Close)
 
-	postJSON(t, hubSrv.URL+"/auth/signup", "", map[string]string{"email": "ana@example.com", "password": "correct horse battery"}, nil)
+	postJSON(t, hubSrv.URL+"/auth/signup", "", map[string]string{"email": "ana@example.com", "username": "ana", "password": "correct horse battery"}, nil)
 	postJSON(t, hubSrv.URL+"/auth/confirm", "", map[string]string{"token": mail.confirmToken(t, "ana@example.com"), "password": "correct horse battery"}, nil)
 	var login struct {
 		Access string `json:"access_token"`
 	}
-	postJSON(t, hubSrv.URL+"/auth/login", "", map[string]string{"email": "ana@example.com", "password": "correct horse battery"}, &login)
+	postJSON(t, hubSrv.URL+"/auth/login", "", map[string]string{"login": "ana@example.com", "password": "correct horse battery"}, &login)
 	postJSON(t, hubSrv.URL+"/api/library/teams", login.Access, map[string]string{"name": "Los Rivales"}, nil)
 	var key struct {
 		Secret string `json:"secret"`

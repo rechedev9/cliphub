@@ -6,16 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// User is the public part of an account.
+// User is the public part of an account. Email or Username may be empty, never both.
 type User struct {
 	ID          string `json:"id"`
 	Email       string `json:"email"`
+	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	CreatedAt   int64  `json:"created_at"`
 }
@@ -23,8 +25,57 @@ type User struct {
 // SignupInput is a new account request.
 type SignupInput struct {
 	Email       string
+	Username    string
 	Password    string
 	DisplayName string
+}
+
+// NewUserInput is an account an operator creates, already active. Email is optional.
+type NewUserInput struct {
+	Username    string
+	Email       string
+	Password    string
+	DisplayName string
+}
+
+// usernamePattern has no "@", so a login with one is an email.
+var usernamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{2,31}$`)
+
+// normalizeUsername trims and lowercases; it returns "" for a name the pattern refuses.
+func normalizeUsername(raw string) string {
+	name := strings.ToLower(strings.TrimSpace(raw))
+	if !usernamePattern.MatchString(name) {
+		return ""
+	}
+	return name
+}
+
+func checkUsername(raw string) (string, error) {
+	name := normalizeUsername(raw)
+	if name == "" {
+		return "", fmt.Errorf("%w: the username needs 3 to 32 letters, digits, dots, dashes or underscores, starting with a letter or digit", ErrInvalidInput)
+	}
+	return name, nil
+}
+
+func checkDisplayName(raw string) (string, error) {
+	name := strings.TrimSpace(raw)
+	if len([]rune(name)) > 80 {
+		return "", fmt.Errorf("%w: the name is too long", ErrInvalidInput)
+	}
+	return name, nil
+}
+
+// usernameTaken reports whether an account other than exceptID uses the name.
+func usernameTaken(ctx context.Context, tx *sql.Tx, username, exceptID string) error {
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE username = ? AND id != ?`, username, exceptID).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return ErrUsernameTaken
+	}
+	return nil
 }
 
 // normalizeEmail trims and lowercases; it returns "" for an address that is not plain.
@@ -56,12 +107,16 @@ func (s *Service) Signup(ctx context.Context, in SignupInput) error {
 	if email == "" {
 		return fmt.Errorf("%w: invalid email address", ErrInvalidInput)
 	}
+	username, err := checkUsername(in.Username)
+	if err != nil {
+		return err
+	}
 	if err := checkPassword(in.Password); err != nil {
 		return err
 	}
-	name := strings.TrimSpace(in.DisplayName)
-	if len([]rune(name)) > 80 {
-		return fmt.Errorf("%w: the name is too long", ErrInvalidInput)
+	name, err := checkDisplayName(in.DisplayName)
+	if err != nil {
+		return err
 	}
 	hash, err := s.hashPassword(in.Password)
 	if err != nil {
@@ -76,19 +131,24 @@ func (s *Service) Signup(ctx context.Context, in SignupInput) error {
 			return s.enqueueEmail(ctx, tx, email, "Ya tienes una cuenta en ClipMind",
 				"Alguien intentó crear una cuenta con este correo, pero ya existe una.\n\nInicia sesión en "+s.publicURL+"/iniciar-sesion o restablece tu contraseña en "+s.publicURL+"/recuperar.\n\nSi no fuiste tú, ignora este mensaje.")
 		case err == nil:
-			// The confirmation link asks for the password: the latest sign-up sets it,
-			// so an earlier sign-up by someone else cannot keep the account.
-			if _, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ?, display_name = ? WHERE id = ?`, hash, name, id); err != nil {
-				return err
-			}
-			return s.sendConfirmation(ctx, tx, id, email)
 		case !errors.Is(err, sql.ErrNoRows):
 			return err
 		}
+		if err := usernameTaken(ctx, tx, username, id); err != nil {
+			return err
+		}
+		if id != "" {
+			// The confirmation link asks for the password: the latest sign-up sets it,
+			// so an earlier sign-up by someone else cannot keep the account.
+			if _, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ?, display_name = ?, username = ? WHERE id = ?`, hash, name, username, id); err != nil {
+				return err
+			}
+			return s.sendConfirmation(ctx, tx, id, email)
+		}
 		id = uuid.NewString()
 		now := s.nowMillis()
-		if _, err := tx.ExecContext(ctx, `INSERT INTO users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)`,
-			id, email, hash, name, now); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO users (id, email, username, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			id, email, username, hash, name, now); err != nil {
 			return err
 		}
 		if _, err := s.createWorkspaceTx(ctx, tx, id, "Mi espacio"); err != nil {
@@ -96,6 +156,59 @@ func (s *Service) Signup(ctx context.Context, in SignupInput) error {
 		}
 		return s.sendConfirmation(ctx, tx, id, email)
 	})
+}
+
+// CreateUser adds an active account and its personal workspace without a
+// confirmation email; clipmind-server's "user add" command calls it.
+func (s *Service) CreateUser(ctx context.Context, in NewUserInput) (User, error) {
+	username, err := checkUsername(in.Username)
+	if err != nil {
+		return User{}, err
+	}
+	var email sql.NullString
+	if strings.TrimSpace(in.Email) != "" {
+		if email.String = normalizeEmail(in.Email); email.String == "" {
+			return User{}, fmt.Errorf("%w: invalid email address", ErrInvalidInput)
+		}
+		email.Valid = true
+	}
+	if err := checkPassword(in.Password); err != nil {
+		return User{}, err
+	}
+	name, err := checkDisplayName(in.DisplayName)
+	if err != nil {
+		return User{}, err
+	}
+	hash, err := s.hashPassword(in.Password)
+	if err != nil {
+		return User{}, err
+	}
+	u := User{ID: uuid.NewString(), Email: email.String, Username: username, DisplayName: name, CreatedAt: s.nowMillis()}
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		if err := usernameTaken(ctx, tx, username, ""); err != nil {
+			return err
+		}
+		if email.Valid {
+			var n int
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE email = ?`, email.String).Scan(&n); err != nil {
+				return err
+			}
+			if n > 0 {
+				return fmt.Errorf("%w: that email already has an account", ErrConflict)
+			}
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO users (id, email, username, password_hash, display_name, email_confirmed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			u.ID, email, username, hash, name, u.CreatedAt, u.CreatedAt); err != nil {
+			return err
+		}
+		_, err := s.createWorkspaceTx(ctx, tx, u.ID, "Mi espacio")
+		return err
+	})
+	if err != nil {
+		return User{}, err
+	}
+	return u, nil
 }
 
 func (s *Service) sendConfirmation(ctx context.Context, tx *sql.Tx, userID, email string) error {
@@ -162,16 +275,24 @@ func (s *Service) ConfirmEmail(ctx context.Context, token, password string) erro
 }
 
 // authenticate checks the credentials and the lockout and returns the user.
-func (s *Service) authenticate(ctx context.Context, email, password string) (User, error) {
-	email = normalizeEmail(email)
+// login is an email when it has an "@" and a username otherwise.
+func (s *Service) authenticate(ctx context.Context, login, password string) (User, error) {
+	column, key := "username", normalizeUsername(login)
+	if strings.Contains(login, "@") {
+		column, key = "email", normalizeEmail(login)
+	}
 	var u User
 	var hash string
 	var confirmed sql.NullInt64
 	var failed int
 	var lockedUntil int64
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id, email, display_name, created_at, password_hash, email_confirmed_at, failed_logins, locked_until FROM users WHERE email = ?`, email).
-		Scan(&u.ID, &u.Email, &u.DisplayName, &u.CreatedAt, &hash, &confirmed, &failed, &lockedUntil)
+	err := sql.ErrNoRows
+	if key != "" {
+		err = s.db.QueryRowContext(ctx,
+			`SELECT id, COALESCE(email, ''), COALESCE(username, ''), display_name, created_at, password_hash, email_confirmed_at, failed_logins, locked_until
+			FROM users WHERE `+column+` = ?`, key).
+			Scan(&u.ID, &u.Email, &u.Username, &u.DisplayName, &u.CreatedAt, &hash, &confirmed, &failed, &lockedUntil)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		// Hash anyway so a missing account costs the same as a wrong password.
 		_, _ = s.hashPassword(password)
@@ -260,8 +381,8 @@ func (s *Service) ResetPassword(ctx context.Context, token, password string) err
 // GetUser returns one account.
 func (s *Service) GetUser(ctx context.Context, id string) (User, error) {
 	var u User
-	err := s.db.QueryRowContext(ctx, `SELECT id, email, display_name, created_at FROM users WHERE id = ?`, id).
-		Scan(&u.ID, &u.Email, &u.DisplayName, &u.CreatedAt)
+	err := s.db.QueryRowContext(ctx, `SELECT id, COALESCE(email, ''), COALESCE(username, ''), display_name, created_at FROM users WHERE id = ?`, id).
+		Scan(&u.ID, &u.Email, &u.Username, &u.DisplayName, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, ErrNotFound
 	}

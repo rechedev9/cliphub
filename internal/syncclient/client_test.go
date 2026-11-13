@@ -172,19 +172,19 @@ func (d *device) matchCount(t *testing.T) int {
 
 func TestTwoDevicesShareOneAccount(t *testing.T) {
 	hub, box := startHub(t)
-	postJSON(t, hub.URL+"/auth/signup", map[string]string{"email": "luis@example.com", "password": "correct horse battery"})
+	postJSON(t, hub.URL+"/auth/signup", map[string]string{"email": "luis@example.com", "username": "luis", "password": "correct horse battery"})
 	postJSON(t, hub.URL+"/auth/confirm", map[string]string{"token": box.token(t, "luis@example.com", "Confirma"), "password": "correct horse battery"})
 	ctx := context.Background()
 
 	pc := newDevice(t, "PC de sobremesa")
 	match := pc.addMatch(t, strings.Repeat("ab", 32))
-	if _, err := pc.client.Connect(ctx, syncclient.ConnectInput{ServerURL: hub.URL, Email: "luis@example.com", Password: "wrong password!!"}); err == nil {
+	if _, err := pc.client.Connect(ctx, syncclient.ConnectInput{ServerURL: hub.URL, Login: "luis@example.com", Password: "wrong password!!"}); err == nil {
 		t.Fatal("Connect accepted a wrong password")
 	}
 	if st := pc.client.Status(ctx); st.Connected {
 		t.Fatalf("status after a failed connect = %+v", st)
 	}
-	st, err := pc.client.Connect(ctx, syncclient.ConnectInput{ServerURL: hub.URL, Email: "luis@example.com", Password: "correct horse battery"})
+	st, err := pc.client.Connect(ctx, syncclient.ConnectInput{ServerURL: hub.URL, Login: "luis@example.com", Password: "correct horse battery"})
 	if err != nil || !st.Connected || st.WorkspaceName != "Mi espacio" {
 		t.Fatalf("Connect = %+v, %v", st, err)
 	}
@@ -197,7 +197,7 @@ func TestTwoDevicesShareOneAccount(t *testing.T) {
 
 	// A second computer joins the same account and receives the match and its files.
 	laptop := newDevice(t, "Portátil")
-	if _, err := laptop.client.Connect(ctx, syncclient.ConnectInput{ServerURL: hub.URL, Email: "luis@example.com", Password: "correct horse battery"}); err != nil {
+	if _, err := laptop.client.Connect(ctx, syncclient.ConnectInput{ServerURL: hub.URL, Login: "luis@example.com", Password: "correct horse battery"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := laptop.client.Sync(ctx); err != nil {
@@ -255,7 +255,7 @@ func TestTwoDevicesShareOneAccount(t *testing.T) {
 func TestConnectRefusesPlainHTTPToARemoteServer(t *testing.T) {
 	d := newDevice(t, "PC")
 	for _, bad := range []string{"http://clipmind.example.com", "ftp://x", "not a url", ""} {
-		if _, err := d.client.Connect(context.Background(), syncclient.ConnectInput{ServerURL: bad, Email: "a@b.co", Password: "x"}); err == nil {
+		if _, err := d.client.Connect(context.Background(), syncclient.ConnectInput{ServerURL: bad, Login: "a@b.co", Password: "x"}); err == nil {
 			t.Errorf("Connect accepted %q", bad)
 		}
 	}

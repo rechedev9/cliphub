@@ -41,7 +41,7 @@ const link = 'text-primary underline-offset-4 hover:underline';
 export function LoginForm(): ReactNode {
   const router = useRouter();
   const params = useSearchParams();
-  const [email, setEmail] = useState('');
+  const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
@@ -51,7 +51,7 @@ export function LoginForm(): ReactNode {
     event.preventDefault();
     setBusy(true);
     setError(undefined);
-    const result = await cm('auth/login', { method: 'POST', body: { email, password, device: 'Navegador' }, parse: isDone });
+    const result = await cm('auth/login', { method: 'POST', body: { login, password, device: 'Navegador' }, parse: isDone });
     if (result.ok) {
       router.replace(next);
       router.refresh();
@@ -72,8 +72,18 @@ export function LoginForm(): ReactNode {
       }
     >
       <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
-        <Field label="Correo" required>
-          {(control) => <Input {...control} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />}
+        <Field label="Usuario o correo" required>
+          {(control) => (
+            <Input
+              {...control}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={login}
+              onChange={(event) => setLogin(event.target.value)}
+              required
+            />
+          )}
         </Field>
         <Field label="Contraseña" required hint={<Link href="/recuperar" className={link}>He olvidado mi contraseña</Link>}>
           {(control) => (
@@ -91,6 +101,7 @@ export function LoginForm(): ReactNode {
 
 export function SignupForm(): ReactNode {
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | undefined>();
@@ -101,7 +112,7 @@ export function SignupForm(): ReactNode {
     event.preventDefault();
     setBusy(true);
     setError(undefined);
-    const result = await cm('auth/signup', { method: 'POST', body: { email, password, display_name: name }, parse: isDone });
+    const result = await cm('auth/signup', { method: 'POST', body: { email, username, password, display_name: name }, parse: isDone });
     if (result.ok) setSent(true);
     else setError(result.message);
     setBusy(false);
@@ -130,12 +141,27 @@ export function SignupForm(): ReactNode {
         <Field label="Nombre" hint="Cómo te verá tu equipo.">
           {(control) => <Input {...control} autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} maxLength={80} />}
         </Field>
+        <Field label="Nombre de usuario" required hint="Con él entras. De 3 a 32 letras, números, puntos, guiones o guiones bajos.">
+          {(control) => (
+            <Input
+              {...control}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              pattern="[A-Za-z0-9][A-Za-z0-9._\-]{2,31}"
+              maxLength={32}
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              required
+            />
+          )}
+        </Field>
         <Field label="Correo" required>
           {(control) => <Input {...control} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />}
         </Field>
-        <Field label="Contraseña" required hint="Al menos 10 caracteres.">
+        <Field label="Contraseña" required hint="Al menos 8 caracteres.">
           {(control) => (
-            <Input {...control} type="password" autoComplete="new-password" minLength={10} value={password} onChange={(event) => setPassword(event.target.value)} required />
+            <Input {...control} type="password" autoComplete="new-password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required />
           )}
         </Field>
         <FormError message={error} />
@@ -210,9 +236,9 @@ export function ResetForm(): ReactNode {
   return (
     <FormShell title="Elige una contraseña nueva" lead="Cerraremos tus otras sesiones al cambiarla.">
       <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
-        <Field label="Contraseña nueva" required hint="Al menos 10 caracteres.">
+        <Field label="Contraseña nueva" required hint="Al menos 8 caracteres.">
           {(control) => (
-            <Input {...control} type="password" autoComplete="new-password" minLength={10} value={password} onChange={(event) => setPassword(event.target.value)} required />
+            <Input {...control} type="password" autoComplete="new-password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required />
           )}
         </Field>
         <FormError message={error} />

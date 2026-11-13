@@ -117,11 +117,12 @@ type session struct {
 // signUp creates a confirmed account and logs it in.
 func (ts *testServer) signUp(email string) session {
 	ts.t.Helper()
-	ts.want(http.StatusAccepted, http.MethodPost, "/auth/signup", "", map[string]string{"email": email, "password": "correct horse battery"})
+	username, _, _ := strings.Cut(email, "@")
+	ts.want(http.StatusAccepted, http.MethodPost, "/auth/signup", "", map[string]string{"email": email, "username": username, "password": "correct horse battery"})
 	token := ts.mailer.tokenFor(ts.t, email, "Confirma")
 	ts.want(http.StatusOK, http.MethodPost, "/auth/confirm", "", map[string]string{"token": token, "password": "correct horse battery"})
 	var s session
-	out := ts.want(http.StatusOK, http.MethodPost, "/auth/login", "", map[string]string{"email": email, "password": "correct horse battery", "device": "test"})
+	out := ts.want(http.StatusOK, http.MethodPost, "/auth/login", "", map[string]string{"login": email, "password": "correct horse battery", "device": "test"})
 	if err := json.Unmarshal(out, &s); err != nil {
 		ts.t.Fatal(err)
 	}
@@ -134,7 +135,7 @@ func TestAccountRoutesRequireAuthAndNoDataWithoutIt(t *testing.T) {
 		ts.want(http.StatusUnauthorized, http.MethodGet, path, "", nil)
 	}
 	ts.want(http.StatusUnauthorized, http.MethodGet, "/api/library/matches", "garbage.token", nil)
-	ts.want(http.StatusUnauthorized, http.MethodPost, "/auth/login", "", map[string]string{"email": "x@example.com", "password": "whatever it is"})
+	ts.want(http.StatusUnauthorized, http.MethodPost, "/auth/login", "", map[string]string{"login": "x@example.com", "password": "whatever it is"})
 }
 
 func TestWorkspacesAreIsolated(t *testing.T) {
@@ -258,7 +259,7 @@ func TestPublicRoutesAreRateLimited(t *testing.T) {
 	ts := newTestServer(t)
 	var last int
 	for i := 0; i < 12; i++ {
-		last, _ = ts.call(http.MethodPost, "/auth/login", "", map[string]string{"email": "x@example.com", "password": "whatever it is"})
+		last, _ = ts.call(http.MethodPost, "/auth/login", "", map[string]string{"login": "x@example.com", "password": "whatever it is"})
 	}
 	if last != http.StatusTooManyRequests {
 		t.Fatalf("12th login in a minute = %d, want 429", last)
@@ -267,13 +268,13 @@ func TestPublicRoutesAreRateLimited(t *testing.T) {
 
 func TestUnconfirmedAccountCannotLogInAndErrorsLeakNothing(t *testing.T) {
 	ts := newTestServer(t)
-	ts.want(http.StatusAccepted, http.MethodPost, "/auth/signup", "", map[string]string{"email": "ana@example.com", "password": "correct horse battery"})
-	code, out := ts.call(http.MethodPost, "/auth/login", "", map[string]string{"email": "ana@example.com", "password": "correct horse battery"})
+	ts.want(http.StatusAccepted, http.MethodPost, "/auth/signup", "", map[string]string{"email": "ana@example.com", "username": "ana", "password": "correct horse battery"})
+	code, out := ts.call(http.MethodPost, "/auth/login", "", map[string]string{"login": "ana@example.com", "password": "correct horse battery"})
 	if code != http.StatusForbidden || !bytes.Contains(out, []byte("email_not_confirmed")) {
 		t.Fatalf("login before confirming = %d %s", code, out)
 	}
-	_, unknown := ts.call(http.MethodPost, "/auth/login", "", map[string]string{"email": "nobody@example.com", "password": "correct horse battery"})
-	_, wrong := ts.call(http.MethodPost, "/auth/login", "", map[string]string{"email": "ana@example.com", "password": "not the password!!"})
+	_, unknown := ts.call(http.MethodPost, "/auth/login", "", map[string]string{"login": "nobody@example.com", "password": "correct horse battery"})
+	_, wrong := ts.call(http.MethodPost, "/auth/login", "", map[string]string{"login": "ana@example.com", "password": "not the password!!"})
 	if !bytes.Equal(unknown, wrong) {
 		t.Fatalf("login errors differ: unknown=%s wrong=%s", unknown, wrong)
 	}

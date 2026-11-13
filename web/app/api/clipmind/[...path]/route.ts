@@ -6,8 +6,8 @@ export const runtime = 'nodejs';
 
 type Params = { params: Promise<{ path: string[] }> };
 
-const STATUS_KEYS = ['connected', 'server_url', 'email', 'workspace_id', 'workspace_name', 'last_sync_at', 'last_error', 'pending_changes', 'syncing'] as const;
-const CONNECT_FIELDS = ['server_url', 'email', 'password', 'workspace_id'] as const;
+const STATUS_KEYS = ['connected', 'server_url', 'login', 'workspace_id', 'workspace_name', 'last_sync_at', 'last_error', 'pending_changes', 'syncing'] as const;
+const CONNECT_FIELDS = ['server_url', 'login', 'password', 'workspace_id'] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
