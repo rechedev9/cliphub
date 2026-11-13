@@ -328,6 +328,8 @@ type Analysis struct {
 	RoundCount    int
 	Teams         []AnalysisTeam
 	Players       []MatchPlayer
+	// PlayedAt is when the demo shows the match was played, if it shows it (see MatchDate).
+	PlayedAt *time.Time
 }
 
 // AnalysisTeam is one side as the scan saw it. ClanName is empty when the

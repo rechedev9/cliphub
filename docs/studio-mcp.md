@@ -284,7 +284,7 @@ Write:
 | --- | --- | --- |
 | `import_demo` | `POST /api/library/demos` (multipart `tag` fields, then `demo`; the server applies only tags sent before the file, and a duplicate keeps its own tags) | no |
 | `update_demo` | `PATCH /api/library/demos/{id}` with `source` (not `shared`) and/or the whole `tags` set, or `add_tags` and `remove_tags` for single tags (the Etiqueta button of a Partidas row) | no |
-| `reanalyze_demo` | `POST /api/library/demos/{id}/analyze`; a demo already queued or parsing is left alone, a shared match answers 409 | no |
+| `reanalyze_demo` | `POST /api/library/demos/{id}/analyze`; a demo already queued or parsing is left alone, a shared match answers 409. A match still dated by its import day takes the date the scan reads from the demo, or the start of its FACEIT room | no |
 | `create_job` | `POST /api/library/demos/{id}/jobs` with `target_steamid`; with `reparse` on a reused job, also `POST /api/jobs/{id}/parse` | no |
 | `create_multi_pov_job` | `POST /api/library/demos/{id}/jobs` with `target_steamids` (2 to 5 teammates of one team, checked against the analysed match); the first is the anchor for recap, deaths and team comms. The job never reuses a single-player job and Full Demo refuses it | no |
 | `create_series_jobs` | per map: `GET /api/library/demos/{id}` and `GET /api/library/matches/{id}` to find the player by SteamID in every map, then `POST /api/library/demos/{id}/jobs`; nothing is created if one map lacks the player. Each job then takes `generate_short` (a Short per map) or `plan_full_demo` and `render_full_demo` (a full demo per map), like the series page in Shorts and in Demo completa | no |

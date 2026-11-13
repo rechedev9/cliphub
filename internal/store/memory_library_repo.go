@@ -373,10 +373,11 @@ func (r *MemoryLibraryRepository) SaveAnalysis(ctx context.Context, analysis lib
 		}
 	}
 	if !found {
-		match = memoryLibraryMatch{id: uuid.New(), demoID: demo.ID, playedAt: demo.ImportedAt, createdAt: now}
-		if demo.PlayedAt != nil {
-			match.playedAt = *demo.PlayedAt
-		}
+		match = memoryLibraryMatch{id: uuid.New(), demoID: demo.ID, createdAt: now}
+	}
+	// Only a match still dated by its import takes the date a new scan read (library.DatedByImport).
+	if !found || match.playedAt.Equal(demo.ImportedAt) {
+		match.playedAt = libraryTime(library.MatchDate(demo, analysis.PlayedAt))
 	}
 	match.mapName, match.tickrate, match.durationTicks, match.roundCount = analysis.Map, analysis.Tickrate, analysis.DurationTicks, analysis.RoundCount
 	match.updatedAt = now

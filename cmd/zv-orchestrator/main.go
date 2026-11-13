@@ -199,6 +199,9 @@ func run() error {
 	if crashLogErr == nil {
 		libraryWorker.UseBoot(crashes.boot, crashes.crashed)
 	}
+	if faceitClient != nil {
+		libraryWorker.UseFaceitDates(faceitClient)
+	}
 	taskHandlers[tasks.TypeAnalyzeLibraryDemo] = libraryWorker.HandleAnalyzeLibraryDemo
 	var recordWorker *workers.RecordWorker
 	if cfg.recordWorkerEnabled() {
@@ -388,6 +391,9 @@ func run() error {
 	} else if resumed > 0 {
 		log.Printf("startup: resumed %d library scans", resumed)
 	}
+	if faceitClient != nil && repos.Library != nil {
+		go reconcileFaceitMatchDates(workerCtx, repos.Library, faceitClient)
+	}
 	log.Printf("queue: inline mode enabled (concurrency=%d)", cfg.WorkerConcurrency)
 	httpRuntime.Start()
 	log.Printf("http: listening on %s", httpRuntime.Addr())
@@ -465,5 +471,15 @@ func repairStreamSources(ctx context.Context, cfg workers.StreamSourceRepairConf
 		log.Printf("startup: repair stream sources (remuxed=%d): %v", repaired, err)
 	} else if repaired > 0 {
 		log.Printf("startup: remuxed %d stream sources to MP4", repaired)
+	}
+}
+
+// reconcileFaceitMatchDates dates the FACEIT matches an older Studio left on their import day.
+func reconcileFaceitMatchDates(ctx context.Context, repo workers.FaceitDateRepository, dates workers.FaceitMatchDates) {
+	dated, err := workers.ReconcileFaceitMatchDates(ctx, repo, dates)
+	if err != nil {
+		log.Printf("startup: date FACEIT matches (dated=%d): %v", dated, err)
+	} else if dated > 0 {
+		log.Printf("startup: dated %d FACEIT matches by their FACEIT start", dated)
 	}
 }
