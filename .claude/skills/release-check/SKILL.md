@@ -1,12 +1,17 @@
+---
+name: release-check
+description: Read-only pre-release checklist for ClipHub Studio. Reviews the rules, runs the full local checks and the latest-HLAE check, and dispatches a dry run of desktop-release.yml. Never publishes or tags.
+---
+
 # Release check
 
-Read-only checklist before a release. It proves the tree. It does not publish, tag, or tell anyone to publish. Tagging and the GitHub Release are `docs/incidents.md`, section **Releases**. The invariants are [Release](../rules/release.md).
+Read-only checklist before a release. It proves the tree. It does not publish, tag, or tell anyone to publish. Tagging and the GitHub Release are `docs/incidents.md`, section **Releases**. The invariants are [Release](../../rules/release.md).
 
 Run this from a clean `main` that already contains the change.
 
 ## 1. Review the rules
 
-Read `.agents/rules/` against the code and the `docs/incidents.md` sections they cite. A rule that drifted from the test, the linter or the incident gets its update in the same PR as the fix. This is the release review named in [Maintenance](../../AGENTS.md#maintenance).
+Read `.claude/rules/` against the code and the `docs/incidents.md` sections they cite. A rule that drifted from the test, the linter or the incident gets its update in the same PR as the fix. This is the release review named in [Maintenance](../../../AGENTS.md#maintenance).
 
 ## 2. Full local checks
 
@@ -31,7 +36,7 @@ pnpm --dir desktop run test:unit
 node --no-warnings desktop/scripts/check-hlae-latest.mjs
 ```
 
-The release needs `desktop/src/hlae-tool.json` to be advancedfx's latest release, proved with a real capture when the pin moves. [HLAE pin and capture](../rules/capture-hlae.md).
+The release needs `desktop/src/hlae-tool.json` to be advancedfx's latest release, proved with a real capture when the pin moves. [HLAE pin and capture](../../rules/capture-hlae.md).
 
 ## 4. Dry run of the release workflow
 

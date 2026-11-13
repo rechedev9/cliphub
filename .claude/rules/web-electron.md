@@ -1,3 +1,10 @@
+---
+paths:
+  - "web/**"
+  - "landing/**"
+  - "desktop/src/**"
+---
+
 # Web inside Electron
 
 `web/` is the Studio UI. It runs only in the Chromium that Electron bundles (`electron` in `desktop/package.json`). Use any web platform feature that Chromium ships, with no fallback and no polyfill.

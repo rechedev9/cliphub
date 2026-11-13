@@ -1,3 +1,13 @@
+---
+paths:
+  - "cmd/zv-recorder/**"
+  - "internal/recording/**"
+  - "internal/demostart/**"
+  - "desktop/src/hlae-*"
+  - "desktop/src/runtime-tools.ts"
+  - "desktop/scripts/check-hlae-latest.mjs"
+---
+
 # HLAE pin and capture
 
 Capture runs CS2 through HLAE (`zv-recorder`). The pin, the boot-time lookup and the incidents live in `docs/incidents.md`, section **HLAE pin and CS2 updates** (`desktop/src/hlae-tool.ts`, `desktop/src/hlae-tool.json`, `desktop/src/runtime-tools.ts`, `desktop/src/hlae-latest.ts`). Follow that section. This file only names the invariants and where they are enforced.
