@@ -4,6 +4,7 @@
 export interface CmUser {
   id: string;
   email: string;
+  username: string;
   display_name: string;
 }
 
@@ -17,6 +18,7 @@ export interface CmWorkspace {
 export interface CmMember {
   user_id: string;
   email: string;
+  username: string;
   display_name: string;
   role: string;
 }
@@ -50,7 +52,8 @@ export interface CmApiKey {
 export type CmResult<T> = { ok: true; data: T } | { ok: false; status: number; code: string; message: string };
 
 const MESSAGES: Readonly<Record<string, string>> = {
-  invalid_credentials: 'El correo o la contraseña no son correctos.',
+  invalid_credentials: 'El usuario o la contraseña no son correctos.',
+  username_taken: 'Ese nombre de usuario ya está en uso. Elige otro.',
   email_not_confirmed: 'Confirma tu correo antes de entrar: te enviamos un enlace.',
   locked: 'Demasiados intentos fallidos. Espera unos minutos e inténtalo de nuevo.',
   token_invalid: 'El enlace no es válido o ha caducado.',
@@ -123,7 +126,7 @@ export function parseMe(value: unknown): CmMe {
   const body = isRecord(value) ? value : {};
   const user = isRecord(body.user) ? body.user : {};
   return {
-    user: { id: str(user.id), email: str(user.email), display_name: str(user.display_name) },
+    user: { id: str(user.id), email: str(user.email), username: str(user.username), display_name: str(user.display_name) },
     workspace: readWorkspace(body.workspace) ?? null,
     workspaces: list(body.workspaces, '', readWorkspace),
   };
@@ -135,7 +138,9 @@ export function parseWorkspaces(value: unknown): CmWorkspace[] {
 
 export function parseMembers(value: unknown): CmMember[] {
   return list(value, 'members', (item) =>
-    isRecord(item) ? { user_id: str(item.user_id), email: str(item.email), display_name: str(item.display_name), role: str(item.role) } : undefined,
+    isRecord(item)
+      ? { user_id: str(item.user_id), email: str(item.email), username: str(item.username), display_name: str(item.display_name), role: str(item.role) }
+      : undefined,
   );
 }
 
@@ -157,6 +162,13 @@ export function parseApiKeys(value: unknown): CmApiKey[] {
 
 export function parseSecret(value: unknown): string {
   return isRecord(value) ? str(value.secret) : '';
+}
+
+/** How a person reads in a list: the shown name, then the username and email that are set. */
+export function accountLabel(person: Pick<CmUser, 'email' | 'username' | 'display_name'>): { name: string; detail: string } {
+  const handles = [person.username, person.email].filter((part) => part !== '');
+  const name = person.display_name === '' ? (handles[0] ?? '') : person.display_name;
+  return { name, detail: handles.filter((part) => part !== name).join(' · ') };
 }
 
 /** Where to go after signing in: only a path inside this app, never another site. */

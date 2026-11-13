@@ -18,13 +18,15 @@ func (s *Server) wake() {
 func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email       string `json:"email"`
+		Username    string `json:"username"`
 		Password    string `json:"password"`
 		DisplayName string `json:"display_name"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := s.accounts.Signup(r.Context(), accounts.SignupInput{Email: req.Email, Password: req.Password, DisplayName: req.DisplayName}); err != nil {
+	in := accounts.SignupInput{Email: req.Email, Username: req.Username, Password: req.Password, DisplayName: req.DisplayName}
+	if err := s.accounts.Signup(r.Context(), in); err != nil {
 		writeAccountError(w, "signup", err)
 		return
 	}
@@ -49,14 +51,14 @@ func (s *Server) handleConfirm(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Email    string `json:"email"`
+		Login    string `json:"login"`
 		Password string `json:"password"`
 		Device   string `json:"device"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	tokens, err := s.accounts.Login(r.Context(), accounts.LoginInput{Email: req.Email, Password: req.Password, Device: req.Device})
+	tokens, err := s.accounts.Login(r.Context(), accounts.LoginInput{Login: req.Login, Password: req.Password, Device: req.Device})
 	if err != nil {
 		writeAccountError(w, "login", err)
 		return

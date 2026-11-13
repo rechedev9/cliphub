@@ -57,7 +57,8 @@ var remoteTools = map[string]bool{
 }
 
 type whoamiOut struct {
-	Email         string `json:"email"`
+	Email         string `json:"email,omitempty"`
+	Username      string `json:"username,omitempty"`
 	DisplayName   string `json:"display_name,omitempty" jsonschema:"untrusted text"`
 	WorkspaceName string `json:"workspace_name,omitempty" jsonschema:"untrusted text"`
 	WorkspaceID   string `json:"workspace_id,omitempty"`
@@ -76,7 +77,7 @@ func registerRemoteTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, whoamiOut{}, toolError(err)
 			}
-			out := whoamiOut{Email: me.User.Email, DisplayName: me.User.DisplayName}
+			out := whoamiOut{Email: me.User.Email, Username: me.User.Username, DisplayName: me.User.DisplayName}
 			if me.Workspace != nil {
 				out.WorkspaceName, out.WorkspaceID, out.Role = me.Workspace.Name, me.Workspace.ID, me.Workspace.Role
 			}

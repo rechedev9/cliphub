@@ -13,7 +13,7 @@ import (
 type clipMindStatusOut struct {
 	Connected     bool   `json:"connected" jsonschema:"whether Studio is signed in to a ClipMind account"`
 	ServerURL     string `json:"server_url,omitempty"`
-	Email         string `json:"email,omitempty"`
+	Login         string `json:"login,omitempty" jsonschema:"the username or email Studio signed in with"`
 	WorkspaceName string `json:"workspace_name,omitempty" jsonschema:"untrusted text"`
 	LastSyncAt    int64  `json:"last_sync_at,omitempty" jsonschema:"Unix milliseconds of the last good sync"`
 	LastError     string `json:"last_error,omitempty" jsonschema:"why the last sync failed; the user signs in again when the session ended"`
@@ -23,7 +23,7 @@ type clipMindStatusOut struct {
 
 func clipMindStatusFrom(s tuiclient.ClipMindStatus) clipMindStatusOut {
 	return clipMindStatusOut{
-		Connected: s.Connected, ServerURL: s.ServerURL, Email: s.Email, WorkspaceName: s.WorkspaceName,
+		Connected: s.Connected, ServerURL: s.ServerURL, Login: s.Login, WorkspaceName: s.WorkspaceName,
 		LastSyncAt: s.LastSyncAt, LastError: s.LastError, Pending: s.Pending, Syncing: s.Syncing,
 	}
 }

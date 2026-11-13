@@ -67,7 +67,7 @@ type Config struct {
 type Status struct {
 	Connected     bool   `json:"connected"`
 	ServerURL     string `json:"server_url,omitempty"`
-	Email         string `json:"email,omitempty"`
+	Login         string `json:"login,omitempty"`
 	WorkspaceID   string `json:"workspace_id,omitempty"`
 	WorkspaceName string `json:"workspace_name,omitempty"`
 	LastSyncAt    int64  `json:"last_sync_at,omitempty"`
@@ -76,17 +76,17 @@ type Status struct {
 	Syncing       bool   `json:"syncing"`
 }
 
-// ConnectInput is a sign-in from Studio.
+// ConnectInput is a sign-in from Studio. Login is the username or the email.
 type ConnectInput struct {
 	ServerURL   string
-	Email       string
+	Login       string
 	Password    string
 	WorkspaceID string
 }
 
 type state struct {
 	ServerURL     string `json:"server_url"`
-	Email         string `json:"email"`
+	Login         string `json:"login"`
 	DeviceName    string `json:"device_name"`
 	RefreshToken  string `json:"refresh_token"`
 	WorkspaceID   string `json:"workspace_id"`
@@ -148,7 +148,7 @@ func (c *Client) Status(ctx context.Context) Status {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	s := Status{
-		Connected: c.connected(), ServerURL: c.st.ServerURL, Email: c.st.Email, WorkspaceID: c.st.WorkspaceID,
+		Connected: c.connected(), ServerURL: c.st.ServerURL, Login: c.st.Login, WorkspaceID: c.st.WorkspaceID,
 		WorkspaceName: c.st.WorkspaceName, LastSyncAt: c.st.LastSyncAt, LastError: c.st.LastError, Syncing: c.syncing,
 	}
 	if s.Connected {
@@ -258,11 +258,11 @@ func (c *Client) Connect(ctx context.Context, in ConnectInput) (Status, error) {
 	if device == "" {
 		device = "ClipHub Studio"
 	}
-	next := state{ServerURL: server, Email: strings.TrimSpace(in.Email), DeviceName: device}
+	next := state{ServerURL: server, Login: strings.TrimSpace(in.Login), DeviceName: device}
 	prev := c.st
 	c.st = next
 	var t tokens
-	if err := c.doJSON(ctx, http.MethodPost, "/auth/login", "", map[string]string{"email": in.Email, "password": in.Password, "device": device}, &t); err != nil {
+	if err := c.doJSON(ctx, http.MethodPost, "/auth/login", "", map[string]string{"login": in.Login, "password": in.Password, "device": device}, &t); err != nil {
 		c.st = prev
 		return Status{}, err
 	}
@@ -299,7 +299,7 @@ func (c *Client) Connect(ctx context.Context, in ConnectInput) (Status, error) {
 		c.st = prev
 		return Status{}, err
 	}
-	return Status{Connected: true, ServerURL: c.st.ServerURL, Email: c.st.Email, WorkspaceID: c.st.WorkspaceID, WorkspaceName: c.st.WorkspaceName}, nil
+	return Status{Connected: true, ServerURL: c.st.ServerURL, Login: c.st.Login, WorkspaceID: c.st.WorkspaceID, WorkspaceName: c.st.WorkspaceName}, nil
 }
 
 // Disconnect signs the device out and forgets the link. Local data stays.

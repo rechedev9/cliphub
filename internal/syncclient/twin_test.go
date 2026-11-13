@@ -32,10 +32,10 @@ func (d *device) notes(t *testing.T, matchID string) []string {
 
 func TestTwoDevicesWithTheSameDemoMeetOnOneID(t *testing.T) {
 	hub, box := startHub(t)
-	postJSON(t, hub.URL+"/auth/signup", map[string]string{"email": "luis@example.com", "password": "correct horse battery"})
+	postJSON(t, hub.URL+"/auth/signup", map[string]string{"email": "luis@example.com", "username": "luis", "password": "correct horse battery"})
 	postJSON(t, hub.URL+"/auth/confirm", map[string]string{"token": box.token(t, "luis@example.com", "Confirma"), "password": "correct horse battery"})
 	ctx := context.Background()
-	login := syncclient.ConnectInput{ServerURL: hub.URL, Email: "luis@example.com", Password: "correct horse battery"}
+	login := syncclient.ConnectInput{ServerURL: hub.URL, Login: "luis@example.com", Password: "correct horse battery"}
 
 	// Both computers import the same demo before either syncs, so each gives it its own ids.
 	sha := strings.Repeat("cd", 32)

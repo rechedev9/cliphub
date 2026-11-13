@@ -40,7 +40,7 @@ func (h *Handlers) GetClipMindAccount(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) ConnectClipMindAccount(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ServerURL   string `json:"server_url"`
-		Email       string `json:"email"`
+		Login       string `json:"login"`
 		Password    string `json:"password"`
 		WorkspaceID string `json:"workspace_id"`
 	}
@@ -49,7 +49,7 @@ func (h *Handlers) ConnectClipMindAccount(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if _, err := h.clipmind.sync.Connect(r.Context(), syncclient.ConnectInput{
-		ServerURL: req.ServerURL, Email: req.Email, Password: req.Password, WorkspaceID: req.WorkspaceID,
+		ServerURL: req.ServerURL, Login: req.Login, Password: req.Password, WorkspaceID: req.WorkspaceID,
 	}); err != nil {
 		writeError(w, http.StatusBadGateway, "could not sign in to ClipMind: "+err.Error())
 		return

@@ -24,6 +24,7 @@ type Workspace struct {
 type Member struct {
 	UserID      string `json:"user_id"`
 	Email       string `json:"email"`
+	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	Role        string `json:"role"`
 	JoinedAt    int64  `json:"joined_at"`
@@ -125,7 +126,7 @@ func (s *Service) RenameWorkspace(ctx context.Context, workspaceID, rawName stri
 // Members lists the people in a workspace, owner first.
 func (s *Service) Members(ctx context.Context, workspaceID string) ([]Member, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT u.id, u.email, u.display_name, m.role, m.joined_at FROM memberships m JOIN users u ON u.id = m.user_id
+		`SELECT u.id, COALESCE(u.email, ''), COALESCE(u.username, ''), u.display_name, m.role, m.joined_at FROM memberships m JOIN users u ON u.id = m.user_id
 		 WHERE m.workspace_id = ? ORDER BY CASE m.role WHEN 'owner' THEN 0 ELSE 1 END, m.joined_at`, workspaceID)
 	if err != nil {
 		return nil, err
@@ -134,7 +135,7 @@ func (s *Service) Members(ctx context.Context, workspaceID string) ([]Member, er
 	out := []Member{}
 	for rows.Next() {
 		var m Member
-		if err := rows.Scan(&m.UserID, &m.Email, &m.DisplayName, &m.Role, &m.JoinedAt); err != nil {
+		if err := rows.Scan(&m.UserID, &m.Email, &m.Username, &m.DisplayName, &m.Role, &m.JoinedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -231,7 +232,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, userID, token string) (W
 			return err
 		}
 		var userEmail string
-		if err := tx.QueryRowContext(ctx, `SELECT email FROM users WHERE id = ?`, userID).Scan(&userEmail); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(email, '') FROM users WHERE id = ?`, userID).Scan(&userEmail); err != nil {
 			return err
 		}
 		if !strings.EqualFold(userEmail, email) {

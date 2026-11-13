@@ -53,7 +53,8 @@ func lastToken(t *testing.T, s *Service, to string) string {
 func confirmedUser(t *testing.T, s *Service, email string) User {
 	t.Helper()
 	ctx := context.Background()
-	if err := s.Signup(ctx, SignupInput{Email: email, Password: "correct horse battery", DisplayName: "Test"}); err != nil {
+	username, _, _ := strings.Cut(email, "@")
+	if err := s.Signup(ctx, SignupInput{Email: email, Username: username, Password: "correct horse battery", DisplayName: "Test"}); err != nil {
 		t.Fatalf("Signup: %v", err)
 	}
 	if err := s.ConfirmEmail(ctx, lastToken(t, s, email), "correct horse battery"); err != nil {
@@ -69,10 +70,10 @@ func confirmedUser(t *testing.T, s *Service, email string) User {
 func TestSignupConfirmLogin(t *testing.T) {
 	s, _ := newTestService(t)
 	ctx := context.Background()
-	if err := s.Signup(ctx, SignupInput{Email: " Ana@Example.com ", Password: "correct horse battery"}); err != nil {
+	if err := s.Signup(ctx, SignupInput{Email: " Ana@Example.com ", Username: "ana", Password: "correct horse battery"}); err != nil {
 		t.Fatalf("Signup: %v", err)
 	}
-	if _, err := s.Login(ctx, LoginInput{Email: "ana@example.com", Password: "correct horse battery"}); !errors.Is(err, ErrEmailNotConfirmed) {
+	if _, err := s.Login(ctx, LoginInput{Login: "ana@example.com", Password: "correct horse battery"}); !errors.Is(err, ErrEmailNotConfirmed) {
 		t.Fatalf("login before confirming = %v, want ErrEmailNotConfirmed", err)
 	}
 	token := lastToken(t, s, "ana@example.com")
@@ -82,7 +83,7 @@ func TestSignupConfirmLogin(t *testing.T) {
 	if err := s.ConfirmEmail(ctx, token, "correct horse battery"); !errors.Is(err, ErrTokenInvalid) {
 		t.Fatalf("second ConfirmEmail = %v, want ErrTokenInvalid", err)
 	}
-	tokens, err := s.Login(ctx, LoginInput{Email: "ANA@example.com", Password: "correct horse battery", Device: "PC"})
+	tokens, err := s.Login(ctx, LoginInput{Login: "ANA@example.com", Password: "correct horse battery", Device: "PC"})
 	if err != nil {
 		t.Fatalf("Login: %v", err)
 	}
@@ -99,7 +100,7 @@ func TestSignupDoesNotRevealExistingAccounts(t *testing.T) {
 	s, _ := newTestService(t)
 	ctx := context.Background()
 	confirmedUser(t, s, "ana@example.com")
-	if err := s.Signup(ctx, SignupInput{Email: "ana@example.com", Password: "another long password"}); err != nil {
+	if err := s.Signup(ctx, SignupInput{Email: "ana@example.com", Username: "ana", Password: "another long password"}); err != nil {
 		t.Fatalf("Signup of an existing address = %v, want nil", err)
 	}
 	emails, _ := s.PendingEmails(ctx, 100)
@@ -113,9 +114,14 @@ func TestSignupValidation(t *testing.T) {
 	s, _ := newTestService(t)
 	ctx := context.Background()
 	for _, in := range []SignupInput{
-		{Email: "not-an-email", Password: "correct horse battery"},
-		{Email: "Ana <ana@example.com>", Password: "correct horse battery"},
-		{Email: "ana@example.com", Password: "short"},
+		{Email: "not-an-email", Username: "ana", Password: "correct horse battery"},
+		{Email: "Ana <ana@example.com>", Username: "ana", Password: "correct horse battery"},
+		{Email: "ana@example.com", Username: "ana", Password: "short"},
+		{Email: "ana@example.com", Username: "ana", Password: "sietecr"},
+		{Email: "ana@example.com", Password: "correct horse battery"},
+		{Email: "ana@example.com", Username: "an", Password: "correct horse battery"},
+		{Email: "ana@example.com", Username: "ana@example.com", Password: "correct horse battery"},
+		{Email: "ana@example.com", Username: "_ana", Password: "correct horse battery"},
 	} {
 		if err := s.Signup(ctx, in); !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("Signup(%+v) = %v, want ErrInvalidInput", in, err)
@@ -128,18 +134,18 @@ func TestLoginLockoutAndReset(t *testing.T) {
 	ctx := context.Background()
 	confirmedUser(t, s, "ana@example.com")
 	for i := 0; i < maxFailedLogins; i++ {
-		if _, err := s.Login(ctx, LoginInput{Email: "ana@example.com", Password: "wrong password!"}); !errors.Is(err, ErrInvalidCredentials) {
+		if _, err := s.Login(ctx, LoginInput{Login: "ana@example.com", Password: "wrong password!"}); !errors.Is(err, ErrInvalidCredentials) {
 			t.Fatalf("attempt %d = %v", i, err)
 		}
 	}
-	if _, err := s.Login(ctx, LoginInput{Email: "ana@example.com", Password: "correct horse battery"}); !errors.Is(err, ErrLocked) {
+	if _, err := s.Login(ctx, LoginInput{Login: "ana@example.com", Password: "correct horse battery"}); !errors.Is(err, ErrLocked) {
 		t.Fatalf("login while locked = %v, want ErrLocked", err)
 	}
 	clock.advance(lockDuration + time.Second)
-	if _, err := s.Login(ctx, LoginInput{Email: "ana@example.com", Password: "correct horse battery"}); err != nil {
+	if _, err := s.Login(ctx, LoginInput{Login: "ana@example.com", Password: "correct horse battery"}); err != nil {
 		t.Fatalf("login after the lock = %v", err)
 	}
-	if _, err := s.Login(ctx, LoginInput{Email: "nobody@example.com", Password: "whatever it is"}); !errors.Is(err, ErrInvalidCredentials) {
+	if _, err := s.Login(ctx, LoginInput{Login: "nobody@example.com", Password: "whatever it is"}); !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("login of an unknown address = %v, want ErrInvalidCredentials", err)
 	}
 }
@@ -148,7 +154,7 @@ func TestPasswordResetRevokesSessions(t *testing.T) {
 	s, _ := newTestService(t)
 	ctx := context.Background()
 	confirmedUser(t, s, "ana@example.com")
-	tokens, err := s.Login(ctx, LoginInput{Email: "ana@example.com", Password: "correct horse battery"})
+	tokens, err := s.Login(ctx, LoginInput{Login: "ana@example.com", Password: "correct horse battery"})
 	if err != nil {
 		t.Fatalf("Login: %v", err)
 	}
@@ -165,7 +171,7 @@ func TestPasswordResetRevokesSessions(t *testing.T) {
 	if _, err := s.Authenticate(ctx, tokens.Access); !errors.Is(err, ErrTokenInvalid) {
 		t.Fatalf("old session after a reset = %v, want ErrTokenInvalid", err)
 	}
-	if _, err := s.Login(ctx, LoginInput{Email: "ana@example.com", Password: "a brand new password"}); err != nil {
+	if _, err := s.Login(ctx, LoginInput{Login: "ana@example.com", Password: "a brand new password"}); err != nil {
 		t.Fatalf("login with the new password: %v", err)
 	}
 	if err := s.ResetPassword(ctx, reset, "yet another password"); !errors.Is(err, ErrTokenInvalid) {
@@ -177,7 +183,7 @@ func TestRefreshRotationAndReuseDetection(t *testing.T) {
 	s, clock := newTestService(t)
 	ctx := context.Background()
 	confirmedUser(t, s, "ana@example.com")
-	first, err := s.Login(ctx, LoginInput{Email: "ana@example.com", Password: "correct horse battery"})
+	first, err := s.Login(ctx, LoginInput{Login: "ana@example.com", Password: "correct horse battery"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +278,7 @@ func TestRemovedMemberLosesWorkspaceAtOnce(t *testing.T) {
 	if _, err := s.AcceptInvitation(ctx, bob.ID, lastToken(t, s, "bob@example.com")); err != nil {
 		t.Fatal(err)
 	}
-	tokens, err := s.Login(ctx, LoginInput{Email: "bob@example.com", Password: "correct horse battery"})
+	tokens, err := s.Login(ctx, LoginInput{Login: "bob@example.com", Password: "correct horse battery"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,7 +370,7 @@ func TestAccessTokenRejectsTampering(t *testing.T) {
 	s, _ := newTestService(t)
 	ctx := context.Background()
 	confirmedUser(t, s, "ana@example.com")
-	tokens, _ := s.Login(ctx, LoginInput{Email: "ana@example.com", Password: "correct horse battery"})
+	tokens, _ := s.Login(ctx, LoginInput{Login: "ana@example.com", Password: "correct horse battery"})
 	body, sig, _ := strings.Cut(tokens.Access, ".")
 	for _, bad := range []string{"", "x", body + ".AAAA", "AAAA." + sig, body + "." + sig + "x"} {
 		if _, err := s.Authenticate(ctx, bad); !errors.Is(err, ErrTokenInvalid) {
@@ -416,10 +422,10 @@ func TestAPITokenReachesOnlyItsWorkspaceAndCanBeRevoked(t *testing.T) {
 func TestSignupBySomeoneElseCannotKeepTheAccount(t *testing.T) {
 	s, _ := newTestService(t)
 	ctx := context.Background()
-	if err := s.Signup(ctx, SignupInput{Email: "victim@example.com", Password: "attacker password"}); err != nil {
+	if err := s.Signup(ctx, SignupInput{Email: "victim@example.com", Username: "attacker", Password: "attacker password"}); err != nil {
 		t.Fatalf("attacker Signup: %v", err)
 	}
-	if err := s.Signup(ctx, SignupInput{Email: "victim@example.com", Password: "victim password!"}); err != nil {
+	if err := s.Signup(ctx, SignupInput{Email: "victim@example.com", Username: "victim", Password: "victim password!"}); err != nil {
 		t.Fatalf("victim Signup: %v", err)
 	}
 	token := lastToken(t, s, "victim@example.com")
@@ -429,10 +435,10 @@ func TestSignupBySomeoneElseCannotKeepTheAccount(t *testing.T) {
 	if err := s.ConfirmEmail(ctx, token, "victim password!"); err != nil {
 		t.Fatalf("confirm after a wrong password should still work: %v", err)
 	}
-	if _, err := s.Login(ctx, LoginInput{Email: "victim@example.com", Password: "attacker password"}); !errors.Is(err, ErrInvalidCredentials) {
+	if _, err := s.Login(ctx, LoginInput{Login: "victim@example.com", Password: "attacker password"}); !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("attacker login = %v, want ErrInvalidCredentials", err)
 	}
-	if _, err := s.Login(ctx, LoginInput{Email: "victim@example.com", Password: "victim password!"}); err != nil {
+	if _, err := s.Login(ctx, LoginInput{Login: "victim@example.com", Password: "victim password!"}); err != nil {
 		t.Fatalf("victim login: %v", err)
 	}
 }

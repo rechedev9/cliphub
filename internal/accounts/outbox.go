@@ -83,7 +83,7 @@ func (s *Service) ExportUser(ctx context.Context, userID string) (UserExport, er
 // workspaces it deleted so the caller removes their data folders.
 func (s *Service) DeleteUser(ctx context.Context, userID, password string) ([]string, error) {
 	var email, hash string
-	if err := s.db.QueryRowContext(ctx, `SELECT email, password_hash FROM users WHERE id = ?`, userID).Scan(&email, &hash); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(email, ''), password_hash FROM users WHERE id = ?`, userID).Scan(&email, &hash); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}

@@ -24,13 +24,14 @@ var (
 	ErrNotFound           = errors.New("not found")
 	ErrInvalidInput       = errors.New("invalid input")
 	ErrConflict           = errors.New("conflict")
+	ErrUsernameTaken      = errors.New("username taken")
 )
 
 const (
 	RoleOwner  = "owner"
 	RoleMember = "member"
 
-	minPasswordLen  = 10
+	minPasswordLen  = 8
 	maxPasswordLen  = 128
 	maxFailedLogins = 5
 	lockDuration    = 15 * time.Minute
@@ -90,6 +91,10 @@ func Open(path string, opts Options) (*Service, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("accounts: schema: %w", err)
 	}
+	if err := migrateUsers(db); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("accounts: migrate users: %w", err)
+	}
 	s := &Service{db: db, key: opts.SigningKey, publicURL: strings.TrimRight(opts.PublicURL, "/"), iterations: opts.PBKDF2Iterations, now: opts.Now}
 	if s.iterations <= 0 {
 		s.iterations = 600000
@@ -117,17 +122,23 @@ func (s *Service) inTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	return tx.Commit()
 }
 
-const schema = `
-CREATE TABLE IF NOT EXISTS users (
+// usersColumns is the users table; migrateUsers rebuilds an older one to it.
+// An account has an email, a username or both; email_confirmed_at marks it active.
+const usersColumns = `(
 	id                 TEXT PRIMARY KEY,
-	email              TEXT NOT NULL UNIQUE COLLATE NOCASE,
+	email              TEXT UNIQUE COLLATE NOCASE,
+	username           TEXT UNIQUE COLLATE NOCASE,
 	password_hash      TEXT NOT NULL,
 	display_name       TEXT NOT NULL DEFAULT '',
 	email_confirmed_at INTEGER,
 	failed_logins      INTEGER NOT NULL DEFAULT 0,
 	locked_until       INTEGER NOT NULL DEFAULT 0,
-	created_at         INTEGER NOT NULL
-);
+	created_at         INTEGER NOT NULL,
+	CHECK (email IS NOT NULL OR username IS NOT NULL)
+)`
+
+const schema = `
+CREATE TABLE IF NOT EXISTS users ` + usersColumns + `;
 CREATE TABLE IF NOT EXISTS email_tokens (
 	token_hash TEXT PRIMARY KEY,
 	user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

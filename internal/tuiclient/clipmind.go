@@ -9,7 +9,7 @@ import (
 type ClipMindStatus struct {
 	Connected     bool   `json:"connected"`
 	ServerURL     string `json:"server_url,omitempty"`
-	Email         string `json:"email,omitempty"`
+	Login         string `json:"login,omitempty"`
 	WorkspaceID   string `json:"workspace_id,omitempty"`
 	WorkspaceName string `json:"workspace_name,omitempty"`
 	LastSyncAt    int64  `json:"last_sync_at,omitempty"`
@@ -45,6 +45,7 @@ type WhoAmI struct {
 	User struct {
 		ID          string `json:"id"`
 		Email       string `json:"email"`
+		Username    string `json:"username"`
 		DisplayName string `json:"display_name"`
 	} `json:"user"`
 	Workspace *struct {

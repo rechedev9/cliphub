@@ -10,7 +10,7 @@ import { SettingsSection } from './settings-section';
 interface Status {
   connected: boolean;
   serverUrl: string;
-  email: string;
+  login: string;
   workspaceName: string;
   lastSyncAt: number;
   lastError: string;
@@ -33,7 +33,7 @@ function readStatus(value: unknown): Status | undefined {
   return {
     connected: value.connected,
     serverUrl: text(value.server_url),
-    email: text(value.email),
+    login: text(value.login),
     workspaceName: text(value.workspace_name),
     lastSyncAt: typeof value.last_sync_at === 'number' ? value.last_sync_at : 0,
     lastError: text(value.last_error),
@@ -74,7 +74,7 @@ export function ClipMindAccount(): ReactNode {
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [server, setServer] = useState(DEFAULT_SERVER);
-  const [email, setEmail] = useState('');
+  const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
 
   const refresh = useCallback(async (): Promise<Status | undefined> => {
@@ -106,7 +106,7 @@ export function ClipMindAccount(): ReactNode {
 
   async function connect(event: FormEvent): Promise<void> {
     event.preventDefault();
-    await act('account', 'POST', { server_url: server, email, password });
+    await act('account', 'POST', { server_url: server, login, password });
     setPassword('');
   }
 
@@ -124,7 +124,7 @@ export function ClipMindAccount(): ReactNode {
       {status?.connected === true ? (
         <div className="flex flex-col gap-3">
           <p className="text-body-sm text-fg-1">
-            {status.email} <span className="text-fg-3">· {status.workspaceName}</span>
+            {status.login} <span className="text-fg-3">· {status.workspaceName}</span>
           </p>
           <p className="text-body-sm text-fg-2">
             {lastSync(status)}
@@ -149,8 +149,10 @@ export function ClipMindAccount(): ReactNode {
           <Field label="Servidor" hint="La dirección de tu ClipMind.">
             {(control) => <Input {...control} type="url" value={server} onChange={(event) => setServer(event.target.value)} required />}
           </Field>
-          <Field label="Correo" required>
-            {(control) => <Input {...control} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />}
+          <Field label="Usuario o correo" required>
+            {(control) => (
+              <Input {...control} autoComplete="username" autoCapitalize="none" spellCheck={false} value={login} onChange={(event) => setLogin(event.target.value)} required />
+            )}
           </Field>
           <Field label="Contraseña" required>
             {(control) => <Input {...control} type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />}

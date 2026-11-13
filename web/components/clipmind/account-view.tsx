@@ -7,6 +7,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { FormError } from '@/components/clipmind/auth-forms';
 import {
+  accountLabel,
   cm,
   isDone,
   parseApiKeys,
@@ -101,6 +102,7 @@ export function AccountView(): ReactNode {
     return error ? <FormError message={error} /> : <p className="text-body-sm text-fg-3">Cargando…</p>;
   }
   const { me, sessions, keys } = data;
+  const who = accountLabel(me.user);
 
   return (
     <div className="measure-work flex flex-col gap-6">
@@ -108,7 +110,7 @@ export function AccountView(): ReactNode {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-body-sm text-fg-1">
-          {me.user.display_name === '' ? me.user.email : me.user.display_name} <span className="text-fg-3">{me.user.email}</span>
+          {who.name} <span className="text-fg-3">{who.detail}</span>
         </p>
         <Button type="button" variant="outline" onClick={() => void signOut()}>
           Salir

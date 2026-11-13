@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { safeNext } from './client.ts';
+import { accountLabel, safeNext } from './client.ts';
 
 test('safeNext keeps a path inside the app', () => {
   assert.equal(safeNext('/invitacion?token=t#x'), '/invitacion?token=t#x');
   assert.equal(safeNext(null), '/partidas');
+});
+
+test('accountLabel shows the name first and never repeats it', () => {
+  assert.deepEqual(accountLabel({ display_name: 'Ana', username: 'ana', email: 'ana@example.com' }), { name: 'Ana', detail: 'ana · ana@example.com' });
+  assert.deepEqual(accountLabel({ display_name: '', username: 'solo', email: '' }), { name: 'solo', detail: '' });
+  assert.deepEqual(accountLabel({ display_name: '', username: '', email: 'ana@example.com' }), { name: 'ana@example.com', detail: '' });
 });
 
 test('safeNext refuses any path the router would read as another site', () => {

@@ -31,16 +31,17 @@ type Principal struct {
 	APIToken bool
 }
 
-// LoginInput is a password login. Device names the client, such as "Studio en PC-Luis".
+// LoginInput is a password login. Login is the email or the username; Device
+// names the client, such as "Studio en PC-Luis".
 type LoginInput struct {
-	Email    string
+	Login    string
 	Password string
 	Device   string
 }
 
 // Login checks the password and opens a session in the user's first workspace.
 func (s *Service) Login(ctx context.Context, in LoginInput) (Tokens, error) {
-	u, err := s.authenticate(ctx, in.Email, in.Password)
+	u, err := s.authenticate(ctx, in.Login, in.Password)
 	if err != nil {
 		return Tokens{}, err
 	}

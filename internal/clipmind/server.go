@@ -58,16 +58,11 @@ type Server struct {
 	handler  http.Handler
 }
 
-// New opens the catalog and builds the routes. Close releases them.
-func New(cfg Config) (*Server, error) {
+// OpenCatalog opens the account catalog in cfg.DataDir, creating the folder and
+// the signing key on first use. New calls it, and so does "clipmind-server user add".
+func OpenCatalog(cfg Config) (*accounts.Service, error) {
 	if cfg.DataDir == "" {
 		return nil, errors.New("clipmind: data dir is required")
-	}
-	if cfg.Now == nil {
-		cfg.Now = time.Now
-	}
-	if cfg.Mailer == nil {
-		cfg.Mailer = LogMailer{}
 	}
 	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
 		return nil, fmt.Errorf("clipmind: data dir: %w", err)
@@ -76,9 +71,20 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	svc, err := accounts.Open(filepath.Join(cfg.DataDir, "catalog.db"), accounts.Options{
+	return accounts.Open(filepath.Join(cfg.DataDir, "catalog.db"), accounts.Options{
 		SigningKey: key, PublicURL: cfg.PublicURL, PBKDF2Iterations: cfg.PBKDF2Iterations, Now: cfg.Now,
 	})
+}
+
+// New opens the catalog and builds the routes. Close releases them.
+func New(cfg Config) (*Server, error) {
+	if cfg.Now == nil {
+		cfg.Now = time.Now
+	}
+	if cfg.Mailer == nil {
+		cfg.Mailer = LogMailer{}
+	}
+	svc, err := OpenCatalog(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +344,7 @@ func writeAccountError(w http.ResponseWriter, op string, err error) {
 	case errors.Is(err, accounts.ErrInvalidInput):
 		writeError(w, http.StatusBadRequest, "invalid_input", cleanMessage(err))
 	case errors.Is(err, accounts.ErrInvalidCredentials):
-		writeError(w, http.StatusUnauthorized, "invalid_credentials", "email or password is wrong")
+		writeError(w, http.StatusUnauthorized, "invalid_credentials", "username, email or password is wrong")
 	case errors.Is(err, accounts.ErrEmailNotConfirmed):
 		writeError(w, http.StatusForbidden, "email_not_confirmed", "confirm your email first")
 	case errors.Is(err, accounts.ErrLocked):
@@ -349,6 +355,8 @@ func writeAccountError(w http.ResponseWriter, op string, err error) {
 		writeError(w, http.StatusForbidden, "forbidden", cleanMessage(err))
 	case errors.Is(err, accounts.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "not found")
+	case errors.Is(err, accounts.ErrUsernameTaken):
+		writeError(w, http.StatusConflict, "username_taken", "that username is taken")
 	case errors.Is(err, accounts.ErrConflict):
 		writeError(w, http.StatusConflict, "conflict", cleanMessage(err))
 	default:

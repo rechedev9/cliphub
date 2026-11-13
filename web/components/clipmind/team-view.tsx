@@ -7,6 +7,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { FormError } from '@/components/clipmind/auth-forms';
 import {
+  accountLabel,
   cm,
   isDone,
   parseInvitations,
@@ -144,7 +145,7 @@ export function TeamView(): ReactNode {
               {members.map((member) => (
                 <li key={member.user_id} className="flex items-center justify-between gap-4 px-4 py-2.5">
                   <span className="min-w-0 truncate text-body-sm text-fg-1">
-                    {member.display_name === '' ? member.email : member.display_name} <span className="text-fg-3">{member.email}</span>
+                    {accountLabel(member).name} <span className="text-fg-3">{accountLabel(member).detail}</span>
                   </span>
                   {isOwner && member.user_id !== me.user.id ? (
                     <span className="flex shrink-0 gap-2">
@@ -154,7 +155,7 @@ export function TeamView(): ReactNode {
                         variant="outline"
                         disabled={busy}
                         onClick={() => {
-                          if (window.confirm(`¿Traspasar el espacio a ${member.email}? Dejarás de ser el dueño.`)) {
+                          if (window.confirm(`¿Traspasar el espacio a ${accountLabel(member).name}? Dejarás de ser el dueño.`)) {
                             void run(() => cm(`workspaces/${workspace.id}/transfer`, { method: 'POST', body: { user_id: member.user_id }, parse: isDone }));
                           }
                         }}
@@ -167,7 +168,7 @@ export function TeamView(): ReactNode {
                         variant="destructive"
                         disabled={busy}
                         onClick={() => {
-                          if (window.confirm(`¿Expulsar a ${member.email} del espacio?`)) {
+                          if (window.confirm(`¿Expulsar a ${accountLabel(member).name} del espacio?`)) {
                             void run(() => cm(`workspaces/${workspace.id}/members/${member.user_id}`, { method: 'DELETE', parse: isDone }));
                           }
                         }}

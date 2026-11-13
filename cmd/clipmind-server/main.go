@@ -17,6 +17,9 @@
 //	CLIPMIND_CS2_PATH      cs2.exe or the linux cs2 binary of a CS2 install (SteamCMD app 730); maps and icons come from it
 //	CLIPMIND_COMMUNITY_URL pro data server: empty for the default, "off" for none
 //	CLIPMIND_FACEIT_API_KEY FACEIT Data API key; empty disables linking players to FACEIT
+//
+// "clipmind-server user add -username NAME [-email ADDRESS] [-name NAME]" creates
+// an active account in CLIPMIND_DATA_DIR and reads its password from standard input.
 package main
 
 import (
@@ -34,7 +37,13 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	var err error
+	if len(os.Args) > 1 && os.Args[1] == "user" {
+		err = runUser(os.Args[2:])
+	} else {
+		err = run()
+	}
+	if err != nil {
 		log.Printf("fatal: %v", err)
 		os.Exit(1)
 	}
