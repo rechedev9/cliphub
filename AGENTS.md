@@ -37,12 +37,16 @@ This file is the index. Rules live in `.claude/rules/` and load on their own whe
 
 ## Golden rules
 
-- Source files stay at or under 1000 lines: `TestGoFileLength` (`cmd/zv/file_length_test.go`) for Go, `max-lines` in the web, desktop, landing and mcp-apps oxlint configs for TS. Files already past the cap are frozen at their size and may only shrink; lower or drop the frozen entry in the same change. Split by responsibility, each new file (or package, when there is a real API boundary) owning one concern, such as `handlers_library.go` and `handlers_streams.go`. A cut by line count (`handlers2.go`) does not count. [Split a file](.claude/skills/split-file/SKILL.md).
-- `TestNoDeadCode` (`cmd/zv/deadcode_test.go`) runs pinned `deadcode` and `staticcheck -checks U1000` for both `GOOS=windows` and `GOOS=linux`. A function that only tests call is dead: delete it, or move a real test helper into a `_test.go` file. A helper only `_windows.go` code calls belongs in a `_windows.go` file.
-- There is no CI on pushes or PRs. `.github/workflows/desktop-release.yml` runs the checks (Go with `-short`, web, desktop) before it publishes a release. Run the checks for what you touched, and the full Go suite before a release. [Release](.claude/rules/release.md).
-- Start Studio from a throwaway profile, never the real `%APPDATA%\cliphub-studio`. [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md).
-- A session's `cliphub-studio` MCP talks to the real Studio; never use it for a check. Drive imports and other state changes through the branch's `bin\zv-mcp.exe`.
-- The repository is public. Write `<user>` and `%APPDATA%` instead of a real profile path, and leave out tokens, keys, support codes and anything from `agent-session.json`.
+Each rule has a check or a longer page behind it. Follow the link before you work around one.
+
+- Source files stay at or under 1000 lines; frozen files only shrink (`TestGoFileLength`, oxlint `max-lines`). [Split a file](.claude/skills/split-file/SKILL.md).
+- No production function that only tests call (`TestNoDeadCode`, skipped by `-short`).
+- A UI feature lands with its `cmd/zv-mcp` tool, `serverInstructions` and `docs/studio-mcp.md` row. [MCP parity](.claude/rules/mcp-parity.md).
+- A store method lands in SQLite and memory with a shared contract test. [SQLite store](.claude/rules/store-sqlite.md).
+- No e2e suites, verification scripts, evidence folders or reports; `internal/pipeline` goldens are the one exception. [Render and the editor](.claude/rules/render-editor.md).
+- No CI on pull requests. Run the checks for what you touched; the full Go suite before a release. [Release](.claude/rules/release.md).
+- Check changes in a throwaway Studio profile, never the real `%APPDATA%\cliphub-studio`, and never through the session's `cliphub-studio` MCP. [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md).
+- The repository is public: write `<user>` and `%APPDATA%`, never tokens, keys, support codes or `agent-session.json` contents.
 
 ## Index
 
@@ -78,7 +82,7 @@ Keep both in step with the PR body sections and with what `studio_status` return
 
 ## Maintenance
 
-- A rule changes in the same PR as the code it describes.
-- A rule points at the test, the linter or the `docs/incidents.md` section that enforces it, and does not copy that text.
-- [Diff review](.claude/skills/diff-review/SKILL.md) checks that a behavior change updated its rule in the same PR.
-- Review the rules at each release. That step is in [Release check](.claude/skills/release-check/SKILL.md).
+- When agents repeat a mistake, add a test or lint first. Write a rule only for what a check cannot catch.
+- A rule states the invariant and names the test, linter or `docs/incidents.md` section behind it. It does not copy counts, lists or messages from the code.
+- A rule changes in the same PR as the code it describes. [Diff review](.claude/skills/diff-review/SKILL.md) checks it, and [Release check](.claude/skills/release-check/SKILL.md) rereads the rules before each release.
+- Keep this file an index. When a section here grows past a few lines, it moves to a rule or a skill.

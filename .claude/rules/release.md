@@ -12,8 +12,8 @@ Release steps (version files, the prepare commit, the annotated tag) are in `doc
 ## What has to be green
 
 - The checks for what you touched, from [the index](../../AGENTS.md#build-and-check).
-- The full Go suite, locally, with `-timeout 30m`: `go test ./... -count=1 -timeout 30m`. `go test -short` skips the slow FFmpeg renders and `TestNoDeadCode`, and the `checks` job of `.github/workflows/desktop-release.yml` runs with `-short`. The full suite is the local run, before a release.
-- The latest official HLAE. The workflow runs `node --no-warnings desktop/scripts/check-hlae-latest.mjs` and fails the release unless `desktop/src/hlae-tool.json` is advancedfx's latest release. Bump the pin and prove it with a real capture before tagging. The pin rules are [HLAE pin and capture](capture-hlae.md) and `docs/incidents.md` (**HLAE pin and CS2 updates**, including **a release shipped on a pin CS2 had already broken**).
+- The full Go suite, locally: `go test ./... -count=1 -timeout 30m`. The release workflow only runs `-short`, which skips the FFmpeg renders and `TestNoDeadCode`.
+- The latest official HLAE, proved with a real capture when the pin moves. [HLAE pin and capture](capture-hlae.md).
 
 ## Dry run
 

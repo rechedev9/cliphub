@@ -10,13 +10,13 @@ paths:
 
 # HLAE pin and capture
 
-Capture runs CS2 through HLAE (`zv-recorder`). The pin, the boot-time lookup and the incidents live in `docs/incidents.md`, section **HLAE pin and CS2 updates** (`desktop/src/hlae-tool.ts`, `desktop/src/hlae-tool.json`, `desktop/src/runtime-tools.ts`, `desktop/src/hlae-latest.ts`). Follow that section. This file only names the invariants and where they are enforced.
+Capture runs CS2 through HLAE (`zv-recorder`). The history is `docs/incidents.md`, section **HLAE pin and CS2 updates**. This file names the invariants and where they are enforced.
 
 ## Pin and CS2 updates
 
 - Studio boots the latest official HLAE when GitHub's `releases/latest` is newer than the bundled pin, and falls back to the pin when the lookup or its digest check fails. `provisionHLAE` is in `desktop/src/runtime-tools.ts`. The lookup runs at boot; a CS2 update while Studio is open is picked up by restarting Studio.
 - A release is refused unless the pin is advancedfx's latest release: `node --no-warnings desktop/scripts/check-hlae-latest.mjs`, which `.github/workflows/desktop-release.yml` runs. Bump the pin and prove it with a real capture before tagging. See [Release](release.md).
-- Exit code 6 / `capture_incompatible` means HLAE versus the CS2 build. Compare `PatchVersion` in `game\csgo\steam.inf` with the pinned release's AfxHookSource2 changelog before bisecting ClipHub commits. The incidents under the HLAE heading are the history (Studio 4.0.1 through 5.4.1).
+- Exit code 6 / `capture_incompatible` means HLAE versus the CS2 build. Compare `PatchVersion` in `game\csgo\steam.inf` with the pinned release's AfxHookSource2 changelog before bisecting ClipHub commits.
 
 ## Capture pitfalls
 

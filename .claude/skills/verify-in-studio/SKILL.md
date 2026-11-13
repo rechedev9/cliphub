@@ -36,25 +36,6 @@ Drive and check the UI in the built-in browser pane, on the web server that Stud
 
 ## Checks
 
-The hand check above is the bar for a user-visible change. Before the PR, the automated checks for what you touched are green:
+The hand check is the bar for a user-visible change. Before the PR, the checks for what you touched are also green, with the full Go suite (`-timeout 30m`, not `-short`). The commands are in [Build and check](../../../AGENTS.md#build-and-check).
 
-```bash
-go vet ./...
-go test ./... -count=1 -timeout 30m
-go run ./cmd/zv check
-```
-
-`go test -short ./...` is the fast loop only. It skips the slow FFmpeg renders and `TestNoDeadCode`. When `web/` or `desktop/` changed:
-
-```bash
-pnpm --dir web run typecheck
-pnpm --dir web run lint
-pnpm --dir web run test:unit
-pnpm --dir desktop run typecheck
-pnpm --dir desktop run lint
-pnpm --dir desktop run test:unit
-```
-
-`pnpm --dir web run build` when the web server output changed. One test: `pnpm --dir <pkg> exec node --test <path>.test.ts`, or `go test ./internal/<pkg> -run TestName -count=1`.
-
-The change is finished when the throwaway-profile pass matches the notes in the PR and those commands are green. Redact the PR: `<user>` and `%APPDATA%`, no tokens, keys, support codes, or contents of `agent-session.json`.
+The change is finished when the throwaway-profile pass matches the notes in the PR and those checks are green. Redact the PR: `<user>` and `%APPDATA%`, no tokens, keys, support codes, or contents of `agent-session.json`.
