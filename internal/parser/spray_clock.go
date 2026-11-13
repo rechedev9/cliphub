@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -36,17 +37,21 @@ func TrackSprayClock(p demoinfocs.Parser) *SprayClock {
 	return c
 }
 
+// observe reads m_rtGcTime, an RTime32 that demoinfocs decodes as uint64.
 func (c *SprayClock) observe(raw any) {
-	var seconds int64
+	var seconds uint64
 	switch v := raw.(type) {
+	case uint64:
+		seconds = v
 	case uint32:
-		seconds = int64(v)
-	case int32:
-		seconds = int64(v)
+		seconds = uint64(v)
 	default:
 		return
 	}
-	at := time.Unix(seconds, 0).UTC()
+	if seconds > math.MaxUint32 {
+		return
+	}
+	at := time.Unix(int64(seconds), 0).UTC() // #nosec G115 -- bounded by MaxUint32 above.
 	if at.Before(cs2Release) {
 		return
 	}
