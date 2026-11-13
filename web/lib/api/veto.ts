@@ -149,9 +149,9 @@ export type VetoQuery = {
 };
 
 /** The pool the simulator starts from (`library.DefaultMapPool`); the user edits it. */
-export const DEFAULT_MAP_POOL = ['de_ancient', 'de_anubis', 'de_dust2', 'de_inferno', 'de_mirage', 'de_nuke', 'de_train'] as const;
+export const DEFAULT_MAP_POOL = ['de_ancient', 'de_anubis', 'de_cache', 'de_dust2', 'de_inferno', 'de_mirage', 'de_nuke'] as const;
 /** Maps the pool editor offers besides the default pool. */
-export const EXTRA_POOL_MAPS = ['de_overpass', 'de_vertigo'] as const;
+export const EXTRA_POOL_MAPS = ['de_overpass', 'de_train', 'de_vertigo'] as const;
 
 export const SERIES_KEYS = ['id', 'format', 'event', 'veto', 'team_ids', 'teams', 'vetoes', 'veto_auto', 'match_ids', 'created_at', 'updated_at'];
 export const SERIES_FIELDS = ['format', 'event', 'veto', 'team_ids', 'vetoes'];

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/library"
@@ -58,9 +59,13 @@ func TestLibrarySeriesVetoMapsAndSimulator(t *testing.T) {
 	}
 
 	var veto vetoResponse
-	env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/veto?opponent_id="+f.mouz.String()+"&format=bo1&done=de_train", nil, http.StatusOK, &veto)
-	if veto.OpponentName != "MOUZ" || len(veto.Plan.Steps) != 7 || veto.Plan.Steps[0].Map != "de_train" || len(veto.Plan.Played) != 1 {
+	env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/veto?opponent_id="+f.mouz.String()+"&format=bo1&done=de_cache", nil, http.StatusOK, &veto)
+	if veto.OpponentName != "MOUZ" || len(veto.Plan.Steps) != 7 || veto.Plan.Steps[0].Map != "de_cache" || len(veto.Plan.Played) != 1 {
 		t.Fatalf("veto = %+v", veto.Plan)
+	}
+	// With no pool the simulator plays the Active Duty pool, so it never offers Train.
+	if !slices.Equal(veto.Plan.Pool, library.DefaultMapPool) {
+		t.Fatalf("pool = %v, want %v", veto.Plan.Pool, library.DefaultMapPool)
 	}
 	for _, path := range []string{
 		"/veto?opponent_id=" + f.vitality.String(),
