@@ -148,7 +148,8 @@ export function AppSidebar(): ReactElement {
             <NavRow key={entry.id} entry={entry} href={sidebarHref(entry, where)} active={entry.id === activeId} />
           ))}
         </SidebarMenu>
-        <CaptureReadiness />
+        {/* The web has no PC that records, so no capture status. */}
+        {edition === 'web' ? null : <CaptureReadiness />}
       </SidebarFooter>
 
       {/* Without this the icon rail was reachable only through an undocumented Ctrl/Cmd+B. */}
