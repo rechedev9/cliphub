@@ -1,6 +1,8 @@
 package library
 
 import (
+	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -75,6 +77,30 @@ func mapRecord(name string, won, lost, bans, picks int) MapRecord {
 		r.Veto.Picked.add(uuid.New())
 	}
 	return r
+}
+
+// Valve's Active Duty pool since 6 July 2026, when Cache replaced Overpass.
+// web/lib/api/veto.ts copies it as DEFAULT_MAP_POOL, so both stay in step.
+func TestDefaultMapPoolIsTheActiveDutyPool(t *testing.T) {
+	want := []string{"de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke"}
+	if !slices.Equal(DefaultMapPool, want) {
+		t.Fatalf("DefaultMapPool = %v, want %v", DefaultMapPool, want)
+	}
+	src, err := os.ReadFile("../../web/lib/api/veto.ts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	literal := regexp.MustCompile(`DEFAULT_MAP_POOL = \[([^\]]*)\]`).FindSubmatch(src)
+	if literal == nil {
+		t.Fatal("web/lib/api/veto.ts has no DEFAULT_MAP_POOL array")
+	}
+	web := []string{}
+	for _, m := range regexp.MustCompile(`'([a-z0-9_]+)'`).FindAllSubmatch(literal[1], -1) {
+		web = append(web, string(m[1]))
+	}
+	if !slices.Equal(web, DefaultMapPool) {
+		t.Fatalf("web DEFAULT_MAP_POOL = %v, want %v", web, DefaultMapPool)
+	}
 }
 
 func TestSimulateVetoRecommendsByEdgeAndOpponentHabits(t *testing.T) {
