@@ -8,9 +8,9 @@ import (
 	"strings"
 )
 
-// DefaultMapPool is the pool the simulator starts from. The user can edit it,
-// because Valve rotates the active duty pool.
-var DefaultMapPool = []string{"de_ancient", "de_anubis", "de_dust2", "de_inferno", "de_mirage", "de_nuke", "de_train"}
+// DefaultMapPool is the pool the simulator starts from: Valve's Active Duty pool
+// since 6 July 2026. The user can edit it, because Valve rotates that pool.
+var DefaultMapPool = []string{"de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke"}
 
 // Veto model. Both constants travel in the response so the UI shows the rule.
 const (

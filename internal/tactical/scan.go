@@ -16,6 +16,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
@@ -75,6 +76,8 @@ type Result struct {
 	// Header is the demo file header, when the demo carried one. It is not
 	// part of the document: the server name in it can name a person.
 	Header parser.DemoHeader
+	// PlayedAt is the earliest signed spray in the demo, zero when it has none.
+	PlayedAt time.Time
 }
 
 // ScanFile opens a demo, scans it, and fills in the demo path and checksum.
@@ -141,6 +144,7 @@ func Scan(p demoinfocs.Parser, opts Options) (Result, error) {
 	s := newScanner(p, opts, hz)
 	s.register()
 	header := parser.TrackDemoHeader(p)
+	sprays := parser.TrackSprayClock(p)
 
 	if err := parser.ParseToEnd(p); err != nil {
 		return Result{}, fmt.Errorf("parsing demo: %w", err)
@@ -150,6 +154,7 @@ func Scan(p demoinfocs.Parser, opts Options) (Result, error) {
 		return Result{}, err
 	}
 	result.Header, _ = header.Header()
+	result.PlayedAt, _ = sprays.Earliest()
 	return result, nil
 }
 

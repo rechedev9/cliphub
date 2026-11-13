@@ -123,7 +123,7 @@ func (h *Handlers) patternPicture(resp *patternRunResponse, inputs []tacticalpla
 	for i, in := range inputs {
 		all[i] = in.Match
 	}
-	resp.ReferenceMatchID, resp.Geometry = referenceGeometry(all)
+	resp.ReferenceMatchID, resp.Geometry = referenceGeometry(resp.Map, all)
 	matched := tacticalplan.OnlyMatched(inputs, resp.Result)
 	focus, ok := patternFocus(resp.Pattern)
 	if ok && focus.Rival {

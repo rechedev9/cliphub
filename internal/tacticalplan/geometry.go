@@ -11,6 +11,32 @@ import (
 // stood during the demo, which is the only map shape a demo can prove.
 const GeometrySourceOccupancy = "occupancy"
 
+// GeometrySourceShipped marks geometry built from the shipped radar calibration
+// alone, for a map with no analysed match: the radar draws, with no cells or callouts.
+const GeometrySourceShipped = "shipped"
+
+// defaultCellSize is the occupancy grid's cell in world units when the caller names none.
+const defaultCellSize = 64
+
+// ShippedGeometry is the radar of a calibrated map with no play on it: the
+// overview's whole extent and no cells or callouts. False for an uncalibrated map.
+func ShippedGeometry(mapName string) (MapGeometry, bool) {
+	cal, ok := radarmap.Lookup(mapName)
+	if !ok {
+		return MapGeometry{}, false
+	}
+	extent := float64(cal.Size) * cal.Scale
+	return MapGeometry{
+		Map:         mapName,
+		Source:      GeometrySourceShipped,
+		Calibration: cal,
+		Bounds:      radarmap.Bounds{MinX: cal.PosX, MinY: cal.PosY - extent, MaxX: cal.PosX + extent, MaxY: cal.PosY},
+		CellSize:    defaultCellSize,
+		Levels:      []GeometryLevel{},
+		Callouts:    []Callout{},
+	}, true
+}
+
 // MapGeometry is the drawable map, derived from play rather than from game
 // assets: an occupancy grid of the walkable space plus the callout centroids
 // CS2 itself labels positions with. It ships inside the document so a viewer
@@ -87,7 +113,7 @@ type calloutAcc struct {
 // finished geometry so a viewer needs nothing else to draw it.
 func NewOccupancyBuilder(cal radarmap.Calibration, cellSize float64) *OccupancyBuilder {
 	if cellSize <= 0 {
-		cellSize = 64
+		cellSize = defaultCellSize
 	}
 	return &OccupancyBuilder{
 		cellSize: cellSize,

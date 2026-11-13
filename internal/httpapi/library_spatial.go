@@ -174,9 +174,13 @@ func (h *Handlers) positionsReader(demoID uuid.UUID) func() ([]byte, error) {
 }
 
 // referenceGeometry picks the radar every position is drawn on: the newest
-// match whose calibration comes from the map's overview, else the newest.
-func referenceGeometry(matches []tacticalplan.SpatialMatch) (*uuid.UUID, *tacticalplan.MapGeometry) {
+// match whose calibration comes from the map's overview, else the newest. With no
+// match it is the shipped radar of mapName, so a map with no analysed play still draws.
+func referenceGeometry(mapName string, matches []tacticalplan.SpatialMatch) (*uuid.UUID, *tacticalplan.MapGeometry) {
 	if len(matches) == 0 {
+		if shipped, ok := tacticalplan.ShippedGeometry(mapName); ok {
+			return nil, &shipped
+		}
 		return nil, nil
 	}
 	pick := matches[0]
@@ -191,7 +195,7 @@ func referenceGeometry(matches []tacticalplan.SpatialMatch) (*uuid.UUID, *tactic
 }
 
 func (h *Handlers) buildSpatial(resp spatialResponse, matches []tacticalplan.SpatialMatch, req spatialRequest) (spatialResponse, error) {
-	resp.ReferenceMatchID, resp.Geometry = referenceGeometry(matches)
+	resp.ReferenceMatchID, resp.Geometry = referenceGeometry(resp.Map, matches)
 	if req.overlay {
 		overlay, err := tacticalplan.BuildOverlay(matches, req.limit)
 		if err != nil {
