@@ -427,7 +427,7 @@ path (`export_libreta`, `export_plays`, `export_playlists`, `import_plays`, `imp
 on the server. Pinned players, team roles and the team profile save in the workspace library, which syncs with Studio, so
 `set_pinned_players`, `set_team_roles` and `update_team` work here. The pro tools (`list_pro_matches`, `import_pro_match`,
 `find_pro_lineups`, `get_pro_lineup`, `list_pro_lineup_maps`, `save_pro_lineup`, `list_pro_combos`, `pro_grenade_meta` and the
-pro follows) read the community server as Studio does, and `link_player_faceit` works when the server has a FACEIT key. Maps, radar and equipment icons come from a CS2 install on the server
+pro follows) read the community server as Studio does, and `link_player_faceit` works when the server has a FACEIT key. Map geometry, equipment icons and the radar of any map Studio does not ship come from a CS2 install on the server
 (`CLIPMIND_CS2_PATH`, for example SteamCMD app 730), as Studio reads them from the user's CS2.
 Demos are imported by the user in the web
 app, which parses them in the browser. Signing in with OAuth, so an assistant needs no pasted key, is a later step.
