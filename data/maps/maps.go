@@ -19,7 +19,8 @@ var radarFiles embed.FS
 var shotFiles embed.FS
 
 // Radar returns the bundled overview radar for a map and layer, or nil when
-// the bundle has none. Layer is "upper" or "lower".
+// the bundle has none. Layer is "upper" or "lower". Every radar is square and
+// spans the map's radarmap calibration square, at twice CS2's 1024 pixels.
 func Radar(mapName, layer string) []byte {
 	base := strings.TrimPrefix(mapName, "de_")
 	base = strings.TrimPrefix(base, "cs_")

@@ -177,6 +177,16 @@ func LibraryTacticalPositionsKey(id uuid.UUID) string {
 	return path.Join(LibraryDemoPrefix(id), "positions.zvpos")
 }
 
+// LibraryScanRunningKey holds the boot id of the process scanning a library demo, empty when none is.
+func LibraryScanRunningKey(id uuid.UUID) string {
+	return path.Join(LibraryDemoPrefix(id), "scan-running")
+}
+
+// LibraryScanCrashesKey counts the scans of a library demo that a fatal error of the process cut short.
+func LibraryScanCrashesKey(id uuid.UUID) string {
+	return path.Join(LibraryDemoPrefix(id), "scan-crashes")
+}
+
 // GenerateIntentKey is the storage key for a job's one-click generate intent:
 // the latest accepted preset, music, and edit shown by the workbench. Record
 // tasks carry their own immutable intent rather than reading this mutable view.

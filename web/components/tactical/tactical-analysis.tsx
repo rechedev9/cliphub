@@ -35,30 +35,52 @@ import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspac
 
 /** Between the top bar and the replay once the tab list sits under the bar: the tab list, its gap, the summary line and its gap. */
 /** Until the first measure: the tab list and the one-line summary over the replay. */
-const REPLAY_ABOVE: CSSProperties & { '--replay-above': string; '--replay-tabs': string } = { '--replay-above': '6.25rem', '--replay-tabs': '3.5rem' };
+const REPLAY_ABOVE: CSSProperties & { '--replay-above': string; '--replay-tabs': string; '--replay-below': string } = {
+  '--replay-above': '6.25rem',
+  '--replay-tabs': '3.5rem',
+  '--replay-below': '12rem',
+};
 
-/**
- * Keeps `--replay-above` (everything between the top bar and the replay) and
- * `--replay-tabs` (the tab list, the scroll margin) measured, so the replay
- * fills the window exactly whatever the summary or the tab list wrap to.
- */
+/** Keeps what sits above the replay, the tab list and the transport measured,
+ * so the replay fills the window whatever they wrap to and the other forms get its map box. */
 function measureReplayAbove(root: HTMLElement): () => void {
   const tablist = root.closest('[data-slot="tabs"]')?.querySelector('[role="tablist"]') ?? null;
   const measure = (): void => {
     const workspace = root.querySelector('[data-replay-workspace]');
-    if (workspace === null) return;
     const top = root.getBoundingClientRect().top;
+    const replayTop = workspace === null ? replayTopFromForms(root, top) : workspace.getBoundingClientRect().top - top;
+    if (replayTop === null) return;
     const tabs = tablist === null ? 0 : Math.max(0, top - tablist.getBoundingClientRect().top);
-    const summary = Math.max(0, workspace.getBoundingClientRect().top - top);
     root.style.setProperty('--replay-tabs', `${tabs}px`);
-    root.style.setProperty('--replay-above', `${tabs + summary}px`);
+    root.style.setProperty('--replay-above', `${tabs + Math.max(0, replayTop)}px`);
+    // The transport and the gap over it, kept after the Replay unmounts so the other forms keep its map box.
+    const transport = workspace?.querySelector('[data-replay-transport]') ?? null;
+    if (workspace === null || transport === null || workspace.hasAttribute('data-fullscreen')) return;
+    root.style.setProperty('--replay-below', `${transport.getBoundingClientRect().height + REPLAY_GAP}px`);
+    if (!watched.has(transport)) {
+      watched.add(transport);
+      observer.observe(transport);
+    }
   };
-  measure();
+  const watched = new WeakSet<Element>();
   const observer = new ResizeObserver(measure);
+  measure();
   observer.observe(root);
   if (root.firstElementChild !== null) observer.observe(root.firstElementChild);
   if (tablist !== null) observer.observe(tablist);
   return () => observer.disconnect();
+}
+
+/** The Replay's grid gap (`gap-2`), between its map box and the transport, and the analysis column's gap. */
+const REPLAY_GAP = 8;
+
+/** Where the Replay would start under the form tabs, opened on another form: less the filter bar the Replay folds away. */
+function replayTopFromForms(root: HTMLElement, top: number): number | null {
+  const forms = root.querySelector(':scope > [role="tablist"]');
+  if (forms === null) return null;
+  const filters = root.querySelector(':scope > [role="region"]');
+  const folded = filters === null ? 0 : filters.getBoundingClientRect().height + REPLAY_GAP;
+  return forms.getBoundingClientRect().bottom - top + REPLAY_GAP - folded;
 }
 
 /** A Crear job has no library match behind it, so only its rounds replay. */
@@ -111,12 +133,12 @@ export function TacticalAnalysis({
   const setSelectedRound = useCallback((round: number | null) => setPicked({ key: sourceKey, round }), [sourceKey]);
   const ready = loaded !== null;
 
-  // The replay is sized to the window under the tab list, so the tab list goes under the top bar once.
+  // Every form's map box takes the Replay's size; the Replay also puts the tab list under the top bar once.
   useEffect(() => {
     const root = rootRef.current;
-    if (!ready || form !== DEFAULT_REPLAY_FORM || root === null) return;
+    if (!ready || root === null) return;
     const stop = measureReplayAbove(root);
-    root.scrollIntoView({ block: 'start' });
+    if (form === DEFAULT_REPLAY_FORM) root.scrollIntoView({ block: 'start' });
     return stop;
   }, [ready, form]);
 
@@ -258,14 +280,14 @@ export function TacticalAnalysis({
     rounded = (
       <>
         {playerList}
-        <SpatialWorkspace scope={spatialScope} view="heatmap" hideViewSwitch tramo={tramo} heat={heat} />
+        <SpatialWorkspace scope={spatialScope} view="heatmap" hideViewSwitch tramo={tramo} heat={heat} inMatch />
       </>
     );
   } else if (form === 'recorridos') {
     rounded = (
       <>
         {playerList}
-        <SpatialWorkspace scope={spatialScope} view="overlay" hideViewSwitch tramo={tramo} />
+        <SpatialWorkspace scope={spatialScope} view="overlay" hideViewSwitch tramo={tramo} inMatch />
       </>
     );
   } else if (form === 'granadas' && match !== undefined) {
@@ -293,7 +315,7 @@ export function TacticalAnalysis({
   }
 
   return (
-    <div ref={rootRef} style={REPLAY_ABOVE} className="flex scroll-mt-[calc(var(--shell-strip-height)+var(--replay-tabs))] flex-col gap-2">
+    <div ref={rootRef} data-map-viewers="" style={REPLAY_ABOVE} className="flex scroll-mt-[calc(var(--shell-strip-height)+var(--replay-tabs))] flex-col gap-2">
       <TacticalDemoSummary doc={doc} generatedAt={generatedAt} />
       {replaying ? null : <ReplayScopeBar doc={doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={doc.rounds.length} />}
       {forms.length > 1 ? <ReplayFormTabs forms={forms} value={form} onChange={setForm} /> : null}

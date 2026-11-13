@@ -141,18 +141,13 @@ test('the framing is remembered per map until it is back to the whole map', () =
   assert.deepEqual(rememberedFloorView('de_nuke'), WHOLE_FLOORS);
 });
 
-test('a floor extent holds the nav mesh and the ground played beyond it, with room for a dot on the edge', () => {
+test('a floor extent holds the nav mesh with room for a dot on the edge', () => {
   const nuke: RadarCalibration = { map: 'de_nuke', source: 'overview', pos_x: -3453, pos_y: 2887, scale: 7, size: 1024, lower_altitude_max: -495 };
-  // The lower floor of a real Nuke demo: the mesh ends at y -2444 and y 620, players walked to y -2480 and y 678.
   const nav = { minX: 22.5, minY: -2444.5, maxX: 1653, maxY: 620 };
-  const played = { min_x: 64, min_y: -2496, max_x: 1664, max_y: 678 };
-  const rect = floorExtent({ calibration: nuke, nav, played });
-  assert.ok(rect !== null);
-  const low = worldToRendered(nuke, 1664, -2496, 1);
-  const high = worldToRendered(nuke, 22.5, 678, 1);
+  const rect = floorExtent(nuke, nav);
+  const low = worldToRendered(nuke, 1653, -2444.5, 1);
+  const high = worldToRendered(nuke, 22.5, 620, 1);
   assert.ok(rect.y + rect.height - low.y >= 0.025 - 1e-9);
   assert.ok(high.y - rect.y >= 0.025 - 1e-9);
-  assert.ok(low.x <= rect.x + rect.width && high.x >= rect.x);
-  assert.deepEqual(floorExtent({ calibration: nuke, nav, played: null }), floorExtent({ calibration: nuke, nav, played: { min_x: 100, min_y: -2000, max_x: 200, max_y: 0 } }));
-  assert.equal(floorExtent({ calibration: nuke, nav: null, played: null }), null);
+  assert.ok(high.x - rect.x >= 0.025 - 1e-9 && rect.x + rect.width - low.x >= 0.025 - 1e-9);
 });

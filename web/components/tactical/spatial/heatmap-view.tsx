@@ -73,6 +73,10 @@ export type HeatControl = { choice: HeatChoice; onChange: (next: HeatChoice) => 
 /** One floor's density contours, already on the scale both floors share. */
 type FloorDensity = { level: RadarLevel; picture: DensityPicture };
 
+const HEAT_VIEWER = { title: 'Mapa de calor' };
+const SIDE_COLUMN = '@[56rem]:grid-cols-[minmax(0,1fr)_300px]';
+const MATCH_SIDE_COLUMN = '@[56rem]:grid-cols-[minmax(0,1fr)_var(--replay-right)]';
+
 function useHeatChoice(control: HeatControl | undefined): HeatControl {
   const [choice, setChoice] = useState<HeatChoice>(DEFAULT_HEAT);
   return control ?? { choice, onChange: setChoice };
@@ -90,9 +94,12 @@ export function HeatmapView({
   onLoaded,
   tramo: tramoControl,
   heat: heatControl,
+  inMatch = false,
 }: {
   scope: SpatialScope;
   side: TacticalSide | '';
+  /** Draws the map in the Replay's viewer, beside a column as wide as the Replay's. */
+  inMatch?: boolean;
   /** The owner's tramo; without it the view keeps its own. */
   tramo?: TramoControl;
   heat?: HeatControl;
@@ -352,8 +359,8 @@ export function HeatmapView({
     }
     if (data === null) {
       return (
-        <div role="status" aria-label="Calculando el mapa de calor" className="grid gap-4 @[56rem]:grid-cols-[minmax(0,1fr)_300px]">
-          <Skeleton className="aspect-square w-full" />
+        <div role="status" aria-label="Calculando el mapa de calor" className={cn('grid', inMatch ? `gap-2 ${MATCH_SIDE_COLUMN}` : `gap-4 ${SIDE_COLUMN}`)}>
+          <Skeleton className={inMatch ? 'h-(--map-viewer-h) w-full' : 'aspect-square w-full'} />
           <Skeleton className="h-64 w-full" />
         </div>
       );
@@ -375,7 +382,7 @@ export function HeatmapView({
     }
     return (
       // A live map is already right while the zone list waits, and playback keeps the map bright.
-      <div className={cn('grid gap-4 transition-opacity @[56rem]:grid-cols-[minmax(0,1fr)_300px]', busy && live === null && !playing && 'opacity-60')} aria-busy={busy}>
+      <div className={cn('grid transition-opacity', inMatch ? `gap-2 ${MATCH_SIDE_COLUMN}` : `gap-4 ${SIDE_COLUMN}`, busy && live === null && !playing && 'opacity-60')} aria-busy={busy}>
         <RadarSurface
           geometry={geometry}
           level={shownLevels[0] ?? RADAR_LEVELS.default}
@@ -385,6 +392,7 @@ export function HeatmapView({
           handleRef={surfaceRef}
           onPoint={onPoint}
           label={`Mapa de calor de ${HEATMAP_KIND_LABEL[heatmap.kind].toLowerCase()}, lado ${shownSide}. La lista de zonas lo describe en texto.`}
+          viewer={inMatch ? HEAT_VIEWER : undefined}
         />
         <HeatmapSidebar
           kind={heatmap.kind}

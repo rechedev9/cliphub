@@ -153,6 +153,22 @@
   /* Shell geometry, shared by the command strip and the page frame. */
   --shell-strip-height: 2.5rem;
   --shell-gutter: clamp(0.875rem, 2vw, 2rem);
+
+  /* The map viewer: the Replay's side column and, away from a match, the viewer's height. */
+  --replay-right: clamp(224px, 21.25vw, 272px);
+  --map-viewer-h: min(72vh, 760px);
+}
+
+/* In a match, every map form draws at the Replay's size: the window under the summary and tabs, less the transport. */
+[data-map-viewers] {
+  --map-viewer-h: max(calc(460px - var(--replay-below)), calc(100dvh - var(--shell-strip-height) - var(--replay-above) - 1.5rem - var(--replay-below)));
+}
+
+/* Below this width the Replay stacks its column under a 72vh map box. */
+@media (width < 1180px) {
+  [data-map-viewers] {
+    --map-viewer-h: 72vh;
+  }
 }
 
 .dark {

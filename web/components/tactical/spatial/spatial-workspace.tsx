@@ -34,6 +34,7 @@ export function SpatialWorkspace({
   onLoaded: onAnswer,
   tramo,
   heat,
+  inMatch = false,
 }: {
   scope: SpatialScope;
   side?: TacticalSide | '';
@@ -47,6 +48,8 @@ export function SpatialWorkspace({
   onLoaded?: (response: SpatialResponse) => void;
   /** The owner's tramo, shared by both views. */
   tramo?: TramoControl;
+  /** Inside a match, the map takes the Replay's viewer: its box, its size and its side column. */
+  inMatch?: boolean;
   /** What the heatmap counts, when the owner keeps it in its URL. */
   heat?: HeatControl;
 }): ReactNode {
@@ -88,9 +91,9 @@ export function SpatialWorkspace({
         </div>
       )}
       {view === 'overlay' ? (
-        <OverlayView scope={scoped} onLoaded={onLoaded} tramo={tramo} />
+        <OverlayView scope={scoped} onLoaded={onLoaded} tramo={tramo} inMatch={inMatch} />
       ) : (
-        <HeatmapView scope={scoped} side={side} onLoaded={onLoaded} tramo={tramo} heat={heat} />
+        <HeatmapView scope={scoped} side={side} onLoaded={onLoaded} tramo={tramo} heat={heat} inMatch={inMatch} />
       )}
     </div>
   );

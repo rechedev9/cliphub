@@ -442,6 +442,25 @@ refuses them.
   changed the demo format before demoinfocs caught up: check its releases
   before touching our parser code.
 
+### Incident: a library demo stopped the orchestrator on every start (Studio 5.21.0, 2026-11-13)
+
+The library scan resumes unfinished demos at start. One demo ran the parser out
+of memory (`fatal error`, exit code 2), so every start scanned it again and
+Studio closed again. A Go fatal error skips defers, so the scan cannot record
+its own death.
+
+- Each start writes runtime fatal errors and unhandled panics to
+  `<data dir>/crashes/<boot id>.txt` (`debug.SetCrashOutput`). A forced kill,
+  the normal Studio close, leaves the file empty.
+- A scan stores its boot id in `library/<id>/scan-running`. A later start
+  counts a crash only when that boot's file is not empty; at two the demo is
+  failed as `demo_unreadable` and Analizar can scan it again. A suspected demo
+  scans alone. Tests: `TestLibraryWorkerFailsADemoThatKeptCrashingTheScan`,
+  `TestLibraryWorkerDoesNotBlameADemoForAClosedStudio`,
+  `TestCrashLogTellsACrashedBootFromAKilledOne`.
+- A crash from another worker during a scan also counts against the demo
+  being scanned. To diagnose, read the non-empty files in `crashes/`.
+
 ## Local test environment caveat
 
 `TestFullDemoConcatsTwoFixtureRounds`,

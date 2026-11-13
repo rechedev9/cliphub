@@ -259,10 +259,13 @@ const SVG_ASSET_POLICY = "default-src 'none'; style-src 'unsafe-inline'; sandbox
  * Proxies a CS2 art file (`internal/gameassets`: radar PNG, equipment icon SVG or PNG). Any other
  * content type is a 502, so a confused upstream cannot make Studio serve HTML from its origin.
  */
-export async function proxyGameAsset(url: string): Promise<Response> {
+export async function proxyGameAsset(url: string, request?: Request): Promise<Response> {
   // A first read decodes the asset from the CS2 install; later reads come from the cache.
-  const res = await callOrchestrator(url, { cache: 'no-store' });
+  // A bundled asset revalidates by its ETag, so the browser's validator goes upstream and a 304 comes back.
+  const res = await callOrchestrator(url, { cache: 'no-store', ...(request === undefined ? undefined : ifNoneMatchInit(request)) });
   if (res === null) return serviceUnavailable();
+  const notModified = notModifiedFromUpstream(res);
+  if (notModified !== null) return notModified;
   if (!res.ok) return forwardError(res);
   const contentType = res.headers.get('content-type') ?? '';
   if (!GAME_ASSET_TYPES.has(contentType)) return NextResponse.json({ error: 'upstream error' }, { status: 502 });
@@ -271,6 +274,8 @@ export async function proxyGameAsset(url: string): Promise<Response> {
     'x-content-type-options': 'nosniff',
     'cache-control': res.headers.get('cache-control') ?? 'private, max-age=3600',
   };
+  const etag = res.headers.get('etag');
+  if (etag !== null) headers.etag = etag;
   if (contentType === 'image/svg+xml') headers['content-security-policy'] = SVG_ASSET_POLICY;
   return new Response(await res.arrayBuffer(), { status: 200, headers });
 }

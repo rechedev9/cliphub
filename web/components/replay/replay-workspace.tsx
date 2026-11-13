@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ChevronLeft, Maximize, Minimize } from 'lucide-react';
 import Link from 'next/link';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
@@ -562,7 +562,6 @@ export function ReplayWorkspace({
     );
   }
 
-  const panelWidths: CSSProperties & { '--replay-right': string } = { '--replay-right': 'clamp(224px, 21.25vw, 272px)' };
   const followedName = followSlot === null || focused === null ? null : (focused.doc.players.find((player) => player.slot === followSlot)?.name ?? null);
   const focusNames = focused === null ? '' : focused.doc.players.filter((player) => focus.includes(player.slot)).map((player) => player.name).join(' y ');
   const superposeText = superposeCopy({ multi, everyRound, anyFocus: focus.length > 0, focusNames, shown: centreRounds.length, total: entries.length });
@@ -581,7 +580,6 @@ export function ReplayWorkspace({
       // Takes the focus a click on the map or a panel would drop, so the shortcuts keep working.
       tabIndex={-1}
       data-fullscreen={fullscreen.active ? '' : undefined}
-      style={panelWidths}
       className={cn(
         'grid grid-cols-1 gap-2 outline-none',
         fullscreen.active

@@ -5,14 +5,14 @@ import { mapSilhouette } from './map-silhouette.ts';
 /** Width of the whole radar in plate units; world points map into it with `worldToRendered`. */
 export const RADAR_PLATE_SIZE = 100;
 
-/** What an SVG plate of a map draws: CS2's radar image when there is one, else the walkable silhouette. */
+/** What an SVG plate of a map draws: the map's radar image when there is one, else the walkable silhouette. */
 export type RadarPlateFrame = { viewBox: string; base: RadarRect; width: number; height: number; image: boolean; silhouette: string | null };
 
-export function radarPlateFrame(geometry: TacticalGeometry, radar: { naturalWidth: number; naturalHeight: number } | null): RadarPlateFrame | null {
-  if (radar) {
-    const width = (RADAR_PLATE_SIZE * radar.naturalWidth) / geometry.calibration.size;
-    const height = (RADAR_PLATE_SIZE * radar.naturalHeight) / geometry.calibration.size;
-    return { viewBox: `0 0 ${width} ${height}`, base: { x: 0, y: 0, width, height }, width, height, image: true, silhouette: null };
+/** A radar image spans the whole radar square whatever its pixel size, so the plate is that square. */
+export function radarPlateFrame(geometry: TacticalGeometry, hasRadar: boolean): RadarPlateFrame | null {
+  if (hasRadar) {
+    const size = RADAR_PLATE_SIZE;
+    return { viewBox: `0 0 ${size} ${size}`, base: { x: 0, y: 0, width: size, height: size }, width: size, height: size, image: true, silhouette: null };
   }
   const silhouette = mapSilhouette(geometry, RADAR_PLATE_SIZE);
   if (silhouette === null) return null;

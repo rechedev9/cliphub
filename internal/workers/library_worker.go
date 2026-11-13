@@ -6,9 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -27,6 +32,10 @@ import (
 // libraryClassWriteRecord is the failure class of a scan whose result the
 // library could not store.
 const libraryClassWriteRecord = "write_library"
+
+// libraryScanCrashLimit is how many scans of one demo may die in a fatal error (a parser out of memory)
+// before the demo is failed instead of resumed at the next start.
+const libraryScanCrashLimit = 2
 
 // LibraryRepository is the slice of the library store the library worker uses.
 type LibraryRepository interface {
@@ -48,11 +57,24 @@ type LibraryWorker struct {
 	repo     LibraryRepository
 	storage  storage.Storage
 	seriesMu sync.Mutex
+	// scanMu lets scans run together, except a demo suspected of a crash, which scans alone.
+	scanMu sync.RWMutex
+	// aloneWaiting holds new scans back while a suspected demo waits, so they cannot starve it.
+	aloneWaiting atomic.Int32
+	boot         string
+	crashed      func(boot string) bool
 }
 
 // NewLibraryWorker returns a worker that processes library demo scans.
 func NewLibraryWorker(repo LibraryRepository, store storage.Storage) *LibraryWorker {
-	return &LibraryWorker{repo: repo, storage: store}
+	return &LibraryWorker{repo: repo, storage: store, boot: uuid.NewString()}
+}
+
+// UseBoot names this process for the scans it runs and tells whether an earlier boot died of a
+// fatal error, so a scan that boot left running counts against its demo. Call it before the queue starts.
+func (w *LibraryWorker) UseBoot(boot string, crashed func(boot string) bool) {
+	w.boot = boot
+	w.crashed = crashed
 }
 
 // HandleAnalyzeLibraryDemo is the Asynq handler signature.
@@ -80,11 +102,23 @@ func (w *LibraryWorker) ProcessAnalyzeLibraryDemo(ctx context.Context, id uuid.U
 		logWorkerSkip(id, tasks.TypeAnalyzeLibraryDemo, nil)
 		return nil
 	}
+	crashes := w.settleScan(id)
+	if crashes >= libraryScanCrashLimit {
+		w.failCrashingDemo(ctx, id)
+		return nil
+	}
+	unlock, err := w.lockScan(ctx, crashes > 0)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := w.repo.SetDemoState(ctx, id, library.ParseParsing, "", ""); err != nil {
 		return fmt.Errorf("mark library demo parsing: %w", err)
 	}
 
 	analysis, scanErr := w.analyze(ctx, d)
+	// Not deferred: a scan that panics leaves its mark, as the panic stops the process.
+	w.endScan(id)
 	var match library.Match
 	if scanErr == nil {
 		var err error
@@ -99,7 +133,10 @@ func (w *LibraryWorker) ProcessAnalyzeLibraryDemo(ctx context.Context, id uuid.U
 	}
 	if scanErr != nil {
 		class := tacticalFailureClass(scanErr)
-		if err := w.repo.SetDemoState(ctx, id, library.ParseFailed, class, scanErr.Error()); err != nil && !errors.Is(err, library.ErrNotFound) {
+		if err := w.repo.SetDemoState(ctx, id, library.ParseFailed, class, scanErr.Error()); errors.Is(err, library.ErrNotFound) {
+			w.discard(id)
+			return nil
+		} else if err != nil {
 			logWorkerError(id, "write library demo state", err)
 		}
 		if !taskIsTerminal(ctx) {
@@ -136,6 +173,7 @@ func (w *LibraryWorker) analyze(ctx context.Context, d library.Demo) (library.An
 		return library.Analysis{}, newTacticalFailure(tacticalClassDemoUnreadable, err)
 	}
 	defer cleanup()
+	w.putScanText(artifacts.LibraryScanRunningKey(d.ID), w.boot)
 	if err := checkLibraryDemo(ctx, demoPath); err != nil {
 		class := tacticalClassDemoUnreadable
 		if errors.Is(err, parser.ErrTruncatedDemo) {
@@ -204,5 +242,89 @@ func (w *LibraryWorker) discard(id uuid.UUID) {
 	}
 	if err := deleter.DeleteTree(artifacts.LibraryDemoPrefix(id)); err != nil {
 		logWorkerError(id, "remove deleted library demo", err)
+	}
+}
+
+// failCrashingDemo fails a demo whose scans kept dying in a fatal error; Analizar runs it again on request.
+func (w *LibraryWorker) failCrashingDemo(ctx context.Context, id uuid.UUID) {
+	err := fmt.Errorf("the scan of this demo stopped Studio %d times; the demo may be damaged", libraryScanCrashLimit)
+	stateErr := w.repo.SetDemoState(ctx, id, library.ParseFailed, tacticalClassDemoUnreadable, err.Error())
+	if errors.Is(stateErr, library.ErrNotFound) {
+		w.discard(id)
+		return
+	}
+	if stateErr != nil {
+		logWorkerError(id, "write library demo state", stateErr)
+	}
+	w.putScanText(artifacts.LibraryScanCrashesKey(id), "0")
+	recordStageFailure(id, obs.StageTactical, tasks.TypeAnalyzeLibraryDemo, tacticalClassDemoUnreadable, err)
+	logWorkerError(id, tasks.TypeAnalyzeLibraryDemo+" failed", err)
+}
+
+// settleScan returns the demo's crash count. A scan an earlier process left running counts
+// only when that process died of a fatal error: closing Studio kills it too, without one.
+func (w *LibraryWorker) settleScan(id uuid.UUID) int {
+	crashes, _ := strconv.Atoi(w.scanText(artifacts.LibraryScanCrashesKey(id)))
+	running := w.scanText(artifacts.LibraryScanRunningKey(id))
+	if running == "" || running == w.boot {
+		return crashes
+	}
+	w.putScanText(artifacts.LibraryScanRunningKey(id), "")
+	if w.crashed == nil || !w.crashed(running) {
+		return crashes
+	}
+	crashes++
+	w.putScanText(artifacts.LibraryScanCrashesKey(id), strconv.Itoa(crashes))
+	return crashes
+}
+
+// endScan records that the scan returned, so the demo is no longer suspected of a crash.
+func (w *LibraryWorker) endScan(id uuid.UUID) {
+	if w.scanText(artifacts.LibraryScanRunningKey(id)) != "" {
+		w.putScanText(artifacts.LibraryScanRunningKey(id), "")
+	}
+	if c := w.scanText(artifacts.LibraryScanCrashesKey(id)); c != "" && c != "0" {
+		w.putScanText(artifacts.LibraryScanCrashesKey(id), "0")
+	}
+}
+
+// lockScan waits for its turn to scan, alone when the demo is suspected of a crash, or until ctx ends.
+func (w *LibraryWorker) lockScan(ctx context.Context, alone bool) (func(), error) {
+	if alone {
+		w.aloneWaiting.Add(1)
+		defer w.aloneWaiting.Add(-1)
+	}
+	for {
+		if alone && w.scanMu.TryLock() {
+			return w.scanMu.Unlock, nil
+		}
+		if !alone && w.aloneWaiting.Load() == 0 && w.scanMu.TryRLock() {
+			return w.scanMu.RUnlock, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
+}
+
+// scanText reads a small scan record; a missing or unreadable one is empty.
+func (w *LibraryWorker) scanText(key string) string {
+	rc, err := w.storage.Open(key)
+	if err != nil {
+		return ""
+	}
+	defer rc.Close()
+	b, err := io.ReadAll(io.LimitReader(rc, 64))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+func (w *LibraryWorker) putScanText(key, text string) {
+	if err := w.storage.Put(key, strings.NewReader(text)); err != nil {
+		log.Printf("worker: write %s: %v", key, err)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -108,4 +109,73 @@ func TestLibraryWorkerScansARealDemo(t *testing.T) {
 			}
 		}
 	}
+}
+
+// A scan that a fatal error cut short counts against its demo; at the limit the demo is
+// failed instead of scanned again, and the count drops so Analizar can try once more.
+func TestLibraryWorkerFailsADemoThatKeptCrashingTheScan(t *testing.T) {
+	repo := store.NewMemoryLibraryRepository()
+	files := newFakeStorage()
+	d := importLibraryDemo(t, repo, files, "crashing.dem", []byte("PBDEMS2\x00 not really a demo"))
+	files.files[artifacts.LibraryScanRunningKey(d.ID)] = []byte("earlier-boot")
+	files.files[artifacts.LibraryScanCrashesKey(d.ID)] = []byte("1")
+
+	w := NewLibraryWorker(repo, files)
+	w.UseBoot("this-boot", func(boot string) bool { return boot == "earlier-boot" })
+	if err := w.ProcessAnalyzeLibraryDemo(context.Background(), d.ID); err != nil {
+		t.Fatalf("ProcessAnalyzeLibraryDemo = %v, want nil so the queue does not retry it", err)
+	}
+	got, _ := repo.GetDemo(context.Background(), d.ID)
+	if got.State != library.ParseFailed || got.ErrorCode != tacticalClassDemoUnreadable || !strings.Contains(got.Error, "stopped Studio 2 times") {
+		t.Fatalf("demo = %+v, want failed as unreadable after two crashes", got)
+	}
+	if n := string(files.files[artifacts.LibraryScanCrashesKey(d.ID)]); n != "0" {
+		t.Fatalf("scan crashes = %q, want 0", n)
+	}
+}
+
+// Closing Studio kills a scan without a fatal error: the demo is scanned again, not blamed.
+func TestLibraryWorkerDoesNotBlameADemoForAClosedStudio(t *testing.T) {
+	repo := store.NewMemoryLibraryRepository()
+	files := newFakeStorage()
+	d := importLibraryDemo(t, repo, files, "corrupt.dem", []byte("PBDEMS2\x00 not really a demo"))
+	files.files[artifacts.LibraryScanRunningKey(d.ID)] = []byte("earlier-boot")
+	files.files[artifacts.LibraryScanCrashesKey(d.ID)] = []byte("1")
+
+	w := NewLibraryWorker(repo, files)
+	w.UseBoot("this-boot", func(string) bool { return false })
+	if err := w.ProcessAnalyzeLibraryDemo(context.Background(), d.ID); err == nil {
+		t.Fatal("ProcessAnalyzeLibraryDemo = nil, want the parse failure of a scan that ran")
+	}
+	got, _ := repo.GetDemo(context.Background(), d.ID)
+	if strings.Contains(got.Error, "stopped Studio") {
+		t.Fatalf("demo error = %q, want the parse failure, not a crash", got.Error)
+	}
+	if running, crashes := string(files.files[artifacts.LibraryScanRunningKey(d.ID)]), string(files.files[artifacts.LibraryScanCrashesKey(d.ID)]); running != "" || crashes != "0" {
+		t.Fatalf("running = %q, crashes = %q; want both cleared once the scan returned", running, crashes)
+	}
+}
+
+// A suspected demo waiting to scan alone holds back new scans, so a busy queue cannot starve it.
+func TestLibraryScanLockLetsASuspectedDemoGoFirst(t *testing.T) {
+	w := NewLibraryWorker(store.NewMemoryLibraryRepository(), newFakeStorage())
+	unlockFirst, err := w.lockScan(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan func(), 1)
+	go func() {
+		unlock, _ := w.lockScan(context.Background(), true)
+		got <- unlock
+	}()
+	for w.aloneWaiting.Load() == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if _, err := w.lockScan(ctx, false); err == nil {
+		t.Fatal("a new scan took the lock while a suspected demo waited")
+	}
+	unlockFirst()
+	(<-got)()
 }

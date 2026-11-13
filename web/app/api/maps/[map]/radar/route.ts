@@ -17,5 +17,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ map:
   if (!isRadarLayer(layer)) {
     return NextResponse.json({ error: 'layer must be upper or lower', code: 'invalid_request' }, { status: 400 });
   }
-  return proxyGameAsset(`${orchestratorUrl()}/api/maps/${map}/radar?layer=${layer}`);
+  return proxyGameAsset(`${orchestratorUrl()}/api/maps/${map}/radar?layer=${layer}`, request);
 }

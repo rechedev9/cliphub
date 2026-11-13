@@ -154,6 +154,23 @@ func TestBundledRadarIsServedWithoutCS2(t *testing.T) {
 	}
 }
 
+// A bundled radar revalidates by its hash, so an updated Studio never reuses the old picture from the cache.
+func TestBundledRadarRevalidatesByItsHash(t *testing.T) {
+	h, _ := geometryHandlers("")
+	first := getAsset(h, "/api/maps/de_dust2/radar")
+	tag := first.Header().Get("ETag")
+	if tag == "" || first.Header().Get("Cache-Control") != "private, no-cache" {
+		t.Fatalf("headers = %v, want an ETag and no-cache", first.Header())
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/maps/de_dust2/radar", nil)
+	req.Header.Set("If-None-Match", tag)
+	again := httptest.NewRecorder()
+	Routes(h).ServeHTTP(again, req)
+	if again.Code != http.StatusNotModified {
+		t.Fatalf("revalidation answered %d, want 304", again.Code)
+	}
+}
+
 func TestBundledShotIsServedWithoutCS2(t *testing.T) {
 	h, _ := geometryHandlers("")
 	rw := getAsset(h, "/api/maps/de_dust2/shot")
