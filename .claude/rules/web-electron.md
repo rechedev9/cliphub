@@ -2,7 +2,8 @@
 paths:
   - "web/**"
   - "landing/**"
-  - "desktop/src/**"
+  - "desktop/src/main.ts"
+  - "desktop/src/boot-security.ts"
 ---
 
 # Web inside Electron
@@ -11,7 +12,9 @@ paths:
 
 ## Local API
 
-`web/app/api/*` proxies to the orchestrator. `web/proxy.ts` and `web/lib/api/local-request-guard.ts` reject a cross-origin request and a DNS-rebound host, and mutations also need the per-launch HttpOnly capability cookie the desktop process seeds. Do not loosen either to make a test or the browser pane work; drive state changes through `bin\zv-mcp.exe` as in [Verify in Studio](../skills/verify-in-studio/SKILL.md). Tests: `web/lib/api/local-request-guard.test.ts`.
+`web/app/api/*` proxies to the orchestrator. `web/proxy.ts` and `web/lib/api/local-request-guard.ts` reject a cross-origin request and a DNS-rebound host. Mutations also need the per-launch HttpOnly capability cookie that the desktop process seeds (`installProxyCapabilityCookie` in `desktop/src/boot-security.ts`).
+
+Do not loosen the guard or the cookie to make a test or the browser pane work. Drive state changes through `bin\zv-mcp.exe`, as in [Verify in Studio](../skills/verify-in-studio/SKILL.md). Tests: `web/lib/api/local-request-guard.test.ts`, `desktop/src/boot-security.test.ts`.
 
 ## Landing
 

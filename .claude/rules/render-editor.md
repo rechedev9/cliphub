@@ -12,17 +12,19 @@ paths:
 
 # Render and the editor
 
-`zv-editor` is the FFmpeg render. Full Demo audio mastering and overlay format are domain rules in `docs/incidents.md` (those two headings, plus **How to diagnose a user's render failure** for telemetry). Do not copy them here.
+`zv-editor` is the FFmpeg render. The domain rules are in `docs/incidents.md`: read **Full Demo audio mastering** before you change the audio chain, **Full Demo overlay format** before you change overlays, and **How to diagnose a user's render failure** for telemetry. Do not copy them here.
 
 ## FFmpeg 8.1.2
 
-Studio ships FFmpeg 8.1.2. Some Full Demo and `internal/demooverlay` tests fail on FFmpeg 9.x because `-filter_complex_script` was removed. Do not retarget the command; see `docs/incidents.md`, **Local test environment caveat**.
+Studio ships FFmpeg 8.1.2. Some Full Demo and `internal/demooverlay` tests fail on FFmpeg 9.x because `-filter_complex_script` was removed. Treat those failures as pre-existing and do not change the shipped command to fix them. `docs/incidents.md`, **Local test environment caveat**.
 
 ## Pipeline golden test
 
-`internal/pipeline` is the one deterministic Short pipeline test: plain `go test`, golden files in `internal/pipeline/testdata/`, no CS2, network, real clock or video encode, and no scripts beside it. Extend that test instead of adding another end-to-end suite. It does not replace the manual Studio check.
+`internal/pipeline` is the one deterministic Short pipeline test: plain `go test`, golden files in `internal/pipeline/testdata/`, no CS2, network, real clock or video encode, and no scripts beside it.
 
-When a change moves the output, rewrite the goldens and review the diff like code. The recipe is [Update pipeline goldens](../skills/update-golden/SKILL.md). `go test ./...` must not gain e2e suites, verification scripts, evidence folders or reports. Unit tests are welcome where they test real logic.
+- Extend that test instead of adding another end-to-end suite. Do not add e2e suites, verification scripts, evidence folders or reports to the repo.
+- When a change moves the output, rewrite the goldens and review the diff like code: [Update pipeline goldens](../skills/update-golden/SKILL.md).
+- It does not replace the manual check: [Verify in Studio](../skills/verify-in-studio/SKILL.md).
 
 ## Render-attempt ownership
 
@@ -34,7 +36,7 @@ A render attempt writes durable state only while it still owns that state. A tas
 
 ## Interrupted work on startup
 
-`reconcile.InterruptedWork` (`internal/reconcile/startup_reconciliation.go`) runs before the orchestrator serves and repairs work that died with the previous desktop process. A non-nil error means the process does not serve: clients would see an active state with no queue owner. Tests live in `internal/reconcile/`.
+`reconcile.InterruptedWork` (`internal/reconcile/startup_reconciliation.go`) runs before the orchestrator serves and repairs work that died with the previous desktop process. A non-nil error means the process does not serve. Do not downgrade it to a log line: clients would see an active state with no queue owner. Tests live in `internal/reconcile/`.
 
 ## Full Demo artifact cache
 

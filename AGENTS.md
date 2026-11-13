@@ -5,7 +5,9 @@ analyzes them. The product we sell is that desktop app. `web/` is only its UI in
 is no web product, and a browser is only a quick way to test the UI. Design, scope and verify every
 change for the installed Windows app. The UI is in Spanish.
 
-This file is the index. Rules live in `.claude/rules/` and load on their own when an agent touches the paths in their frontmatter. Skills, including the review and release checklists, live in `.claude/skills/`. `CLAUDE.md` imports this file.
+This file is the index. Rules live in `.claude/rules/` and load on their own when a session touches
+the paths in their frontmatter. Skills (recipes and checklists) live in `.claude/skills/`.
+`CLAUDE.md` imports this file.
 
 ## Architecture
 
@@ -19,9 +21,8 @@ This file is the index. Rules live in `.claude/rules/` and load on their own whe
   binaries plus `zv-mcp.exe`, the MCP server for assistants (`cmd/zv-mcp`); `zv` and the other
   `cmd/` tools are for development.
 - State lives in SQLite through `internal/store`; memory repos share contract tests with it.
-  [Store](.claude/rules/store-sqlite.md).
 - `cmd/zv` is the CLI over the same pipeline. `zv check` validates the workflow catalog, usage text
-  and command build targets (`go run ./cmd/zv check`).
+  and command build targets.
 
 ## Build and check
 
@@ -33,45 +34,43 @@ This file is the index. Rules live in `.claude/rules/` and load on their own whe
 - web, desktop: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build` for web.
   One test: `pnpm --dir <pkg> exec node --test <path>.test.ts`.
 - A few Full Demo editor tests depend on the FFmpeg version; Studio ships FFmpeg 8.1.2.
-  [Render](.claude/rules/render-editor.md).
+  [Render and the editor](.claude/rules/render-editor.md).
 
 ## Golden rules
 
 Each rule has a check or a longer page behind it. Follow the link before you work around one.
 
-- Source files stay at or under 1000 lines; frozen files only shrink (`TestGoFileLength`, oxlint `max-lines`). [Split a file](.claude/skills/split-file/SKILL.md).
-- No production function that only tests call (`TestNoDeadCode`, skipped by `-short`).
+- Source files stay at or under 1000 lines. Files already past it are frozen: they shrink, never grow, and no max is raised (`TestGoFileLength` in `cmd/zv`, oxlint `max-lines`). [Split a file](.claude/skills/split-file/SKILL.md).
+- No production function that only tests call: delete it or move it to a `_test.go` file. A helper that only `_windows.go` code calls lives in a `_windows.go` file. `TestNoDeadCode` in `cmd/zv` runs pinned `deadcode` and `staticcheck -checks U1000` for `GOOS=windows` and `GOOS=linux`; `-short` skips it.
 - A UI feature lands with its `cmd/zv-mcp` tool, `serverInstructions` and `docs/studio-mcp.md` row. [MCP parity](.claude/rules/mcp-parity.md).
 - A store method lands in SQLite and memory with a shared contract test. [SQLite store](.claude/rules/store-sqlite.md).
-- No e2e suites, verification scripts, evidence folders or reports; `internal/pipeline` goldens are the one exception. [Render and the editor](.claude/rules/render-editor.md).
-- No CI on pull requests. Run the checks for what you touched; the full Go suite before a release. [Release](.claude/rules/release.md).
-- Check changes in a throwaway Studio profile, never the real `%APPDATA%\cliphub-studio`, and never through the session's `cliphub-studio` MCP. [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md).
+- No e2e suites, verification scripts, evidence folders or reports; the `internal/pipeline` golden test is the one exception. Unit tests are welcome where they test real logic. [Render and the editor](.claude/rules/render-editor.md).
+- No CI on pushes or pull requests. Run the checks for what you touched; the full Go suite before a PR and before a release. [Release](.claude/rules/release.md).
+- Check a user-visible change by hand in a throwaway Studio profile, never the real `%APPDATA%\cliphub-studio` and never through the session's `cliphub-studio` MCP. [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md).
 - The repository is public: write `<user>` and `%APPDATA%`, never tokens, keys, support codes or `agent-session.json` contents.
 
 ## Index
 
 ### Rules
 
-- [HLAE pin and capture](.claude/rules/capture-hlae.md): CS2 updates, the HLAE pin, capture pitfalls. History: `docs/incidents.md`.
+- [HLAE pin and capture](.claude/rules/capture-hlae.md): CS2 updates, the HLAE pin, capture pitfalls.
 - [Render and the editor](.claude/rules/render-editor.md): FFmpeg 8.1.2, the `internal/pipeline` golden test, render-attempt ownership, startup reconcile, the Full Demo artifact cache.
 - [SQLite store](.claude/rules/store-sqlite.md): migrations and the paired SQLite and memory repositories.
-- [MCP parity](.claude/rules/mcp-parity.md): a UI feature, its `cmd/zv-mcp` tool, `serverInstructions` and `docs/studio-mcp.md` land in the same change.
+- [MCP parity](.claude/rules/mcp-parity.md): what a UI change updates under `cmd/zv-mcp` and in `docs/studio-mcp.md`.
 - [Web inside Electron](.claude/rules/web-electron.md): Chromium-only UI, the local request guard, the capability cookie, `landing/`, React attribute types.
-- [Release](.claude/rules/release.md): `.github/workflows/desktop-release.yml` dry run, the full Go suite, the latest HLAE. Steps: `docs/incidents.md` (Releases).
+- [Release](.claude/rules/release.md): the bar before a tag, and the one hosted workflow.
+- `docs/incidents.md`: domain rules and incident history (HLAE pin, Full Demo audio and overlays, telemetry, performance, release steps). The rules name its sections.
 
 ### Skills
 
-- [Feature with MCP](.claude/skills/feature-with-mcp/SKILL.md)
-- [Store method](.claude/skills/store-method/SKILL.md)
-- [Split a file](.claude/skills/split-file/SKILL.md)
-- [Update pipeline goldens](.claude/skills/update-golden/SKILL.md)
-- [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md): the manual throwaway-profile flow.
+- [Feature with MCP](.claude/skills/feature-with-mcp/SKILL.md): a Studio screen, flow or control is added or changed.
+- [Store method](.claude/skills/store-method/SKILL.md): `internal/store` gains or changes a method or a migration.
+- [Split a file](.claude/skills/split-file/SKILL.md): a file nears 1000 lines, or `TestGoFileLength` or `max-lines` fails.
+- [Update pipeline goldens](.claude/skills/update-golden/SKILL.md): `go test ./internal/pipeline` fails on a golden diff.
+- [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md): run Studio from source and check a change by hand.
+- [Diff review](.claude/skills/diff-review/SKILL.md): review a branch, diff or PR. Read-only.
+- [Release check](.claude/skills/release-check/SKILL.md): full checks and a dry-run release workflow before a tag. It does not publish.
 - [Shorts thumbnail](.claude/skills/shorts-thumbnail/SKILL.md): pixel-art Shorts thumbnail.
-
-### Review and release
-
-- [Diff review](.claude/skills/diff-review/SKILL.md): checklist for a reviewer agent.
-- [Release check](.claude/skills/release-check/SKILL.md): full checks and a dry-run release workflow. It does not publish.
 
 ## Issues
 
@@ -85,4 +84,5 @@ Keep both in step with the PR body sections and with what `studio_status` return
 - When agents repeat a mistake, add a test or lint first. Write a rule only for what a check cannot catch.
 - A rule states the invariant and names the test, linter or `docs/incidents.md` section behind it. It does not copy counts, lists or messages from the code.
 - A rule changes in the same PR as the code it describes. [Diff review](.claude/skills/diff-review/SKILL.md) checks it, and [Release check](.claude/skills/release-check/SKILL.md) rereads the rules before each release.
+- Each fact lives in one file; the others link to it.
 - Keep this file an index. When a section here grows past a few lines, it moves to a rule or a skill.

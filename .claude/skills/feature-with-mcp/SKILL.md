@@ -1,11 +1,11 @@
 ---
 name: feature-with-mcp
-description: Add or change a Studio UI feature and its MCP tool, server instructions and docs/studio-mcp.md in the same change. Use when a user-facing Studio screen, flow or control changes.
+description: Add or change a Studio UI feature together with its MCP tool, serverInstructions and the docs/studio-mcp.md table. Use when a task adds or changes a user-facing screen, flow, button or option under web/app or web/components, or adds or changes a tool in cmd/zv-mcp.
 ---
 
 # Feature with MCP
 
-UI users and assistant users are both first class. The rule is [MCP parity](../../rules/mcp-parity.md).
+The rule is [MCP parity](../../rules/mcp-parity.md): the UI and the MCP tool change together.
 
 ## Steps
 
@@ -16,8 +16,6 @@ UI users and assistant users are both first class. The rule is [MCP parity](../.
 5. If the feature changes what `studio_status` returns, or what a bug report must include, update `CONTRIBUTING.md` and `.github/ISSUE_TEMPLATE/bug-report.md` in the same change.
 
 ## Checks
-
-Run the packages you touched, then the shared check:
 
 ```bash
 go test ./cmd/zv-mcp -count=1
@@ -34,6 +32,6 @@ pnpm --dir web run test:unit
 pnpm --dir web run build
 ```
 
-One web test: `pnpm --dir web exec node --test <path>.test.ts`.
+Also run the Go tests of any other package you touched. Then check the change by hand: [Verify in Studio](../verify-in-studio/SKILL.md).
 
-A UI change is finished when those commands are green and the three MCP edits are in the same diff. The manual check, when the change is user-visible, is [Verify in Studio](../verify-in-studio/SKILL.md).
+The feature is finished when those commands are green, steps 2 to 4 are in the same diff as the UI change, and the hand check passed.
