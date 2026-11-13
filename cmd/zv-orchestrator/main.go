@@ -85,6 +85,11 @@ func run() error {
 		}
 	}()
 
+	crashes, crashLogErr := openCrashLog(cfg.DataDir)
+	if crashLogErr != nil {
+		log.Printf("startup: crash log: %v", crashLogErr)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -192,6 +197,9 @@ func run() error {
 	tacticalWorker := workers.NewTacticalWorker(repo, files)
 	taskHandlers[tasks.TypeAnalyzeTactical] = tacticalWorker.HandleAnalyzeTactical
 	libraryWorker := workers.NewLibraryWorker(repos.Library, files)
+	if crashLogErr == nil {
+		libraryWorker.UseBoot(crashes.boot, crashes.crashed)
+	}
 	taskHandlers[tasks.TypeAnalyzeLibraryDemo] = libraryWorker.HandleAnalyzeLibraryDemo
 	var recordWorker *workers.RecordWorker
 	if cfg.recordWorkerEnabled() {

@@ -76,10 +76,8 @@ function ZoneMapPlate({
   className?: string;
 }): ReactNode {
   const silhouette = mapSilhouette(geometry, SIZE);
-  const imageWidth = radar ? (SIZE * radar.naturalWidth) / geometry.calibration.size : 0;
-  const imageHeight = radar ? (SIZE * radar.naturalHeight) / geometry.calibration.size : 0;
-  // The whole map like the game's radar; only the silhouette fallback is cropped to the played area.
-  const viewBox = radar ? `0 0 ${imageWidth} ${imageHeight}` : (silhouette?.viewBox ?? `0 0 ${SIZE} ${SIZE}`);
+  // The whole radar square, which the image spans whatever its pixel size; only the silhouette fallback is cropped to the played area.
+  const viewBox = radar ? `0 0 ${SIZE} ${SIZE}` : (silhouette?.viewBox ?? `0 0 ${SIZE} ${SIZE}`);
   const base = useMemo<RadarRect>(() => {
     const [x = 0, y = 0, width = SIZE, height = SIZE] = viewBox.split(' ').map(Number);
     return { x, y, width, height };
@@ -103,8 +101,8 @@ function ZoneMapPlate({
             href={radarImageUrl(map, level === RADAR_LEVELS.lower ? 'lower' : 'upper')}
             x={0}
             y={0}
-            width={imageWidth}
-            height={imageHeight}
+            width={SIZE}
+            height={SIZE}
             className="[filter:grayscale(0.55)_brightness(0.78)]"
           />
         ) : (

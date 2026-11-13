@@ -50,6 +50,8 @@ type Props = {
   tokenOf?: (grenade: TeamGrenade) => string;
   /** A label pinned at a world point, such as the open spot's round count. */
   badge?: { at: readonly [number, number, ...number[]]; level: RadarLevel; text: string } | null;
+  /** Draws the radar in the Replay's viewer box. */
+  viewer?: { title: string };
 };
 
 function paintTracer(ctx: CanvasRenderingContext2D, tracer: GrenadeTracer, color: string, strong: boolean): void {
@@ -79,7 +81,7 @@ function kindToken(grenade: TeamGrenade): string {
   return GRENADE_KIND_TOKEN[grenade.kind];
 }
 
-export function GrenadeRadar({ geometry, levels, grenades, spotOf, selected, highlight, box, onBox, onHover, tokenOf = kindToken, badge = null }: Props): ReactNode {
+export function GrenadeRadar({ geometry, levels, grenades, spotOf, selected, highlight, box, onBox, onHover, tokenOf = kindToken, badge = null, viewer }: Props): ReactNode {
   const split = levels.length > 1;
   const onPlate = useCallback(
     (level: RadarLevel) => (split ? grenades.filter((grenade) => levelForAltitude(geometry.calibration, grenade.landing[2]) === level) : grenades),
@@ -125,6 +127,7 @@ export function GrenadeRadar({ geometry, levels, grenades, spotOf, selected, hig
       paint={paint}
       marks={marks}
       label="Radar con las granadas del equipo"
+      viewer={viewer}
     >
       {(projection, zoomed, level) => (
         <>

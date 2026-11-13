@@ -6,7 +6,7 @@ import { radarImageUrl, type RadarLayer } from '@/lib/api/game-assets';
 // One decode per radar for the session; a failed load (CS2 missing or not set up yet) is forgotten, so the next view retries.
 const cache = new Map<string, Promise<HTMLImageElement | null>>();
 
-function loadRadar(map: string, layer: RadarLayer): Promise<HTMLImageElement | null> {
+export function loadRadar(map: string, layer: RadarLayer): Promise<HTMLImageElement | null> {
   const url = radarImageUrl(map, layer);
   const known = cache.get(url);
   if (known !== undefined) return known;
@@ -25,8 +25,8 @@ function loadRadar(map: string, layer: RadarLayer): Promise<HTMLImageElement | n
 }
 
 /**
- * CS2's own radar of a map as a decoded image for a canvas: undefined while it
- * loads, null when the game is not installed or has no radar for the map.
+ * A map's radar as a decoded image for a canvas: undefined while it loads, null
+ * when Studio ships none for the map and CS2 is not installed or has none either.
  */
 export function useRadarImage(map: string, layer: RadarLayer = 'upper'): HTMLImageElement | null | undefined {
   const [image, setImage] = useState<{ key: string; value: HTMLImageElement | null } | null>(null);

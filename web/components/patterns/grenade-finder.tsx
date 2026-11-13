@@ -47,6 +47,7 @@ import { GrenadeSpotList, type LabelledSpot } from './grenade-spot-list';
 import { GrenadeSpotPanel } from './grenade-spot-panel';
 import { PracticeResult, usePracticeLaunch } from './practice-launch';
 import { SaveGrenadePlayDialog } from './save-grenade-play';
+import { cn } from '@/lib/utils';
 
 const AREAS: readonly { value: GrenadeArea; label: string }[] = [
   { value: 'landing', label: 'Dónde cae' },
@@ -85,10 +86,12 @@ type Props = {
   rivals?: { on: boolean; label: string; onChange: (on: boolean) => void };
   /** The team the grenades belong to, for Guardar como jugada; null when there is none to save them to. */
   teamId: string | null;
+  /** Draws the radar in the match's map viewer, at the Replay's size, beside a column as wide as the Replay's. */
+  viewer?: { title: string };
 };
 
 /** The Pattern Finder on one map: radar with tracers, box filter, players, the round clock and the spots or rounds. */
-export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tramo: tramoControl, plantSeconds, players: pagePlayers, pick, rivals, teamId }: Props): ReactNode {
+export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tramo: tramoControl, plantSeconds, players: pagePlayers, pick, rivals, teamId, viewer }: Props): ReactNode {
   const { tramo, onChange: setTramo } = useTramo(tramoControl);
   const [stackBy, setStackBy] = useState<StackBy>('player');
   const [kinds, setKinds] = useState<ReadonlySet<TeamGrenadeKind>>(() => new Set(TEAM_GRENADE_KINDS));
@@ -310,8 +313,9 @@ export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tra
       )}
     </div>
   );
-  const radar = (
+  const radarIn = (viewer?: { title: string }) => (
     <GrenadeRadar
+      viewer={viewer}
       geometry={geometry}
       levels={levels}
       grenades={drawn}
@@ -432,7 +436,7 @@ export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tra
       ),
       map: (
         <div className="flex flex-col gap-2">
-          {radar}
+          {radarIn()}
           {afterPlant}
           {dialogs}
         </div>
@@ -475,7 +479,7 @@ export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tra
   }
 
   return (
-    <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(22rem,1fr)]">
+    <div className={cn('grid items-start', viewer === undefined ? 'gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(22rem,1fr)]' : 'gap-2 lg:grid-cols-[minmax(0,1fr)_var(--replay-right)]')}>
       <section aria-label="Radar" className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {kindToggles}
@@ -484,7 +488,7 @@ export function GrenadeFinder({ frame, map, geometry, data, buy, matchLabel, tra
         </div>
         {playerPicker}
         {boxRow}
-        {radar}
+        {radarIn(viewer)}
         <TramoBar tramo={tramo} onChange={setTramo} events={barcode} />
         {afterPlant}
       </section>

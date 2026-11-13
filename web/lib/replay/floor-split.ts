@@ -1,7 +1,7 @@
 import { RADAR_LEVELS } from '../api/tactical.ts';
-import type { RadarBounds, RadarCalibration, RadarLevel, TacticalGeometry } from '../api/tactical.ts';
+import type { RadarCalibration, RadarLevel, TacticalGeometry } from '../api/tactical.ts';
 import type { RadarProjection } from '../tactical-spatial.ts';
-import { isMultiLevelMap, levelForAltitude, occupancyBounds, radarViewRect, worldRectToRadarRect } from '../tactical-transform.ts';
+import { isMultiLevelMap, levelForAltitude, radarViewRect, worldRectToRadarRect } from '../tactical-transform.ts';
 import type { RadarRect, WorldMark, WorldRect } from '../tactical-transform.ts';
 import { followView, panView, zoomViewAt } from './map-view.ts';
 import { floorBounds, floorPolygons } from './nav-radar.ts';
@@ -213,54 +213,29 @@ export function floorRectsOf(geometry: TacticalGeometry, marks: readonly WorldMa
 const EXTENT_MARGIN = 0.03;
 const EXTENT_ROOM = 0.025;
 
-/**
- * One floor's crop on the radar square: the nav mesh's areas on it together with
- * the ground the demo was played on, which the mesh can miss (the ramp's
- * foot, stairs), plus room for the dots standing on the edge. Null when neither is known.
- */
-export function floorExtent(options: { calibration: RadarCalibration; nav: WorldRect | null; played: RadarBounds | null }): RadarRect | null {
-  const { calibration, nav, played } = options;
-  const parts: WorldRect[] = nav === null ? [] : [nav];
-  if (played !== null) parts.push({ minX: played.min_x, minY: played.min_y, maxX: played.max_x, maxY: played.max_y });
-  if (parts.length === 0) return null;
-  const world: WorldRect = {
-    minX: Math.min(...parts.map((part) => part.minX)),
-    minY: Math.min(...parts.map((part) => part.minY)),
-    maxX: Math.max(...parts.map((part) => part.maxX)),
-    maxY: Math.max(...parts.map((part) => part.maxY)),
-  };
-  const rect = worldRectToRadarRect(calibration, world, 1);
+/** One floor's crop on the radar square: the nav mesh's areas on it, plus room for the dots standing on the edge. */
+export function floorExtent(calibration: RadarCalibration, nav: WorldRect): RadarRect {
+  const rect = worldRectToRadarRect(calibration, nav, 1);
   const pad = Math.max(Math.max(rect.width, rect.height) * EXTENT_MARGIN, EXTENT_ROOM);
   return { x: rect.x - pad, y: rect.y - pad, width: rect.width + 2 * pad, height: rect.height + 2 * pad };
 }
 
-/**
- * Each floor's crop on the nav plate, as the replay frames it: the floor's
- * walkable ground and where the demos were played on it (`floorExtent`), grown
- * to hold `marks` (a mark with no altitude is kept in both floors on a split-level map).
- * A one-floor map answers the same crop for both.
- */
-export function navFloorRects(options: { geometry: TacticalGeometry; model: NavRadarModel; marks: readonly WorldMark[] }): FloorRects {
-  const { geometry, model, marks } = options;
+/** The whole map's crop on the radar from its nav mesh alone: every floor together. */
+export function mapRect(geometry: TacticalGeometry, model: NavRadarModel): RadarRect {
+  const nav = floorBounds(model.polygons);
+  return nav === null ? radarViewRect(geometry) : floorExtent(geometry.calibration, nav);
+}
+
+/** Each floor's crop from the nav mesh alone, never from what was played or marked, so every 2D view frames a map the same. */
+export function mapFloorRects(geometry: TacticalGeometry, model: NavRadarModel): FloorRects {
   const { calibration } = geometry;
-  const split = isMultiLevelMap(calibration);
-  const of = (level: RadarLevel): RadarRect => {
-    const levelGeometry = split ? { ...geometry, levels: geometry.levels.filter((entry) => entry.name === level) } : geometry;
-    const played = occupancyBounds(levelGeometry);
-    let reach = played === null ? null : { ...played };
-    for (const mark of marks) {
-      const [x, y] = mark;
-      const z = mark.at(2);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-      if (split && z !== undefined && levelForAltitude(calibration, z) !== level) continue;
-      reach = reach === null ? { min_x: x, min_y: y, max_x: x, max_y: y } : { min_x: Math.min(reach.min_x, x), min_y: Math.min(reach.min_y, y), max_x: Math.max(reach.max_x, x), max_y: Math.max(reach.max_y, y) };
-    }
-    const nav = floorBounds(floorPolygons(model, calibration.lower_altitude_max, level));
-    return floorExtent({ calibration, nav, played: reach }) ?? radarViewRect(geometry, marks);
-  };
-  if (!split) {
-    const whole = of(RADAR_LEVELS.default);
+  if (!isMultiLevelMap(calibration)) {
+    const whole = mapRect(geometry, model);
     return { default: whole, lower: whole };
   }
+  const of = (level: RadarLevel): RadarRect => {
+    const nav = floorBounds(floorPolygons(model, calibration.lower_altitude_max, level));
+    return nav === null ? radarViewRect(geometry) : floorExtent(calibration, nav);
+  };
   return { default: of(RADAR_LEVELS.default), lower: of(RADAR_LEVELS.lower) };
 }

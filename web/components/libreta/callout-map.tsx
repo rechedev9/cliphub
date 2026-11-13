@@ -30,7 +30,7 @@ export function CalloutMap(props: Props): ReactNode {
   const [level, setLevel] = useState<RadarLevel>(RADAR_LEVELS.default);
   const radar = useRadarImage(props.map, level === RADAR_LEVELS.lower ? 'lower' : 'upper');
   if (radar === undefined) return <Skeleton className="aspect-square w-full" />;
-  const frame = radarPlateFrame(props.geometry, radar);
+  const frame = radarPlateFrame(props.geometry, radar !== null);
   if (frame === null) return <p className="text-body-sm text-fg-2">No se pudo dibujar este mapa. Usa la lista para cambiar los nombres.</p>;
   return <CalloutPlate {...props} frame={frame} level={level} onLevel={setLevel} />;
 }

@@ -65,15 +65,6 @@ export function panView(options: { box: { width: number; height: number }; view:
   return clampView({ ...view, x: view.x - dx / size, y: view.y - dy / size }, base);
 }
 
-/**
- * The window that shows a world rectangle already in square fractions, grown by
- * `margin` of its longer side so the outermost corridors keep some air.
- */
-export function paddedView(rect: RadarRect, margin: number): RadarRect {
-  const pad = Math.max(rect.width, rect.height) * margin;
-  return { x: rect.x - pad, y: rect.y - pad, width: rect.width + 2 * pad, height: rect.height + 2 * pad };
-}
-
 /** Zoom per pixel of wheel delta, the same on every 2D map. */
 export const WHEEL_STEP = 1.0015;
 

@@ -5,11 +5,16 @@ analyzes them. The product we sell is that desktop app. `web/` is only its UI in
 is no web product, and a browser is only a quick way to test the UI. Design, scope and verify every
 change for the installed Windows app. The UI is in Spanish.
 
+This file is the index. Rules live in `.claude/rules/` and load on their own when a session touches
+the paths in their frontmatter. Skills (recipes and checklists) live in `.claude/skills/`.
+`CLAUDE.md` imports this file.
+
 ## Architecture
-- `desktop/src/main.ts` picks stable loopback ports (`stable-ports.ts`), spawns
+
+- `desktop/src/main.ts` picks stable loopback ports (`desktop/src/stable-ports.ts`), spawns
   `zv-orchestrator.exe` and the web standalone server (`ORCHESTRATOR_URL`, `PORT`), then loads the UI.
 - `web/app/api/*` route handlers proxy to the orchestrator. `web/proxy.ts` and
-  `lib/api/local-request-guard.ts` reject cross-origin and DNS-rebound requests.
+  `web/lib/api/local-request-guard.ts` reject cross-origin and DNS-rebound requests.
 - `cmd/zv-orchestrator`: local HTTP API (`internal/httpapi`) and the job queue. Workers in
   `internal/workers` parse demos in process (`internal/parser`) and run `zv-recorder` (CS2 capture
   through HLAE) and `zv-editor` (FFmpeg render) as subprocesses. The installer ships these three
@@ -19,84 +24,65 @@ change for the installed Windows app. The UI is in Spanish.
 - `cmd/zv` is the CLI over the same pipeline. `zv check` validates the workflow catalog, usage text
   and command build targets.
 
-## MCP parity
-- Every user-facing feature in the Studio UI has a matching tool in `cmd/zv-mcp`: UI users and
-  assistant users are both first class.
-- A change that adds or changes a UI feature adds or updates its MCP tool and the server
-  instructions (`serverInstructions` in `cmd/zv-mcp/main.go`) in the same change, and the tool
-  table in `docs/studio-mcp.md`.
-
-## Browser support
-- `web/` runs only in the Chromium that Electron bundles (`electron` in `desktop/package.json`). Use any
-  web platform feature that Chromium ships, with no fallback and no polyfill.
-- `landing/` is a public site. Baseline Widely available features need no fallback; a newer feature
-  needs feature detection and a fallback of at most 20 lines with no new dependency.
-- Type a newly shipped HTML attribute by augmenting React's attribute types in a `.d.ts`. This
-  replaces the `as any` spread that the `modern-web-guidance` skill suggests.
-
 ## Build and check
+
 - Go: `go vet ./...`, `go test ./...`, and `go run ./cmd/zv check`. One test:
-  `go test ./internal/<pkg> -run TestName -count=1`. A few Full Demo editor tests depend on the
-  FFmpeg version; Studio ships FFmpeg 8.1.2.
-- `go test ./...` includes `TestNoDeadCode` (`cmd/zv`), which runs pinned `deadcode` and `staticcheck -checks U1000`
-  for both `GOOS=windows` and `GOOS=linux`. A function that only tests call is dead: delete it, or move a
-  real test helper into a `_test.go` file. A helper only `_windows.go` code calls belongs in a `_windows.go` file.
-- Source files stay at or under 1000 lines: `TestGoFileLength` (`cmd/zv`) for Go, `max-lines` in the
-  web, desktop and landing oxlint configs for TS. Files already past it are frozen at their size; split, never raise.
-  Split by responsibility: each new file (or package, when there is a real API boundary) owns one concern,
-  such as `handlers_library.go` and `handlers_streams.go`. A cut by line count (`handlers2.go`) does not count.
-  Lower or drop the frozen entry in the same change.
-- Fast local Go loop: `go test -short ./...` skips the slow FFmpeg renders; pre-PR runs use the full suite.
-  `internal/editor` alone nears the 10 min default on Windows, so pass `-timeout 30m` to a full run.
+  `go test ./internal/<pkg> -run TestName -count=1`.
+- Fast local Go loop: `go test -short ./...` skips the slow FFmpeg renders and `TestNoDeadCode`.
+  Pre-PR runs use the full suite. `internal/editor` alone nears the 10 min default on Windows, so
+  pass `-timeout 30m` to a full run.
 - web, desktop: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build` for web.
   One test: `pnpm --dir <pkg> exec node --test <path>.test.ts`.
-- There is no CI on pushes or PRs. `desktop-release.yml` runs the checks (Go with `-short`, web, desktop) before it publishes a release. Run the checks for what you touched, and the full Go suite before a release.
+- A few Full Demo editor tests depend on the FFmpeg version; Studio ships FFmpeg 8.1.2.
+  [Render and the editor](.claude/rules/render-editor.md).
 
-## Run Studio from source (Windows)
-1. `.\scripts\build.ps1` builds the Go binaries into `bin\`.
-2. `pnpm --dir desktop run build`, then `pnpm --dir desktop run assemble` (stages `bin\`, the web
-   standalone build and HLAE into `desktop\build-resources`).
-3. Start it with a throwaway profile, never the real `%APPDATA%\cliphub-studio`. Write
-   `{"enabled":true}` to `agent-access.json` in the profile first, so Studio lets the MCP in:
-   `$p = "C:\temp\cliphub-try\$(Get-Date -f yyyyMMdd-HHmmss)"; mkdir $p; '{"enabled":true}' | Set-Content -Encoding ascii "$p\agent-access.json"`
-   `$env:CLIPHUB_E2E_USER_DATA = $p`
-   `pnpm --dir desktop exec electron scripts\isolated-userdata.cjs`
-   A new profile shows the first-run guide and fetches HLAE on first boot.
-4. Import demos and drive other state changes through the branch's MCP, not the window: run
-   `bin\zv-mcp.exe` with `CLIPHUB_STUDIO_USER_DATA` set to the profile and call `import_demo` and
-   `wait_for_demo`. A session's `cliphub-studio` MCP talks to the real Studio; never use it for a
-   check. The browser pane cannot import: its POSTs lack the window's capability cookie.
-5. Capture needs Steam and CS2 on the machine. Use demo files from outside the repo.
+## Golden rules
 
-## Verify a change
-Verify by hand in the real app:
-1. Build and start Studio from your branch as above, with a fresh throwaway profile.
-2. Load a demo and follow the flow until the "Prepara tu Short" list shows up, the way a user would.
-   Exercise the flow you changed along the way.
-3. Try one path off the happy path, such as a corrupt `.dem`, and check `studio.log` in the
-   throwaway profile for a clear error instead of a crash or silence.
-4. In the PR, write a few lines on what you did and saw. A PR that changes what a user sees embeds
-   screenshots of the changed screen from the browser pane, attached with `gh pr create|edit --attach`.
-   Never commit them.
+Each rule has a check or a longer page behind it. Follow the link before you work around one.
 
-Drive and check the UI in the built-in browser pane, on the web server that Studio started (its
-`[web] - Local:` URL in the Electron output), and import demos through `bin\zv-mcp.exe` as in
-"Run Studio from source". Never use computer use for a check.
-Do not add e2e suites, verification scripts, evidence folders or reports to the repo.
-The one exception is the deterministic Short pipeline test in `internal/pipeline`: plain `go test`,
-golden files in its `testdata/`, no CS2, network, real clock or video encode, and no scripts beside it.
-Extend that test instead of adding another. When a change moves its output, run
-`go test ./internal/pipeline -update` and review the golden diff like code; never accept it blindly.
-It does not replace the manual check above. Unit tests are welcome where they test real logic.
+- Source files stay at or under 1000 lines. Files already past it are frozen: they shrink, never grow, and no max is raised (`TestGoFileLength` in `cmd/zv`, oxlint `max-lines`). [Split a file](.claude/skills/split-file/SKILL.md).
+- No production function that only tests call: delete it or move it to a `_test.go` file. A helper that only `_windows.go` code calls lives in a `_windows.go` file. `TestNoDeadCode` in `cmd/zv` runs pinned `deadcode` and `staticcheck -checks U1000` for `GOOS=windows` and `GOOS=linux`; `-short` skips it.
+- A UI feature lands with its `cmd/zv-mcp` tool, `serverInstructions` and `docs/studio-mcp.md` row. [MCP parity](.claude/rules/mcp-parity.md).
+- A store method lands in SQLite and memory with a shared contract test. [SQLite store](.claude/rules/store-sqlite.md).
+- No e2e suites, verification scripts, evidence folders or reports; the `internal/pipeline` golden test is the one exception. Unit tests are welcome where they test real logic. [Render and the editor](.claude/rules/render-editor.md).
+- No CI on pushes or pull requests. Run the checks for what you touched; the full Go suite before a PR and before a release. [Release](.claude/rules/release.md).
+- Check a user-visible change by hand in a throwaway Studio profile, never the real `%APPDATA%\cliphub-studio` and never through the session's `cliphub-studio` MCP. [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md).
+- The repository is public: write `<user>` and `%APPDATA%`, never tokens, keys, support codes or `agent-session.json` contents.
+
+## Index
+
+### Rules
+
+- [HLAE pin and capture](.claude/rules/capture-hlae.md): CS2 updates, the HLAE pin, capture pitfalls.
+- [Render and the editor](.claude/rules/render-editor.md): FFmpeg 8.1.2, the `internal/pipeline` golden test, render-attempt ownership, startup reconcile, the Full Demo artifact cache.
+- [SQLite store](.claude/rules/store-sqlite.md): migrations and the paired SQLite and memory repositories.
+- [MCP parity](.claude/rules/mcp-parity.md): what a UI change updates under `cmd/zv-mcp` and in `docs/studio-mcp.md`.
+- [Web inside Electron](.claude/rules/web-electron.md): Chromium-only UI, the local request guard, the capability cookie, `landing/`, React attribute types.
+- [Release](.claude/rules/release.md): the bar before a tag, and the one hosted workflow.
+- `docs/incidents.md`: domain rules and incident history (HLAE pin, Full Demo audio and overlays, telemetry, performance, release steps). The rules name its sections.
+
+### Skills
+
+- [Feature with MCP](.claude/skills/feature-with-mcp/SKILL.md): a Studio screen, flow or control is added or changed.
+- [Store method](.claude/skills/store-method/SKILL.md): `internal/store` gains or changes a method or a migration.
+- [Split a file](.claude/skills/split-file/SKILL.md): a file nears 1000 lines, or `TestGoFileLength` or `max-lines` fails.
+- [Update pipeline goldens](.claude/skills/update-golden/SKILL.md): `go test ./internal/pipeline` fails on a golden diff.
+- [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md): run Studio from source and check a change by hand.
+- [Diff review](.claude/skills/diff-review/SKILL.md): review a branch, diff or PR. Read-only.
+- [Release check](.claude/skills/release-check/SKILL.md): full checks and a dry-run release workflow before a tag. It does not publish.
+- [Shorts thumbnail](.claude/skills/shorts-thumbnail/SKILL.md): pixel-art Shorts thumbnail.
 
 ## Issues
+
 Outside contributors only file issues, through their own AI agent. `CONTRIBUTING.md` tells that
 agent what evidence to collect and `.github/ISSUE_TEMPLATE/bug-report.md` holds the sections.
-Keep both in step with the PR body sections and with what `studio_status` returns.
+Keep both in step with the PR body sections and with what `studio_status` returns
+(`cmd/zv-mcp/tools.go`, instructions in `cmd/zv-mcp/main.go`).
 
-## Releases and domain rules
-Release steps are in `docs/incidents.md` (Releases). Before tagging, prove the release with
-`gh workflow run desktop-release.yml` from `main`: `dry_run` defaults to true, so it runs the checks
-and builds the installer without publishing.
+## Maintenance
 
-Domain rules and incident history (HLAE pin, Full Demo audio and overlays, telemetry): `docs/incidents.md`.
+- When agents repeat a mistake, add a test or lint first. Write a rule only for what a check cannot catch.
+- A rule states the invariant and names the test, linter or `docs/incidents.md` section behind it. It does not copy counts, lists or messages from the code.
+- A rule changes in the same PR as the code it describes. [Diff review](.claude/skills/diff-review/SKILL.md) checks it, and [Release check](.claude/skills/release-check/SKILL.md) rereads the rules before each release.
+- Each fact lives in one file; the others link to it.
+- Keep this file an index. When a section here grows past a few lines, it moves to a rule or a skill.

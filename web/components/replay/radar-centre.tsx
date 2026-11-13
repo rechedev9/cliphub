@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { currentEdition } from '@/lib/edition';
 import { RADAR_LEVELS } from '@/lib/api/tactical';
 import type { RadarLevel, TacticalSample } from '@/lib/api/tactical';
 import { OFF_FLOOR_ALPHA } from '@/lib/analysis/floors';
@@ -11,12 +10,13 @@ import type { FloorTimeline } from '@/lib/replay/floor-assign';
 import {
   BOTH_FLOORS,
   WHOLE_FLOORS,
-  floorExtent,
   floorRectsOf,
   followFloors,
   isWholeView,
   layoutFloors,
   localProjection,
+  mapFloorRects,
+  mapRect,
   nearestPane,
   panFloors,
   paneProjection,
@@ -28,8 +28,8 @@ import {
 import type { FloorPane, FloorRects, FloorView } from '@/lib/replay/floor-split';
 import { hitLines, recentDamage } from '@/lib/replay/hit-lines';
 import { DOT_SIZE_SCALE, MAP_SIZE_SCALE, ZOOM_SPEED } from '@/lib/replay/map-settings';
-import { WHEEL_STEP, boxWindow, paddedView } from '@/lib/replay/map-view';
-import { floorBounds, floorPolygons } from '@/lib/replay/nav-radar';
+import { WHEEL_STEP, boxWindow } from '@/lib/replay/map-view';
+import type { NavRadarModel } from '@/lib/replay/nav-radar';
 import { framesDecodeError } from '@/lib/replay/loaded-analysis';
 import { createInterpolatedSampleReader, createSampleTrailReader, dominantLevel, frameCursor } from '@/lib/tactical-replay';
 import type { FrameCursor, TrailPoint } from '@/lib/tactical-replay';
@@ -39,7 +39,7 @@ import { timelineSeconds } from '@/lib/tactical-timeline';
 import { throwAt, throwMarkers } from '@/lib/replay/throw-hit';
 import type { ThrowMarker } from '@/lib/replay/throw-hit';
 import { utilityVisuals } from '@/lib/replay/three/utility-visuals';
-import { isCalibrationUsable, levelForAltitude, occupancyBounds, radarViewRect, worldRectToRadarRect, worldToRendered } from '@/lib/tactical-transform';
+import { isCalibrationUsable, levelForAltitude, radarViewRect, worldToRendered } from '@/lib/tactical-transform';
 import type { RadarRect } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { readRadarStyle } from '@/components/tactical/radar-style';
@@ -49,7 +49,7 @@ import { MapZoomControls } from '@/components/analysis/map-zoom-controls';
 import { cn } from '@/lib/utils';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { ReplayCentreProps } from './centre';
-import { loadNavRadar } from './radar/map-art';
+import { loadMapPlate } from './radar/map-art';
 import { PlayerTooltip, placeTooltip } from './radar/player-tooltip';
 import { bakeMapPlate } from './radar/radar-bake';
 import type { MapArt } from './radar/radar-bake';
@@ -60,8 +60,6 @@ type Box = { width: number; height: number; dpr: number };
 
 /** Superposed rounds sit under the focused one at this strength. */
 const OVERLAY_ALPHA = 0.42;
-/** Air round the nav mesh, as a share of its longer side. */
-const VIEW_MARGIN = 0.03;
 /** A press that moves less than this is a click on a player, not a drag. */
 const CLICK_SLOP = 4;
 /** How close a click lands to a throw point to copy it, in CSS pixels. */
@@ -104,8 +102,8 @@ function directionTo(from: FloorPane, to: FloorPane): { dx: number; dy: number }
 }
 
 /**
- * The 2D map: a stylized radar drawn from the map's nav mesh (or the game's
- * radar image when Studio has it), the players, their names and the grenades.
+ * The 2D map: the map's radar image (the play-derived grid without one), the
+ * players, their names and the grenades. The nav mesh frames each floor.
  * On a two-floor map each floor has its own block, cropped to its extent.
  * The wheel zooms on the cursor, a drag pans, a click highlights a player and
  * a right-click copies their setpos; a click on a throw point copies the throw's.
@@ -127,7 +125,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
   const dominantRef = useRef<RadarLevel>(RADAR_LEVELS.default);
   const tipRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<Box>({ width: 1, height: 1, dpr: 1 });
-  const [navArt, setNavArt] = useState<{ map: string; art: MapArt; failed: boolean } | null>(null);
+  const [plateArt, setPlateArt] = useState<{ map: string; model: NavRadarModel | null; art: MapArt } | null>(null);
   const dotScale = DOT_SIZE_SCALE[settings.dots];
   const nameScale = MAP_SIZE_SCALE[settings.names];
   const show = settings.show;
@@ -145,8 +143,9 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
   // Separar pisos: each floor in its own block, and each block draws only the players standing on its floor.
   const bothFloors = split && settings.floors === 'both';
   // Art and zoom are kept with their map, so a new map never paints under the last one's.
-  const art = navArt?.map === map ? navArt.art : GRID;
-  const navFailed = navArt?.map === map && navArt.failed;
+  const art = plateArt?.map === map ? plateArt.art : GRID;
+  const model = plateArt?.map === map ? plateArt.model : null;
+  const artFailed = plateArt?.map === map && plateArt.art.kind === 'grid';
   // The zoom outlives a remount, per map.
   const view = zoomState?.map === map ? zoomState.view : rememberedFloorView(map);
   // Pointer moves can arrive faster than renders; each drag step builds on the last one, not on a stale render.
@@ -164,37 +163,24 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
   useEffect(() => {
     if (map === '') return;
     let active = true;
-    void loadNavRadar(map).then((model) => {
-      if (active) setNavArt({ map, art: model === null ? GRID : { kind: 'nav', model }, failed: model === null });
+    void loadMapPlate(map, split).then((loaded) => {
+      if (active) setPlateArt({ map, ...loaded });
     });
     return () => {
       active = false;
     };
-  }, [map]);
+  }, [map, split]);
 
-  // The whole map's window: what one floor shows, and what every floor of a one-floor map is cropped to.
+  // The whole map's window, the same crop every 2D view of the map uses (`mapRect`).
   const base = useMemo<RadarRect>(() => {
     if (geometry === undefined || !drawable) return { x: 0, y: 0, width: 1, height: 1 };
-    if (art.kind === 'nav') {
-      const { bounds } = art.model;
-      const rect = worldRectToRadarRect(geometry.calibration, { minX: bounds.minX, minY: bounds.minY, maxX: bounds.maxX, maxY: bounds.maxY }, 1);
-      return paddedView(rect, VIEW_MARGIN);
-    }
-    return radarViewRect(geometry);
-  }, [art, drawable, geometry]);
+    return model === null ? radarViewRect(geometry) : mapRect(geometry, model);
+  }, [model, drawable, geometry]);
   // Each floor cropped to its own walkable extent (or, without the nav mesh, to where it was played).
   const rects = useMemo<FloorRects>(() => {
     if (geometry === undefined || !drawable || !bothFloors) return { default: base, lower: base };
-    const fallback = floorRectsOf(geometry, NO_MARKS);
-    if (art.kind !== 'nav') return fallback;
-    const { calibration } = geometry;
-    const of = (level: RadarLevel): RadarRect => {
-      const played = occupancyBounds({ ...geometry, levels: geometry.levels.filter((entry) => entry.name === level) });
-      const nav = floorBounds(floorPolygons(art.model, calibration.lower_altitude_max, level));
-      return floorExtent({ calibration, nav, played }) ?? fallback[level];
-    };
-    return { default: of(RADAR_LEVELS.default), lower: of(RADAR_LEVELS.lower) };
-  }, [art, base, bothFloors, drawable, geometry]);
+    return model === null ? floorRectsOf(geometry, NO_MARKS) : mapFloorRects(geometry, model);
+  }, [model, base, bothFloors, drawable, geometry]);
   const layout = useMemo(() => layoutFloors({ box, rects, levels: bothFloors ? BOTH_FLOORS : [RADAR_LEVELS.default] }), [box, rects, bothFloors]);
   const { panes } = layout;
   // One view for every pane, so zoom and pan move both floors together.
@@ -698,11 +684,9 @@ export function RadarCentre({ mode, rounds, clock, tickOf, telestrator, zones, f
       )}
 
       <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap items-end gap-2">
-        {navFailed ? (
+        {artFailed ? (
           <p className="pointer-events-auto max-w-72 rounded-md bg-surface-0/90 px-2 py-1 text-meta text-fg-2">
-            {currentEdition() === 'web'
-              ? 'No se pudo leer este mapa en el servidor: se dibuja con las posiciones de la demo.'
-              : 'No se pudo leer el mapa de tu instalación de CS2: se dibuja con las posiciones de la demo.'}
+            No se pudo cargar la imagen de este mapa: se dibuja con las posiciones de la demo.
           </p>
         ) : null}
       </div>

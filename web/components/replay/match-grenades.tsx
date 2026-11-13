@@ -15,6 +15,8 @@ import type { PlayerFocus } from '@/lib/replay/player-focus';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
+const GRENADE_VIEWER = { title: 'Granadas' };
+
 type Load = { kind: 'loading' } | { kind: 'ready'; data: TeamGrenades } | { kind: 'offline' } | { kind: 'failed' };
 
 /**
@@ -157,6 +159,7 @@ export function MatchGrenades({
       plantSeconds={plantSeconds}
       players={throwers}
       teamId={teamId}
+      viewer={GRENADE_VIEWER}
     />
   );
 }
