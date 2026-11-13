@@ -50,7 +50,7 @@ change for the installed Windows app. The UI is in Spanish.
   `internal/editor` alone nears the 10 min default on Windows, so pass `-timeout 30m` to a full run.
 - web, desktop: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build` for web.
   One test: `pnpm --dir <pkg> exec node --test <path>.test.ts`.
-- There is no CI on pushes or PRs. `desktop-release.yml` runs the checks (Go with `-short`, web, desktop) before it publishes a release. Run the checks for what you touched, and the full Go suite before a release.
+- `.github/workflows/pr-checks.yml` runs on pull requests and pushes to `main` (`go vet`, `go test -short`, `zv check`, and web and desktop typecheck, lint and unit tests). `desktop-release.yml` runs the release checks (Go with `-short`, web, desktop) before it publishes. Run the checks for what you touched, and the full Go suite before a release.
 
 ## Run Studio from source (Windows)
 1. `.\scripts\build.ps1` builds the Go binaries into `bin\`.
