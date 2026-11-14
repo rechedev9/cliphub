@@ -86,8 +86,12 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
       </span>
     </span>
   );
+  // Under 40rem of content the row stacks: the map fills the first line, the details take the next and the buttons sit at the right.
   return (
-    <li title={edgeLabel} className="relative flex items-stretch border-t border-border-subtle transition-colors first:border-t-0 hover:bg-surface-3">
+    <li
+      title={edgeLabel}
+      className="relative flex items-stretch border-t border-border-subtle transition-colors first:border-t-0 hover:bg-surface-3 @max-[40rem]/content:flex-wrap @max-[40rem]/content:justify-end"
+    >
       <div className="flex w-8 shrink-0 items-center justify-center">
         <input
           type="checkbox"
@@ -112,13 +116,15 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
         }
         tag={mark ? markTagOf(mark) : undefined}
         edge={outcome === null ? 'none' : EDGE_OF_OUTCOME[outcome]}
+        className="@max-[40rem]/content:grow"
       />
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2 @max-[40rem]/content:basis-full">
         {match && demo.state !== 'failed' ? (
           <ScoreStack match={match} />
         ) : (
           <div className="min-w-40">
-            <DemoStatus row={row} />
+            {/* A phone has no hover for the tooltip, so the reason wraps there. */}
+            <DemoStatus row={row} className="@max-[40rem]/content:whitespace-normal" />
           </div>
         )}
         <span aria-hidden className="hidden h-8 w-px bg-border @min-[44rem]/content:block" />
@@ -135,11 +141,11 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
         </div>
       </div>
       {match && demo.state === 'ready' ? (
-        <TwoDCell>
+        <TwoDCell className="@max-[40rem]/content:border-l-0 @max-[40rem]/content:pb-2">
           <TwoDLink href={matchReplayHref(match.id)} label={`Abrir el replay 2D de ${name}`} />
         </TwoDCell>
       ) : null}
-      <div className="flex shrink-0 items-center gap-1 px-2">
+      <div className="flex shrink-0 items-center gap-1 px-2 @max-[40rem]/content:pb-2 @max-[40rem]/content:empty:hidden">
         <RowActions row={row} handlers={context.handlers} />
         {match ? <RowMenu matchId={match.id} name={name} /> : null}
       </div>

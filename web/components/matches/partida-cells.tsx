@@ -68,7 +68,7 @@ export function Scoreline({ match }: { match: LibraryMatch }): ReactNode {
 }
 
 /** Why a row has no score yet: still in the queue, being analysed, or the reason the scan failed. */
-export function DemoStatus({ row }: { row: PartidaRow }): ReactNode {
+export function DemoStatus({ row, className }: { row: PartidaRow; className?: string }): ReactNode {
   const { demo } = row;
   if (demo.state !== 'failed') return <span className="text-fg-3">{PARSE_STATE_LABEL[demo.state]}</span>;
   const reason = demoErrorLabel(demo.error_code);
@@ -76,7 +76,7 @@ export function DemoStatus({ row }: { row: PartidaRow }): ReactNode {
     <Tooltip>
       <TooltipTrigger asChild>
         {/* Focusable so the full reason also opens from the keyboard. */}
-        <span tabIndex={0} className={cn('block truncate rounded-sm text-destructive', FOCUS_RING)}>
+        <span tabIndex={0} className={cn('block truncate rounded-sm text-destructive', FOCUS_RING, className)}>
           {reason}
         </span>
       </TooltipTrigger>
