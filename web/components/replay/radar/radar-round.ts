@@ -10,6 +10,7 @@ import type { PlayerFocus } from '@/lib/replay/player-focus';
 import type { MapShows } from '@/lib/replay/map-settings';
 import type { TacticalEquipment } from '@/lib/tactical-equipment';
 import { layoutTags } from '@/lib/replay/tag-layout';
+import { trailStrokes } from '@/lib/replay/trail-strokes';
 import type { TagRect } from '@/lib/replay/tag-layout';
 import { bombVisual, grenadeArc, utilityVisuals } from '@/lib/replay/three/utility-visuals';
 import type { UtilityVisual } from '@/lib/replay/three/utility-visuals';
@@ -139,18 +140,33 @@ function levelOfSample(frame: RoundFrame, sample: TacticalSample): RadarLevel {
   return frame.levels.get(sample.slot) ?? levelForAltitude(frame.calibration, sample.z);
 }
 
-/** Draws with everything faded when `z` is on the floor the plate is not showing. */
-function onFloor(ctx: CanvasRenderingContext2D, frame: RoundFrame, z: number, draw: () => void): void {
-  const alpha = levelAlpha(frame, levelForAltitude(frame.calibration, z));
-  if (alpha <= 0) return;
+/** The strength a faded drawing multiplies into every globalAlpha it sets; 1 outside `faded`. */
+let fade = 1;
+
+/**
+ * Draws at `alpha` over whatever alpha each stroke sets. ctx.filter did this too, but sent every
+ * call through an offscreen layer: in a multi-round frame that was the costliest step.
+ */
+function faded(ctx: CanvasRenderingContext2D, alpha: number, draw: () => void): void {
   if (alpha >= 1) {
     draw();
     return;
   }
-  // A filter fades the whole drawing, whatever globalAlpha each stroke sets.
-  ctx.filter = `opacity(${alpha})`;
-  draw();
-  ctx.filter = 'none';
+  fade = alpha;
+  ctx.globalAlpha = alpha;
+  try {
+    draw();
+  } finally {
+    fade = 1;
+    ctx.globalAlpha = 1;
+  }
+}
+
+/** Draws with everything faded when `z` is on the floor the plate is not showing. */
+function onFloor(ctx: CanvasRenderingContext2D, frame: RoundFrame, z: number, draw: () => void): void {
+  const alpha = levelAlpha(frame, levelForAltitude(frame.calibration, z));
+  if (alpha <= 0) return;
+  faded(ctx, alpha, draw);
 }
 
 /** Small deterministic offsets so a fire reads as flames, not a circle. */
@@ -202,13 +218,13 @@ function grenadeBadge(ctx: CanvasRenderingContext2D, kind: TacticalEventKind, at
   if (image === null) return;
   const height = 12;
   const width = Math.min(18, (image.naturalWidth / image.naturalHeight) * height);
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = fade * alpha;
   ctx.fillStyle = 'rgba(11, 12, 14, 0.78)';
   ctx.beginPath();
   ctx.arc(at.x, at.y, 10, 0, Math.PI * 2);
   ctx.fill();
   ctx.drawImage(image, at.x - width / 2, at.y - height / 2, width, height);
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = fade;
 }
 
 /** The flight of a throw: each stretch on the pane of its own floor, so it never hops panes mid-air. */
@@ -225,7 +241,7 @@ function drawArc(ctx: CanvasRenderingContext2D, frame: RoundFrame, options: { to
   for (let i = 1; i <= reach; i += 1) {
     const strength = levels[i] === frame.level || levels[i - 1] === frame.level ? 1 : (frame.offFloorAlpha ?? OFF_FLOOR_ALPHA);
     if (strength <= 0) continue;
-    ctx.globalAlpha = 0.7 * arc.fade * strength;
+    ctx.globalAlpha = fade * (0.7 * arc.fade * strength);
     ctx.beginPath();
     ctx.moveTo(path[i - 1].x, path[i - 1].y);
     ctx.lineTo(path[i].x, path[i].y);
@@ -235,7 +251,7 @@ function drawArc(ctx: CanvasRenderingContext2D, frame: RoundFrame, options: { to
   // The throw point, which a click on copies the throw's setpos (see `lib/replay/throw-hit`).
   const originStrength = levelAlpha(frame, levels[0]);
   if (originStrength > 0) {
-    ctx.globalAlpha = 0.9 * arc.fade * originStrength;
+    ctx.globalAlpha = fade * (0.9 * arc.fade * originStrength);
     ctx.fillStyle = '#e6e9ec';
     ctx.strokeStyle = '#0b0c0e';
     ctx.lineWidth = 1;
@@ -247,13 +263,13 @@ function drawArc(ctx: CanvasRenderingContext2D, frame: RoundFrame, options: { to
   const head = path[reach];
   const headStrength = levelAlpha(frame, levels[reach]);
   if (arc.progress < 1 && headStrength > 0) {
-    ctx.globalAlpha = headStrength;
+    ctx.globalAlpha = fade * headStrength;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(head.x, head.y, 2.5, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = fade;
 }
 
 /** The arc stays on the thrower's floor until it reaches the landing one; the effect is on the landing floor. */
@@ -265,11 +281,10 @@ function drawGrenade(ctx: CanvasRenderingContext2D, frame: RoundFrame, visual: U
   const alpha = levelAlpha(frame, landing);
   if (effect === null || alpha <= 0) return;
   const at = worldToRendered(calibration, visual.at.x, visual.at.y, size);
-  // A filter fades the whole drawing, whatever globalAlpha each stroke sets.
-  if (alpha < 1) ctx.filter = `opacity(${alpha})`;
-  drawEffect(ctx, frame, visual, at);
-  grenadeBadge(ctx, visual.kind, at, Math.min(1, effect.strength * 1.5));
-  ctx.filter = 'none';
+  faded(ctx, alpha, () => {
+    drawEffect(ctx, frame, visual, at);
+    grenadeBadge(ctx, visual.kind, at, Math.min(1, effect.strength * 1.5));
+  });
 }
 
 function drawEffect(ctx: CanvasRenderingContext2D, frame: RoundFrame, visual: UtilityVisual, at: RadarPoint): void {
@@ -279,13 +294,13 @@ function drawEffect(ctx: CanvasRenderingContext2D, frame: RoundFrame, visual: Ut
   if (visual.kind === TACTICAL_EVENT_KINDS.smoke) {
     const radius = worldPx(calibration, size, SMOKE_RADIUS) * effect.grow;
     softDisc(ctx, { at, radius, rgb: '214, 219, 224', alpha: 0.78 * effect.strength, edge: 0.72 });
-    ctx.globalAlpha = 0.5 * effect.strength;
+    ctx.globalAlpha = fade * (0.5 * effect.strength);
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(at.x, at.y, radius * 0.86, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = fade;
   } else if (visual.kind === TACTICAL_EVENT_KINDS.molotov) {
     const radius = worldPx(calibration, size, FIRE_RADIUS) * effect.grow;
     for (const [dx, dy, scale] of FLAME_LOBES) {
@@ -295,22 +310,22 @@ function drawEffect(ctx: CanvasRenderingContext2D, frame: RoundFrame, visual: Ut
   } else if (visual.kind === TACTICAL_EVENT_KINDS.flash) {
     softDisc(ctx, { at, radius: worldPx(calibration, size, FLASH_RADIUS) * effect.grow, rgb: '255, 255, 255', alpha: 0.9 * effect.strength, edge: 0.2 });
   } else if (visual.kind === TACTICAL_EVENT_KINDS.he) {
-    ctx.globalAlpha = effect.strength;
+    ctx.globalAlpha = fade * effect.strength;
     ctx.strokeStyle = '#ff7a3d';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(at.x, at.y, worldPx(calibration, size, HE_RADIUS) * effect.grow, 0, Math.PI * 2);
     ctx.stroke();
     softDisc(ctx, { at, radius: worldPx(calibration, size, HE_RADIUS * 0.4) * effect.grow, rgb: '255, 150, 70', alpha: 0.5 * effect.strength, edge: 0.3 });
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = fade;
   } else {
-    ctx.globalAlpha = effect.strength;
+    ctx.globalAlpha = fade * effect.strength;
     ctx.strokeStyle = '#c9ced4';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(at.x, at.y, 6, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = fade;
   }
 }
 
@@ -347,32 +362,30 @@ function drawTrails(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.lineWidth = 1.5;
-  const off = frame.offFloorAlpha ?? OFF_FLOOR_ALPHA;
+  const offFloorAlpha = frame.offFloorAlpha ?? OFF_FLOOR_ALPHA;
   for (const sample of frame.everyone) {
     const points = frame.trails.get(sample.slot);
     if (points === undefined || points.length < 2 || !inFocus(frame.focus, sample.slot)) continue;
     ctx.strokeStyle = sideColor(frame.style, sampleSide(sample));
-    for (let i = 1; i < points.length; i += 1) {
-      const before = points[i - 1].level ?? frame.level;
-      const after = points[i].level ?? frame.level;
-      const strength = before === frame.level || after === frame.level ? 1 : off;
-      if (strength <= 0) continue;
-      const from = worldToRendered(frame.calibration, points[i - 1].x, points[i - 1].y, frame.size);
-      const to = worldToRendered(frame.calibration, points[i].x, points[i].y, frame.size);
-      ctx.globalAlpha = (0.05 + 0.35 * (i / (points.length - 1))) * strength;
+    for (const stroke of trailStrokes(points, { level: frame.level, offFloorAlpha })) {
+      ctx.globalAlpha = fade * stroke.alpha;
       ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(to.x, to.y);
+      for (const [start, end] of stroke.segments) {
+        const from = worldToRendered(frame.calibration, start.x, start.y, frame.size);
+        const to = worldToRendered(frame.calibration, end.x, end.y, frame.size);
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+      }
       ctx.stroke();
     }
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = fade;
 }
 
 function drawDead(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: TacticalSample, at: RadarPoint): void {
   const age = frame.deadFor.get(sample.slot) ?? DEAD_FADE_SECONDS;
   const arm = discRadius(frame.size, frame.dotScale) * 0.75;
-  ctx.globalAlpha = DEAD_REST_ALPHA + (1 - DEAD_REST_ALPHA) * Math.max(0, 1 - age / DEAD_FADE_SECONDS);
+  ctx.globalAlpha = fade * (DEAD_REST_ALPHA + (1 - DEAD_REST_ALPHA) * Math.max(0, 1 - age / DEAD_FADE_SECONDS));
   ctx.lineCap = 'round';
   ctx.strokeStyle = '#0b0c0e';
   ctx.lineWidth = 4;
@@ -388,7 +401,7 @@ function drawDead(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tact
     ctx.lineTo(at.x - arm, at.y + arm);
     ctx.stroke();
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = fade;
 }
 
 function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: TacticalSample, at: RadarPoint): void {
@@ -401,14 +414,14 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
   const cone = ctx.createRadialGradient(at.x, at.y, radius, at.x, at.y, reach);
   cone.addColorStop(0, color);
   cone.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.globalAlpha = 0.42;
+  ctx.globalAlpha = fade * 0.42;
   ctx.fillStyle = cone;
   ctx.beginPath();
   ctx.moveTo(at.x, at.y);
   ctx.arc(at.x, at.y, reach, heading - 0.4, heading + 0.4);
   ctx.closePath();
   ctx.fill();
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = fade;
 
   if (frame.focus.includes(sample.slot)) {
     ctx.strokeStyle = '#ffffff';
@@ -440,13 +453,13 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
 
   const hurt = frame.hurt.get(sample.slot) ?? 0;
   if (hurt > 0) {
-    ctx.globalAlpha = hurt;
+    ctx.globalAlpha = fade * hurt;
     ctx.strokeStyle = '#ff3b30';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(at.x, at.y, ring + 3 + (1 - hurt) * 4, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = fade;
   }
   const flashed = (sample.flashed ?? 0) > 0 || hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.blinded);
   if (frame.show.flashed && flashed) {
@@ -543,13 +556,13 @@ function drawTags(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; p
     const color = sideColor(frame.style, player.side);
     if (tag.displaced) {
       ctx.strokeStyle = color;
-      ctx.globalAlpha = 0.6;
+      ctx.globalAlpha = fade * 0.6;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(player.x, player.y);
       ctx.lineTo(Math.min(Math.max(player.x, rect.x), rect.x + rect.width), Math.min(Math.max(player.y, rect.y), rect.y + rect.height));
       ctx.stroke();
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = fade;
     }
     ctx.fillStyle = frame.focus.includes(tag.id) ? 'rgba(46, 50, 56, 0.95)' : 'rgba(11, 12, 14, 0.82)';
     ctx.beginPath();
@@ -583,21 +596,15 @@ export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame,
     if (alive) continue;
     const strength = levelAlpha(frame, levelOfSample(frame, sample));
     if (strength <= 0) continue;
-    // A filter fades the whole cross, whatever globalAlpha it sets.
-    if (strength < 1) ctx.filter = `opacity(${strength})`;
-    drawDead(ctx, frame, sample, at);
-    ctx.filter = 'none';
+    faded(ctx, strength, () => drawDead(ctx, frame, sample, at));
   }
   drawHitLines(canvas, hits);
   for (const sample of frame.samples) {
     const player = players.find((entry) => entry.slot === sample.slot);
     if (player === undefined || !player.alive) continue;
-    // A filter fades the whole player, whatever globalAlpha each stroke sets.
     const alpha = levelAlpha(frame, levelOfSample(frame, sample)) * (foreground(frame, sample.slot) ? 1 : UNFOCUSED_ALPHA);
     if (alpha <= 0) continue;
-    if (alpha < 1) ctx.filter = `opacity(${alpha})`;
-    drawAlive(ctx, frame, sample, player);
-    ctx.filter = 'none';
+    faded(ctx, alpha, () => drawAlive(ctx, frame, sample, player));
   }
   drawHitLabels(canvas, hits);
   if (tags !== null) drawTags(ctx, { frame, players, visible: tags.visible, spots: tags.spots });
