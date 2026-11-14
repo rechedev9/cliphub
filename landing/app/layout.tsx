@@ -11,9 +11,9 @@ const sairaCondensed = Saira_Condensed({
 });
 const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500", "600"], display: "swap" });
 
-const TITLE = "ClipHub: análisis de CS2 para leer al rival antes de que juegue, gratis";
+const TITLE = "Análisis de demos de CS2 gratis para equipos | ClipHub";
 const DESCRIPTION =
-  "Replay 2D, scouting de rivales, bombsites, playbook, veto, comms de voz transcritas y la libreta del equipo. En el navegador o en Windows. Gratis.";
+  "Lee al rival antes de que juegue: replay 2D, scouting, bombsites, playbook, veto y comms de voz. Tus demos no salen de tu ordenador. Gratis, en el navegador o en Windows.";
 const OG_IMAGE = "/opengraph-image?v=analytics-1";
 
 export const metadata: Metadata = {

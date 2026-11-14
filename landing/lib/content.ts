@@ -24,12 +24,55 @@ export const FILMS = {
 } as const satisfies Record<string, Film>;
 
 export const HERO = {
-  kicker: "Análisis de CS2 · Gratis",
+  kicker: "Análisis de demos de CS2 para equipos",
   title: "Lee al rival antes de que juegue.",
-  lead: "Replay 2D, scouting, comms de voz y la libreta del equipo. En el navegador o en Windows.",
+  lead: "Suelta sus demos y en minutos tienes sus bombsites, sus rutas, su playbook y su veto. Gratis, en el navegador o en Windows.",
   primary: "Abrir en el navegador",
   secondary: "Descargar para Windows",
+  assurances: ["Gratis, sin tarjeta", "Tus demos no salen de tu ordenador", "FACEIT, Matchmaking y partidos pro"],
 } as const;
+
+export const STEPS = [
+  {
+    title: "Suelta las demos",
+    text: "Archivos .dem, .dem.zst de FACEIT o .dem.gz, todas las que quieras a la vez. O abre partidos pro ya analizados.",
+  },
+  {
+    title: "Tu navegador las lee",
+    text: "El análisis se hace en tu ordenador y solo se guarda el resultado. La demo no se sube a ningún sitio.",
+  },
+  {
+    title: "Prepara el partido",
+    text: "Scouting, replay 2D, playbook, veto e informe para el equipo. Antes de que empiece la llamada.",
+  },
+] as const;
+
+export const FAQ = [
+  {
+    q: "¿De verdad es gratis?",
+    a: "Sí. Todo el análisis, los espacios de equipo y la app de Windows son gratis: partidos enteros, sin límite de rondas y sin pedir tarjeta.",
+  },
+  {
+    q: "¿Se suben mis demos a algún servidor?",
+    a: "No. En el navegador, ClipHub analiza cada demo en tu ordenador y solo guarda el análisis. En Windows, todo ocurre en tu PC.",
+  },
+  {
+    q: "¿Qué demos puedo analizar?",
+    a: "Demos de CS2 en .dem, .dem.zst (FACEIT) y .dem.gz, partidas de Matchmaking con su código para compartir y partidos pro de HLTV ya analizados por ClipHub.",
+  },
+  {
+    q: "¿Necesito Windows?",
+    a: "Para analizar, no: basta con el navegador. La app de Windows añade la grabación y el montaje de vídeo, que necesitan CS2 instalado.",
+  },
+  {
+    q: "¿Puedo trabajar con mi equipo?",
+    a: "Sí. Creas un espacio de equipo, invitas a jugadores y staff con un enlace y compartís biblioteca y libreta, en la web y en Studio.",
+  },
+  {
+    q: "¿En qué se diferencia de otras herramientas?",
+    a: "Lees el partido entero sin pagar, las comms de voz, los informes, el veto y el playbook vienen incluidos, y tus demos se quedan contigo.",
+  },
+] as const;
 
 export const STATS = [
   { value: "100+", label: "Usuarios" },
@@ -183,6 +226,7 @@ export const COMPARISON = {
   theirs: "Otras herramientas",
   rows: [
     { feature: "Precio", ours: "Gratis", theirs: "Suscripción mensual" },
+    { feature: "Tus demos", ours: "Se quedan en tu ordenador", theirs: "Se suben a su servidor" },
     { feature: "Partido completo sin pagar", ours: "Todas las rondas", theirs: "A menudo, media partida" },
     { feature: "Comms de voz transcritas", ours: "Incluido", theirs: "Plan de organización" },
     { feature: "Informes en PDF", ours: "Incluido", theirs: "Depende" },
@@ -212,5 +256,6 @@ export const NAV = [
   { href: "#comms", label: "Comms" },
   { href: "#equipo", label: "Equipo" },
   { href: "#creadores", label: "Creadores" },
+  { href: "#preguntas", label: "Preguntas" },
   { href: "#descargar", label: "Descargar" },
 ] as const;

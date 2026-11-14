@@ -27,10 +27,10 @@ test("the hero has the headline and both calls to action", () => {
 });
 
 test("every agreed section exists and the nav reaches it", () => {
-  for (const id of ["analisis", "comms", "equipo", "comparativa", "creadores", "descargar"]) {
+  for (const id of ["como-funciona", "analisis", "comms", "equipo", "comparativa", "creadores", "preguntas", "descargar"]) {
     assert.match(html, new RegExp(`<section[^>]*id="${id}"`), `section #${id} is missing`);
   }
-  for (const id of ["analisis", "comms", "equipo", "creadores", "descargar"]) {
+  for (const id of ["analisis", "comms", "equipo", "creadores", "preguntas", "descargar"]) {
     assert.ok(html.includes(`href="#${id}"`), `nav link to #${id} is missing`);
   }
 });
@@ -54,8 +54,17 @@ test("every image has a descriptive alt or is marked decorative", () => {
 
 test("the metadata is in Spanish and filled in", () => {
   assert.match(html, /<html lang="es"/);
-  assert.match(html, /<title>ClipHub: análisis de CS2[^<]+<\/title>/);
+  assert.match(html, /<title>Análisis de demos de CS2[^<]*ClipHub<\/title>/);
   assert.match(html, /<meta name="description" content="[^"]{60,}"/);
-  assert.match(html, /<meta property="og:title" content="ClipHub[^"]+"/);
+  assert.match(html, /<meta property="og:title" content="[^"]*ClipHub"/);
   assert.match(html, /<meta property="og:image" content="[^"]+opengraph-image[^"]*"/);
+});
+
+test("search engines get the app and its questions as structured data", () => {
+  const block = /<script type="application\/ld\+json">([^<]+)<\/script>/.exec(html);
+  assert.ok(block?.[1], "no JSON-LD block");
+  const data: unknown = JSON.parse(block[1]);
+  assert.ok(Array.isArray(data));
+  const types = data.map((entry) => (typeof entry === "object" && entry !== null && "@type" in entry ? entry["@type"] : ""));
+  assert.deepEqual(types, ["SoftwareApplication", "FAQPage"]);
 });

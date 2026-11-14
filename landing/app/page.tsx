@@ -1,17 +1,20 @@
 import { ChevronDown } from "lucide-react";
 import FilmBackdrop from "@/components/film";
 import ProductViewer from "@/components/product-viewer";
+import SiteHeader from "@/components/site-header";
 import Wordmark from "@/components/wordmark";
 import {
   CAPABILITIES,
   COMMS,
   COMPARISON,
   CREATOR_POINTS,
+  FAQ,
   FILMS,
   HERO,
   NAV,
   REQUIREMENTS,
   STATS,
+  STEPS,
   TEAM_POINTS,
   VIEWER_TABS,
 } from "@/lib/content";
@@ -52,9 +55,31 @@ function Scrim() {
   );
 }
 
+const STRUCTURED_DATA = [
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "ClipHub",
+    applicationCategory: "SportsApplication",
+    operatingSystem: "Web, Windows",
+    description: HERO.lead,
+    offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: FAQ.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
+  },
+];
+
 export default function Home() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }} />
       <a
         href="#analisis"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:bg-bg focus:px-3 focus:py-2"
@@ -62,30 +87,7 @@ export default function Home() {
         Saltar al contenido
       </a>
 
-      <header className="absolute inset-x-0 top-0 z-40">
-        <div className={`${wrap} flex h-20 items-center justify-between gap-6`}>
-          <a href="#" aria-label="ClipHub, inicio">
-            <Wordmark />
-          </a>
-          <nav aria-label="Secciones" className="hidden items-center gap-8 lg:flex">
-            {NAV.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="font-display text-sm font-bold uppercase tracking-[0.2em] text-fg/80 transition-colors hover:text-fg"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-          <a
-            href={ANALYTICS_URL}
-            className="font-display text-sm font-bold uppercase tracking-[0.2em] text-fg underline decoration-2 underline-offset-8 hover:decoration-brand"
-          >
-            Abrir ClipHub
-          </a>
-        </div>
-      </header>
+      <SiteHeader nav={NAV} appUrl={ANALYTICS_URL} ctaLabel={HERO.primary} />
 
       <main>
         <section aria-labelledby="hero-titulo" className="relative flex min-h-svh items-end overflow-hidden">
@@ -101,6 +103,14 @@ export default function Home() {
               <Cta href={ANALYTICS_URL} label={HERO.primary} solid />
               <Cta href={DOWNLOAD_URL} label={HERO.secondary} />
             </div>
+            <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 font-display text-xs font-bold uppercase tracking-[0.2em] text-fg/70">
+              {HERO.assurances.map((a) => (
+                <li key={a} className="flex items-center gap-2">
+                  <span aria-hidden="true" className="size-1.5 bg-brand" />
+                  {a}
+                </li>
+              ))}
+            </ul>
           </div>
           <ChevronDown aria-hidden="true" className="absolute bottom-6 left-1/2 size-6 -translate-x-1/2 text-fg/60" />
         </section>
@@ -114,6 +124,24 @@ export default function Home() {
               </li>
             ))}
           </ul>
+        </section>
+
+        <section id="como-funciona" aria-labelledby="como-titulo" className="py-24 sm:py-32">
+          <div className={wrap}>
+            <p className={eyebrow}>Cómo funciona</p>
+            <h2 id="como-titulo" className={`${h2} max-w-5xl`}>
+              De la demo al anti-strat en tres pasos.
+            </h2>
+            <ol className="mt-16 grid gap-12 md:grid-cols-3">
+              {STEPS.map((step, i) => (
+                <li key={step.title}>
+                  <span className={`${giant} block text-8xl text-fg/15 sm:text-9xl`}>{i + 1}</span>
+                  <h3 className={`${giant} mt-2 text-3xl`}>{step.title}</h3>
+                  <p className="mt-3 max-w-sm text-muted">{step.text}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
         </section>
 
         <section id="analisis" aria-labelledby="analisis-titulo" className="relative flex min-h-svh items-end overflow-hidden">
@@ -139,6 +167,10 @@ export default function Home() {
             </h2>
             <div className="mt-14">
               <ProductViewer tabs={VIEWER_TABS} />
+            </div>
+            <div className="mt-14 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+              <Cta href={ANALYTICS_URL} label="Pruébalo con tus demos" solid />
+              <span className="text-sm text-muted">Gratis. Sin tarjeta. Sin subir tus demos.</span>
             </div>
           </div>
         </section>
@@ -276,6 +308,30 @@ export default function Home() {
           </div>
         </section>
 
+        <section id="preguntas" aria-labelledby="preguntas-titulo" className="border-t border-line py-24 sm:py-32">
+          <div className={`${wrap} grid gap-12 lg:grid-cols-[1fr_1.4fr]`}>
+            <div>
+              <p className={eyebrow}>Preguntas</p>
+              <h2 id="preguntas-titulo" className={h2}>
+                Antes de que preguntes.
+              </h2>
+            </div>
+            <div className="border-t-2 border-fg">
+              {FAQ.map((item) => (
+                <details key={item.q} className="group border-b border-line">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-6 font-display text-lg font-bold uppercase tracking-[0.06em] sm:text-xl [&::-webkit-details-marker]:hidden">
+                    {item.q}
+                    <span aria-hidden="true" className="text-2xl font-normal transition-transform group-open:rotate-45">
+                      +
+                    </span>
+                  </summary>
+                  <p className="max-w-2xl pb-6 leading-relaxed text-muted">{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section id="descargar" aria-labelledby="descargar-titulo" className="border-t border-line py-24 sm:py-32">
           <div className={wrap}>
             <p className={eyebrow}>Empieza ahora</p>
@@ -314,7 +370,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-line py-10">
+      <footer className="border-t border-line pb-28 pt-10 sm:pb-10">
         <div
           className={`${wrap} flex flex-col gap-6 font-display text-xs font-bold uppercase tracking-[0.2em] text-faint sm:flex-row sm:items-center sm:justify-between`}
         >
