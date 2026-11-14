@@ -12,7 +12,7 @@ El competidor directo, cs2lens, no tiene landing. Su home es una tabla de partid
 
 Una landing nueva, en español, en la misma URL (cliphub.rechedev.cloud). Primero el producto, en la línea de cs2lens, pero explicada. Arriba va un titular de una línea con dos acciones ("Abrir en el navegador" y "Descargar para Windows") y, sin hacer scroll, una vista grande del producto real que se cambia por pestañas (Replay, Recorridos, Bombsites, Preparar, Probabilidad). Debajo van secciones concretas sobre lo que hace ClipHub para preparar a un rival, revisar las comms y trabajar en equipo. Después, una tabla frente a "otras herramientas" sin nombrar marcas, un bloque para creadores con lo exclusivo de Windows y la sección de descarga.
 
-La estética es la de la app: fondo casi negro, verde de marca, azul CT y ámbar T, Saira con IBM Plex Mono para los números. Se ilustra con capturas reales anotadas como callouts y con los vídeos en bucle que ya existen. No lleva degradados, brillos, bentos genéricos, iconos de chispas, 3D ni textos vagos. ClipHub es un solo producto y todo es gratis.
+La estética es de lanzamiento: negro, vídeo a pantalla completa y tipografía condensada enorme en mayúsculas. Se ilustra con capturas reales anotadas como callouts y con los vídeos en bucle que ya existen. No lleva degradados, brillos, bentos genéricos, iconos de chispas, 3D ni textos vagos. ClipHub es un solo producto y todo es gratis.
 
 ## User Stories
 
@@ -62,7 +62,7 @@ La estética es la de la app: fondo casi negro, verde de marca, azul CT y ámbar
 
 - La landing sigue siendo el paquete `landing` independiente, con su stack actual (Next 15, React 19, Tailwind v4). Se rehace la página entera y se mantiene la URL pública.
 - Se eliminan la escena 3D del ciber, su lógica, el modelo GLB, sus fotogramas, la dependencia de three.js y las fuentes que dejan de usarse (Chakra Petch, Share Tech Mono, Permanent Marker). Todo en el mismo cambio.
-- Se adoptan los tokens visuales de la app Studio: fondo casi negro, verde de marca, rojo anaranjado de acento, azul CT y ámbar T, Saira para títulos y texto e IBM Plex Mono para números y callouts. Se copian como tokens propios de la landing, sin importar nada del paquete `web`.
+- Dirección visual de lanzamiento: fondo negro puro, secciones a pantalla completa con vídeo de fondo en bucle (silenciado, solo mientras está en pantalla, imagen fija si el usuario prefiere menos movimiento), titulares enormes en mayúsculas con Saira Condensed, texto en Saira, cifras en IBM Plex Mono y botones rectangulares con borde. El verde de marca queda solo para detalles. Los vídeos salen de material real hecho con ClipHub: el film de análisis de una demo de Mirage (radar en 3D con los jugadores) y un clip pro grabado con el HUD de ClipHub, en tramos sin texto incrustado.
 - Orden de las secciones:
   1. Barra superior: marca, enlaces a Análisis, Creadores y Descargar, botón "Abrir ClipHub".
   2. Hero: titular de una línea sobre análisis de CS2 para preparar partidos, gratis. CTA principal "Abrir en el navegador" (ClipHub Analytics) y CTA secundario "Descargar para Windows". Visor de producto con pestañas Replay, Recorridos, Bombsites, Preparar y Probabilidad, elegidas entre las capturas que muestran datos reales (las de Playbook, Veto e Informes salen vacías y se explican en texto).

@@ -9,7 +9,7 @@ interface ProductViewerProps {
   tabs: readonly ViewerTab[];
 }
 
-/** The hero: real screens behind tabs, every image server-rendered so the first paint already shows the product. */
+/** Real screens behind tabs; every panel is server-rendered so the page works before hydration. */
 export default function ProductViewer({ tabs }: ProductViewerProps) {
   const [active, setActive] = useState(0);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
@@ -24,12 +24,12 @@ export default function ProductViewer({ tabs }: ProductViewerProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-line-strong bg-surface shadow-[0_30px_80px_-40px_rgb(0_0_0/0.9)]">
+    <div>
       <div
         role="tablist"
         aria-label="Pantallas de ClipHub"
         onKeyDown={onKey}
-        className="flex gap-1 overflow-x-auto border-b border-line bg-bg/60 px-2 py-2"
+        className="flex gap-6 overflow-x-auto border-b border-line [scrollbar-width:none] sm:gap-9"
       >
         {tabs.map((tab, i) => (
           <button
@@ -44,40 +44,34 @@ export default function ProductViewer({ tabs }: ProductViewerProps) {
             aria-controls={`panel-${tab.id}`}
             tabIndex={i === active ? 0 : -1}
             onClick={() => setActive(i)}
-            className="shrink-0 rounded-md px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-faint transition-colors hover:text-fg aria-selected:bg-raised aria-selected:text-brand"
+            className="-mb-px shrink-0 border-b-2 border-transparent pb-4 font-display text-sm font-bold uppercase tracking-[0.18em] text-faint transition-colors hover:text-fg aria-selected:border-fg aria-selected:text-fg"
           >
             {tab.label}
           </button>
         ))}
       </div>
       {tabs.map((tab, i) => (
-        <div
-          key={tab.id}
-          id={`panel-${tab.id}`}
-          role="tabpanel"
-          aria-labelledby={`tab-${tab.id}`}
-          hidden={i !== active}
-          className="grid lg:grid-cols-[1fr_15rem]"
-        >
-          <a href={tab.shot.src} className="block border-line lg:border-r">
+        <div key={tab.id} id={`panel-${tab.id}`} role="tabpanel" aria-labelledby={`tab-${tab.id}`} hidden={i !== active}>
+          <a href={tab.shot.src} className="mt-8 block border border-line">
             <img
               src={tab.shot.src}
               alt={tab.shot.alt}
               width={1600}
               height={1200}
-              loading={i === 0 ? "eager" : "lazy"}
-              fetchPriority={i === 0 ? "high" : "auto"}
+              loading="lazy"
               decoding="async"
               className="block h-auto w-full"
             />
           </a>
-          <div className="flex flex-col gap-5 border-t border-line p-5 lg:border-t-0">
-            <p className="text-sm leading-relaxed text-muted">{tab.shot.caption}</p>
-            <dl className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+          <div className="mt-8 grid gap-8 md:grid-cols-[1fr_auto] md:items-end">
+            <p className="max-w-md text-base text-muted">{tab.shot.caption}</p>
+            <dl className="grid grid-cols-3 gap-4 sm:gap-12">
               {tab.shot.callouts.map((c) => (
-                <div key={c.label} className="flex flex-col-reverse border-l-2 border-brand/60 pl-3">
-                  <dt className="mt-1 text-xs leading-snug text-faint">{c.label}</dt>
-                  <dd className="font-mono text-xl font-medium text-fg lg:text-2xl">{c.value}</dd>
+                <div key={c.label} className="flex flex-col-reverse">
+                  <dt className="mt-2 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-faint">
+                    {c.label}
+                  </dt>
+                  <dd className="font-display text-2xl font-bold leading-none whitespace-nowrap sm:text-5xl">{c.value}</dd>
                 </div>
               ))}
             </dl>

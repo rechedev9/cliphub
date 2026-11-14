@@ -1,54 +1,41 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #080b0a;
-  --color-surface: #0d1110;
-  --color-raised: #131817;
-  --color-line: #1e2523;
-  --color-line-strong: #2b3532;
-  --color-fg: #e8eeeb;
-  --color-muted: #aab4b0;
-  --color-faint: #8c9692;
+  --color-bg: #000000;
+  --color-surface: #0a0a0a;
+  --color-line: #262626;
+  --color-line-strong: #404040;
+  --color-fg: #f5f5f5;
+  --color-muted: #a3a3a3;
+  --color-faint: #737373;
   --color-brand: #22e07c;
-  --color-brand-ink: #03150c;
   --color-side-ct: #3c86f0;
   --color-side-t: #f0a03a;
 
-  --font-display: var(--font-saira), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-saira-condensed), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-saira), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
 html {
   color-scheme: dark;
   scroll-behavior: smooth;
-  scroll-padding-top: 4.5rem;
 }
 
 body {
   background: var(--color-bg);
   color: var(--color-fg);
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: var(--color-brand);
-  color: var(--color-brand-ink);
+  background: var(--color-fg);
+  color: var(--color-bg);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-brand);
+  outline: 2px solid var(--color-fg);
   outline-offset: 3px;
-  border-radius: 4px;
-}
-
-/* A faint radar grid behind the hero: the only decoration, and it reads as CS, not as a glow. */
-.grid-bg {
-  background-image:
-    linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(255 255 255 / 0.035) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: linear-gradient(to bottom, black 40%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

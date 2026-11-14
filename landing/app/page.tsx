@@ -1,76 +1,54 @@
-import { ArrowRight, Check, Download, Minus } from "lucide-react";
-import LiteVideo from "@/components/lite-video";
+import { ChevronDown } from "lucide-react";
+import FilmBackdrop from "@/components/film";
 import ProductViewer from "@/components/product-viewer";
-import ShotFigure from "@/components/shot";
 import Wordmark from "@/components/wordmark";
 import {
+  CAPABILITIES,
   COMMS,
   COMPARISON,
   CREATOR_POINTS,
+  FILMS,
   HERO,
   NAV,
-  PREP_POINTS,
-  PREP_SHOTS,
   REQUIREMENTS,
   STATS,
   TEAM_POINTS,
-  TEAM_SHOT,
   VIEWER_TABS,
 } from "@/lib/content";
 import { ANALYTICS_URL, DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL } from "@/lib/site";
 
-const wrap = "mx-auto w-full max-w-6xl px-4 sm:px-6";
-const eyebrow = "font-mono text-xs uppercase tracking-[0.16em] text-brand";
-const h2 = "mt-3 max-w-2xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl";
-const lead = "mt-4 max-w-2xl text-base leading-relaxed text-muted sm:text-lg";
+const wrap = "mx-auto w-full max-w-7xl px-5 sm:px-10";
+const eyebrow = "font-display text-xs font-bold uppercase tracking-[0.3em] text-muted sm:text-sm";
+const giant = "font-display font-extrabold uppercase leading-[0.88] tracking-[-0.01em]";
+const h2 = `${giant} mt-4 text-5xl sm:text-7xl lg:text-8xl`;
+const lead = "mt-6 max-w-xl text-base leading-relaxed text-muted sm:text-lg";
 
-function PrimaryCta({ label }: { label: string }) {
+interface CtaProps {
+  href: string;
+  label: string;
+  solid?: boolean;
+}
+
+function Cta({ href, label, solid = false }: CtaProps) {
+  const look = solid
+    ? "border-fg bg-fg text-bg hover:bg-transparent hover:text-fg"
+    : "border-fg text-fg hover:bg-fg hover:text-bg";
   return (
     <a
-      href={ANALYTICS_URL}
-      className="inline-flex items-center gap-2 rounded-md bg-brand px-5 py-3 text-sm font-semibold text-brand-ink transition-[filter] hover:brightness-110"
+      href={href}
+      className={`inline-flex min-h-12 items-center justify-center border-2 px-7 font-display text-sm font-bold uppercase tracking-[0.2em] transition-colors duration-300 ${look}`}
     >
       {label}
-      <ArrowRight aria-hidden="true" className="size-4" />
     </a>
   );
 }
 
-function DownloadCta({ label }: { label: string }) {
+function Scrim() {
   return (
-    <a
-      href={DOWNLOAD_URL}
-      className="inline-flex items-center gap-2 rounded-md border border-line-strong px-5 py-3 text-sm font-semibold text-fg transition-colors hover:border-faint"
-    >
-      <Download aria-hidden="true" className="size-4" />
-      {label}
-    </a>
-  );
-}
-
-function PointList({ items }: { items: readonly { title: string; text: string }[] }) {
-  return (
-    <ul className="grid gap-x-10 gap-y-6 sm:grid-cols-2">
-      {items.map((item) => (
-        <li key={item.title} className="border-t border-line pt-4">
-          <h3 className="font-semibold">{item.title}</h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-muted">{item.text}</p>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function Checks({ items }: { items: readonly string[] }) {
-  return (
-    <ul className="space-y-2.5">
-      {items.map((item) => (
-        <li key={item} className="flex gap-3 text-sm leading-relaxed text-muted">
-          <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
-          {item}
-        </li>
-      ))}
-    </ul>
+    <div
+      aria-hidden="true"
+      className="absolute inset-0 bg-[linear-gradient(to_top,#000_0%,rgb(0_0_0/0.75)_35%,rgb(0_0_0/0.15)_75%,rgb(0_0_0/0.45)_100%),linear-gradient(to_right,rgb(0_0_0/0.7)_0%,transparent_65%)]"
+    />
   );
 }
 
@@ -84,21 +62,25 @@ export default function Home() {
         Saltar al contenido
       </a>
 
-      <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">
-        <div className={`${wrap} flex h-14 items-center justify-between gap-4`}>
+      <header className="absolute inset-x-0 top-0 z-40">
+        <div className={`${wrap} flex h-20 items-center justify-between gap-6`}>
           <a href="#" aria-label="ClipHub, inicio">
             <Wordmark />
           </a>
-          <nav aria-label="Secciones" className="hidden items-center gap-6 text-sm text-muted md:flex">
+          <nav aria-label="Secciones" className="hidden items-center gap-8 lg:flex">
             {NAV.map((item) => (
-              <a key={item.href} href={item.href} className="transition-colors hover:text-fg">
+              <a
+                key={item.href}
+                href={item.href}
+                className="font-display text-sm font-bold uppercase tracking-[0.2em] text-fg/80 transition-colors hover:text-fg"
+              >
                 {item.label}
               </a>
             ))}
           </nav>
           <a
             href={ANALYTICS_URL}
-            className="rounded-md bg-brand px-3.5 py-2 text-sm font-semibold text-brand-ink transition-[filter] hover:brightness-110"
+            className="font-display text-sm font-bold uppercase tracking-[0.2em] text-fg underline decoration-2 underline-offset-8 hover:decoration-brand"
           >
             Abrir ClipHub
           </a>
@@ -106,81 +88,104 @@ export default function Home() {
       </header>
 
       <main>
-        <section aria-labelledby="hero-titulo" className="relative overflow-hidden">
-          <div aria-hidden="true" className="grid-bg pointer-events-none absolute inset-0" />
-          <div className={`${wrap} relative pb-16 pt-14 sm:pt-20`}>
+        <section aria-labelledby="hero-titulo" className="relative flex min-h-svh items-end overflow-hidden">
+          <FilmBackdrop film={FILMS.hero} priority />
+          <Scrim />
+          <div className={`${wrap} relative pb-20 pt-32 sm:pb-24`}>
             <p className={eyebrow}>{HERO.kicker}</p>
-            <h1
-              id="hero-titulo"
-              className="mt-4 max-w-3xl text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl"
-            >
+            <h1 id="hero-titulo" className={`${giant} mt-5 max-w-5xl text-[clamp(3.5rem,11vw,10rem)]`}>
               {HERO.title}
             </h1>
             <p className={lead}>{HERO.lead}</p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <PrimaryCta label={HERO.primary} />
-              <DownloadCta label={HERO.secondary} />
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+              <Cta href={ANALYTICS_URL} label={HERO.primary} solid />
+              <Cta href={DOWNLOAD_URL} label={HERO.secondary} />
             </div>
-            <ul className="mt-8 flex flex-wrap gap-x-8 gap-y-3 font-mono text-sm">
-              {STATS.map((s) => (
-                <li key={s.label}>
-                  <span className="text-fg">{s.value}</span> <span className="text-faint">{s.label}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-12">
+          </div>
+          <ChevronDown aria-hidden="true" className="absolute bottom-6 left-1/2 size-6 -translate-x-1/2 text-fg/60" />
+        </section>
+
+        <section aria-label="ClipHub en cifras" className="border-y border-line">
+          <ul className={`${wrap} grid divide-line py-14 sm:grid-cols-3 sm:divide-x`}>
+            {STATS.map((s) => (
+              <li key={s.label} className="py-4 sm:px-10 sm:first:pl-0">
+                <span className={`${giant} block text-7xl sm:text-8xl`}>{s.value}</span>
+                <span className={`${eyebrow} mt-3 block`}>{s.label}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section id="analisis" aria-labelledby="analisis-titulo" className="relative flex min-h-svh items-end overflow-hidden">
+          <FilmBackdrop film={FILMS.duels} />
+          <Scrim />
+          <div className={`${wrap} relative py-24`}>
+            <p className={eyebrow}>Preparar al rival</p>
+            <h2 id="analisis-titulo" className={`${h2} max-w-4xl`}>
+              Cada duelo. Cada ruta. Cada ronda.
+            </h2>
+            <p className={lead}>
+              ClipHub lee la demo entera, no media partida, y te da los números con las rondas detrás. El anti-strat
+              sale de lo que pasó, no de una impresión.
+            </p>
+          </div>
+        </section>
+
+        <section aria-labelledby="pantallas-titulo" className="py-24 sm:py-32">
+          <div className={wrap}>
+            <p className={eyebrow}>El producto</p>
+            <h2 id="pantallas-titulo" className={h2}>
+              El rival, en números.
+            </h2>
+            <div className="mt-14">
               <ProductViewer tabs={VIEWER_TABS} />
             </div>
           </div>
         </section>
 
-        <section id="analisis" aria-labelledby="analisis-titulo" className="border-t border-line py-20">
+        <section aria-labelledby="capacidades-titulo" className="border-t border-line py-24 sm:py-32">
           <div className={wrap}>
-            <p className={eyebrow}>Preparar al rival</p>
-            <h2 id="analisis-titulo" className={h2}>
-              Llega a la partida sabiendo qué va a hacer el otro equipo.
+            <h2 id="capacidades-titulo" className="sr-only">
+              Qué puedes hacer
             </h2>
-            <p className={lead}>
-              Importa sus demos o abre partidos pro ya analizados. ClipHub lee cada ronda entera y te da los números con
-              las rondas detrás, para que el anti-strat salga de lo que pasó y no de una impresión.
-            </p>
-            <div className="mt-12">
-              <PointList items={PREP_POINTS} />
-            </div>
-            <div className="mt-14 grid gap-6 lg:grid-cols-2">
-              {PREP_SHOTS.map((shot) => (
-                <ShotFigure key={shot.src} shot={shot} />
+            <ol className="grid gap-x-12 gap-y-14 sm:grid-cols-2 lg:grid-cols-3">
+              {CAPABILITIES.map((c, i) => (
+                <li key={c.title} className="border-t-2 border-fg pt-6">
+                  <span className="font-mono text-sm text-faint">{String(i + 1).padStart(2, "0")}</span>
+                  <h3 className={`${giant} mt-3 text-4xl`}>{c.title}</h3>
+                  <p className="mt-3 text-muted">{c.text}</p>
+                </li>
               ))}
-            </div>
+            </ol>
           </div>
         </section>
 
-        <section id="comms" aria-labelledby="comms-titulo" className="border-t border-line bg-surface py-20">
-          <div className={`${wrap} grid items-start gap-12 lg:grid-cols-2`}>
+        <section id="comms" aria-labelledby="comms-titulo" className="border-t border-line bg-surface py-24 sm:py-32">
+          <div className={`${wrap} grid gap-16 lg:grid-cols-[1fr_1.1fr] lg:items-center`}>
             <div>
               <p className={eyebrow}>Comms de voz</p>
               <h2 id="comms-titulo" className={h2}>
                 {COMMS.title}
               </h2>
               <p className={lead}>{COMMS.lead}</p>
-              <div className="mt-8">
-                <Checks items={COMMS.points} />
-              </div>
             </div>
-            <figure className="rounded-lg border border-line bg-bg">
-              <figcaption className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 font-mono text-xs text-faint">
-                <span>Ronda 14 · Mirage · lado T</span>
-                <span className="rounded border border-line px-1.5 py-0.5 uppercase tracking-wider">Ejemplo</span>
+            <figure>
+              <figcaption className="flex items-center justify-between border-b border-line pb-4 font-mono text-xs uppercase tracking-wider text-faint">
+                <span>Ronda 14 · Mirage · T</span>
+                <span>Ejemplo</span>
               </figcaption>
-              <ol className="divide-y divide-line">
+              <ol>
                 {COMMS.sample.map((line) => (
-                  <li key={line.clock} className="grid grid-cols-[3.25rem_1fr] gap-3 px-4 py-3">
-                    <span className="font-mono text-sm text-side-t">{line.clock}</span>
+                  <li
+                    key={line.clock}
+                    className="grid grid-cols-[4.5rem_1fr] gap-4 border-b border-line py-6 sm:grid-cols-[6rem_1fr]"
+                  >
+                    <span className={`${giant} text-3xl text-side-t sm:text-4xl`}>{line.clock}</span>
                     <span>
-                      <span className="font-mono text-[11px] uppercase tracking-wider text-faint">
+                      <span className="font-display text-xs font-bold uppercase tracking-[0.2em] text-faint">
                         {line.speaker} · {line.phase}
                       </span>
-                      <span className="mt-0.5 block text-sm text-fg">{line.text}</span>
+                      <span className="mt-1 block text-lg leading-snug sm:text-xl">{line.text}</span>
                     </span>
                   </li>
                 ))}
@@ -189,139 +194,116 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="equipo" aria-labelledby="equipo-titulo" className="border-t border-line py-20">
-          <div className={wrap}>
-            <p className={eyebrow}>Trabajo en equipo</p>
-            <h2 id="equipo-titulo" className={h2}>
-              Un sitio para todo el staff, en el navegador o en Windows.
+        <section id="equipo" aria-labelledby="equipo-titulo" className="relative flex min-h-svh items-end overflow-hidden">
+          <FilmBackdrop film={FILMS.team} />
+          <Scrim />
+          <div className={`${wrap} relative py-24`}>
+            <Wordmark analytics />
+            <h2 id="equipo-titulo" className={`${h2} max-w-5xl`}>
+              Todo el staff. Una biblioteca.
             </h2>
             <p className={lead}>
               ClipHub Analytics en el navegador y ClipHub Studio en Windows comparten la misma biblioteca. El coach
               prepara desde el portátil y el analista sigue en el PC del bootcamp.
             </p>
-            <div className="mt-6">
-              <Wordmark analytics />
-            </div>
-            <div className="mt-12 grid items-start gap-12 lg:grid-cols-[1fr_1.3fr]">
-              <PointList items={TEAM_POINTS} />
-              <ShotFigure shot={TEAM_SHOT} />
-            </div>
+            <ul className="mt-10 flex flex-col gap-3 sm:flex-row sm:gap-10">
+              {TEAM_POINTS.map((p) => (
+                <li key={p} className="font-display text-sm font-bold uppercase tracking-[0.18em] text-fg/90">
+                  {p}
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 
-        <section
-          id="comparativa"
-          aria-labelledby="comparativa-titulo"
-          className="border-t border-line bg-surface py-20"
-        >
+        <section id="comparativa" aria-labelledby="comparativa-titulo" className="py-24 sm:py-32">
           <div className={wrap}>
             <p className={eyebrow}>Comparativa</p>
-            <h2 id="comparativa-titulo" className={h2}>
-              Lo que otras herramientas cobran, aquí viene incluido.
+            <h2 id="comparativa-titulo" className={`${h2} max-w-5xl`}>
+              Lo que otros cobran, aquí es gratis.
             </h2>
-            <div className="mt-10 overflow-hidden rounded-lg border border-line">
-              <table className="w-full border-collapse text-left text-xs sm:text-sm">
-                <thead>
-                  <tr className="border-b border-line bg-bg font-mono text-xs uppercase tracking-wider text-faint">
-                    <th scope="col" className="px-3 py-3 sm:px-4 font-medium">
-                      <span className="sr-only">Función</span>
+            <table className="mt-14 w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b-2 border-fg font-display text-xs font-bold uppercase tracking-[0.2em]">
+                  <th scope="col" className="py-4 pr-4">
+                    <span className="sr-only">Función</span>
+                  </th>
+                  <th scope="col" className="py-4 pr-4">
+                    {COMPARISON.ours}
+                  </th>
+                  <th scope="col" className="py-4 text-faint">
+                    {COMPARISON.theirs}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARISON.rows.map((row) => (
+                  <tr key={row.feature} className="border-b border-line">
+                    <th
+                      scope="row"
+                      className="py-5 pr-4 align-top font-display text-sm font-bold uppercase tracking-[0.12em] sm:text-base"
+                    >
+                      {row.feature}
                     </th>
-                    <th scope="col" className="px-3 py-3 sm:px-4 font-medium text-brand">
-                      {COMPARISON.ours}
-                    </th>
-                    <th scope="col" className="px-3 py-3 sm:px-4 font-medium">
-                      {COMPARISON.theirs}
-                    </th>
+                    <td className="py-5 pr-4 align-top text-sm sm:text-lg">{row.ours}</td>
+                    <td className="py-5 align-top text-sm text-faint sm:text-lg">{row.theirs}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {COMPARISON.rows.map((row) => (
-                    <tr key={row.feature} className="border-b border-line last:border-0">
-                      <th scope="row" className="px-3 py-3 sm:px-4 font-medium text-fg">
-                        {row.feature}
-                      </th>
-                      <td className="px-3 py-3 sm:px-4">
-                        <span className="inline-flex items-center gap-2 text-fg">
-                          <Check aria-hidden="true" className="hidden size-4 shrink-0 text-brand sm:block" />
-                          {row.ours}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 sm:px-4">
-                        <span className="inline-flex items-center gap-2 text-faint">
-                          <Minus aria-hidden="true" className="hidden size-4 shrink-0 sm:block" />
-                          {row.theirs}
-                        </span>
-                      </td>
-                    </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="creadores" aria-labelledby="creadores-titulo" className="relative flex min-h-svh items-end overflow-hidden">
+          <FilmBackdrop film={FILMS.pro} />
+          <Scrim />
+          <div className={`${wrap} relative py-24`}>
+            <p className={eyebrow}>Para creadores · Solo Windows</p>
+            <h2 id="creadores-titulo" className={`${h2} max-w-5xl`}>
+              De la demo al vídeo.
+            </h2>
+            <p className={lead}>
+              ClipHub Studio añade las herramientas de clipping: graba las jugadas dentro de CS2 y monta el vídeo por ti.
+            </p>
+            <ul className="mt-12 grid gap-8 border-t border-fg/30 pt-8 sm:grid-cols-3">
+              {CREATOR_POINTS.map((p) => (
+                <li key={p.title}>
+                  <h3 className={`${giant} text-3xl`}>{p.title}</h3>
+                  <p className="mt-2 text-sm text-muted">{p.text}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section id="descargar" aria-labelledby="descargar-titulo" className="border-t border-line py-24 sm:py-32">
+          <div className={wrap}>
+            <p className={eyebrow}>Empieza ahora</p>
+            <h2 id="descargar-titulo" className={`${giant} mt-4 text-[clamp(3.5rem,12vw,11rem)]`}>
+              Gratis. Hoy.
+            </h2>
+            <div className="mt-12 flex flex-col gap-3 sm:flex-row">
+              <Cta href={ANALYTICS_URL} label={HERO.primary} solid />
+              <Cta href={DOWNLOAD_URL} label={HERO.secondary} />
+            </div>
+            <p className="mt-5 font-mono text-xs uppercase tracking-wider text-faint">
+              {RELEASE_VERSION} · {INSTALLER_SIZE} · Windows 10 y 11
+            </p>
+            <div className="mt-20 grid gap-12 border-t border-line pt-10 md:grid-cols-2">
+              <div>
+                <h3 className={eyebrow}>Qué necesitas para Studio</h3>
+                <ul className="mt-5 space-y-2 text-muted">
+                  {REQUIREMENTS.map((r) => (
+                    <li key={r}>{r}</li>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <section id="creadores" aria-labelledby="creadores-titulo" className="border-t border-line py-20">
-          <div className={`${wrap} grid items-center gap-12 lg:grid-cols-[1.2fr_1fr]`}>
-            <div>
-              <p className={eyebrow}>Para creadores · solo Windows</p>
-              <h2 id="creadores-titulo" className={h2}>
-                Y cuando la jugada merece verse, la conviertes en vídeo.
-              </h2>
-              <p className={lead}>
-                ClipHub Studio añade a todo lo anterior las herramientas de clipping. Graba las jugadas dentro de CS2 y
-                monta el vídeo por ti.
-              </p>
-              <div className="mt-10">
-                <PointList items={CREATOR_POINTS} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <LiteVideo
-                src="/video/killfeed-loop"
-                poster="/video/killfeed-loop.webp"
-                label="Un Short de ClipHub: jugada de CS2 en vertical con el killfeed del juego"
-              />
-              <LiteVideo
-                src="/video/hero-loop"
-                poster="/video/hero-loop.webp"
-                label="Un clip de stream de ClipHub: la partida abajo y la facecam del streamer encuadrada arriba"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section id="descargar" aria-labelledby="descargar-titulo" className="border-t border-line bg-surface py-20">
-          <div className={`${wrap} grid gap-12 lg:grid-cols-2`}>
-            <div>
-              <p className={eyebrow}>Empieza ahora</p>
-              <h2 id="descargar-titulo" className={h2}>
-                Ábrelo en el navegador o descárgalo para Windows.
-              </h2>
-              <p className={lead}>El análisis es el mismo en los dos. Studio añade la grabación y el montaje de vídeo.</p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <PrimaryCta label={HERO.primary} />
-                <DownloadCta label={HERO.secondary} />
-              </div>
-              <p className="mt-4 font-mono text-xs text-faint">
-                Gratis · {RELEASE_VERSION} · {INSTALLER_SIZE} · Windows 10 y 11
-              </p>
-            </div>
-            <div className="space-y-8">
-              <div>
-                <h3 className="font-semibold">Qué necesitas para Studio</h3>
-                <div className="mt-3">
-                  <Checks items={REQUIREMENTS} />
-                </div>
+                </ul>
               </div>
               <div>
-                <h3 className="font-semibold">Si Windows avisa al instalar</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
+                <h3 className={eyebrow}>Si Windows avisa al instalar</h3>
+                <p className="mt-5 leading-relaxed text-muted">
                   El instalador aún no está firmado, así que Windows puede mostrar «Windows protegió su PC». Pulsa «Más
                   información» y luego «Ejecutar de todas formas». El código y el checksum de cada versión están en{" "}
-                  <a
-                    href={REPO_URL}
-                    className="text-fg underline decoration-line-strong underline-offset-4 hover:decoration-brand"
-                  >
+                  <a href={REPO_URL} className="text-fg underline underline-offset-4">
                     GitHub
                   </a>
                   .
@@ -333,17 +315,21 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-line py-10">
-        <div className={`${wrap} flex flex-col gap-4 text-sm text-faint sm:flex-row sm:items-center sm:justify-between`}>
-          <Wordmark />
-          <p className="flex flex-wrap items-center gap-5">
+        <div
+          className={`${wrap} flex flex-col gap-6 font-display text-xs font-bold uppercase tracking-[0.2em] text-faint sm:flex-row sm:items-center sm:justify-between`}
+        >
+          <span>ClipHub © 2026</span>
+          <span className="flex flex-wrap gap-8">
             <a href={ANALYTICS_URL} className="transition-colors hover:text-fg">
               ClipHub Analytics
             </a>
-            <a href={REPO_URL} className="transition-colors hover:text-fg">
-              Código en GitHub
+            <a href={DOWNLOAD_URL} className="transition-colors hover:text-fg">
+              Studio para Windows
             </a>
-            <span>© 2026 ClipHub</span>
-          </p>
+            <a href={REPO_URL} className="transition-colors hover:text-fg">
+              GitHub
+            </a>
+          </span>
         </div>
       </footer>
     </>

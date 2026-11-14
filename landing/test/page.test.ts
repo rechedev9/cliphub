@@ -19,7 +19,7 @@ function attr(tag: string, name: string): string | undefined {
 }
 
 test("the hero has the headline and both calls to action", () => {
-  assert.match(html, /<h1[^>]*>Prepara cada partido con todo lo que hay en la demo\.<\/h1>/);
+  assert.match(html, /<h1[^>]*>Lee al rival antes de que juegue\.<\/h1>/);
   assert.ok(html.includes(`href="${constant("ANALYTICS_URL")}"`), "no link to ClipHub Analytics");
   assert.ok(html.includes(`href="${constant("DOWNLOAD_URL")}"`), "no link to the installer");
   assert.ok(html.includes("Abrir en el navegador"));
