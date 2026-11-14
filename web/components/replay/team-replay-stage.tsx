@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { PlugZap, Shield } from 'lucide-react';
 import { sampleNotes } from '@/lib/api/team-insights';
@@ -21,6 +21,7 @@ import { useTeamAnalysis, useTeamList, useTeamTactics, type TeamAnalysis } from 
 import { useTeamMapCounts } from '@/hooks/use-team-map-counts';
 import { useTeamRounds } from '@/hooks/use-team-rounds';
 import { useTeamScopeControl } from '@/hooks/use-team-scope-control';
+import { preloadMapPlate } from './radar/map-art';
 import { ReplayWorkspace } from './replay-workspace';
 
 /** The team's 2D replay: loads the team, then hands over to `TeamReplayReady`. */
@@ -80,6 +81,9 @@ function TeamReplayReady({ analysis, teams, onTeam }: { analysis: TeamAnalysis; 
   const lineup = useMemo(() => (lineupKey === '' ? [] : lineupKey.split(',')), [lineupKey]);
   const mapCounts = useTeamMapCounts({ teamId: team.id, scope, fields: TEAM_REPLAY_STACK_FIELDS, lineup, enabled: true });
   const read = useTeamRounds({ teamId: team.id, scope, lineup });
+  useEffect(() => {
+    if (scope.map !== '') preloadMapPlate(scope.map);
+  }, [scope.map]);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   useDocumentTitle(`Replay 2D · ${team.name} · ClipHub`);
 
