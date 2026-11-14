@@ -1,355 +1,416 @@
-import { ArrowLeft, ArrowRight, Download } from "lucide-react";
-import CiberStage, { ThreeDLink } from "@/components/ciber-stage";
-import LiteVideo from "@/components/lite-video";
-import ProductFlow from "@/components/product-flow";
-import { TOUR, stationById } from "@/lib/ciber/stations";
-import type { StationId } from "@/lib/ciber/stations";
-import { DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL } from "@/lib/site";
+import { ChevronDown } from "lucide-react";
+import FilmBackdrop from "@/components/film";
+import ProductViewer from "@/components/product-viewer";
+import SiteHeader from "@/components/site-header";
+import Wordmark from "@/components/wordmark";
+import {
+  CAPABILITIES,
+  COMMS,
+  COMPARISON,
+  CREATOR_POINTS,
+  FAQ,
+  FILMS,
+  HERO,
+  NAV,
+  PRODUCT_VIDEO,
+  REQUIREMENTS,
+  STATS,
+  STEPS,
+  TEAM_POINTS,
+  VIEWER_TABS,
+} from "@/lib/content";
+import { ANALYTICS_URL, DEMO_URL, DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL } from "@/lib/site";
 
-function Wordmark() {
-  return (
-    <span className="inline-flex items-center gap-2.5">
-      <img src="/brand/cliphub-mark.svg" alt="" width={28} height={28} className="size-7" />
-      <span className="text-base font-bold tracking-wide">
-        ClipHub <span className="font-medium text-muted">Studio</span>
-      </span>
-    </span>
-  );
+const wrap = "mx-auto w-full max-w-7xl px-5 sm:px-10";
+const eyebrow = "font-display text-xs font-bold uppercase tracking-[0.3em] text-muted sm:text-sm";
+const giant = "font-display font-extrabold uppercase leading-[0.88] tracking-[-0.01em]";
+const h2 = `${giant} mt-4 text-5xl sm:text-7xl lg:text-8xl`;
+const lead = "mt-6 max-w-xl text-base leading-relaxed text-muted sm:text-lg";
+
+interface CtaProps {
+  href: string;
+  label: string;
+  solid?: boolean;
 }
 
-function DownloadButton({ label }: { label: string }) {
+function Cta({ href, label, solid = false }: CtaProps) {
+  const look = solid
+    ? "border-fg bg-fg text-bg hover:bg-transparent hover:text-fg"
+    : "border-fg text-fg hover:bg-fg hover:text-bg";
   return (
     <a
-      href={DOWNLOAD_URL}
-      className="inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg bg-accent px-5 text-base font-semibold text-accent-fg transition-[transform,filter] duration-150 ease-out hover:brightness-110 motion-safe:active:scale-[0.97]"
+      href={href}
+      className={`inline-flex min-h-12 items-center justify-center border-2 px-7 font-display text-sm font-bold uppercase tracking-[0.2em] transition-colors duration-300 ${look}`}
     >
-      <Download className="size-5" aria-hidden="true" strokeWidth={2.2} />
       {label}
     </a>
   );
 }
 
-function DownloadMeta() {
+function Scrim() {
   return (
-    <p className="mt-2.5 text-sm text-muted">
-      Gratis · {RELEASE_VERSION} · {INSTALLER_SIZE} · Windows 10 y 11
-    </p>
+    <div
+      aria-hidden="true"
+      className="absolute inset-0 bg-[linear-gradient(to_top,#000_0%,rgb(0_0_0/0.75)_35%,rgb(0_0_0/0.15)_75%,rgb(0_0_0/0.45)_100%),linear-gradient(to_right,rgb(0_0_0/0.7)_0%,transparent_65%)]"
+    />
   );
 }
 
-function Still({ name, alt, eager = false }: { name: string; alt: string; eager?: boolean }) {
-  return (
-    <figure className="lite-only overflow-hidden rounded-xl border border-line bg-surface">
-      <img
-        src={`/scene/stills/${name}.webp`}
-        alt={alt}
-        width={1440}
-        height={900}
-        loading={eager ? "eager" : "lazy"}
-        decoding="async"
-        className="aspect-[16/10] w-full object-cover"
-      />
-    </figure>
-  );
-}
-
-const navLink =
-  "inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-sm transition-colors pointer-coarse:min-h-11";
-
-/** Every part of Studio at the top of a station panel, the current one marked, so the visitor sees where they are. */
-function StationTabs({ id }: { id: StationId }) {
-  return (
-    <nav aria-label="Partes de Studio" className="only-3d -mx-2 mb-4 flex flex-wrap items-center gap-x-1 gap-y-0.5 border-b border-line pb-3">
-      <a href="#inicio" aria-keyshortcuts="Escape" className={`${navLink} text-muted hover:text-fg`}>
-        <ArrowLeft className="size-4" aria-hidden="true" />
-        Mesa
-      </a>
-      <span aria-hidden="true" className="mx-1 h-4 w-px bg-line" />
-      {TOUR.map((tab) => (
-        <a
-          key={tab}
-          href={`#${tab}`}
-          aria-current={tab === id ? "page" : undefined}
-          className={`${navLink} text-muted hover:text-fg aria-[current=page]:font-semibold aria-[current=page]:text-fg aria-[current=page]:underline aria-[current=page]:decoration-accent aria-[current=page]:decoration-2 aria-[current=page]:underline-offset-[6px]`}
-        >
-          {stationById(tab).label}
-        </a>
-      ))}
-    </nav>
-  );
-}
-
-function PanelNav({ id }: { id: StationId }) {
-  const index = TOUR.indexOf(id);
-  const prev = TOUR[index - 1];
-  const next = TOUR[index + 1];
-  return (
-    <nav
-      aria-label="Anterior y siguiente"
-      className="only-3d mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4"
-    >
-      {prev ? (
-        <a href={`#${prev}`} aria-keyshortcuts="ArrowLeft" className={`${navLink} min-h-11 text-muted hover:text-fg`}>
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          {stationById(prev).label}
-        </a>
-      ) : (
-        <span />
-      )}
-      {next ? (
-        <a
-          href={`#${next}`}
-          aria-keyshortcuts="ArrowRight"
-          className={`${navLink} min-h-11 font-medium text-fg hover:text-accent`}
-        >
-          {stationById(next).label}
-          <ArrowRight className="size-4" aria-hidden="true" />
-        </a>
-      ) : null}
-    </nav>
-  );
-}
-
-function Points({ items }: { items: readonly string[] }) {
-  return (
-    <ul className="mt-5 space-y-2.5 text-[15px] leading-relaxed text-muted">
-      {items.map((item) => (
-        <li key={item} className="flex gap-3">
-          <span aria-hidden="true" className="mt-[0.6em] size-1.5 shrink-0 rounded-full bg-accent" />
-          <span>{item}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-const panel =
-  "lite:mx-auto lite:grid lite:max-w-6xl lite:items-center lite:gap-8 lite:px-5 lite:py-14 lite:sm:px-8 lite:md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lite:md:gap-14 lite:md:py-20";
-const body = "three-d:p-5 three-d:sm:p-6";
-const h2 = "text-2xl font-bold leading-tight text-balance outline-none sm:text-[1.75rem]";
-const lead = "mt-3 text-base leading-relaxed text-pretty text-fg/85";
+const STRUCTURED_DATA = [
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "ClipHub",
+    applicationCategory: "SportsApplication",
+    operatingSystem: "Web, Windows",
+    description: HERO.lead,
+    offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: FAQ.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
+  },
+];
 
 export default function Home() {
   return (
     <>
-      <header className="z-30 flex items-center justify-between gap-4 px-4 py-3 sm:px-6 three-d:pointer-events-none three-d:fixed three-d:inset-x-0 three-d:top-0 lite:sticky lite:top-0 lite:border-b lite:border-line lite:bg-bg">
-        <a
-          href="#inicio"
-          className="pointer-events-auto rounded-lg three-d:tape three-d:px-3 three-d:py-2"
-        >
-          <Wordmark />
-        </a>
-        <nav aria-label="Secciones" className="lite-only hidden items-center gap-6 text-sm text-muted md:flex">
-          <a className="transition-colors hover:text-fg" href="#short">
-            Short
-          </a>
-          <a className="transition-colors hover:text-fg" href="#demo-completa">
-            Demo completa
-          </a>
-          <a className="transition-colors hover:text-fg" href="#clips">
-            Clips de stream
-          </a>
-          <a className="transition-colors hover:text-fg" href="#analisis">
-            Análisis
-          </a>
-        </nav>
-        <a
-          href={DOWNLOAD_URL}
-          className="header-cta pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-lg border border-line bg-surface px-4 text-sm font-semibold transition-[border-color,transform] duration-150 ease-out hover:border-accent motion-safe:active:scale-[0.97] three-d:tape three-d:rounded-sm three-d:border-0"
-        >
-          <Download className="size-4" aria-hidden="true" />
-          Descargar
-        </a>
-      </header>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }} />
+      <a
+        href="#analisis"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:bg-bg focus:px-3 focus:py-2"
+      >
+        Saltar al contenido
+      </a>
 
-      <CiberStage />
+      <SiteHeader nav={NAV} appUrl={ANALYTICS_URL} ctaLabel={HERO.primary} />
 
-      <main className="ciber-main">
-        <section id="inicio" data-panel="inicio" aria-labelledby="inicio-titulo" className={panel}>
-          <div className={body}>
-            <h1
-              id="inicio-titulo"
-              tabIndex={-1}
-              className="text-[2rem] font-bold leading-[1.08] text-balance outline-none sm:text-[2.6rem] three-d:text-[1.9rem] three-d:sm:text-[2.1rem]"
-            >
-              De la demo al vídeo, sin editar a mano
+      <main>
+        <section aria-labelledby="hero-titulo" className="relative flex min-h-svh items-end overflow-hidden">
+          <FilmBackdrop film={FILMS.hero} priority />
+          <Scrim />
+          <div className={`${wrap} relative pb-20 pt-32 sm:pb-24`}>
+            <p className={eyebrow}>{HERO.kicker}</p>
+            <h1 id="hero-titulo" className={`${giant} mt-5 max-w-5xl text-[clamp(3.5rem,11vw,10rem)]`}>
+              {HERO.title}
             </h1>
-            <p className={`${lead} inicio-lead`}>
-              Studio lee tu demo de CS2, graba las mejores jugadas y monta el vídeo, con el análisis de la partida al
-              lado. Tú eliges el jugador, la música y los efectos.
-            </p>
-            <ProductFlow />
-            <div className="inicio-cta mt-6">
-              <DownloadButton label="Descargar para Windows" />
-              <DownloadMeta />
+            <p className={lead}>{HERO.lead}</p>
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+              <Cta href={ANALYTICS_URL} label={HERO.primary} solid />
+              <Cta href={DOWNLOAD_URL} label={HERO.secondary} />
             </div>
-            <p className="only-3d mt-5 border-t border-line pt-4 text-sm leading-relaxed text-muted">
-              Pulsa los objetos de la mesa para ver cada parte de Studio.
-              <span className="pointer-coarse:hidden"> También puedes recorrerla con las flechas del teclado.</span>
-            </p>
-            <p className="lite-only mt-5">
-              <ThreeDLink />
-            </p>
+            <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 font-display text-xs font-bold uppercase tracking-[0.2em] text-fg/70">
+              {HERO.assurances.map((a) => (
+                <li key={a} className="flex items-center gap-2">
+                  <span aria-hidden="true" className="size-1.5 bg-brand" />
+                  {a}
+                </li>
+              ))}
+            </ul>
           </div>
-          <Still
-            name="mesa"
-            eager
-            alt="Un puesto de ciber de noche: monitor CRT con una jugada de CS:GO, torre con un CD, teclado, libreta y ticket"
-          />
+          <ChevronDown aria-hidden="true" className="absolute bottom-6 left-1/2 size-6 -translate-x-1/2 text-fg/60" />
         </section>
 
-        <section id="short" data-panel="short" aria-labelledby="short-titulo" className={panel}>
-          <div className={body}>
-            <StationTabs id="short" />
-            <h2 id="short-titulo" tabIndex={-1} className={h2}>
-              Short: tus mejores jugadas en vertical
+        <section aria-label="ClipHub en cifras" className="border-y border-line">
+          <ul className={`${wrap} grid divide-line py-14 sm:grid-cols-3 sm:divide-x`}>
+            {STATS.map((s) => (
+              <li key={s.label} className="py-4 sm:px-10 sm:first:pl-0">
+                <span className={`${giant} block text-7xl sm:text-8xl`}>{s.value}</span>
+                <span className={`${eyebrow} mt-3 block`}>{s.label}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section id="como-funciona" aria-labelledby="como-titulo" className="py-24 sm:py-32">
+          <div className={wrap}>
+            <p className={eyebrow}>Cómo funciona</p>
+            <h2 id="como-titulo" className={`${h2} max-w-5xl`}>
+              De la demo al anti-strat en tres pasos.
             </h2>
-            <p className={lead}>
-              Elige al jugador y ClipHub encuentra sus jugadas, las graba en CS2 con HLAE y las monta en un vídeo 9:16
-              listo para subir.
-            </p>
-            <Points
-              items={[
-                "«Auto: mejores 60 s» elige el mejor minuto por ti. Las rondas de cinco kills llevan la etiqueta ACE.",
-                "Los cortes caen al ritmo de la música, o lo creas sin música.",
-                "Killfeed del juego, contador de kills, título automático y portada.",
-              ]}
-            />
-            <PanelNav id="short" />
-          </div>
-          <div className="lite-only flex justify-center">
-            <LiteVideo
-              src="/video/killfeed-loop"
-              poster="/scene/stills/short-frame.webp"
-              label="Un Short de ClipHub: jugada de CS2 en vertical con el killfeed del juego"
-            />
+            <ol className="mt-16 grid gap-12 md:grid-cols-3">
+              {STEPS.map((step, i) => (
+                <li key={step.title}>
+                  <span className={`${giant} block text-8xl text-fg/15 sm:text-9xl`}>{i + 1}</span>
+                  <h3 className={`${giant} mt-2 text-3xl`}>{step.title}</h3>
+                  <p className="mt-3 max-w-sm text-muted">{step.text}</p>
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
 
-        <section id="demo-completa" data-panel="demo-completa" aria-labelledby="demo-completa-titulo" className={panel}>
-          <div className={body}>
-            <StationTabs id="demo-completa" />
-            <h2 id="demo-completa-titulo" tabIndex={-1} className={h2}>
-              Demo completa: la partida entera desde un jugador
+        <section id="video" aria-labelledby="video-titulo" className="border-t border-line py-24 sm:py-32">
+          <div className={wrap}>
+            <p className={eyebrow}>En un minuto</p>
+            <h2 id="video-titulo" className={`${h2} max-w-5xl`}>
+              {PRODUCT_VIDEO.title}
             </h2>
-            <p className={lead}>
-              Graba todas las rondas en 16:9 desde la vista del jugador, con el audio de la partida nivelado y sin
-              música de fondo.
-            </p>
-            <Points
-              items={[
-                "Once HUD de retransmisión o el HUD original de CS2, y el POV 1:1 con TrueView.",
-                "Transiciones entre rondas y rótulos según el origen de la demo: FACEIT, Premier, profesional o local.",
-                "Tu intro, tu outro y un vídeo de sponsor después de la ronda 2.",
-              ]}
-            />
-            <PanelNav id="demo-completa" />
+            <p className={lead}>{PRODUCT_VIDEO.lead}</p>
+            <video
+              controls
+              playsInline
+              preload="none"
+              poster={`${PRODUCT_VIDEO.src}.webp`}
+              aria-label={PRODUCT_VIDEO.label}
+              width={1920}
+              height={1080}
+              className="mt-14 block h-auto w-full border border-line bg-surface"
+            >
+              <source src={`${PRODUCT_VIDEO.src}.webm`} type="video/webm" />
+              <source src={`${PRODUCT_VIDEO.src}.mp4`} type="video/mp4" />
+            </video>
           </div>
-          <Still name="cd" alt="Primer plano de la bandeja del lector con un CD grabado que pone FINAL SÁB" />
         </section>
 
-        <section id="clips" data-panel="clips" aria-labelledby="clips-titulo" className={panel}>
-          <div className={body}>
-            <StationTabs id="clips" />
-            <h2 id="clips-titulo" tabIndex={-1} className={h2}>
-              Clips de stream: tus directos, en Shorts
+        <section id="analisis" aria-labelledby="analisis-titulo" className="relative flex min-h-svh items-end overflow-hidden">
+          <FilmBackdrop film={FILMS.duels} />
+          <Scrim />
+          <div className={`${wrap} relative py-24`}>
+            <p className={eyebrow}>Preparar al rival</p>
+            <h2 id="analisis-titulo" className={`${h2} max-w-4xl`}>
+              Cada duelo. Cada ruta. Cada ronda.
             </h2>
             <p className={lead}>
-              Pega un enlace de Twitch, YouTube o Kick, o sube un MP4. Marca los momentos y cada uno sale como su propio
-              Short. No necesita CS2.
+              ClipHub lee la demo entera, no media partida, y te da los números con las rondas detrás. El anti-strat
+              sale de lo que pasó, no de una impresión.
             </p>
-            <Points
-              items={[
-                "Cámara + juego, cámara doble o solo juego, con tu facecam encuadrada.",
-                "Banner con tu nombre de streamer, música y efecto de color.",
-                "Tu edición se guarda en el PC mientras trabajas.",
-              ]}
-            />
-            <PanelNav id="clips" />
           </div>
-          <Still
-            name="stream"
-            alt="El jugador del puesto de al lado, de espaldas, con una webcam encendida sobre su monitor"
-          />
         </section>
 
-        <section id="analisis" data-panel="analisis" aria-labelledby="analisis-titulo" className={panel}>
-          <div className={body}>
-            <StationTabs id="analisis" />
-            <h2 id="analisis-titulo" tabIndex={-1} className={h2}>
-              Análisis: tus partidas, ronda a ronda
+        <section aria-labelledby="pantallas-titulo" className="py-24 sm:py-32">
+          <div className={wrap}>
+            <p className={eyebrow}>El producto</p>
+            <h2 id="pantallas-titulo" className={h2}>
+              El rival, en números.
             </h2>
-            <p className={lead}>
-              Cada demo se analiza en local una sola vez y queda en tu biblioteca con sus equipos, jugadores y rondas.
-            </p>
-            <Points
-              items={[
-                "Rondas clasificadas por compra y por patrón, y el Replay de cada ronda sobre el mapa.",
-                "Fichas de equipos y jugadores con ADR, KAST, WPA y su rol, cada cifra enlazada a sus rondas.",
-                "Informes de scouting del rival para el coach, en HTML o PDF.",
-                "Desde una ronda puedes grabar el POV de un jugador o mandarla a un Short.",
-              ]}
-            />
-            <PanelNav id="analisis" />
-          </div>
-          <Still
-            name="notepad"
-            alt="Una libreta con notas a mano de la final: rondas, ADR, KAST y la ronda 19 marcada para hacer un Short"
-          />
-        </section>
-
-        <section id="descargar" data-panel="descargar" aria-labelledby="descargar-titulo" className={panel}>
-          <div className={body}>
-            <StationTabs id="descargar" />
-            <h2 id="descargar-titulo" tabIndex={-1} className={h2}>
-              Descarga ClipHub Studio
-            </h2>
-            <p className={lead}>
-              Las demos se analizan, graban y editan en tu PC: no necesitas cuenta y tus archivos no se suben a ningún
-              sitio.
-            </p>
-            <div className="mt-6">
-              <DownloadButton label="Descargar para Windows" />
-              <DownloadMeta />
+            <div className="mt-14">
+              <ProductViewer tabs={VIEWER_TABS} />
             </div>
-            <h3 className="mt-7 text-sm font-semibold">Qué necesitas</h3>
-            <Points
-              items={[
-                "Windows 10 u 11 de 64 bits.",
-                "Counter-Strike 2 instalado con Steam.",
-                "HLAE oficial: Studio lo instala y lo actualiza solo.",
-                "Una tarjeta gráfica dedicada para grabar con la mejor calidad.",
-                "Alrededor de 1 GB libre en el disco.",
-              ]}
-            />
-            <h3 className="mt-7 text-sm font-semibold">Si Windows avisa al instalar</h3>
-            <p className="mt-2 text-[15px] leading-relaxed text-muted">
-              El instalador aún no está firmado, así que Windows puede mostrar «Windows protegió su PC». Pulsa «Más
-              información» y luego «Ejecutar de todas formas». El código y el checksum de cada versión están en{" "}
-              <a
-                href={REPO_URL}
-                className="font-medium text-fg underline decoration-line underline-offset-4 hover:decoration-accent"
-              >
-                GitHub
-              </a>
-              .
-            </p>
-            <p className="only-3d mt-6 border-t border-line pt-4 text-xs text-muted">© 2026 ClipHub</p>
-            <PanelNav id="descargar" />
+            <div className="mt-14 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+              <Cta href={ANALYTICS_URL} label="Pruébalo con tus demos" solid />
+              <Cta href={DEMO_URL} label="Ver la demo sin cuenta" />
+              <span className="text-sm text-muted">Gratis. Sin tarjeta. Sin subir tus demos.</span>
+            </div>
           </div>
-          <Still name="ticket" alt="El ticket del ciber: puesto 07, una hora, 1,50 euros" />
+        </section>
+
+        <section aria-labelledby="capacidades-titulo" className="border-t border-line py-24 sm:py-32">
+          <div className={wrap}>
+            <h2 id="capacidades-titulo" className="sr-only">
+              Qué puedes hacer
+            </h2>
+            <ol className="grid gap-x-12 gap-y-14 sm:grid-cols-2 lg:grid-cols-3">
+              {CAPABILITIES.map((c, i) => (
+                <li key={c.title} className="border-t-2 border-fg pt-6">
+                  <span className="font-mono text-sm text-faint">{String(i + 1).padStart(2, "0")}</span>
+                  <h3 className={`${giant} mt-3 text-4xl`}>{c.title}</h3>
+                  <p className="mt-3 text-muted">{c.text}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section id="comms" aria-labelledby="comms-titulo" className="border-t border-line bg-surface py-24 sm:py-32">
+          <div className={`${wrap} grid gap-16 lg:grid-cols-[1fr_1.1fr] lg:items-center`}>
+            <div>
+              <p className={eyebrow}>Comms de voz</p>
+              <h2 id="comms-titulo" className={h2}>
+                {COMMS.title}
+              </h2>
+              <p className={lead}>{COMMS.lead}</p>
+            </div>
+            <figure>
+              <figcaption className="flex items-center justify-between border-b border-line pb-4 font-mono text-xs uppercase tracking-wider text-faint">
+                <span>Ronda 14 · Mirage · T</span>
+                <span>Ejemplo</span>
+              </figcaption>
+              <ol>
+                {COMMS.sample.map((line) => (
+                  <li
+                    key={line.clock}
+                    className="grid grid-cols-[4.5rem_1fr] gap-4 border-b border-line py-6 sm:grid-cols-[6rem_1fr]"
+                  >
+                    <span className={`${giant} text-3xl text-side-t sm:text-4xl`}>{line.clock}</span>
+                    <span>
+                      <span className="font-display text-xs font-bold uppercase tracking-[0.2em] text-faint">
+                        {line.speaker} · {line.phase}
+                      </span>
+                      <span className="mt-1 block text-lg leading-snug sm:text-xl">{line.text}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </figure>
+          </div>
+        </section>
+
+        <section id="equipo" aria-labelledby="equipo-titulo" className="relative flex min-h-svh items-end overflow-hidden">
+          <FilmBackdrop film={FILMS.team} />
+          <Scrim />
+          <div className={`${wrap} relative py-24`}>
+            <Wordmark analytics />
+            <h2 id="equipo-titulo" className={`${h2} max-w-5xl`}>
+              Todo el staff. Una biblioteca.
+            </h2>
+            <p className={lead}>
+              ClipHub Analytics en el navegador y ClipHub Studio en Windows comparten la misma biblioteca. El coach
+              prepara desde el portátil y el analista sigue en el PC del bootcamp.
+            </p>
+            <ul className="mt-10 flex flex-col gap-3 sm:flex-row sm:gap-10">
+              {TEAM_POINTS.map((p) => (
+                <li key={p} className="font-display text-sm font-bold uppercase tracking-[0.18em] text-fg/90">
+                  {p}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section id="comparativa" aria-labelledby="comparativa-titulo" className="py-24 sm:py-32">
+          <div className={wrap}>
+            <p className={eyebrow}>Comparativa</p>
+            <h2 id="comparativa-titulo" className={`${h2} max-w-5xl`}>
+              Lo que otros cobran, aquí es gratis.
+            </h2>
+            <table className="mt-14 w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b-2 border-fg font-display text-xs font-bold uppercase tracking-[0.2em]">
+                  <th scope="col" className="py-4 pr-4">
+                    <span className="sr-only">Función</span>
+                  </th>
+                  <th scope="col" className="py-4 pr-4">
+                    {COMPARISON.ours}
+                  </th>
+                  <th scope="col" className="py-4 text-faint">
+                    {COMPARISON.theirs}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARISON.rows.map((row) => (
+                  <tr key={row.feature} className="border-b border-line">
+                    <th
+                      scope="row"
+                      className="py-5 pr-4 align-top font-display text-sm font-bold uppercase tracking-[0.12em] sm:text-base"
+                    >
+                      {row.feature}
+                    </th>
+                    <td className="py-5 pr-4 align-top text-sm sm:text-lg">{row.ours}</td>
+                    <td className="py-5 align-top text-sm text-faint sm:text-lg">{row.theirs}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="creadores" aria-labelledby="creadores-titulo" className="relative flex min-h-svh items-end overflow-hidden">
+          <FilmBackdrop film={FILMS.pro} />
+          <Scrim />
+          <div className={`${wrap} relative py-24`}>
+            <p className={eyebrow}>Para creadores · Solo Windows</p>
+            <h2 id="creadores-titulo" className={`${h2} max-w-5xl`}>
+              De la demo al vídeo.
+            </h2>
+            <p className={lead}>
+              ClipHub Studio añade las herramientas de clipping: graba las jugadas dentro de CS2 y monta el vídeo por ti.
+            </p>
+            <ul className="mt-12 grid gap-8 border-t border-fg/30 pt-8 sm:grid-cols-3">
+              {CREATOR_POINTS.map((p) => (
+                <li key={p.title}>
+                  <h3 className={`${giant} text-3xl`}>{p.title}</h3>
+                  <p className="mt-2 text-sm text-muted">{p.text}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section id="preguntas" aria-labelledby="preguntas-titulo" className="border-t border-line py-24 sm:py-32">
+          <div className={`${wrap} grid gap-12 lg:grid-cols-[1fr_1.4fr]`}>
+            <div>
+              <p className={eyebrow}>Preguntas</p>
+              <h2 id="preguntas-titulo" className={h2}>
+                Antes de que preguntes.
+              </h2>
+            </div>
+            <div className="border-t-2 border-fg">
+              {FAQ.map((item) => (
+                <details key={item.q} className="group border-b border-line">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-6 font-display text-lg font-bold uppercase tracking-[0.06em] sm:text-xl [&::-webkit-details-marker]:hidden">
+                    {item.q}
+                    <span aria-hidden="true" className="text-2xl font-normal transition-transform group-open:rotate-45">
+                      +
+                    </span>
+                  </summary>
+                  <p className="max-w-2xl pb-6 leading-relaxed text-muted">{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="descargar" aria-labelledby="descargar-titulo" className="border-t border-line py-24 sm:py-32">
+          <div className={wrap}>
+            <p className={eyebrow}>Empieza ahora</p>
+            <h2 id="descargar-titulo" className={`${giant} mt-4 text-[clamp(3.5rem,12vw,11rem)]`}>
+              Gratis. Hoy.
+            </h2>
+            <div className="mt-12 flex flex-col gap-3 sm:flex-row">
+              <Cta href={ANALYTICS_URL} label={HERO.primary} solid />
+              <Cta href={DOWNLOAD_URL} label={HERO.secondary} />
+            </div>
+            <p className="mt-5 font-mono text-xs uppercase tracking-wider text-faint">
+              {RELEASE_VERSION} · {INSTALLER_SIZE} · Windows 10 y 11
+            </p>
+            <div className="mt-20 grid gap-12 border-t border-line pt-10 md:grid-cols-2">
+              <div>
+                <h3 className={eyebrow}>Qué necesitas para Studio</h3>
+                <ul className="mt-5 space-y-2 text-muted">
+                  {REQUIREMENTS.map((r) => (
+                    <li key={r}>{r}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className={eyebrow}>Si Windows avisa al instalar</h3>
+                <p className="mt-5 leading-relaxed text-muted">
+                  El instalador aún no está firmado, así que Windows puede mostrar «Windows protegió su PC». Pulsa «Más
+                  información» y luego «Ejecutar de todas formas». El código y el checksum de cada versión están en{" "}
+                  <a href={REPO_URL} className="text-fg underline underline-offset-4">
+                    GitHub
+                  </a>
+                  .
+                </p>
+              </div>
+            </div>
+          </div>
         </section>
       </main>
 
-      <footer className="site-footer border-t border-line px-5 py-10 sm:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
-          <p>Gratis y en local. ClipHub nunca sube tus demos, clips ni vídeos.</p>
-          <p className="flex items-center gap-5">
-            <a href={REPO_URL} className="transition-colors hover:text-fg">
-              Código en GitHub
+      <footer className="border-t border-line pb-28 pt-10 sm:pb-10">
+        <div
+          className={`${wrap} flex flex-col gap-6 font-display text-xs font-bold uppercase tracking-[0.2em] text-faint sm:flex-row sm:items-center sm:justify-between`}
+        >
+          <span>ClipHub © 2026</span>
+          <span className="flex flex-wrap gap-8">
+            <a href={ANALYTICS_URL} className="transition-colors hover:text-fg">
+              ClipHub Analytics
             </a>
-            <span>© 2026 ClipHub</span>
-          </p>
+            <a href={DOWNLOAD_URL} className="transition-colors hover:text-fg">
+              Studio para Windows
+            </a>
+            <a href={REPO_URL} className="transition-colors hover:text-fg">
+              GitHub
+            </a>
+          </span>
         </div>
       </footer>
     </>

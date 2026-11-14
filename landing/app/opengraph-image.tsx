@@ -2,25 +2,21 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-export const alt = "Un puesto de ciber con ClipHub Studio en el monitor";
+export const alt = "Radar de Mirage con los jugadores marcados y el titular de ClipHub";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 // The static export renders the image once at build time.
 export const dynamic = "force-static";
 
-const ACCENT = "#fb923c";
-
 export default async function OpengraphImage() {
-  const scene = await readFile(path.join(process.cwd(), "public", "scene", "stills", "og.jpg"));
-  const mark = await readFile(path.join(process.cwd(), "public", "brand", "cliphub-mark.svg"), "utf8");
-  const sceneSource = `data:image/jpeg;base64,${scene.toString("base64")}`;
-  const markSource = `data:image/svg+xml;base64,${Buffer.from(mark).toString("base64")}`;
+  const frame = await readFile(path.join(process.cwd(), "public", "shots", "og-base.jpg"));
+  const frameSource = `data:image/jpeg;base64,${frame.toString("base64")}`;
 
   return new ImageResponse(
-    <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", backgroundColor: "#050709" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", backgroundColor: "#000" }}>
       <img
         alt=""
-        src={sceneSource}
+        src={frameSource}
         width={1200}
         height={630}
         style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}
@@ -34,43 +30,16 @@ export default async function OpengraphImage() {
           width: "100%",
           height: "100%",
           display: "flex",
-          backgroundImage: "linear-gradient(0deg, rgba(5,7,9,0.97) 0%, rgba(5,7,9,0.9) 34%, rgba(5,7,9,0) 66%)",
+          backgroundImage: "linear-gradient(0deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 45%, rgba(0,0,0,0.1) 100%)",
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          left: 56,
-          top: 44,
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-          padding: "10px 16px",
-          borderRadius: 12,
-          backgroundColor: "rgba(10,13,17,0.92)",
-        }}
-      >
-        <img alt="" src={markSource} width={40} height={40} style={{ width: 40, height: 40 }} />
-        <div style={{ display: "flex", fontSize: 28, fontWeight: 700, color: "#f2f5f8" }}>
-          ClipHub<span style={{ color: "#a7b0bc", marginLeft: 8, fontWeight: 500 }}>Studio</span>
-        </div>
+      <div style={{ position: "absolute", left: 64, top: 52, display: "flex", fontSize: 30, fontWeight: 800, letterSpacing: 6, color: "#fff" }}>
+        CLIPHUB
       </div>
-      <div style={{ position: "absolute", left: 56, right: 56, bottom: 48, display: "flex", flexDirection: "column" }}>
-        <div
-          style={{
-            display: "flex",
-            fontSize: 58,
-            fontWeight: 700,
-            lineHeight: 1.05,
-            color: "#ffffff",
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Tus partidas de CS2, convertidas en vídeo
-        </div>
-        <div style={{ display: "flex", marginTop: 16, fontSize: 26, color: "#c9d1db" }}>
-          Shorts, demo completa, clips de stream y análisis.
-          <span style={{ color: ACCENT, marginLeft: 10 }}>Gratis y en tu PC.</span>
+      <div style={{ position: "absolute", left: 64, right: 64, bottom: 56, display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", fontSize: 20, letterSpacing: 6, color: "#a3a3a3" }}>ANÁLISIS DE CS2 · GRATIS</div>
+        <div style={{ display: "flex", marginTop: 14, fontSize: 92, fontWeight: 800, lineHeight: 0.95, color: "#fff" }}>
+          LEE AL RIVAL ANTES DE QUE JUEGUE.
         </div>
       </div>
     </div>,
