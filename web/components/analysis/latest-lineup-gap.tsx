@@ -14,7 +14,7 @@ export function LatestLineupGap({ map, fallback }: LatestLineupGapProps): ReactN
   return (
     <p role="status" className="flex items-start gap-2 rounded-md border border-warning/45 bg-warning/10 px-3 py-2.5 text-body-sm text-fg-1">
       <Users aria-hidden className="mt-0.5 size-4 shrink-0" />
-      {latestLineupGapText(map, fallback)}
+      {latestLineupGapText(map)}
     </p>
   );
 }

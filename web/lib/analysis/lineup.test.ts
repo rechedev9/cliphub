@@ -84,8 +84,7 @@ test('a map only the default lineup leaves empty is told apart from one the coac
   assert.equal(latestLineupMissesMap({ ...latest, lineups: null }), false);
   assert.equal(latestLineupMissesMap({ ...latest, mapCounts: null }), false);
   assert.equal(latestLineupMissesMap({ ...latest, map: '' }), false);
-  assert.equal(latestLineupGapText('de_cache', 4), 'La última alineación no ha jugado en Cache. Se ven las 4 partidas con todos los jugadores.');
-  assert.equal(latestLineupGapText('de_cache', 1), 'La última alineación no ha jugado en Cache. Se ve 1 partida con todos los jugadores.');
+  assert.equal(latestLineupGapText('de_cache'), 'La última alineación no ha jugado en Cache. Se ven las rondas de todos los jugadores.');
 });
 
 test('a map the latest lineup never played reads every player and counts their matches', () => {

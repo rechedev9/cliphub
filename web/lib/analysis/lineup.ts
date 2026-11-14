@@ -115,7 +115,6 @@ export function lineupForMap({ chosen, map, latestCounts, everyoneCounts, misses
 }
 
 /** Why the view reads every player on this map: "La última alineación no ha jugado en Cache. …". */
-export function latestLineupGapText(map: string, matches: number): string {
-  const shown = matches === 1 ? 'Se ve 1 partida' : `Se ven las ${matches} partidas`;
-  return `La última alineación no ha jugado en ${prettyMapName(map)}. ${shown} con todos los jugadores.`;
+export function latestLineupGapText(map: string): string {
+  return `La última alineación no ha jugado en ${prettyMapName(map)}. Se ven las rondas de todos los jugadores.`;
 }

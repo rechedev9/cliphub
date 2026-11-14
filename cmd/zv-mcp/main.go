@@ -96,7 +96,7 @@ Preparar's Jugadores block (a card per player, above the first-death positions) 
 with no map it shows every map, and prepare_team does not return it, so call team_side_stats alongside prepare_team for the players.
 The team tools and scout_team take opponent_id and match_id to narrow the matches, and lineup (SteamID64s) to keep
 only the rounds every player of the team played in it, like the Alineación selector; the UI defaults to the
-players of the team's latest match, which team_lineups lists, and an empty lineup keeps every round. team_playbook lists every
+players of the team's latest match, which team_lineups lists (on a map they never played, every player), and an empty lineup keeps every round. team_playbook lists every
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
 Every team tool (team_side_stats, find_player_pattern and find_pattern_rounds too) also takes the rest of the team Replay's filter bar, so all team figures count the same rounds:
