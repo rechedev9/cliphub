@@ -8,11 +8,11 @@ paths:
 
 # Web inside Electron
 
-`web/` is the Studio UI. It runs only in the Chromium that Electron bundles (`electron` in `desktop/package.json`). Use any web platform feature that Chromium ships, with no fallback and no polyfill.
+`web/` is the UI of both editions. The desktop edition runs only in the Chromium that Electron bundles (`electron` in `desktop/package.json`), so it can use any web platform feature that Chromium ships. The web edition (ClipMind) runs in the user's own browser: a feature it renders follows the Landing rule below. [ClipMind and the VPS](clipmind.md).
 
 ## Local API
 
-`web/app/api/*` proxies to the orchestrator. `web/proxy.ts` and `web/lib/api/local-request-guard.ts` reject a cross-origin request and a DNS-rebound host. Mutations also need the per-launch HttpOnly capability cookie that the desktop process seeds (`installProxyCapabilityCookie` in `desktop/src/boot-security.ts`).
+In the desktop edition `web/app/api/*` proxies to the orchestrator. `web/proxy.ts` and `web/lib/api/local-request-guard.ts` reject a cross-origin request and a DNS-rebound host. Mutations also need the per-launch HttpOnly capability cookie that the desktop process seeds (`installProxyCapabilityCookie` in `desktop/src/boot-security.ts`).
 
 Do not loosen the guard or the cookie to make a test or the browser pane work. Drive state changes through `bin\zv-mcp.exe`, as in [Verify in Studio](../skills/verify-in-studio/SKILL.md). Tests: `web/lib/api/local-request-guard.test.ts`, `desktop/src/boot-security.test.ts`.
 
