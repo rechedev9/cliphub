@@ -44,8 +44,9 @@ export function CanvasPanel({
   children: ReactNode;
 }): ReactNode {
   const Chevron = open ? ChevronDown : ChevronRight;
+  // overflow-hidden drops a flex item's minimum height to 0, so without shrink-0 the column clips the panel instead of scrolling.
   return (
-    <section aria-label={title} className="overflow-hidden rounded-md border border-border-strong bg-surface-2">
+    <section aria-label={title} className="shrink-0 overflow-hidden rounded-md border border-border-strong bg-surface-2">
       <header className={cn('flex items-center gap-1.5 pr-1', open ? HEADER[tone].open : 'text-fg-2')}>
         <button
           type="button"
