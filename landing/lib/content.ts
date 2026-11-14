@@ -70,7 +70,7 @@ export const FAQ = [
   },
   {
     q: "¿Necesito Windows?",
-    a: "Para analizar, no: basta con el navegador. La app de Windows añade la grabación y el montaje de vídeo, que necesitan CS2 instalado.",
+    a: "Para analizar, no: basta con el navegador. La app de Windows añade las comms de voz transcritas, y la grabación y el montaje de vídeo, que necesitan CS2 instalado.",
   },
   {
     q: "¿Puedo trabajar con mi equipo?",
@@ -228,7 +228,7 @@ export const CAPABILITIES = [
 
 export const COMMS = {
   title: "Escucha la ronda.",
-  lead: "ClipHub extrae la voz del equipo, la transcribe y la sincroniza con el replay. Buscas una frase y saltas al segundo en que se dijo.",
+  lead: "En la app de Windows, ClipHub extrae la voz del equipo, la transcribe y la sincroniza con el replay. Buscas una frase y saltas al segundo en que se dijo.",
   sample: [
     { clock: "1:52", speaker: "IGL", phase: "Freezetime", text: "Default lento, nadie pisa A hasta el minuto." },
     { clock: "1:08", speaker: "Entry", phase: "Ronda", text: "Dos en long, uno con AWP." },
@@ -250,7 +250,7 @@ export const COMPARISON = {
     { feature: "Precio", ours: "Gratis", theirs: "Suscripción mensual" },
     { feature: "Tus demos", ours: "Se quedan en tu ordenador", theirs: "Se suben a su servidor" },
     { feature: "Partido completo sin pagar", ours: "Todas las rondas", theirs: "A menudo, media partida" },
-    { feature: "Comms de voz transcritas", ours: "Incluido", theirs: "Plan de organización" },
+    { feature: "Comms de voz transcritas", ours: "Incluido en Windows", theirs: "Plan de organización" },
     { feature: "Informes en PDF", ours: "Incluido", theirs: "Depende" },
     { feature: "Simulador de veto", ours: "Incluido", theirs: "Rara vez" },
     { feature: "Playbook detectado", ours: "Incluido", theirs: "Rara vez" },

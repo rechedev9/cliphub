@@ -82,7 +82,7 @@ export default function Home() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }} />
       <a
-        href="#analisis"
+        href="#contenido"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:bg-bg focus:px-3 focus:py-2"
       >
         Saltar al contenido
@@ -90,7 +90,7 @@ export default function Home() {
 
       <SiteHeader nav={NAV} appUrl={ANALYTICS_URL} ctaLabel={HERO.primary} />
 
-      <main>
+      <main id="contenido" tabIndex={-1} className="outline-none">
         <section aria-labelledby="hero-titulo" className="relative flex min-h-svh items-end overflow-hidden">
           <FilmBackdrop film={FILMS.hero} priority />
           <Scrim />
@@ -220,7 +220,7 @@ export default function Home() {
         <section id="comms" aria-labelledby="comms-titulo" className="border-t border-line bg-surface py-24 sm:py-32">
           <div className={`${wrap} grid gap-16 lg:grid-cols-[1fr_1.1fr] lg:items-center`}>
             <div>
-              <p className={eyebrow}>Comms de voz</p>
+              <p className={eyebrow}>Comms de voz · Solo Windows</p>
               <h2 id="comms-titulo" className={h2}>
                 {COMMS.title}
               </h2>

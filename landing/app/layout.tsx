@@ -14,7 +14,6 @@ const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"
 const TITLE = "Análisis de demos de CS2 gratis para equipos | ClipHub";
 const DESCRIPTION =
   "Lee al rival antes de que juegue: replay 2D, scouting, bombsites, playbook, veto y comms de voz. Tus demos no salen de tu ordenador. Gratis, en el navegador o en Windows.";
-const OG_IMAGE = "/opengraph-image?v=analytics-1";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://cliphub.rechedev.cloud"),
@@ -29,9 +28,9 @@ export const metadata: Metadata = {
     title: TITLE,
     description: DESCRIPTION,
     url: "/",
-    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "El replay 2D de ClipHub con el mapa de calor de un equipo en Cache" }],
   },
-  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: [OG_IMAGE] },
+  // app/opengraph-image.tsx supplies the image and its alt for both.
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 export const viewport: Viewport = {
