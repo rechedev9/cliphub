@@ -5,6 +5,8 @@ import path from "node:path";
 export const alt = "Un puesto de ciber con ClipHub Studio en el monitor";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
+// The static export renders the image once at build time.
+export const dynamic = "force-static";
 
 const ACCENT = "#fb923c";
 

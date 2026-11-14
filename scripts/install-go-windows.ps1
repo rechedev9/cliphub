@@ -1,6 +1,6 @@
 # Pins and installs the official Windows Go toolchain so GOTOOLCHAIN=local can
-# rebuild zv / zv-recorder. Used by scripts/build.ps1 (Studio installer rebuild)
-# and scripts/check-toolchain.ps1. Does not require elevation: the zip lands in
+# rebuild zv / zv-recorder. Used by scripts/build.ps1 (Studio installer rebuild).
+# Does not require elevation: the zip lands in
 # %LOCALAPPDATA%\ClipHub\toolchain\go<version>.
 $ErrorActionPreference = "Stop"
 

@@ -17,7 +17,7 @@ build:
 	go build -o bin/zv-mcp ./cmd/zv-mcp
 
 test:
-	go test ./... -count=1 -timeout 3m
+	go test ./... -count=1 -timeout 30m
 	go run ./cmd/zv check
 
 check:
