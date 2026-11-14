@@ -442,6 +442,19 @@ refuses them.
   changed the demo format before demoinfocs caught up: check its releases
   before touching our parser code.
 
+### Incident: every demo played after the CS2 update failed its scan (Studio 5.21.1, 2026-11-13)
+
+The CS2 update of 2026-11-11 added `fixed8` fields to `CCSPlayerController`.
+demoinfocs v5.2.0 read them as varints, so the scan of a new demo failed with
+`demo_incompatible: nextByte: insufficient buffer` or died out of memory.
+Captures on the new build still worked, so HLAE was not the cause.
+
+- demoinfocs v5.3.0 fixes it (upstream issue #763). Telemetry showed the
+  split: every failing scan had `patch_version` 14197, every older one passed.
+- To prove a parser bump, build `cmd/zv-demo-players` with main's `go.mod`
+  (`go build -modfile`) and with the branch's, then scan a demo played after
+  the update. A demo from before the update does not show the bug.
+
 ### Incident: a library demo stopped the orchestrator on every start (Studio 5.21.0, 2026-11-13)
 
 The library scan resumes unfinished demos at start. One demo ran the parser out
