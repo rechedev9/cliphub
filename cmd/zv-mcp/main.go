@@ -241,10 +241,12 @@ ready, find_stream_plays (call again while running) for the streamer's kills and
 the streamer raising their voice; voice and voice_sensitivity 1 to 5 set the scan; a few voice-only plays per
 hour are kept, and a marked one is a shout far over the streamer's own level, rare, and is always listed, past limit). Voice play ids start with voice-. render_stream_summary
 makes one 16:9 video of the plays (all, or play_ids); render_stream makes one video per moment in a
-layout from list_stream_variants (9:16 Shorts or 16:9). To edit before rendering, get_stream_edit_plan
-reads the moments and their speed, audio, fades and text, the banners, music, kill feed and effects;
+layout from list_stream_variants (9:16 Shorts or 16:9), or one per group. To edit before rendering, get_stream_edit_plan
+reads the moments and their speed, audio, fades and text, the groups, the banners, music, kill feed and effects;
 edit_stream_plan changes them with expected_updated_at set to the updated_at it read (read again if
-the save fails). Both renders return a variant for wait_for_stream_render, which reports the percent
+the save fails). A group (edit_stream_plan groups) joins 2 or more moments into one Short in its clip_ids
+order, with the same look and music running on; groups [] separates them. shorts says how many videos
+render_stream makes; warn the user when a joined Short passes 60 s, the YouTube Shorts limit. Both renders return a variant for wait_for_stream_render, which reports the percent
 and, for render_stream, the video being encoded (video 2 of 3); then list_stream_videos for the
 videos and extra files. list_streams shows the streams already in Studio.
 The library: list_matches reads Partidas as the Studio shows it (kind, has_pov, has_voice, sort, team, opponent and event are its controls; every match says has_voice and voice_sync (auto, manual or unsynced, with voice_note when a recording gave a reason), and sync_voice with auto true is the row's Volver a sincronizar voz; a match in a

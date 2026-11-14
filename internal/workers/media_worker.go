@@ -1458,16 +1458,14 @@ func (w *StreamRenderWorker) render(
 		return fmt.Errorf("materialize stream source: %w", err)
 	}
 	outDir := filepath.Join(workDir, "out", "shortslistosparasubir")
-	if err := os.MkdirAll(outDir, 0o750); err != nil {
-		return err
+	for _, dir := range []string{outDir, filepath.Join(workDir, "parts")} {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			return err
+		}
 	}
 
 	runCtx, cancel := context.WithTimeout(ctx, cfg.timeoutDuration())
 	defer cancel()
-	type publishArtifact struct {
-		key  string
-		path string
-	}
 	revisionID := uuid.New()
 	revisionPrefix, err := streamclips.RenderRevisionPrefix(j.ID, variant, revisionID)
 	if err != nil {
@@ -1484,7 +1482,7 @@ func (w *StreamRenderWorker) render(
 	}()
 	var videos []streamclips.VideoEntry
 	var delivery []streamclips.DeliveryEntry
-	var publishArtifacts []publishArtifact
+	var publishArtifacts []streamPublishArtifact
 	var warnings []string
 	firstRenderedVideo := ""
 	musicPath := ""
@@ -1495,6 +1493,7 @@ func (w *StreamRenderWorker) render(
 		}
 	}
 	defer cfg.Progress.Clear(j.ID)
+	rendered := make(map[string]streamRenderedClip, len(plan.Clips))
 	for i, clip := range plan.Clips {
 		textPaths, err := writeClipOverlayTexts(workDir, clip)
 		if err != nil {
@@ -1507,7 +1506,7 @@ func (w *StreamRenderWorker) render(
 			// A clip without its feed still renders; the warning says why.
 			warnings = append(warnings, fmt.Sprintf("clip %s: kill feed not redrawn: %v", clip.ID, err))
 		}
-		outPath := filepath.Join(outDir, clip.ID+".mp4")
+		outPath := filepath.Join(workDir, "parts", clip.ID+".mp4")
 		renderStarted := time.Now()
 		run := func(ctx context.Context, args []string) error {
 			return w.runClipWithProgress(ctx, cfg, streamClipProgress{jobID: j.ID, plan: plan, index: i, args: args})
@@ -1517,6 +1516,7 @@ func (w *StreamRenderWorker) render(
 				SourcePath: sourcePath, OutputPath: outPath, MusicPath: musicPath, BannerFontPath: bannerFontPath,
 				KeyDropImagePath: keyDropImagePath, SourceHasAudio: j.Probe.AudioCodec != "", TextOverlayPaths: textPaths,
 				KillFeed: killFeed, SourceWidth: j.Probe.Width, SourceHeight: j.Probe.Height,
+				MusicOffsetSeconds: plan.MusicOffsetSeconds(clip.ID),
 			}})
 		if err != nil {
 			return fmt.Errorf("render clip %s: %w", clip.ID, err)
@@ -1524,30 +1524,27 @@ func (w *StreamRenderWorker) render(
 		if warning != "" {
 			warnings = append(warnings, warning)
 		}
-		renderElapsed := time.Since(renderStarted)
-		var outputBytes int64
-		if info, statErr := os.Stat(outPath); statErr == nil {
-			outputBytes = info.Size()
-		}
-
-		key, err := streamclips.RenderRevisionVideoKey(j.ID, variant, revisionID, clip.ID)
+		rendered[clip.ID] = streamRenderedClip{path: outPath, elapsed: time.Since(renderStarted)}
+	}
+	for _, output := range plan.Outputs() {
+		outPath, elapsed, err := w.assembleStreamOutput(runCtx, streamOutputAssembly{
+			ffmpeg: cfg.FFmpegPath, output: output, rendered: rendered, outDir: outDir,
+		})
 		if err != nil {
 			return err
 		}
-		publishArtifacts = append(publishArtifacts, publishArtifact{key: key, path: outPath})
-		deliveryName := clip.ID + ".mp4"
-		deliveryKey, err := streamclips.RenderRevisionDeliveryKey(j.ID, variant, revisionID, deliveryName)
+		published, err := publishStreamOutput(streamOutputPublish{
+			jobID: j.ID, variant: variant, revisionID: revisionID, output: output, path: outPath, elapsed: elapsed,
+		})
 		if err != nil {
 			return err
 		}
-		publishArtifacts = append(publishArtifacts, publishArtifact{key: deliveryKey, path: outPath})
+		publishArtifacts = append(publishArtifacts, published.artifacts...)
 		if firstRenderedVideo == "" {
 			firstRenderedVideo = outPath
 		}
-		delivery = append(delivery, streamclips.DeliveryEntry{Name: deliveryName, Kind: "video", Key: deliveryKey})
-		video := streamclips.NewVideoEntry(clip, key)
-		video.Performance = streamclips.NewVideoPerformance(renderElapsed, video.DurationSeconds, outputBytes)
-		videos = append(videos, video)
+		delivery = append(delivery, published.delivery)
+		videos = append(videos, published.video)
 	}
 
 	if len(videos) > 0 {
@@ -1559,7 +1556,7 @@ func (w *StreamRenderWorker) render(
 		if err != nil {
 			return err
 		}
-		publishArtifacts = append(publishArtifacts, publishArtifact{key: coverKey, path: coverPath})
+		publishArtifacts = append(publishArtifacts, streamPublishArtifact{key: coverKey, path: coverPath})
 		delivery = append(delivery, streamclips.DeliveryEntry{Name: "cover.jpg", Kind: "cover", Key: coverKey})
 	}
 	planPath := filepath.Join(outDir, "edit-plan.json")
@@ -1574,7 +1571,7 @@ func (w *StreamRenderWorker) render(
 	if err != nil {
 		return err
 	}
-	publishArtifacts = append(publishArtifacts, publishArtifact{key: planKey, path: planPath})
+	publishArtifacts = append(publishArtifacts, streamPublishArtifact{key: planKey, path: planPath})
 	delivery = append(delivery, streamclips.DeliveryEntry{Name: "edit-plan.json", Kind: "plan", Key: planKey})
 	metadataPath := filepath.Join(outDir, "metadata.txt")
 	metadata := fmt.Sprintf("Título: %s\nOrigen: %s\nFormato: %s\nClips: %d\n", strings.TrimSpace(j.Title), publicSourceURL(j.SourceURL), variant, len(videos))
@@ -1585,7 +1582,7 @@ func (w *StreamRenderWorker) render(
 	if err != nil {
 		return err
 	}
-	publishArtifacts = append(publishArtifacts, publishArtifact{key: metadataKey, path: metadataPath})
+	publishArtifacts = append(publishArtifacts, streamPublishArtifact{key: metadataKey, path: metadataPath})
 	delivery = append(delivery, streamclips.DeliveryEntry{Name: "metadata.txt", Kind: "metadata", Key: metadataKey})
 	manifestPath := filepath.Join(outDir, "manifest.json")
 	manifestBytes, err := json.MarshalIndent(struct {
@@ -1604,7 +1601,7 @@ func (w *StreamRenderWorker) render(
 	if err != nil {
 		return err
 	}
-	publishArtifacts = append(publishArtifacts, publishArtifact{key: manifestKey, path: manifestPath})
+	publishArtifacts = append(publishArtifacts, streamPublishArtifact{key: manifestKey, path: manifestPath})
 	delivery = append(delivery, streamclips.DeliveryEntry{Name: "manifest.json", Kind: "manifest", Key: manifestKey})
 
 	// Media and sidecars are uploaded into a new immutable revision. Until the

@@ -57,6 +57,9 @@ type FFmpegInputs struct {
 	// feed; SourceWidth and SourceHeight place them on the game panel.
 	KillFeed                  []KillFeedNotice
 	SourceWidth, SourceHeight int
+	// MusicOffsetSeconds skips the start of the track so a joined Short's
+	// music runs on across the cut instead of restarting each moment.
+	MusicOffsetSeconds float64
 }
 
 func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, error) {
@@ -157,6 +160,9 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 			volume = defaultMusicVolume
 		}
 		musicLabel := fmt.Sprintf("[%d:a]", musicInput)
+		if in.MusicOffsetSeconds > 0 {
+			musicLabel += fmt.Sprintf("atrim=start=%s,asetpts=PTS-STARTPTS,", floatArg(in.MusicOffsetSeconds))
+		}
 		if in.SourceHasAudio {
 			// Gain and tempo edits apply to the source before the mix so the
 			// music keeps its own volume and pace; fades apply to the mix.

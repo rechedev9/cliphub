@@ -122,7 +122,7 @@ func TestNormalizeEditPlanDropsEmptyClipEdit(t *testing.T) {
 func TestNewVideoEntryUsesSpeedAdjustedDuration(t *testing.T) {
 	clip := ClipRange{ID: "clip-001", StartSeconds: 0, EndSeconds: 10, Edit: &ClipEdit{Speed: 2}}
 
-	entry := NewVideoEntry(clip, "key")
+	entry := NewVideoEntry(PlanOutput{ID: clip.ID, Title: clip.Title, Clips: []ClipRange{clip}}, "key")
 
 	if entry.DurationSeconds != 5 {
 		t.Fatalf("DurationSeconds = %g, want 5 (10s source at 2x)", entry.DurationSeconds)

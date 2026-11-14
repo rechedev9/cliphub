@@ -43,6 +43,12 @@ type planClipArg struct {
 	Edit         *clipEditArg `json:"edit,omitempty" jsonschema:"speed, audio, fades and text of this moment; leave it out to render the moment untouched"`
 }
 
+type planGroupArg struct {
+	ID      string   `json:"id,omitempty" jsonschema:"keep the id from get_stream_edit_plan for an existing group; empty makes a new one"`
+	ClipIDs []string `json:"clip_ids" jsonschema:"ids of 2 or more moments joined into one Short, in the order they play"`
+	Title   string   `json:"title,omitempty" jsonschema:"title of the joined Short; empty joins the moment titles with +"`
+}
+
 type streamerBannerArg struct {
 	Nick         string   `json:"nick,omitempty" jsonschema:"streamer name, 1 to 25 letters, numbers or underscores; empty hides the banner"`
 	Platform     string   `json:"platform,omitempty" jsonschema:"twitch or kick; empty is twitch"`
@@ -82,7 +88,9 @@ type streamPlanOut struct {
 	FaceCrop         *cropOut          `json:"face_crop,omitempty" jsonschema:"facecam area of the source, 0 to 1 of the frame"`
 	FaceCropReviewed bool              `json:"face_crop_reviewed" jsonschema:"true once the user checked the facecam crop in Studio; facecam layouts need it"`
 	GameplayCrop     *cropOut          `json:"gameplay_crop,omitempty" jsonschema:"gameplay area of the source, 0 to 1 of the frame"`
-	Clips            []planClipArg     `json:"clips" jsonschema:"the moments, one video each, in render order"`
+	Clips            []planClipArg     `json:"clips" jsonschema:"the moments in render order; each is its own video unless a group joins it"`
+	Groups           []planGroupArg    `json:"groups" jsonschema:"moments joined into one Short each, in the group's order"`
+	Shorts           int               `json:"shorts" jsonschema:"how many videos render_stream makes: one per group and one per moment outside a group"`
 	StreamerBanner   streamerBannerArg `json:"streamer_banner"`
 	KeyDropBanner    keyDropBannerArg  `json:"keydrop_banner"`
 	Music            streamMusicArg    `json:"music"`
@@ -94,6 +102,7 @@ type editStreamPlanIn struct {
 	ID                string             `json:"id" jsonschema:"stream_id"`
 	ExpectedUpdatedAt string             `json:"expected_updated_at" jsonschema:"updated_at from get_stream_edit_plan; the save fails when the plan changed after that"`
 	Clips             *[]planClipArg     `json:"clips,omitempty" jsonschema:"the full new list of moments in render order; it replaces the saved list, so send back the moments and edits to keep. Leave it out to keep the moments"`
+	Groups            *[]planGroupArg    `json:"groups,omitempty" jsonschema:"the full new list of joined Shorts; [] separates every group; leave it out to keep them. A removed moment leaves its group, and a group left with one moment is dropped"`
 	StreamerBanner    *streamerBannerArg `json:"streamer_banner,omitempty" jsonschema:"replaces the streamer banner; {} hides it; leave it out to keep it"`
 	KeyDropBanner     *keyDropBannerArg  `json:"keydrop_banner,omitempty" jsonschema:"replaces the affiliate banner; {} hides it; leave it out to keep it"`
 	Music             *streamMusicArg    `json:"music,omitempty" jsonschema:"replaces the music; {} removes it; leave it out to keep it"`
@@ -103,7 +112,7 @@ type editStreamPlanIn struct {
 
 func registerStreamPlanTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "get_stream_edit_plan", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-		Description: "Read a stream's edit plan, the stream editor in Studio: the moments (each with its speed, audio, fades and text), " +
+		Description: "Read a stream's edit plan, the stream editor in Studio: the moments (each with its speed, audio, fades and text), the groups that join moments into one Short and how many videos a render makes, " +
 			"the streamer and affiliate banners, music, kill feed and effects, the layout, and the facecam and gameplay crops with whether the user checked the facecam. " +
 			"Pass its updated_at to edit_stream_plan."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in idIn) (*mcp.CallToolResult, streamPlanOut, error) {
@@ -129,7 +138,7 @@ func registerStreamPlanTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "edit_stream_plan",
 		Description: "Change a stream's edit plan without rendering, as the stream editor in Studio does: add, remove, trim, retitle or reorder the moments " +
-			"and set each moment's speed, audio, fades and text; set the streamer banner, the affiliate banner, the music, the kill feed and the effects. " +
+			"and set each moment's speed, audio, fades and text; join two or more moments into one Short with groups, or separate them; set the streamer banner, the affiliate banner, the music, the kill feed and the effects. " +
 			"Each field given replaces that part of the plan; fields left out stay as saved. Call get_stream_edit_plan first and pass its updated_at as expected_updated_at: " +
 			"the save fails if the plan changed since, so read it again and redo the change. render_stream then renders the saved plan. Returns the saved plan."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in editStreamPlanIn) (*mcp.CallToolResult, streamPlanOut, error) {
@@ -139,8 +148,8 @@ func registerStreamPlanTools(server *mcp.Server, s *studio) {
 			if _, err := planTime(in.ExpectedUpdatedAt); err != nil {
 				return nil, streamPlanOut{}, errors.New("expected_updated_at must be the updated_at get_stream_edit_plan returned")
 			}
-			if in.Clips == nil && in.StreamerBanner == nil && in.KeyDropBanner == nil && in.Music == nil && in.KillFeed == nil && in.Effects == nil {
-				return nil, streamPlanOut{}, errors.New("nothing to change: set clips, streamer_banner, keydrop_banner, music, kill_feed or effects")
+			if in.Clips == nil && in.Groups == nil && in.StreamerBanner == nil && in.KeyDropBanner == nil && in.Music == nil && in.KillFeed == nil && in.Effects == nil {
+				return nil, streamPlanOut{}, errors.New("nothing to change: set clips, groups, streamer_banner, keydrop_banner, music, kill_feed or effects")
 			}
 			c, err := s.client(ctx)
 			if err != nil {
@@ -200,6 +209,22 @@ func applyStreamPlanEdit(doc map[string]json.RawMessage, in editStreamPlanIn) (m
 			return nil, err
 		}
 		if err := set("clips", clips); err != nil {
+			return nil, err
+		}
+	}
+	if in.Groups != nil {
+		groups, err := withGroupIDs(*in.Groups)
+		if err != nil {
+			return nil, err
+		}
+		var clips []planClipArg
+		if raw, ok := next["clips"]; ok && json.Unmarshal(raw, &clips) != nil {
+			return nil, errors.New("Studio returned an edit plan with an invalid clips")
+		}
+		if err := checkGroupMembers(groups, clips); err != nil {
+			return nil, err
+		}
+		if err := set("groups", groups); err != nil {
 			return nil, err
 		}
 	}
@@ -288,12 +313,84 @@ func withClipIDs(clips []planClipArg) ([]planClipArg, error) {
 	return out, nil
 }
 
+// withGroupIDs names the new groups group-001, group-002... past the ids already taken.
+func withGroupIDs(groups []planGroupArg) ([]planGroupArg, error) {
+	out := slices.Clone(groups)
+	taken := make(map[string]bool, len(out))
+	for _, g := range out {
+		if len(g.ClipIDs) < 2 {
+			return nil, errors.New("a group joins at least 2 moments")
+		}
+		if len([]rune(g.Title)) > maxTitleRunes {
+			return nil, fmt.Errorf("a group title takes at most %d characters", maxTitleRunes)
+		}
+		if g.ID != "" {
+			taken[g.ID] = true
+		}
+	}
+	n := 1
+	for i := range out {
+		if out[i].ID != "" {
+			continue
+		}
+		for taken[fmt.Sprintf("group-%03d", n)] {
+			n++
+		}
+		out[i].ID = fmt.Sprintf("group-%03d", n)
+		taken[out[i].ID] = true
+	}
+	return out, nil
+}
+
+// checkGroupMembers refuses an id that names no moment or a moment in two
+// groups, which Studio would otherwise drop from the group without a word.
+func checkGroupMembers(groups []planGroupArg, clips []planClipArg) error {
+	known := make(map[string]bool, len(clips))
+	for _, c := range clips {
+		known[cleanName(c.ID)] = true
+	}
+	taken := map[string]bool{}
+	for _, g := range groups {
+		for _, id := range g.ClipIDs {
+			if !known[id] {
+				return fmt.Errorf("group clip id %s is not a moment of this plan; use the ids get_stream_edit_plan returns", cleanName(id))
+			}
+			if taken[id] {
+				return fmt.Errorf("moment %s is in two groups; a moment joins one Short at most", cleanName(id))
+			}
+			taken[id] = true
+		}
+	}
+	return nil
+}
+
+// planShorts counts the videos a render makes from the moments and groups.
+func planShorts(clipIDs []string, groups []planGroupArg) int {
+	present := make(map[string]bool, len(clipIDs))
+	for _, id := range clipIDs {
+		present[id] = true
+	}
+	shorts := len(clipIDs)
+	for _, g := range groups {
+		members := 0
+		for _, id := range g.ClipIDs {
+			if present[id] {
+				members++
+			}
+		}
+		if members >= 2 {
+			shorts -= members - 1
+		}
+	}
+	return shorts
+}
+
 // describeStreamPlan reads the plan Studio saved; names and text in it are untrusted.
 func describeStreamPlan(id string, doc map[string]json.RawMessage) (streamPlanOut, error) {
-	out := streamPlanOut{StreamID: id, Clips: []planClipArg{}}
+	out := streamPlanOut{StreamID: id, Clips: []planClipArg{}, Groups: []planGroupArg{}}
 	var updatedAt string
 	fields := map[string]any{"updated_at": &updatedAt, "variant": &out.Variant, "face_crop": &out.FaceCrop,
-		"face_crop_reviewed": &out.FaceCropReviewed, "gameplay_crop": &out.GameplayCrop, "clips": &out.Clips,
+		"face_crop_reviewed": &out.FaceCropReviewed, "gameplay_crop": &out.GameplayCrop, "clips": &out.Clips, "groups": &out.Groups,
 		"streamer_banner": &out.StreamerBanner, "keydrop_banner": &out.KeyDropBanner, "music": &out.Music,
 		"kill_feed": &out.KillFeed, "effects": &out.Effects}
 	for key, dst := range fields {
@@ -317,6 +414,18 @@ func describeStreamPlan(id string, doc map[string]json.RawMessage) (streamPlanOu
 			}
 		}
 	}
+	clipIDs := make([]string, 0, len(out.Clips))
+	for _, clip := range out.Clips {
+		clipIDs = append(clipIDs, clip.ID)
+	}
+	for i := range out.Groups {
+		group := &out.Groups[i]
+		group.ID, group.Title = cleanName(group.ID), cleanName(group.Title)
+		for j := range group.ClipIDs {
+			group.ClipIDs[j] = cleanName(group.ClipIDs[j])
+		}
+	}
+	out.Shorts = planShorts(clipIDs, out.Groups)
 	out.StreamerBanner.Nick, out.StreamerBanner.Platform = cleanName(out.StreamerBanner.Nick), cleanName(out.StreamerBanner.Platform)
 	out.KeyDropBanner.Family, out.KeyDropBanner.Style = cleanName(out.KeyDropBanner.Family), cleanName(out.KeyDropBanner.Style)
 	out.KeyDropBanner.Code, out.Music.Key = cleanName(out.KeyDropBanner.Code), cleanName(out.Music.Key)

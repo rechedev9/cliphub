@@ -193,8 +193,8 @@ func TestBuildFFmpegArgsOverlaysKeyDropBanner(t *testing.T) {
 	plan.KeyDropBanner = KeyDropBannerPlan{Style: "operator", Code: "TESTCODE", StartSeconds: &start, EndSeconds: &end}
 	clip := ClipRange{ID: "c1", StartSeconds: 0, EndSeconds: 4}
 	args, err := BuildFFmpegArgs(FFmpegInputs{
-		SourcePath:       "in.mp4",
-		OutputPath:       "out.mp4",
+		SourcePath: "in.mp4",
+		OutputPath: "out.mp4",
 		// Plate is pre-composited with the live code; filter only scales/overlays it.
 		KeyDropImagePath: "/cache/keydrop-banner.png",
 		SourceHasAudio:   true,
@@ -527,6 +527,24 @@ func TestBuildFFmpegArgsMixesMusicUnderOriginalAudio(t *testing.T) {
 	}
 	if strings.Contains(joined, "-shortest") {
 		t.Fatalf("amix duration=first already bounds the mix; -shortest is for silent sources only: %s", joined)
+	}
+}
+
+func TestBuildFFmpegArgsMusicCarriesOnInsideAJoinedShort(t *testing.T) {
+	plan := DefaultEditPlan()
+	plan.Music = MusicPlan{Key: "concrete-teeth", Volume: 0.3}
+	plan.Clips = []ClipRange{{ID: "clip-002", StartSeconds: 30, EndSeconds: 40}}
+
+	args, err := BuildFFmpegArgs(FFmpegInputs{
+		SourcePath: "source.mp4", OutputPath: "out.mp4", MusicPath: "music/concrete-teeth.mp3",
+		MusicOffsetSeconds: 12.5, SourceHasAudio: true,
+	}, plan, plan.Clips[0])
+	if err != nil {
+		t.Fatalf("BuildFFmpegArgs error = %v", err)
+	}
+	want := "[1:a]atrim=start=12.500000,asetpts=PTS-STARTPTS,volume=0.300000[bgm]"
+	if joined := strings.Join(args, " "); !strings.Contains(joined, want) {
+		t.Fatalf("args missing %q: %s", want, joined)
 	}
 }
 
