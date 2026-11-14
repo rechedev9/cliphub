@@ -12,7 +12,9 @@ import (
 type clipmindOptions struct {
 	syncHub        bool
 	libraryUploads bool
-	sync           ClipMindSync
+	// uploadWorkspace is the workspace a ClipMind tenant serves; an upload naming another is refused.
+	uploadWorkspace string
+	sync            ClipMindSync
 }
 
 // ClipMindSync is the link between this Studio and a ClipMind account.

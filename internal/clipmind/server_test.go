@@ -251,7 +251,7 @@ func newTenantsForRoutes(t *testing.T) chi.Routes {
 	t.Helper()
 	repos := store.NewMemory()
 	h := httpapi.NewHandlers(repos.Jobs, nil, noQueue{},
-		httpapi.WithLibrary(repos.Library), httpapi.WithLibraryUploads(), httpapi.WithSyncHub(store.NewSyncLog(nil)))
+		httpapi.WithLibrary(repos.Library), httpapi.WithLibraryUploads(""), httpapi.WithSyncHub(store.NewSyncLog(nil)))
 	return httpapi.Routes(h)
 }
 

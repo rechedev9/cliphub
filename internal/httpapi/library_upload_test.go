@@ -64,11 +64,14 @@ func uploadBody(t *testing.T, fields map[string]string, parts map[string][]byte)
 	return &buf, mw.FormDataContentType()
 }
 
+// uploadWorkspace is the workspace the test handlers serve.
+const uploadWorkspace = "w-team"
+
 func newUploadEnv(t *testing.T) libraryTestEnv {
 	t.Helper()
 	repo := store.NewMemoryLibraryRepository()
 	files := newFakeStorage()
-	h := NewHandlers(newFakeRepo(), files, &fakeQueue{}, WithLibrary(repo), WithLibraryUploads())
+	h := NewHandlers(newFakeRepo(), files, &fakeQueue{}, WithLibrary(repo), WithLibraryUploads(uploadWorkspace))
 	return libraryTestEnv{t: t, repo: repo, storage: files, h: h, router: Routes(h)}
 }
 
@@ -137,6 +140,25 @@ func TestUploadLibraryAnalysisRejectsBadInput(t *testing.T) {
 	}
 	if demos, _ := env.repo.ListDemos(t.Context(), library.DemoFilter{}); len(demos) != 0 {
 		t.Fatalf("%d demos were created by rejected uploads", len(demos))
+	}
+}
+
+func TestUploadLibraryAnalysisRefusesADemoQueuedInAnotherWorkspace(t *testing.T) {
+	env := newUploadEnv(t)
+	document, positions := uploadFixture(t, strings.Repeat("ef", 32))
+	parts := map[string][]byte{"document": document, "positions": positions}
+	body, contentType := uploadBody(t, map[string]string{"file_name": "x.dem", "workspace_id": "w-other"}, parts)
+	rw := env.do(http.MethodPost, "/api/library/uploads", body.Bytes(), contentType)
+	if rw.Code != http.StatusConflict || !strings.Contains(rw.Body.String(), `"code":"workspace_changed"`) {
+		t.Fatalf("upload for another workspace = %d %s, want 409 workspace_changed", rw.Code, rw.Body.String())
+	}
+	if demos, _ := env.repo.ListDemos(t.Context(), library.DemoFilter{}); len(demos) != 0 {
+		t.Fatalf("%d demos were created by a refused upload", len(demos))
+	}
+
+	body, contentType = uploadBody(t, map[string]string{"file_name": "x.dem", "workspace_id": uploadWorkspace}, parts)
+	if rw := env.do(http.MethodPost, "/api/library/uploads", body.Bytes(), contentType); rw.Code != http.StatusCreated {
+		t.Fatalf("upload for this workspace = %d %s, want 201", rw.Code, rw.Body.String())
 	}
 }
 

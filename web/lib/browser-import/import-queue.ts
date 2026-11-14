@@ -19,6 +19,8 @@ export interface QueueItem {
   readonly error?: string;
   readonly detail?: string;
   readonly failedStage?: 'scan' | 'upload';
+  /** The workspace open when the demo was added; its upload, retries included, goes only there. */
+  readonly workspace?: string;
 }
 
 export interface QueueState {
@@ -206,12 +208,19 @@ export function retry(state: QueueState, id: string): QueueState {
       percent: 0,
       sha: item.sha,
       map: item.map,
+      workspace: item.workspace,
     };
   });
 }
 
 export function retryAllFailed(state: QueueState): QueueState {
   return state.items.reduce((next, item) => (item.status === 'failed' ? retry(next, item.id) : next), state);
+}
+
+/** Records the session's workspace on every demo that has none yet. */
+export function recordWorkspace(state: QueueState, workspace: string): QueueState {
+  if (state.items.every((item) => item.workspace !== undefined)) return state;
+  return { ...state, items: state.items.map((item) => (item.workspace === undefined ? { ...item, workspace } : item)) };
 }
 
 /** Sends a demo back to be read again, for an analysis the runner no longer holds. */

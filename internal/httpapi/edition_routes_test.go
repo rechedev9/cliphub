@@ -40,7 +40,7 @@ var desktopOnlyRoutes = map[Route]string{
 
 func TestEveryLibraryRouteHasAnEdition(t *testing.T) {
 	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{},
-		WithLibrary(store.NewMemoryLibraryRepository()), WithLibraryUploads(), WithSyncHub(store.NewSyncLog(nil)))
+		WithLibrary(store.NewMemoryLibraryRepository()), WithLibraryUploads(""), WithSyncHub(store.NewSyncLog(nil)))
 	analysis := map[Route]bool{}
 	for _, r := range AnalysisRoutes() {
 		if analysis[r] {
