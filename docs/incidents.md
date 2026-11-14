@@ -352,6 +352,22 @@ handler), and never `Demo Skipping finished at tick 0`. A minidump showed
   and the run performance records `tick_zero_demo_copy`. The copy attempt has
   its own budget, separate from the transient restarts.
 
+### Incident: CS2 exited seconds after launch, before playdemo (Studio 5.22.0, 2026-11-14)
+
+One user's captures failed 9 of 10 launches with `CS2 exited without the
+completed POV verification marker`. The console tail stopped at
+`ResetBreakpadAppId`, about 8 s after launch, and a relaunch of the same demo
+captured fine. The tail cannot say why CS2 died, and the minidump stays on
+the user's machine.
+
+- The capture job now watches its own `cs2.exe` (`cmd/zv-recorder/cs2_exit_windows.go`).
+  On a missing attestation, the `cs2 exit:` line and the failure reason carry
+  the exit code, its lifetime and the Windows Application Error event for that
+  PID: faulting module, version, exception and offset.
+- Read it from `pipeline.error` in telemetry before you guess at the cause.
+  A faulting module outside CS2 (GPU driver, overlay, antivirus) is the user's
+  machine, not ClipHub.
+
 ## Full Demo render lab (`zv-editor lab`, 2026-09-26)
 
 A full render takes 20+ minutes, so check a render change one stage at a

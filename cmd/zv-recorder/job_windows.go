@@ -4,7 +4,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"math"
+	"sync"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -19,7 +22,12 @@ import (
 // return path — a failed taskkill, an early error, or a hang the grace window
 // did not resolve — closing the job still tears it down deterministically.
 type captureJob struct {
-	handle windows.Handle
+	handle  windows.Handle
+	port    windows.Handle
+	created time.Time
+	watched chan struct{}
+	mu      sync.Mutex
+	cs2     *jobProcess
 }
 
 // newCaptureJob creates a kill-on-close job object. Its failure is reported to
@@ -46,7 +54,11 @@ func newCaptureJob() (*captureJob, error) {
 		_ = windows.CloseHandle(handle)
 		return nil, fmt.Errorf("configure capture job object kill-on-close: %w", err)
 	}
-	return &captureJob{handle: handle}, nil
+	job := &captureJob{handle: handle, created: time.Now()}
+	if err := job.watchProcesses(); err != nil {
+		log.Printf("capture job process watch unavailable, cs2 exit code will be unknown: %v", err)
+	}
+	return job, nil
 }
 
 // assign puts the process (by PID) into the job. cs2.exe, launched by the HLAE
@@ -82,7 +94,9 @@ func (j *captureJob) close() error {
 	}
 	handle := j.handle
 	j.handle = 0
-	if err := windows.CloseHandle(handle); err != nil {
+	err := windows.CloseHandle(handle)
+	j.stopWatching()
+	if err != nil {
 		return fmt.Errorf("close capture job object: %w", err)
 	}
 	return nil

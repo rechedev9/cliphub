@@ -838,7 +838,7 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 	}
 	if err := consoleLog.requireCaptureVerified(); err != nil {
 		logConsoleTail(consoleLogPath)
-		return err
+		return job.explainExit(err)
 	}
 	return nil
 }
