@@ -56,7 +56,7 @@ func TestGameAssetErrors(t *testing.T) {
 		{empty, "/api/equipment/knife__x/icon", http.StatusBadRequest, "invalid_request"},
 		{empty, "/api/equipment/" + strings.Repeat("a", 41) + "/icon", http.StatusBadRequest, "invalid_request"},
 		{"", "/api/maps/de_cbble/radar", http.StatusNotFound, "cs2_not_found"},
-		{"", "/api/equipment/ak47/icon", http.StatusNotFound, "cs2_not_found"},
+		{"", "/api/equipment/knife_future/icon", http.StatusNotFound, "cs2_not_found"},
 		{empty, "/api/maps/de_cbble/radar?layer=lower", http.StatusNotFound, "radar_not_found"},
 		{empty, "/api/maps/DE_MIRAGE/shot", http.StatusBadRequest, "invalid_request"},
 		{empty, "/api/maps/de_cbble/shot", http.StatusNotFound, "map_picture_not_found"},
@@ -64,7 +64,7 @@ func TestGameAssetErrors(t *testing.T) {
 		{empty, "/api/teams/logo?name=" + strings.Repeat("a", 65), http.StatusBadRequest, "invalid_request"},
 		{empty, "/api/teams/logo?name=Equipo%20Inventado", http.StatusNotFound, "team_logo_not_found"},
 		{empty, "/api/teams/logo?name=FURIA", http.StatusNotFound, "team_logo_not_found"},
-		{empty, "/api/equipment/ak47/icon", http.StatusNotFound, "icon_not_found"},
+		{empty, "/api/equipment/knife_future/icon", http.StatusNotFound, "icon_not_found"},
 		{junk, "/api/maps/de_cbble/radar", http.StatusUnprocessableEntity, "game_asset_unreadable"},
 	}
 	for _, tc := range cases {
@@ -82,7 +82,7 @@ func TestGameAssetsServeTheCache(t *testing.T) {
 	exe := fakeAssetInstall(t, emptyPak())
 	h, store := geometryHandlers(exe)
 	install := gameassets.Install{CS2Exe: exe}
-	seed := map[string]string{"radar/de_cbble_lower.png": "png-bytes", "icon/ak47.svg": "<svg/>", "icon/c4.png": "icon-png"}
+	seed := map[string]string{"radar/de_cbble_lower.png": "png-bytes", "icon/knife_future.svg": "<svg/>", "icon/knife_past.png": "icon-png"}
 	for file, body := range seed {
 		kind, name, _ := strings.Cut(file, "/")
 		key, err := install.CacheKey(kind, name)
@@ -95,8 +95,8 @@ func TestGameAssetsServeTheCache(t *testing.T) {
 	}
 	cases := []struct{ path, body, contentType string }{
 		{"/api/maps/de_cbble/radar?layer=lower", "png-bytes", "image/png"},
-		{"/api/equipment/ak47/icon", "<svg/>", "image/svg+xml"},
-		{"/api/equipment/c4/icon", "icon-png", "image/png"},
+		{"/api/equipment/knife_future/icon", "<svg/>", "image/svg+xml"},
+		{"/api/equipment/knife_past/icon", "icon-png", "image/png"},
 	}
 	for _, tc := range cases {
 		rw := getAsset(h, tc.path)
@@ -179,5 +179,19 @@ func TestBundledShotIsServedWithoutCS2(t *testing.T) {
 	}
 	if ct := rw.Header().Get("Content-Type"); ct != "image/webp" {
 		t.Errorf("content-type = %q, want image/webp", ct)
+	}
+}
+
+func TestBundledIconIsServedWithoutCS2(t *testing.T) {
+	h, _ := geometryHandlers("")
+	rw := getAsset(h, "/api/equipment/smokegrenade/icon")
+	if rw.Code != http.StatusOK || !strings.Contains(rw.Body.String(), "<svg") {
+		t.Fatalf("bundled icon answered %d", rw.Code)
+	}
+	if ct := rw.Header().Get("Content-Type"); ct != "image/svg+xml" {
+		t.Errorf("content-type = %q, want image/svg+xml", ct)
+	}
+	if rw.Header().Get("Content-Security-Policy") != svgPolicy {
+		t.Errorf("a bundled SVG must carry the inert policy, got %q", rw.Header().Get("Content-Security-Policy"))
 	}
 }

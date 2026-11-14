@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	mapdata "github.com/rechedev9/cliphub/data/maps"
 	"github.com/rechedev9/cliphub/internal/mapgeo"
 )
 
@@ -48,6 +49,10 @@ func (h *Handlers) GetMapGeometry(w http.ResponseWriter, r *http.Request) {
 	}
 	if kind != mapgeo.SourcePhysics && kind != mapgeo.SourceNav {
 		writeError(w, http.StatusBadRequest, "source must be physics or nav")
+		return
+	}
+	if body := mapdata.Nav(name); kind == mapgeo.SourceNav && body != nil {
+		writeRawJSON(w, body)
 		return
 	}
 	src := mapgeo.Source{CS2Exe: h.cs2Path(), Map: name}

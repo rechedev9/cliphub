@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	equipmentdata "github.com/rechedev9/cliphub/data/equipment"
 	mapdata "github.com/rechedev9/cliphub/data/maps"
 	"github.com/rechedev9/cliphub/internal/gameassets"
 	"github.com/rechedev9/cliphub/internal/mapgeo"
@@ -86,6 +87,10 @@ func (h *Handlers) GetEquipmentIcon(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if len(name) > maxEquipmentIconName || !equipmentIconPattern.MatchString(name) {
 		writeError(w, http.StatusBadRequest, "name must match "+equipmentIconPattern.String())
+		return
+	}
+	if body := equipmentdata.Icon(name); body != nil {
+		bundledAsset{key: "icon/" + name, body: body, contentType: equipmentdata.ContentTypeSVG}.serve(w, r)
 		return
 	}
 	install := gameassets.Install{CS2Exe: h.cs2Path()}
@@ -177,6 +182,9 @@ func (a bundledAsset) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "private, no-cache")
 	w.Header().Set("ETag", fmt.Sprint(tag))
+	if a.contentType == gameassets.ContentTypeSVG {
+		w.Header().Set("Content-Security-Policy", svgPolicy)
+	}
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(a.body))
 }
 

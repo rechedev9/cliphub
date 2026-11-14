@@ -2,6 +2,7 @@ package mapdata
 
 import (
 	"bytes"
+	"encoding/json"
 	"image/png"
 	"io/fs"
 	"testing"
@@ -79,5 +80,24 @@ func TestBundledRadarsAreSquare(t *testing.T) {
 		if cfg.Width != 2048 || cfg.Height != 2048 {
 			t.Errorf("%s is %dx%d, want 2048x2048", name, cfg.Width, cfg.Height)
 		}
+	}
+}
+
+// Every map with a bundled radar also has its nav mesh, which draws the replay's stylized radar.
+func TestBundledNavMeshes(t *testing.T) {
+	for _, name := range []string{"de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke", "de_overpass", "de_train", "de_vertigo"} {
+		var mesh struct {
+			Map, Source string
+			Areas       []json.RawMessage
+		}
+		if err := json.Unmarshal(Nav(name), &mesh); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if mesh.Map != name || mesh.Source != "nav" || len(mesh.Areas) == 0 {
+			t.Errorf("%s: map %q source %q with %d areas", name, mesh.Map, mesh.Source, len(mesh.Areas))
+		}
+	}
+	if Nav("de_cbble") != nil {
+		t.Error("a map without a bundled nav mesh must answer nil")
 	}
 }
