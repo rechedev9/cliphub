@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { FileText, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import { currentEdition } from '@/lib/edition';
 import { formatShortDate } from '@/lib/format';
 import {
   defaultTeamDocumentTitle,
@@ -24,6 +25,9 @@ import { cn } from '@/lib/utils';
 import { DocumentViewer } from './document-viewer';
 
 type ListState = { kind: 'loading' } | { kind: 'ready'; documents: TeamDocument[] } | { kind: 'error'; message: string };
+
+/** A ClipMind workspace shares its documents; Studio keeps them on this PC, since they do not sync. */
+const SHARED = currentEdition() === 'web';
 
 /**
  * The Documentos tab of the Buscador de patrones: the HTML reports a coach or an assistant attached to the team.
@@ -175,7 +179,7 @@ export function TeamDocuments({ teamId, teamName, openId, onOpen }: { teamId: st
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>¿Borrar «{confirming?.title}»?</DialogTitle>
-            <DialogDescription>Se borra para todo el equipo. No se puede deshacer.</DialogDescription>
+            <DialogDescription>{SHARED ? 'Se borra para todo el equipo.' : 'Se borra de este PC.'} No se puede deshacer.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(null)}>
@@ -242,7 +246,9 @@ function UploadDialog({
           <DialogHeader>
             <DialogTitle>Subir documento</DialogTitle>
             <DialogDescription>
-              {shown === null ? null : `${shown.name} · ${formatDocumentSize(shown.size)}. Lo verá todo el que tenga acceso a ${teamName}.`}
+              {shown === null
+                ? null
+                : `${shown.name} · ${formatDocumentSize(shown.size)}. ${SHARED ? `Lo verá todo el que tenga acceso a ${teamName}.` : `Se guarda en este PC, con ${teamName}.`}`}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">

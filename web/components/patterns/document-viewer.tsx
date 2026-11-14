@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Download, ExternalLink } from 'lucide-react';
+import { currentEdition } from '@/lib/edition';
 import { formatShortDate } from '@/lib/format';
 import { formatDocumentSize, teamDocumentContentHref, TEAM_DOCUMENT_SANDBOX, type TeamDocument } from '@/lib/api/team-documents';
 import { Button } from '@/components/ui/button';
@@ -24,12 +25,15 @@ export function DocumentViewer({ document, onClose }: { document: TeamDocument |
             </DialogDescription>
           </div>
           <div className="flex shrink-0 gap-1.5">
-            <Button asChild variant="outline" size="sm">
-              <a href={href} target="_blank" rel="noopener noreferrer">
-                <ExternalLink aria-hidden />
-                Pestaña nueva
-              </a>
-            </Button>
+            {/* Studio's window refuses popups to its own loopback origin, so only a browser gets the tab. */}
+            {currentEdition() === 'web' ? (
+              <Button asChild variant="outline" size="sm">
+                <a href={href} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink aria-hidden />
+                  Pestaña nueva
+                </a>
+              </Button>
+            ) : null}
             <Button asChild variant="outline" size="sm">
               <a href={href} download={document?.file_name}>
                 <Download aria-hidden />

@@ -98,6 +98,7 @@ func (h *Handlers) UploadLibraryTeamDocument(w http.ResponseWriter, r *http.Requ
 type teamDocumentForm struct {
 	teamID, title, fileName string
 	content                 []byte
+	gotFile                 bool
 }
 
 func readTeamDocumentForm(r *http.Request) (teamDocumentForm, error) {
@@ -106,7 +107,6 @@ func readTeamDocumentForm(r *http.Request) (teamDocumentForm, error) {
 	if err != nil {
 		return form, errors.New("multipart/form-data required")
 	}
-	gotFile := false
 	for {
 		part, err := reader.NextPart()
 		if errors.Is(err, io.EOF) {
@@ -115,24 +115,24 @@ func readTeamDocumentForm(r *http.Request) (teamDocumentForm, error) {
 		if err != nil {
 			return form, err
 		}
-		if err := readTeamDocumentPart(part, &form, &gotFile); err != nil {
+		if err := form.read(part); err != nil {
 			return form, err
 		}
 	}
-	if !gotFile {
+	if !form.gotFile {
 		return form, errors.New("file is required")
 	}
 	return form, nil
 }
 
-func readTeamDocumentPart(part *multipart.Part, form *teamDocumentForm, gotFile *bool) error {
+func (form *teamDocumentForm) read(part *multipart.Part) error {
 	defer part.Close()
 	switch part.FormName() {
 	case "file":
-		if *gotFile {
+		if form.gotFile {
 			return errors.New("send one file per request")
 		}
-		*gotFile = true
+		form.gotFile = true
 		form.fileName = part.FileName()
 		var buf bytes.Buffer
 		n, err := io.Copy(&buf, io.LimitReader(part, library.MaxTeamDocumentBytes+1))
@@ -185,9 +185,8 @@ func (h *Handlers) GetLibraryTeamDocument(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// GetLibraryTeamDocumentContent handles GET /api/library/documents/{id}/content:
-// the HTML itself, under a policy that keeps it in a sandbox even when opened
-// on its own tab.
+// GetLibraryTeamDocumentContent handles GET /api/library/documents/{id}/content: the HTML
+// itself, under a policy that keeps it in a sandbox even when opened on its own tab.
 func (h *Handlers) GetLibraryTeamDocumentContent(w http.ResponseWriter, r *http.Request) {
 	doc, ok := h.loadTeamDocument(w, r)
 	if !ok {

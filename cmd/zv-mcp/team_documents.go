@@ -35,7 +35,7 @@ type listTeamDocumentsOut struct {
 type addTeamDocumentIn struct {
 	TeamID   string `json:"team_id" jsonschema:"the team the document is about, id from list_teams"`
 	Title    string `json:"title" jsonschema:"the name the coach sees, such as Antistrats SEGA en Cache; at most 120 characters"`
-	HTML     string `json:"html" jsonschema:"the whole document: an HTML page or fragment in UTF-8, at most 5 MiB, styles and images inline; it opens in a sandbox with no network, so it cannot load data or send forms"`
+	HTML     string `json:"html" jsonschema:"the whole document: an HTML page or fragment in UTF-8, at most 5 MiB, styles and images inline; it opens in a sandbox away from the session and ClipHub's API, where it cannot fetch data or send forms"`
 	FileName string `json:"file_name,omitempty" jsonschema:"the name the download keeps, ending in .html; empty uses the title"`
 }
 
@@ -71,7 +71,7 @@ func registerTeamDocumentTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "add_team_document", Annotations: &mcp.ToolAnnotations{},
 		Description: "Attach an HTML document to a team, as Subir documento does in the Documentos tab of the Buscador de patrones: " +
 			"an anti-strat or match prep report the coach opens in the app's viewer. Write it as one self-contained page (inline CSS, " +
-			"images as data: URLs); it runs sandboxed with no network access. To change one, add the new version and delete the old."},
+			"images as data: URLs); it runs sandboxed, away from the session and ClipHub's API, and cannot fetch data or send forms. To change one, add the new version and delete the old."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in addTeamDocumentIn) (*mcp.CallToolResult, teamDocumentOut, error) {
 			upload, err := in.upload()
 			if err != nil {
@@ -125,7 +125,8 @@ func (in addTeamDocumentIn) upload() (tuiclient.TeamDocumentUpload, error) {
 	}
 	name := strings.TrimSpace(in.FileName)
 	if name == "" {
-		name = title
+		// The server keeps only the last path element, so a slash in the title would cut the name.
+		name = strings.NewReplacer("/", "-", `\`, "-").Replace(title)
 	}
 	if !strings.HasSuffix(strings.ToLower(name), ".html") && !strings.HasSuffix(strings.ToLower(name), ".htm") {
 		name += ".html"

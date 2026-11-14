@@ -93,9 +93,8 @@ func (o operator) runUser(args []string) error {
 	return err
 }
 
-// runToken is "clipmind-server token add|rm": an assistant key for one
-// workspace, as the account's own settings page makes it. add prints the secret
-// alone on standard output, once, and its id on standard error.
+// runToken is "clipmind-server token add|rm": a workspace key, as the account's settings page makes it.
+// add prints the secret alone on standard output, once, and its id on standard error.
 func (o operator) runToken(args []string) error {
 	if len(args) == 0 || (args[0] != "add" && args[0] != "rm") {
 		return errors.New(tokenUsage)
@@ -124,9 +123,11 @@ func (o operator) runToken(args []string) error {
 	if args[0] == "rm" {
 		return svc.RevokeAPIToken(ctx, user.ID, *id)
 	}
-	workspaceID, err := pickWorkspace(ctx, svc, user.ID, *workspace)
-	if err != nil {
-		return err
+	workspaceID := *workspace
+	if workspaceID == "" {
+		if workspaceID, err = onlyWorkspace(ctx, svc, user.ID); err != nil {
+			return err
+		}
 	}
 	secret, token, err := svc.CreateAPIToken(ctx, user.ID, workspaceID, *label)
 	if err != nil {
@@ -140,10 +141,7 @@ func (o operator) runToken(args []string) error {
 	return err
 }
 
-func pickWorkspace(ctx context.Context, svc *accounts.Service, userID, requested string) (string, error) {
-	if requested != "" {
-		return requested, nil
-	}
+func onlyWorkspace(ctx context.Context, svc *accounts.Service, userID string) (string, error) {
 	spaces, err := svc.ListWorkspaces(ctx, userID)
 	if err != nil {
 		return "", err

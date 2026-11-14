@@ -258,7 +258,7 @@ export function PatternsCanvas({ analysis, onTeam, onImported }: { analysis: Tea
               <div ref={refs.rounds} />
             </div>
             <div role="tabpanel" id="patrones-panel-documentos" aria-labelledby="patrones-tab-documentos" hidden={tab !== 'documentos'}>
-              {tab === 'documentos' || openDocument !== null ? <TeamDocuments teamId={team.id} teamName={team.name} openId={openDocument} onOpen={setOpenDocument} /> : null}
+              {tab === 'documentos' || openDocument !== null ? <TeamDocuments key={team.id} teamId={team.id} teamName={team.name} openId={openDocument} onOpen={setOpenDocument} /> : null}
             </div>
             <div role="tabpanel" id="patrones-panel-tacticas" aria-labelledby="patrones-tab-tacticas" hidden={tab !== 'tacticas'}>
               <div ref={refs.tactics} />

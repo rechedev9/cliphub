@@ -144,7 +144,7 @@ Informes and the exported report, with [text](studio_path) links to Studio pages
 opens its rounds in the Replay; every listed round must be of the report's match_ids, and update_report replaces them whole.
 Documentos (a tab of the Buscador de patrones): HTML documents attached to a team, such as an anti-strat report the coach opens in
 the app's viewer. list_team_documents lists them, add_team_document attaches one (a self-contained page up to 5 MiB, inline CSS
-and images; it runs sandboxed with no network) and delete_team_document removes one; to change one, add the new version and
+and images; it runs sandboxed, away from the session and ClipHub's API, and cannot fetch data or send forms) and delete_team_document removes one; to change one, add the new version and
 delete the old. Libreta (the team's notebook; its Jugadas tab was the Stratbook): list_plays
 (archived plays only with include_archived), get_play, create_play (by hand), save_round_as_play (a
 round ref and the team's side key), detect_team_plays then save_detected_play with a play's ref,
