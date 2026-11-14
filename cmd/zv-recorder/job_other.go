@@ -12,3 +12,5 @@ func newCaptureJob() (*captureJob, error) { return &captureJob{}, nil }
 func (j *captureJob) assign(int) error { return nil }
 
 func (j *captureJob) close() error { return nil }
+
+func (j *captureJob) explainExit(err error) error { return err }
