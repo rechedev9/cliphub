@@ -202,6 +202,121 @@ test('controller reports current, available, verified ready, and apply', async (
   assert.ok(seen.includes(APP_UPDATE_STATE.installing));
 });
 
+test('a background check downloads and verifies a new version without showing the steps, and waits for the restart', async (t) => {
+  const payload = Buffer.from('cliphub-installer-bytes');
+  const fake = makeHost(t, {
+    currentVersion: '2.4.28',
+    latest: '2.4.29',
+    installer: payload,
+    digest: createHash('sha256').update(payload).digest('hex'),
+  });
+  const controller = new AppUpdateController(fake.host);
+  const seen: AppUpdateStatus['state'][] = [];
+  controller.subscribe((status) => seen.push(status.state));
+  await controller.checkInBackground();
+  assert.deepEqual(controller.status(), { state: APP_UPDATE_STATE.ready, version: '2.4.29' });
+  assert.deepEqual(seen, [APP_UPDATE_STATE.ready], 'the button goes straight to Reiniciar');
+  assert.equal(fs.existsSync(path.join(fake.host.updatesDirectory, 'ClipHub.Studio.Setup.2.4.29.exe')), true);
+  assert.equal(fake.spawned.length, 0, 'never installs without the user');
+
+  await controller.install();
+  assert.equal(fake.spawned.length, 1);
+  assert.equal(fake.quit, 1);
+});
+
+test('a background check on the current version downloads nothing', async (t) => {
+  const fake = makeHost(t, { currentVersion: '2.4.29', latest: '2.4.29', installer: Buffer.from('unused'), digest: '00'.repeat(32) });
+  const controller = new AppUpdateController(fake.host);
+  await controller.checkInBackground();
+  assert.equal(controller.status().state, APP_UPDATE_STATE.current);
+  assert.equal(fake.downloads, 0);
+});
+
+test('a verified installer left by an earlier launch is used again instead of downloaded again', async (t) => {
+  const payload = Buffer.from('cliphub-installer-bytes');
+  const fake = makeHost(t, {
+    currentVersion: '2.4.28',
+    latest: '2.4.29',
+    installer: payload,
+    digest: createHash('sha256').update(payload).digest('hex'),
+  });
+  await new AppUpdateController(fake.host).checkInBackground();
+  assert.equal(fake.downloads, 1);
+
+  const relaunched = new AppUpdateController(fake.host);
+  await relaunched.checkInBackground();
+  assert.deepEqual(relaunched.status(), { state: APP_UPDATE_STATE.ready, version: '2.4.29' });
+  assert.equal(fake.downloads, 1, 'the second launch reuses the file on disk');
+
+  fs.writeFileSync(path.join(fake.host.updatesDirectory, 'ClipHub.Studio.Setup.2.4.29.exe'), 'tampered');
+  const tampered = new AppUpdateController(fake.host);
+  await tampered.checkInBackground();
+  assert.equal(fake.downloads, 2, 'a file that no longer matches SHA256SUMS.txt is downloaded again');
+  assert.equal(tampered.status().state, APP_UPDATE_STATE.ready);
+});
+
+for (const failure of ['download', 'verify'] as const) {
+  test(`a background ${failure} failure offers the update, is not retried every few hours, and a manual retry still works`, async (t) => {
+    const payload = Buffer.from('cliphub-installer-bytes');
+    const digest = createHash('sha256').update(payload).digest('hex');
+    const fake = makeHost(t, {
+      currentVersion: '2.4.28',
+      latest: '2.4.29',
+      installer: payload,
+      digest: failure === 'verify' ? 'ff'.repeat(32) : digest,
+    });
+    const working = fake.host.downloadFile;
+    if (failure === 'download') {
+      fake.host.downloadFile = async (_url, destination) => {
+        fake.downloads += 1;
+        fs.writeFileSync(destination, 'partial');
+        throw new Error('ECONNRESET');
+      };
+    }
+    const reported: UpdateFailurePhase[] = [];
+    fake.host.reportError = (phase) => { reported.push(phase); };
+    const controller = new AppUpdateController(fake.host);
+    const offer = { state: APP_UPDATE_STATE.available, version: '2.4.29', currentVersion: '2.4.28' };
+    await controller.checkInBackground();
+    assert.deepEqual(controller.status(), offer);
+    assert.deepEqual(reported, [failure]);
+    assert.equal(fs.existsSync(path.join(fake.host.updatesDirectory, 'ClipHub.Studio.Setup.2.4.29.exe')), false);
+
+    await controller.checkInBackground();
+    assert.deepEqual(controller.status(), offer);
+    assert.equal(fake.downloads, 1, 'the next scheduled check does not download the same failing version again');
+    assert.deepEqual(reported, [failure]);
+
+    fake.host.downloadFile = working;
+    fake.sumsDigest = digest;
+    await controller.install();
+    assert.equal(controller.status().state, APP_UPDATE_STATE.ready);
+  });
+}
+
+test('Reiniciar waits while a capture or a render runs', async (t) => {
+  const payload = Buffer.from('cliphub-installer-bytes');
+  const fake = makeHost(t, {
+    currentVersion: '2.4.28',
+    latest: '2.4.29',
+    installer: payload,
+    digest: createHash('sha256').update(payload).digest('hex'),
+  });
+  let busy = true;
+  fake.host.jobsRunning = async () => busy;
+  const controller = new AppUpdateController(fake.host);
+  await controller.checkInBackground();
+  await controller.install();
+  assert.deepEqual(controller.status(), { state: APP_UPDATE_STATE.ready, version: '2.4.29' });
+  assert.equal(fake.spawned.length, 0);
+  assert.equal(fake.quit, 0);
+
+  busy = false;
+  await controller.install();
+  assert.equal(fake.spawned.length, 1);
+  assert.equal(fake.quit, 1);
+});
+
 test('controller treats an equal or older latest tag as current', async (t) => {
   const fake = makeHost(t, {
     currentVersion: '2.4.29',
@@ -302,6 +417,8 @@ function makeHost(
   host: AppUpdateHost;
   spawned: string[];
   quit: number;
+  downloads: number;
+  sumsDigest: string;
 } {
   const updatesDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-update-'));
   t.after(() => fs.rmSync(updatesDirectory, { recursive: true, force: true }));
@@ -309,6 +426,8 @@ function makeHost(
   const fake = {
     spawned,
     quit: 0,
+    downloads: 0,
+    sumsDigest: input.digest,
     host: {
       currentVersion: input.currentVersion,
       isPackaged: true,
@@ -320,11 +439,12 @@ function makeHost(
           return JSON.stringify({ tag_name: `v${input.latest}` });
         }
         if (url === `https://github.com/rechedev9/cliphub/releases/download/v${input.latest}/SHA256SUMS.txt`) {
-          return `${input.digest}  ClipHub.Studio.Setup.${input.latest}.exe\n`;
+          return `${fake.sumsDigest}  ClipHub.Studio.Setup.${input.latest}.exe\n`;
         }
         throw new Error(`unexpected fetch ${url}`);
       },
       downloadFile: async (_url: string, destination: string): Promise<string> => {
+        fake.downloads += 1;
         fs.mkdirSync(path.dirname(destination), { recursive: true });
         fs.writeFileSync(destination, input.installer);
         return createHash('sha256').update(input.installer).digest('hex');
@@ -332,6 +452,7 @@ function makeHost(
       spawnInstaller: async (installerPath: string): Promise<void> => {
         spawned.push(installerPath);
       },
+      jobsRunning: async (): Promise<boolean> => false,
       quitApp: (): void => {
         fake.quit += 1;
       },
