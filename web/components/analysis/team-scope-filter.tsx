@@ -27,6 +27,8 @@ export type TeamScopeFilterProps = {
   mapRequired?: boolean;
   limits?: { readonly options: readonly number[]; readonly fallback: number };
   mapCounts: MapCounts | null;
+  /** Matches shown with every player because the default lineup never played the map; 0 or absent otherwise. */
+  lineupFallback?: number;
   /** The sample the view reads; undefined hides it, null shows it counting. */
   counts?: ScopeCounts | null;
   /** The matches behind the sample, for the dots and the "Mostrar partidas" list. */
@@ -38,7 +40,7 @@ export type TeamScopeFilterProps = {
 
 /** The EDGE scope controls of one team, wired to the library data the team-scoped tools read. */
 export function TeamScopeFilter(props: TeamScopeFilterProps): ReactNode {
-  const { form, control, analysis, teams, tactics, fields, mapRequired, limits, mapCounts, counts, sampleMatches, onTeam, className } = props;
+  const { form, control, analysis, teams, tactics, fields, mapRequired, limits, mapCounts, lineupFallback, counts, sampleMatches, onTeam, className } = props;
   const { team, matches, lineups, profile } = analysis;
   const entity = useMemo<ScopeEntity>(
     () => ({
@@ -99,7 +101,7 @@ export function TeamScopeFilter(props: TeamScopeFilterProps): ReactNode {
         matches={sample.matches}
         className={className}
       />
-      {form === 'stack' ? <LatestLineupGap control={control} analysis={analysis} fields={fields} mapCounts={mapCounts} /> : null}
+      {form === 'stack' ? <LatestLineupGap map={control.scope.map} fallback={lineupFallback ?? 0} /> : null}
     </>
   );
 }

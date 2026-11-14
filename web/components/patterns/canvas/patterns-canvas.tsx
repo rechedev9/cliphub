@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import type { LibraryMatch } from '@/lib/api/library';
-import { lineupSteamIds } from '@/lib/analysis/lineup';
 import { PATTERN_MODES, PATTERN_MODE_LABEL, patternModeFromQuery, writePatternMode, type PatternMode } from '@/lib/analysis/pattern-canvas-mode';
 import { inScopePeriod } from '@/lib/analysis/scope';
 import { TEAM_REPLAY_LIMITS, TEAM_REPLAY_STACK_FIELDS, teamReplayEntries } from '@/lib/analysis/team-replay-fields';
@@ -15,7 +14,7 @@ import { teamFocusFromQuery, writeTeamFocus } from '@/lib/replay/player-focus';
 import { tramoFromQuery, writeTramo, type Tramo } from '@/lib/replay/tramo';
 import { useContentStable } from '@/hooks/use-content-stable';
 import { useTeamList, useTeamTactics, type TeamAnalysis } from '@/hooks/use-team-analysis';
-import { useTeamMapCounts } from '@/hooks/use-team-map-counts';
+import { useMapLineup } from '@/hooks/use-map-lineup';
 import { useTeamScopeControl } from '@/hooks/use-team-scope-control';
 import { SampleLineupProvider } from '@/components/analysis/empty-sample';
 import { TeamScopeFilter } from '@/components/analysis/team-scope-filter';
@@ -66,13 +65,11 @@ export function PatternsCanvas({ analysis, onTeam, onImported }: { analysis: Tea
   const { slots, refs } = useFinderSlots();
 
   const replaceQuery = useCallback((query: string) => router.replace(query === '' ? pathname : `${pathname}?${query}`, { scroll: false }), [pathname, router]);
-  const lineupKey = lineupSteamIds(scope.lineup, lineups).join(',');
-  const lineup = useMemo(() => (lineupKey === '' ? [] : lineupKey.split(',')), [lineupKey]);
   // The URL also keeps the window and the players, so the scope is rebuilt on every drag: only its content may refetch.
   const criteria = useContentStable(useMemo(() => teamReplayEntries(scope), [scope]));
   const onMapChange = useCallback((map: string) => changeScope({ map }), [changeScope]);
   const fields = useMemo(() => (mode === 'patron' ? TEAM_REPLAY_STACK_FIELDS.filter((field) => field !== 'side') : TEAM_REPLAY_STACK_FIELDS), [mode]);
-  const mapCounts = useTeamMapCounts({ teamId: team.id, scope, fields, lineup, enabled: true });
+  const { lineup, mapCounts, fallback: lineupFallback } = useMapLineup({ teamId: team.id, scope, fields, lineups });
   // A stand-in in the latest match can leave a map with no rounds: the empty finders then offer every player.
   const showEveryone = useCallback(() => changeScope({ lineup: { kind: 'all' } }), [changeScope]);
 
@@ -196,6 +193,7 @@ export function PatternsCanvas({ analysis, onTeam, onImported }: { analysis: Tea
             mapRequired
             limits={TEAM_REPLAY_LIMITS}
             mapCounts={mapCounts}
+        lineupFallback={lineupFallback}
             counts={scope.map === '' ? undefined : reported}
             sampleMatches={sampleMatches}
             onTeam={onTeam}

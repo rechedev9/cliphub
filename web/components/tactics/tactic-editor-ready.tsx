@@ -5,7 +5,6 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Swords } from 'lucide-react';
 import type { PlaybookCombo } from '@/lib/api/playbook';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
-import { lineupSteamIds } from '@/lib/analysis/lineup';
 import { EMPTY_COMBO, comboFromQuery, comboIsEmpty, narrowPlaybook, toggleTactic, writeComboQuery, type ComboMode } from '@/lib/analysis/playbook-combo';
 import type { ScopeField } from '@/lib/analysis/scope';
 import { chosenZones, keptText } from '@/lib/analysis/tactic-editor';
@@ -20,7 +19,7 @@ import { TeamScopeFilter, type TeamScopeFilterProps } from '@/components/analysi
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useTeamMapCounts } from '@/hooks/use-team-map-counts';
+import { useMapLineup } from '@/hooks/use-map-lineup';
 import { useTeamPlaybook } from '@/hooks/use-team-playbook';
 import { useTeamScopeControl } from '@/hooks/use-team-scope-control';
 import { useTeamTactics, type TeamAnalysis } from '@/hooks/use-team-analysis';
@@ -57,9 +56,7 @@ export function TacticEditorReady({ analysis, teams, onTeam }: { analysis: TeamA
   const tactics = useTeamTactics(team.id);
   const control = useTeamScopeControl({ teamId: team.id, tactics, matches, defaultMap: true });
   const { scope } = control;
-  const lineupKey = lineupSteamIds(scope.lineup, lineups).join(',');
-  const lineup = useMemo(() => (lineupKey === '' ? [] : lineupKey.split(',')), [lineupKey]);
-  const mapCounts = useTeamMapCounts({ teamId: team.id, scope, fields: EDITOR_FIELDS, lineup, enabled: true });
+  const { lineup, mapCounts, fallback: lineupFallback } = useMapLineup({ teamId: team.id, scope, fields: EDITOR_FIELDS, lineups });
   const { playbook, failed, retry } = useTeamPlaybook({ teamId: team.id, scope, lineup });
   const router = useRouter();
   const pathname = usePathname();
@@ -100,6 +97,7 @@ export function TacticEditorReady({ analysis, teams, onTeam }: { analysis: TeamA
         fields={EDITOR_FIELDS}
         mapRequired
         mapCounts={mapCounts}
+        lineupFallback={lineupFallback}
         counts={scope.map === '' || scope.side === '' ? undefined : counts}
         onTeam={onTeam}
         className="w-full"

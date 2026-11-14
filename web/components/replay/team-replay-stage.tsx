@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { PlugZap, Shield } from 'lucide-react';
 import { sampleNotes } from '@/lib/api/team-insights';
-import { lineupSteamIds } from '@/lib/analysis/lineup';
 import { REPLAY_MAX_REFS } from '@/lib/analysis/replay-link';
 import { TEAM_REPLAY_LIMITS, TEAM_REPLAY_STACK_FIELDS } from '@/lib/analysis/team-replay-fields';
 import { formatShortDate, prettyMapName } from '@/lib/format';
@@ -18,7 +17,7 @@ import { useDocumentTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTeamAnalysis, useTeamList, useTeamTactics, type TeamAnalysis } from '@/hooks/use-team-analysis';
-import { useTeamMapCounts } from '@/hooks/use-team-map-counts';
+import { useMapLineup } from '@/hooks/use-map-lineup';
 import { useTeamRounds } from '@/hooks/use-team-rounds';
 import { useTeamScopeControl } from '@/hooks/use-team-scope-control';
 import { ReplayWorkspace } from './replay-workspace';
@@ -76,9 +75,7 @@ function TeamReplayReady({ analysis, teams, onTeam }: { analysis: TeamAnalysis; 
   const tactics = useTeamTactics(team.id);
   const control = useTeamScopeControl({ teamId: team.id, tactics, matches, defaultMap: true });
   const { scope } = control;
-  const lineupKey = lineupSteamIds(scope.lineup, lineups).join(',');
-  const lineup = useMemo(() => (lineupKey === '' ? [] : lineupKey.split(',')), [lineupKey]);
-  const mapCounts = useTeamMapCounts({ teamId: team.id, scope, fields: TEAM_REPLAY_STACK_FIELDS, lineup, enabled: true });
+  const { lineup, mapCounts, fallback: lineupFallback } = useMapLineup({ teamId: team.id, scope, fields: TEAM_REPLAY_STACK_FIELDS, lineups });
   const read = useTeamRounds({ teamId: team.id, scope, lineup });
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   useDocumentTitle(`Replay 2D · ${team.name} · ClipHub`);
@@ -113,6 +110,7 @@ function TeamReplayReady({ analysis, teams, onTeam }: { analysis: TeamAnalysis; 
         mapRequired
         limits={TEAM_REPLAY_LIMITS}
         mapCounts={mapCounts}
+        lineupFallback={lineupFallback}
         counts={read.refs === null && scope.map === '' ? undefined : counts}
         sampleMatches={sampleMatches}
         onTeam={onTeam}

@@ -6,6 +6,7 @@ import {
   checkedPlayers,
   latestLineupGapText,
   latestLineupMissesMap,
+  lineupForMap,
   lineupFromChecked,
   lineupLabel,
   lineupMode,
@@ -83,6 +84,16 @@ test('a map only the default lineup leaves empty is told apart from one the coac
   assert.equal(latestLineupMissesMap({ ...latest, lineups: null }), false);
   assert.equal(latestLineupMissesMap({ ...latest, mapCounts: null }), false);
   assert.equal(latestLineupMissesMap({ ...latest, map: '' }), false);
-  assert.equal(latestLineupGapText('de_cache', 4), 'La última alineación no ha jugado en Cache. Hay 4 partidas con otros jugadores.');
-  assert.equal(latestLineupGapText('de_cache', 1), 'La última alineación no ha jugado en Cache. Hay 1 partida con otros jugadores.');
+  assert.equal(latestLineupGapText('de_cache', 4), 'La última alineación no ha jugado en Cache. Se ven las 4 partidas con todos los jugadores.');
+  assert.equal(latestLineupGapText('de_cache', 1), 'La última alineación no ha jugado en Cache. Se ve 1 partida con todos los jugadores.');
+});
+
+test('a map the latest lineup never played reads every player and counts their matches', () => {
+  const latestCounts = { de_dust2: 4 };
+  const base = { chosen: ['1', '2'], map: 'de_cache', latestCounts, everyoneCounts: { de_dust2: 5, de_cache: 4 }, misses: true };
+  assert.deepEqual(lineupForMap(base), { lineup: [], mapCounts: { de_dust2: 4, de_cache: 4 }, fallback: 4 });
+  // The coach's own lineup, a map the lineup played, or every player also missing it keep the chosen lineup.
+  assert.deepEqual(lineupForMap({ ...base, misses: false }), { lineup: ['1', '2'], mapCounts: latestCounts, fallback: 0 });
+  assert.deepEqual(lineupForMap({ ...base, everyoneCounts: { de_dust2: 5 } }), { lineup: ['1', '2'], mapCounts: latestCounts, fallback: 0 });
+  assert.deepEqual(lineupForMap({ ...base, everyoneCounts: null }), { lineup: ['1', '2'], mapCounts: latestCounts, fallback: 0 });
 });
