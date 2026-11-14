@@ -21,8 +21,8 @@ func main() {
 	select {}
 }
 
-// zvScanDemo scans one Blob or File and returns the tactical artifacts. It must
-// run inside a Web Worker: FileReaderSync does not exist on the main thread.
+// zvScanDemo scans one .dem, .dem.zst or .dem.gz File inside a Web Worker (FileReaderSync is worker only)
+// and returns the tactical artifacts, the decompressed size and the name Studio would store.
 func zvScanDemo(_ js.Value, args []js.Value) any {
 	if len(args) < 2 {
 		return failResult("zvScanDemo espera un archivo y un callback de progreso")
@@ -37,9 +37,19 @@ func zvScanDemo(_ js.Value, args []js.Value) any {
 		return failResult("el escaneo en el navegador solo funciona dentro de un Web Worker")
 	}
 
+	fileName := ""
+	if name := blob.Get("name"); name.Type() == js.TypeString {
+		fileName = name.String()
+	}
+
 	source := &blobReader{blob: blob, fr: reader.New(), size: blob.Get("size").Int(), onProgress: onProgress}
-	result, err := scanDemo(source)
+	stream, err := openDemo(source)
 	if err != nil {
+		return failResult(err.Error())
+	}
+	defer stream.Close()
+	result, err := scanDemo(stream)
+	if err := stream.finish(err); err != nil {
 		return failResult(err.Error())
 	}
 	if !result.Document.Geometry.Calibration.Valid() {
@@ -61,6 +71,8 @@ func zvScanDemo(_ js.Value, args []js.Value) any {
 		"document":  string(document) + "\n",
 		"positions": positions,
 		"cs2Build":  result.Header.BuildNum,
+		"sizeBytes": stream.n,
+		"fileName":  uploadName(fileName),
 	}
 }
 

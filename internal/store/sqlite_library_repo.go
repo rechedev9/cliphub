@@ -780,7 +780,7 @@ func (r *SQLiteLibraryRepository) AssignMatchTeam(ctx context.Context, a library
 				if _, err := tx.ExecContext(ctx, `DELETE FROM library_teams WHERE id = ?
 					AND NOT EXISTS (SELECT 1 FROM library_team_aliases WHERE team_id = library_teams.id)
 					AND NOT EXISTS (SELECT 1 FROM library_match_teams WHERE team_id = library_teams.id)
-					AND NOT EXISTS (SELECT 1 FROM library_reports WHERE team_id = library_teams.id)
+					AND NOT EXISTS (SELECT 1 FROM library_reports WHERE team_id = library_teams.id UNION ALL SELECT 1 FROM library_team_documents WHERE team_id = library_teams.id)
 					AND NOT EXISTS (SELECT 1 FROM library_plays WHERE team_id = library_teams.id)
 					AND NOT EXISTS (SELECT 1 FROM library_series WHERE team_a = library_teams.id OR team_b = library_teams.id)`, previousOwner.String); err != nil {
 					return fmt.Errorf("prune emptied team: %w", err)

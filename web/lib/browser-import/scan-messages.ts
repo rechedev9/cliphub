@@ -7,8 +7,14 @@ export type ScanResult =
       cs2Build: number;
       document: string;
       positions: Uint8Array;
+      /** Bytes of the decompressed .dem, as Studio stores them. */
+      sizeBytes: number;
+      /** The name Studio stores: without .zst or .gz. */
+      fileName: string;
     }
   | { ok: false; error: string };
+
+export type ScanSuccess = Extract<ScanResult, { ok: true }>;
 
 export interface ScanProgressMessage {
   id: string;
@@ -49,6 +55,7 @@ function parseScanResult(value: unknown): ScanResult | undefined {
     if (!isNumber(value.cs2Build)) return undefined;
     if (!isString(value.document)) return undefined;
     if (!(value.positions instanceof Uint8Array)) return undefined;
+    if (!isNumber(value.sizeBytes) || !isString(value.fileName)) return undefined;
     return {
       ok: true,
       sha256: value.sha256,
@@ -57,6 +64,8 @@ function parseScanResult(value: unknown): ScanResult | undefined {
       cs2Build: value.cs2Build,
       document: value.document,
       positions: value.positions,
+      sizeBytes: value.sizeBytes,
+      fileName: value.fileName,
     };
   }
   if (value.ok === false) {

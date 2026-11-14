@@ -141,7 +141,11 @@ a duplicate team into another.
 Scouting reports (Informes): list_reports, get_report (sections, players and the attack read per map), create_report,
 update_report, delete_report. A report's notes are Markdown up to 20000 characters, shown rendered in
 Informes and the exported report, with [text](studio_path) links to Studio pages; round_lists are named lists of round refs (up to 30 lists of 200 rounds), each a button that
-opens its rounds in the Replay; every listed round must be of the report's match_ids, and update_report replaces them whole. Libreta (the team's notebook; its Jugadas tab was the Stratbook): list_plays
+opens its rounds in the Replay; every listed round must be of the report's match_ids, and update_report replaces them whole.
+Documentos (a tab of the Buscador de patrones): HTML documents attached to a team, such as an anti-strat report the coach opens in
+the app's viewer. list_team_documents lists them, add_team_document attaches one (a self-contained page up to 5 MiB, inline CSS
+and images; it runs sandboxed, away from the session and ClipHub's API, and cannot fetch data or send forms) and delete_team_document removes one; to change one, add the new version and
+delete the old. Libreta (the team's notebook; its Jugadas tab was the Stratbook): list_plays
 (archived plays only with include_archived), get_play, create_play (by hand), save_round_as_play (a
 round ref and the team's side key), detect_team_plays then save_detected_play with a play's ref,
 update_play (also status, tags and roles), delete_play, export_plays and import_plays (.json files on this PC).
@@ -254,7 +258,7 @@ pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_st
 rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
 delete_stream_video, delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
-delete_report, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
+delete_report, delete_team_document, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
 install_transcriber, launch_practice, launch_bot_replay need the user's approval.
 ClipMind (the web edition of ClipHub): clipmind_status says whether Studio is signed in to a ClipMind account, with its workspace and
 the changes waiting; clipmind_sync is Sincronizar ahora and clipmind_disconnect is Desconectar (the library on this PC stays).

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { libraryUpstreamQuery, matchLibraryRoute, pickLibraryKeys } from './_routes.ts';
+import { isLiteralDocumentPath, libraryUpstreamQuery, matchLibraryRoute, pickLibraryKeys } from './_routes.ts';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 
@@ -346,4 +346,25 @@ test('team voice imports 2 GiB plus the multipart framing, streams a numbered tr
   assert.ok(matchLibraryRoute('POST', ['matches', ID, 'voice', 'demo']));
   assert.equal(matchLibraryRoute('GET', ['matches', ID, 'voice', 'demo', '76561198000000001', 'audio'])?.response.kind, 'stream');
   assert.equal(matchLibraryRoute('GET', ['matches', ID, 'voice', 'demo', '..', 'audio']), undefined);
+});
+
+test('team documents upload as one bounded form, read as sandboxed HTML and never move to another team', () => {
+  const upload = matchLibraryRoute('POST', ['document-uploads']);
+  assert.ok(upload?.body?.kind === 'multipart');
+  assert.equal(upload.body.maxBytes, 5 * 1024 * 1024 + 64 * 1024);
+  assert.equal(matchLibraryRoute('GET', ['documents', ID, 'content'])?.response.kind, 'document');
+  assert.equal(matchLibraryRoute('DELETE', ['documents', ID])?.response.kind, 'empty');
+  assert.equal(matchLibraryRoute('PATCH', ['documents', ID]), undefined);
+  assert.equal(matchLibraryRoute('POST', ['documents']), undefined);
+  assert.equal(matchLibraryRoute('GET', ['documents', 'all', 'content']), undefined);
+  const list = matchLibraryRoute('GET', ['documents']);
+  assert.ok(list);
+  assert.equal(libraryUpstreamQuery(list, new URLSearchParams(`team_id=${ID}&q=x&limit=200`)), `team_id=${ID}&limit=200`);
+});
+
+test('a document is served only on the literal path the sandbox header rule matches', () => {
+  const path = ['documents', ID, 'content'];
+  assert.equal(isLiteralDocumentPath(`/api/library/documents/${ID}/content`, path), true);
+  assert.equal(isLiteralDocumentPath(`/api/library/documents/${ID}/%63ontent`, path), false);
+  assert.equal(isLiteralDocumentPath(`/api/library/%64ocuments/${ID}/content`, path), false);
 });

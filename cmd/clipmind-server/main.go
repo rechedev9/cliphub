@@ -18,8 +18,12 @@
 //	CLIPMIND_COMMUNITY_URL pro data server: empty for the default, "off" for none
 //	CLIPMIND_FACEIT_API_KEY FACEIT Data API key; empty disables linking players to FACEIT
 //
-// "clipmind-server user add -username NAME [-email ADDRESS] [-name NAME]" creates
-// an active account in CLIPMIND_DATA_DIR and reads its password from standard input.
+// Operator commands work on CLIPMIND_DATA_DIR and read passwords from standard input:
+//
+//	clipmind-server user add -username NAME [-email ADDRESS] [-name NAME]   an active account
+//	clipmind-server user passwd -username NAME                              a new password
+//	clipmind-server token add -username NAME -name LABEL [-workspace ID]    an assistant key
+//	clipmind-server token rm -username NAME -id TOKEN_ID                    revoke that key
 package main
 
 import (
@@ -37,10 +41,14 @@ import (
 )
 
 func main() {
+	op := operator{dataDir: env("CLIPMIND_DATA_DIR", "clipmind-data"), stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr}
 	var err error
-	if len(os.Args) > 1 && os.Args[1] == "user" {
-		err = runUser(os.Args[2:])
-	} else {
+	switch {
+	case len(os.Args) > 1 && os.Args[1] == "user":
+		err = op.runUser(os.Args[2:])
+	case len(os.Args) > 1 && os.Args[1] == "token":
+		err = op.runToken(os.Args[2:])
+	default:
 		err = run()
 	}
 	if err != nil {

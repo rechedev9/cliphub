@@ -114,6 +114,15 @@ type LibraryRepository interface {
 	UpdateReport(ctx context.Context, id uuid.UUID, patch library.ReportPatch) (library.Report, error)
 	// DeleteReport removes a report; a missing id is ErrNotFound.
 	DeleteReport(ctx context.Context, id uuid.UUID) error
+	// CreateTeamDocument stores a document and its content; a missing team is ErrNotFound.
+	CreateTeamDocument(ctx context.Context, d *library.TeamDocument, content []byte) error
+	GetTeamDocument(ctx context.Context, id uuid.UUID) (library.TeamDocument, error)
+	// TeamDocumentContent returns a document's bytes; a missing id is ErrNotFound.
+	TeamDocumentContent(ctx context.Context, id uuid.UUID) ([]byte, error)
+	// ListTeamDocuments returns documents without their content, newest first.
+	ListTeamDocuments(ctx context.Context, filter library.TeamDocumentFilter) ([]library.TeamDocument, error)
+	// DeleteTeamDocument removes a document; a missing id is ErrNotFound.
+	DeleteTeamDocument(ctx context.Context, id uuid.UUID) error
 	// CreateAnnotation stores a replay note; a missing match is ErrNotFound.
 	CreateAnnotation(ctx context.Context, a *library.Annotation) error
 	GetAnnotation(ctx context.Context, id uuid.UUID) (library.Annotation, error)

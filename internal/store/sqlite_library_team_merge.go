@@ -34,6 +34,7 @@ func (r *SQLiteLibraryRepository) MergeTeams(ctx context.Context, from, into uui
 			`UPDATE library_match_teams SET team_id = ? WHERE team_id = ?`,
 			`UPDATE library_team_aliases SET team_id = ? WHERE team_id = ?`,
 			`UPDATE library_reports SET team_id = ? WHERE team_id = ?`,
+			`UPDATE library_team_documents SET team_id = ? WHERE team_id = ?`,
 			`UPDATE library_plays SET team_id = ? WHERE team_id = ?`,
 			`UPDATE library_patterns SET team_id = ? WHERE team_id = ?`,
 			`UPDATE library_series SET team_a = ? WHERE team_a = ?`,
