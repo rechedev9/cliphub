@@ -550,7 +550,7 @@ Trust a delta only when `wall_cv_percent` is under 10 (`run_noisy` otherwise) an
 - Once the GitHub Release is published, deploy ClipMind and the landing from the same tagged
   commit ([ClipMind and the VPS](../.claude/rules/clipmind.md)). Until then web users run older
   code than Studio, and the sync contract can refuse Studio. On 2026-11-14 the landing still
-  offered 5.19.0 three releases later because this step was skipped.
+  offered 5.19.0 while Studio was at 5.23.0, because this step was skipped.
 
 ## Pro match series and veto backfill (G7, 2026-11-10)
 

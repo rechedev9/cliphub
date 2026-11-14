@@ -72,7 +72,7 @@ Each rule has a check or a longer page behind it. Follow the link before you wor
 - [SQLite store](.claude/rules/store-sqlite.md): migrations and the paired SQLite and memory repositories.
 - [MCP parity](.claude/rules/mcp-parity.md): what a UI change updates under `cmd/zv-mcp` and in `docs/studio-mcp.md`.
 - [Web inside Electron](.claude/rules/web-electron.md): the desktop edition's Chromium, the local request guard, the capability cookie, `landing/`, React attribute types.
-- [ClipMind and the VPS](.claude/rules/clipmind.md): the web edition, Studio sync, the servers on the VPS and how each is deployed.
+- [ClipMind and the VPS](.claude/rules/clipmind.md): the web edition, Studio sync, the servers on the VPS, and how ClipMind and the landing are deployed.
 - [Release](.claude/rules/release.md): the bar before a tag, and the one hosted workflow.
 - `docs/incidents.md`: domain rules and incident history (HLAE pin, Full Demo audio and overlays, telemetry, performance, release steps). The rules name its sections.
 
