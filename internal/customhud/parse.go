@@ -309,8 +309,8 @@ func sourceClock(rules, bomb st.Entity, serverTick uint32, tickRate int, phase s
 	return max(0, int(math.Ceil(deadline-float64(serverTick)/float64(tickRate))))
 }
 
-// The pinned parser's AmmoInMagazine still subtracts the Source 1 encoding
-// bias. CS2 m_iClip1 is the actual magazine count (verified against capture).
+// CS2 m_iClip1 is the actual magazine count (verified against capture). Older
+// parsers' AmmoInMagazine subtracted a Source 1 bias from it, so read the prop.
 func sourceMagazine(entity st.Entity) int {
 	if entity == nil {
 		return -1
