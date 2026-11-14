@@ -172,7 +172,7 @@ jobs:
           path: data/music/*.mp3
           key: studio-suno-music-${{ hashFiles('data/music/catalog.json') }}
 
-      - name: Seed bundled music from the last published installer
+      - name: Fetch bundled music from the pinned music-assets release
         run: node desktop/scripts/seed-bundled-music.mjs
 
       - name: Build unsigned Windows installer

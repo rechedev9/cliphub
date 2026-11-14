@@ -8,7 +8,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "9eafd1f0716a9add8f3c7f060f2b651bc65269c6db74985e8e47a2977e4e4f57"
     },
     {
       "id": "pase-directo",
@@ -18,7 +19,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "2d85fb3df544937962f2e019cf9b51e31bd8e89a91aeb8b6ca1bcdbe50c116fb"
     },
     {
       "id": "el-leon-en-la-pista",
@@ -28,7 +30,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "55c8539f1a34ae9f1bd0ebc00fc9362e0c61342739a29d56353ae8214d17ab26"
     },
     {
       "id": "render-distance",
@@ -38,7 +41,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "347a58173522a62e4f2eb5b3f77be4acc5744790c3f3809dc88cd6d9172824e5"
     },
     {
       "id": "absolute-zenith",
@@ -48,7 +52,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "4e06d26d06ea6abd34d9572b4093164de8fd1061da371aa97585f222a3b11b36"
     },
     {
       "id": "pura-presion",
@@ -58,7 +63,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "58df1c9aa95e7320217168873bf71909e9aacfd3bb097ba0173870c9d2d7f922"
     },
     {
       "id": "fracture-the-frame",
@@ -68,7 +74,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "277a13976ab97636954c6391278f5ddd9047d4b5e98233f51cd68206c9e2d08d"
     },
     {
       "id": "tropa-na-bruma",
@@ -78,7 +85,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "12d6421c03caba446a33662565b576ed8cce6d81ecab58cd30876bccb2880796"
     },
     {
       "id": "pacto-de-ferro",
@@ -88,7 +96,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "0a27aa5ea108d0de38a3393844c46de3379ba085d5c3140a9259e7a2d6ee32cd"
     },
     {
       "id": "pressao-do-grave",
@@ -98,7 +107,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "67a62b8063d012a7d07d89e728cfe5068bc1ee0f42d406640798b5496fc16e37"
     },
     {
       "id": "crumble-on-the-landing",
@@ -108,7 +118,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "d7274799c8765af5222053ebf6446d33594eb761dbfaee2ab9e7484f4da5abfa"
     },
     {
       "id": "tearing-down-the-walls",
@@ -118,7 +129,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "a6a3d750976d36d14854d492d3fc5aefd09c12600f23bb3da1c974ccb718232d"
     },
     {
       "id": "sleeping-stone",
@@ -128,7 +140,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "c040b02986601d02aace3e537785755d1dc93e805563618b25972262e0407015"
     },
     {
       "id": "gravity-has-teeth",
@@ -138,7 +151,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "c89e46d33aab245c2aba1cdf10067880487f5351b49537644645ee0ec9a7aa13"
     },
     {
       "id": "pegate-sin-miedo",
@@ -148,7 +162,8 @@
       "durationSec": 31,
       "ext": "mp3",
       "license": "AI-generated",
-      "attributionRequired": false
+      "attributionRequired": false,
+      "sha256": "b3f535dda25984538d8c4d3b028a7dc6f84f9b82b12ebf6a0923afca9a47dc48"
     }
   ]
 }
