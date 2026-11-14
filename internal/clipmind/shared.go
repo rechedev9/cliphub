@@ -26,7 +26,7 @@ func openShared(cfg Config) (shared, error) {
 		return shared{}, fmt.Errorf("clipmind: game asset cache: %w", err)
 	}
 	if cfg.CS2Path == "" {
-		log.Printf("clipmind: no CS2 install configured; maps and icons answer cs2_not_found")
+		log.Printf("clipmind: no CS2 install configured; bundled radars, icons and nav meshes still load, other maps answer cs2_not_found")
 	}
 	if n, err := httpapi.PruneBundledMapPictures(filepath.Join(cfg.DataDir, "gameassets")); err != nil || n > 0 {
 		log.Printf("clipmind: removed %d old map pictures from the game cache (%v)", n, err)
