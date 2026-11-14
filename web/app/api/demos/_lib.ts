@@ -3,6 +3,7 @@
 // proxy.ts does. Webpack resolves both forms identically.
 import { NextResponse } from 'next/server.js';
 import { SERVICE_UNAVAILABLE_CODE, NOT_CONFIGURED_CODE } from '../../../lib/api/types.ts';
+import { DEMO_COOKIE, DEMO_UPSTREAM_HEADER, demoHome } from '../../../lib/clipmind/demo.ts';
 import { ACCESS_COOKIE, ACCESS_HEADER, accessExpiry, clipMindUrl } from '../../../lib/clipmind/session.ts';
 import { currentEdition } from '../../../lib/edition.ts';
 
@@ -17,8 +18,21 @@ export function orchestratorUrl(): string {
 async function upstreamAuthHeaders(): Promise<Record<string, string>> {
   if (currentEdition() !== 'web') return mutationHeaders();
   const { cookies, headers } = await import('next/headers');
-  const access = (await headers()).get(ACCESS_HEADER) ?? liveAccessCookie((await cookies()).get(ACCESS_COOKIE)?.value);
-  return access ? { Authorization: `Bearer ${access}` } : {};
+  const incoming = await headers();
+  const jar = await cookies();
+  const client = clientAddress(incoming.get('x-forwarded-for'));
+  const origin: Record<string, string> = client === undefined ? {} : { 'X-Forwarded-For': client };
+  const access = incoming.get(ACCESS_HEADER) ?? liveAccessCookie(jar.get(ACCESS_COOKIE)?.value);
+  if (access) return { ...origin, Authorization: `Bearer ${access}` };
+  // Only the cookie /demo sets counts, never a header; the server only lets the demo read.
+  const demo = demoHome() !== undefined && jar.get(DEMO_COOKIE)?.value === '1';
+  return demo ? { ...origin, [DEMO_UPSTREAM_HEADER]: '1' } : origin;
+}
+
+/** The visitor's address as the edge proxy recorded it, so the server limits each visitor, not this server. */
+export function clientAddress(forwardedFor: string | null): string | undefined {
+  const first = forwardedFor?.split(',')[0]?.trim() ?? '';
+  return /^[0-9a-fA-F.:]{2,45}$/.test(first) ? first : undefined;
 }
 
 /**

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   IMMUTABLE_CACHE_CONTROL,
   callOrchestrator,
+  clientAddress,
   ifNoneMatchInit,
   listCacheHeaders,
   notModifiedFromUpstream,
@@ -311,4 +312,11 @@ test('parseTargetBody maps one player or a list of players and rejects anything 
   assert.equal(parseTargetBody({ steamIds: [] }), null);
   assert.equal(parseTargetBody({ steamIds: ['1', 2] }), null);
   assert.equal(parseTargetBody({}), null);
+});
+
+test('clientAddress keeps the visitor address the edge recorded and nothing else', () => {
+  assert.equal(clientAddress('203.0.113.7, 10.0.0.2'), '203.0.113.7');
+  assert.equal(clientAddress('2001:db8::1'), '2001:db8::1');
+  assert.equal(clientAddress(null), undefined);
+  assert.equal(clientAddress('evil\r\nX-Injected: 1'), undefined);
 });
