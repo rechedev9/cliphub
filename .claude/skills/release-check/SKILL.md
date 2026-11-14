@@ -5,7 +5,7 @@ description: Pre-release checklist for ClipHub Studio. Rereads the rules, runs t
 
 # Release check
 
-This checklist proves the tree. It does not bump the version, tag or publish; those steps are in `docs/incidents.md`, section **Releases**. The bar it checks is [Release](../../rules/release.md).
+This checklist proves the tree. It does not bump the version, tag or publish; those steps and the bar it checks are in [Release](../../rules/release.md).
 
 Run it from a clean `main` that already contains the change.
 
@@ -27,7 +27,17 @@ pnpm --dir web run build
 pnpm --dir desktop run typecheck
 pnpm --dir desktop run lint
 pnpm --dir desktop run test:unit
+NEXT_PUBLIC_CLIPHUB_EDITION=web pnpm --dir web run build
+pnpm --dir landing run typecheck
+pnpm --dir landing run lint
+pnpm --dir landing run build
+pnpm --dir mcp-apps run typecheck
+pnpm --dir mcp-apps run lint
+pnpm --dir mcp-apps run test:unit
+node mcp-apps/scripts/build.mjs --check
 ```
+
+The last `web` build is the ClipMind edition, which ships from the same tag. `build.mjs --check` fails when `cmd/zv-mcp/apps/` is older than `mcp-apps/src`.
 
 Do not use `go test -short` here: the release workflow already runs that, and it skips the slow FFmpeg renders and `TestNoDeadCode`.
 

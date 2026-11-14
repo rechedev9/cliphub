@@ -1,0 +1,26 @@
+# ClipHub blocks of the VPS edge Caddyfile, which also serves other projects.
+# `api_rate_limit` is a snippet defined in that shared file.
+
+# Landing on 127.0.0.1:8150 (deploy/landing); /v1/* is the community API
+# (deploy/community, cliphub-community.service on 127.0.0.1:8160).
+cliphub.rechedev.cloud {
+	encode zstd gzip
+	import api_rate_limit cliphub_community 120 /v1/*
+	handle /v1/* {
+		request_body {
+			max_size 32KB
+		}
+		reverse_proxy 127.0.0.1:8160 {
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+	handle {
+		reverse_proxy 127.0.0.1:8150
+	}
+}
+
+# ClipMind on 127.0.0.1:8170 (deploy/clipmind).
+cliphubstrats.rechedev.cloud {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8170
+}

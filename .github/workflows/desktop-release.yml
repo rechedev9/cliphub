@@ -63,6 +63,8 @@ jobs:
           cache-dependency-path: |
             web/pnpm-lock.yaml
             desktop/pnpm-lock.yaml
+            landing/pnpm-lock.yaml
+            mcp-apps/pnpm-lock.yaml
 
       - name: Install Studio's FFmpeg
         # Studio's own installer and pins (FFmpeg 8.1.2 from our releases, checksummed), so a
@@ -78,10 +80,12 @@ jobs:
             appendFileSync(process.env.GITHUB_PATH, dirname(env.ZV_FFMPEG_PATH) + EOL);
           "
 
-      - name: Install web and desktop dependencies
+      - name: Install web, desktop, landing and MCP Apps dependencies
         run: |
           pnpm --dir web install --frozen-lockfile
           pnpm --dir desktop install --frozen-lockfile
+          pnpm --dir landing install --frozen-lockfile
+          pnpm --dir mcp-apps install --frozen-lockfile
 
       - name: Go vet, test, zv check
         # -short skips the slowest FFmpeg renders; the full suite runs locally before a release.
@@ -105,6 +109,25 @@ jobs:
           pnpm --dir desktop run typecheck
           pnpm --dir desktop run lint
           pnpm --dir desktop run test:unit
+
+      - name: ClipMind web edition build
+        # ClipMind ships from the same tag, so its edition must build too.
+        env:
+          NEXT_PUBLIC_CLIPHUB_EDITION: web
+        run: pnpm --dir web run build
+
+      - name: Landing typecheck, lint, static export
+        run: |
+          pnpm --dir landing run typecheck
+          pnpm --dir landing run lint
+          pnpm --dir landing run build
+
+      - name: MCP Apps typecheck, lint, unit, embedded view is current
+        run: |
+          pnpm --dir mcp-apps run typecheck
+          pnpm --dir mcp-apps run lint
+          pnpm --dir mcp-apps run test:unit
+          node mcp-apps/scripts/build.mjs --check
 
   windows-installer:
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')

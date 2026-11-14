@@ -5,7 +5,7 @@
 //   build-resources/music/ -> catalog.json (track metadata; audio is downloaded on first boot)
 //
 // The Next standalone output does NOT include .next/static or public, so we copy
-// them next to server.js the same way the web Dockerfile does. Cross-platform
+// them next to server.js the same way deploy/clipmind/web/Dockerfile expects. Cross-platform
 // (pure Node fs), because the real build runs on Windows.
 
 import { execSync } from 'node:child_process';

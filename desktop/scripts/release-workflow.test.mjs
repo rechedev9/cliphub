@@ -73,11 +73,19 @@ test('a release publishes only after the checks pass', () => {
   for (const command of ['go vet ./...', 'go test -short ./...', 'go run ./cmd/zv check']) {
     assert.ok(checks.includes(command), `checks must run ${command}`);
   }
-  for (const pkg of ['web', 'desktop']) {
-    for (const script of ['typecheck', 'lint', 'test:unit']) {
+  const scripts = {
+    web: ['typecheck', 'lint', 'test:unit', 'build'],
+    desktop: ['typecheck', 'lint', 'test:unit'],
+    landing: ['typecheck', 'lint', 'build'],
+    'mcp-apps': ['typecheck', 'lint', 'test:unit'],
+  };
+  for (const [pkg, names] of Object.entries(scripts)) {
+    for (const script of names) {
       assert.ok(checks.includes(`pnpm --dir ${pkg} run ${script}`), `checks must run ${pkg} ${script}`);
     }
   }
+  assert.ok(checks.includes('NEXT_PUBLIC_CLIPHUB_EDITION: web'), 'checks must build the ClipMind web edition');
+  assert.ok(checks.includes('mcp-apps/scripts/build.mjs --check'), 'checks must catch a stale embedded MCP App');
   assert.match(jobs.publish, /needs: \[checks, windows-installer\]/);
 });
 

@@ -18,7 +18,7 @@ Studio is local. ClipMind is the web edition of the same analysis. Both build fr
 
 - `NEXT_PUBLIC_CLIPHUB_EDITION=web` is read at build time, so the web edition is its own `web` build. Without it the build is the desktop edition.
 - `web/lib/edition.ts` lists the desktop-only pages and API prefixes and the web-only account pages. `TestEveryLibraryRouteHasAnEdition` (`internal/httpapi`) fails when a new library, map or team route is tagged neither analysis nor desktop-only.
-- In the web edition `web/proxy.ts` authenticates with the session cookie (`web/lib/clipmind/session.ts`) instead of the loopback host check and capability cookie. The same `localAPIRequestError` guard still rejects cross-site requests there. The route handlers the route handlers call the ClipMind server at `CLIPMIND_URL`.
+- In the web edition `web/proxy.ts` authenticates with the session cookie (`web/lib/clipmind/session.ts`) instead of the loopback host check and capability cookie. The same `localAPIRequestError` guard still rejects cross-site requests there. The route handlers call the ClipMind server at `CLIPMIND_URL`.
 - `cmd/clipmind-server` (`internal/clipmind`) serves `httpapi.AnalysisRoutes()` with one SQLite library per workspace. Its environment and operator commands are at the top of `cmd/clipmind-server/main.go`.
 - The browser parses demos with the Go scanner compiled to WebAssembly (`cmd/zv-scan-wasm`), so a demo never leaves the user's PC.
 
@@ -37,7 +37,7 @@ One VPS, SSH alias `openclaw`, behind its edge Caddy. None of these ship in the 
 | Telemetry collector | `services/telemetry` | `cliphub-telemetry.service` (`deploy/telemetry/`) |
 | Landing, `cliphub.rechedev.cloud` | `landing/` as a static export | Caddy container in `/opt/cliphub-landing`, files in `site/` |
 
-The Compose files and Dockerfiles live only on the VPS. This repo has the code they run.
+`deploy/` holds the VPS copies of the Compose files, Dockerfiles, Caddyfiles and systemd units, and `deploy/edge-caddy.txt` the ClipHub blocks of the shared edge Caddyfile. A change to one of them is deployed by copying it to the VPS in the same step as the code, so the two copies stay equal.
 
 ## Deploy ClipMind
 
@@ -47,11 +47,11 @@ From the release commit, after the Studio release is published:
 2. Build the web edition with `NEXT_PUBLIC_CLIPHUB_EDITION=web` set: `pnpm --dir web run build`. Assemble `<out>/web/app` as `desktop/scripts/assemble.mjs` does: `.next/standalone`, then `.next/static` into `.next/static` and `public/`.
 3. Check the build locally: `node server.js` answers `/patrones` with a redirect to `/iniciar-sesion` and `/shorts` with one to `/descargar`.
 4. On the VPS, in `/opt/cliphub-strats`: `docker compose stop api`, so `data/` holds no open SQLite, then back up `api`, `web` and `data` to a dated tarball in `/opt/cliphub-strats-backups/`. The new server migrates every workspace on start, so only this backup undoes it.
-5. Replace `api/clipmind-server` and `web/app/` (keep the old one as `web/app.old`), then `docker compose up -d --build`.
+5. Replace `api/clipmind-server` and `web/app/` (keep the old one as `web/app.old`), copy any changed file from `deploy/clipmind/`, then `docker compose up -d --build`.
 6. Check `https://cliphubstrats.rechedev.cloud` and `docker logs cliphub-strats-api-1`.
 
 Rollback: `docker compose stop`, restore `api`, `web/app` and `data` from the tarball, then `docker compose up -d --build`.
 
 ## Deploy the landing
 
-`landing/lib/site.ts` already names the new installer after the release commit. The site is a static export, but `landing/next.config.mjs` keeps no `output`, so the export needs two edits that are never committed: `output: 'export'` in the config and `export const dynamic = "force-static"` in `app/opengraph-image.tsx`. Run `pnpm --dir landing run build`, revert both (`git status` must be clean again), and check that `landing/out/index.html` names the new `Setup.X.Y.Z.exe`. On the VPS, back up `/opt/cliphub-landing/site`, replace it with `out/`, and run `docker compose restart`: the container mounts the folder, so a renamed folder keeps serving the old files until it restarts.
+`landing/lib/site.ts` already names the new installer after the release commit. Run `pnpm --dir landing run build`, which writes the static export to `landing/out/`, and check that `landing/out/index.html` names the new `Setup.X.Y.Z.exe`. The security headers are in `deploy/landing/Caddyfile`, because an export ignores `headers()`. On the VPS, back up `/opt/cliphub-landing/site`, replace it with `out/`, and run `docker compose restart`: the container mounts the folder, so a renamed folder keeps serving the old files until it restarts.
