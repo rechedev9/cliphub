@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { api } from '@/lib/api';
 import { streamsApi } from '@/lib/api/streams';
+import { currentEdition } from '@/lib/edition';
 import { startPollLoop } from '@/lib/poll-loop';
 import {
   CAPTURE_ACTIVE_ATTRIBUTE,
@@ -30,6 +31,8 @@ function settled<T>(result: PromiseSettledResult<T[]>): T[] {
  */
 export function ShellActivityMonitor(): null {
   useEffect(() => {
+    // The web edition has no local jobs: every list this polls is a desktop-only API there.
+    if (currentEdition() !== 'desktop') return undefined;
     const root = document.documentElement;
 
     const mirror = (): void => {
