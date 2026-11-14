@@ -12,6 +12,7 @@ import {
   FILMS,
   HERO,
   NAV,
+  PRODUCT_VIDEO,
   REQUIREMENTS,
   STATS,
   STEPS,
@@ -141,6 +142,29 @@ export default function Home() {
                 </li>
               ))}
             </ol>
+          </div>
+        </section>
+
+        <section id="video" aria-labelledby="video-titulo" className="border-t border-line py-24 sm:py-32">
+          <div className={wrap}>
+            <p className={eyebrow}>En un minuto</p>
+            <h2 id="video-titulo" className={`${h2} max-w-5xl`}>
+              {PRODUCT_VIDEO.title}
+            </h2>
+            <p className={lead}>{PRODUCT_VIDEO.lead}</p>
+            <video
+              controls
+              playsInline
+              preload="none"
+              poster={`${PRODUCT_VIDEO.src}.webp`}
+              aria-label={PRODUCT_VIDEO.label}
+              width={1920}
+              height={1080}
+              className="mt-14 block h-auto w-full border border-line bg-surface"
+            >
+              <source src={`${PRODUCT_VIDEO.src}.webm`} type="video/webm" />
+              <source src={`${PRODUCT_VIDEO.src}.mp4`} type="video/mp4" />
+            </video>
           </div>
         </section>
 

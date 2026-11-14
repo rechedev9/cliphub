@@ -23,6 +23,14 @@ export const FILMS = {
   pro: { src: "/film/pro", label: "Ronda de un partido pro en Mirage grabada en primera persona con el HUD de ClipHub" },
 } as const satisfies Record<string, Film>;
 
+export const PRODUCT_VIDEO = {
+  src: "/film/producto",
+  title: "Un rival, leído en un minuto.",
+  lead: "Iberian Soul de principio a fin: sus jugadores, sus bombsites, su playbook y su ronda en el replay. Pantallas reales, nada simulado.",
+  label:
+    "Vídeo sin sonido de 62 segundos: ClipHub prepara un partido contra Iberian Soul con el rating de sus jugadores, sus bombsites, su playbook, sus estadísticas por lado y una ronda en el replay.",
+} as const;
+
 export const HERO = {
   kicker: "Análisis de demos de CS2 para equipos",
   title: "Lee al rival antes de que juegue.",

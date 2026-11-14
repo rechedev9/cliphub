@@ -85,3 +85,7 @@ logs/
 .atl/
 .omo/
 .vercel
+
+# The landing ships its own film loops.
+!landing/public/film/*.mp4
+!landing/public/film/*.webm

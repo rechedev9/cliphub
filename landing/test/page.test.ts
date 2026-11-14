@@ -35,6 +35,14 @@ test("every agreed section exists and the nav reaches it", () => {
   }
 });
 
+test("the product video loads only on demand and has a poster", () => {
+  const tag = /<video\b[^>]*\bcontrols\b[^>]*>/.exec(html)?.[0] ?? "";
+  assert.ok(tag, "no product video with controls");
+  assert.equal(attr(tag, "preload"), "none");
+  assert.match(attr(tag, "poster") ?? "", /^\/film\/producto\.webp$/);
+  assert.ok((attr(tag, "aria-label") ?? "").length > 40, "the video needs a description");
+});
+
 test("the page names no competitor and no old brand", () => {
   const text = html.toLowerCase();
   for (const name of ["cs2lens", "csgolens", "leetify", "refrag", "scope.gg", "clipmind"]) {
