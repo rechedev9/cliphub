@@ -3,8 +3,12 @@
 package mapdata
 
 import (
+	"bytes"
+	"compress/gzip"
 	"embed"
+	"io"
 	"strings"
+	"sync"
 )
 
 const (
@@ -17,6 +21,12 @@ var radarFiles embed.FS
 
 //go:embed shots/*.webp
 var shotFiles embed.FS
+
+//go:embed nav/*.json.gz
+var navFiles embed.FS
+
+// navMeshes keeps each map's nav mesh JSON once it has been inflated.
+var navMeshes sync.Map
 
 // Radar returns the bundled overview radar for a map and layer, or nil when
 // the bundle has none. Layer is "upper" or "lower". Every radar is square and
@@ -48,4 +58,28 @@ func Shot(mapName string) []byte {
 		return data
 	}
 	return nil
+}
+
+// Nav returns the bundled nav mesh JSON for a map, the body GET
+// /api/maps/{map}/geometry?source=nav answers, or nil when the bundle has none.
+func Nav(mapName string) []byte {
+	if cached, ok := navMeshes.Load(mapName); ok {
+		if body, ok := cached.([]byte); ok {
+			return body
+		}
+	}
+	packed, err := navFiles.ReadFile("nav/" + mapName + ".json.gz")
+	if err != nil {
+		return nil
+	}
+	zr, err := gzip.NewReader(bytes.NewReader(packed))
+	if err != nil {
+		return nil
+	}
+	body, err := io.ReadAll(zr)
+	if err != nil {
+		return nil
+	}
+	navMeshes.Store(mapName, body)
+	return body
 }

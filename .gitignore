@@ -6,6 +6,7 @@
 !/data/lineups/
 !/data/lineups/*.json
 !/data/maps/
+!/data/equipment/
 # Music: commit only the catalog metadata, never the audio.
 # scripts/fetch-music.sh re-downloads tracks from catalog.json into ZV_MUSIC_DIR.
 !/data/music/

@@ -74,19 +74,19 @@ func TestGetMapGeometryErrors(t *testing.T) {
 }
 
 func TestGetMapGeometrySourceParameter(t *testing.T) {
-	exe := fakeCS2Install(t, "de_mirage")
+	exe := fakeCS2Install(t, "de_cbble")
 	h, store := geometryHandlers(exe)
-	navKey, err := mapgeo.Source{CS2Exe: exe, Map: "de_mirage"}.CacheKey(mapgeo.SourceNav)
+	navKey, err := mapgeo.Source{CS2Exe: exe, Map: "de_cbble"}.CacheKey(mapgeo.SourceNav)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cached := `{"map":"de_mirage","source":"nav","build":"123","bounds":{"min":[0,0,0],"max":[1,1,0]},"vertices":[0,0,0,1,0,0,1,1,0],"triangles":[0,1,2],"areas":[]}`
+	cached := `{"map":"de_cbble","source":"nav","build":"123","bounds":{"min":[0,0,0],"max":[1,1,0]},"vertices":[0,0,0,1,0,0,1,1,0],"triangles":[0,1,2],"areas":[]}`
 	if err := store.Put(navKey, strings.NewReader(cached)); err != nil {
 		t.Fatal(err)
 	}
 	for query, want := range map[string]int{"?source=nav": http.StatusOK, "?source=render": http.StatusBadRequest} {
 		rw := httptest.NewRecorder()
-		Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/maps/de_mirage/geometry"+query, nil))
+		Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/maps/de_cbble/geometry"+query, nil))
 		if rw.Code != want {
 			t.Errorf("%s: status %d, want %d; body=%s", query, rw.Code, want, rw.Body.String())
 		}
@@ -113,5 +113,19 @@ func TestGetMapGeometryServesTheCachedMesh(t *testing.T) {
 	}
 	if ct := rw.Header().Get("Content-Type"); ct != "application/json" {
 		t.Errorf("content type = %q", ct)
+	}
+}
+
+func TestBundledNavMeshIsServedWithoutCS2(t *testing.T) {
+	h, _ := geometryHandlers("")
+	rw := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/maps/de_cache/geometry?source=nav", nil))
+	var mesh struct{ Map, Source string }
+	if err := json.Unmarshal(rw.Body.Bytes(), &mesh); rw.Code != http.StatusOK || err != nil || mesh.Map != "de_cache" || mesh.Source != "nav" {
+		t.Fatalf("bundled nav answered %d %v %+v", rw.Code, err, mesh)
+	}
+	// The physics mesh still needs the install.
+	if rw := getGeometry(h, "de_cache"); rw.Code != http.StatusNotFound {
+		t.Errorf("physics without CS2 answered %d, want 404", rw.Code)
 	}
 }
