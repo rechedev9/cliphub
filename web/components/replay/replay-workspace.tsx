@@ -69,9 +69,6 @@ import { useSetposCopies } from './use-setpos-copies';
 import { useReplayVoice } from './use-replay-voice';
 import { VoiceRow, VoiceSyncBar, voiceSyncing } from './voice-bar';
 
-/** The side panels and the notes follow the playhead this many times a second. */
-const UI_TICKS_PER_SECOND = 4;
-
 const NO_DRAWINGS: readonly { id: string; strokes: readonly Stroke[] }[] = [];
 
 const EMPTY_TIMELINE = roundTimeline({ tick_start: 0, tick_freeze_end: 0, tick_end: 64, tick_official: 64 }, 64);
@@ -175,7 +172,6 @@ export function ReplayWorkspace({
   const onHoverSlot = useCallback((slot: number | null) => {
     hoverSlot.current = slot;
   }, []);
-  const [uiTick, setUiTick] = useState(0);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [preferences, setPreferences] = useState(false);
   const [preferencesTab, setPreferencesTab] = useState<PreferencesTab>('general');
@@ -222,7 +218,7 @@ export function ReplayWorkspace({
     }
     return ids;
   }, [entries, index, selectedKeys]);
-  const { analyses, retry } = useMatchAnalyses(source, wanted, seed);
+  const { analyses, retry, prefetch } = useMatchAnalyses(source, wanted, seed);
 
   const current = entry === undefined ? undefined : analyses.get(entry.matchId);
   const loaded = current?.state === 'ready' ? current.analysis : null;
@@ -271,6 +267,7 @@ export function ReplayWorkspace({
     (entryRound: CentreRound, seconds: number) => (multi ? alignedTick(entryRound.timeline, seconds) : timelineTick(entryRound.timeline, seconds)),
     [multi],
   );
+  const playhead = useMemo(() => ({ clock, tickOf }), [clock, tickOf]);
   /** A tick of the focused round as a position of the current clock. */
   const clockSecondsOf = useCallback(
     (timeline: RoundTimeline, tick: number) => {
@@ -308,8 +305,6 @@ export function ReplayWorkspace({
         scrubRef.current.setAttribute('aria-valuetext', label);
       }
       if (clockLabelRef.current !== null && clockLabelRef.current.textContent !== label) clockLabelRef.current.textContent = label;
-      const step = Math.floor(seconds * UI_TICKS_PER_SECOND);
-      setUiTick((value) => (value === step ? value : step));
     };
     update(clock.seconds);
     return clock.subscribe(update);
@@ -541,7 +536,6 @@ export function ReplayWorkspace({
     },
     [analyses, groupLabel],
   );
-  const nowSeconds = uiTick / UI_TICKS_PER_SECOND;
   const gif = useReplayGif({
     captureRef,
     focused,
@@ -650,7 +644,7 @@ export function ReplayWorkspace({
           {focused === null ? null : (
             <MapHud
               focused={focused}
-              roundSeconds={timelineSeconds(focused.timeline, tickOf(focused, clock.seconds))}
+              playhead={playhead}
               eventsOpen={eventsOpen}
               showFeed={mapSettings.show.killfeed}
               showScore={mapSettings.show.scoreline}
@@ -678,7 +672,7 @@ export function ReplayWorkspace({
           fullscreen.active ? 'col-start-2 row-start-1' : 'min-[1180px]:col-start-2 min-[1180px]:row-start-1',
         )}
       >
-        <ReplaySidePanel focused={focused} nowSeconds={nowSeconds} tickOf={tickOf} focus={focus} onPickSlot={pickSlot} onCopySlot={copyPlayerSetpos} />
+        <ReplaySidePanel focused={focused} playhead={playhead} focus={focus} onPickSlot={pickSlot} onCopySlot={copyPlayerSetpos} />
       </aside>
 
       <ReplayTransport
@@ -712,6 +706,10 @@ export function ReplayWorkspace({
               }
             : null,
           onToggleMulti: (key) => setMultiKeys((value) => toggleMultiKey(withFocus(value, focusKey), key, focusKey)),
+          onPrefetch: (at) => {
+            const candidate = entries[at];
+            if (candidate !== undefined) prefetch(candidate.matchId);
+          },
         }}
         timeline={{
           timeline: transport,

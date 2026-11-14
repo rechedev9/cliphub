@@ -10,11 +10,13 @@ import { BOMB_SECONDS, aliveCounts, bombState, hudClock, killFeed, killMarks, te
 import type { BombState } from '@/lib/replay/map-hud';
 import { opponentSide, siteLabel } from '@/lib/tactical-labels';
 import { frameCursor } from '@/lib/tactical-replay';
-import { roundClockSeconds, timelineEvents, timelineTick } from '@/lib/tactical-timeline';
+import { roundClockSeconds, timelineEvents, timelineSeconds, timelineTick } from '@/lib/tactical-timeline';
 import { TacticalEventList } from '@/components/tactical/tactical-event-list';
 import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { EquipmentIcon, GearGlyph } from './equipment-icon';
+import { usePlayheadTick } from './use-clock-seconds';
+import type { RoundPlayhead } from './use-clock-seconds';
 
 const SIDE_TEXT: Record<TacticalSide, string> = { CT: 'text-side-ct', T: 'text-side-t' };
 const SIDE_BG: Record<TacticalSide, string> = { CT: 'bg-side-ct', T: 'bg-side-t' };
@@ -29,7 +31,7 @@ const HUD_SCOPE = 'dark';
  */
 export function MapHud({
   focused,
-  roundSeconds,
+  playhead,
   eventsOpen,
   onToggleEvents,
   onCopyThrow,
@@ -45,8 +47,7 @@ export function MapHud({
   scoreCentred?: boolean;
   /** Feed de bajas in Ajustes del mapa. */
   showFeed: boolean;
-  /** The playhead in seconds on the focused round's own bar. */
-  roundSeconds: number;
+  playhead: RoundPlayhead;
   eventsOpen: boolean;
   onToggleEvents: () => void;
   /** Copies the setpos of a grenade's throw, from its row in the list of events. */
@@ -55,6 +56,9 @@ export function MapHud({
   onSeek: (roundSeconds: number) => void;
 }): ReactNode {
   const names = useMemo(() => docNames(focused.doc), [focused.doc]);
+  const tickNow = usePlayheadTick(playhead);
+  // The playhead in seconds on the focused round's own bar.
+  const roundSeconds = timelineSeconds(focused.timeline, tickNow(focused));
   const teams = useMemo(() => teamNamesFor(focused.doc, focused.round), [focused.doc, focused.round]);
   const allEvents = useMemo(() => timelineEvents(focused.timeline, focused.round.events), [focused.round.events, focused.timeline]);
   const tick = timelineTick(focused.timeline, roundSeconds);

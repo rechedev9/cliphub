@@ -60,6 +60,9 @@ function selectedFill(winner: TacticalSide | '' | undefined): string {
   return 'bg-surface-5 text-fg-1';
 }
 
+// Long enough that sweeping the pointer along the strip loads nothing.
+const PREFETCH_DWELL_MS = 120;
+
 /**
  * The rounds of the playlist in play order, grouped by match, each group under
  * its match and date so a round number always says whose it is: the number, how
@@ -74,6 +77,7 @@ export function RoundStrip({
   roundInfo,
   multi,
   onToggleMulti,
+  onPrefetch,
 }: {
   entries: readonly ReplayRef[];
   index: number;
@@ -84,8 +88,13 @@ export function RoundStrip({
   /** `locked`: every round of the scope is superposed, so a press opens a round instead of toggling it. */
   multi: { selected: readonly string[]; blocked: (entry: ReplayRef) => string | null; locked: boolean } | null;
   onToggleMulti: (key: string) => void;
+  /** The pointer rests on a round, or the keyboard reaches it: its match can start loading before the press. */
+  onPrefetch: (index: number) => void;
 }): ReactNode {
   const listRef = useRef<HTMLDivElement>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const stopHover = (): void => clearTimeout(hoverTimer.current);
+  useEffect(() => stopHover, []);
   const groups = stripGroups(entries);
 
   useEffect(() => {
@@ -134,6 +143,12 @@ export function RoundStrip({
                     type="button"
                     onClick={() => (toggles ? onToggleMulti(key) : onSelect(at))}
                     onDoubleClick={() => onSelect(at)}
+                    onPointerEnter={() => {
+                      stopHover();
+                      hoverTimer.current = setTimeout(() => onPrefetch(at), PREFETCH_DWELL_MS);
+                    }}
+                    onPointerLeave={stopHover}
+                    onFocus={() => onPrefetch(at)}
                     disabled={toggles && blocked !== null}
                     title={hint}
                     aria-current={selected ? 'true' : undefined}

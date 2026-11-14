@@ -4,56 +4,42 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TacticalSource } from '@/lib/api/tactical';
 import { analysisErrorMessage, loadAnalysis } from '@/lib/replay/loaded-analysis';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
+import { MatchAnalysisLoads } from '@/lib/replay/match-analysis-loads';
+import type { AnalysisLoad } from '@/lib/replay/match-analysis-loads';
 
-export type MatchAnalysis =
-  | { state: 'loading' }
-  | { state: 'ready'; analysis: LoadedAnalysis }
-  | { state: 'failed'; message: string };
+export type MatchAnalysis = AnalysisLoad<LoadedAnalysis>;
 
-/**
- * Tactical analyses by match, fetched the first time a match is wanted and
- * kept for the rest of the visit. `seed` hands over one the page already loaded.
- */
+/** `MatchAnalysisLoads` for React: `wanted` loads now, `prefetch` before the match is wanted, `seed` is one the page already has. */
 export function useMatchAnalyses(
   kind: TacticalSource['kind'],
   wanted: readonly string[],
   seed?: { id: string; analysis: LoadedAnalysis },
-): { analyses: ReadonlyMap<string, MatchAnalysis>; retry: (id: string) => void } {
-  const [analyses, setAnalyses] = useState<ReadonlyMap<string, MatchAnalysis>>(() =>
-    seed === undefined ? new Map() : new Map([[seed.id, { state: 'ready', analysis: seed.analysis }]]),
+): { analyses: ReadonlyMap<string, MatchAnalysis>; retry: (id: string) => void; prefetch: (id: string) => void } {
+  const kindRef = useRef(kind);
+  useEffect(() => {
+    kindRef.current = kind;
+  }, [kind]);
+  const [loads] = useState(
+    () =>
+      new MatchAnalysisLoads<LoadedAnalysis>({
+        load: (id) => loadAnalysis({ kind: kindRef.current, id }),
+        message: analysisErrorMessage,
+        onChange: (states) => setAnalyses(states),
+        seed,
+      }),
   );
-  const started = useRef(new Set<string>(seed === undefined ? [] : [seed.id]));
+  const [analyses, setAnalyses] = useState(() => loads.states);
   const wantedKey = wanted.join(',');
-  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (seed === undefined) return;
-    started.current.add(seed.id);
-    setAnalyses((current) => {
-      const existing = current.get(seed.id);
-      if (existing?.state === 'ready' && existing.analysis === seed.analysis) return current;
-      return new Map(current).set(seed.id, { state: 'ready', analysis: seed.analysis });
-    });
-  }, [seed]);
+    if (seed !== undefined) loads.seed(seed.id, seed.analysis);
+  }, [loads, seed]);
 
   useEffect(() => {
-    const ids = wantedKey === '' ? [] : wantedKey.split(',');
-    for (const id of ids) {
-      if (started.current.has(id)) continue;
-      started.current.add(id);
-      setAnalyses((current) => new Map(current).set(id, { state: 'loading' }));
-      loadAnalysis({ kind, id })
-        .then((analysis) => setAnalyses((current) => new Map(current).set(id, { state: 'ready', analysis })))
-        .catch((error: unknown) => {
-          setAnalyses((current) => new Map(current).set(id, { state: 'failed', message: analysisErrorMessage(error) }));
-        });
-    }
-  }, [kind, wantedKey, attempt]);
+    loads.want(wantedKey === '' ? [] : wantedKey.split(','));
+  }, [loads, wantedKey]);
 
-  const retry = useCallback((id: string) => {
-    started.current.delete(id);
-    setAttempt((n) => n + 1);
-  }, []);
-
-  return { analyses, retry };
+  const retry = useCallback((id: string) => loads.retry(id), [loads]);
+  const prefetch = useCallback((id: string) => loads.want([id]), [loads]);
+  return { analyses, retry, prefetch };
 }
