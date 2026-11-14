@@ -19,7 +19,7 @@ import {
   TEAM_POINTS,
   VIEWER_TABS,
 } from "@/lib/content";
-import { ANALYTICS_URL, DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL } from "@/lib/site";
+import { ANALYTICS_URL, DEMO_URL, DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL } from "@/lib/site";
 
 const wrap = "mx-auto w-full max-w-7xl px-5 sm:px-10";
 const eyebrow = "font-display text-xs font-bold uppercase tracking-[0.3em] text-muted sm:text-sm";
@@ -194,6 +194,7 @@ export default function Home() {
             </div>
             <div className="mt-14 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
               <Cta href={ANALYTICS_URL} label="Pruébalo con tus demos" solid />
+              <Cta href={DEMO_URL} label="Ver la demo sin cuenta" />
               <span className="text-sm text-muted">Gratis. Sin tarjeta. Sin subir tus demos.</span>
             </div>
           </div>

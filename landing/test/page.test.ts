@@ -24,6 +24,7 @@ test("the hero has the headline and both calls to action", () => {
   assert.ok(html.includes(`href="${constant("DOWNLOAD_URL")}"`), "no link to the installer");
   assert.ok(html.includes("Abrir en el navegador"));
   assert.ok(html.includes("Descargar para Windows"));
+  assert.ok(html.includes(`href="${constant("ANALYTICS_URL")}/demo"`), "no link to the demo");
 });
 
 test("every agreed section exists and the nav reaches it", () => {
