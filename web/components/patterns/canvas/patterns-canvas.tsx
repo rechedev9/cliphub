@@ -11,7 +11,6 @@ import { teamHref } from '@/lib/clips/routes';
 import { formatShortDate } from '@/lib/format';
 import { rivalOf, teamLabel } from '@/lib/library/partidas';
 import { teamFocusFromQuery, writeTeamFocus } from '@/lib/replay/player-focus';
-import { tramoFromQuery, writeTramo, type Tramo } from '@/lib/replay/tramo';
 import { useContentStable } from '@/hooks/use-content-stable';
 import { useTeamList, useTeamTactics, type TeamAnalysis } from '@/hooks/use-team-analysis';
 import { useMapLineup } from '@/hooks/use-map-lineup';
@@ -28,6 +27,7 @@ import { ImportDemosButton } from '@/components/matches/import-demos-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { CanvasPanel, type PanelTone } from './canvas-panel';
+import { useUrlTramo } from '@/hooks/use-url-tramo';
 
 type Tab = 'rondas' | 'tacticas' | 'documentos';
 
@@ -73,11 +73,7 @@ export function PatternsCanvas({ analysis, onTeam, onImported }: { analysis: Tea
   // A stand-in in the latest match can leave a map with no rounds: the empty finders then offer every player.
   const showEveryone = useCallback(() => changeScope({ lineup: { kind: 'all' } }), [changeScope]);
 
-  const tramoValue = useMemo(() => tramoFromQuery(search), [search]);
-  const tramo = useMemo(
-    () => ({ tramo: tramoValue, onChange: (next: Tramo) => replaceQuery(writeTramo(search.toString(), next)) }),
-    [replaceQuery, search, tramoValue],
-  );
+  const tramo = useUrlTramo();
   const openDocument = search.get(DOCUMENT_QUERY);
   const setOpenDocument = useCallback(
     (id: string | null) => {

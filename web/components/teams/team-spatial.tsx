@@ -11,11 +11,10 @@ import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { heatChoiceFromQuery, writeHeatChoice } from '@/lib/replay/heat-choice';
 import type { HeatChoice } from '@/lib/replay/heat-choice';
 import { teamFocusFromQuery, toggleTeamFocus, writeTeamFocus } from '@/lib/replay/player-focus';
-import { tramoFromQuery, writeTramo } from '@/lib/replay/tramo';
-import type { Tramo } from '@/lib/replay/tramo';
 import { cn } from '@/lib/utils';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspace';
+import { useUrlTramo } from '@/hooks/use-url-tramo';
 
 /**
  * A team's rounds on the 2D radar, one map at a time, read through the page's
@@ -67,11 +66,7 @@ export function TeamSpatial({
     (query: string) => router.replace(query === '' ? pathname : `${pathname}?${query}`, { scroll: false }),
     [pathname, router],
   );
-  const tramoValue = useMemo(() => tramoFromQuery(search), [search]);
-  const tramo = useMemo(
-    () => ({ tramo: tramoValue, onChange: (next: Tramo) => replace(writeTramo(search.toString(), next)) }),
-    [replace, search, tramoValue],
-  );
+  const tramo = useUrlTramo();
   const heatValue = useMemo(() => heatChoiceFromQuery(search), [search]);
   const heat = useMemo(
     () => ({ choice: heatValue, onChange: (next: HeatChoice) => replace(writeHeatChoice(search.toString(), next)) }),
