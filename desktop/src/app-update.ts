@@ -183,10 +183,18 @@ export class AppUpdateController {
     this.listeners.clear();
   }
 
-  async check({ quiet = false }: { quiet?: boolean } = {}): Promise<void> {
+  /** With `download`, a newer version is fetched and verified at once, so the user only has to restart. */
+  async check({ quiet = false, download = false }: { quiet?: boolean; download?: boolean } = {}): Promise<void> {
     if (this.statusValue.state === APP_UPDATE_STATE.unavailable) return;
     if (this.isBusy()) return;
     await this.run(() => this.performCheck(quiet), quiet);
+    const offered = this.statusValue;
+    if (!download || offered.state !== APP_UPDATE_STATE.available || this.isBusy()) return;
+    await this.run(() => this.performDownload(offered.version), true);
+    if (this.statusValue.state === APP_UPDATE_STATE.ready) return;
+    // A failed background download goes back to the offer; the user can still take it by hand.
+    fs.rmSync(path.join(this.host.updatesDirectory, installerAssetName(offered.version)), { force: true });
+    this.setStatus(offered);
   }
 
   async install(): Promise<void> {

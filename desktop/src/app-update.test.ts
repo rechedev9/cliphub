@@ -202,6 +202,74 @@ test('controller reports current, available, verified ready, and apply', async (
   assert.ok(seen.includes(APP_UPDATE_STATE.installing));
 });
 
+test('a scheduled check downloads and verifies a new version on its own, and waits for the restart', async (t) => {
+  const payload = Buffer.from('cliphub-installer-bytes');
+  const fake = makeHost(t, {
+    currentVersion: '2.4.28',
+    latest: '2.4.29',
+    installer: payload,
+    digest: createHash('sha256').update(payload).digest('hex'),
+  });
+  const controller = new AppUpdateController(fake.host);
+  await controller.check({ quiet: true, download: true });
+  assert.deepEqual(controller.status(), { state: APP_UPDATE_STATE.ready, version: '2.4.29' });
+  assert.equal(fs.existsSync(path.join(fake.host.updatesDirectory, 'ClipHub.Studio.Setup.2.4.29.exe')), true);
+  assert.equal(fake.spawned.length, 0, 'never installs without the user');
+  assert.equal(fake.quit, 0);
+
+  await controller.install();
+  assert.equal(fake.spawned.length, 1);
+  assert.equal(fake.quit, 1);
+});
+
+test('a scheduled check on the current version downloads nothing', async (t) => {
+  const fake = makeHost(t, { currentVersion: '2.4.29', latest: '2.4.29', installer: Buffer.from('unused'), digest: '00'.repeat(32) });
+  let downloads = 0;
+  fake.host.downloadFile = async () => {
+    downloads += 1;
+    return '00'.repeat(32);
+  };
+  const controller = new AppUpdateController(fake.host);
+  await controller.check({ quiet: true, download: true });
+  assert.equal(controller.status().state, APP_UPDATE_STATE.current);
+  assert.equal(downloads, 0);
+});
+
+for (const failure of ['download', 'verify'] as const) {
+  test(`a background ${failure} failure leaves the update offered instead of a spinning button`, async (t) => {
+    const payload = Buffer.from('cliphub-installer-bytes');
+    const fake = makeHost(t, {
+      currentVersion: '2.4.28',
+      latest: '2.4.29',
+      installer: payload,
+      digest: failure === 'verify' ? 'ff'.repeat(32) : createHash('sha256').update(payload).digest('hex'),
+    });
+    if (failure === 'download') {
+      fake.host.downloadFile = async (_url, destination) => {
+        fs.writeFileSync(destination, 'partial');
+        throw new Error('ECONNRESET');
+      };
+    }
+    const reported: UpdateFailurePhase[] = [];
+    fake.host.reportError = (phase) => { reported.push(phase); };
+    const controller = new AppUpdateController(fake.host);
+    await controller.check({ quiet: true, download: true });
+    assert.deepEqual(controller.status(), { state: APP_UPDATE_STATE.available, version: '2.4.29', currentVersion: '2.4.28' });
+    assert.deepEqual(reported, [failure]);
+    assert.equal(fs.existsSync(path.join(fake.host.updatesDirectory, 'ClipHub.Studio.Setup.2.4.29.exe')), false);
+
+    // The user can still take it by hand once the network is back.
+    fake.host.downloadFile = async (_url, destination) => {
+      fs.writeFileSync(destination, payload);
+      return createHash('sha256').update(payload).digest('hex');
+    };
+    if (failure === 'download') {
+      await controller.install();
+      assert.equal(controller.status().state, APP_UPDATE_STATE.ready);
+    }
+  });
+}
+
 test('controller treats an equal or older latest tag as current', async (t) => {
   const fake = makeHost(t, {
     currentVersion: '2.4.29',

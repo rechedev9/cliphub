@@ -527,6 +527,9 @@ Trust a delta only when `wall_cv_percent` is under 10 (`run_noisy` otherwise) an
   `vX.Y.Z` ("ClipHub Studio X.Y.Z"). `.github/workflows/desktop-release.yml`
   builds the installer and publishes the GitHub Release as `latest`, which
   is what the in-app updater reads.
+- The in-app updater (`desktop/src/app-update.ts`) checks 8 s after start and every 6 h,
+  downloads and verifies the new installer in the background, and installs only when the
+  user presses Reiniciar, never during a capture or render.
 
 ## Pro match series and veto backfill (G7, 2026-11-10)
 
