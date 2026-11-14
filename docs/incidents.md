@@ -537,16 +537,13 @@ Trust a delta only when `wall_cv_percent` is under 10 (`run_noisy` otherwise) an
 
 ## Releases
 
-- Version lives in `desktop/package.json` and `landing/lib/site.ts`
-  (`DOWNLOAD_URL`, `RELEASE_VERSION`, `INSTALLER_SIZE`). Bump both, commit
-  `chore(release): prepare Studio X.Y.Z`, then push an annotated tag
-  `vX.Y.Z` ("ClipHub Studio X.Y.Z"). `.github/workflows/desktop-release.yml`
-  builds the installer and publishes the GitHub Release as `latest`, which
-  is what the in-app updater reads.
+- The steps are in [Release](../.claude/rules/release.md#steps).
 - The in-app updater (`desktop/src/app-update.ts`, scheduled by `APP_UPDATE_START_DELAY_MS`
   and `APP_UPDATE_INTERVAL_MS` in `main.ts`) downloads and verifies the new installer in the
   background and installs only when the user presses Reiniciar. It waits while
   `zv-recorder.exe` or `zv-editor.exe` runs (`desktop/src/studio-jobs.ts`).
+- On 2026-11-14 the landing still offered 5.19.0 while Studio was at 5.23.0, because the
+  ClipMind and landing deploy after the release was skipped.
 
 ## Pro match series and veto backfill (G7, 2026-11-10)
 

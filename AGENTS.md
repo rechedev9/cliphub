@@ -1,9 +1,18 @@
 # ClipHub
 
-ClipHub Studio is a Windows desktop app that turns CS2 demos and streams into edited videos and
-analyzes them. The product we sell is that desktop app. `web/` is only its UI inside Electron: there
-is no web product, and a browser is only a quick way to test the UI. Design, scope and verify every
-change for the installed Windows app. The UI is in Spanish.
+This monorepo builds two products from the same `web/` UI and the same Go handlers. The UI is in Spanish.
+
+- **ClipHub Studio**, the Windows desktop app we sell. It runs locally: demos, capture, renders and
+  the user's library stay on their PC. It only reads shared data (pro reference, rankings, scraped
+  pro matches) from the community server on the VPS, and syncs a library only when the user links
+  a ClipMind workspace.
+- **ClipMind (ClipHub Strats)**, the web edition of the analysis at `cliphubstrats.rechedev.cloud`:
+  accounts, team workspaces and a library that syncs with Studio. PC-bound features stay in Studio.
+
+Studio and ClipMind ship together from the same commit: every Studio release also deploys ClipMind,
+or their sync contracts drift. A UI fix reaches Studio users with the next release and web users
+with the next ClipMind deploy. Design and verify each change in every edition that shows it.
+[ClipMind and the VPS](.claude/rules/clipmind.md).
 
 This file is the index. Rules live in `.claude/rules/` and load on their own when a session touches
 the paths in their frontmatter. Skills (recipes and checklists) live in `.claude/skills/`.
@@ -23,6 +32,11 @@ the paths in their frontmatter. Skills (recipes and checklists) live in `.claude
 - State lives in SQLite through `internal/store`; memory repos share contract tests with it.
 - `cmd/zv` is the CLI over the same pipeline. `zv check` validates the workflow catalog, usage text
   and command build targets.
+- Web edition: `web/` built with `NEXT_PUBLIC_CLIPHUB_EDITION=web` talks to `cmd/clipmind-server`
+  (`internal/clipmind`), which serves the same `httpapi.AnalysisRoutes()` with one SQLite library per
+  workspace. `web/lib/edition.ts` decides which pages and APIs each edition has.
+- On the VPS (SSH alias `openclaw`), never in the installer: ClipMind, the community API
+  (`services/community`), telemetry (`services/telemetry`) and the landing (`landing/`).
 
 ## Build and check
 
@@ -57,7 +71,8 @@ Each rule has a check or a longer page behind it. Follow the link before you wor
 - [Render and the editor](.claude/rules/render-editor.md): FFmpeg 8.1.2, the `internal/pipeline` golden test, render-attempt ownership, startup reconcile, the Full Demo artifact cache.
 - [SQLite store](.claude/rules/store-sqlite.md): migrations and the paired SQLite and memory repositories.
 - [MCP parity](.claude/rules/mcp-parity.md): what a UI change updates under `cmd/zv-mcp` and in `docs/studio-mcp.md`.
-- [Web inside Electron](.claude/rules/web-electron.md): Chromium-only UI, the local request guard, the capability cookie, `landing/`, React attribute types.
+- [Web inside Electron](.claude/rules/web-electron.md): the desktop edition's Chromium, the local request guard, the capability cookie, `landing/`, React attribute types.
+- [ClipMind and the VPS](.claude/rules/clipmind.md): the web edition, Studio sync, the servers on the VPS, and how ClipMind and the landing are deployed.
 - [Release](.claude/rules/release.md): the bar before a tag, and the one hosted workflow.
 - `docs/incidents.md`: domain rules and incident history (HLAE pin, Full Demo audio and overlays, telemetry, performance, release steps). The rules name its sections.
 

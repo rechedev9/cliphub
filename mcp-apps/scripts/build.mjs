@@ -7,6 +7,8 @@ import { build } from "esbuild";
 
 const VIEWS = [{ name: "job-progress", title: "Progreso de ClipHub Studio" }];
 const root = fileURLToPath(new URL("..", import.meta.url));
+// --check compares instead of writing, so a release can catch a stale embedded view.
+const checkOnly = process.argv.includes("--check");
 const outDir = fileURLToPath(new URL("../../cmd/zv-mcp/apps/", import.meta.url));
 
 for (const view of VIEWS) {
@@ -38,6 +40,16 @@ for (const view of VIEWS) {
 </body>
 </html>
 `;
-  await writeFile(`${outDir}${view.name}.html`, html);
+  const target = `${outDir}${view.name}.html`;
+  if (checkOnly) {
+    const current = await readFile(target, "utf8").catch(() => "");
+    // A Windows checkout has CRLF in both the stored file and the inlined style.css.
+    if (current.replaceAll("\r\n", "\n") !== html.replaceAll("\r\n", "\n")) {
+      console.error(`${view.name}.html is stale: run pnpm --dir mcp-apps run build`);
+      process.exitCode = 1;
+    }
+    continue;
+  }
+  await writeFile(target, html);
   console.log(`${view.name}.html: ${(html.length / 1024).toFixed(0)} KB`);
 }

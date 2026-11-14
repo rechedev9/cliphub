@@ -5,6 +5,8 @@ import path from "node:path";
 export const alt = "Radar de Mirage con los jugadores marcados y el titular de ClipHub";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
+// The static export renders the image once at build time.
+export const dynamic = "force-static";
 
 export default async function OpengraphImage() {
   const frame = await readFile(path.join(process.cwd(), "public", "shots", "og-base.jpg"));

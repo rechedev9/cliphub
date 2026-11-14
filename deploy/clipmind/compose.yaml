@@ -1,0 +1,42 @@
+# ClipMind web edition at https://cliphubstrats.rechedev.cloud (edge Caddy -> 127.0.0.1:8170).
+name: cliphub-strats
+
+x-hardening: &hardening
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  api:
+    <<: *hardening
+    build: ./api
+    image: cliphub-strats-api:local
+    environment:
+      CLIPMIND_ADDR: "0.0.0.0:8090"
+      CLIPMIND_DATA_DIR: /data
+      CLIPMIND_PUBLIC_URL: https://cliphubstrats.rechedev.cloud
+      CLIPMIND_MAIL: log
+    volumes:
+      - ./data:/data
+    tmpfs:
+      - /tmp
+    mem_limit: 512m
+
+  web:
+    <<: *hardening
+    build: ./web
+    image: cliphub-strats-web:local
+    depends_on: [api]
+    environment:
+      CLIPMIND_URL: http://api:8090
+      NEXT_PUBLIC_CLIPHUB_EDITION: web
+    ports:
+      - "127.0.0.1:8170:3000"
+    tmpfs:
+      - /tmp
+      - /app/.next/cache:mode=1777
+    mem_limit: 384m

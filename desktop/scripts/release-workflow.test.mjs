@@ -30,7 +30,7 @@ test('desktop release workflow is the unsigned windows-latest publisher', () => 
     ['CSC_IDENTITY_AUTO_DISCOVERY: \'false\'', 'CI must stay unsigned'],
     ['go-version-file: go.mod', 'CI must install the go.mod toolchain for the NSIS rebuild'],
     ['GOTOOLCHAIN: local', 'windows-latest must rebuild zv with the installed 1.26.10, not auto-download'],
-    ['node desktop/scripts/seed-bundled-music.mjs', 'CI must seed gitignored Suno audio from the last installer'],
+    ['node desktop/scripts/seed-bundled-music.mjs', 'CI must fetch the gitignored Suno audio from the pinned music release'],
     ['pnpm --dir desktop run dist', 'must reuse the existing dist entrypoint'],
     ['FACEIT_API_KEY: ${{ secrets.FACEIT_API_KEY }}', 'CI must embed FACEIT in zv-orchestrator.exe'],
     ['pnpm --dir desktop run verify:dist-integrity', 'must verify SHA256SUMS.txt before publish'],
@@ -73,11 +73,19 @@ test('a release publishes only after the checks pass', () => {
   for (const command of ['go vet ./...', 'go test -short ./...', 'go run ./cmd/zv check']) {
     assert.ok(checks.includes(command), `checks must run ${command}`);
   }
-  for (const pkg of ['web', 'desktop']) {
-    for (const script of ['typecheck', 'lint', 'test:unit']) {
+  const scripts = {
+    web: ['typecheck', 'lint', 'test:unit', 'build'],
+    desktop: ['typecheck', 'lint', 'test:unit'],
+    landing: ['typecheck', 'lint', 'build'],
+    'mcp-apps': ['typecheck', 'lint', 'test:unit'],
+  };
+  for (const [pkg, names] of Object.entries(scripts)) {
+    for (const script of names) {
       assert.ok(checks.includes(`pnpm --dir ${pkg} run ${script}`), `checks must run ${pkg} ${script}`);
     }
   }
+  assert.ok(checks.includes('NEXT_PUBLIC_CLIPHUB_EDITION: web'), 'checks must build the ClipMind web edition');
+  assert.ok(checks.includes('mcp-apps/scripts/build.mjs --check'), 'checks must catch a stale embedded MCP App');
   assert.match(jobs.publish, /needs: \[checks, windows-installer\]/);
 });
 

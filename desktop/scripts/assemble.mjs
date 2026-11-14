@@ -5,7 +5,7 @@
 //   build-resources/music/ -> catalog.json (track metadata; audio is downloaded on first boot)
 //
 // The Next standalone output does NOT include .next/static or public, so we copy
-// them next to server.js the same way the web Dockerfile does. Cross-platform
+// them next to server.js the same way deploy/clipmind/web/Dockerfile expects. Cross-platform
 // (pure Node fs), because the real build runs on Windows.
 
 import { execSync } from 'node:child_process';
@@ -14,6 +14,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { environmentWithoutXAIAPIKey } from './build-environment.mjs';
 import { stageBundledHLAE } from './hlae-bundle.mjs';
+import { fileSha256, localOnlyTracks, trackDigest } from './seed-bundled-music.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const desktop = join(here, '..');
@@ -122,11 +123,10 @@ mkdirSync(join(out, 'music'), { recursive: true });
 const musicSrc = join(repo, 'data', 'music');
 cpSync(join(musicSrc, 'catalog.json'), join(out, 'music', 'catalog.json'));
 const musicCatalog = JSON.parse(readFileSync(join(musicSrc, 'catalog.json'), 'utf8'));
-for (const t of musicCatalog.tracks ?? []) {
-  if (t.downloadUrl || !t.id || !t.ext) continue;
+for (const t of localOnlyTracks(musicCatalog)) {
   const audio = join(musicSrc, `${t.id}.${t.ext}`);
-  if (!existsSync(audio)) {
-    console.error(`\nmissing local-only track audio ${audio} (catalog id ${t.id})\n`);
+  if (!existsSync(audio) || fileSha256(audio) !== trackDigest(t)) {
+    console.error(`\nlocal-only track ${audio} is missing or differs from catalog.json: run node desktop/scripts/seed-bundled-music.mjs\n`);
     process.exit(1);
   }
   cpSync(audio, join(out, 'music', `${t.id}.${t.ext}`));
