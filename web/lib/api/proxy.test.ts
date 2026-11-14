@@ -226,7 +226,6 @@ test('proxy: a demo visitor reads, cannot write and is sent to sign up for accou
   await withDemoHome('/equipos/iberian', async () => {
     const read = await proxy(demoVisitor('/api/library/teams', { headers: { 'x-cm-access': 'forged' } }));
     assert.equal(read.headers.get('x-middleware-next'), '1');
-    assert.equal(read.headers.get('x-middleware-request-x-cm-demo'), '1');
     assert.equal(read.headers.get('x-middleware-request-x-cm-access') ?? '', '');
 
     const page = await proxy(demoVisitor('/partidas'));
@@ -248,10 +247,21 @@ test('proxy: a demo visitor reads, cannot write and is sent to sign up for accou
   });
 });
 
-test('proxy: a demo header from the browser is discarded and a sign-in drops the demo', async () => {
+test('proxy: someone signed in who opens /demo goes to their own library and loses the demo', async () => {
   await withDemoHome('/equipos/iberian', async () => {
-    const response = await proxy(signedIn('/api/library/teams', { headers: { 'x-cm-demo': '1', cookie: `cm_access=${accessToken(10 * 60_000)}; cm_refresh=r; cm_demo=1` } }));
-    assert.equal(response.headers.get('x-middleware-request-x-cm-demo') ?? '', '');
-    assert.match(response.headers.get('set-cookie') ?? '', /cm_demo=;/);
+    const cookie = `cm_access=${accessToken(10 * 60_000)}; cm_refresh=r; cm_demo=1`;
+    const demo = await proxy(signedIn('/demo', { headers: { cookie } }));
+    assert.equal(new URL(demo.headers.get('location') ?? '').pathname, '/');
+    assert.match(demo.headers.get('set-cookie') ?? '', /cm_demo=;/);
+    const read = await proxy(signedIn('/api/library/teams', { headers: { cookie } }));
+    assert.match(read.headers.get('set-cookie') ?? '', /cm_demo=;/);
+  });
+});
+
+test('proxy: a demo visitor with a dead sign-in has it dropped once', async () => {
+  await withDemoHome('/equipos/iberian', async () => {
+    const response = await proxy(demoVisitor('/partidas', { headers: { cookie: `cm_access=${accessToken(-60_000)}; cm_demo=1` } }));
+    assert.equal(response.headers.get('x-middleware-next'), '1');
+    assert.match(response.headers.get('set-cookie') ?? '', /cm_access=;/);
   });
 });

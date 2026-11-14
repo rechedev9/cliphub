@@ -3,8 +3,6 @@
 
 /** Set by /demo; readable by page code so the banner can show. Not a credential. */
 export const DEMO_COOKIE = 'cm_demo';
-/** Set by the proxy on a demo visitor's request; a value from the browser is discarded. */
-export const DEMO_HEADER = 'x-cm-demo';
 /** What the ClipMind server reads to serve the demo workspace. */
 export const DEMO_UPSTREAM_HEADER = 'X-ClipHub-Demo';
 

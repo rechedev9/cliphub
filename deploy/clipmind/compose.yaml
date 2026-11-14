@@ -20,6 +20,8 @@ services:
       CLIPMIND_DATA_DIR: /data
       CLIPMIND_PUBLIC_URL: https://cliphubstrats.rechedev.cloud
       CLIPMIND_MAIL: log
+      # Only the web container reaches the API; it forwards the visitor address from the edge.
+      CLIPMIND_TRUST_PROXY: "1"
     volumes:
       - ./data:/data
     tmpfs:
