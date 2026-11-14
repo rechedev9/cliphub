@@ -241,8 +241,8 @@ async function loadLibrary(): Promise<Loaded> {
   const [demos, matches, unlinked, series, voices] = await Promise.all([
     listLibraryDemos(),
     listLibraryMatches(),
-    // The Crear backlog is a hint; the table stands without it.
-    listUnlinkedLibraryJobs().catch(() => []),
+    // The Crear backlog is a hint; the table stands without it. The web edition runs no Crear jobs.
+    currentEdition() === 'web' ? [] : listUnlinkedLibraryJobs().catch(() => []),
     // Without series every partida stands alone, as before.
     listLibrarySeries().catch((): LibrarySeries[] => []),
     // Voice is an icon on the rows; without it they show none.
@@ -292,6 +292,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   // The jobs of every demo, joined: the POV read repeats only when the set of jobs changes, not on each poll.
   const jobKey = loaded === null ? '' : loaded.rows.flatMap(({ demo }) => demo.job_ids).sort().join(',');
   useEffect(() => {
+    // Videos exist only in the desktop edition; its presets and render status are desktop-only APIs.
+    if (currentEdition() === 'web') return undefined;
     let active = true;
     void loadPovJobs(jobKey === '' ? [] : jobKey.split(',')).then((jobs) => {
       if (active) setPovJobs(jobs);
@@ -479,7 +481,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   })
     .filter((row) => inDateRange(view.state.filters.date ?? FILTER_ANY, partidaDate(row), now))
     .filter((row) => listView.kind === null || rowKind(row, seriesById) === listView.kind)
-    .filter((row) => !listView.pov || hasPov(row, povJobs))
+    .filter((row) => webEdition || !listView.pov || hasPov(row, povJobs))
     .filter((row) => !listView.voice || (row.match !== null && voices.has(row.match.id)));
   const shown = selectedMap === FILTER_ANY ? facet : facet.filter(({ match }) => match?.map === selectedMap);
   const chips = mapChips({ library: rows.map(({ match }) => match), listed: facet.map(({ match }) => match), selected: selectedMap });

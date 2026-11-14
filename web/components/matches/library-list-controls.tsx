@@ -11,6 +11,7 @@ import {
   type LibraryViewMode,
   type MatchKind,
 } from '@/lib/library/partida-groups';
+import { currentEdition } from '@/lib/edition';
 import { Segmented } from '@/components/ui/segmented';
 import { Switch } from '@/components/ui/switch';
 
@@ -43,10 +44,12 @@ export function LibraryListControls({ view, onChange }: { view: LibraryListView;
         options={KIND_OPTIONS}
         onChange={(choice) => onChange({ ...view, kind: choice === ALL_KINDS ? null : choice })}
       />
-      <span className="flex items-center gap-2">
-        <Switch aria-labelledby={povId} checked={view.pov} onCheckedChange={(pov) => onChange({ ...view, pov })} />
-        <span id={povId} className="text-body-sm text-fg-2">Con POV</span>
-      </span>
+      {currentEdition() === 'desktop' ? (
+        <span className="flex items-center gap-2">
+          <Switch aria-labelledby={povId} checked={view.pov} onCheckedChange={(pov) => onChange({ ...view, pov })} />
+          <span id={povId} className="text-body-sm text-fg-2">Con POV</span>
+        </span>
+      ) : null}
       <span className="flex items-center gap-2">
         <Switch aria-labelledby={voiceId} checked={view.voice} onCheckedChange={(voice) => onChange({ ...view, voice })} />
         <span id={voiceId} className="text-body-sm text-fg-2">Con voz</span>
