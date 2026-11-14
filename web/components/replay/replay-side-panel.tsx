@@ -9,7 +9,9 @@ import { playerCards } from '@/lib/replay/player-cards';
 import { frameCursor } from '@/lib/tactical-replay';
 import { timelineEvents, timelineSeconds } from '@/lib/tactical-timeline';
 import { playerSetpos } from '@/lib/replay/setpos';
+import type { ReplayClock } from '@/lib/replay/clock';
 import { PlayerPanel } from './player-panel';
+import { useClockSeconds } from './use-clock-seconds';
 import { SetposHoverChip, useHoverAnchor } from './setpos-hover-chip';
 
 /**
@@ -18,14 +20,14 @@ import { SetposHoverChip, useHoverAnchor } from './setpos-hover-chip';
  */
 export function ReplaySidePanel({
   focused,
-  nowSeconds,
+  clock,
   tickOf,
   focus,
   onPickSlot,
   onCopySlot,
 }: {
   focused: CentreRound | null;
-  nowSeconds: number;
+  clock: ReplayClock;
   tickOf: (round: CentreRound, seconds: number) => number;
   focus: PlayerFocus;
   onPickSlot: (slot: number, additive: boolean) => void;
@@ -35,6 +37,7 @@ export function ReplaySidePanel({
   const rawEvents = useMemo(() => (focused === null ? [] : timelineEvents(focused.timeline, focused.round.events)), [focused]);
   const teamNames = useMemo(() => (focused === null ? null : teamNamesFor(focused.doc, focused.round)), [focused]);
   const hover = useHoverAnchor();
+  const nowSeconds = useClockSeconds(clock);
 
   if (focused === null || teamNames === null) {
     return <p className="p-2 text-body-sm text-fg-3">Los jugadores aparecen cuando carga la ronda.</p>;

@@ -49,18 +49,24 @@ export function timeAgo(value: string | number): string {
   return formatShortDate(then);
 }
 
+// Built once: a formatter costs far more than a format, and the replay dates every match on each render.
+let shortDateFormats: { year: Intl.DateTimeFormat; day: Intl.DateTimeFormat; dayAndYear: Intl.DateTimeFormat } | null = null;
+
+function shortDateFormatters(): NonNullable<typeof shortDateFormats> {
+  shortDateFormats ??= {
+    year: new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: 'Europe/Madrid' }),
+    day: new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', timeZone: 'Europe/Madrid' }),
+    dayAndYear: new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Madrid' }),
+  };
+  return shortDateFormats;
+}
+
 export function formatShortDate(value: string | number): string {
   const date = typeof value === 'number' ? new Date(value) : new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
-  const now = new Date();
-  const madridYear = new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: 'Europe/Madrid' });
-  const sameYear = madridYear.format(date) === madridYear.format(now);
-  return new Intl.DateTimeFormat('es-ES', {
-    day: 'numeric',
-    month: 'short',
-    ...(sameYear ? {} : { year: 'numeric' }),
-    timeZone: 'Europe/Madrid',
-  }).format(date);
+  const formats = shortDateFormatters();
+  const sameYear = formats.year.format(date) === formats.year.format(new Date());
+  return (sameYear ? formats.day : formats.dayAndYear).format(date);
 }
 
 /** Imported demos expose their import timestamp, not a fabricated play time. */

@@ -111,3 +111,31 @@ test('formatShortDate uses a calendar day, not a relative phrase', () => {
 test('formatShortDate rejects unparseable input', () => {
   assert.equal(formatShortDate('not-a-date'), '-');
 });
+
+test('formatShortDate shows the year only for another year', () => {
+  const thisYear = new Date().getUTCFullYear();
+  assert.doesNotMatch(formatShortDate(`${thisYear}-06-15T12:00:00Z`), new RegExp(String(thisYear)));
+  assert.match(formatShortDate(`${thisYear - 2}-06-15T12:00:00Z`), new RegExp(String(thisYear - 2)));
+});
+
+test('formatShortDate reuses its formatters, since the replay round strip dates every match on each render', () => {
+  const Original = Intl.DateTimeFormat;
+  let built = 0;
+  const Counting = function (this: unknown, ...args: ConstructorParameters<typeof Intl.DateTimeFormat>) {
+    built += 1;
+    return new Original(...args);
+  } as unknown as typeof Intl.DateTimeFormat;
+  Intl.DateTimeFormat = Counting;
+  try {
+    formatShortDate('2026-08-17T12:00:00Z');
+    formatShortDate('2024-12-25T12:00:00Z');
+    const warm = built;
+    for (let i = 0; i < 50; i += 1) {
+      formatShortDate('2026-08-17T12:00:00Z');
+      formatShortDate('2024-12-25T12:00:00Z');
+    }
+    assert.equal(built, warm, `${built - warm} formatters built for 100 dates`);
+  } finally {
+    Intl.DateTimeFormat = Original;
+  }
+});

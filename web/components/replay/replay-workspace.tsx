@@ -69,9 +69,6 @@ import { useSetposCopies } from './use-setpos-copies';
 import { useReplayVoice } from './use-replay-voice';
 import { VoiceRow, VoiceSyncBar, voiceSyncing } from './voice-bar';
 
-/** The side panels and the notes follow the playhead this many times a second. */
-const UI_TICKS_PER_SECOND = 4;
-
 const NO_DRAWINGS: readonly { id: string; strokes: readonly Stroke[] }[] = [];
 
 const EMPTY_TIMELINE = roundTimeline({ tick_start: 0, tick_freeze_end: 0, tick_end: 64, tick_official: 64 }, 64);
@@ -175,7 +172,6 @@ export function ReplayWorkspace({
   const onHoverSlot = useCallback((slot: number | null) => {
     hoverSlot.current = slot;
   }, []);
-  const [uiTick, setUiTick] = useState(0);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [preferences, setPreferences] = useState(false);
   const [preferencesTab, setPreferencesTab] = useState<PreferencesTab>('general');
@@ -308,8 +304,6 @@ export function ReplayWorkspace({
         scrubRef.current.setAttribute('aria-valuetext', label);
       }
       if (clockLabelRef.current !== null && clockLabelRef.current.textContent !== label) clockLabelRef.current.textContent = label;
-      const step = Math.floor(seconds * UI_TICKS_PER_SECOND);
-      setUiTick((value) => (value === step ? value : step));
     };
     update(clock.seconds);
     return clock.subscribe(update);
@@ -541,7 +535,6 @@ export function ReplayWorkspace({
     },
     [analyses, groupLabel],
   );
-  const nowSeconds = uiTick / UI_TICKS_PER_SECOND;
   const gif = useReplayGif({
     captureRef,
     focused,
@@ -650,7 +643,8 @@ export function ReplayWorkspace({
           {focused === null ? null : (
             <MapHud
               focused={focused}
-              roundSeconds={timelineSeconds(focused.timeline, tickOf(focused, clock.seconds))}
+              clock={clock}
+              tickOf={tickOf}
               eventsOpen={eventsOpen}
               showFeed={mapSettings.show.killfeed}
               showScore={mapSettings.show.scoreline}
@@ -678,7 +672,7 @@ export function ReplayWorkspace({
           fullscreen.active ? 'col-start-2 row-start-1' : 'min-[1180px]:col-start-2 min-[1180px]:row-start-1',
         )}
       >
-        <ReplaySidePanel focused={focused} nowSeconds={nowSeconds} tickOf={tickOf} focus={focus} onPickSlot={pickSlot} onCopySlot={copyPlayerSetpos} />
+        <ReplaySidePanel focused={focused} clock={clock} tickOf={tickOf} focus={focus} onPickSlot={pickSlot} onCopySlot={copyPlayerSetpos} />
       </aside>
 
       <ReplayTransport
