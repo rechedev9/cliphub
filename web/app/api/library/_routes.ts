@@ -58,7 +58,7 @@ import {
   MAP_CALLOUTS_QUERY,
 } from '../../../lib/api/callouts.ts';
 import { SHARE_IMPORT_KEYS } from '../../../lib/library/share.ts';
-import { TEAM_DOCUMENT_KEYS, TEAM_DOCUMENT_REQUEST_BYTES } from '../../../lib/api/team-documents.ts';
+import { TEAM_DOCUMENT_KEYS, TEAM_DOCUMENT_REQUEST_BYTES, teamDocumentContentHref } from '../../../lib/api/team-documents.ts';
 import { SEARCH_QUERY_KEYS, SEARCH_RESPONSE_KEYS } from '../../../lib/api/search.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAP_COUNTS_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
 import {
@@ -380,6 +380,14 @@ export function matchLibraryRoute(method: string, path: readonly string[]): Libr
         return typeof segment === 'string' ? segment === part : segment.test(part);
       }),
   );
+}
+
+/**
+ * next.config sandboxes a document by its literal path, before any decoding, so the content is served only
+ * there: an encoded spelling such as `%63ontent` would reach the same route under the app's own policy.
+ */
+export function isLiteralDocumentPath(pathname: string, path: readonly string[]): boolean {
+  return path.length === 3 && pathname === teamDocumentContentHref(path[1] ?? '');
 }
 
 /** The upstream query: only the route's names, empty values dropped, repeats kept in order. */

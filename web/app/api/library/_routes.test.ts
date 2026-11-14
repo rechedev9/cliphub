@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { libraryUpstreamQuery, matchLibraryRoute, pickLibraryKeys } from './_routes.ts';
+import { isLiteralDocumentPath, libraryUpstreamQuery, matchLibraryRoute, pickLibraryKeys } from './_routes.ts';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 
@@ -360,4 +360,11 @@ test('team documents upload as one bounded form, read as sandboxed HTML and neve
   const list = matchLibraryRoute('GET', ['documents']);
   assert.ok(list);
   assert.equal(libraryUpstreamQuery(list, new URLSearchParams(`team_id=${ID}&q=x&limit=200`)), `team_id=${ID}&limit=200`);
+});
+
+test('a document is served only on the literal path the sandbox header rule matches', () => {
+  const path = ['documents', ID, 'content'];
+  assert.equal(isLiteralDocumentPath(`/api/library/documents/${ID}/content`, path), true);
+  assert.equal(isLiteralDocumentPath(`/api/library/documents/${ID}/%63ontent`, path), false);
+  assert.equal(isLiteralDocumentPath(`/api/library/%64ocuments/${ID}/content`, path), false);
 });

@@ -10,7 +10,7 @@ import {
   proxyStream,
   serviceUnavailable,
 } from '../../demos/_lib';
-import { libraryUpstreamQuery, matchLibraryRoute, pickLibraryKeys, type LibraryRoute } from '../_routes';
+import { isLiteralDocumentPath, libraryUpstreamQuery, matchLibraryRoute, pickLibraryKeys, type LibraryRoute } from '../_routes';
 import { TEAM_DOCUMENT_POLICY } from '@/lib/api/team-documents';
 
 export const runtime = 'nodejs';
@@ -30,6 +30,9 @@ async function handle(request: Request, { params }: Params): Promise<Response> {
   const { path } = await params;
   const route = matchLibraryRoute(request.method, path);
   if (route === undefined) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  if (route.response.kind === 'document' && !isLiteralDocumentPath(new URL(request.url).pathname, path)) {
+    return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
 
   const query = libraryUpstreamQuery(route, new URL(request.url).searchParams);
   const url = `${orchestratorUrl()}/api/library/${path.map(encodeURIComponent).join('/')}${query ? `?${query}` : ''}`;
