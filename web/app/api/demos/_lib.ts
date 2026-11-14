@@ -3,6 +3,7 @@
 // proxy.ts does. Webpack resolves both forms identically.
 import { NextResponse } from 'next/server.js';
 import { SERVICE_UNAVAILABLE_CODE, NOT_CONFIGURED_CODE } from '../../../lib/api/types.ts';
+import { DEMO_COOKIE, DEMO_HEADER, DEMO_UPSTREAM_HEADER, demoHome } from '../../../lib/clipmind/demo.ts';
 import { ACCESS_COOKIE, ACCESS_HEADER, accessExpiry, clipMindUrl } from '../../../lib/clipmind/session.ts';
 import { currentEdition } from '../../../lib/edition.ts';
 
@@ -17,8 +18,13 @@ export function orchestratorUrl(): string {
 async function upstreamAuthHeaders(): Promise<Record<string, string>> {
   if (currentEdition() !== 'web') return mutationHeaders();
   const { cookies, headers } = await import('next/headers');
-  const access = (await headers()).get(ACCESS_HEADER) ?? liveAccessCookie((await cookies()).get(ACCESS_COOKIE)?.value);
-  return access ? { Authorization: `Bearer ${access}` } : {};
+  const incoming = await headers();
+  const jar = await cookies();
+  const access = incoming.get(ACCESS_HEADER) ?? liveAccessCookie(jar.get(ACCESS_COOKIE)?.value);
+  if (access) return { Authorization: `Bearer ${access}` };
+  // Routes that skip the proxy read the cookie; the server only lets the demo read.
+  const demo = incoming.get(DEMO_HEADER) === '1' || (demoHome() !== undefined && jar.get(DEMO_COOKIE)?.value === '1');
+  return demo ? { [DEMO_UPSTREAM_HEADER]: '1' } : {};
 }
 
 /**

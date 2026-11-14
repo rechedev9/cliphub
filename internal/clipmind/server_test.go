@@ -343,3 +343,45 @@ func TestAssistantTokenReadsTheLibraryButCannotManageTheAccount(t *testing.T) {
 	ts.want(http.StatusOK, http.MethodDelete, "/auth/tokens/"+created.Token.ID, ana.Access, nil)
 	ts.want(http.StatusUnauthorized, http.MethodGet, "/api/library/teams", created.Secret, nil)
 }
+
+func TestDemoWorkspaceIsReadableWithoutAnAccountButNeverWritable(t *testing.T) {
+	ts := newTestServer(t)
+	owner := ts.signUp("coach@example.com")
+	ts.want(http.StatusCreated, http.MethodPost, "/api/library/teams", owner.Access, map[string]string{"name": "Iberian Soul"})
+
+	demo := func(srv *Server, method, path string, body any) int {
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(method, path, bytes.NewReader(raw))
+		req.RemoteAddr = "203.0.113.9:4000"
+		req.Header.Set(DemoHeader, "1")
+		req.Header.Set("Content-Type", "application/json")
+		rw := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rw, req)
+		return rw.Code
+	}
+	if code := demo(ts.srv, http.MethodGet, "/api/library/teams", nil); code != http.StatusUnauthorized {
+		t.Fatalf("demo read with the demo off = %d, want 401", code)
+	}
+
+	ts.srv.cfg.DemoWorkspaceID = owner.Workspace
+	if code := demo(ts.srv, http.MethodGet, "/api/library/teams", nil); code != http.StatusOK {
+		t.Fatalf("demo read = %d, want 200", code)
+	}
+	if code := demo(ts.srv, http.MethodPost, "/api/library/teams", map[string]string{"name": "Intruso"}); code != http.StatusForbidden {
+		t.Fatalf("demo write = %d, want 403", code)
+	}
+	for _, path := range []string{"/workspaces", "/auth/me", "/api/sync/artifacts"} {
+		if code := demo(ts.srv, http.MethodGet, path, nil); code != http.StatusUnauthorized {
+			t.Fatalf("demo %s = %d, want 401", path, code)
+		}
+	}
+	// A bad credential is never upgraded to the demo.
+	req := httptest.NewRequest(http.MethodGet, "/api/library/teams", nil)
+	req.Header.Set(DemoHeader, "1")
+	req.Header.Set("Authorization", "Bearer not-a-token")
+	rw := httptest.NewRecorder()
+	ts.srv.Handler().ServeHTTP(rw, req)
+	if rw.Code != http.StatusUnauthorized {
+		t.Fatalf("bad token with the demo header = %d, want 401", rw.Code)
+	}
+}

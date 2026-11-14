@@ -188,3 +188,70 @@ test('proxy: the web edition opens a page reached from an email link, and still 
     assert.equal(read.status, 403);
   });
 });
+
+async function withDemoHome<T>(home: string | undefined, run: () => Promise<T>): Promise<T> {
+  const previous = process.env.CLIPHUB_DEMO_HOME;
+  if (home === undefined) delete process.env.CLIPHUB_DEMO_HOME;
+  else process.env.CLIPHUB_DEMO_HOME = home;
+  try {
+    return await inWebEdition(run);
+  } finally {
+    if (previous === undefined) delete process.env.CLIPHUB_DEMO_HOME;
+    else process.env.CLIPHUB_DEMO_HOME = previous;
+  }
+}
+
+function demoVisitor(path: string, init: { method?: string; headers?: Record<string, string> } = {}): NextRequest {
+  return new NextRequest(`https://clipmind.test${path}`, {
+    method: init.method,
+    headers: { host: 'clipmind.test', cookie: 'cm_demo=1', ...init.headers },
+  });
+}
+
+test('proxy: /demo opens the demo team and marks the visitor', async () => {
+  await withDemoHome('/equipos/iberian', async () => {
+    const response = await proxy(new NextRequest('https://clipmind.test/demo', { headers: { host: 'clipmind.test' } }));
+    assert.equal(response.status, 307);
+    assert.equal(new URL(response.headers.get('location') ?? '').pathname, '/equipos/iberian');
+    assert.match(response.headers.get('set-cookie') ?? '', /cm_demo=1/);
+  });
+  await withDemoHome(undefined, async () => {
+    const response = await proxy(new NextRequest('https://clipmind.test/demo', { headers: { host: 'clipmind.test' } }));
+    assert.equal(new URL(response.headers.get('location') ?? '').pathname, '/crear-cuenta');
+    assert.doesNotMatch(response.headers.get('set-cookie') ?? '', /cm_demo/);
+  });
+});
+
+test('proxy: a demo visitor reads, cannot write and is sent to sign up for account pages', async () => {
+  await withDemoHome('/equipos/iberian', async () => {
+    const read = await proxy(demoVisitor('/api/library/teams', { headers: { 'x-cm-access': 'forged' } }));
+    assert.equal(read.headers.get('x-middleware-next'), '1');
+    assert.equal(read.headers.get('x-middleware-request-x-cm-demo'), '1');
+    assert.equal(read.headers.get('x-middleware-request-x-cm-access') ?? '', '');
+
+    const page = await proxy(demoVisitor('/partidas'));
+    assert.equal(page.headers.get('x-middleware-next'), '1');
+
+    const write = await proxy(demoVisitor('/api/library/teams', { method: 'POST', headers: { origin: 'https://clipmind.test' } }));
+    assert.equal(write.status, 403);
+    assert.deepEqual(await write.json(), { error: 'the demo is read-only', code: 'demo_read_only' });
+
+    const account = await proxy(demoVisitor('/cuenta'));
+    assert.equal(new URL(account.headers.get('location') ?? '').pathname, '/crear-cuenta');
+    const accountApi = await proxy(demoVisitor('/api/cm/workspaces'));
+    assert.equal(accountApi.status, 401);
+  });
+  // With the demo off, the cookie opens nothing.
+  await withDemoHome(undefined, async () => {
+    const api = await proxy(demoVisitor('/api/library/teams'));
+    assert.equal(api.status, 401);
+  });
+});
+
+test('proxy: a demo header from the browser is discarded and a sign-in drops the demo', async () => {
+  await withDemoHome('/equipos/iberian', async () => {
+    const response = await proxy(signedIn('/api/library/teams', { headers: { 'x-cm-demo': '1', cookie: `cm_access=${accessToken(10 * 60_000)}; cm_refresh=r; cm_demo=1` } }));
+    assert.equal(response.headers.get('x-middleware-request-x-cm-demo') ?? '', '');
+    assert.match(response.headers.get('set-cookie') ?? '', /cm_demo=;/);
+  });
+});

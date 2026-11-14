@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server.js';
 import { localAPIRequestError } from './lib/api/local-request-guard.ts';
 import { clearedCookies, resolveSession, sessionCookies, ACCESS_COOKIE, ACCESS_HEADER, REFRESH_COOKIE, type CookieSpec } from './lib/clipmind/session.ts';
+import { DEMO_COOKIE, DEMO_HEADER, DEMO_PATH, demoCookieOptions, demoDecision, demoHome } from './lib/clipmind/demo.ts';
 import { currentEdition, isPathAvailable, isPublicWebPath } from './lib/edition.ts';
 
 /** The API routes this proxy guards; the rest check the guard in-handler. */
@@ -50,9 +51,23 @@ async function webEdition(request: NextRequest): Promise<NextResponse> {
 
   const forwarded = new Headers(request.headers);
   forwarded.delete(ACCESS_HEADER);
+  forwarded.delete(DEMO_HEADER);
   if (isPublicWebPath(pathname)) return NextResponse.next({ request: { headers: forwarded } });
 
+  const home = demoHome();
+  if (pathname === DEMO_PATH) {
+    const url = request.nextUrl.clone();
+    url.pathname = home ?? '/crear-cuenta';
+    url.search = '';
+    const response = NextResponse.redirect(url, 307);
+    if (home !== undefined) response.cookies.set(DEMO_COOKIE, '1', demoCookieOptions(secure));
+    return response;
+  }
+
   const session = await resolveSession(request.cookies);
+  if (session === undefined && home !== undefined && request.cookies.get(DEMO_COOKIE)?.value === '1') {
+    return demoVisit(request, forwarded);
+  }
   if (session === undefined) {
     let response: NextResponse;
     if (isAPI(pathname)) {
@@ -70,7 +85,27 @@ async function webEdition(request: NextRequest): Promise<NextResponse> {
   forwarded.set(ACCESS_HEADER, session.access);
   const response = NextResponse.next({ request: { headers: forwarded } });
   if (session.renewed !== undefined) applyCookies(response, sessionCookies(session.renewed, secure));
+  // Signed in now, so the demo banner goes.
+  if (request.cookies.has(DEMO_COOKIE)) response.cookies.delete(DEMO_COOKIE);
   return response;
+}
+
+/** A visitor of the public demo: reads go through, writes and account pages do not. */
+function demoVisit(request: NextRequest, forwarded: Headers): NextResponse {
+  const { pathname } = request.nextUrl;
+  const decision = demoDecision(request.method, pathname);
+  if (decision === 'read_only') {
+    return NextResponse.json({ error: 'the demo is read-only', code: 'demo_read_only' }, { status: 403 });
+  }
+  if (decision === 'sign_up') {
+    if (isAPI(pathname)) return NextResponse.json({ error: 'sign in required', code: 'unauthorized' }, { status: 401 });
+    const url = request.nextUrl.clone();
+    url.pathname = '/crear-cuenta';
+    url.search = '';
+    return NextResponse.redirect(url, 307);
+  }
+  forwarded.set(DEMO_HEADER, '1');
+  return NextResponse.next({ request: { headers: forwarded } });
 }
 
 export const config = {
