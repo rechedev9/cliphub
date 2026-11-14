@@ -8,6 +8,7 @@ import {
   kdLabel,
   mapChips,
   mapPerformance,
+  ownFirstScoreline,
   matchScoreLabel,
   matchTitle,
   partidaDate,
@@ -97,6 +98,13 @@ test('a team outcome reads its own score against the rival', () => {
   assert.equal(teamOutcome(m, MOUZ), 'loss');
   assert.equal(teamOutcome(match('m2', 'de_nuke', side('ct-start', 15, VIT), side('t-start', 15, MOUZ)), VIT), 'draw');
   assert.equal(teamOutcome(m, 'other'), null);
+});
+
+test('the own team leads the scoreline wherever it started', () => {
+  const m = match('m1', 'de_cache', side('ct-start', 7, MOUZ, 'MOUZ'), side('t-start', 13, VIT, 'Vitality'));
+  assert.deepEqual(ownFirstScoreline(m, VIT).map((entry) => entry.name), ['Vitality', 'MOUZ']);
+  assert.deepEqual(ownFirstScoreline(m, MOUZ).map((entry) => entry.name), ['MOUZ', 'Vitality']);
+  assert.deepEqual(ownFirstScoreline(m, null), scoreline(m));
 });
 
 test('map performance sums each map once per match, most played first', () => {

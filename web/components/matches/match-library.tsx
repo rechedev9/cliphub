@@ -14,6 +14,7 @@ import {
   listLibraryDemos,
   listLibraryMatches,
   listLibrarySeries,
+  listLibraryTeams,
   listUnlinkedLibraryJobs,
   patchLibraryDemo,
   type LibrarySource,
@@ -63,14 +64,13 @@ import { DataTable, type DataTableColumn } from '@/components/records/data-table
 import { DeleteChosenButton } from '@/components/records/delete-chosen-button';
 import { EmptyState } from '@/components/records/empty-state';
 import { SelectionBar } from '@/components/records/selection-bar';
-import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { DemoImport } from '@/components/matches/demo-import';
-import { LibraryListControls } from '@/components/matches/library-list-controls';
 import { PartidaGroupsList } from '@/components/matches/partida-groups-list';
 import { PartidaVoice } from '@/components/matches/partida-voice';
 import { DemoStatus, RowActions, Scoreline, isPending, removeDemo, type RowHandlers } from '@/components/matches/partida-cells';
 import { PartidasFrame } from '@/components/matches/partidas-frame';
+import { PartidasToolbar } from '@/components/matches/partidas-toolbar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -235,10 +235,10 @@ function initialView(search: URLSearchParams): TableViewState {
   };
 }
 
-type Loaded = { rows: PartidaRow[]; series: LibrarySeries[]; unlinkedJobs: number; voices: VoiceSummary[] };
+type Loaded = { rows: PartidaRow[]; series: LibrarySeries[]; unlinkedJobs: number; voices: VoiceSummary[]; ownTeam: string | null };
 
 async function loadLibrary(): Promise<Loaded> {
-  const [demos, matches, unlinked, series, voices] = await Promise.all([
+  const [demos, matches, unlinked, series, voices, teams] = await Promise.all([
     listLibraryDemos(),
     listLibraryMatches(),
     // The Crear backlog is a hint; the table stands without it. The web edition runs no Crear jobs.
@@ -247,8 +247,11 @@ async function loadLibrary(): Promise<Loaded> {
     listLibrarySeries().catch((): LibrarySeries[] => []),
     // Voice is an icon on the rows; without it they show none.
     listVoiceSummaries().catch((): VoiceSummary[] => []),
+    // Mi equipo orders the scores and colours the results; without it the scrims guess the team.
+    listLibraryTeams().catch(() => []),
   ]);
-  return { rows: buildPartidaRows(demos, matches), series, unlinkedJobs: unlinked.length, voices };
+  const ownTeam = teams.find((team) => team.own === true)?.id ?? null;
+  return { rows: buildPartidaRows(demos, matches), series, unlinkedJobs: unlinked.length, voices, ownTeam };
 }
 
 /** Partidas: every demo in the library with its match, filterable, importable, and live while scans run. */
@@ -285,7 +288,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     } catch (error) {
       if (read !== readRef.current) return;
       setReadError(isLibraryOffline(error) ? 'offline' : 'error');
-      setLoaded((current) => current ?? { rows: [], series: [], unlinkedJobs: 0, voices: [] });
+      setLoaded((current) => current ?? { rows: [], series: [], unlinkedJobs: 0, voices: [], ownTeam: null });
     }
   }, []);
 
@@ -464,8 +467,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const now = Date.now();
   const seriesById = seriesIndex(loaded.series);
   const voices = voiceIndex(loaded.voices);
-  // Mi equipo comes from the team profile of #411; until it is read here, the scrims decide.
-  const ownTeam = ownTeamId({ rows, explicit: null });
+  const ownTeam = ownTeamId({ rows, explicit: loaded.ownTeam });
   const selectedMap = view.state.filters.map ?? FILTER_ANY;
   // Every filter but the map: the chips count over these rows, and the map chip then narrows them.
   const facet = filterRows(rows, { ...view.state.filters, map: FILTER_ANY }, {
@@ -495,12 +497,11 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
       Marcar como scrim
     </Button>
   );
-  const filterBar = (
-    <FilterBar
+  const toolbar = (
+    <PartidasToolbar
       values={view.state.filters}
-      onChange={view.setFilter}
-      onReset={view.resetFilters}
-      searchPlaceholder="Buscar por mapa, equipo, archivo o etiqueta"
+      onFilterChange={view.setFilter}
+      onFiltersReset={view.resetFilters}
       filters={[
         { id: 'team', label: 'Equipo', options: teamFilterOptions(rows.map(({ match }) => match)) },
         { id: 'rival', label: 'Rival', options: teamFilterOptions(rows.map(({ match }) => match)) },
@@ -509,7 +510,9 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
         { id: 'source', label: 'Fuente', options: SOURCE_OPTIONS },
         { id: 'state', label: 'Estado', options: STATE_OPTIONS },
       ]}
-      count={{ shown: shown.length, total: rows.length, noun: rows.length === 1 ? 'partida' : 'partidas' }}
+      view={listView}
+      onViewChange={changeListView}
+      count={{ shown: shown.length, total: rows.length }}
     />
   );
 
@@ -536,18 +539,16 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
         {chips.length > 1 || selectedMap !== FILTER_ANY ? (
           <MapChips chips={chips} total={facet.length} value={selectedMap} onChange={(map) => view.setFilter('map', map)} />
         ) : null}
-        <LibraryListControls view={listView} onChange={changeListView} />
+        {toolbar}
         {listView.mode === 'series' ? (
           <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-start gap-2">
-              {filterBar}
-            </div>
             <PartidaGroupsList
               days={groupPartidas({ rows: shown, series: loaded.series, sort: listView.sort })}
               context={{
                 ownTeam,
                 libraryRows: rows,
                 ownName: ownTeam === null ? '' : ownTeamName(rows, ownTeam),
+                showDay: listView.sort !== 'played',
                 povJobs,
                 voices,
                 onVoiceResynced: () => pollRef.current(),
@@ -597,7 +598,6 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
           rowKey={(row) => row.demo.id}
           rowHref={(row) => (row.match ? matchHref(row.match.id) : undefined)}
           view={view}
-          toolbar={filterBar}
           empty={<p className="text-body-sm text-fg-2">Ninguna partida cumple estos filtros.</p>}
         />
         )}

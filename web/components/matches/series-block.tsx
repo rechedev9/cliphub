@@ -134,14 +134,15 @@ export function MapCell({
   );
 }
 
-/** The green 2D button in a cell of its own, set off by a divider. */
+/** The 2D button in a cell of its own, set off by a divider. */
 export function TwoDCell({ children, className }: { children: ReactNode; className?: string }): ReactNode {
   return <div className={cn('flex shrink-0 items-center border-l border-border-subtle px-3', className)}>{children}</div>;
 }
 
 export function TwoDLink({ href, label }: { href: string; label: string }): ReactNode {
   return (
-    <Button asChild variant="default" size="xs">
+    // Outline, not the accent fill: there is one per row, so a filled one outweighs the page's own actions.
+    <Button asChild variant="outline" size="xs">
       <Link href={href} aria-label={label}>
         <Play aria-hidden />
         2D

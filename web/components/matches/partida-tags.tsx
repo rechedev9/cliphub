@@ -10,15 +10,22 @@ import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-/** The tags of a demo as chips that can be removed, and "+ Etiqueta" to add one with the library's tags as suggestions. */
+/** Row edit controls stay laid out but show only while the row is hovered or holds focus; a touch screen always shows them. */
+export const ROW_EDIT_REVEAL = 'opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100';
+const ROW_TAG_REVEAL = 'hidden group-hover/row:inline-flex group-focus-within/row:inline-flex pointer-coarse:inline-flex';
+
+/** The tags of a demo as quiet chips, removable and with "+ Etiqueta" while the row is hovered or focused. */
 export function PartidaTags({
   demo,
   allTags,
   onChanged,
+  quietTags = [],
 }: {
   demo: LibraryDemo;
   allTags: readonly string[];
   onChanged: (demoId: string, tags: string[]) => void;
+  /** Tags the row already says elsewhere, such as the own team's name: shown only while editing. */
+  quietTags?: readonly string[];
 }): ReactNode {
   const listId = useId();
   const [adding, setAdding] = useState(false);
@@ -73,14 +80,19 @@ export function PartidaTags({
   return (
     <span className="flex flex-wrap items-center gap-1.5">
       {demo.tags.map((tag) => (
-        <Badge key={tag} variant="outline" shape="square" className="gap-0.5 pr-0.5">
-          <span className="max-w-32 truncate" title={tag}>{tag}</span>
+        <Badge
+          key={tag}
+          variant="secondary"
+          shape="square"
+          className={cn('gap-0.5 border-transparent pr-0.5 font-normal text-fg-2', quietTags.includes(tag) && ROW_TAG_REVEAL)}
+        >
+          <span className="max-w-44 truncate" title={tag}>{tag}</span>
           <button
             type="button"
             disabled={busy}
             aria-label={`Quitar la etiqueta ${tag}`}
             onClick={() => void save(demo.tags.filter((other) => other !== tag))}
-            className={cn('inline-flex size-5 items-center justify-center rounded-sm text-fg-3 hover:text-fg-1 disabled:opacity-50', FOCUS_RING)}
+            className={cn('inline-flex size-5 items-center justify-center rounded-sm text-fg-3 hover:text-fg-1 disabled:opacity-50', FOCUS_RING, ROW_EDIT_REVEAL)}
           >
             <X aria-hidden className="size-3" />
           </button>
@@ -110,9 +122,8 @@ export function PartidaTags({
           </datalist>
         </>
       ) : (
-        <Button type="button" variant="ghost" size="xs" onClick={() => setAdding(true)}>
+        <Button type="button" variant="ghost" size="icon-xs" title="Añadir etiqueta" aria-label="Añadir etiqueta" className={ROW_EDIT_REVEAL} onClick={() => setAdding(true)}>
           <Plus aria-hidden />
-          Etiqueta
         </Button>
       )}
       {failed ? (

@@ -169,6 +169,13 @@ export function scoreline(match: LibraryMatch): readonly [ScoreSide, ScoreSide] 
   ];
 }
 
+/** The scoreline with the own team first, so a list of the team's partidas reads top to bottom; without it, matchTitle order. */
+export function ownFirstScoreline(match: LibraryMatch, ownId: string | null): readonly [ScoreSide, ScoreSide] {
+  const [left, right] = scoreline(match);
+  const ownKey = ownId === null ? undefined : match.teams.find((team) => team.team_id === ownId)?.key;
+  return ownKey === 't-start' ? [right, left] : [left, right];
+}
+
 /** One map chip of Partidas: the raw map name, how it reads, and how many listed partidas it has. */
 export type MapChip = { readonly value: string; readonly label: string; readonly count: number };
 
