@@ -28,6 +28,7 @@ type MemoryLibraryRepository struct {
 	series       map[uuid.UUID]library.Series
 	jobLinks     map[uuid.UUID]memoryJobLink
 	reports      map[uuid.UUID]library.Report
+	documents    map[uuid.UUID]memoryTeamDocument
 	annotations  map[uuid.UUID]library.Annotation
 	plays        map[uuid.UUID]library.Play
 	playlists    map[uuid.UUID]library.Playlist
@@ -82,6 +83,7 @@ func NewMemoryLibraryRepository() *MemoryLibraryRepository {
 		series:       map[uuid.UUID]library.Series{},
 		jobLinks:     map[uuid.UUID]memoryJobLink{},
 		reports:      map[uuid.UUID]library.Report{},
+		documents:    map[uuid.UUID]memoryTeamDocument{},
 		annotations:  map[uuid.UUID]library.Annotation{},
 		plays:        map[uuid.UUID]library.Play{},
 		playlists:    map[uuid.UUID]library.Playlist{},
@@ -634,7 +636,7 @@ func (r *MemoryLibraryRepository) AssignMatchTeam(ctx context.Context, a library
 		r.aliases[side.clanKey] = alias
 		r.adoptAutoMatches(*a.TeamID, []string{side.clanKey})
 		if ok && previousOwner != *a.TeamID && r.teamMatchCount(previousOwner) == 0 && len(r.teamView(r.teams[previousOwner]).Aliases) == 0 &&
-			!r.teamHasReports(previousOwner) && !r.teamHasPlays(previousOwner) && !r.teamHasSeries(previousOwner) {
+			!r.teamHasReports(previousOwner) && !r.teamHasDocuments(previousOwner) && !r.teamHasPlays(previousOwner) && !r.teamHasSeries(previousOwner) {
 			delete(r.teams, previousOwner)
 		}
 	}

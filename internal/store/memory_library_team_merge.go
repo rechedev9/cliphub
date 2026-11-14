@@ -53,6 +53,12 @@ func (r *MemoryLibraryRepository) MergeTeams(ctx context.Context, from, into uui
 			r.reports[id] = report
 		}
 	}
+	for id, d := range r.documents {
+		if d.doc.TeamID == from {
+			d.doc.TeamID = into
+			r.documents[id] = d
+		}
+	}
 	for id, play := range r.plays {
 		if play.TeamID != nil && *play.TeamID == from {
 			play.TeamID = uuidPtr(into)

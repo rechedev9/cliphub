@@ -19,6 +19,17 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), geolocation=(), microphone=(), payment=()' },
 ];
 
+// A team document opens in the app's own iframe, so it may be framed by the app (and only by it), always sandboxed.
+// Equal to TeamDocumentPolicy in internal/httpapi/library_team_documents.go; a later rule overrides the same keys.
+const teamDocumentHeaders = [
+  {
+    key: 'Content-Security-Policy',
+    value: "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox; default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https:; font-src https: data:; img-src https: data: blob:; media-src https: data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'self'",
+  },
+  { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+  { key: 'Referrer-Policy', value: 'no-referrer' },
+];
+
 /** @type {import('next').NextConfig} */
 export default {
   // Do not recreate web/AGENTS.md and web/CLAUDE.md on `next dev`.
@@ -43,6 +54,9 @@ export default {
     return config;
   },
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      { source: '/api/library/documents/:id/content', headers: teamDocumentHeaders },
+    ];
   },
 };

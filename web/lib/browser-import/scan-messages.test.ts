@@ -39,6 +39,8 @@ test('parseResultMessage accepts a success result', () => {
       cs2Build: 14000,
       document: '{"schema_version":"1"}\n',
       positions,
+      sizeBytes: 168_232_051,
+      fileName: '1-abcd-1-2.dem',
     },
   };
   const parsed = parseResultMessage(message);
@@ -86,6 +88,22 @@ test('parseResultMessage rejects malformed payloads', () => {
         cs2Build: 1,
         document: '{}',
         positions: 'not-bytes',
+        sizeBytes: 1,
+        fileName: 'a.dem',
+      },
+    },
+    {
+      id: 'demo-1',
+      type: 'result',
+      result: {
+        ok: true,
+        sha256: 'a',
+        map: 'm',
+        rounds: 1,
+        cs2Build: 1,
+        document: '{}',
+        positions: new Uint8Array(),
+        fileName: 'a.dem',
       },
     },
   ];

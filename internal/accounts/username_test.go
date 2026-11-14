@@ -164,3 +164,39 @@ func TestOpenMigratesACatalogWithoutUsernames(t *testing.T) {
 		t.Fatalf("DeleteUser of a migrated account = %v, %v; want its 2 workspaces", deleted, err)
 	}
 }
+
+func TestOperatorPasswordSignsTheAccountOutEverywhere(t *testing.T) {
+	s, _ := newTestService(t)
+	ctx := context.Background()
+	u, err := s.CreateUser(ctx, NewUserInput{Username: "korvax", Email: "k@example.com", Password: "first password"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, login := range []string{"KorVax", "K@example.com"} {
+		if got, err := s.UserByLogin(ctx, login); err != nil || got.ID != u.ID {
+			t.Fatalf("UserByLogin(%q) = %+v, %v", login, got, err)
+		}
+	}
+	if _, err := s.UserByLogin(ctx, "nadie"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("UserByLogin(unknown) = %v, want ErrNotFound", err)
+	}
+	tokens, err := s.Login(ctx, LoginInput{Login: "korvax", Password: "first password"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetPassword(ctx, u.ID, "short"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("SetPassword(short) = %v, want ErrInvalidInput", err)
+	}
+	if err := s.SetPassword(ctx, "missing", "second password"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("SetPassword(unknown user) = %v, want ErrNotFound", err)
+	}
+	if err := s.SetPassword(ctx, u.ID, "second password"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Authenticate(ctx, tokens.Access); !errors.Is(err, ErrTokenInvalid) {
+		t.Fatalf("session after SetPassword = %v, want ErrTokenInvalid", err)
+	}
+	if _, err := s.Login(ctx, LoginInput{Login: "korvax", Password: "second password"}); err != nil {
+		t.Fatalf("login with the new password: %v", err)
+	}
+}

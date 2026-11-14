@@ -388,3 +388,44 @@ func (s *Service) GetUser(ctx context.Context, id string) (User, error) {
 	}
 	return u, err
 }
+
+// UserByLogin finds an account by its username or email, as Login reads it.
+func (s *Service) UserByLogin(ctx context.Context, login string) (User, error) {
+	column, key := "username", normalizeUsername(login)
+	if strings.Contains(login, "@") {
+		column, key = "email", normalizeEmail(login)
+	}
+	if key == "" {
+		return User{}, ErrNotFound
+	}
+	var u User
+	err := s.db.QueryRowContext(ctx, `SELECT id, COALESCE(email, ''), COALESCE(username, ''), display_name, created_at FROM users WHERE `+column+` = ?`, key).
+		Scan(&u.ID, &u.Email, &u.Username, &u.DisplayName, &u.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return User{}, ErrNotFound
+	}
+	return u, err
+}
+
+// SetPassword is the operator's reset ("clipmind-server user passwd"): a new
+// password, the lockout cleared and every session signed out.
+func (s *Service) SetPassword(ctx context.Context, userID, password string) error {
+	if err := checkPassword(password); err != nil {
+		return err
+	}
+	hash, err := s.hashPassword(password)
+	if err != nil {
+		return err
+	}
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ?, failed_logins = 0, locked_until = 0 WHERE id = ?`, hash, userID)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return ErrNotFound
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`, s.nowMillis(), userID)
+		return err
+	})
+}

@@ -7,6 +7,7 @@ import { PlugZap, Shield } from 'lucide-react';
 import { useTeamAnalysis, useTeamList } from '@/hooks/use-team-analysis';
 import { patternsHref } from '@/lib/analysis/pattern-canvas-mode';
 import { TeamChoice } from '@/components/analysis/team-choice';
+import { ImportDemosButton } from '@/components/matches/import-demos-button';
 import { EmptyState } from '@/components/records/empty-state';
 import { useDocumentTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
@@ -20,12 +21,15 @@ export function PatternsIndex(): ReactNode {
   useDocumentTitle('Buscador de patrones · ClipHub');
   return (
     <div className="mx-auto flex w-full max-w-[59.375rem] flex-col gap-4">
-      <h1 className="flex items-baseline gap-2 text-title font-semibold text-fg-1">
-        <span aria-hidden className="text-slash">
-          /
-        </span>
-        Buscador de patrones
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="flex items-baseline gap-2 text-title font-semibold text-fg-1">
+          <span aria-hidden className="text-slash">
+            /
+          </span>
+          Buscador de patrones
+        </h1>
+        <ImportDemosButton />
+      </div>
       <TeamChoice
         sentence="Elige el equipo del que quieres buscar granadas, posiciones de jugadores y patrones sobre el mapa."
         teams={teams}
@@ -77,5 +81,5 @@ export function PatternsWorkspace({ teamId }: { teamId: string }): ReactNode {
       />
     );
   }
-  return <PatternsCanvas analysis={state.data} onTeam={(next) => router.push(patternsHref(next))} />;
+  return <PatternsCanvas analysis={state.data} onTeam={(next) => router.push(patternsHref(next))} onImported={reload} />;
 }

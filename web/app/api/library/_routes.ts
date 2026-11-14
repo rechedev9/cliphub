@@ -58,6 +58,7 @@ import {
   MAP_CALLOUTS_QUERY,
 } from '../../../lib/api/callouts.ts';
 import { SHARE_IMPORT_KEYS } from '../../../lib/library/share.ts';
+import { TEAM_DOCUMENT_KEYS, TEAM_DOCUMENT_REQUEST_BYTES } from '../../../lib/api/team-documents.ts';
 import { SEARCH_QUERY_KEYS, SEARCH_RESPONSE_KEYS } from '../../../lib/api/search.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAP_COUNTS_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
 import {
@@ -119,13 +120,15 @@ export type LibraryRoute = {
     | { readonly kind: 'multipart'; readonly maxBytes?: number };
   /**
    * `json` copies these top-level keys; `stream` proxies bytes; `empty` is a 204;
-   * `download` returns the bytes of a POST as a file with its name and length.
+   * `download` returns the bytes of a POST as a file with its name and length;
+   * `document` serves a team's HTML under its sandbox policy.
    */
   readonly response:
     | { readonly kind: 'json'; readonly keys: readonly string[] }
     | { readonly kind: 'stream' }
     | { readonly kind: 'empty' }
-    | { readonly kind: 'download' };
+    | { readonly kind: 'download' }
+    | { readonly kind: 'document' };
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -331,6 +334,11 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'POST', segments: ['reports', UUID, 'export'], body: fields(SHARE_EXPORT_FIELDS), response: { kind: 'download' } },
   { method: 'GET', segments: ['reports', UUID, 'scout'], response: json(SCOUT_KEYS) },
   { method: 'GET', segments: ['reports', UUID, 'metrics'], response: json(METRICS_KEYS) },
+  { method: 'GET', segments: ['documents'], query: ['team_id', ...PAGING], response: json(['documents']) },
+  { method: 'POST', segments: ['document-uploads'], body: { kind: 'multipart', maxBytes: TEAM_DOCUMENT_REQUEST_BYTES }, response: json(TEAM_DOCUMENT_KEYS) },
+  { method: 'GET', segments: ['documents', UUID], response: json(TEAM_DOCUMENT_KEYS) },
+  { method: 'GET', segments: ['documents', UUID, 'content'], response: { kind: 'document' } },
+  { method: 'DELETE', segments: ['documents', UUID], response: { kind: 'empty' } },
   { method: 'GET', segments: ['annotations'], query: ['match_id', 'round'], response: json(['annotations']) },
   { method: 'POST', segments: ['annotations'], body: fields(['match_id', 'round', ...ANNOTATION_FIELDS]), response: json(ANNOTATION_KEYS) },
   { method: 'PATCH', segments: ['annotations', UUID], body: fields(ANNOTATION_FIELDS), response: json(ANNOTATION_KEYS) },

@@ -11,6 +11,7 @@ import {
   serviceUnavailable,
 } from '../../demos/_lib';
 import { libraryUpstreamQuery, matchLibraryRoute, pickLibraryKeys, type LibraryRoute } from '../_routes';
+import { TEAM_DOCUMENT_POLICY } from '@/lib/api/team-documents';
 
 export const runtime = 'nodejs';
 
@@ -49,6 +50,7 @@ async function handle(request: Request, { params }: Params): Promise<Response> {
   if (!upstream.ok) return forwardError(upstream);
   if (route.response.kind === 'empty') return new Response(null, { status: 204 });
   if (route.response.kind === 'download') return downloadResponse(upstream);
+  if (route.response.kind === 'document') return documentResponse(upstream);
   const body: unknown = await upstream.json();
   return NextResponse.json(pickLibraryKeys(body, route.response.keys), { status: upstream.status });
 }
@@ -82,6 +84,22 @@ function downloadResponse(upstream: Response): Response {
   const disposition = upstream.headers.get('content-disposition') ?? '';
   headers['content-disposition'] = PACKAGE_DISPOSITION.test(disposition) ? disposition : 'attachment; filename="cliphub.cliphub"';
   return new Response(upstream.body, { status: 200, headers });
+}
+
+/** A team document: its HTML only, sandboxed so its scripts run in an opaque origin, never upstream headers. */
+function documentResponse(upstream: Response): Response {
+  return new Response(upstream.body, {
+    status: 200,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'content-security-policy': TEAM_DOCUMENT_POLICY,
+      'x-content-type-options': 'nosniff',
+      'x-frame-options': 'SAMEORIGIN',
+      'cache-control': 'no-store',
+      'referrer-policy': 'no-referrer',
+      'cross-origin-resource-policy': 'same-origin',
+    },
+  });
 }
 
 type ImportForward = { refused: Response } | { upstream: Response | null };
