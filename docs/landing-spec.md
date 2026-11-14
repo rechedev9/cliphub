@@ -78,7 +78,7 @@ La estética es de lanzamiento: negro, vídeo a pantalla completa y tipografía 
 - Las capturas salen de las 32 capturas de análisis ya hechas. Se recortan y optimizan (WebP o AVIF con tamaño intrínseco declarado para no mover el layout). La primera captura del hero tiene prioridad de carga y el resto carga en diferido.
 - Los vídeos de creadores reutilizan el componente de vídeo ligero existente: póster estático, sin autoplay si el usuario prefiere menos movimiento.
 - El contenido (textos de secciones, filas de la tabla, pestañas del visor, cifras de prueba social) vive en un módulo de datos tipado, separado del marcado. Así el test de contenido y la página leen la misma fuente.
-- La versión, la URL del instalador y el tamaño siguen en el módulo de constantes del sitio, que ya actualiza cada release. Se le añade la URL de ClipHub Analytics, `https://app.cliphub.rechedev.cloud`, como constante única para poder cambiarla en una línea.
+- La versión, la URL del instalador y el tamaño siguen en el módulo de constantes del sitio, que ya actualiza cada release. Se le añade la URL de ClipHub Analytics, `https://cliphubstrats.rechedev.cloud`, como constante única para poder cambiarla en una línea.
 - La prueba social usa solo datos reales del README ("100+ usuarios", "130+ releases"). No hay testimonios ni logos de equipos inventados.
 - No hay sección de precios. El mensaje es "Gratis" en el hero y en la tabla.
 - No se vende "IA" en el texto. El servidor MCP para agentes puede aparecer como una línea entre las funciones, nunca como titular.
@@ -113,4 +113,4 @@ La estética es de lanzamiento: negro, vídeo a pantalla completa y tipografía 
 
 - Contexto de la competencia (revisado el 2026-11-14): la home de cs2lens es una tabla de partidos con un botón "Replay". Sus funciones están en /about sin descripción. Se registra con email y contraseña, sin Steam ni FACEIT. Cobra el plan Org por Discord o email. Pagan con Gumroad, sin plan anual. Free corta en la ronda 12. No tiene capturas ni vídeo del producto y no funciona bien en móvil. Su única prueba social es una cita de un coach.
 - Refrag y Scope.gg sí tienen landing clásica para jugadores, con cifras grandes y "Sign up for free". ClipHub no compite en ese terreno: su público es el equipo.
-- La URL de ClipHub Analytics se fija en `https://app.cliphub.rechedev.cloud` (la landing sigue en `cliphub.rechedev.cloud`). Si el despliegue acaba en otro dominio, solo cambia la constante.
+- La URL de ClipHub Analytics se fija en `https://cliphubstrats.rechedev.cloud`, donde ya está desplegada (la landing sigue en `cliphub.rechedev.cloud`). Si cambia de dominio, solo cambia la constante.
