@@ -218,7 +218,7 @@ export function ReplayWorkspace({
     }
     return ids;
   }, [entries, index, selectedKeys]);
-  const { analyses, retry } = useMatchAnalyses(source, wanted, seed);
+  const { analyses, retry, prefetch } = useMatchAnalyses(source, wanted, seed);
 
   const current = entry === undefined ? undefined : analyses.get(entry.matchId);
   const loaded = current?.state === 'ready' ? current.analysis : null;
@@ -706,6 +706,10 @@ export function ReplayWorkspace({
               }
             : null,
           onToggleMulti: (key) => setMultiKeys((value) => toggleMultiKey(withFocus(value, focusKey), key, focusKey)),
+          onPrefetch: (at) => {
+            const candidate = entries[at];
+            if (candidate !== undefined) prefetch(candidate.matchId);
+          },
         }}
         timeline={{
           timeline: transport,
