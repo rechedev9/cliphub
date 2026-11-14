@@ -2,7 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { LibraryRosterEntry } from '../api/library.ts';
 import type { TeamLineups } from '../api/team-insights.ts';
-import { checkedPlayers, lineupFromChecked, lineupLabel, lineupMode, lineupSteamIds, toggleLineupPlayer } from './lineup.ts';
+import {
+  checkedPlayers,
+  latestLineupGapText,
+  latestLineupMissesMap,
+  lineupFromChecked,
+  lineupLabel,
+  lineupMode,
+  lineupSteamIds,
+  toggleLineupPlayer,
+} from './lineup.ts';
 
 const player = (steamid64: string): LibraryRosterEntry => ({
   steamid64,
@@ -60,4 +69,20 @@ test('without a latest lineup the default counts every player', () => {
   assert.equal(lineupLabel({ kind: 'latest' }, NO_LATEST), '2 de 2 jugadores');
   assert.equal(lineupMode({ kind: 'latest' }, NO_LATEST), 'Todos los jugadores');
   assert.deepEqual(toggleLineupPlayer({ lineup: { kind: 'latest' }, lineups: NO_LATEST, steamId: '9' }), { kind: 'players', steamIds: ['1'] });
+});
+
+test('a map only the default lineup leaves empty is told apart from one the coach emptied', () => {
+  // A player joined after the team last played Cache, so the latest lineup counts none of those matches.
+  const counts = { de_dust2: 4, de_nuke: 3 };
+  const latest = { lineup: { kind: 'latest' }, lineups: LINEUPS, map: 'de_cache', mapCounts: counts } as const;
+  assert.equal(latestLineupMissesMap(latest), true);
+  assert.equal(latestLineupMissesMap({ ...latest, map: 'de_dust2' }), false);
+  assert.equal(latestLineupMissesMap({ ...latest, lineup: { kind: 'all' } }), false);
+  assert.equal(latestLineupMissesMap({ ...latest, lineup: { kind: 'players', steamIds: ['1'] } }), false);
+  assert.equal(latestLineupMissesMap({ ...latest, lineups: NO_LATEST }), false);
+  assert.equal(latestLineupMissesMap({ ...latest, lineups: null }), false);
+  assert.equal(latestLineupMissesMap({ ...latest, mapCounts: null }), false);
+  assert.equal(latestLineupMissesMap({ ...latest, map: '' }), false);
+  assert.equal(latestLineupGapText('de_cache', 4), 'La última alineación no ha jugado en Cache. Hay 4 partidas con otros jugadores.');
+  assert.equal(latestLineupGapText('de_cache', 1), 'La última alineación no ha jugado en Cache. Hay 1 partida con otros jugadores.');
 });

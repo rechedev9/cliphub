@@ -1,4 +1,6 @@
 import type { TeamLineups } from '../api/team-insights.ts';
+import { prettyMapName } from '../format.ts';
+import type { MapCounts } from './map-counts.ts';
 import { lineupOf, type ScopeLineup } from './scope.ts';
 
 /**
@@ -69,4 +71,24 @@ export function lineupLabel(lineup: ScopeLineup, lineups: TeamLineups): string {
 export function lineupMode(lineup: ScopeLineup, lineups: TeamLineups): string {
   if (countsEveryone(lineup, lineups)) return 'Todos los jugadores';
   return lineup.kind === 'latest' ? 'Última alineación' : 'Alineación elegida';
+}
+
+export type LatestLineupGap = {
+  lineup: ScopeLineup;
+  lineups: TeamLineups | null;
+  map: string;
+  /** Matches per map under the view's scope, lineup included; null while counting. */
+  mapCounts: MapCounts | null;
+};
+
+/** The default lineup counts no match on the chosen map, as when a new player joined after the team last played it. */
+export function latestLineupMissesMap({ lineup, lineups, map, mapCounts }: LatestLineupGap): boolean {
+  if (lineup.kind !== 'latest' || lineups === null || lineups.latest.length === 0) return false;
+  return map !== '' && mapCounts !== null && (mapCounts[map] ?? 0) === 0;
+}
+
+/** Why the map is empty, for a coach who expects its matches: "La última alineación no ha jugado en Cache. …". */
+export function latestLineupGapText(map: string, matches: number): string {
+  const count = `${matches} ${matches === 1 ? 'partida' : 'partidas'}`;
+  return `La última alineación no ha jugado en ${prettyMapName(map)}. Hay ${count} con otros jugadores.`;
 }

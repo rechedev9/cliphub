@@ -31,7 +31,7 @@ export function PlaylistBookmark({ control, entry, card }: { control: SavedPlayl
   const inPlaylist = holding.length > 0;
   const label = inPlaylist ? `En playlist: ${holding.map((p) => p.name).join(', ')}` : 'Añadir la ronda a una playlist';
   return (
-    <div className="pointer-events-none absolute top-1/2 left-2 z-30 flex max-w-[calc(100%-1rem)] -translate-y-1/2 flex-col items-start gap-2">
+    <div className="pointer-events-none absolute bottom-2 left-2 z-30 flex max-w-[calc(100%-1rem)] flex-col-reverse items-start gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
