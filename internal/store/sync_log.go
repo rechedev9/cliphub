@@ -247,12 +247,24 @@ func (s *SyncLog) apply(ctx context.Context, in syncApply) error {
 		`INSERT INTO sync_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, marker, value); err != nil {
 		return err
 	}
-	if err := moveDocumentsOfMergedTeams(ctx, tx, in.changes); err != nil {
+	heirs, err := teamDocumentHeirs(ctx, tx, in.changes)
+	if err != nil {
 		return err
 	}
 	described := map[string]map[string]syncColumn{}
 	skipped := 0
+	var held []string
 	for _, change := range orderSyncChanges(in.changes) {
+		if id, ok := deletedTeam(change); ok {
+			holds, err := teamHoldsDocuments(ctx, tx, id)
+			if err != nil {
+				return err
+			}
+			if holds {
+				held = append(held, id)
+				continue
+			}
+		}
 		err := applySyncChange(ctx, tx, change, described)
 		if isSyncClash(err) && in.adopt != nil {
 			adoption, adopted, adoptErr := adoptSyncTwin(ctx, tx, change)
@@ -275,6 +287,9 @@ func (s *SyncLog) apply(ctx context.Context, in syncApply) error {
 		if err != nil {
 			return err
 		}
+	}
+	if err := settleTeamsWithDocuments(ctx, tx, held, heirs); err != nil {
+		return err
 	}
 	if skipped > 0 {
 		log.Printf("sync: kept %d local rows that clash with received changes", skipped)
@@ -389,11 +404,6 @@ func applySyncDelete(ctx context.Context, tx *sql.Tx, table syncTable, change Sy
 			return fmt.Errorf("key %s of %s: %w", col, table.name, err)
 		}
 		args[i] = v
-	}
-	if table.name == "library_teams" {
-		if held, err := teamHoldsDocuments(ctx, tx, args[0]); err != nil || held {
-			return err
-		}
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM `+table.name+` WHERE `+strings.Join(where, " AND "), args...); err != nil {
 		return fmt.Errorf("delete from %s: %w", table.name, err)
