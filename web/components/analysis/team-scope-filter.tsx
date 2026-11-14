@@ -11,6 +11,7 @@ import { rivalOf, teamLabel, teamOutcome } from '@/lib/library/partidas';
 import type { MapCounts } from '@/lib/analysis/map-counts';
 import type { TeamAnalysis } from '@/hooks/use-team-analysis';
 import type { TeamScopeControl } from '@/hooks/use-team-scope-control';
+import { LatestLineupGap } from './latest-lineup-gap';
 import { ScopeFilter, type ScopeFilterForm } from './scope-filter';
 import type { ScopeCounts, ScopeEntity, ScopeMatch } from './scope-bar';
 
@@ -77,25 +78,28 @@ export function TeamScopeFilter(props: TeamScopeFilterProps): ReactNode {
   }, [sampleMatches, team.id]);
 
   return (
-    <ScopeFilter
-      form={form}
-      scope={control.scope}
-      onChange={control.changeScope}
-      onReset={control.resetScope}
-      fields={fields}
-      entity={entity}
-      lineups={lineups}
-      maps={maps}
-      mapCounts={mapCounts}
-      mapRequired={mapRequired}
-      opponents={opponents}
-      limits={limits}
-      tactics={tactics ?? []}
-      ownTeams={profile?.own_teams ?? 0}
-      counts={counts}
-      results={sample.results}
-      matches={sample.matches}
-      className={className}
-    />
+    <>
+      <ScopeFilter
+        form={form}
+        scope={control.scope}
+        onChange={control.changeScope}
+        onReset={control.resetScope}
+        fields={fields}
+        entity={entity}
+        lineups={lineups}
+        maps={maps}
+        mapCounts={mapCounts}
+        mapRequired={mapRequired}
+        opponents={opponents}
+        limits={limits}
+        tactics={tactics ?? []}
+        ownTeams={profile?.own_teams ?? 0}
+        counts={counts}
+        results={sample.results}
+        matches={sample.matches}
+        className={className}
+      />
+      {form === 'stack' ? <LatestLineupGap control={control} analysis={analysis} fields={fields} mapCounts={mapCounts} /> : null}
+    </>
   );
 }

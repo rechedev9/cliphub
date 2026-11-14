@@ -32,7 +32,7 @@ export function ReplayStackOverlay({ stack }: { stack: ReplayStack }): ReactNode
     );
   }
   return (
-    <div className="absolute top-2 left-2 z-20 flex max-h-[calc(100%-1rem)] flex-col gap-1 overflow-y-auto rounded-md border border-border bg-surface-1/95 p-2 [scrollbar-width:thin]">
+    <div className="absolute top-2 left-2 z-20 flex max-h-[calc(100%-1rem)] flex-col gap-1 overflow-y-auto rounded-md border border-border bg-surface-1 p-2 shadow-lg [scrollbar-width:thin]">
       <Button type="button" variant="ghost" size="xs" className="self-end" aria-expanded onClick={() => setOpen(false)}>
         <ChevronUp aria-hidden />
         Ocultar filtros
