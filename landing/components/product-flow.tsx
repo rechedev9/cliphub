@@ -31,7 +31,7 @@ export default function ProductFlow() {
 
   return (
     <figure
-      className="flow mt-5"
+      className="flow"
       aria-label="Cómo funciona: cargas una demo, Studio la lee, tú eliges jugador, música y efectos, y sale un Short listo para subir junto con el análisis de la partida."
     >
       <ol aria-hidden="true" className="space-y-3">
@@ -67,7 +67,7 @@ export default function ProductFlow() {
           <span className="flow-num">3</span>
           <div className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] gap-3">
             <div className="flow-short" data-on={on(6)}>
-              <img src="/video/killfeed-loop.webp" alt="" width={54} height={96} />
+              <img src="/media/video/short.webp" alt="" width={54} height={96} loading="lazy" decoding="async" />
               <span>Short</span>
             </div>
             <div className="flow-stats" data-on={on(7)}>

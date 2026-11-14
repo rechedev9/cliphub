@@ -23,4 +23,4 @@ next-env.d.ts
 !.env.example
 
 # H.264 fallbacks for browsers without VP9 (the root .gitignore drops every .mp4)
-!/public/video/*.mp4
+!/public/media/video/*.mp4

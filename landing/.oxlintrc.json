@@ -15,8 +15,7 @@
   "ignorePatterns": [
     ".next/",
     "node_modules/",
-    "next-env.d.ts",
-    "scene/"
+    "next-env.d.ts"
   ],
   "rules": {
     "react/display-name": "error",

@@ -2,23 +2,23 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-export const alt = "Un puesto de ciber con ClipHub Studio en el monitor";
+export const alt = "ClipHub Studio: de la demo de CS2 al vídeo editado";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const ACCENT = "#fb923c";
+const ACCENT = "#ff5d4f";
 
 export default async function OpengraphImage() {
-  const scene = await readFile(path.join(process.cwd(), "public", "scene", "stills", "og.jpg"));
+  const shot = await readFile(path.join(process.cwd(), "public", "media", "shots", "og.jpg"));
   const mark = await readFile(path.join(process.cwd(), "public", "brand", "cliphub-mark.svg"), "utf8");
-  const sceneSource = `data:image/jpeg;base64,${scene.toString("base64")}`;
+  const shotSource = `data:image/jpeg;base64,${shot.toString("base64")}`;
   const markSource = `data:image/svg+xml;base64,${Buffer.from(mark).toString("base64")}`;
 
   return new ImageResponse(
-    <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", backgroundColor: "#050709" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", backgroundColor: "#0b0e0d" }}>
       <img
         alt=""
-        src={sceneSource}
+        src={shotSource}
         width={1200}
         height={630}
         style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}
@@ -32,7 +32,8 @@ export default async function OpengraphImage() {
           width: "100%",
           height: "100%",
           display: "flex",
-          backgroundImage: "linear-gradient(0deg, rgba(5,7,9,0.97) 0%, rgba(5,7,9,0.9) 34%, rgba(5,7,9,0) 66%)",
+          backgroundImage:
+            "linear-gradient(0deg, rgba(11,14,13,0.97) 0%, rgba(11,14,13,0.9) 34%, rgba(11,14,13,0) 66%)",
         }}
       />
       <div
@@ -45,12 +46,12 @@ export default async function OpengraphImage() {
           gap: 14,
           padding: "10px 16px",
           borderRadius: 12,
-          backgroundColor: "rgba(10,13,17,0.92)",
+          backgroundColor: "rgba(18,23,21,0.92)",
         }}
       >
         <img alt="" src={markSource} width={40} height={40} style={{ width: 40, height: 40 }} />
-        <div style={{ display: "flex", fontSize: 28, fontWeight: 700, color: "#f2f5f8" }}>
-          ClipHub<span style={{ color: "#a7b0bc", marginLeft: 8, fontWeight: 500 }}>Studio</span>
+        <div style={{ display: "flex", fontSize: 28, fontWeight: 700, color: "#eef3f0" }}>
+          ClipHub<span style={{ color: "#9aa8a1", marginLeft: 8, fontWeight: 500 }}>Studio</span>
         </div>
       </div>
       <div style={{ position: "absolute", left: 56, right: 56, bottom: 48, display: "flex", flexDirection: "column" }}>
@@ -64,7 +65,7 @@ export default async function OpengraphImage() {
             letterSpacing: "-0.02em",
           }}
         >
-          Tus partidas de CS2, convertidas en vídeo
+          De la demo al vídeo, sin editar a mano
         </div>
         <div style={{ display: "flex", marginTop: 16, fontSize: 26, color: "#c9d1db" }}>
           Shorts, demo completa, clips de stream y análisis.
