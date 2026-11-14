@@ -22,6 +22,8 @@ services:
       CLIPMIND_MAIL: log
       # Only the web container reaches the API; it forwards the visitor address from the edge.
       CLIPMIND_TRUST_PROXY: "1"
+      # The public demo: the Iberian Soul workspace of the cliphub-demo account.
+      CLIPMIND_DEMO_WORKSPACE: 502cb07c-c1d7-498e-ac0f-a369bbeb8c38
     volumes:
       - ./data:/data
     tmpfs:
@@ -36,6 +38,7 @@ services:
     environment:
       CLIPMIND_URL: http://api:8090
       NEXT_PUBLIC_CLIPHUB_EDITION: web
+      CLIPHUB_DEMO_HOME: /equipos/7b97c0ba-ef96-47dd-b352-5902644f48c9
     ports:
       - "127.0.0.1:8170:3000"
     tmpfs:
