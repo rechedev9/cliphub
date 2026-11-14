@@ -125,8 +125,8 @@ func (in addTeamDocumentIn) upload() (tuiclient.TeamDocumentUpload, error) {
 	}
 	name := strings.TrimSpace(in.FileName)
 	if name == "" {
-		// The server keeps only the last path element, so a slash in the title would cut the name.
-		name = strings.NewReplacer("/", "-", `\`, "-").Replace(title)
+		// The server keeps the last path element, and on Windows drops a leading "B:" as a drive.
+		name = strings.NewReplacer("/", "-", `\`, "-", ":", "-").Replace(title)
 	}
 	if !strings.HasSuffix(strings.ToLower(name), ".html") && !strings.HasSuffix(strings.ToLower(name), ".htm") {
 		name += ".html"

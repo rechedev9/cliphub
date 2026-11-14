@@ -219,9 +219,11 @@ export function requeue(state: QueueState, id: string): QueueState {
   return patchItem(state, id, (item) => (item.status === 'uploading' ? { ...item, status: 'queued', percent: 0 } : item));
 }
 
+/** Removing the last demo still to import also lifts a pause, so demos added later start at once. */
 export function remove(state: QueueState, id: string): QueueState {
   const items = state.items.filter((item) => item.id !== id);
-  return items.length === state.items.length ? state : { ...state, items };
+  if (items.length === state.items.length) return state;
+  return items.some((item) => isPending(item.status)) ? { ...state, items } : { items };
 }
 
 export function clearFinished(state: QueueState): QueueState {

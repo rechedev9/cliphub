@@ -248,7 +248,7 @@ function UploadDialog({
             <DialogDescription>
               {shown === null
                 ? null
-                : `${shown.name} · ${formatDocumentSize(shown.size)}. ${SHARED ? `Lo verá todo el que tenga acceso a ${teamName}.` : `Se guarda en este PC, con ${teamName}.`}`}
+                : `${shown.name} · ${formatDocumentSize(shown.size)}. ${SHARED ? `Lo verá todo el que tenga acceso a ${teamName}.` : `Se guarda en este PC, en los documentos de ${teamName}.`}`}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">

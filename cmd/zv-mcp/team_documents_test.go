@@ -30,9 +30,9 @@ func TestTeamDocumentTools(t *testing.T) {
 	}
 
 	var added teamDocumentOut
-	callTool(t, cs, "add_team_document", map[string]any{"team_id": testTeamID, "title": " Antistrats Mirage/B ", "html": "<h1>Mirage</h1>"}, &added)
+	callTool(t, cs, "add_team_document", map[string]any{"team_id": testTeamID, "title": " B: Antistrats Mirage/B ", "html": "<h1>Mirage</h1>"}, &added)
 	body := rec.get("POST /api/library/document-uploads")
-	for _, part := range []string{`name="team_id"`, `name="title"` + "\r\n\r\nAntistrats Mirage/B\r\n", `filename="Antistrats Mirage-B.html"`, "<h1>Mirage</h1>"} {
+	for _, part := range []string{`name="team_id"`, `name="title"` + "\r\n\r\nB: Antistrats Mirage/B\r\n", `filename="B- Antistrats Mirage-B.html"`, "<h1>Mirage</h1>"} {
 		if !strings.Contains(body, part) {
 			t.Errorf("upload = %q, want %q", body, part)
 		}

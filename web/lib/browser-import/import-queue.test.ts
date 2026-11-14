@@ -156,4 +156,12 @@ test('remove and clearFinished drop rows; the queue moves on without them', () =
     ['c'],
   );
   assert.equal(remove(plan.state, 'missing'), plan.state);
+
+  const paused = uploadFailed(schedule(scanSucceeded(schedule(queued('d')).state, { id: 'd', sha: 'sha-d', map: 'de_mirage' })).state, {
+    id: 'd',
+    error: 'Has cambiado de espacio de trabajo.',
+    pause: 'workspace',
+  });
+  assert.equal(paused.paused, 'workspace');
+  assert.equal(remove(paused, 'd').paused, undefined, 'nothing left to import, nothing to pause');
 });
