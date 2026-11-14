@@ -112,7 +112,7 @@ func (t *tenants) openLocked(id string) (*tenant, error) {
 		httpapi.WithRateLimit(0, 0),
 		httpapi.WithUploadConcurrency(2),
 		httpapi.WithLibrary(repos.Library),
-		httpapi.WithLibraryUploads(),
+		httpapi.WithLibraryUploads(id),
 		httpapi.WithSyncHub(store.NewSyncLog(repos.DB())),
 	}, t.shared...)
 	h := httpapi.NewHandlers(repos.Jobs, files, noQueue{}, opts...)

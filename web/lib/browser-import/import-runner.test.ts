@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { describeScanFailure, ImportRunner, type ScanOptions } from './import-runner.ts';
 import type { ScanResult } from './scan-messages.ts';
-import type { UploadInput, UploadOutcome } from './upload-analysis.ts';
+import { WORKSPACE_CHANGED, type UploadInput, type UploadOutcome } from './upload-analysis.ts';
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -38,6 +38,7 @@ function harness() {
   const uploads = new Map<string, Deferred<UploadOutcome>>();
   const scanOptions = new Map<string, ScanOptions>();
   const uploaded: UploadInput[] = [];
+  const session: { workspace?: string } = { workspace: 'w-a' };
   let next = 0;
   const runner = new ImportRunner({
     newId: () => `id-${(next += 1)}`,
@@ -53,9 +54,10 @@ function harness() {
       uploaded.push(input);
       return pending.promise;
     },
+    workspace: () => Promise.resolve(session.workspace),
     progressEveryMs: 1,
   });
-  return { runner, scans, uploads, scanOptions, uploaded };
+  return { runner, scans, uploads, scanOptions, uploaded, session };
 }
 
 function file(name: string): File {
@@ -103,6 +105,59 @@ test('a failed upload drops its analysis, so a retry reads the demo again', asyn
   await flush();
   assert.deepEqual([...scans.keys()], ['a.dem']);
   assert.deepEqual(statusOf(runner), ['a.dem:scanning']);
+});
+
+test('a retry goes only to the workspace the demo was added in, even after the batch ended and the session moved', async () => {
+  const { runner, scans, uploads, uploaded, session } = harness();
+  runner.add([file('a.dem')]);
+  scans.get('a.dem')?.resolve(scanned('a.dem'));
+  await flush();
+  assert.equal(uploaded[0]?.workspace, 'w-a');
+  uploads.get('a.dem')?.resolve({ ok: false, error: 'ClipMind no pudo guardar esta partida.' });
+  await flush();
+  assert.deepEqual(statusOf(runner), ['a.dem:failed']);
+
+  session.workspace = 'w-b';
+  runner.retry(runner.getSnapshot().items[0]?.id ?? '');
+  await flush();
+  scans.get('a.dem')?.resolve(scanned('a.dem'));
+  await flush();
+  assert.equal(runner.getSnapshot().paused, 'workspace');
+  assert.deepEqual(statusOf(runner), ['a.dem:scanned']);
+  assert.equal(uploaded.length, 1, 'nothing was sent from the other workspace');
+
+  session.workspace = 'w-a';
+  runner.resume();
+  await flush();
+  assert.equal(uploaded[1]?.workspace, 'w-a', 'the kept analysis goes once the coach is back');
+});
+
+test('a switch after the workspace read pauses on ClipMind refusing the upload, and the analysis waits', async () => {
+  const { runner, scans, uploads, uploaded } = harness();
+  runner.add([file('a.dem'), file('b.dem')]);
+  scans.get('a.dem')?.resolve(scanned('a.dem'));
+  await flush();
+  uploads.get('a.dem')?.resolve(WORKSPACE_CHANGED);
+  await flush();
+  assert.equal(runner.getSnapshot().paused, 'workspace');
+  assert.deepEqual(statusOf(runner), ['a.dem:scanned', 'b.dem:scanning']);
+
+  runner.resume();
+  await flush();
+  assert.equal(uploaded[1]?.scan.fileName, 'a.dem', 'sent again without a second scan');
+});
+
+test('demos added after the session moved keep the new workspace; earlier ones keep theirs', async () => {
+  const { runner, session } = harness();
+  runner.add([file('a.dem')]);
+  await flush();
+  session.workspace = 'w-b';
+  runner.add([file('b.dem')]);
+  await flush();
+  assert.deepEqual(
+    runner.getSnapshot().items.map((item) => item.workspace),
+    ['w-a', 'w-b'],
+  );
 });
 
 test('progress repaints are throttled and a removed demo stops its scan', async () => {

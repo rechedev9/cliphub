@@ -3,6 +3,7 @@ import {
   clearFinished,
   emptyQueue,
   progress,
+  recordWorkspace,
   remove,
   requeue,
   resume,
@@ -17,7 +18,7 @@ import {
   type QueueState,
 } from './import-queue.ts';
 import type { ScanResult, ScanSuccess } from './scan-messages.ts';
-import type { UploadInput, UploadOutcome } from './upload-analysis.ts';
+import { WORKSPACE_CHANGED, type UploadInput, type UploadOutcome } from './upload-analysis.ts';
 
 export interface ScanOptions {
   onProgress: (read: number, total: number) => void;
@@ -27,6 +28,8 @@ export interface ScanOptions {
 export interface ImportRunnerDeps {
   scan: (file: File, options: ScanOptions) => Promise<ScanResult>;
   upload: (input: UploadInput) => Promise<UploadOutcome>;
+  /** The session's workspace, or undefined when it cannot be read. */
+  workspace: (signal?: AbortSignal) => Promise<string | undefined>;
   newId: () => string;
   /** Minimum gap between two progress repaints; status changes repaint at once. */
   progressEveryMs?: number;
@@ -89,6 +92,7 @@ export class ImportRunner {
     });
     this.#commit(outcome.state);
     this.#pump();
+    if (outcome.added.length > 0) void this.#readWorkspace();
     return { added: outcome.added.length, unsupported: outcome.unsupported, repeated: outcome.repeated };
   }
 
@@ -176,7 +180,7 @@ export class ImportRunner {
     const onProgress = (sent: number, total: number): void => this.#tick(progress(this.#state, { id, done: sent, total }));
     let outcome: UploadOutcome;
     try {
-      outcome = await this.#deps.upload({ scan, fallbackName: name, signal: controller.signal, onProgress });
+      outcome = await this.#send(id, { scan, fallbackName: name, signal: controller.signal, onProgress });
     } catch (error) {
       if (isAbort(error) || controller.signal.aborted) return;
       outcome = { ok: false, error: 'No se pudo subir el análisis.', detail: error instanceof Error ? error.message : undefined };
@@ -190,6 +194,22 @@ export class ImportRunner {
       this.#commit(uploadFailed(this.#state, { id, error: outcome.error, detail: outcome.detail, pause: outcome.pause }));
     }
     this.#pump();
+  }
+
+  /** New demos keep the workspace open now, so a later switch cannot send them to another team. */
+  async #readWorkspace(): Promise<void> {
+    const current = await this.#deps.workspace().catch(() => undefined);
+    if (current !== undefined) this.#commit(recordWorkspace(this.#state, current));
+  }
+
+  /** Reads the workspace first: it renews the sign-in, which the upload route skips, and stops a demo added in
+   * another workspace. ClipMind checks the sent id again, for a switch after this read. */
+  async #send(id: string, input: Omit<UploadInput, 'workspace'>): Promise<UploadOutcome> {
+    const current = await this.#deps.workspace(input.signal);
+    if (current !== undefined) this.#commit(recordWorkspace(this.#state, current));
+    const workspace = this.#state.items.find((item) => item.id === id)?.workspace;
+    if (current !== undefined && workspace !== current) return WORKSPACE_CHANGED;
+    return this.#deps.upload({ ...input, workspace });
   }
 
   /** A status change: repaint now. */

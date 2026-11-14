@@ -10,7 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { emptyQueue, summarize, type PauseReason, type QueueState, type QueueSummary } from '@/lib/browser-import/import-queue';
 import { ImportRunner, type AddReport } from '@/lib/browser-import/import-runner';
 import { scanDemoInBrowser } from '@/lib/browser-import/scan-demo';
-import { uploadAnalysis, type WorkspacePin } from '@/lib/browser-import/upload-analysis';
+import { currentWorkspace, uploadAnalysis } from '@/lib/browser-import/upload-analysis';
 import { MATCHES_HREF } from '@/lib/clips/routes';
 import { countOf } from '@/lib/records/selection';
 
@@ -26,7 +26,6 @@ const PAUSE_TEXT: Record<PauseReason, string> = {
 
 let shared: ImportRunner | undefined;
 let guarding = false;
-const pin: WorkspacePin = {};
 
 function warnBeforeLeaving(event: BeforeUnloadEvent): void {
   event.preventDefault();
@@ -36,12 +35,11 @@ function warnBeforeLeaving(event: BeforeUnloadEvent): void {
 // The queue lives for the tab, not the page: the coach can open Partidas while it runs.
 function sharedRunner(): ImportRunner {
   if (shared !== undefined) return shared;
-  const runner = new ImportRunner({ scan: scanDemoInBrowser, upload: (input) => uploadAnalysis(input, pin), newId: () => crypto.randomUUID() });
+  const runner = new ImportRunner({ scan: scanDemoInBrowser, upload: uploadAnalysis, workspace: currentWorkspace, newId: () => crypto.randomUUID() });
   runner.subscribe(() => {
     const pending = summarize(runner.getSnapshot()).pending > 0;
     if (pending === guarding) return;
     guarding = pending;
-    if (!pending) pin.workspace = undefined;
     if (pending) window.addEventListener('beforeunload', warnBeforeLeaving);
     else window.removeEventListener('beforeunload', warnBeforeLeaving);
   });

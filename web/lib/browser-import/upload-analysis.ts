@@ -5,17 +5,17 @@ export type UploadOutcome =
   | { ok: true; matchId: string; created: boolean }
   | { ok: false; error: string; detail?: string; pause?: PauseReason };
 
-/** The workspace a batch started in, set by its first upload and cleared when the queue empties. */
-export interface WorkspacePin {
-  workspace?: string;
-}
-
 export interface UploadInput {
   scan: ScanSuccess;
   fallbackName: string;
+  /** The workspace the demo was queued in; ClipMind refuses the upload when the session is in another. */
+  workspace?: string;
   signal: AbortSignal;
   onProgress: (sent: number, total: number) => void;
 }
+
+/** Pauses instead of filing the demo in another team's library. */
+export const WORKSPACE_CHANGED: UploadOutcome = { ok: false, error: 'Has cambiado de espacio de trabajo.', pause: 'workspace' };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -41,17 +41,20 @@ export function readUploadAnswer(status: number, body: unknown): UploadOutcome {
   if (status === 401) return { ok: false, error: 'Tu sesión ha terminado.', pause: 'auth' };
   if (status === 502 || status === 503 || status === 504) return { ok: false, error: 'ClipMind no responde ahora mismo.', pause: 'unavailable' };
   if (status === 413) return { ok: false, error: 'El análisis de esta demo es demasiado grande para subirlo.' };
+  if (status === 409 && isRecord(body) && body.code === 'workspace_changed') return WORKSPACE_CHANGED;
   const detail = isRecord(body) && typeof body.error === 'string' && body.error !== '' ? body.error : undefined;
   return { ok: false, error: 'ClipMind no pudo guardar esta partida.', detail };
 }
 
-function analysisForm(scan: ScanSuccess, fallbackName: string): FormData {
+export function analysisForm(input: Pick<UploadInput, 'scan' | 'fallbackName' | 'workspace'>): FormData {
+  const { scan } = input;
   const form = new FormData();
   form.set('document', new Blob([scan.document], { type: 'application/json' }), 'document.json');
   form.set('positions', new Blob([new Uint8Array(scan.positions)], { type: 'application/octet-stream' }), 'positions.zvpos');
-  form.set('file_name', scan.fileName === '' ? fallbackName : scan.fileName);
+  form.set('file_name', scan.fileName === '' ? input.fallbackName : scan.fileName);
   form.set('size_bytes', String(scan.sizeBytes));
   form.set('cs2_build', String(scan.cs2Build));
+  if (input.workspace !== undefined) form.set('workspace_id', input.workspace);
   return form;
 }
 
@@ -60,26 +63,16 @@ export function workspaceOf(body: unknown): string | undefined {
   return isRecord(body) && isRecord(body.workspace) && typeof body.workspace.id === 'string' ? body.workspace.id : undefined;
 }
 
-/** Pauses instead of filing the demo in another team's library when the session switched workspace. */
-export function checkPin(pin: WorkspacePin, current: string | undefined): UploadOutcome | undefined {
-  if (current === undefined) return undefined;
-  pin.workspace ??= current;
-  if (pin.workspace === current) return undefined;
-  return { ok: false, error: 'Has cambiado de espacio de trabajo.', pause: 'workspace' };
-}
-
-async function currentWorkspace(signal: AbortSignal): Promise<string | undefined> {
+/** The session's workspace, or undefined when ClipMind cannot say. Reading it also renews the sign-in. */
+export async function currentWorkspace(signal?: AbortSignal): Promise<string | undefined> {
   const answer = await fetch('/api/cm/auth/me', { cache: 'no-store', signal }).catch(() => undefined);
-  signal.throwIfAborted();
+  signal?.throwIfAborted();
   return answer?.ok === true ? workspaceOf(await answer.json().catch(() => undefined)) : undefined;
 }
 
 /** Sends one analysis. XMLHttpRequest, not fetch, because only it reports upload progress in every browser. */
-export async function uploadAnalysis(input: UploadInput, pin: WorkspacePin): Promise<UploadOutcome> {
-  // The upload skips the proxy that renews the sign-in; a scan can outlast the access token.
-  const moved = checkPin(pin, await currentWorkspace(input.signal));
-  if (moved !== undefined) return moved;
-  const form = analysisForm(input.scan, input.fallbackName);
+export function uploadAnalysis(input: UploadInput): Promise<UploadOutcome> {
+  const form = analysisForm(input);
   return new Promise<UploadOutcome>((resolve, reject) => {
     const request = new XMLHttpRequest();
     const onAbort = (): void => request.abort();

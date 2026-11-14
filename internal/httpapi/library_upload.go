@@ -24,13 +24,19 @@ const (
 	maxUploadBodyBytes      = maxUploadDocumentBytes + maxUploadPositionsBytes + 1<<20
 )
 
-// WithLibraryUploads enables POST /api/library/uploads, the way the web
-// edition stores a match the browser parsed. The demo itself never arrives.
-func WithLibraryUploads() Option {
+// WithLibraryUploads enables POST /api/library/uploads for the workspace
+// these handlers serve, the way the web edition stores a match the browser
+// parsed. The demo itself never arrives.
+func WithLibraryUploads(workspaceID string) Option {
 	return func(h *Handlers) {
 		h.clipmind.libraryUploads = true
+		h.clipmind.uploadWorkspace = workspaceID
 	}
 }
+
+// codeWorkspaceChanged answers an upload queued in another workspace than the
+// session's; the web import pauses on it instead of filing the demo here.
+const codeWorkspaceChanged = "workspace_changed"
 
 // uploadResult is the answer to a library upload.
 type uploadResult struct {
@@ -41,8 +47,9 @@ type uploadResult struct {
 
 // UploadLibraryAnalysis handles POST /api/library/uploads: a multipart body
 // with the tactical document ("document"), the position blob ("positions"),
-// the demo's "file_name" and "size_bytes", and optionally "cs2_build". It does
-// what the library worker does after a scan, for a scan done in the browser.
+// the demo's "file_name" and "size_bytes", and optionally "cs2_build" and
+// "workspace_id", the workspace the demo was queued in. It does what the
+// library worker does after a scan, for a scan done in the browser.
 func (h *Handlers) UploadLibraryAnalysis(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBodyBytes)
 	// #nosec G120 -- r.Body is capped with MaxBytesReader immediately above.
@@ -55,6 +62,10 @@ func (h *Handlers) UploadLibraryAnalysis(w http.ResponseWriter, r *http.Request)
 			_ = r.MultipartForm.RemoveAll()
 		}
 	}()
+	if queued := r.PostFormValue("workspace_id"); queued != "" && queued != h.clipmind.uploadWorkspace {
+		writeCodedError(w, http.StatusConflict, codeWorkspaceChanged, "this demo was queued in another workspace")
+		return
+	}
 	documentBytes, err := readUploadPart(r, "document", maxUploadDocumentBytes)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
