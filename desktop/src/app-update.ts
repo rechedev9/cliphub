@@ -1,8 +1,9 @@
 import { spawn, type SpawnOptions } from 'node:child_process';
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { downloadFile, fetchText, type DownloadOptions } from './http-download.ts';
+import { studioJobsRunning } from './studio-jobs.ts';
 
 const GITHUB_LATEST_RELEASE_URL =
   'https://api.github.com/repos/rechedev9/cliphub/releases/latest';
@@ -50,6 +51,8 @@ export interface AppUpdateHost {
   fetchText(url: string, options?: { signal?: AbortSignal; headers?: Record<string, string> }): Promise<string>;
   downloadFile(url: string, destination: string, options?: DownloadOptions): Promise<string>;
   spawnInstaller(installerPath: string): Promise<void>;
+  /** True while a capture or render runs; Reiniciar waits for it. */
+  jobsRunning(): Promise<boolean>;
   quitApp(): void;
   log(line: string): void;
   reportError?: (phase: UpdateFailurePhase, error: unknown) => void;
@@ -159,6 +162,7 @@ export class AppUpdateController {
   private lastProgressAt = 0;
   private failurePhase: UpdateFailurePhase = 'check';
   private readyInstaller: { version: string; path: string } | null = null;
+  private backgroundFailed: string | null = null;
 
   constructor(host: AppUpdateHost) {
     this.host = host;
@@ -183,23 +187,31 @@ export class AppUpdateController {
     this.listeners.clear();
   }
 
-  /** With `download`, a newer version is fetched and verified at once, so the user only has to restart. */
-  async check({ quiet = false, download = false }: { quiet?: boolean; download?: boolean } = {}): Promise<void> {
+  async check({ quiet = false }: { quiet?: boolean } = {}): Promise<void> {
     if (this.statusValue.state === APP_UPDATE_STATE.unavailable) return;
     if (this.isBusy()) return;
     await this.run(() => this.performCheck(quiet), quiet);
-    const offered = this.statusValue;
-    if (!download || offered.state !== APP_UPDATE_STATE.available || this.isBusy()) return;
-    await this.run(() => this.performDownload(offered.version), true);
-    if (this.statusValue.state === APP_UPDATE_STATE.ready) return;
-    // A failed background download goes back to the offer; the user can still take it by hand.
-    fs.rmSync(path.join(this.host.updatesDirectory, installerAssetName(offered.version)), { force: true });
-    this.setStatus(offered);
+  }
+
+  /** The scheduled check: a newer version is fetched and verified unseen, so the button only offers Reiniciar. */
+  async checkInBackground(): Promise<void> {
+    if (this.statusValue.state === APP_UPDATE_STATE.unavailable) return;
+    if (this.isBusy()) return;
+    await this.run(() => this.performBackground(), true);
+    const failed = this.backgroundFailed;
+    if (failed !== null && this.statusValue.state !== APP_UPDATE_STATE.ready) {
+      this.setStatus({ state: APP_UPDATE_STATE.available, version: failed, currentVersion: this.host.currentVersion });
+    }
   }
 
   async install(): Promise<void> {
     if (this.statusValue.state === APP_UPDATE_STATE.unavailable) return;
     if (this.statusValue.state === APP_UPDATE_STATE.ready) {
+      if (this.isBusy()) return;
+      if (await this.host.jobsRunning()) {
+        this.host.log('[update] waiting: a capture or render is running\n');
+        return;
+      }
       if (this.isBusy()) return;
       await this.run(() => this.performApply());
       return;
@@ -241,12 +253,7 @@ export class AppUpdateController {
   private async performCheck(quiet: boolean): Promise<void> {
     this.failurePhase = 'check';
     if (!quiet) this.setStatus({ state: APP_UPDATE_STATE.checking });
-    const latest = parseGithubLatestRelease(
-      await this.host.fetchText(GITHUB_LATEST_RELEASE_URL, {
-        signal: this.work.signal,
-        headers: this.apiHeaders(),
-      }),
-    );
+    const latest = await this.latestRelease();
     if (compareVersions(latest, this.host.currentVersion) <= 0) {
       this.readyInstaller = null;
       this.setStatus({ state: APP_UPDATE_STATE.current, version: this.host.currentVersion });
@@ -264,16 +271,42 @@ export class AppUpdateController {
     });
   }
 
-  private async performDownload(version: string): Promise<void> {
+  private async latestRelease(): Promise<string> {
+    return parseGithubLatestRelease(
+      await this.host.fetchText(GITHUB_LATEST_RELEASE_URL, {
+        signal: this.work.signal,
+        headers: this.apiHeaders(),
+      }),
+    );
+  }
+
+  private async performBackground(): Promise<void> {
+    this.failurePhase = 'check';
+    const latest = await this.latestRelease();
+    if (compareVersions(latest, this.host.currentVersion) <= 0) {
+      this.readyInstaller = null;
+      this.backgroundFailed = null;
+      this.setStatus({ state: APP_UPDATE_STATE.current, version: this.host.currentVersion });
+      return;
+    }
+    if (this.readyInstaller?.version === latest) {
+      this.setStatus({ state: APP_UPDATE_STATE.ready, version: latest });
+      return;
+    }
+    // A version that failed in the background waits for the user's click instead of failing on every check.
+    if (this.backgroundFailed === latest) return;
+    this.backgroundFailed = latest;
+    await this.performDownload(latest, { quiet: true });
+    this.backgroundFailed = null;
+  }
+
+  private async performDownload(version: string, { quiet = false }: { quiet?: boolean } = {}): Promise<void> {
     const fileName = installerAssetName(version);
     const installerUrl = releaseDownloadUrl(version, fileName);
     const checksumUrl = releaseDownloadUrl(version, 'SHA256SUMS.txt');
-    this.setStatus({
-      state: APP_UPDATE_STATE.downloading,
-      version,
-      received: 0,
-      total: null,
-    });
+    if (!quiet) {
+      this.setStatus({ state: APP_UPDATE_STATE.downloading, version, received: 0, total: null });
+    }
 
     this.failurePhase = 'checksum';
     const sums = await this.host.fetchText(checksumUrl, {
@@ -283,14 +316,26 @@ export class AppUpdateController {
     const expected = checksumForFile(sums, fileName);
 
     this.failurePhase = 'download';
+    const destination = path.join(this.host.updatesDirectory, fileName);
+    // An installer verified by an earlier launch is still on disk: no second download.
+    if (digestMatches(await fileDigest(destination), expected)) {
+      this.readyInstaller = { version, path: destination };
+      this.setStatus({ state: APP_UPDATE_STATE.ready, version });
+      return;
+    }
     fs.rmSync(this.host.updatesDirectory, { recursive: true, force: true });
     fs.mkdirSync(this.host.updatesDirectory, { recursive: true });
-    const destination = path.join(this.host.updatesDirectory, fileName);
-    const digest = await this.host.downloadFile(installerUrl, destination, {
-      signal: this.work.signal,
-      headers: this.downloadHeaders(),
-      onProgress: (received, total) => this.reportProgress(version, received, total),
-    });
+    let digest: string;
+    try {
+      digest = await this.host.downloadFile(installerUrl, destination, {
+        signal: this.work.signal,
+        headers: this.downloadHeaders(),
+        onProgress: quiet ? undefined : (received, total) => this.reportProgress(version, received, total),
+      });
+    } catch (error) {
+      fs.rmSync(destination, { force: true });
+      throw error;
+    }
     this.failurePhase = 'verify';
     if (!digestMatches(digest, expected)) {
       fs.rmSync(destination, { force: true });
@@ -359,9 +404,17 @@ export function createDefaultAppUpdateHost(input: {
   return {
     ...input,
     userAgent,
+    jobsRunning: () => studioJobsRunning(),
     fetchText: (url, options) => fetchText(url, options),
     downloadFile,
   };
+}
+
+async function fileDigest(file: string): Promise<string> {
+  if (!fs.existsSync(file)) return '';
+  const hash = createHash('sha256');
+  for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
+  return hash.digest('hex');
 }
 
 function versionParts(version: string): [number, number, number] {

@@ -931,12 +931,8 @@ function scheduleAppUpdateChecks(): void {
   if (appUpdate === null || !app.isPackaged) return;
   if (appUpdateCheckTimer) clearTimeout(appUpdateCheckTimer);
   if (appUpdateIntervalTimer) clearInterval(appUpdateIntervalTimer);
-  appUpdateCheckTimer = setTimeout(() => {
-    void appUpdate?.check({ quiet: true, download: true });
-  }, APP_UPDATE_START_DELAY_MS);
-  appUpdateIntervalTimer = setInterval(() => {
-    void appUpdate?.check({ quiet: true, download: true });
-  }, APP_UPDATE_INTERVAL_MS);
+  appUpdateCheckTimer = setTimeout(() => void appUpdate?.checkInBackground(), APP_UPDATE_START_DELAY_MS);
+  appUpdateIntervalTimer = setInterval(() => void appUpdate?.checkInBackground(), APP_UPDATE_INTERVAL_MS);
   appUpdateCheckTimer.unref();
   appUpdateIntervalTimer.unref();
 }
