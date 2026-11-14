@@ -100,9 +100,23 @@ export function mapTag(label: string): MapTag {
 }
 
 /** The map's picture with its day or its PICK tag on top, the bold name below and a coloured left edge. */
-export function MapCell({ map, day, name, tag, edge = 'none' }: { map: string | null; day: string; name: ReactNode; tag?: MapTag; edge?: MapEdge }): ReactNode {
+export function MapCell({
+  map,
+  day,
+  name,
+  tag,
+  edge = 'none',
+  className,
+}: {
+  map: string | null;
+  day: string;
+  name: ReactNode;
+  tag?: MapTag;
+  edge?: MapEdge;
+  className?: string;
+}): ReactNode {
   return (
-    <div className={cn('relative h-16 w-44 shrink-0 overflow-hidden border-l-[3px] bg-surface-0', EDGE_CLASS[edge])}>
+    <div className={cn('relative h-16 w-44 shrink-0 overflow-hidden border-l-[3px] bg-surface-0', EDGE_CLASS[edge], className)}>
       {map === null ? null : <MapThumb map={map} photo className="absolute inset-0 size-full rounded-none" crop={1.5} />}
       <div className="absolute inset-0 bg-linear-to-r from-black/75 via-black/35 to-black/5" />
       <div className="relative flex h-full flex-col justify-between px-2 py-1.5 text-white">
@@ -121,8 +135,8 @@ export function MapCell({ map, day, name, tag, edge = 'none' }: { map: string | 
 }
 
 /** The green 2D button in a cell of its own, set off by a divider. */
-export function TwoDCell({ children }: { children: ReactNode }): ReactNode {
-  return <div className="flex shrink-0 items-center border-l border-border-subtle px-3">{children}</div>;
+export function TwoDCell({ children, className }: { children: ReactNode; className?: string }): ReactNode {
+  return <div className={cn('flex shrink-0 items-center border-l border-border-subtle px-3', className)}>{children}</div>;
 }
 
 export function TwoDLink({ href, label }: { href: string; label: string }): ReactNode {
