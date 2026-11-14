@@ -48,3 +48,7 @@ From the release commit, after the Studio release is published:
 3. Check the build locally: `node server.js` answers `/patrones` with a redirect to `/iniciar-sesion` and `/shorts` with one to `/descargar`.
 4. On the VPS: back up `api`, `web` and `data` of `/opt/cliphub-strats`, replace `api/clipmind-server` and `web/app/`, then `docker compose up -d --build`.
 5. Check `https://cliphubstrats.rechedev.cloud` and `docker logs cliphub-strats-api-1`.
+
+## Deploy the landing
+
+`landing/lib/site.ts` already names the new installer after the release commit. The site is a static export, but `landing/next.config.mjs` keeps no `output`, so the export needs two edits that are never committed: `output: 'export'` in the config and `export const dynamic = "force-static"` in `app/opengraph-image.tsx`. Run `pnpm --dir landing run build`, revert both, and check that `landing/out/index.html` names the new `Setup.X.Y.Z.exe`. On the VPS, back up `/opt/cliphub-landing/site`, replace it with `out/`, and run `docker compose restart`: the container mounts the folder, so a renamed folder keeps serving the old files until it restarts.
