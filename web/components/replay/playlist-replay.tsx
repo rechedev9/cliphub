@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { ListVideo } from 'lucide-react';
 import { parseReplayRefs } from '@/lib/analysis/replay-link';
 import { listLibraryMatches } from '@/lib/api/library';
@@ -12,8 +12,7 @@ import { matchTitle } from '@/lib/library/partidas';
 import { teamFocusFromQuery } from '@/lib/replay/player-focus';
 import { entryKey, indexOfKey } from '@/lib/replay/playlist';
 import { PLAYLISTS_HREF, PLAYLIST_QUERY, isPlaylistId, playlistRefs } from '@/lib/replay/saved-playlist';
-import { isWholeRound, tramoFromQuery, writeTramo } from '@/lib/replay/tramo';
-import type { Tramo } from '@/lib/replay/tramo';
+import { isWholeRound, tramoFromQuery } from '@/lib/replay/tramo';
 import { zonesFromQuery } from '@/lib/replay/zone-marks';
 import { EmptyState } from '@/components/records/empty-state';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
@@ -23,6 +22,7 @@ import { ReplayWorkspace } from './replay-workspace';
 import { PlaylistRoundCard } from './playlist-round-card';
 import { TeamReplayHome } from './team-replay-home';
 import { useOpenPlaylist } from './use-saved-playlists';
+import { useUrlTramo } from '@/hooks/use-url-tramo';
 
 function matchLabel(match: LibraryMatch): string {
   return `${prettyMapName(match.map)} · ${matchTitle(match)}`;
@@ -146,18 +146,12 @@ function PassingPlaylistReplay(): ReactNode {
   const refs = useMemo(() => parseReplayRefs(search), [search]);
   const title = search.get('t') ?? undefined;
   const focusPlayers = useMemo(() => teamFocusFromQuery(search), [search]);
-  const router = useRouter();
-  const pathname = usePathname();
   // A finding's link names its zones and its tramo (its players come in `jugador`); the tramo stays in the URL as the user moves it.
   const zones = useMemo(() => zonesFromQuery(search), [search]);
-  const tramo = useMemo(() => tramoFromQuery(search), [search]);
+  const tramoControl = useUrlTramo();
   // `s=1` opens every round superposed, as a grenade's Reproducir does, and so does a link with a tramo.
   const [tramoLink] = useState(() => !isWholeRound(tramoFromQuery(search)));
   const superpose = search.get('s') === '1' || tramoLink;
-  const setTramo = useCallback(
-    (next: Tramo) => router.replace(`${pathname}?${writeTramo(search.toString(), next)}`, { scroll: false }),
-    [pathname, router, search],
-  );
   const matches = useLibraryMatches();
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   // With no rounds the page is the team Replay, which names the tab itself.
@@ -190,7 +184,7 @@ function PassingPlaylistReplay(): ReactNode {
       matchDate={matchDate}
       title={title}
       focusPlayers={focusPlayers}
-      tramo={{ tramo, onChange: setTramo }}
+      tramo={tramoControl}
       zones={zones}
       superpose={superpose}
     />

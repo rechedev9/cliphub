@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useTransition, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { Check, SlidersHorizontal, Timer } from 'lucide-react';
 import { QUICK_TRAMOS, ROUND_CLOCK_SECONDS, WHOLE_ROUND, clockPercent, dragSeconds, edgeBounds, isWholeRound, keyedEdge, moveTramoEdge, nearestEdge, quickTramoOf, roundClock, tramoEnd } from '@/lib/replay/tramo';
 import type { Tramo } from '@/lib/replay/tramo';
@@ -142,6 +142,17 @@ export function TramoBar({
   /** Offer "Desde el plant"; off where every round shares one clock. */
   plant?: boolean;
 }): ReactNode {
+  // The grips follow the pointer at once; the owner's map redraws in a transition that a newer move interrupts.
+  const [pending, startTransition] = useTransition();
+  const [draft, setDraft] = useState<Tramo>(tramo);
+  const change = (next: Tramo): void => {
+    setDraft(next);
+    startTransition(() => onChange(next));
+  };
+  return <TramoStrip tramo={pending ? draft : tramo} onChange={change} events={events} plant={plant} />;
+}
+
+function TramoStrip({ tramo, onChange, events, plant }: { tramo: Tramo; onChange: (tramo: Tramo) => void; events: readonly TramoEvent[]; plant: boolean }): ReactNode {
   const fromPlant = tramo.fromPlant === true;
   const shown: Tramo = fromPlant || isWholeRound(tramo) ? { from: 0, to: ROUND_CLOCK_SECONDS } : tramo;
   const start = clockPercent(shown.from);

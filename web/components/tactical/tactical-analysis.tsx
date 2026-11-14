@@ -11,10 +11,8 @@ import { formatShortDate, prettyMapName } from '@/lib/format';
 import { matchTitle } from '@/lib/library/partidas';
 import { DEFAULT_REPLAY_FORM, REPLAY_FORMS, replayFormFromQuery, writeReplayForm } from '@/lib/replay/forms';
 import type { ReplayForm } from '@/lib/replay/forms';
-import { tramoFromQuery, writeTramo } from '@/lib/replay/tramo';
 import { heatChoiceFromQuery, writeHeatChoice } from '@/lib/replay/heat-choice';
 import type { HeatChoice } from '@/lib/replay/heat-choice';
-import type { Tramo } from '@/lib/replay/tramo';
 import { filterTacticalRounds, tacticalFilterFromQuery, tacticalFilterToQuery, withoutOrphanOutcome } from '@/lib/tactical-filter';
 import { TACTICAL_EVIDENCE_QUERY } from '@/lib/library/rounds';
 import { TACTICAL_FILTER_PARAMS } from '@/lib/api/tactical';
@@ -32,6 +30,7 @@ import { TacticalTendenciesPanel } from '@/components/tactical/tactical-tendenci
 import { useTeamTendencies } from '@/components/tactical/use-team-tendencies';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
 import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspace';
+import { useUrlTramo } from '@/hooks/use-url-tramo';
 
 /** Between the top bar and the replay once the tab list sits under the bar: the tab list, its gap, the summary line and its gap. */
 /** Until the first measure: the tab list and the one-line summary over the replay. */
@@ -203,15 +202,7 @@ export function TacticalAnalysis({
     },
     [pathname, router, searchParams, setSelectedRound, shownRound],
   );
-  const tramoValue = useMemo(() => tramoFromQuery(searchParams), [searchParams]);
-  const setTramo = useCallback(
-    (next: Tramo) => {
-      const query = writeTramo(searchParams.toString(), next);
-      router.replace(query === '' ? pathname : `${pathname}?${query}`, { scroll: false });
-    },
-    [pathname, router, searchParams],
-  );
-  const tramo = useMemo(() => ({ tramo: tramoValue, onChange: setTramo }), [tramoValue, setTramo]);
+  const tramo = useUrlTramo();
   const heatValue = useMemo(() => heatChoiceFromQuery(searchParams), [searchParams]);
   const setHeat = useCallback(
     (next: HeatChoice) => {
