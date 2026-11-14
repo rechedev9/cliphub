@@ -247,6 +247,9 @@ func (s *SyncLog) apply(ctx context.Context, in syncApply) error {
 		`INSERT INTO sync_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, marker, value); err != nil {
 		return err
 	}
+	if err := moveDocumentsOfMergedTeams(ctx, tx, in.changes); err != nil {
+		return err
+	}
 	described := map[string]map[string]syncColumn{}
 	skipped := 0
 	for _, change := range orderSyncChanges(in.changes) {
@@ -386,6 +389,11 @@ func applySyncDelete(ctx context.Context, tx *sql.Tx, table syncTable, change Sy
 			return fmt.Errorf("key %s of %s: %w", col, table.name, err)
 		}
 		args[i] = v
+	}
+	if table.name == "library_teams" {
+		if held, err := teamHoldsDocuments(ctx, tx, args[0]); err != nil || held {
+			return err
+		}
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM `+table.name+` WHERE `+strings.Join(where, " AND "), args...); err != nil {
 		return fmt.Errorf("delete from %s: %w", table.name, err)

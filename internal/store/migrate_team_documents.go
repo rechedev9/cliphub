@@ -5,9 +5,8 @@ import (
 	"fmt"
 )
 
-// migrateV27TeamDocuments stores the documents attached to a team, such as an
-// anti-strat report in HTML. They stay on each device: the sync batches rows by
-// count under an 8 MiB body cap, and a document can reach 5 MiB on its own.
+// migrateV27TeamDocuments stores a team's documents, such as an HTML anti-strat. They stay on each device:
+// the sync batches rows by count under an 8 MiB body cap, and one document can reach 5 MiB.
 func migrateV27TeamDocuments(tx *sql.Tx) error {
 	for _, stmt := range []string{
 		`CREATE TABLE IF NOT EXISTS library_team_documents (
