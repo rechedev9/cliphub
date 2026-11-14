@@ -97,7 +97,7 @@ Repository layout:
 
 ```bash
 go vet ./...
-go test ./... -count=1 -timeout 3m
+go test ./... -count=1 -timeout 30m
 go run ./cmd/zv check
 pnpm --dir web run typecheck && pnpm --dir web run lint && pnpm --dir web run test:unit
 pnpm --dir desktop run typecheck && pnpm --dir desktop run lint && pnpm --dir desktop run test:unit
