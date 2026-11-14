@@ -5,6 +5,11 @@ export type UploadOutcome =
   | { ok: true; matchId: string; created: boolean }
   | { ok: false; error: string; detail?: string; pause?: PauseReason };
 
+/** The workspace a batch started in, set by its first upload and cleared when the queue empties. */
+export interface WorkspacePin {
+  workspace?: string;
+}
+
 export interface UploadInput {
   scan: ScanSuccess;
   fallbackName: string;
@@ -50,11 +55,30 @@ function analysisForm(scan: ScanSuccess, fallbackName: string): FormData {
   return form;
 }
 
+/** The id of the session's current workspace in an /api/cm/auth/me answer. */
+export function workspaceOf(body: unknown): string | undefined {
+  return isRecord(body) && isRecord(body.workspace) && typeof body.workspace.id === 'string' ? body.workspace.id : undefined;
+}
+
+/** Pauses instead of filing the demo in another team's library when the session switched workspace. */
+export function checkPin(pin: WorkspacePin, current: string | undefined): UploadOutcome | undefined {
+  if (current === undefined) return undefined;
+  pin.workspace ??= current;
+  if (pin.workspace === current) return undefined;
+  return { ok: false, error: 'Has cambiado de espacio de trabajo.', pause: 'workspace' };
+}
+
+async function currentWorkspace(signal: AbortSignal): Promise<string | undefined> {
+  const answer = await fetch('/api/cm/auth/me', { cache: 'no-store', signal }).catch(() => undefined);
+  signal.throwIfAborted();
+  return answer?.ok === true ? workspaceOf(await answer.json().catch(() => undefined)) : undefined;
+}
+
 /** Sends one analysis. XMLHttpRequest, not fetch, because only it reports upload progress in every browser. */
-export async function uploadAnalysis(input: UploadInput): Promise<UploadOutcome> {
+export async function uploadAnalysis(input: UploadInput, pin: WorkspacePin): Promise<UploadOutcome> {
   // The upload skips the proxy that renews the sign-in; a scan can outlast the access token.
-  await fetch('/api/cm/auth/me', { cache: 'no-store', signal: input.signal }).catch(() => undefined);
-  input.signal.throwIfAborted();
+  const moved = checkPin(pin, await currentWorkspace(input.signal));
+  if (moved !== undefined) return moved;
   const form = analysisForm(input.scan, input.fallbackName);
   return new Promise<UploadOutcome>((resolve, reject) => {
     const request = new XMLHttpRequest();

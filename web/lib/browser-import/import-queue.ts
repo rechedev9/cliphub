@@ -3,8 +3,8 @@
 
 export type ItemStatus = 'queued' | 'scanning' | 'scanned' | 'uploading' | 'imported' | 'duplicate' | 'failed';
 
-/** Why the whole queue waits: the session ended, the network dropped or ClipMind is down. */
-export type PauseReason = 'auth' | 'offline' | 'unavailable';
+/** Why the whole queue waits: the session ended, the network dropped, ClipMind is down or the workspace changed. */
+export type PauseReason = 'auth' | 'offline' | 'unavailable' | 'workspace';
 
 export interface QueueItem {
   readonly id: string;
@@ -95,8 +95,8 @@ function patchItem(state: QueueState, id: string, change: (item: QueueItem) => Q
   return changed ? { ...state, items } : state;
 }
 
-function failed(item: QueueItem, failure: Failure, stage: 'scan' | 'upload'): QueueItem {
-  return { ...item, status: 'failed', percent: 0, error: failure.error, detail: failure.detail, failedStage: stage };
+function failed(item: QueueItem, failure: Failure & { stage: 'scan' | 'upload' }): QueueItem {
+  return { ...item, status: 'failed', percent: 0, error: failure.error, detail: failure.detail, failedStage: failure.stage };
 }
 
 /** Appends new demos in order, skipping other files and a file already in the list. */
@@ -167,7 +167,7 @@ export function scanSucceeded(state: QueueState, scan: { id: string; sha: string
 }
 
 export function scanFailed(state: QueueState, failure: Failure & { id: string }): QueueState {
-  return patchItem(state, failure.id, (item) => (item.status === 'scanning' ? failed(item, failure, 'scan') : item));
+  return patchItem(state, failure.id, (item) => (item.status === 'scanning' ? failed(item, { ...failure, stage: 'scan' }) : item));
 }
 
 export function uploadSucceeded(state: QueueState, answer: { id: string; matchId: string; created: boolean }): QueueState {
@@ -182,7 +182,7 @@ export function uploadSucceeded(state: QueueState, answer: { id: string; matchId
  */
 export function uploadFailed(state: QueueState, failure: Failure & { id: string; pause?: PauseReason }): QueueState {
   if (failure.pause === undefined) {
-    return patchItem(state, failure.id, (item) => (item.status === 'uploading' ? failed(item, failure, 'upload') : item));
+    return patchItem(state, failure.id, (item) => (item.status === 'uploading' ? failed(item, { ...failure, stage: 'upload' }) : item));
   }
   const next = patchItem(state, failure.id, (item) => (item.status === 'uploading' ? { ...item, status: 'scanned', percent: 0 } : item));
   return { ...next, paused: failure.pause };
@@ -193,7 +193,7 @@ export function resume(state: QueueState): QueueState {
   return { items: state.items };
 }
 
-/** A failed upload sends its kept analysis again; a failed scan reads the demo again. */
+/** A failed item goes back to its stage; the runner drops a failed upload's analysis, so that demo is read again. */
 export function retry(state: QueueState, id: string): QueueState {
   return patchItem(state, id, (item) => {
     if (item.status !== 'failed') return item;

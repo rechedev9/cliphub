@@ -90,6 +90,21 @@ test('the runner overlaps the next scan with the previous upload and keeps going
   assert.equal(runner.getSnapshot().items[1]?.detail, 'parsing demo: unexpected end');
 });
 
+test('a failed upload drops its analysis, so a retry reads the demo again', async () => {
+  const { runner, scans, uploads } = harness();
+  runner.add([file('a.dem')]);
+  scans.get('a.dem')?.resolve(scanned('a.dem'));
+  await flush();
+  uploads.get('a.dem')?.resolve({ ok: false, error: 'ClipMind no pudo guardar esta partida.' });
+  await flush();
+  assert.deepEqual(statusOf(runner), ['a.dem:failed']);
+  scans.clear();
+  runner.retry(runner.getSnapshot().items[0]?.id ?? '');
+  await flush();
+  assert.deepEqual([...scans.keys()], ['a.dem']);
+  assert.deepEqual(statusOf(runner), ['a.dem:scanning']);
+});
+
 test('progress repaints are throttled and a removed demo stops its scan', async () => {
   const { runner, scans, scanOptions } = harness();
   let paints = 0;

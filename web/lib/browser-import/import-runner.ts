@@ -183,8 +183,8 @@ export class ImportRunner {
     }
     if (controller.signal.aborted) return;
     this.#inFlight.delete(id);
+    if (outcome.ok || outcome.pause === undefined) this.#results.delete(id);
     if (outcome.ok) {
-      this.#results.delete(id);
       this.#commit(uploadSucceeded(this.#state, { id, matchId: outcome.matchId, created: outcome.created }));
     } else {
       this.#commit(uploadFailed(this.#state, { id, error: outcome.error, detail: outcome.detail, pause: outcome.pause }));

@@ -10,7 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { emptyQueue, summarize, type PauseReason, type QueueState, type QueueSummary } from '@/lib/browser-import/import-queue';
 import { ImportRunner, type AddReport } from '@/lib/browser-import/import-runner';
 import { scanDemoInBrowser } from '@/lib/browser-import/scan-demo';
-import { uploadAnalysis } from '@/lib/browser-import/upload-analysis';
+import { uploadAnalysis, type WorkspacePin } from '@/lib/browser-import/upload-analysis';
 import { MATCHES_HREF } from '@/lib/clips/routes';
 import { countOf } from '@/lib/records/selection';
 
@@ -20,10 +20,13 @@ const PAUSE_TEXT: Record<PauseReason, string> = {
   auth: 'Tu sesión ha terminado y la importación está en pausa. Entra de nuevo en otra pestaña y pulsa Reanudar. No se pierde nada.',
   offline: 'Se ha cortado la conexión y la importación está en pausa. Seguirá sola cuando vuelva la conexión, o pulsa Reanudar.',
   unavailable: 'ClipMind no responde ahora mismo y la importación está en pausa. Pulsa Reanudar en unos minutos; las demos ya analizadas no se pierden.',
+  workspace:
+    'Has cambiado de espacio de trabajo y la importación está en pausa, para que las demos que faltan no acaben en otro equipo. Vuelve al espacio donde empezaste y pulsa Reanudar, o quita las que faltan.',
 };
 
 let shared: ImportRunner | undefined;
 let guarding = false;
+const pin: WorkspacePin = {};
 
 function warnBeforeLeaving(event: BeforeUnloadEvent): void {
   event.preventDefault();
@@ -33,11 +36,12 @@ function warnBeforeLeaving(event: BeforeUnloadEvent): void {
 // The queue lives for the tab, not the page: the coach can open Partidas while it runs.
 function sharedRunner(): ImportRunner {
   if (shared !== undefined) return shared;
-  const runner = new ImportRunner({ scan: scanDemoInBrowser, upload: uploadAnalysis, newId: () => crypto.randomUUID() });
+  const runner = new ImportRunner({ scan: scanDemoInBrowser, upload: (input) => uploadAnalysis(input, pin), newId: () => crypto.randomUUID() });
   runner.subscribe(() => {
     const pending = summarize(runner.getSnapshot()).pending > 0;
     if (pending === guarding) return;
     guarding = pending;
+    if (!pending) pin.workspace = undefined;
     if (pending) window.addEventListener('beforeunload', warnBeforeLeaving);
     else window.removeEventListener('beforeunload', warnBeforeLeaving);
   });
