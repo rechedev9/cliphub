@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { EllipsisVertical, FileText, TriangleAlert, Video } from 'lucide-react';
+import { EllipsisVertical, FileText, RefreshCw, Trash2, TriangleAlert, Video } from 'lucide-react';
 import type { LibrarySource } from '@/lib/api/library';
 import type { LibrarySeries } from '@/lib/api/veto';
 import { matchHref, matchReplayHref } from '@/lib/clips/routes';
@@ -13,13 +13,13 @@ import { hasPov, ownOutcome, seriesScore, seriesVeto, type DayGroup, type Partid
 import type { VoiceByMatch } from '@/lib/library/voice-summary';
 import { OUTCOME_LABEL, matchTitle, partidaDate, type Outcome, type PartidaRow } from '@/lib/library/partidas';
 import { DayHeading, MapCell, SeriesStrip, TwoDCell, TwoDLink, mapTag, type MapEdge, type MapTag } from '@/components/matches/series-block';
-import { DemoStatus, RowActions, ScoreStack, type RowHandlers } from '@/components/matches/partida-cells';
+import { DemoStatus, OutcomeBadge, RowActions, ScoreStack, removeDemo, type RowHandlers } from '@/components/matches/partida-cells';
 import { PartidaSource } from '@/components/matches/partida-source';
 import { PartidaTags } from '@/components/matches/partida-tags';
 import { PartidaVoice } from '@/components/matches/partida-voice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 /** Groups drawn before "Mostrar más", so a long library does not paint every row at once. */
 const GROUPS_PER_PAGE = 40;
@@ -30,6 +30,8 @@ export type GroupListContext = {
   ownTeam: string | null;
   /** The name of the own team, for the label of the row edge. */
   ownName: string;
+  /** False when the day headings already give each row's played date. */
+  showDay: boolean;
   povJobs: ReadonlySet<string>;
   voices: VoiceByMatch;
   onVoiceResynced: () => void;
@@ -48,24 +50,60 @@ function markTagOf(mark: VetoMark): MapTag {
 
 const EDGE_OF_OUTCOME: Record<Outcome, MapEdge> = { win: 'win', loss: 'loss', draw: 'none' };
 
-/** The row kebab: the way into the record of the partida, which the 2D button skips. */
-function RowMenu({ matchId, name }: { matchId: string; name: string }): ReactNode {
+/** The row kebab: the record of the partida, a new analysis and the removal, which the row no longer shows. */
+function RowMenu({ row, name, handlers }: { row: PartidaRow; name: string; handlers: RowHandlers }): ReactNode {
+  const { demo, match } = row;
+  const [armed, setArmed] = useState(false);
+  const [failed, setFailed] = useState(false);
+  // A failed row already shows Reintentar and its delete inline.
+  if (match === null || demo.state === 'failed') return null;
+  const reanalyze = demo.state === 'ready' ? handlers.onRetry : undefined;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-xs" aria-label={`Más acciones de ${name}`}>
-          <EllipsisVertical aria-hidden />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link href={matchHref(matchId)}>
-            <FileText aria-hidden />
-            Detalles de la demo
-          </Link>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <span className="flex items-center gap-1">
+      {failed ? (
+        <span role="alert" className="text-meta whitespace-nowrap text-destructive">
+          No se pudo borrar
+        </span>
+      ) : null}
+      <DropdownMenu onOpenChange={(open) => !open && setArmed(false)}>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="icon-xs" aria-label={`Más acciones de ${name}`}>
+            <EllipsisVertical aria-hidden />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link href={matchHref(match.id)}>
+              <FileText aria-hidden />
+              Detalles de la demo
+            </Link>
+          </DropdownMenuItem>
+          {reanalyze === undefined ? null : (
+            <DropdownMenuItem onSelect={() => reanalyze(demo.id)}>
+              <RefreshCw aria-hidden />
+              Reanalizar
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onSelect={(event) => {
+              // The first pick arms the item and keeps the menu open; the second deletes.
+              if (!armed) {
+                event.preventDefault();
+                setArmed(true);
+                return;
+              }
+              setFailed(false);
+              void removeDemo(demo.id).then(handlers.onRemoved, () => setFailed(true));
+            }}
+          >
+            <Trash2 aria-hidden />
+            {armed ? '¿Borrar? Pulsa otra vez' : 'Borrar'}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 }
 
@@ -76,6 +114,8 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
   const pov = hasPov(row, context.povJobs);
   const voice = match ? context.voices.get(match.id) : undefined;
   const edgeLabel = outcome === null ? undefined : `Resultado de ${context.ownName}: ${OUTCOME_LABEL[outcome]}`;
+  const ownName = context.ownName.toLowerCase();
+  const quietTags = ownName === '' ? [] : demo.tags.filter((tag) => tag.toLowerCase() === ownName);
   const name = match ? prettyMapName(match.map) : demo.file_name;
   const failed = demo.state === 'failed' ? <TriangleAlert aria-hidden className="size-4 shrink-0 text-destructive" /> : null;
   const label = (
@@ -90,7 +130,7 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
   return (
     <li
       title={edgeLabel}
-      className="relative flex items-stretch border-t border-border-subtle transition-colors first:border-t-0 hover:bg-surface-3 @max-[40rem]/content:flex-wrap @max-[40rem]/content:justify-end"
+      className="group/row relative flex items-stretch border-t border-border-subtle transition-colors first:border-t-0 hover:bg-surface-3 @max-[40rem]/content:flex-wrap @max-[40rem]/content:justify-end"
     >
       <div className="flex w-8 shrink-0 items-center justify-center">
         <input
@@ -104,7 +144,7 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
       {edgeLabel ? <span className="sr-only">{edgeLabel}</span> : null}
       <MapCell
         map={match ? match.map : null}
-        day={dayMonthLabel(partidaDate(row))}
+        day={context.showDay ? dayMonthLabel(partidaDate(row)) : ''}
         name={
           match ? (
             <Link href={matchHref(match.id)} className="block rounded-sm outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring">
@@ -120,14 +160,16 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
       />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2 @max-[40rem]/content:basis-full">
         {match && demo.state !== 'failed' ? (
-          <ScoreStack match={match} />
+          <span className="flex items-center gap-3">
+            <ScoreStack match={match} ownTeam={context.ownTeam} />
+            {outcome === null ? null : <OutcomeBadge outcome={outcome} />}
+          </span>
         ) : (
           <div className="min-w-40">
             {/* A phone has no hover for the tooltip, so the reason wraps there. */}
             <DemoStatus row={row} className="@max-[40rem]/content:whitespace-normal" />
           </div>
         )}
-        <span aria-hidden className="hidden h-8 w-px bg-border @min-[44rem]/content:block" />
         <div className="flex flex-wrap items-center gap-2">
           {pov ? (
             <Badge variant="secondary" shape="square">
@@ -137,7 +179,7 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
           ) : null}
           {voice ? <PartidaVoice summary={voice} onResynced={context.onVoiceResynced} /> : null}
           <PartidaSource demo={demo} onChange={context.onSourceChange} />
-          <PartidaTags demo={demo} allTags={context.allTags} onChanged={context.onTagsChanged} />
+          <PartidaTags demo={demo} allTags={context.allTags} onChanged={context.onTagsChanged} quietTags={quietTags} />
         </div>
       </div>
       {match && demo.state === 'ready' ? (
@@ -147,7 +189,7 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
       ) : null}
       <div className="flex shrink-0 items-center gap-1 px-2 @max-[40rem]/content:pb-2 @max-[40rem]/content:empty:hidden">
         <RowActions row={row} handlers={context.handlers} />
-        {match ? <RowMenu matchId={match.id} name={name} /> : null}
+        <RowMenu row={row} name={name} handlers={context.handlers} />
       </div>
     </li>
   );
@@ -185,19 +227,31 @@ function SeriesBlock({ series, rows, context }: { series: LibrarySeries; rows: r
   );
 }
 
-function SingleBlock({ row, context }: { row: PartidaRow; context: GroupListContext }): ReactNode {
+/** Partidas of one day outside any series: one block, a row each. */
+function SinglesBlock({ rows, context }: { rows: readonly PartidaRow[]; context: GroupListContext }): ReactNode {
   return (
     <div className="overflow-hidden border border-border bg-surface-2">
       <ul>
-        <MapRow row={row} context={context} />
+        {rows.map((row) => (
+          <MapRow key={row.demo.id} row={row} context={context} />
+        ))}
       </ul>
     </div>
   );
 }
 
-function GroupBlock({ group, context }: { group: PartidaGroup; context: GroupListContext }): ReactNode {
-  if (group.kind === 'single') return <SingleBlock row={group.row} context={context} />;
-  return <SeriesBlock series={group.series} rows={group.rows} context={context} />;
+type Block = { kind: 'singles'; rows: PartidaRow[] } | { kind: 'series'; series: LibrarySeries; rows: readonly PartidaRow[] };
+
+/** Consecutive single partidas join one block; a series keeps its own. */
+function blocksOf(groups: readonly PartidaGroup[]): Block[] {
+  const blocks: Block[] = [];
+  for (const group of groups) {
+    const last = blocks.at(-1);
+    if (group.kind === 'series') blocks.push({ kind: 'series', series: group.series, rows: group.rows });
+    else if (last?.kind === 'singles') last.rows.push(group.row);
+    else blocks.push({ kind: 'singles', rows: [group.row] });
+  }
+  return blocks;
 }
 
 /** Partidas grouped by day under slash headings, each series as one block with its bans and the pick of every map. */
@@ -216,9 +270,13 @@ export function PartidaGroupsList({ days, context }: { days: readonly DayGroup[]
       {visible.map((day) => (
         <section key={day.day} className="flex flex-col gap-2">
           <DayHeading day={day.day} />
-          {day.groups.map((group) => (
-            <GroupBlock key={group.kind === 'series' ? group.series.id : group.row.demo.id} group={group} context={context} />
-          ))}
+          {blocksOf(day.groups).map((block) =>
+            block.kind === 'series' ? (
+              <SeriesBlock key={block.series.id} series={block.series} rows={block.rows} context={context} />
+            ) : (
+              <SinglesBlock key={block.rows[0]?.demo.id} rows={block.rows} context={context} />
+            ),
+          )}
         </section>
       ))}
       {total > limit ? (
