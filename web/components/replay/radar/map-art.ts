@@ -32,7 +32,10 @@ export async function loadMapPlate(map: string, split: boolean): Promise<{ model
   return { model, art: upper === null ? { kind: 'grid' } : { kind: 'radar', images: { default: upper, lower } } };
 }
 
-/** Starts a map's radar and nav mesh before its first round arrives, so the plate does not wait for the round. */
+/**
+ * Starts the loads of `loadMapPlate` that need only the map name, before its first round arrives. The lower
+ * floor waits for the round: only its calibration says whether the map has one.
+ */
 export function preloadMapPlate(map: string): void {
   void loadNavRadar(map);
   void loadRadar(map, 'upper');

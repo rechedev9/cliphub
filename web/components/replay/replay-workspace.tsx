@@ -267,6 +267,7 @@ export function ReplayWorkspace({
     (entryRound: CentreRound, seconds: number) => (multi ? alignedTick(entryRound.timeline, seconds) : timelineTick(entryRound.timeline, seconds)),
     [multi],
   );
+  const playhead = useMemo(() => ({ clock, tickOf }), [clock, tickOf]);
   /** A tick of the focused round as a position of the current clock. */
   const clockSecondsOf = useCallback(
     (timeline: RoundTimeline, tick: number) => {
@@ -643,8 +644,7 @@ export function ReplayWorkspace({
           {focused === null ? null : (
             <MapHud
               focused={focused}
-              clock={clock}
-              tickOf={tickOf}
+              playhead={playhead}
               eventsOpen={eventsOpen}
               showFeed={mapSettings.show.killfeed}
               showScore={mapSettings.show.scoreline}
@@ -672,7 +672,7 @@ export function ReplayWorkspace({
           fullscreen.active ? 'col-start-2 row-start-1' : 'min-[1180px]:col-start-2 min-[1180px]:row-start-1',
         )}
       >
-        <ReplaySidePanel focused={focused} clock={clock} tickOf={tickOf} focus={focus} onPickSlot={pickSlot} onCopySlot={copyPlayerSetpos} />
+        <ReplaySidePanel focused={focused} playhead={playhead} focus={focus} onPickSlot={pickSlot} onCopySlot={copyPlayerSetpos} />
       </aside>
 
       <ReplayTransport

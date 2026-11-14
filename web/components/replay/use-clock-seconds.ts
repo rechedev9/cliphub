@@ -1,19 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { CentreRound } from '@/lib/replay/centre-round';
 import type { ReplayClock } from '@/lib/replay/clock';
 import { throttleClock } from '@/lib/replay/clock-throttle';
 
-/** How often a panel that reads the playhead re-renders; the map and the scrubber follow every frame on their own. */
 const UI_TICKS_PER_SECOND = 4;
 const SETTLE_MS = 80;
 
+/** The replay clock and how a round reads a tick off it. */
+export type RoundPlayhead = {
+  clock: ReplayClock;
+  tickOf: (round: CentreRound, seconds: number) => number;
+};
+
 /**
- * The playhead for a component that shows it in text, a few times a second while it moves. Kept out of the
- * workspace so playback does not re-render the round strip, the transport and every panel with it.
+ * A round's tick at the playhead, for a panel that shows it in text. It re-renders a few times a second while
+ * the clock moves, so playback does not re-render the whole workspace.
  */
-export function useClockSeconds(clock: ReplayClock): number {
+export function usePlayheadTick({ clock, tickOf }: RoundPlayhead): (round: CentreRound) => number {
   const [seconds, setSeconds] = useState(() => clock.seconds);
   useEffect(() => throttleClock(clock, { stepsPerSecond: UI_TICKS_PER_SECOND, settleMs: SETTLE_MS, onSeconds: setSeconds }), [clock]);
-  return seconds;
+  return useCallback((round: CentreRound) => tickOf(round, seconds), [seconds, tickOf]);
 }

@@ -140,25 +140,31 @@ function levelOfSample(frame: RoundFrame, sample: TacticalSample): RadarLevel {
   return frame.levels.get(sample.slot) ?? levelForAltitude(frame.calibration, sample.z);
 }
 
-/** The strength a faded drawing multiplies into every globalAlpha it sets; 1 outside `faded`. */
+/** The strength a faded drawing multiplies into every alpha it sets; 1 outside `faded`. */
 let fade = 1;
 
+/** Sets the alpha of the next strokes, inside whatever `faded` wraps them. */
+function setAlpha(ctx: CanvasRenderingContext2D, alpha: number): void {
+  ctx.globalAlpha = fade * alpha;
+}
+
 /**
- * Draws at `alpha` over whatever alpha each stroke sets. ctx.filter did this too, but sent every
- * call through an offscreen layer: in a multi-round frame that was the costliest step.
+ * Draws at `alpha` over whatever alpha each stroke sets, nested fades multiplying. ctx.filter did this too, but
+ * sent every call through an offscreen layer: in a multi-round frame that was the costliest step.
  */
 function faded(ctx: CanvasRenderingContext2D, alpha: number, draw: () => void): void {
   if (alpha >= 1) {
     draw();
     return;
   }
-  fade = alpha;
-  ctx.globalAlpha = alpha;
+  const outer = fade;
+  fade = outer * alpha;
+  setAlpha(ctx, 1);
   try {
     draw();
   } finally {
-    fade = 1;
-    ctx.globalAlpha = 1;
+    fade = outer;
+    ctx.globalAlpha = outer;
   }
 }
 
@@ -218,13 +224,13 @@ function grenadeBadge(ctx: CanvasRenderingContext2D, kind: TacticalEventKind, at
   if (image === null) return;
   const height = 12;
   const width = Math.min(18, (image.naturalWidth / image.naturalHeight) * height);
-  ctx.globalAlpha = fade * alpha;
+  setAlpha(ctx, alpha);
   ctx.fillStyle = 'rgba(11, 12, 14, 0.78)';
   ctx.beginPath();
   ctx.arc(at.x, at.y, 10, 0, Math.PI * 2);
   ctx.fill();
   ctx.drawImage(image, at.x - width / 2, at.y - height / 2, width, height);
-  ctx.globalAlpha = fade;
+  setAlpha(ctx, 1);
 }
 
 /** The flight of a throw: each stretch on the pane of its own floor, so it never hops panes mid-air. */
@@ -241,7 +247,7 @@ function drawArc(ctx: CanvasRenderingContext2D, frame: RoundFrame, options: { to
   for (let i = 1; i <= reach; i += 1) {
     const strength = levels[i] === frame.level || levels[i - 1] === frame.level ? 1 : (frame.offFloorAlpha ?? OFF_FLOOR_ALPHA);
     if (strength <= 0) continue;
-    ctx.globalAlpha = fade * (0.7 * arc.fade * strength);
+    setAlpha(ctx, 0.7 * arc.fade * strength);
     ctx.beginPath();
     ctx.moveTo(path[i - 1].x, path[i - 1].y);
     ctx.lineTo(path[i].x, path[i].y);
@@ -251,7 +257,7 @@ function drawArc(ctx: CanvasRenderingContext2D, frame: RoundFrame, options: { to
   // The throw point, which a click on copies the throw's setpos (see `lib/replay/throw-hit`).
   const originStrength = levelAlpha(frame, levels[0]);
   if (originStrength > 0) {
-    ctx.globalAlpha = fade * (0.9 * arc.fade * originStrength);
+    setAlpha(ctx, 0.9 * arc.fade * originStrength);
     ctx.fillStyle = '#e6e9ec';
     ctx.strokeStyle = '#0b0c0e';
     ctx.lineWidth = 1;
@@ -263,13 +269,13 @@ function drawArc(ctx: CanvasRenderingContext2D, frame: RoundFrame, options: { to
   const head = path[reach];
   const headStrength = levelAlpha(frame, levels[reach]);
   if (arc.progress < 1 && headStrength > 0) {
-    ctx.globalAlpha = fade * headStrength;
+    setAlpha(ctx, headStrength);
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(head.x, head.y, 2.5, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.globalAlpha = fade;
+  setAlpha(ctx, 1);
 }
 
 /** The arc stays on the thrower's floor until it reaches the landing one; the effect is on the landing floor. */
@@ -294,13 +300,13 @@ function drawEffect(ctx: CanvasRenderingContext2D, frame: RoundFrame, visual: Ut
   if (visual.kind === TACTICAL_EVENT_KINDS.smoke) {
     const radius = worldPx(calibration, size, SMOKE_RADIUS) * effect.grow;
     softDisc(ctx, { at, radius, rgb: '214, 219, 224', alpha: 0.78 * effect.strength, edge: 0.72 });
-    ctx.globalAlpha = fade * (0.5 * effect.strength);
+    setAlpha(ctx, 0.5 * effect.strength);
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(at.x, at.y, radius * 0.86, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.globalAlpha = fade;
+    setAlpha(ctx, 1);
   } else if (visual.kind === TACTICAL_EVENT_KINDS.molotov) {
     const radius = worldPx(calibration, size, FIRE_RADIUS) * effect.grow;
     for (const [dx, dy, scale] of FLAME_LOBES) {
@@ -310,22 +316,22 @@ function drawEffect(ctx: CanvasRenderingContext2D, frame: RoundFrame, visual: Ut
   } else if (visual.kind === TACTICAL_EVENT_KINDS.flash) {
     softDisc(ctx, { at, radius: worldPx(calibration, size, FLASH_RADIUS) * effect.grow, rgb: '255, 255, 255', alpha: 0.9 * effect.strength, edge: 0.2 });
   } else if (visual.kind === TACTICAL_EVENT_KINDS.he) {
-    ctx.globalAlpha = fade * effect.strength;
+    setAlpha(ctx, effect.strength);
     ctx.strokeStyle = '#ff7a3d';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(at.x, at.y, worldPx(calibration, size, HE_RADIUS) * effect.grow, 0, Math.PI * 2);
     ctx.stroke();
     softDisc(ctx, { at, radius: worldPx(calibration, size, HE_RADIUS * 0.4) * effect.grow, rgb: '255, 150, 70', alpha: 0.5 * effect.strength, edge: 0.3 });
-    ctx.globalAlpha = fade;
+    setAlpha(ctx, 1);
   } else {
-    ctx.globalAlpha = fade * effect.strength;
+    setAlpha(ctx, effect.strength);
     ctx.strokeStyle = '#c9ced4';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(at.x, at.y, 6, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.globalAlpha = fade;
+    setAlpha(ctx, 1);
   }
 }
 
@@ -368,7 +374,7 @@ function drawTrails(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
     if (points === undefined || points.length < 2 || !inFocus(frame.focus, sample.slot)) continue;
     ctx.strokeStyle = sideColor(frame.style, sampleSide(sample));
     for (const stroke of trailStrokes(points, { level: frame.level, offFloorAlpha })) {
-      ctx.globalAlpha = fade * stroke.alpha;
+      setAlpha(ctx, stroke.alpha);
       ctx.beginPath();
       for (const [start, end] of stroke.segments) {
         const from = worldToRendered(frame.calibration, start.x, start.y, frame.size);
@@ -379,13 +385,13 @@ function drawTrails(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
       ctx.stroke();
     }
   }
-  ctx.globalAlpha = fade;
+  setAlpha(ctx, 1);
 }
 
 function drawDead(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: TacticalSample, at: RadarPoint): void {
   const age = frame.deadFor.get(sample.slot) ?? DEAD_FADE_SECONDS;
   const arm = discRadius(frame.size, frame.dotScale) * 0.75;
-  ctx.globalAlpha = fade * (DEAD_REST_ALPHA + (1 - DEAD_REST_ALPHA) * Math.max(0, 1 - age / DEAD_FADE_SECONDS));
+  setAlpha(ctx, DEAD_REST_ALPHA + (1 - DEAD_REST_ALPHA) * Math.max(0, 1 - age / DEAD_FADE_SECONDS));
   ctx.lineCap = 'round';
   ctx.strokeStyle = '#0b0c0e';
   ctx.lineWidth = 4;
@@ -401,7 +407,7 @@ function drawDead(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tact
     ctx.lineTo(at.x - arm, at.y + arm);
     ctx.stroke();
   }
-  ctx.globalAlpha = fade;
+  setAlpha(ctx, 1);
 }
 
 function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: TacticalSample, at: RadarPoint): void {
@@ -414,14 +420,14 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
   const cone = ctx.createRadialGradient(at.x, at.y, radius, at.x, at.y, reach);
   cone.addColorStop(0, color);
   cone.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.globalAlpha = fade * 0.42;
+  setAlpha(ctx, 0.42);
   ctx.fillStyle = cone;
   ctx.beginPath();
   ctx.moveTo(at.x, at.y);
   ctx.arc(at.x, at.y, reach, heading - 0.4, heading + 0.4);
   ctx.closePath();
   ctx.fill();
-  ctx.globalAlpha = fade;
+  setAlpha(ctx, 1);
 
   if (frame.focus.includes(sample.slot)) {
     ctx.strokeStyle = '#ffffff';
@@ -453,13 +459,13 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
 
   const hurt = frame.hurt.get(sample.slot) ?? 0;
   if (hurt > 0) {
-    ctx.globalAlpha = fade * hurt;
+    setAlpha(ctx, hurt);
     ctx.strokeStyle = '#ff3b30';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(at.x, at.y, ring + 3 + (1 - hurt) * 4, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.globalAlpha = fade;
+    setAlpha(ctx, 1);
   }
   const flashed = (sample.flashed ?? 0) > 0 || hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.blinded);
   if (frame.show.flashed && flashed) {
@@ -556,13 +562,13 @@ function drawTags(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; p
     const color = sideColor(frame.style, player.side);
     if (tag.displaced) {
       ctx.strokeStyle = color;
-      ctx.globalAlpha = fade * 0.6;
+      setAlpha(ctx, 0.6);
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(player.x, player.y);
       ctx.lineTo(Math.min(Math.max(player.x, rect.x), rect.x + rect.width), Math.min(Math.max(player.y, rect.y), rect.y + rect.height));
       ctx.stroke();
-      ctx.globalAlpha = fade;
+      setAlpha(ctx, 1);
     }
     ctx.fillStyle = frame.focus.includes(tag.id) ? 'rgba(46, 50, 56, 0.95)' : 'rgba(11, 12, 14, 0.82)';
     ctx.beginPath();

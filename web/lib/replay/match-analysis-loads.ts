@@ -1,18 +1,18 @@
-export type MatchAnalysis<T> = { state: 'loading' } | { state: 'ready'; analysis: T } | { state: 'failed'; message: string };
+export type AnalysisLoad<T> = { state: 'loading' } | { state: 'ready'; analysis: T } | { state: 'failed'; message: string };
 
 export type MatchAnalysisLoadsOptions<T> = {
   load: (id: string) => Promise<T>;
   message: (error: unknown) => string;
-  onChange: (states: ReadonlyMap<string, MatchAnalysis<T>>) => void;
+  onChange: (states: ReadonlyMap<string, AnalysisLoad<T>>) => void;
   seed?: { id: string; analysis: T };
 };
 
 /**
  * Tactical analyses by match: each one is requested the first time it is wanted
- * or prefetched and kept for the rest of the visit.
+ * and kept for the rest of the visit.
  */
 export class MatchAnalysisLoads<T> {
-  states: ReadonlyMap<string, MatchAnalysis<T>>;
+  states: ReadonlyMap<string, AnalysisLoad<T>>;
   private readonly options: MatchAnalysisLoadsOptions<T>;
 
   constructor(options: MatchAnalysisLoadsOptions<T>) {
@@ -23,10 +23,6 @@ export class MatchAnalysisLoads<T> {
 
   want(ids: readonly string[]): void {
     for (const id of ids) if (!this.states.has(id)) this.start(id);
-  }
-
-  prefetch(id: string): void {
-    this.want([id]);
   }
 
   retry(id: string): void {
@@ -47,7 +43,7 @@ export class MatchAnalysisLoads<T> {
     );
   }
 
-  private set(id: string, state: MatchAnalysis<T>): void {
+  private set(id: string, state: AnalysisLoad<T>): void {
     this.states = new Map(this.states).set(id, state);
     this.options.onChange(this.states);
   }
