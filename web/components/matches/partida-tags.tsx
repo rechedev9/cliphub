@@ -11,7 +11,7 @@ import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 /** Row edit controls stay laid out but show only while the row is hovered or holds focus; a touch screen always shows them. */
-export const ROW_EDIT_REVEAL = 'opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100';
+const ROW_EDIT_REVEAL = 'opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100';
 const ROW_TAG_REVEAL = 'hidden group-hover/row:inline-flex group-focus-within/row:inline-flex pointer-coarse:inline-flex';
 
 /** The tags of a demo as quiet chips, removable and with "+ Etiqueta" while the row is hovered or focused. */

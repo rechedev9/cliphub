@@ -11,7 +11,8 @@ import { dayMonthLabel } from '@/lib/library/day-label';
 import { SERIES_FORMAT_LABEL } from '@/lib/library/veto';
 import { hasPov, ownOutcome, seriesScore, seriesVeto, type DayGroup, type PartidaGroup, type VetoMark } from '@/lib/library/partida-groups';
 import type { VoiceByMatch } from '@/lib/library/voice-summary';
-import { OUTCOME_LABEL, matchTitle, partidaDate, type Outcome, type PartidaRow } from '@/lib/library/partidas';
+import { deleteErrorMessage } from '@/lib/delete-error';
+import { OUTCOME_LABEL, matchTitle, partidaDate, withoutDemo, type Outcome, type PartidaRow } from '@/lib/library/partidas';
 import { DayHeading, MapCell, SeriesStrip, TwoDCell, TwoDLink, mapTag, type MapEdge, type MapTag } from '@/components/matches/series-block';
 import { DemoStatus, OutcomeBadge, RowActions, ScoreStack, removeDemo, type RowHandlers } from '@/components/matches/partida-cells';
 import { PartidaSource } from '@/components/matches/partida-source';
@@ -54,18 +55,24 @@ const EDGE_OF_OUTCOME: Record<Outcome, MapEdge> = { win: 'win', loss: 'loss', dr
 function RowMenu({ row, name, handlers }: { row: PartidaRow; name: string; handlers: RowHandlers }): ReactNode {
   const { demo, match } = row;
   const [armed, setArmed] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // A failed row already shows Reintentar and its delete inline.
   if (match === null || demo.state === 'failed') return null;
-  const reanalyze = demo.state === 'ready' ? handlers.onRetry : undefined;
+  // A shared or pro match has no .dem on this PC to analyse again.
+  const reanalyze = demo.state === 'ready' && !withoutDemo(demo.source) ? handlers.onRetry : undefined;
   return (
     <span className="flex items-center gap-1">
-      {failed ? (
-        <span role="alert" className="text-meta whitespace-nowrap text-destructive">
-          No se pudo borrar
+      {error === null ? null : (
+        <span role="alert" title={error} className="max-w-48 truncate text-meta text-destructive">
+          {error}
         </span>
-      ) : null}
-      <DropdownMenu onOpenChange={(open) => !open && setArmed(false)}>
+      )}
+      <DropdownMenu
+        onOpenChange={(open) => {
+          if (open) setError(null);
+          else setArmed(false);
+        }}
+      >
         <DropdownMenuTrigger asChild>
           <Button type="button" variant="ghost" size="icon-xs" aria-label={`Más acciones de ${name}`}>
             <EllipsisVertical aria-hidden />
@@ -94,8 +101,7 @@ function RowMenu({ row, name, handlers }: { row: PartidaRow; name: string; handl
                 setArmed(true);
                 return;
               }
-              setFailed(false);
-              void removeDemo(demo.id).then(handlers.onRemoved, () => setFailed(true));
+              void removeDemo(demo.id).then(handlers.onRemoved, (reason: unknown) => setError(deleteErrorMessage(reason)));
             }}
           >
             <Trash2 aria-hidden />

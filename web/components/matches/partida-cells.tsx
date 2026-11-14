@@ -5,7 +5,7 @@ import { Clapperboard, RefreshCw } from 'lucide-react';
 import { deleteLibraryDemo, isLibraryNotFound, type LibraryMatch } from '@/lib/api/library';
 import { PRODUCE_FORMAT } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
-import { OUTCOME_LABEL, PARSE_STATE_LABEL, demoErrorLabel, matchTitle, ownFirstScoreline, scoreline, withoutDemo, type Outcome, type PartidaRow } from '@/lib/library/partidas';
+import { OUTCOME_LABEL, PARSE_STATE_LABEL, demoErrorLabel, matchTitle, ownFirstScoreline, withoutDemo, type Outcome, type PartidaRow } from '@/lib/library/partidas';
 import { cn } from '@/lib/utils';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { OpenInCrearButton } from '@/components/matches/open-in-crear-button';
@@ -53,13 +53,12 @@ const OUTCOME_BADGE = {
   draw: { variant: 'secondary', letter: 'E' },
 } as const;
 
-/** V, D or E for the own team, so the result reads at a glance without parsing the scores. */
+/** V, D or E for the own team, so the result reads at a glance; the row's own label already says it to screen readers. */
 export function OutcomeBadge({ outcome }: { outcome: Outcome }): ReactNode {
   const { variant, letter } = OUTCOME_BADGE[outcome];
   return (
-    <Badge variant={variant} shape="square" title={OUTCOME_LABEL[outcome]} className="w-6 justify-center px-0 font-bold">
-      <span aria-hidden>{letter}</span>
-      <span className="sr-only">{OUTCOME_LABEL[outcome]}</span>
+    <Badge aria-hidden variant={variant} shape="square" title={OUTCOME_LABEL[outcome]} className="w-6 justify-center px-0 font-bold">
+      {letter}
     </Badge>
   );
 }
@@ -68,9 +67,9 @@ export function isPending(row: PartidaRow): boolean {
   return row.demo.state === 'queued' || row.demo.state === 'parsing';
 }
 
-/** "Vitality 13 : 7 MOUZ", the winner in full ink and the loser dimmed. */
-export function Scoreline({ match }: { match: LibraryMatch }): ReactNode {
-  const [left, right] = scoreline(match);
+/** "Vitality 13 : 7 MOUZ", the own team on the left, the winner in full ink and the loser dimmed. */
+export function Scoreline({ match, ownTeam = null }: { match: LibraryMatch; ownTeam?: string | null }): ReactNode {
+  const [left, right] = ownFirstScoreline(match, ownTeam);
   return (
     <span title={matchTitle(match)} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
       <span className={cn('truncate text-right', OUTCOME_CLASS[left.outcome])}>{left.name}</span>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, type ReactNode } from 'react';
+import { Fragment, useId, type ReactNode } from 'react';
 import { ListFilter, Search, X } from 'lucide-react';
 import { currentEdition } from '@/lib/edition';
 import {
@@ -12,7 +12,6 @@ import {
   type LibraryListView,
   type LibraryViewMode,
   type MatchKind,
-  type PartidaSort,
 } from '@/lib/library/partida-groups';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
 import type { FilterDefinition } from '@/components/records/filter-bar';
@@ -85,7 +84,7 @@ export function PartidasToolbar({ filters, values, onFilterChange, onFiltersRese
               <SelectValue />
             </SelectTrigger>
             <SelectContent align="end">
-              {SORTS.map((sort: PartidaSort) => (
+              {SORTS.map((sort) => (
                 <SelectItem key={sort} value={sort}>
                   {SORT_LABEL[sort]}
                 </SelectItem>
@@ -138,7 +137,7 @@ function FiltersPanel({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="h-9" aria-label={active > 0 ? `Filtros, ${active} activos` : 'Filtros'}>
+        <Button type="button" variant="outline" size="sm" className="h-9" aria-label={active === 0 ? 'Filtros' : `Filtros, ${active} ${active === 1 ? 'activo' : 'activos'}`}>
           <ListFilter aria-hidden />
           Filtros
           {active > 0 ? <span className="min-w-5 rounded-sm bg-primary px-1 text-meta font-bold text-primary-foreground">{active}</span> : null}
@@ -155,7 +154,8 @@ function FiltersPanel({
         {filters.map((filter) => {
           const value = values[filter.id] ?? FILTER_ANY;
           return (
-            <FilterRow key={filter.id} label={filter.label}>
+            <Fragment key={filter.id}>
+              <span className="text-meta text-fg-3">{filter.label}</span>
               <Select value={value === FILTER_ANY ? ANY_OPTION : value} onValueChange={(next) => onFilterChange(filter.id, next === ANY_OPTION ? FILTER_ANY : next)}>
                 <SelectTrigger aria-label={filter.label} className="h-8 w-full">
                   <SelectValue />
@@ -169,7 +169,7 @@ function FiltersPanel({
                   ))}
                 </SelectContent>
               </Select>
-            </FilterRow>
+            </Fragment>
           );
         })}
         <span className="text-meta text-fg-3">Contenido</span>
@@ -187,14 +187,5 @@ function FiltersPanel({
         </span>
       </PopoverContent>
     </Popover>
-  );
-}
-
-function FilterRow({ label, children }: { label: string; children: ReactNode }): ReactNode {
-  return (
-    <>
-      <span className="text-meta text-fg-3">{label}</span>
-      {children}
-    </>
   );
 }

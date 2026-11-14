@@ -99,7 +99,7 @@ const ALL_MAPS = '__all__';
 
 type VoiceColumn = { byMatch: VoiceByMatch; onResynced: () => void };
 
-function columns(handlers: RowHandlers, voice: VoiceColumn): DataTableColumn<PartidaRow>[] {
+function columns({ handlers, voice, ownTeam }: { handlers: RowHandlers; voice: VoiceColumn; ownTeam: string | null }): DataTableColumn<PartidaRow>[] {
   return [
     {
       id: 'map',
@@ -135,7 +135,7 @@ function columns(handlers: RowHandlers, voice: VoiceColumn): DataTableColumn<Par
       id: 'score',
       header: 'Marcador',
       // A failed scan says why even over the match of an earlier analysis; a row without a match says why it has none.
-      cell: (row) => (row.match && row.demo.state !== 'failed' ? <Scoreline match={row.match} /> : <DemoStatus row={row} />),
+      cell: (row) => (row.match && row.demo.state !== 'failed' ? <Scoreline match={row.match} ownTeam={ownTeam} /> : <DemoStatus row={row} />),
       sortValue: ({ match }) => (match ? matchScoreMargin(match) : null),
       // The flexible column: it takes the width the others leave and truncates, so the table never outgrows the page.
       className: 'w-full max-w-0',
@@ -235,10 +235,10 @@ function initialView(search: URLSearchParams): TableViewState {
   };
 }
 
-type Loaded = { rows: PartidaRow[]; series: LibrarySeries[]; unlinkedJobs: number; voices: VoiceSummary[]; ownTeam: string | null };
+type Loaded = { rows: PartidaRow[]; series: LibrarySeries[]; unlinkedJobs: number; voices: VoiceSummary[] };
 
 async function loadLibrary(): Promise<Loaded> {
-  const [demos, matches, unlinked, series, voices, teams] = await Promise.all([
+  const [demos, matches, unlinked, series, voices] = await Promise.all([
     listLibraryDemos(),
     listLibraryMatches(),
     // The Crear backlog is a hint; the table stands without it. The web edition runs no Crear jobs.
@@ -247,11 +247,8 @@ async function loadLibrary(): Promise<Loaded> {
     listLibrarySeries().catch((): LibrarySeries[] => []),
     // Voice is an icon on the rows; without it they show none.
     listVoiceSummaries().catch((): VoiceSummary[] => []),
-    // Mi equipo orders the scores and colours the results; without it the scrims guess the team.
-    listLibraryTeams().catch(() => []),
   ]);
-  const ownTeam = teams.find((team) => team.own === true)?.id ?? null;
-  return { rows: buildPartidaRows(demos, matches), series, unlinkedJobs: unlinked.length, voices, ownTeam };
+  return { rows: buildPartidaRows(demos, matches), series, unlinkedJobs: unlinked.length, voices };
 }
 
 /** Partidas: every demo in the library with its match, filterable, importable, and live while scans run. */
@@ -272,6 +269,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const view = useTableView('partidas', initialView(search));
   const [listView, setListView] = useState<LibraryListView>(() => parseListView(search));
   const [povJobs, setPovJobs] = useState<ReadonlySet<string>>(new Set());
+  const [ownTeamMark, setOwnTeamMark] = useState<string | null>(null);
   const pendingRef = useRef(false);
   const pollRef = useRef<() => void>(() => {});
   // Only the newest read may land, so a slow poll that began before an edit cannot undo it.
@@ -288,8 +286,21 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     } catch (error) {
       if (read !== readRef.current) return;
       setReadError(isLibraryOffline(error) ? 'offline' : 'error');
-      setLoaded((current) => current ?? { rows: [], series: [], unlinkedJobs: 0, voices: [], ownTeam: null });
+      setLoaded((current) => current ?? { rows: [], series: [], unlinkedJobs: 0, voices: [] });
     }
+  }, []);
+
+  // Mi equipo is read once, not on every poll; without it the scrims guess the team.
+  useEffect(() => {
+    let active = true;
+    void listLibraryTeams()
+      .then((teams) => {
+        if (active) setOwnTeamMark(teams.find((team) => team.own === true)?.id ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, []);
 
   // The jobs of every demo, joined: the POV read repeats only when the set of jobs changes, not on each poll.
@@ -467,7 +478,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const now = Date.now();
   const seriesById = seriesIndex(loaded.series);
   const voices = voiceIndex(loaded.voices);
-  const ownTeam = ownTeamId({ rows, explicit: loaded.ownTeam });
+  const ownTeam = ownTeamId({ rows, explicit: ownTeamMark });
   const selectedMap = view.state.filters.map ?? FILTER_ANY;
   // Every filter but the map: the chips count over these rows, and the map chip then narrows them.
   const facet = filterRows(rows, { ...view.state.filters, map: FILTER_ANY }, {
@@ -594,7 +605,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
               </>
             ),
           }}
-          columns={columns(handlers, { byMatch: voices, onResynced: () => pollRef.current() })}
+          columns={columns({ handlers, voice: { byMatch: voices, onResynced: () => pollRef.current() }, ownTeam })}
           rowKey={(row) => row.demo.id}
           rowHref={(row) => (row.match ? matchHref(row.match.id) : undefined)}
           view={view}
