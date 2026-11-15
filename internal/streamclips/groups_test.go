@@ -40,10 +40,10 @@ func TestGroupedPlanRendersOneVideoPerGroup(t *testing.T) {
 	if outputs[1].ID != "clip-2" {
 		t.Fatalf("lone output = %q", outputs[1].ID)
 	}
-	if got := plan.Placements()["clip-3"]; got.Video != 1 || got.Videos != 2 || math.Abs(got.MusicOffsetSeconds-10) > 1e-9 {
+	if got := plan.Placements()["clip-3"]; got.Video != 1 || got.Videos != 2 || !got.Joined || math.Abs(got.MusicOffsetSeconds-10) > 1e-9 {
 		t.Fatalf("second member placement = %+v, want video 1 of 2 at 10 s of music", got)
 	}
-	if got := plan.Placements()["clip-2"]; got.Video != 2 || got.MusicOffsetSeconds != 0 {
+	if got := plan.Placements()["clip-2"]; got.Video != 2 || got.MusicOffsetSeconds != 0 || got.Joined {
 		t.Fatalf("lone moment placement = %+v, want video 2 with the music from its start", got)
 	}
 }

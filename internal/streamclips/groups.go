@@ -78,6 +78,8 @@ type ClipPlacement struct {
 	Video              int
 	Videos             int
 	MusicOffsetSeconds float64
+	// Joined is true for a moment that is one part of a joined Short.
+	Joined bool
 }
 
 // Placements maps each clip id to its place. Inside a group the music carries
@@ -88,7 +90,7 @@ func (p EditPlan) Placements() map[string]ClipPlacement {
 	for i, out := range outputs {
 		offset := 0.0
 		for _, clip := range out.Clips {
-			placements[clip.ID] = ClipPlacement{Video: i + 1, Videos: len(outputs), MusicOffsetSeconds: offset}
+			placements[clip.ID] = ClipPlacement{Video: i + 1, Videos: len(outputs), MusicOffsetSeconds: offset, Joined: len(out.Clips) > 1}
 			offset += clip.OutputDurationSeconds()
 		}
 	}

@@ -60,6 +60,9 @@ type FFmpegInputs struct {
 	// MusicOffsetSeconds skips the start of the track so a joined Short's
 	// music runs on across the cut instead of restarting each moment.
 	MusicOffsetSeconds float64
+	// JoinedPart marks one part of a joined Short: the stream-copy join needs
+	// every part to carry the same streams, so a silent probe maps no audio.
+	JoinedPart bool
 }
 
 func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, error) {
@@ -198,7 +201,7 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 			filter += ";[0:a]" + chain + "[a]"
 			audioMap = "[a]"
 		}
-	} else if clip.Edit.speed() != 1 {
+	} else if clip.Edit.speed() != 1 || in.JoinedPart {
 		// A probed-silent source renders without an audio track when speed
 		// changes the timeline: with a correct probe 0:a? maps nothing anyway,
 		// and with a stale probe passing the stream untouched would desync it.

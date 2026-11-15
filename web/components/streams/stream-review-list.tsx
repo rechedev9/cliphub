@@ -141,7 +141,7 @@ function GroupMembers({
       </ol>
       {tooLong ? (
         <p role="status" className="text-body-sm text-warning">
-          Dura más de {SHORT_MAX_SECONDS} s: YouTube no lo publicará como Short.
+          Dura más de {SHORT_MAX_SECONDS / 60} min: YouTube no lo publicará como Short.
         </p>
       ) : null}
       <Button

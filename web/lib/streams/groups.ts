@@ -1,8 +1,8 @@
 import type { StreamClipGroup, StreamClipRange, StreamEditPlan } from '../api/streams.ts';
 import { clipOutputDuration } from './plan.ts';
 
-/** YouTube Shorts length limit; a joined Short past it gets a warning. */
-export const SHORT_MAX_SECONDS = 60;
+/** YouTube Shorts length limit (3 min); a joined Short past it gets a warning. */
+export const SHORT_MAX_SECONDS = 180;
 
 /** One exported video: a lone moment or a group of moments played back to back. */
 export type StreamShort = {

@@ -246,7 +246,7 @@ reads the moments and their speed, audio, fades and text, the groups, the banner
 edit_stream_plan changes them with expected_updated_at set to the updated_at it read (read again if
 the save fails). A group (edit_stream_plan groups) joins 2 or more moments into one Short in its clip_ids
 order, with the same look and music running on; groups [] separates them. shorts says how many videos
-render_stream makes; warn the user when a joined Short passes 60 s, the YouTube Shorts limit. Both renders return a variant for wait_for_stream_render, which reports the percent
+render_stream makes; warn the user when a joined Short passes 3 minutes, the YouTube Shorts limit. Both renders return a variant for wait_for_stream_render, which reports the percent
 and, for render_stream, the video being encoded (video 2 of 3); then list_stream_videos for the
 videos and extra files. list_streams shows the streams already in Studio.
 The library: list_matches reads Partidas as the Studio shows it (kind, has_pov, has_voice, sort, team, opponent and event are its controls; every match says has_voice and voice_sync (auto, manual or unsynced, with voice_note when a recording gave a reason), and sync_voice with auto true is the row's Volver a sincronizar voz; a match in a

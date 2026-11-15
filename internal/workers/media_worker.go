@@ -1517,7 +1517,7 @@ func (w *StreamRenderWorker) render(
 				SourcePath: sourcePath, OutputPath: outPath, MusicPath: musicPath, BannerFontPath: bannerFontPath,
 				KeyDropImagePath: keyDropImagePath, SourceHasAudio: j.Probe.AudioCodec != "", TextOverlayPaths: textPaths,
 				KillFeed: killFeed, SourceWidth: j.Probe.Width, SourceHeight: j.Probe.Height,
-				MusicOffsetSeconds: placements[clip.ID].MusicOffsetSeconds,
+				MusicOffsetSeconds: placements[clip.ID].MusicOffsetSeconds, JoinedPart: placements[clip.ID].Joined,
 			}})
 		if err != nil {
 			return fmt.Errorf("render clip %s: %w", clip.ID, err)

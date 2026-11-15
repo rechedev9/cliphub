@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -545,6 +546,29 @@ func TestBuildFFmpegArgsMusicCarriesOnInsideAJoinedShort(t *testing.T) {
 	want := "[1:a]atrim=start=12.500000,asetpts=PTS-STARTPTS,volume=0.300000[bgm]"
 	if joined := strings.Join(args, " "); !strings.Contains(joined, want) {
 		t.Fatalf("args missing %q: %s", want, joined)
+	}
+}
+
+// A stale silent probe would map real audio into one part and none into a
+// sped-up one, and the stream-copy join would drop the audio after the cut.
+func TestBuildFFmpegArgsJoinedPartOfASilentSourceMapsNoAudio(t *testing.T) {
+	plan := DefaultEditPlan()
+	plan.Clips = []ClipRange{{ID: "clip-001", StartSeconds: 0, EndSeconds: 5}}
+	in := FFmpegInputs{SourcePath: "source.mp4", OutputPath: "out.mp4"}
+	lone, err := BuildFFmpegArgs(in, plan, plan.Clips[0])
+	if err != nil {
+		t.Fatalf("BuildFFmpegArgs error = %v", err)
+	}
+	if !slices.Contains(lone, "0:a?") {
+		t.Fatalf("a lone moment should keep the optional source audio: %v", lone)
+	}
+	in.JoinedPart = true
+	joined, err := BuildFFmpegArgs(in, plan, plan.Clips[0])
+	if err != nil {
+		t.Fatalf("BuildFFmpegArgs error = %v", err)
+	}
+	if slices.Contains(joined, "0:a?") {
+		t.Fatalf("a joined part of a silent source maps audio: %v", joined)
 	}
 }
 
