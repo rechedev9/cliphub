@@ -106,13 +106,16 @@ func TestEditStreamPlanKeepsTheSavedTitleOfReturnedGroups(t *testing.T) {
 func TestRenderStreamCountsAJoinedShortOnce(t *testing.T) {
 	f := &fakeStream{
 		planClips:  `[{"id":"clip-001","start_seconds":10,"end_seconds":20,"title":"Triple"},{"id":"clip-002","start_seconds":30,"end_seconds":40},{"id":"clip-003","start_seconds":50,"end_seconds":60}]`,
-		planGroups: `[{"id":"group-001","clip_ids":["clip-001","clip-003"]}]`,
+		planGroups: `[{"id":"group-001","clip_ids":["clip-003","clip-001"]}]`,
 	}
 	cs := f.connect(t)
 	var ask streamRenderStartOut
 	callTool(t, cs, "render_stream", map[string]any{"id": testStreamID, "variant": "streamer-landscape-16x9"}, &ask)
 	if !ask.NeedsApproval || !strings.Contains(ask.Summary, "Renderizar 2 vídeos") || !strings.Contains(ask.Summary, "3 momentos, algunos unidos") {
 		t.Errorf("summary %q", ask.Summary)
+	}
+	if want := ": clip-003 + Triple (0:50 a 1:00, 0:10 a 0:20); clip-002 (0:30 a 0:40)."; !strings.Contains(ask.Summary, want) {
+		t.Errorf("summary %q does not list the Shorts as %q", ask.Summary, want)
 	}
 }
 

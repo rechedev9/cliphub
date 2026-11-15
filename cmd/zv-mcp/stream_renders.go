@@ -310,7 +310,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 			shorts := planShorts(ids, body.Groups)
 			summary := fmt.Sprintf("Renderizar %s de %s con el diseño %s%s%s: %s. FFmpeg trabajará durante varios minutos.",
 				plural(shorts, "vídeo", "vídeos"), streamName(j), variantLabel(body.Variant, variants),
-				momentOrigin(saved, added, len(in.PlayIDs)), joinedMoments(len(moments), shorts), describeClips(body.Clips))
+				momentOrigin(saved, added, len(in.PlayIDs)), joinedMoments(len(moments), shorts), describeShorts(body.Clips, body.Groups))
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "render_stream", JobID: in.ID, Request: body, Summary: summary, Given: in.Approve})
 			if err != nil {
 				return nil, streamRenderStartOut{}, err
@@ -683,18 +683,53 @@ func saveStreamRenderPlan(ctx context.Context, c *tuiclient.Client, in streamPla
 	return planTime(updatedAt)
 }
 
-func describeClips(clips []planClip) string {
-	parts := make([]string, 0, min(len(clips), maxSummaryPlays+1))
-	for i, c := range clips {
-		switch {
-		case i < maxSummaryPlays:
-			parts = append(parts, fmt.Sprintf("%s (%s a %s)", nonEmptyLabel(cleanName(c.Title), cleanName(c.ID)), clock(c.StartSeconds), clock(c.EndSeconds)))
-		case i == maxSummaryPlays:
-			parts = append(parts, fmt.Sprintf("y %d más", len(clips)-maxSummaryPlays))
+// describeShorts names each video in render order, as streamclips.EditPlan.Outputs builds them:
+// a group sits where its first listed moment is and plays its moments in the group's order.
+func describeShorts(clips []planClip, groups []planGroupArg) string {
+	byID := make(map[string]planClip, len(clips))
+	for _, c := range clips {
+		byID[c.ID] = c
+	}
+	groupOf := map[string]int{}
+	for gi, g := range groups {
+		present := slices.DeleteFunc(slices.Clone(g.ClipIDs), func(id string) bool { _, ok := byID[id]; return !ok })
+		if len(present) < 2 {
+			continue // planShorts counts such a group as loose moments too
+		}
+		for _, id := range present {
+			groupOf[id] = gi
 		}
 	}
-	return strings.Join(parts, "; ")
+	var shorts []string
+	emitted := map[int]bool{}
+	for _, c := range clips {
+		gi, grouped := groupOf[c.ID]
+		if !grouped {
+			shorts = append(shorts, fmt.Sprintf("%s (%s)", clipName(c), clipSpan(c)))
+			continue
+		}
+		if emitted[gi] {
+			continue
+		}
+		emitted[gi] = true
+		var names, spans []string
+		for _, id := range groups[gi].ClipIDs {
+			if m, ok := byID[id]; ok {
+				names, spans = append(names, clipName(m)), append(spans, clipSpan(m))
+			}
+		}
+		title := nonEmptyLabel(cleanName(groups[gi].Title), strings.Join(names, " + "))
+		shorts = append(shorts, fmt.Sprintf("%s (%s)", title, strings.Join(spans, ", ")))
+	}
+	if len(shorts) > maxSummaryPlays {
+		shorts = append(shorts[:maxSummaryPlays], fmt.Sprintf("y %d más", len(shorts)-maxSummaryPlays))
+	}
+	return strings.Join(shorts, "; ")
 }
+
+func clipName(c planClip) string { return nonEmptyLabel(cleanName(c.Title), cleanName(c.ID)) }
+
+func clipSpan(c planClip) string { return clock(c.StartSeconds) + " a " + clock(c.EndSeconds) }
 
 func nonEmptyLabel(label, fallback string) string {
 	if label == "" {
