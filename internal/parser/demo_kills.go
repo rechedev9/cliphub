@@ -313,7 +313,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 			playing := gs.Participants().Playing()
 			alive := alivePlayers(playing)
 			gi.Eco = ecoRound(roundPlayers(playing), e.Killer.Team)
-			gi.AfterPlant = roundLive && planted && e.Killer.Team == common.TeamCounterTerrorists
+			gi.AfterPlant = roundLive && planted
 			if yaw, pitch, ok := safeViewAngles(e.Killer); ok && isGunKill(e.Weapon) && p.TickRate() > 0 {
 				gi.Flick = trail.flick(viewSample{tick: tick, yaw: yaw, pitch: pitch}, int(math.Round(flickWindowSeconds*p.TickRate())))
 			}
@@ -410,7 +410,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		if activeRound > 0 {
 			round = activeRound
 		}
-		c.RecordRoundEnd(RoundEnd{Round: round, Tick: tick, Winner: sideLabel(e.Winner)})
+		c.RecordRoundEnd(RoundEnd{Round: round, Tick: tick, Winner: sideLabel(e.Winner), TargetSide: playerSide(gs.Participants(), targetID)})
 		plantWatch.stop(tick)
 		activeRound = 0
 		roundLive = false

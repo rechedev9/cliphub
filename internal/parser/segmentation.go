@@ -24,7 +24,7 @@ type RawKill struct {
 	ThroughSmoke  bool
 	AttackerBlind bool
 	WinProbSwing  float64
-	// Entry, Flick, Retake and EcoWin mirror killplan.Kill; AfterPlant and Eco feed markRoundResults.
+	// Entry, Flick, Retake and EcoWin mirror killplan.Kill; AfterPlant (killplan PostPlant) and Eco feed markRoundResults.
 	Entry, Flick, Retake, EcoWin bool
 	AfterPlant, Eco              bool
 	Killer                       killplan.Player
@@ -41,6 +41,8 @@ type RoundEnd struct {
 	Tick  int
 	// Winner is CT or T; empty for a draw or an unknown side.
 	Winner string
+	// TargetSide is the target's side at the round end, CT or T; empty when the target was not playing.
+	TargetSide string
 }
 
 // RoundStart marks the tick at which a given round began (CS2 freeze start).
@@ -582,6 +584,7 @@ func buildKillPlanKills(in []RawKill) []killplan.Kill {
 			Flick:         k.Flick,
 			Retake:        k.Retake,
 			EcoWin:        k.EcoWin,
+			PostPlant:     k.AfterPlant,
 			Killer:        k.Killer,
 			Victim:        k.Victim,
 			KillerPos:     k.KillerPos,

@@ -90,6 +90,11 @@ A match summary with the best plays of several teammates (multi-POV): get_match,
 create_multi_pov_job with 2 to 5 SteamID64s of one team, wait_for_job until "parsed", list_moments
 (each play names its player; player filters one), then generate_short with plays whose times do not
 overlap.
+Auto-POV (Elegir automáticamente in that summary): auto_pov_summary picks the players and plays itself, like a
+broadcast observer: the play score plus a clutch, the round's opening duel or chained duels, the bomb planted and
+momentum (a big win-chance swing, a comeback after 3 or more lost rounds, a run of 3 or more), across players within
+target_seconds (default 180; 60 for a Short) and never two players at once. Create the job with the whole team so it
+chooses who appears, then pass its segment_ids to generate_short unchanged.
 list_moments ranks plays by score (kills, clutch size and whether it was won, fast multi-kills, noscopes,
 kills through smoke or while blind, entry (opening kill), retake, eco_win, flick, and win_prob_swing, the round-win chance the play gave); kinds filters by
 those reason codes, as Elegir las mejores and the play filters in Studio do. Format landscape-16x9 with preset gameplay-pov-60 gives the horizontal best-moments video.

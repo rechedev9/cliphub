@@ -32,13 +32,15 @@ export type PlayRowProps = {
   ordinal?: RoundOrdinal;
   /** Name of the player whose chosen play happens at the same time; the row cannot be picked. */
   clashWith?: string;
+  /** Why Elegir automáticamente picked the play; shown while it stays selected. */
+  note?: string;
   /** The format colour of the flow: it marks the selected card. */
   tone?: FormatTone;
   onToggle: () => void;
 };
 
 /** A selectable play card; each selected card shows its output position. */
-export function PlayRow({ play, selected, reelPosition, ordinal, clashWith, tone = 'short', onToggle }: PlayRowProps) {
+export function PlayRow({ play, selected, reelPosition, ordinal, clashWith, note, tone = 'short', onToggle }: PlayRowProps) {
   const blocked = !selected && clashWith !== undefined;
   const toneClasses = FORMAT_TONE[tone];
   return (
@@ -73,6 +75,7 @@ export function PlayRow({ play, selected, reelPosition, ordinal, clashWith, tone
         {blocked ? (
           <span className="text-meta text-fg-3">A la vez que la jugada elegida de {clashWith}</span>
         ) : null}
+        {note && selected ? <span className="text-meta text-fg-2">{note}</span> : null}
         {playSourceRange(play) ? <span className="font-mono text-meta text-fg-3">Demo {playSourceRange(play)}</span> : null}
       </span>
 

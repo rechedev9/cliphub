@@ -22,6 +22,15 @@ type Plan struct {
 	Rules         any       `json:"rules,omitempty"`
 	Segments      []Segment `json:"segments"`
 	Stats         Stats     `json:"stats"`
+	// Rounds is each round's winner and the target's side, in round order; kill plans only.
+	Rounds []RoundResult `json:"rounds,omitempty"`
+}
+
+// RoundResult is how one round ended. TargetSide is empty when the target was not playing at the end.
+type RoundResult struct {
+	Number     int    `json:"number"`
+	Winner     string `json:"winner"`
+	TargetSide string `json:"target_side,omitempty"`
 }
 
 // Demo holds metadata about the source demo file.
@@ -97,6 +106,8 @@ type Kill struct {
 	// Retake is a CT kill after the plant in a round CT won; EcoWin a kill in a round won on a clearly smaller buy.
 	Retake bool `json:"retake,omitempty"`
 	EcoWin bool `json:"eco_win,omitempty"`
+	// PostPlant is a kill in a live round with the bomb planted, by either side.
+	PostPlant bool `json:"post_plant,omitempty"`
 }
 
 // Clutch results a Kill carries.

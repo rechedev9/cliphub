@@ -104,6 +104,37 @@ func TestMarkRoundResultsFindsRetakesAndEcoWins(t *testing.T) {
 	}
 }
 
+func TestRoundResultsKeepTheFirstKnownWinnerInRoundOrder(t *testing.T) {
+	got := roundResults([]RoundEnd{
+		{Round: 2, Winner: "T", TargetSide: "CT"},
+		{Round: 1, Winner: "CT", TargetSide: "CT"},
+		{Round: 2, Winner: "CT", TargetSide: "CT"},
+		{Round: 3},
+		{Round: 0, Winner: "T"},
+		{Round: 4, Winner: "T"},
+	})
+	want := []killplan.RoundResult{{Number: 1, Winner: "CT", TargetSide: "CT"}, {Number: 2, Winner: "T", TargetSide: "CT"}, {Number: 4, Winner: "T"}}
+	if len(got) != len(want) {
+		t.Fatalf("roundResults = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("round %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestPostPlantKillOfTheAttackersIsNoRetake(t *testing.T) {
+	kills := []RawKill{{Round: 1, Killer: killplan.Player{TeamAtKill: "T"}, AfterPlant: true}}
+	markRoundResults(kills, []RoundEnd{{Round: 1, Winner: "T"}})
+	if kills[0].Retake {
+		t.Fatal("a T kill after the plant in a round T won is not a retake")
+	}
+	if got := buildKillPlanKills(kills); !got[0].PostPlant {
+		t.Fatal("the kill plan must keep the post-plant flag of either side")
+	}
+}
+
 func TestOpeningCandidateNeedsTwoEnemies(t *testing.T) {
 	ct := &common.Player{SteamID64: 1, Team: common.TeamCounterTerrorists}
 	ct2 := &common.Player{SteamID64: 2, Team: common.TeamCounterTerrorists}

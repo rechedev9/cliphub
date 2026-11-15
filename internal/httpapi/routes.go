@@ -104,6 +104,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Post("/api/jobs/{id}/record", h.StartRecording)
 	r.Post("/api/jobs/{id}/generate", h.StartGenerate)
 	r.Get("/api/jobs/{id}/shorts-batch", h.GetShortsBatch)
+	r.Get("/api/jobs/{id}/auto-pov", h.GetAutoPOV)
 	r.Post("/api/jobs/{id}/compose", h.StartComposition)
 	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
 	r.Get("/api/jobs/{id}/renders/{variant}", h.GetRenderVariant)

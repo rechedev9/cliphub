@@ -2,7 +2,9 @@ package parser
 
 import (
 	"math"
+	"sort"
 
+	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
 
@@ -120,6 +122,34 @@ func angleDelta(a, b float64) float64 {
 		d += 360
 	}
 	return d
+}
+
+// playerSide is the side of player id among the playing players, CT or T; empty when they are not playing.
+func playerSide(ps demoinfocs.Participants, id uint64) string {
+	if ps == nil {
+		return ""
+	}
+	for _, p := range ps.Playing() {
+		if p != nil && p.SteamID64 == id {
+			return sideLabel(p.Team)
+		}
+	}
+	return ""
+}
+
+// roundResults lists each round's first known winner, with the target's side at that round end, in round order.
+func roundResults(roundEnds []RoundEnd) []killplan.RoundResult {
+	seen := make(map[int]bool, len(roundEnds))
+	var out []killplan.RoundResult
+	for _, re := range roundEnds {
+		if re.Round <= 0 || re.Winner == "" || seen[re.Round] {
+			continue
+		}
+		seen[re.Round] = true
+		out = append(out, killplan.RoundResult{Number: re.Round, Winner: re.Winner, TargetSide: re.TargetSide})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
+	return out
 }
 
 // markRoundResults sets what each kill's round result decides: the clutch

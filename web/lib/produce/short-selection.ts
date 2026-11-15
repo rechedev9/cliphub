@@ -23,7 +23,9 @@ export function estimatedPlaySeconds(play: PlayTiming): number {
 export const VICTIM_REPLAY_SECONDS = 7;
 const VICTIM_REPLAY_CAPTURE_SECONDS = 3.5;
 
-function replaySeconds(options: ReplayOption): number {
+/** What a victim replay adds to each play at the chosen speed; 0 with the replay off. */
+export function victimReplaySeconds(options: ReplayOption): number {
+  if (!options.victimReplay) return 0;
   return options.victimReplaySpeed ? VICTIM_REPLAY_CAPTURE_SECONDS / options.victimReplaySpeed : VICTIM_REPLAY_SECONDS;
 }
 
@@ -33,7 +35,7 @@ export function estimatedSelectionSeconds(plays: ReadonlyArray<PlayTiming>, opti
 
 /** Accumulate the displayed precision as integers so an exact minute stays within budget. */
 function estimatedPlayTenths(play: PlayTiming, options: ReplayOption): number {
-  const replay = options.victimReplay && play.victimReplay !== false ? replaySeconds(options) : 0;
+  const replay = play.victimReplay !== false ? victimReplaySeconds(options) : 0;
   return Math.round((estimatedPlaySeconds(play) + replay) * 10);
 }
 

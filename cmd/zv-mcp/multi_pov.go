@@ -15,9 +15,10 @@ type createMultiPOVIn struct {
 }
 
 func registerMultiPOVTools(server *mcp.Server, s *studio) {
+	registerAutoPOVTool(server, s)
 	mcp.AddTool(server, &mcp.Tool{Name: "create_multi_pov_job",
 		Description: "Create one video job from a library demo for several teammates at once (2 to 5 players of one team), for a match summary with the best plays of each. " +
-			"Follow with wait_for_job until \"parsed\", then list_moments: every play names its player. generate_short then mixes their plays in one Short; " +
+			"Follow with wait_for_job until \"parsed\", then list_moments (every play names its player) or auto_pov_summary to pick the players and plays automatically. generate_short then mixes their plays in one Short; " +
 			"format landscape-16x9 with preset gameplay-pov-60 makes the horizontal best-moments video. Full Demo needs a single-player job."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in createMultiPOVIn) (*mcp.CallToolResult, jobOut, error) {
 			if err := checkUUID("demo_id", in.DemoID); err != nil {

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, RefreshCw, Zap } from 'lucide-react';
+import { ChevronRight, Clapperboard, RefreshCw, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { parseFailureReason } from '@/lib/api/failure-reason';
@@ -13,6 +13,7 @@ import { FORGE_HINT_LOADING_PRESETS, forgeHint } from '@/lib/forge-hint';
 import { shortCreateErrorMessage } from '@/lib/produce/short-create-error';
 import { PRODUCE_SHORT_CTA, PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE, PRODUCE_SUMMARY_CTA, PRODUCE_SUMMARY_TITLE } from '@/lib/produce/copy';
 import { addWithoutClashes, BEST_MOMENTS_TARGET_SECONDS, bestMomentsEdit, clashingPlay } from '@/lib/produce/multi-pov';
+import { autoPovNotes, autoPovSummary, fetchAutoPov } from '@/lib/produce/auto-pov';
 import { defaultShortSettings } from '@/lib/produce/short-draft';
 import { filterPlays, NO_PLAY_FILTER, playFilterOptions, type PlayFilter } from '@/lib/produce/play-filter';
 import { useShortDraft } from '@/hooks/use-short-draft';
@@ -23,6 +24,7 @@ import {
   roundsSummary,
   selectionTimeline,
   SHORT_TARGET_SECONDS,
+  victimReplaySeconds,
 } from '@/lib/produce/short-selection';
 import { canForgeReel, constrainEditConfig, reelCreativeBrief, verticalHudAllowed, withPresetLimits, type MusicBrief } from '@/lib/reel-brief';
 import { radarAllowed } from '@/lib/radar-overlay';
@@ -97,6 +99,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const [stylesOpen, setStylesOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  // Elegir automáticamente: the picked ids, a summary of who got plays and each play's reason.
+  const [autoPov, setAutoPov] = useState<{ ids: string[]; summary: string; notes: Map<string, string> } | null>(null);
+  const [directing, setDirecting] = useState(false);
   const busy = creating || !loaded;
   const [playFilter, setPlayFilter] = useState<PlayFilter>(NO_PLAY_FILTER);
   const filterOptions = useMemo(() => playFilterOptions(plays), [plays]);
@@ -136,6 +141,8 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
     }
     return out;
   }, [plays, selectedIds]);
+  // The summary stays only while the selection is still the automatic one.
+  const autoPovNote = autoPov !== null && autoPov.ids.length === selectedIds.size && autoPov.ids.every((id) => selectedIds.has(id)) ? autoPov.summary : null;
   const selectedPreset = visiblePresets?.find((preset) => preset.name === variant) ?? null;
   const presetLabel = selectedPreset?.label ?? null;
   // A Full HUD style keeps the draft's vertical HUD but never sends it.
@@ -155,6 +162,28 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
       else if (!clashes.has(playId)) next.add(playId);
       return { selectedIds: [...next] };
     });
+  }
+
+  // Auto-POV: Studio picks the players and plays like an observer, within the video's length and never two POVs at once.
+  async function chooseAutomatically(): Promise<void> {
+    if (busy || directing) return;
+    setDirecting(true);
+    try {
+      const direction = await fetchAutoPov(matchId, { targetSeconds, extraSeconds: victimReplaySeconds(replay) });
+      const known = new Set(killPlays.map((play) => play.id));
+      const ids = direction.segmentIds.filter((id) => known.has(id));
+      if (ids.length === 0) {
+        toast('Ninguna jugada para el resumen', { description: 'Estos jugadores no tienen kills en la demo. Elige las jugadas a mano.' });
+        return;
+      }
+      setPlayFilter(NO_PLAY_FILTER);
+      updateSettings({ selectedIds: ids });
+      setAutoPov({ ids, summary: autoPovSummary(direction), notes: autoPovNotes(direction) });
+    } catch {
+      toast.error('No se pudo elegir automáticamente', { description: 'Studio no ha respondido. Prueba de nuevo o elige las jugadas a mano.' });
+    } finally {
+      setDirecting(false);
+    }
   }
 
   function changeEditConfig(next: EditConfig): void {
@@ -272,6 +301,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
                   : `El jugador no hace kills en ${focusRounds.length === 1 ? 'la ronda' : 'las rondas'} ${roundListLabel(focusRounds)}: va la selección automática.`}
               </p>
             ) : null}
+            {autoPovNote ? (
+              <p role="status" className="text-body-sm text-fg-2">Elección automática: {autoPovNote}</p>
+            ) : null}
             {restored ? (
               <p role="status" className="text-body-sm text-fg-2">
                 {PRODUCE_SHORT_DRAFT_RESTORED}{' '}
@@ -297,6 +329,11 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             toolbar={<div className="flex flex-wrap gap-2">
               <Button type="button" size="xs" variant="outline" disabled={busy || visiblePlays.length === 0}
                 onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true, victimReplaySpeed: editConfig.victimReplaySpeed, targetSeconds })] })}><Zap aria-hidden />{deathReel ? `Ajustar a ${targetMinutes} min` : `Elegir las mejores (${targetMinutes} min)`}</Button>
+              {multiPov && !deathReel ? (
+                <Button type="button" size="xs" variant="outline" disabled={busy || killPlays.length === 0} loading={directing} loadingText="Eligiendo…"
+                  title="Elige jugadores y jugadas como un observador: clutches, duelos, la bomba y las rachas, sin dos vistas a la vez."
+                  onClick={() => void chooseAutomatically()}><Clapperboard aria-hidden />Elegir automáticamente</Button>
+              ) : null}
               {!landscape && !deathReel ? <AutoShortsDialog matchId={matchId} plays={killPlays} disabled={busy || selectedPreset === null} creating={creating} onCreate={(ids) => void onCreateAutoShorts(ids)} /> : null}
             </div>}
             filters={<PlayFilters options={filterOptions} value={playFilter} disabled={busy} onChange={setPlayFilter} />}
@@ -306,6 +343,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             }
             counter={<span className="tabular-nums">{selectedPlays.length} de {plays.length}</span>}
             clashes={multiPov ? clashes : undefined}
+            notes={autoPov?.notes}
             onToggle={toggleSelect}
             onSelectAll={() => !busy && updateSettings({ selectedIds: addWithoutClashes(selectedPlays, visiblePlays).map((play) => play.id) })}
             onClear={() => !busy && updateSettings({ selectedIds: [] })}
