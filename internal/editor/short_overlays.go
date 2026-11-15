@@ -21,6 +21,8 @@ const (
 type ShortOverlays struct {
 	// PlayBadges names each play's clutch, ace or multikill right after its last kill.
 	PlayBadges bool `json:"play_badges,omitempty"`
+	// WinProbability holds each segment's post-plant win chance on its own clock.
+	WinProbability map[string][]WinProbCue `json:"win_probability,omitempty"`
 	// StatsCard closes a 9:16 Short with the player's match stats.
 	StatsCard *StatsCard `json:"stats_card,omitempty"`
 	// Watermark and Banner are the creator's brand kit, prepared by prepareBrandOverlays.

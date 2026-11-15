@@ -61,7 +61,7 @@ func (r *Renderer) ASS(d Timeline, window Window) (string, error) {
 		return "", fmt.Errorf("HUD telemetry does not cover the render window")
 	}
 	// Round kills and streaks depend on every earlier snapshot, not only the window.
-	tracker := &roundTracker{}
+	tracker := &roundTracker{mapName: d.Map, tickRate: d.TickRate}
 	first := 0
 	var initial Snapshot
 	for ; first < len(d.Snapshots) && d.Snapshots[first].Tick <= startTick; first++ {

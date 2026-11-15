@@ -5,7 +5,7 @@ export type HudStyle = { name: string; ct: string; t: string; background: string
 /** Mirrors hudthemes.Theme: a catalog design (base) copied with the user's style. */
 export type UserHudTheme = HudStyle & { id: string; base: string };
 /** Mirrors customhud.Options, the composition switches of overlays.hud_options. */
-export type HudOptions = { compact_header?: boolean; hide_loadout?: boolean; round_win_banner?: boolean };
+export type HudOptions = { compact_header?: boolean; hide_loadout?: boolean; round_win_banner?: boolean; win_probability?: boolean };
 /** Mirrors customhud.Teams: names by the side each team started on. */
 export type HudTeamNames = { ct_start?: string; t_start?: string };
 
@@ -29,7 +29,7 @@ export function isHudStyle(value: unknown): value is HudStyle {
 }
 
 export function isHudOptions(value: unknown): value is HudOptions {
-  return record(value) && Object.entries(value).every(([key, flag]) => ['compact_header', 'hide_loadout', 'round_win_banner'].includes(key) && typeof flag === 'boolean');
+  return record(value) && Object.entries(value).every(([key, flag]) => ['compact_header', 'hide_loadout', 'round_win_banner', 'win_probability'].includes(key) && typeof flag === 'boolean');
 }
 
 export function isHudTeamNames(value: unknown): value is HudTeamNames {
@@ -81,6 +81,7 @@ export function hudPreviewUrl({ base, style, options, names }: { base: string; s
   if (options?.compact_header) query.set('compact_header', '1');
   if (options?.hide_loadout) query.set('hide_loadout', '1');
   if (options?.round_win_banner) query.set('round_win_banner', '1');
+  if (options?.win_probability) query.set('win_probability', '1');
   if (names?.ct_start) query.set('ct_name', names.ct_start);
   if (names?.t_start) query.set('t_name', names.t_start);
   return `${HUD_THEMES_API}/preview?${query.toString()}`;

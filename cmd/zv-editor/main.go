@@ -100,6 +100,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		victimReplay        = fs.Bool("victim-replay", false, "append each short's victim POV replay in slow motion when the capture has one")
 		victimReplaySpeed   = fs.Float64("victim-replay-speed", 0, "victim replay speed: 0.25, 0.5 or 1; 0 keeps half speed")
 		playBadges          = fs.Bool("play-badges", false, "name each play's clutch, ace or multikill on screen")
+		winProbability      = fs.Bool("win-probability", false, "show each side's post-plant round-win chance from the kill plan")
 		statsCard           = fs.String("stats-card", "", "optional stats card JSON drawn at the end of a 9:16 short")
 		watermarkImage      = fs.String("watermark-image", "", "optional PNG or JPG logo drawn as a watermark for the whole short")
 		watermarkCorner     = fs.String("watermark-corner", "top-right", "watermark corner: top-left, top-right, bottom-left or bottom-right")
@@ -223,6 +224,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		VictimReplay:          *victimReplay,
 		VictimReplaySpeed:     *victimReplaySpeed,
 		PlayBadges:            *playBadges,
+		WinProbability:        *winProbability,
 		StatsCardPath:         *statsCard,
 		Watermark:             brandWatermarkFlag(*watermarkImage, *watermarkCorner, *watermarkOpacity),
 		SponsorBanner:         sponsorBannerFlag(*sponsorImage, *sponsorStart, *sponsorEnd),

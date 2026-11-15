@@ -142,6 +142,7 @@ const SWITCHES: readonly { key: keyof HudOptions; label: string; detail: string 
   { key: 'compact_header', label: 'Cabecera compacta', detail: 'Quita las fichas de los diez jugadores de arriba y deja el marcador.' },
   { key: 'hide_loadout', label: 'Ocultar inventario', detail: 'Sin el arma ni la munición del jugador grabado.' },
   { key: 'round_win_banner', label: 'Mensaje de ronda ganada', detail: 'Al cerrar cada ronda, el equipo que la gana bajo el marcador.' },
+  { key: 'win_probability', label: 'Probabilidad de victoria', detail: 'Tras el plantado, el % de victoria de cada equipo bajo el marcador, con 5 s o más de bomba y 2 o más vivos por bando.' },
 ];
 
 /** The composition switches of overlays.hud_options and the team names of the scoreboard. */

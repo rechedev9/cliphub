@@ -99,8 +99,8 @@ func TestStatsCardFACEITNeedsData(t *testing.T) {
 
 func TestShortOverlayArgs(t *testing.T) {
 	t.Parallel()
-	got := shortOverlayArgs(renderplan.EditRequest{VictimReplay: true, VictimReplaySpeed: 0.25, PlayBadges: true})
-	want := []string{"--victim-replay", "--victim-replay-speed", "0.25", "--play-badges"}
+	got := shortOverlayArgs(renderplan.EditRequest{VictimReplay: true, VictimReplaySpeed: 0.25, PlayBadges: true, WinProbability: true})
+	want := []string{"--victim-replay", "--victim-replay-speed", "0.25", "--play-badges", "--win-probability"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("args = %q, want %q", got, want)
 	}

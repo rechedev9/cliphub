@@ -59,6 +59,7 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Transición', value: 'Destello' },
     { label: 'Título / contador', value: 'Título automático · Contador activado' },
     { label: 'Insignias / tarjeta', value: 'Sin insignias · Sin tarjeta' },
+    { label: 'Prob. de victoria', value: 'No' },
     { label: 'Intro', value: 'Sí · «Entrada»' },
     { label: 'Outro', value: 'No' },
     { label: 'Afiliado', value: 'No' },

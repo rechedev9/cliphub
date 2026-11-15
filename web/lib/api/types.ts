@@ -273,6 +273,8 @@ export type EditConfig = {
   victimReplaySpeed?: VictimReplaySpeed;
   /** A badge naming each play's clutch, ace or multikill. */
   playBadges?: boolean;
+  /** Each team's round-win chance after the plant, from the kill plan. */
+  winProbability?: boolean;
   /** 9:16 only: a closing card with the player's match stats and FACEIT data when known. */
   statsCard?: boolean;
   /** Shorts only: the brand kit's logo as a watermark; the render copies the saved kit. */

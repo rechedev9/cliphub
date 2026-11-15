@@ -225,7 +225,7 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 		if err := verifyFullDemoCapturedInputs(ctx, recordingResult.Artifacts, recordingBaseDir, ffprobePath, cfg.DryRun); err != nil {
 			return runInputs{}, err
 		}
-		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.PlayBadges || cfg.StatsCardPath != "" || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" || cfg.Watermark != nil || cfg.SponsorBanner != nil {
+		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.PlayBadges || cfg.WinProbability || cfg.StatsCardPath != "" || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" || cfg.Watermark != nil || cfg.SponsorBanner != nil {
 			return runInputs{}, fmt.Errorf("full demo execution cannot be overridden by legacy editorial flags")
 		}
 		if coversEnabled != (fullDemoExecution.Approved.Document.Options.Outputs.CoverPolicy != "no-cover") {
@@ -248,6 +248,9 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 		fullDemoOverlay = &doc
 	}
 	overlays := ShortOverlays{PlayBadges: cfg.PlayBadges}
+	if cfg.WinProbability {
+		overlays.WinProbability = winProbCues(recordingResult.Plan)
+	}
 	if overlays.Watermark, overlays.Banner, err = prepareBrandOverlays(cfg.Watermark, cfg.SponsorBanner, outDir); err != nil {
 		return runInputs{}, err
 	}

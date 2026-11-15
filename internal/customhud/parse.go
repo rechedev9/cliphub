@@ -64,6 +64,7 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 	identities := map[string]Player{}
 	var defuse *Defuse
 	var mvp *MVP
+	var plantTick int
 	mvps := map[string]int{}
 	var failure error
 	var movement movementCommands
@@ -97,7 +98,7 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 		currentRound = 0
 		phase = "unknown"
 		lastTick = -1
-		defuse, mvp, mvps = nil, nil, map[string]int{}
+		defuse, mvp, mvps, plantTick = nil, nil, map[string]int{}, 0
 	})
 	p.RegisterEventHandler(func(events.RoundStart) {
 		gs := p.GameState()
@@ -106,7 +107,7 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 		}
 		currentRound = gs.TotalRoundsPlayed() + 1
 		phase = "freeze"
-		defuse, mvp = nil, nil
+		defuse, mvp, plantTick = nil, nil, 0
 	})
 	p.RegisterEventHandler(func(events.RoundFreezetimeEnd) {
 		gs := p.GameState()
@@ -118,7 +119,7 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 	})
 	p.RegisterEventHandler(func(events.BombPlanted) {
 		if phase != "ended" {
-			phase = "planted"
+			phase, plantTick = "planted", p.GameState().IngameTick()
 		}
 	})
 	p.RegisterEventHandler(func(e events.BombDefuseStart) {
@@ -176,6 +177,9 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 		if phase != "ended" {
 			mvp = nil
 		}
+		if (phase == "planted" || phase == "defusing") && plantTick > 0 && plantTick <= tick && tick-plantTick <= 120*tickRate {
+			s.PlantTick = plantTick
+		}
 		if team := gs.TeamCounterTerrorists(); team != nil {
 			s.CTScore = team.Score()
 			s.CTName = cleanText(team.ClanName(), 64)
@@ -206,6 +210,10 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 				player.Kills = pl.Kills()
 				player.Deaths = pl.Deaths()
 				player.Assists = pl.Assists()
+				if phase != "freeze" {
+					// During freeze time the pawn still holds the previous round's value.
+					player.Equip = min(100000, max(0, pl.EquipmentValueFreezeTimeEnd()))
+				}
 				if player.SteamID == target && player.Alive {
 					player.Movement = movement.at(pl.Entity.ID(), serverTick)
 					if player.Movement == nil {
@@ -392,6 +400,9 @@ type roundTracker struct {
 	streak          int
 	startSide       map[string]string
 	winner          string
+	// mapName and tickRate let the tracker read the post-plant win chance.
+	mapName  string
+	tickRate int
 }
 
 func (t *roundTracker) next(s Snapshot) Snapshot {
@@ -428,6 +439,7 @@ func (t *roundTracker) next(s Snapshot) Snapshot {
 		s.Winner = t.winner
 	}
 	t.sides(&s)
+	s.WinCT = postPlantWinCT(s, t.mapName, t.tickRate)
 	s.Streak = Streak{}
 	if t.streak > 0 {
 		sides := map[string]int{}

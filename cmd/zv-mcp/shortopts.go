@@ -76,6 +76,7 @@ var toggleOptions = []shortToggle{
 	{ID: "hook_text", Label: "Título automático", Description: "Texto gancho al inicio del vídeo"},
 	{ID: "kill_counter", Label: "Contador de kills", Description: "Contador de bajas visible durante la jugada"},
 	{ID: "play_badges", Label: "Insignias de jugada", Description: "Nombra el clutch (1vX, ganado si se sabe), el ace o la multikill de cada jugada"},
+	{ID: "win_probability", Label: "Probabilidad de victoria", Description: "Tras el plantado, el % de victoria de cada equipo (con 5 s o más de bomba y 2 o más vivos por bando)"},
 	{ID: "stats_card", Label: "Tarjeta de estadísticas", Description: "Cierra el Short con K/D, ADR, HS % y rating de ClipHub del jugador, y su nivel FACEIT si lo hay (solo 9:16)"},
 	{ID: "centered_killfeed", Label: "Kill feed centrada arriba", Description: "Dibuja tus kills en el centro, arriba del Short (solo 9:16)"},
 	{ID: "voice_comms", Label: "Comms del equipo", Description: "Mezcla las voces del equipo en el audio"},
@@ -160,8 +161,9 @@ type shortChoices struct {
 	BannerStart      *float64 `json:"banner_start_seconds,omitempty" jsonschema:"second of the Short when the banner appears; default 0"`
 	BannerEnd        *float64 `json:"banner_end_seconds,omitempty" jsonschema:"second of the Short when the banner leaves; default 4"`
 
-	PlayBadges *bool `json:"play_badges,omitempty" jsonschema:"badge naming each play's clutch (1vX, GANADO when the round was won), ace or multikill; default false"`
-	StatsCard  *bool `json:"stats_card,omitempty" jsonschema:"closing card with the player's K/D, ADR, HS% and ClipHub rating (never an HLTV rating), plus FACEIT level, win rate and best map when FACEIT has them; short-9x16 only; default false"`
+	PlayBadges     *bool `json:"play_badges,omitempty" jsonschema:"badge naming each play's clutch (1vX, GANADO when the round was won), ace or multikill; default false"`
+	WinProbability *bool `json:"win_probability,omitempty" jsonschema:"after the plant, each team's round-win chance (ClipHub's wp1 model) while the bomb has 5 s or more left and each side has 2 or more alive; plays from jobs parsed before this option show nothing; default false"`
+	StatsCard      *bool `json:"stats_card,omitempty" jsonschema:"closing card with the player's K/D, ADR, HS% and ClipHub rating (never an HLTV rating), plus FACEIT level, win rate and best map when FACEIT has them; short-9x16 only; default false"`
 	// VictimReplaySpeed is rejected without victim_replay.
 	VictimReplaySpeed *float64 `json:"victim_replay_speed,omitempty" jsonschema:"victim replay speed: 0.25, 0.5 or 1; needs victim_replay; default 0.5"`
 	BrandWatermark    *bool    `json:"brand_watermark,omitempty" jsonschema:"draw the channel logo of the brand kit (get_brand_kit) as a watermark in its corner and opacity; needs a saved logo; default false"`
@@ -292,6 +294,7 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 		return edit, fmt.Errorf("centered_killfeed needs format short-9x16")
 	}
 	edit.PlayBadges, edit.StatsCard = orDefault(c.PlayBadges, false), orDefault(c.StatsCard, false)
+	edit.WinProbability = orDefault(c.WinProbability, false)
 	if edit.StatsCard && edit.Format != "short-9x16" {
 		return edit, fmt.Errorf("stats_card needs format short-9x16")
 	}
@@ -433,7 +436,7 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	for _, x := range []struct {
 		name string
 		on   bool
-	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter}, {"play_badges", e.PlayBadges}, {"stats_card", e.StatsCard}, {"centered_killfeed", e.CenteredKillfeed},
+	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter}, {"play_badges", e.PlayBadges}, {"win_probability", e.WinProbability}, {"stats_card", e.StatsCard}, {"centered_killfeed", e.CenteredKillfeed},
 		{"voice_comms", e.VoiceComms}, {"native_hud", e.NativeHUD}, {"victim_replay", e.VictimReplay}, {"cover", e.CoverStrategy == coverGenerated},
 		{"brand_watermark", e.BrandWatermark}, {"brand_banner", e.BrandBanner}} {
 		if x.on {

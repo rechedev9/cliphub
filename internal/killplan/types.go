@@ -58,6 +58,17 @@ type Segment struct {
 	Death *Kill `json:"death,omitempty"`
 	// POV is the player filmed in a multi-POV plan; nil means the plan target.
 	POV *Target `json:"pov,omitempty"`
+	// WinProb is the post-plant round-win chance inside the window, for the Short overlay.
+	WinProb []WinProbSpan `json:"win_prob,omitempty"`
+}
+
+// WinProbSpan is the post-plant win chance over a tick range (tacticalplan wp1). It
+// exists only while the bomb has 5 s or more left and each side has 2 or more alive.
+type WinProbSpan struct {
+	TickStart int `json:"tick_start"`
+	TickEnd   int `json:"tick_end"`
+	// CTPct is the CT side's chance in whole percent; T has the rest.
+	CTPct int `json:"ct_pct"`
 }
 
 // Kill captures the metadata downstream stages need to choose effects

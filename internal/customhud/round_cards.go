@@ -46,6 +46,9 @@ func (s *scene) roundFacts(state Snapshot, ct, tr []Player) {
 	if state.Phase == "defusing" && state.Defuse != nil {
 		s.defusePanel(*state.Defuse)
 	}
+	if s.r.Options.WinProbability && state.WinCT > 0 {
+		s.winChance(state.WinCT)
+	}
 	if state.Phase == "ended" && state.Winner != "" && s.r.Options.RoundWinBanner {
 		s.roundWinBanner(state)
 	}

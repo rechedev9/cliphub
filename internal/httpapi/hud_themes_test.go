@@ -54,6 +54,9 @@ func TestHUDThemesDuplicateEditDeleteAndPreview(t *testing.T) {
 	if rw.Code != http.StatusOK || rw.Header().Get("Content-Type") != "image/svg+xml" || !strings.Contains(body, "#112233") || !strings.Contains(body, "SPIRIT") || !strings.Contains(body, "WINS THE ROUND") {
 		t.Fatalf("preview = %d %s, %.200s", rw.Code, rw.Header().Get("Content-Type"), body)
 	}
+	if rw := env.do(http.MethodGet, "/api/full-demo/hud-themes/preview?base=arena&ct=112233&t=445566&background=000000&win_probability=1", nil, ""); rw.Code != http.StatusOK || !strings.Contains(rw.Body.String(), "WIN PROBABILITY") || !strings.Contains(rw.Body.String(), "38%") {
+		t.Fatalf("win probability preview = %d, want the post-plant panel", rw.Code)
+	}
 	if rw := env.do(http.MethodGet, "/api/full-demo/hud-themes/preview?base=arena&ct=zz&t=445566&background=000000", nil, ""); rw.Code != http.StatusBadRequest {
 		t.Fatalf("bad preview colour = %d, want 400", rw.Code)
 	}

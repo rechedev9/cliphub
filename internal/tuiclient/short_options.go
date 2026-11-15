@@ -50,6 +50,8 @@ type ShortEdit struct {
 	VictimReplaySpeed float64 `json:"victim_replay_speed,omitempty"`
 	PlayBadges        bool    `json:"play_badges,omitempty"`
 	StatsCard         bool    `json:"stats_card,omitempty"`
+	// WinProbability shows each side's post-plant round-win chance.
+	WinProbability bool `json:"win_probability,omitempty"`
 	// BrandWatermark and BrandBanner draw the saved brand kit (GetBrandKit).
 	BrandWatermark bool `json:"brand_watermark,omitempty"`
 	BrandBanner    bool `json:"brand_banner,omitempty"`

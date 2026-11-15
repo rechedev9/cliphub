@@ -54,6 +54,9 @@ generate_short also takes the music and game volume, the opening and closing tex
 It also takes play_badges (a badge for each clutch, ace or multikill), stats_card (a closing 9:16 card with the
 player's K/D, ADR, HS% and ClipHub rating, never an HLTV rating, plus FACEIT level, win rate and best map when FACEIT
 has them) and victim_replay_speed (0.25, 0.5 or 1, with victim_replay).
+win_probability (generate_short) and plan_full_demo win_probability (custom HUD) show each team's round-win chance
+after the plant, from ClipHub's own wp1 model, only while the bomb has 5 s or more left and each side has 2 or more
+alive; in a Short it needs a job parsed with this version, and it hides whenever a fact is missing.
 The brand kit (get_brand_kit, save_brand_kit) keeps the channel logo, drawn as a watermark in a corner with an
 opacity, and an own sponsor banner with a time window. generate_short and plan_full_demo take brand_watermark and
 brand_banner to apply it; the render copies the kit, and brand_banner does not go with the affiliate banner.
@@ -62,7 +65,7 @@ Every custom HUD design also draws round facts from the demo: players alive per 
 3K/4K/ACE, the defuse bar with or without kit and the round MVP (list_hud_themes shows).
 The user's own HUD themes (list_hud_themes custom) copy a catalog design with other colours and corner radius:
 save_hud_theme creates or edits one (up to 10), delete_hud_theme removes one, and its id goes in plan_full_demo hud.
-plan_full_demo also takes compact_header, hide_inventory, round_win_banner and the team names team_ct_start and
+plan_full_demo also takes compact_header, hide_inventory, round_win_banner, win_probability and the team names team_ct_start and
 team_t_start for the custom HUD scoreboard; they change only the render, never the capture.
 plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for the focus HUD and intro,
 sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.

@@ -68,6 +68,8 @@ type EditRequest struct {
 	VictimReplaySpeed float64 `json:"victim_replay_speed,omitempty"`
 	// PlayBadges names each clutch, ace and multikill on screen.
 	PlayBadges bool `json:"play_badges,omitempty"`
+	// WinProbability shows each side's post-plant round-win chance from the kill plan.
+	WinProbability bool `json:"win_probability,omitempty"`
 	// StatsCard ends a 9:16 Short with the player's match stats and, when known, FACEIT data.
 	StatsCard           bool     `json:"stats_card,omitempty"`
 	CenteredKillfeed    bool     `json:"centered_killfeed,omitempty"`
@@ -145,10 +147,11 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 		req.KeyDropFamily = keydropbanner.FamilyKeyDrop
 	}
 	if req.DeathReel {
-		// The hook, the counter, the badges, the victim replay and the centered kill feed need kills; death clips have none.
+		// The hook, the counter, the badges, the win chance, the victim replay and the centered kill feed need kill segments.
 		req.HookText = false
 		req.KillCounter = false
 		req.PlayBadges = false
+		req.WinProbability = false
 		req.VictimReplay = false
 		req.CenteredKillfeed = false
 	}
@@ -187,7 +190,7 @@ func (r EditRequest) validateFields() error {
 	if r.FullDemo != nil {
 		o := r.FullDemo.Document.Options
 		if r.Format != FormatLandscape16x9 || r.KillEffect != KillEffectClean || r.Transition != TransitionCut ||
-			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.VictimReplaySpeed != 0 || r.PlayBadges || r.StatsCard || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.CoverFirstFrame ||
+			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.VictimReplaySpeed != 0 || r.PlayBadges || r.WinProbability || r.StatsCard || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.CoverFirstFrame ||
 			r.IntroText != "" || r.OutroText != "" || r.KeyDropFamily != "" || r.KeyDropStyle != "" || r.KeyDropCode != "" ||
 			r.KeyDropPositionY != nil || r.KeyDropStartSeconds != nil || r.KeyDropEndSeconds != nil ||
 			r.VoiceComms != o.Audio.Voice.Enabled || r.VoiceVolume == nil || *r.VoiceVolume != o.Audio.Voice.Gain ||

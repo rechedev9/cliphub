@@ -1,6 +1,6 @@
 'use client';
 
-import { ChartColumn, Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Rewind, Trophy, Type, Zap } from 'lucide-react';
+import { ChartColumn, Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Percent, Rewind, Trophy, Type, Zap } from 'lucide-react';
 import {
   AFFILIATE_FAMILY_CATALOG,
   BOOKEND_TEXT_MAX_LENGTH,
@@ -172,13 +172,14 @@ export function EditOptions({
       <OptionBlock label="Texto automático" className="md:col-span-2">
         <ToggleGroup
           type="multiple"
-          value={[value.hookText ? 'hook-text' : '', value.killCounter ? 'kill-counter' : '', value.playBadges ? 'play-badges' : ''].filter(Boolean)}
+          value={[value.hookText ? 'hook-text' : '', value.killCounter ? 'kill-counter' : '', value.playBadges ? 'play-badges' : '', value.winProbability ? 'win-probability' : ''].filter(Boolean)}
           onValueChange={(items) =>
             onChange({
               ...value,
               hookText: items.includes('hook-text'),
               killCounter: items.includes('kill-counter'),
               playBadges: items.includes('play-badges'),
+              winProbability: items.includes('win-probability'),
             })
           }
           disabled={disabled}
@@ -199,10 +200,19 @@ export function EditOptions({
             <Trophy className="size-4" />
             Insignias de jugada
           </ToggleGroupItem>
+          <ToggleGroupItem value="win-probability" aria-label="Probabilidad de victoria">
+            <Percent className="size-4" />
+            Probabilidad de victoria
+          </ToggleGroupItem>
         </ToggleGroup>
         {value.playBadges ? (
           <p className="text-body-sm text-fg-3">
             Tras la última baja de cada jugada, una insignia nombra el clutch (1vX, ganado si se sabe), el ace o la multikill.
+          </p>
+        ) : null}
+        {value.winProbability ? (
+          <p className="text-body-sm text-fg-3">
+            Tras el plantado, el % de victoria de cada equipo mientras queden 5 s o más de bomba y 2 o más vivos por bando. Las partidas analizadas antes de esta versión no lo muestran hasta reanalizarlas.
           </p>
         ) : null}
       </OptionBlock>

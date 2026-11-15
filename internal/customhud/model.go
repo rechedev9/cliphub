@@ -31,11 +31,15 @@ type Snapshot struct {
 	Players       []Player `json:"players"`
 	Defuse        *Defuse  `json:"defuse,omitempty"`
 	MVP           *MVP     `json:"mvp,omitempty"`
-	Streak        Streak   `json:"-"` // Derived by roundTracker at render time.
+	// PlantTick is the tick of the round's plant, set only while planted or defusing.
+	PlantTick int    `json:"plant_tick,omitempty"`
+	Streak    Streak `json:"-"` // Derived by roundTracker at render time.
 	// Swapped is true once the team that started CT plays T; SidesKnown says it was derived.
 	Swapped    bool   `json:"-"`
 	SidesKnown bool   `json:"-"`
 	Winner     string `json:"-"` // Side that won the round, only while it is ended.
+	// WinCT is the CT post-plant win chance in percent; 0 hides the overlay.
+	WinCT int `json:"-"`
 }
 
 // Defuse is the defuse in progress. EndTick is 0 when the bomb's own
@@ -81,6 +85,8 @@ type Player struct {
 	Ammo     int     `json:"ammo"` // -1 for equipment that has no magazine.
 	Reserve  int     `json:"reserve"`
 	Movement *uint64 `json:"movement,omitempty"` // Recorded actions; nil means unavailable, not released keys.
+	// Equip is the game's freeze-end equipment value; 0 is unrecorded, never a guess.
+	Equip int `json:"equip,omitempty"`
 	// RoundKills is derived from the scoreboard at render time, never stored.
 	RoundKills int `json:"-"`
 }
@@ -113,7 +119,7 @@ func (d Timeline) Validate() error {
 		}
 		seen := map[string]bool{}
 		for _, p := range s.Players {
-			if seen[p.SteamID] || p.SteamID == "" || (p.Side != "CT" && p.Side != "T") || len(p.Name) > 512 || len(p.Weapon) > 128 || p.Health < 0 || p.Armor < 0 {
+			if seen[p.SteamID] || p.SteamID == "" || (p.Side != "CT" && p.Side != "T") || len(p.Name) > 512 || len(p.Weapon) > 128 || p.Health < 0 || p.Armor < 0 || p.Equip < 0 || p.Equip > 100000 {
 				return fmt.Errorf("invalid custom HUD player at tick %d", s.Tick)
 			}
 			seen[p.SteamID] = true
@@ -123,6 +129,9 @@ func (d Timeline) Validate() error {
 }
 
 func validRoundFacts(s Snapshot, tickRate int) bool {
+	if s.PlantTick != 0 && ((s.Phase != "planted" && s.Phase != "defusing") || s.PlantTick < 0 || s.PlantTick > s.Tick || s.Tick-s.PlantTick > 120*tickRate) {
+		return false
+	}
 	if f := s.Defuse; f != nil {
 		if s.Phase != "defusing" || f.StartTick < 0 || f.StartTick > s.Tick || (f.EndTick != 0 && (f.EndTick <= f.StartTick || f.EndTick-f.StartTick > 15*tickRate)) {
 			return false

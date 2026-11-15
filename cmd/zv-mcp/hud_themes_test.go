@@ -23,7 +23,7 @@ func TestPlanChoicesResolveAUserThemeAndTheHUDLook(t *testing.T) {
 	}))
 	defer srv.Close()
 	c := tuiclient.New(tuiclient.Config{BaseURL: srv.URL, HTTPClient: srv.Client()})
-	in := planFullDemoIn{HUD: userThemeID, hudLookIn: hudLookIn{CompactHeader: ptrTo(true), RoundWinBanner: ptrTo(true), TeamTStart: ptrTo("  Spirit ")}}
+	in := planFullDemoIn{HUD: userThemeID, hudLookIn: hudLookIn{CompactHeader: ptrTo(true), RoundWinBanner: ptrTo(true), WinProbability: ptrTo(true), TeamTStart: ptrTo("  Spirit ")}}
 	if err := resolveUserHUD(t.Context(), c, &in); err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestPlanChoicesResolveAUserThemeAndTheHUDLook(t *testing.T) {
 	if o.HUDTheme != "prism" || o.HUDCustom == nil || o.HUDCustom.CT != "112233" || *o.HUDCustom.Radius != 4 {
 		t.Fatalf("hud = %q, custom = %+v; want the theme on its base", o.HUDTheme, o.HUDCustom)
 	}
-	if !o.HUDOptions.CompactHeader || o.HUDOptions.HideLoadout || !o.HUDOptions.RoundWinBanner || o.TeamNames.TStart != "Spirit" {
+	if !o.HUDOptions.CompactHeader || o.HUDOptions.HideLoadout || !o.HUDOptions.RoundWinBanner || !o.HUDOptions.WinProbability || o.TeamNames.TStart != "Spirit" {
 		t.Fatalf("look = %+v / %+v", o.HUDOptions, o.TeamNames)
 	}
 	if summary := describeHUDLook(o); !strings.Contains(summary, "cabecera compacta") || !strings.Contains(summary, "Spirit") {

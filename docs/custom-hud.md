@@ -418,3 +418,13 @@ All three change only the render. `CaptureHash` leaves overlays out, so a captur
 - **Team names (`overlays.team_names`).** The names go by starting side. The plan defaults fill them from the library match of the job's demo: the assigned team, then the clan name. The tracker finds which side each team plays now: it records every player's side in the first round where both sides have players, then takes the majority. When the side cannot be told, the plan names are left out. The score plate label then falls back to the demo's clan name, and then to CT or T.
 - **Preview.** `GET /api/full-demo/hud-themes/preview` draws the example scene as SVG with the same display list as the video. The web selector shows it when a theme, a switch or a name is set.
 - **Not drawn.** Team logos and player avatars are not on the HUD. ASS draws no images, and the scoreboard strip has no free space for them. The library's logos are SVG from the CS2 install, and the shipped FFmpeg cannot be assumed to rasterize them.
+
+## Post-plant win probability (renderer v10, telemetry v7)
+
+`overlays.hud_options.win_probability` draws each side's round-win chance in the strip under the scoreboard, where the MVP card shows once the round ends. The telemetry records two new facts for it, so the version moved to v7:
+
+- `plant_tick` on a snapshot: the tick of `bomb_planted`, set only while planted or defusing.
+- `equip` on a player: the game's freeze-end equipment value (`m_unFreezetimeEndEquipmentValue`), left out during freeze time, when the pawn still holds the previous round's value.
+
+The round tracker computes the chance with `tacticalplan.PostPlantWinPctCT`, the same wp1 model as the moments' win swing. It reads the bomb clock from `m_flC4Blow`, the seconds since the plant, the alive players and their equipment. The panel shows only while the clock reads 5 s or more and each side has 2 or more alive. It hides when any fact is missing: an unknown roster slot, a living player without equipment, or no plant tick. Shorts draw the same chance from the kill plan's `win_prob` spans (`internal/parser/post_plant_win.go`). The parser reads the exact bomb deadline there, so a Short hides the chance at exactly 5 s left. The HUD uses its whole-second clock, which still reads 5 until 4 s are left, so it can show the chance up to one second longer.
+

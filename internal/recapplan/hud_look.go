@@ -17,7 +17,7 @@ func (o OverlayOptions) HUDRenderer() (*customhud.Renderer, error) {
 	}
 	renderer.Portrait = o.HUDPortrait != nil
 	h := o.HUDOptions
-	renderer.Options = customhud.Options{CompactHeader: h.CompactHeader, HideLoadout: h.HideLoadout, RoundWinBanner: h.RoundWinBanner}
+	renderer.Options = customhud.Options{CompactHeader: h.CompactHeader, HideLoadout: h.HideLoadout, RoundWinBanner: h.RoundWinBanner, WinProbability: h.WinProbability}
 	renderer.Teams = customhud.Teams{CTStart: o.TeamNames.CTStart, TStart: o.TeamNames.TStart}
 	return renderer, nil
 }

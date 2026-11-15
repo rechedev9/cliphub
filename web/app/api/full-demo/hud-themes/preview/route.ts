@@ -3,7 +3,7 @@ import { orchestratorUrl, callOrchestrator, forwardError, serviceUnavailable } f
 
 export const runtime = 'nodejs';
 
-const PREVIEW_KEYS = ['base', 'ct', 't', 'background', 'radius', 'compact_header', 'hide_loadout', 'round_win_banner', 'ct_name', 't_name'];
+const PREVIEW_KEYS = ['base', 'ct', 't', 'background', 'radius', 'compact_header', 'hide_loadout', 'round_win_banner', 'win_probability', 'ct_name', 't_name'];
 
 export async function GET(request: Request): Promise<Response> {
   const incoming = new URL(request.url).searchParams;

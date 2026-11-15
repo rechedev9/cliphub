@@ -158,7 +158,7 @@ func (h *Handlers) GetHUDThemePreview(w http.ResponseWriter, r *http.Request) {
 		}
 		o.HUDCustom = &clean
 	}
-	o.HUDOptions = customhud.Options{CompactHeader: q.Get("compact_header") == "1", HideLoadout: q.Get("hide_loadout") == "1", RoundWinBanner: q.Get("round_win_banner") == "1"}
+	o.HUDOptions = customhud.Options{CompactHeader: q.Get("compact_header") == "1", HideLoadout: q.Get("hide_loadout") == "1", RoundWinBanner: q.Get("round_win_banner") == "1", WinProbability: q.Get("win_probability") == "1"}
 	o.TeamNames = customhud.Teams{CTStart: strings.TrimSpace(q.Get("ct_name")), TStart: strings.TrimSpace(q.Get("t_name"))}
 	renderer, err := o.HUDRenderer()
 	if err != nil {
@@ -170,6 +170,10 @@ func (h *Handlers) GetHUDThemePreview(w http.ResponseWriter, r *http.Request) {
 	if o.HUDOptions.RoundWinBanner {
 		// Illustrative: the example's T side takes its third round.
 		state.Phase, state.TScore, state.Winner = "ended", state.TScore+1, "T"
+	} else if o.HUDOptions.WinProbability {
+		// Illustrative: a 4v2 after the plant, with a second T alive.
+		state.Phase, state.TimeRemaining, state.WinCT = "planted", 28, 62
+		state.Players[7].Alive, state.Players[7].Health = true, 100
 	}
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Cache-Control", "private, max-age=3600")

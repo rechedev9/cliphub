@@ -20,6 +20,7 @@ export type EditRequestBody = {
   victim_replay?: boolean;
   victim_replay_speed?: number;
   play_badges?: boolean;
+  win_probability?: boolean;
   stats_card?: boolean;
   brand_watermark?: boolean;
   brand_banner?: boolean;
@@ -59,6 +60,7 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
   }
   if (!edit.fullDemo && !edit.matchRecap) {
     if (edit.playBadges && !edit.deathReel) body.play_badges = true;
+    if (edit.winProbability && !edit.deathReel) body.win_probability = true;
     if (edit.statsCard && edit.format === 'short-9x16') body.stats_card = true;
     if (edit.brandWatermark) body.brand_watermark = true;
     if (edit.brandBanner && !edit.keyDropStyle?.trim()) body.brand_banner = true;

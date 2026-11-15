@@ -86,10 +86,11 @@ export function isLandscapeHighlights(edit: Pick<EditConfig, 'format' | 'matchRe
 
 export function constrainEditConfig(edit: EditConfig): EditConfig {
   // The hook, the counter and the centered kill feed tell kills; Studio drops them from a death reel too.
-  if (edit.deathReel && (edit.hookText || edit.killCounter || edit.centeredKillfeed || edit.playBadges)) {
+  if (edit.deathReel && (edit.hookText || edit.killCounter || edit.centeredKillfeed || edit.playBadges || edit.winProbability)) {
     const next: EditConfig = { ...edit, hookText: false, killCounter: false };
     delete next.centeredKillfeed;
     delete next.playBadges;
+    delete next.winProbability;
     return constrainEditConfig(next);
   }
   if (edit.format !== 'short-9x16') {
@@ -136,6 +137,7 @@ export function reelCreativeBrief(
     { label: 'Transición', value: TRANSITION_LABEL[edit.transition] },
     { label: 'Título / contador', value: `${edit.hookText ? 'Título automático' : 'Sin título automático'} · ${edit.killCounter ? 'Contador activado' : 'Sin contador'}` },
     { label: 'Insignias / tarjeta', value: `${edit.playBadges ? 'Insignias de jugada' : 'Sin insignias'} · ${edit.statsCard ? 'Tarjeta de estadísticas' : 'Sin tarjeta'}` },
+    { label: 'Prob. de victoria', value: edit.winProbability ? 'Tras el plantado' : 'No' },
     { label: 'Intro', value: bookendLabel(edit.intro, edit.introText, 'titular generado') },
     { label: 'Outro', value: bookendLabel(edit.outro, edit.outroText, 'firma ClipHub') },
     {

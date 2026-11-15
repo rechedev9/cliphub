@@ -268,6 +268,10 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 	var crosshairs crosshairTimeline
 	var openingTaken bool
 	var trail viewTrail
+	var plantWatch *postPlantWatch
+	if mode == SegmentModeKills {
+		plantWatch = &postPlantWatch{}
+	}
 	var watch *utilityWatch
 	if mode == SegmentModeRecap || alsoRecap {
 		watch = newUtilityWatch(targetID, target, &maxTick, c.RecordTargetIdentity)
@@ -287,6 +291,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		roundLive = false
 		openingTaken = false
 		trail.reset()
+		plantWatch.stop(p.GameState().IngameTick())
 	})
 
 	p.RegisterEventHandler(func(e events.Kill) {
@@ -352,6 +357,9 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 	if watch != nil {
 		watch.bind(p)
 	}
+	if plantWatch != nil {
+		plantWatch.bind(p, func() string { return cmp.Or(mapName, m.Map) })
+	}
 
 	p.RegisterEventHandler(func(events.RoundStart) {
 		gs := p.GameState()
@@ -367,6 +375,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		planted = false
 		openingTaken = false
 		trail.reset()
+		plantWatch.stop(tick)
 		c.RecordRoundStart(RoundStart{Round: activeRound, Tick: tick})
 	})
 
@@ -402,6 +411,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 			round = activeRound
 		}
 		c.RecordRoundEnd(RoundEnd{Round: round, Tick: tick, Winner: sideLabel(e.Winner)})
+		plantWatch.stop(tick)
 		activeRound = 0
 		roundLive = false
 	})
@@ -470,6 +480,9 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 			return DualPlan{}, ErrTargetNotFound
 		}
 		return DualPlan{}, err
+	}
+	if plantWatch != nil {
+		withWinProb(plan.Segments, plantWatch.spans)
 	}
 	dual := DualPlan{Kills: plan}
 	if !alsoRecap || mode == SegmentModeRecap {

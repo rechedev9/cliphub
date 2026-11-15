@@ -206,6 +206,7 @@ function hudLook(custom: FullDemoOptions['overlays']['hud_custom'], options: Hud
     ...(options?.compact_header ? { compact_header: true } : {}),
     ...(options?.hide_loadout ? { hide_loadout: true } : {}),
     ...(options?.round_win_banner ? { round_win_banner: true } : {}),
+    ...(options?.win_probability ? { win_probability: true } : {}),
   };
   const teams: HudTeamNames = { ...(names?.ct_start ? { ct_start: names.ct_start } : {}), ...(names?.t_start ? { t_start: names.t_start } : {}) };
   return {

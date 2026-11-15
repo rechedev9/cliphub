@@ -10,8 +10,8 @@ import (
 	"github.com/rechedev9/cliphub/internal/hudthemes"
 )
 
-const Version = "broadcast-hud-v9"
-const TelemetryVersion = "broadcast-hud-v6"
+const Version = "broadcast-hud-v10"
+const TelemetryVersion = "broadcast-hud-v7"
 const CaptureProfile = "broadcast-clean-v2"
 const LegacyCaptureProfile = "broadcast-clean"
 
@@ -52,6 +52,8 @@ type Options struct {
 	CompactHeader  bool `json:"compact_header,omitempty"`
 	HideLoadout    bool `json:"hide_loadout,omitempty"`
 	RoundWinBanner bool `json:"round_win_banner,omitempty"`
+	// WinProbability shows each side's post-plant round-win chance (tacticalplan wp1).
+	WinProbability bool `json:"win_probability,omitempty"`
 }
 
 // Teams names the teams by the side each one started the match on.

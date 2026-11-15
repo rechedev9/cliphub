@@ -52,3 +52,12 @@ test('a rendered edit keeps its overlays and replay speed', () => {
   assert.equal(parsed?.statsCard, true);
   assert.equal(parseEffectiveEditConfig({ ...buildEditRequest(edit({ victimReplay: true })), victim_replay_speed: 0.75 })?.victimReplaySpeed, undefined);
 });
+
+test('the post-plant win chance travels for a kill Short and comes back from a render', () => {
+  const body = buildEditRequest(edit({ winProbability: true, format: 'landscape-16x9' }));
+  assert.equal(body.win_probability, true);
+  assert.equal(parseEffectiveEditConfig(body)?.winProbability, true);
+  assert.equal('win_probability' in buildEditRequest(edit({ winProbability: true, deathReel: true })), false);
+  assert.equal('win_probability' in buildEditRequest({ ...FULL_DEMO_EDIT, winProbability: true }), false);
+  assert.equal(constrainEditConfig(edit({ deathReel: true, winProbability: true })).winProbability, undefined);
+});

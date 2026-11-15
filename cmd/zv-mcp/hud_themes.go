@@ -19,6 +19,7 @@ type hudLookIn struct {
 	CompactHeader  *bool   `json:"compact_header,omitempty" jsonschema:"custom HUD only: hide the ten player cards at the top and keep the scoreboard; default off"`
 	HideInventory  *bool   `json:"hide_inventory,omitempty" jsonschema:"custom HUD only: hide the observed player's weapon and ammo; default off"`
 	RoundWinBanner *bool   `json:"round_win_banner,omitempty" jsonschema:"custom HUD only: show which team won as each round ends; default off"`
+	WinProbability *bool   `json:"win_probability,omitempty" jsonschema:"custom HUD only: after the plant, each team's round-win chance (ClipHub's wp1 model) while the bomb has 5 s or more left and each side has 2 or more alive; default off"`
 	TeamCTStart    *string `json:"team_ct_start,omitempty" jsonschema:"custom HUD only: name on the scoreboard of the team that started on CT; empty clears it; left out keeps the name from the library match"`
 	TeamTStart     *string `json:"team_t_start,omitempty" jsonschema:"custom HUD only: name on the scoreboard of the team that started on T; empty clears it; left out keeps the name from the library match"`
 }
@@ -28,6 +29,7 @@ var hudLookChoices = []string{
 	"compact_header: cabecera compacta, sin las fichas de los diez jugadores",
 	"hide_inventory: ocultar el arma y la munición del jugador",
 	"round_win_banner: mensaje del equipo que gana cada ronda",
+	"win_probability: probabilidad de victoria de cada equipo tras el plantado",
 	"team_ct_start y team_t_start: nombres de los equipos en el marcador",
 }
 
@@ -144,13 +146,13 @@ func applyHUDLook(options *recapplan.Options, in hudLookIn) error {
 		return nil
 	}
 	if options.Overlays.HUDTheme == "" {
-		return fmt.Errorf("compact_header, hide_inventory, round_win_banner and team names need a custom HUD, not the native CS2 HUD")
+		return fmt.Errorf("compact_header, hide_inventory, round_win_banner, win_probability and team names need a custom HUD, not the native CS2 HUD")
 	}
 	look := &options.Overlays.HUDOptions
 	for _, choice := range []struct {
 		value  *bool
 		target *bool
-	}{{in.CompactHeader, &look.CompactHeader}, {in.HideInventory, &look.HideLoadout}, {in.RoundWinBanner, &look.RoundWinBanner}} {
+	}{{in.CompactHeader, &look.CompactHeader}, {in.HideInventory, &look.HideLoadout}, {in.RoundWinBanner, &look.RoundWinBanner}, {in.WinProbability, &look.WinProbability}} {
 		if choice.value != nil {
 			*choice.target = *choice.value
 		}
@@ -191,6 +193,9 @@ func describeHUDLook(o recapplan.OverlayOptions) string {
 	}
 	if look.RoundWinBanner {
 		parts = append(parts, "mensaje de ronda ganada")
+	}
+	if look.WinProbability {
+		parts = append(parts, "probabilidad de victoria tras el plantado")
 	}
 	if names := strings.TrimSpace(o.TeamNames.CTStart + " " + o.TeamNames.TStart); names != "" {
 		parts = append(parts, fmt.Sprintf("equipos %s y %s en el marcador", cleanName(fallback(o.TeamNames.CTStart, "CT")), cleanName(fallback(o.TeamNames.TStart, "T"))))
