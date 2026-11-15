@@ -138,9 +138,9 @@ export function StreamEditor({
     requestedStep === STREAM_STEP.results && stage === 'editing' && !hasRender ? STREAM_STEP.review : requestedStep;
   const [selectedClipId, setSelectedClipId] = useState<string | null>(plan.clips[0]?.id ?? null);
   const resultVideos = renderState?.videos ?? [];
-  // A moment inside a joined Short selects that Short's video.
-  const selectedVideoId =
-    streamPlanShorts(plan).find((s) => s.clips.some((c) => c.id === selectedClipId))?.id ?? selectedClipId;
+  // A moment inside a joined Short selects that Short: its video and, in Revisar, its preview.
+  const selectedShort = streamPlanShorts(plan).find((s) => s.clips.some((c) => c.id === selectedClipId));
+  const selectedVideoId = selectedShort?.id ?? selectedClipId;
   const resultIndex = Math.max(
     0,
     resultVideos.findIndex((v) => v.clip_id === selectedVideoId),
@@ -227,9 +227,12 @@ export function StreamEditor({
   };
   function navigateStep(step: StreamStep) {
     setPreviewPlaying(false);
-    setPreviewGroupId(null);
+    const group = step === STREAM_STEP.review ? selectedShort?.groupId ?? null : null;
+    setPreviewGroupId(group);
     setActiveStep(step);
-    setPlaybackMode(step === 'cuts' ? STREAM_PLAYBACK_MODE.source : STREAM_PLAYBACK_MODE.selected);
+    if (step === 'cuts') setPlaybackMode(STREAM_PLAYBACK_MODE.source);
+    else setPlaybackMode(group ? STREAM_PLAYBACK_MODE.sequence : STREAM_PLAYBACK_MODE.selected);
+    if (group && selectedShort?.clips[0]) seek(selectedShort.clips[0].start_seconds);
     panelRef.current?.scrollTo(0, 0);
   }
   function seek(seconds: number) {
@@ -402,6 +405,15 @@ export function StreamEditor({
     setPlaybackMode(STREAM_PLAYBACK_MODE.sequence);
     setPreviewPlaying(false);
     seek(first.start_seconds);
+  };
+  const changeGroups = (next: StreamEditPlan) => {
+    // Separating the previewed Short leaves the preview on the selected moment.
+    if (previewGroupId && !next.groups?.some((g) => g.id === previewGroupId)) {
+      setPreviewPlaying(false);
+      setPreviewGroupId(null);
+      setPlaybackMode(STREAM_PLAYBACK_MODE.selected);
+    }
+    onPlanChange(next);
   };
   const seekSource = (seconds: number) => {
     setPlaybackMode('source');
@@ -669,7 +681,7 @@ export function StreamEditor({
           selectedShortId={previewGroupId ?? selectedClip?.id ?? null}
           disabled={busy}
           onSelect={selectShort}
-          onPlanChange={onPlanChange}
+          onPlanChange={changeGroups}
         />
         <Button variant="outline" disabled={!selectedClip} onClick={playSelected}>
           Ver este Short
@@ -785,11 +797,16 @@ export function StreamEditor({
                   playing={previewPlaying}
                   status={playbackStatus}
                   canPlay={!busy && sourceDuration > 0 && (playbackMode === STREAM_PLAYBACK_MODE.source || streamPlaybackIndex(playbackClips, selectedClipId) >= 0)}
-                  mode={playbackMode}
+                  mode={previewGroup ? STREAM_PLAYBACK_MODE.selected : playbackMode}
                   hasSelection={!!selectedClip}
                   clipCount={plan.clips.length}
                   onModeChange={(mode) => {
                     setPreviewPlaying(false);
+                    // A selected joined Short stays the selection: it plays as its own sequence.
+                    if (mode === STREAM_PLAYBACK_MODE.selected && previewGroup?.clips[0]) {
+                      seek(previewGroup.clips[0].start_seconds);
+                      return;
+                    }
                     setPreviewGroupId(null);
                     setPlaybackMode(mode);
                     if (mode === STREAM_PLAYBACK_MODE.selected && selectedClip) seek(selectedClip.start_seconds);
