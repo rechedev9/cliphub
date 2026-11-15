@@ -4,6 +4,7 @@ import {
   isDemoSource,
   isKeyDropStyle,
   isOverlayTheme,
+  isVictimReplaySpeed,
   normalizeAffiliateFamily,
   type EditConfig,
   type RenderMode,
@@ -217,6 +218,9 @@ export function coerceEditConfig(value: unknown): EditConfig {
   const voiceVolume = coerceUnitVolume(raw.voiceVolume);
   if (voiceVolume !== undefined) cfg.voiceVolume = voiceVolume;
   if (raw.victimReplay === true) cfg.victimReplay = true;
+  if (cfg.victimReplay && isVictimReplaySpeed(raw.victimReplaySpeed)) cfg.victimReplaySpeed = raw.victimReplaySpeed;
+  if (raw.playBadges === true) cfg.playBadges = true;
+  if (raw.statsCard === true) cfg.statsCard = true;
   const family =
     typeof raw.keyDropFamily === 'string' ? normalizeAffiliateFamily(raw.keyDropFamily) : '';
   if (typeof raw.keyDropStyle === 'string') {

@@ -2,6 +2,7 @@ package renderplan
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
@@ -37,7 +38,12 @@ const (
 	// DefaultRecapVoiceVolume is the team-comms gain of the legacy recap chain,
 	// which goes through the Shorts editor and is capped at 1.0.
 	DefaultRecapVoiceVolume = 0.85
+	// DefaultVictimReplaySpeed is the victim replay speed when none is chosen.
+	DefaultVictimReplaySpeed = 0.5
 )
+
+// VictimReplaySpeeds are the speeds a victim replay may play at.
+var VictimReplaySpeeds = []float64{0.25, DefaultVictimReplaySpeed, 1}
 
 // EditRequest is the user-selected editing contract captured from the UI for
 // one render. Workers snapshot it into the edit document so a render is
@@ -55,8 +61,14 @@ type EditRequest struct {
 	VoiceComms  bool                `json:"voice_comms"`
 	VoiceVolume *float64            `json:"voice_volume,omitempty"`
 	NativeHUD   bool                `json:"native_hud"`
-	// VictimReplay replays each play's last kill from the victim, slowed down.
-	VictimReplay        bool     `json:"victim_replay,omitempty"`
+	// VictimReplay replays each play's last kill from the victim, at VictimReplaySpeed.
+	VictimReplay bool `json:"victim_replay,omitempty"`
+	// VictimReplaySpeed is 0.25, 0.5 or 1; 0 keeps DefaultVictimReplaySpeed.
+	VictimReplaySpeed float64 `json:"victim_replay_speed,omitempty"`
+	// PlayBadges names each clutch, ace and multikill on screen.
+	PlayBadges bool `json:"play_badges,omitempty"`
+	// StatsCard ends a 9:16 Short with the player's match stats and, when known, FACEIT data.
+	StatsCard           bool     `json:"stats_card,omitempty"`
 	CenteredKillfeed    bool     `json:"centered_killfeed,omitempty"`
 	CoverStrategy       string   `json:"cover_strategy"`
 	CoverFirstFrame     bool     `json:"cover_first_frame"`
@@ -127,11 +139,16 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 		req.KeyDropFamily = keydropbanner.FamilyKeyDrop
 	}
 	if req.DeathReel {
-		// The hook, the counter, the victim replay and the centered kill feed need kills; death clips have none.
+		// The hook, the counter, the badges, the victim replay and the centered kill feed need kills; death clips have none.
 		req.HookText = false
 		req.KillCounter = false
+		req.PlayBadges = false
 		req.VictimReplay = false
 		req.CenteredKillfeed = false
+	}
+	// The default speed is stored as unset so equal choices give equal requests.
+	if !req.VictimReplay || req.VictimReplaySpeed == DefaultVictimReplaySpeed {
+		req.VictimReplaySpeed = 0
 	}
 	return req
 }
@@ -164,7 +181,7 @@ func (r EditRequest) validateFields() error {
 	if r.FullDemo != nil {
 		o := r.FullDemo.Document.Options
 		if r.Format != FormatLandscape16x9 || r.KillEffect != KillEffectClean || r.Transition != TransitionCut ||
-			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.CoverFirstFrame ||
+			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.VictimReplaySpeed != 0 || r.PlayBadges || r.StatsCard || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.CoverFirstFrame ||
 			r.IntroText != "" || r.OutroText != "" || r.KeyDropFamily != "" || r.KeyDropStyle != "" || r.KeyDropCode != "" ||
 			r.KeyDropPositionY != nil || r.KeyDropStartSeconds != nil || r.KeyDropEndSeconds != nil ||
 			r.VoiceComms != o.Audio.Voice.Enabled || r.VoiceVolume == nil || *r.VoiceVolume != o.Audio.Voice.Gain ||
@@ -182,6 +199,12 @@ func (r EditRequest) validateFields() error {
 	}
 	if r.CenteredKillfeed && r.Format != FormatShort9x16 {
 		return fmt.Errorf("centered killfeed needs the %s format", FormatShort9x16)
+	}
+	if r.StatsCard && r.Format != FormatShort9x16 {
+		return fmt.Errorf("the stats card needs the %s format", FormatShort9x16)
+	}
+	if r.VictimReplaySpeed != 0 && !slices.Contains(VictimReplaySpeeds, r.VictimReplaySpeed) {
+		return fmt.Errorf("victim replay speed must be 0.25, 0.5 or 1")
 	}
 	switch r.KillEffect {
 	case KillEffectClean, KillEffectPunchIn, KillEffectVelocity, KillEffectFreezeFlash, KillEffectShake, KillEffectGlitch:

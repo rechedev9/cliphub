@@ -1,4 +1,4 @@
-import type { Play } from '../api/types.ts';
+import type { Play, VictimReplaySpeed } from '../api/types.ts';
 import { clashingPlay } from './multi-pov.ts';
 
 /** A Short should stay at or under one minute. */
@@ -8,7 +8,7 @@ export const SHORT_TARGET_SECONDS = 60;
 const BASE_SECONDS = 6;
 const SECONDS_PER_KILL = 3;
 type PlayTiming = Pick<Play, 'kills' | 'startSeconds' | 'endSeconds' | 'victimReplay'>;
-type ReplayOption = { victimReplay?: boolean };
+type ReplayOption = { victimReplay?: boolean; victimReplaySpeed?: VictimReplaySpeed };
 
 export function estimatedPlaySeconds(play: PlayTiming): number {
   const { startSeconds, endSeconds } = play;
@@ -21,6 +21,11 @@ export function estimatedPlaySeconds(play: PlayTiming): number {
 
 /** A victim replay is about 3.5 s of capture played at half speed. */
 export const VICTIM_REPLAY_SECONDS = 7;
+const VICTIM_REPLAY_CAPTURE_SECONDS = 3.5;
+
+function replaySeconds(options: ReplayOption): number {
+  return options.victimReplaySpeed ? VICTIM_REPLAY_CAPTURE_SECONDS / options.victimReplaySpeed : VICTIM_REPLAY_SECONDS;
+}
 
 export function estimatedSelectionSeconds(plays: ReadonlyArray<PlayTiming>, options: ReplayOption = {}): number {
   return plays.reduce((total, play) => total + estimatedPlayTenths(play, options), 0) / 10;
@@ -28,7 +33,7 @@ export function estimatedSelectionSeconds(plays: ReadonlyArray<PlayTiming>, opti
 
 /** Accumulate the displayed precision as integers so an exact minute stays within budget. */
 function estimatedPlayTenths(play: PlayTiming, options: ReplayOption): number {
-  const replay = options.victimReplay && play.victimReplay !== false ? VICTIM_REPLAY_SECONDS : 0;
+  const replay = options.victimReplay && play.victimReplay !== false ? replaySeconds(options) : 0;
   return Math.round((estimatedPlaySeconds(play) + replay) * 10);
 }
 

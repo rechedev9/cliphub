@@ -80,7 +80,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const targetMinutes = Math.round(targetSeconds / 60);
   const shape = (edit: EditConfig, deaths: boolean): EditConfig => landscape
     ? bestMomentsEdit(constrainEditConfig({ ...edit, format }))
-    : constrainEditConfig({ ...edit, format, deathReel: deaths, ...(multiPov ? { killCounter: false } : {}) });
+    : constrainEditConfig({ ...edit, format, deathReel: deaths, ...(multiPov ? { killCounter: false, statsCard: false } : {}) });
   const [presets, setPresets] = useState<Preset[] | null>(null);
   const [presetAttempt, setPresetAttempt] = useState(0);
   const focusIds = focusRounds ? playsInRounds(killPlays, focusRounds) : [];
@@ -120,8 +120,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   }, [updateSettings, presetAttempt, format]);
 
   const selectedPlays = plays.filter((play) => selectedIds.has(play.id));
-  const cues = selectionTimeline(plays, { selectedIds, victimReplay: editConfig.victimReplay === true });
-  const estimatedSeconds = estimatedSelectionSeconds(selectedPlays, { victimReplay: editConfig.victimReplay === true });
+  const replay = { victimReplay: editConfig.victimReplay === true, victimReplaySpeed: editConfig.victimReplaySpeed };
+  const cues = selectionTimeline(plays, { selectedIds, ...replay });
+  const estimatedSeconds = estimatedSelectionSeconds(selectedPlays, replay);
   const overTarget = estimatedSeconds > targetSeconds;
   const visiblePresets = presets === null ? null : shortsPresetsForFormat(presets, format);
   // Multi-POV: a play overlapping a chosen play of another player cannot be filmed with it.
@@ -278,7 +279,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             title={deathReel ? 'Muertes' : 'Jugadas'}
             tone={tone}
             toolbar={<Button type="button" size="xs" variant="outline" disabled={busy || visiblePlays.length === 0}
-              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true, targetSeconds })] })}><Zap aria-hidden />{deathReel ? `Ajustar a ${targetMinutes} min` : `Elegir las mejores (${targetMinutes} min)`}</Button>}
+              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true, victimReplaySpeed: editConfig.victimReplaySpeed, targetSeconds })] })}><Zap aria-hidden />{deathReel ? `Ajustar a ${targetMinutes} min` : `Elegir las mejores (${targetMinutes} min)`}</Button>}
             filters={<PlayFilters options={filterOptions} value={playFilter} disabled={busy} onChange={setPlayFilter} />}
             visibleIds={visibleIds}
             emptyFiltered={
@@ -367,6 +368,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
                 onChange={changeEditConfig}
                 disabled={busy}
                 killCounter={!multiPov}
+                statsCard={!multiPov}
               />
             </div>
           </details>
@@ -465,6 +467,8 @@ function overlaysSummary(edit: EditConfig): string {
   if (edit.centeredKillfeed && edit.format === 'short-9x16') parts.push('Kill feed centrada');
   if (edit.hookText) parts.push('Título');
   if (edit.intro || edit.outro) parts.push('Intro / outro');
+  if (edit.playBadges) parts.push('Insignias');
+  if (edit.statsCard && edit.format === 'short-9x16') parts.push('Estadísticas');
   if (edit.victimReplay) parts.push('Repetición');
   if (edit.keyDropStyle) parts.push('Afiliado');
   return parts.length > 0 ? parts.join(' + ') : 'Solo efectos';

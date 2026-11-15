@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -55,6 +56,13 @@ var (
 	}
 )
 
+// replaySpeedOptions are renderplan.VictimReplaySpeeds; the id is the victim_replay_speed value.
+var replaySpeedOptions = []shortOption{
+	{ID: "0.25", Label: "0,25x", Description: "Muy lenta, cuatro veces más larga"},
+	{ID: "0.5", Label: "0,5x", Description: "Cámara lenta", Default: true},
+	{ID: "1", Label: "1x", Description: "A velocidad real"},
+}
+
 type shortToggle struct {
 	ID          string `json:"id"`
 	Label       string `json:"label"`
@@ -67,10 +75,12 @@ var toggleOptions = []shortToggle{
 	{ID: "outro", Label: "Cierre", Description: "Tarjeta de cierre al final del vídeo"},
 	{ID: "hook_text", Label: "Título automático", Description: "Texto gancho al inicio del vídeo"},
 	{ID: "kill_counter", Label: "Contador de kills", Description: "Contador de bajas visible durante la jugada"},
+	{ID: "play_badges", Label: "Insignias de jugada", Description: "Nombra el clutch (1vX, ganado si se sabe), el ace o la multikill de cada jugada"},
+	{ID: "stats_card", Label: "Tarjeta de estadísticas", Description: "Cierra el Short con K/D, ADR, HS % y rating de ClipHub del jugador, y su nivel FACEIT si lo hay (solo 9:16)"},
 	{ID: "centered_killfeed", Label: "Kill feed centrada arriba", Description: "Dibuja tus kills en el centro, arriba del Short (solo 9:16)"},
 	{ID: "voice_comms", Label: "Comms del equipo", Description: "Mezcla las voces del equipo en el audio"},
 	{ID: "native_hud", Label: "HUD nativo", Description: "Graba con el HUD original del juego"},
-	{ID: "victim_replay", Label: "Repetición desde la víctima", Description: "Tras cada jugada, la última baja otra vez a cámara lenta vista por quien muere"},
+	{ID: "victim_replay", Label: "Repetición desde la víctima", Description: "Tras cada jugada, la última baja otra vez vista por quien muere, a la velocidad elegida"},
 	{ID: "cover", Label: "Portada", Description: "Genera candidatos de portada desde el gameplay", Default: true},
 }
 
@@ -117,6 +127,9 @@ type shortOptionsOut struct {
 	Music      []musicOption  `json:"music" jsonschema:"track ids for the music field; leaving music unset renders without music"`
 	Toggles    []shortToggle  `json:"toggles" jsonschema:"on/off extras; unset keeps each default"`
 	Banners    []bannerFamily `json:"banners" jsonschema:"affiliate banner (Banner afiliado) families and styles; no banner unless banner_style is set"`
+
+	// ReplaySpeed lists the victim_replay_speed values; the id is the number to pass.
+	ReplaySpeed []shortOption `json:"replay_speed" jsonschema:"values for victim_replay_speed, used only with victim_replay"`
 }
 
 // shortChoices are the optional edit fields of generate_short. Unset fields keep the product defaults.
@@ -131,7 +144,7 @@ type shortChoices struct {
 	KillCounter  *bool  `json:"kill_counter,omitempty" jsonschema:"kill counter overlay; default false"`
 	VoiceComms   *bool  `json:"voice_comms,omitempty" jsonschema:"mix team voice comms; default false"`
 	NativeHUD    *bool  `json:"native_hud,omitempty" jsonschema:"record with the native game HUD; default false"`
-	VictimReplay *bool  `json:"victim_replay,omitempty" jsonschema:"after each play, replay its last kill in slow motion from the victim's view; default false"`
+	VictimReplay *bool  `json:"victim_replay,omitempty" jsonschema:"after each play, replay its last kill from the victim's view; default false"`
 	Cover        *bool  `json:"cover,omitempty" jsonschema:"generate cover candidates; default true"`
 	// CenteredKillfeed is rejected outside short-9x16, like the server does.
 	CenteredKillfeed *bool    `json:"centered_killfeed,omitempty" jsonschema:"draw the kill feed centered near the top; short-9x16 only; default false"`
@@ -144,6 +157,11 @@ type shortChoices struct {
 	BannerCode       string   `json:"banner_code,omitempty" jsonschema:"affiliate code on the banner: letters, digits, _ or -, at most 16; empty uses Studio's default code"`
 	BannerStart      *float64 `json:"banner_start_seconds,omitempty" jsonschema:"second of the Short when the banner appears; default 0"`
 	BannerEnd        *float64 `json:"banner_end_seconds,omitempty" jsonschema:"second of the Short when the banner leaves; default 4"`
+
+	PlayBadges *bool `json:"play_badges,omitempty" jsonschema:"badge naming each play's clutch (1vX, GANADO when the round was won), ace or multikill; default false"`
+	StatsCard  *bool `json:"stats_card,omitempty" jsonschema:"closing card with the player's K/D, ADR, HS% and ClipHub rating (never an HLTV rating), plus FACEIT level, win rate and best map when FACEIT has them; short-9x16 only; default false"`
+	// VictimReplaySpeed is rejected without victim_replay.
+	VictimReplaySpeed *float64 `json:"victim_replay_speed,omitempty" jsonschema:"victim replay speed: 0.25, 0.5 or 1; needs victim_replay; default 0.5"`
 }
 
 type songIn struct {
@@ -164,7 +182,7 @@ func registerShortOptions(server *mcp.Server, s *studio) {
 				return nil, shortOptionsOut{}, toolError(err)
 			}
 			return nil, shortOptionsOut{Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions,
-				Music: musicOptions(songs), Toggles: toggleOptions, Banners: bannerFamilies}, nil
+				Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies}, nil
 		})
 
 	// Only the Short picker app plays previews; MCP Apps hosts hide app-only tools from the model.
@@ -269,6 +287,13 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 	if edit.CenteredKillfeed && edit.Format != "short-9x16" {
 		return edit, fmt.Errorf("centered_killfeed needs format short-9x16")
 	}
+	edit.PlayBadges, edit.StatsCard = orDefault(c.PlayBadges, false), orDefault(c.StatsCard, false)
+	if edit.StatsCard && edit.Format != "short-9x16" {
+		return edit, fmt.Errorf("stats_card needs format short-9x16")
+	}
+	if err := resolveReplaySpeed(&edit, c.VictimReplaySpeed); err != nil {
+		return edit, err
+	}
 	edit.CoverStrategy = coverNone
 	if orDefault(c.Cover, true) {
 		edit.CoverStrategy = coverGenerated
@@ -277,6 +302,24 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 		return edit, err
 	}
 	return edit, resolveBanner(&edit, c)
+}
+
+// resolveReplaySpeed keeps the default half speed unset, as the Studio UI sends it.
+func resolveReplaySpeed(edit *tuiclient.ShortEdit, speed *float64) error {
+	if speed == nil {
+		return nil
+	}
+	if !edit.VictimReplay {
+		return errors.New("victim_replay_speed needs victim_replay set to true")
+	}
+	id := strconv.FormatFloat(*speed, 'f', -1, 64)
+	if _, err := pickOption("victim_replay_speed", id, replaySpeedOptions); err != nil {
+		return err
+	}
+	if id != "0.5" {
+		edit.VictimReplaySpeed = *speed
+	}
+	return nil
 }
 
 func resolveBookendText(edit *tuiclient.ShortEdit, c shortChoices) error {
@@ -382,7 +425,7 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	for _, x := range []struct {
 		name string
 		on   bool
-	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter}, {"centered_killfeed", e.CenteredKillfeed},
+	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter}, {"play_badges", e.PlayBadges}, {"stats_card", e.StatsCard}, {"centered_killfeed", e.CenteredKillfeed},
 		{"voice_comms", e.VoiceComms}, {"native_hud", e.NativeHUD}, {"victim_replay", e.VictimReplay}, {"cover", e.CoverStrategy == coverGenerated}} {
 		if x.on {
 			extras = append(extras, x.name)
@@ -393,6 +436,9 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	}
 	out := fmt.Sprintf("formato %s, efecto de baja %s, transición %s, música %s, extras: %s",
 		e.Format, e.KillEffect, e.Transition, music, strings.Join(extras, ", "))
+	if e.VictimReplay {
+		out += fmt.Sprintf(", repetición a %gx", cmp.Or(e.VictimReplaySpeed, 0.5))
+	}
 	if e.IntroText != "" {
 		out += fmt.Sprintf(", apertura «%s»", e.IntroText)
 	}

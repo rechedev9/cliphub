@@ -2513,12 +2513,7 @@ func (w *RenderWorker) writeEditorInputs(ctx context.Context, cfg RenderWorkerCo
 		"--intro=" + strconv.FormatBool(edit.Intro),
 		"--outro=" + strconv.FormatBool(edit.Outro),
 	}
-	if edit.VictimReplay {
-		args = append(args, "--victim-replay")
-	}
-	if edit.CenteredKillfeed {
-		args = append(args, "--centered-killfeed")
-	}
+	args = append(args, shortOverlayArgs(edit)...)
 	args = append(args, explicitCoverArgs(loadout, edit)...)
 	args = append(args, compileSegmentsArgs(recording.EditorialSegmentIDs(in.recordingResult))...)
 	if edit.FullDemo != nil {
@@ -2546,23 +2541,9 @@ func (w *RenderWorker) writeEditorInputs(ctx context.Context, cfg RenderWorkerCo
 	if edit.OutroText != "" {
 		args = append(args, "--outro-text", edit.OutroText)
 	}
-	if style := strings.TrimSpace(edit.KeyDropStyle); style != "" {
-		if family := strings.TrimSpace(edit.KeyDropFamily); family != "" {
-			args = append(args, "--keydrop-family", family)
-		}
-		args = append(args, "--keydrop-style", style)
-		if code := strings.TrimSpace(edit.KeyDropCode); code != "" {
-			args = append(args, "--keydrop-code", code)
-		}
-		if y := edit.KeyDropPositionY; y != nil {
-			args = append(args, "--keydrop-position-y", strconv.FormatFloat(*y, 'f', 6, 64))
-		}
-		if s := edit.KeyDropStartSeconds; s != nil {
-			args = append(args, "--keydrop-start", strconv.FormatFloat(*s, 'f', 6, 64))
-		}
-		if e := edit.KeyDropEndSeconds; e != nil {
-			args = append(args, "--keydrop-end", strconv.FormatFloat(*e, 'f', 6, 64))
-		}
+	args = append(args, keyDropArgs(edit)...)
+	if cardPath := w.writeShortStatsCard(j, workDir, edit); cardPath != "" {
+		args = append(args, "--stats-card", cardPath)
 	}
 	if cfg.FFmpegPath != "" {
 		args = append(args, "--ffmpeg", cfg.FFmpegPath)

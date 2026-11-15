@@ -1,5 +1,5 @@
 import { persistAffiliateFamily } from '../affiliate-banner.ts';
-import type { EditConfig } from './types.ts';
+import { DEFAULT_VICTIM_REPLAY_SPEED, type EditConfig } from './types.ts';
 
 export type EditRequestBody = {
   full_demo?: EditConfig['fullDemo'];
@@ -17,6 +17,9 @@ export type EditRequestBody = {
   voice_volume?: number;
   native_hud: boolean;
   victim_replay?: boolean;
+  victim_replay_speed?: number;
+  play_badges?: boolean;
+  stats_card?: boolean;
   cover_strategy: EditConfig['coverStrategy'];
   intro_text?: string;
   outro_text?: string;
@@ -46,7 +49,14 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
   };
   if (edit.deathReel) body.death_reel = true;
   if (edit.fullDemo) body.full_demo = edit.fullDemo;
-  else if (edit.victimReplay && !edit.matchRecap && !edit.deathReel) body.victim_replay = true;
+  else if (edit.victimReplay && !edit.matchRecap && !edit.deathReel) {
+    body.victim_replay = true;
+    if (edit.victimReplaySpeed !== undefined && edit.victimReplaySpeed !== DEFAULT_VICTIM_REPLAY_SPEED) body.victim_replay_speed = edit.victimReplaySpeed;
+  }
+  if (!edit.fullDemo && !edit.matchRecap) {
+    if (edit.playBadges && !edit.deathReel) body.play_badges = true;
+    if (edit.statsCard && edit.format === 'short-9x16') body.stats_card = true;
+  }
   if (edit.centeredKillfeed && edit.format === 'short-9x16' && !edit.fullDemo && !edit.deathReel) body.centered_killfeed = true;
   if (edit.voiceComms || edit.fullDemo) {
     body.voice_volume = edit.voiceVolume ?? 0.85;

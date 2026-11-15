@@ -47,6 +47,9 @@ choose_short_options for a picker), then generate_short with the chosen segment 
 A death reel (the seconds before each death of the player): list_moments with deaths, then
 generate_short with those segment ids and deaths set.
 generate_short also takes the music and game volume, the opening and closing text and an affiliate banner.
+It also takes play_badges (a badge for each clutch, ace or multikill), stats_card (a closing 9:16 card with the
+player's K/D, ADR, HS% and ClipHub rating, never an HLTV rating, plus FACEIT level, win rate and best map when FACEIT
+has them) and victim_replay_speed (0.25, 0.5 or 1, with victim_replay).
 A Full Demo (the whole match): choose_hud or list_hud_themes, plan_full_demo, then render_full_demo.
 plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for the focus HUD and intro,
 sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.

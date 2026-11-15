@@ -94,7 +94,7 @@ func registerApps(server *mcp.Server, s *studio) {
 				return nil, chooseShortOut{}, toolError(err)
 			}
 			out := chooseShortOut{JobID: in.JobID, SegmentIDs: in.SegmentIDs, shortOptionsOut: shortOptionsOut{
-				Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions, Music: musicOptions(songs), Toggles: toggleOptions, Banners: bannerFamilies}}
+				Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions, Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies}}
 			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: describeShortChoices(out.shortOptionsOut)}}}, out, nil
 		})
 
@@ -191,6 +191,7 @@ func describeShortChoices(o shortOptionsOut) string {
 	for _, t := range o.Toggles {
 		fmt.Fprintf(&b, "- %s%s (%s): %s\n", t.ID, defaultMark(t.Default), t.Label, t.Description)
 	}
+	list("Victim replay speed, with victim_replay", "victim_replay_speed", o.ReplaySpeed)
 	b.WriteString("\nWith music: music_volume 5 to 100 (default 100), game_volume 0 to 100 (default 70).\n")
 	b.WriteString("With intro or outro: intro_text, outro_text (empty keeps the generated text).\n")
 	b.WriteString("\nAffiliate banner (banner_family and banner_style; none by default; banner_code, banner_start_seconds 0, banner_end_seconds 4):\n")

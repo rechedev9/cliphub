@@ -1,14 +1,17 @@
 'use client';
 
-import { Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Rewind, Type, Zap } from 'lucide-react';
+import { ChartColumn, Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Rewind, Trophy, Type, Zap } from 'lucide-react';
 import {
   AFFILIATE_FAMILY_CATALOG,
   BOOKEND_TEXT_MAX_LENGTH,
   DEFAULT_KEYDROP_CODE,
   KEYDROP_CODE_RE,
+  DEFAULT_VICTIM_REPLAY_SPEED,
+  VICTIM_REPLAY_SPEEDS,
   affiliateDisplayLabel,
   affiliateFamilyLabel,
   isAffiliateStyle,
+  isVictimReplaySpeed,
   stylesForFamily,
   type EditConfig,
 } from '@/lib/api/types';
@@ -28,7 +31,14 @@ export type EditOptionsProps = {
   showFullDemoDelivery?: boolean;
   /** False hides the kill counter: a multi-POV video counts no single player's kills. */
   killCounter?: boolean;
+  /** False hides the stats card: a multi-POV video has no single player to sum up. */
+  statsCard?: boolean;
 };
+
+/** "0,25x": the decimal comma of the Spanish UI. */
+function speedLabel(speed: number): string {
+  return `${String(speed).replace('.', ',')}x`;
+}
 
 const effectItems: Array<{ value: EditConfig['killEffect']; label: string }> = [
   { value: 'punch-in', label: 'Impacto' },
@@ -55,6 +65,7 @@ export function EditOptions({
   disabled = false,
   showFullDemoDelivery = false,
   killCounter = true,
+  statsCard = true,
 }: EditOptionsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
@@ -158,12 +169,13 @@ export function EditOptions({
       <OptionBlock label="Texto automático" className="md:col-span-2">
         <ToggleGroup
           type="multiple"
-          value={[value.hookText ? 'hook-text' : '', value.killCounter ? 'kill-counter' : ''].filter(Boolean)}
+          value={[value.hookText ? 'hook-text' : '', value.killCounter ? 'kill-counter' : '', value.playBadges ? 'play-badges' : ''].filter(Boolean)}
           onValueChange={(items) =>
             onChange({
               ...value,
               hookText: items.includes('hook-text'),
               killCounter: items.includes('kill-counter'),
+              playBadges: items.includes('play-badges'),
             })
           }
           disabled={disabled}
@@ -180,7 +192,16 @@ export function EditOptions({
               Contador de kills
             </ToggleGroupItem>
           ) : null}
+          <ToggleGroupItem value="play-badges" aria-label="Insignias de jugada">
+            <Trophy className="size-4" />
+            Insignias de jugada
+          </ToggleGroupItem>
         </ToggleGroup>
+        {value.playBadges ? (
+          <p className="text-body-sm text-fg-3">
+            Tras la última baja de cada jugada, una insignia nombra el clutch (1vX, ganado si se sabe), el ace o la multikill.
+          </p>
+        ) : null}
       </OptionBlock>
 
       {showFullDemoDelivery ? null : (
@@ -199,12 +220,53 @@ export function EditOptions({
             </ToggleGroupItem>
           </ToggleGroup>
           {value.victimReplay ? (
-            <p className="text-body-sm text-fg-3">
-              Tras cada jugada, su última baja otra vez a cámara lenta, vista por quien muere.
-            </p>
+            <>
+              <ToggleGroup
+                type="single"
+                value={String(value.victimReplaySpeed ?? DEFAULT_VICTIM_REPLAY_SPEED)}
+                onValueChange={(raw) => {
+                  const speed = Number(raw);
+                  if (isVictimReplaySpeed(speed)) onChange({ ...value, victimReplaySpeed: speed });
+                }}
+                disabled={disabled}
+                variant="outline"
+                className="flex-wrap"
+                aria-label="Velocidad de la repetición"
+              >
+                {VICTIM_REPLAY_SPEEDS.map((speed) => (
+                  <ToggleGroupItem key={speed} value={String(speed)} aria-label={`Velocidad ${speedLabel(speed)}`}>
+                    {speedLabel(speed)}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <p className="text-body-sm text-fg-3">
+                Tras cada jugada, su última baja otra vez, vista por quien muere. A 1x va a velocidad real.
+              </p>
+            </>
           ) : null}
         </OptionBlock>
       )}
+
+      {value.format === 'short-9x16' && statsCard && !showFullDemoDelivery ? (
+        <OptionBlock label="Tarjeta final" className="md:col-span-2">
+          <ToggleGroup
+            type="multiple"
+            value={value.statsCard ? ['stats-card'] : []}
+            onValueChange={(items) => onChange({ ...value, statsCard: items.includes('stats-card') })}
+            disabled={disabled}
+            variant="outline"
+            className="flex-wrap"
+          >
+            <ToggleGroupItem value="stats-card" aria-label="Estadísticas del jugador">
+              <ChartColumn className="size-4" />
+              Estadísticas del jugador
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <p className="text-body-sm text-fg-3">
+            Cierra el Short con K/D, ADR, HS % y el rating de ClipHub del jugador. Si FACEIT tiene sus datos, añade su nivel, su porcentaje de victorias y su mejor mapa.
+          </p>
+        </OptionBlock>
+      ) : null}
 
       {value.format === 'short-9x16' ? (
         <OptionBlock label="Kill feed" className="md:col-span-2">

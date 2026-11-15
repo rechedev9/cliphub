@@ -5,6 +5,7 @@ import {
   isDemoSource,
   isKeyDropStyle,
   isOverlayTheme,
+  isVictimReplaySpeed,
   normalizeAffiliateFamily,
   type EditConfig,
   type Video,
@@ -63,6 +64,9 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   };
   if (edit.death_reel === true) parsed.deathReel = true;
   if (edit.victim_replay === true) parsed.victimReplay = true;
+  if (parsed.victimReplay && isVictimReplaySpeed(edit.victim_replay_speed)) parsed.victimReplaySpeed = edit.victim_replay_speed;
+  if (edit.play_badges === true) parsed.playBadges = true;
+  if (edit.stats_card === true) parsed.statsCard = true;
   if (edit.centered_killfeed === true) parsed.centeredKillfeed = true;
   if (
     typeof edit.voice_volume === 'number' &&

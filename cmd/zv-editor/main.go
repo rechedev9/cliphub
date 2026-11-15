@@ -98,6 +98,9 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		outputFPS           = fs.Int("fps", 0, "optional final output FPS; defaults to 60")
 		compileSegments     = fs.Bool("compile-segments", false, "render selected segments as one compilation short")
 		victimReplay        = fs.Bool("victim-replay", false, "append each short's victim POV replay in slow motion when the capture has one")
+		victimReplaySpeed   = fs.Float64("victim-replay-speed", 0, "victim replay speed: 0.25, 0.5 or 1; 0 keeps half speed")
+		playBadges          = fs.Bool("play-badges", false, "name each play's clutch, ace or multikill on screen")
+		statsCard           = fs.String("stats-card", "", "optional stats card JSON drawn at the end of a 9:16 short")
 		lineupCatalogPath   = fs.String("lineup-catalog", "", "optional directory with manual smoke lineup catalog JSON files")
 		segments            = fs.String("segments", "", "optional comma-separated segment ids to render, e.g. seg-001,seg-004")
 		limit               = fs.Int("limit", 0, "optional max number of shorts to render after segment filtering")
@@ -212,6 +215,9 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		OutputFPS:             *outputFPS,
 		CompileSegments:       *compileSegments,
 		VictimReplay:          *victimReplay,
+		VictimReplaySpeed:     *victimReplaySpeed,
+		PlayBadges:            *playBadges,
+		StatsCardPath:         *statsCard,
 		LineupCatalogPath:     *lineupCatalogPath,
 		SegmentIDs:            segmentIDs,
 		Limit:                 *limit,

@@ -133,6 +133,12 @@ test('estimatedSelectionSeconds adds a slowed replay per play when asked', () =>
   assert.equal(estimatedSelectionSeconds(plays, { victimReplay: false }), 24);
 });
 
+test('the replay speed scales the replay estimate', () => {
+  const plays = [{ kills: 1 }];
+  assert.equal(estimatedSelectionSeconds(plays, { victimReplay: true, victimReplaySpeed: 0.25 }), 9 + 14);
+  assert.equal(estimatedSelectionSeconds(plays, { victimReplay: true, victimReplaySpeed: 1 }), 9 + 3.5);
+});
+
 test('replay seconds skip plays the recorder cannot replay', () => {
   const plays = [{ kills: 1 }, { kills: 3, victimReplay: false }];
   assert.equal(estimatedSelectionSeconds(plays, { victimReplay: true }), 24 + VICTIM_REPLAY_SECONDS);

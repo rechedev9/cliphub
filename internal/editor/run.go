@@ -8,6 +8,7 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/demooverlay"
@@ -224,7 +225,7 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 		if err := verifyFullDemoCapturedInputs(ctx, recordingResult.Artifacts, recordingBaseDir, ffprobePath, cfg.DryRun); err != nil {
 			return runInputs{}, err
 		}
-		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" {
+		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.PlayBadges || cfg.StatsCardPath != "" || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" {
 			return runInputs{}, fmt.Errorf("full demo execution cannot be overridden by legacy editorial flags")
 		}
 		if coversEnabled != (fullDemoExecution.Approved.Document.Options.Outputs.CoverPolicy != "no-cover") {
@@ -245,6 +246,12 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 			return runInputs{}, err
 		}
 		fullDemoOverlay = &doc
+	}
+	overlays := ShortOverlays{PlayBadges: cfg.PlayBadges}
+	if path := strings.TrimSpace(cfg.StatsCardPath); path != "" {
+		if overlays.StatsCard, err = LoadStatsCard(path); err != nil {
+			return runInputs{}, err
+		}
 	}
 
 	manifest, err := buildManifest(recordingResult, ManifestOptions{
@@ -282,6 +289,8 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 		OutputFPS:           cfg.OutputFPS,
 		CompileSegments:     cfg.CompileSegments,
 		VictimReplay:        cfg.VictimReplay,
+		VictimReplaySpeed:   cfg.VictimReplaySpeed,
+		Overlays:            overlays,
 		LineupCatalogPath:   cfg.LineupCatalogPath,
 		SegmentIDs:          cfg.SegmentIDs,
 		Limit:               cfg.Limit,
@@ -355,6 +364,9 @@ func (c Config) validate() error {
 	}
 	if c.Threads < 0 {
 		return fmt.Errorf("threads must be >= 0")
+	}
+	if c.VictimReplaySpeed != 0 && !slices.Contains(victimReplaySpeeds, c.VictimReplaySpeed) {
+		return fmt.Errorf("victim replay speed must be 0.25, 0.5 or 1")
 	}
 	preset := c.Preset
 	if preset == "" {

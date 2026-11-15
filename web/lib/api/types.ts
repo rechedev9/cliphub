@@ -55,6 +55,13 @@ export type PlayDeath = { killer?: string; weapon?: string; headshot: boolean };
 export type PlaySide = 'CT' | 'T';
 export type RenderMode = 'clean' | 'music';
 export type RenderFormat = 'short-9x16' | 'landscape-16x9';
+/** Victim replay speeds (renderplan.VictimReplaySpeeds); 0.5 is the default. */
+export const VICTIM_REPLAY_SPEEDS = [0.25, 0.5, 1] as const;
+export type VictimReplaySpeed = (typeof VICTIM_REPLAY_SPEEDS)[number];
+export const DEFAULT_VICTIM_REPLAY_SPEED: VictimReplaySpeed = 0.5;
+export function isVictimReplaySpeed(value: unknown): value is VictimReplaySpeed {
+  return VICTIM_REPLAY_SPEEDS.some((speed) => speed === value);
+}
 type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash' | 'shake' | 'glitch';
 type TransitionStyle = 'cut' | 'flash' | 'whip' | 'dip' | 'glitch' | 'zoom-whip';
 type CoverStrategy = 'generated-gameplay' | 'no-cover';
@@ -258,8 +265,14 @@ export type EditConfig = {
   voiceComms: boolean;
   voiceVolume?: number;
   nativeHud: boolean;
-  /** Shorts only: replay each play's last kill from the victim, slowed down. */
+  /** Shorts only: replay each play's last kill from the victim, at victimReplaySpeed. */
   victimReplay?: boolean;
+  /** Unset plays the replay at DEFAULT_VICTIM_REPLAY_SPEED. */
+  victimReplaySpeed?: VictimReplaySpeed;
+  /** A badge naming each play's clutch, ace or multikill. */
+  playBadges?: boolean;
+  /** 9:16 only: a closing card with the player's match stats and FACEIT data when known. */
+  statsCard?: boolean;
   coverStrategy: CoverStrategy;
   introText?: string;
   outroText?: string;

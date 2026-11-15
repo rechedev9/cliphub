@@ -58,6 +58,7 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Efecto de kill', value: 'Impacto / punch-in' },
     { label: 'Transición', value: 'Destello' },
     { label: 'Título / contador', value: 'Título automático · Contador activado' },
+    { label: 'Insignias / tarjeta', value: 'Sin insignias · Sin tarjeta' },
     { label: 'Intro', value: 'Sí · «Entrada»' },
     { label: 'Outro', value: 'No' },
     { label: 'Afiliado', value: 'No' },

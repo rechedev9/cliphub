@@ -44,6 +44,11 @@ type ShortEdit struct {
 	KeyDropCode         string   `json:"keydrop_code,omitempty"`
 	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
 	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
+
+	// VictimReplaySpeed is 0.25 or 1; 0 keeps the default half speed.
+	VictimReplaySpeed float64 `json:"victim_replay_speed,omitempty"`
+	PlayBadges        bool    `json:"play_badges,omitempty"`
+	StatsCard         bool    `json:"stats_card,omitempty"`
 }
 
 // ShortMusic is the "music" object of a Short: a track id from ListSongs and its mix.

@@ -678,7 +678,7 @@ func voiceMixWindow(part ShortPart, tickrate int, partDuration float64) (start, 
 
 func voiceMixFilter(short ShortEdit, partIdx int, part ShortPart, gameLabel string, partDuration float64) string {
 	start, end := voiceMixWindow(part, short.VoiceTickrate, partDuration)
-	if len(short.VoiceTracks) == 0 || short.VoiceTickrate <= 0 || end <= start || isSlowMotion(part) {
+	if len(short.VoiceTracks) == 0 || short.VoiceTickrate <= 0 || end <= start || isSlowMotion(part) || isVictimReplayPart(part) {
 		return ""
 	}
 	base := voiceInputStart(short)
