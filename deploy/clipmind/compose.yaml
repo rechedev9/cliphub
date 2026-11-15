@@ -24,6 +24,8 @@ services:
       CLIPMIND_TRUST_PROXY: "1"
       # The public demo: the Iberian Soul workspace of the cliphub-demo account.
       CLIPMIND_DEMO_WORKSPACE: 502cb07c-c1d7-498e-ac0f-a369bbeb8c38
+      # Dates FACEIT uploads by their room and links players; the key lives in .env beside this file, never in git.
+      CLIPMIND_FACEIT_API_KEY: ${CLIPMIND_FACEIT_API_KEY:-}
     volumes:
       - ./data:/data
     tmpfs:
