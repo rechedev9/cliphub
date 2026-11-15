@@ -1,6 +1,7 @@
 import { STREAM_VARIANTS, type StreamEditPlan, type StreamRenderState } from '../api/streams.ts';
 import { CREATE_FLOW_STEPS } from '../produce/create-flow.ts';
-import { clipOutputDuration, formatStreamClock } from './plan.ts';
+import { formatStreamClock } from './plan.ts';
+import { streamPlanShorts, streamShortCount } from './groups.ts';
 
 export const STREAM_STEP = { cuts: 'cuts', layout: 'layout', review: 'review', results: 'results' } as const;
 export type StreamStep = (typeof STREAM_STEP)[keyof typeof STREAM_STEP];
@@ -61,7 +62,7 @@ export function streamEditorSteps({
     {
       key: 'cuts',
       ...workflowEntry('cuts'),
-      detail: shortsWord(plan.clips.length),
+      detail: shortsWord(streamShortCount(plan)),
       done: plan.clips.length > 0,
       optional: false,
       disabled: false,
@@ -102,8 +103,8 @@ export function streamEditorSteps({
 export function streamOutputSummary(plan: StreamEditPlan, stale: boolean): string {
   if (!plan.clips.length) return 'Marca el inicio y el final de tu primer momento';
   return (
-    plan.clips
-      .map((clip, index) => `${String(index + 1).padStart(2, '0')} · ${formatStreamClock(clipOutputDuration(clip))}`)
+    streamPlanShorts(plan)
+      .map((short, index) => `${String(index + 1).padStart(2, '0')} · ${formatStreamClock(short.durationSeconds)}`)
       .join(', ') + (stale ? ' · Cambios sin exportar' : '')
   );
 }
@@ -143,5 +144,5 @@ export function streamCtaLabel({
   if (hasRender && !stale) return 'Ver vídeos terminados →';
   if (streamPlanBlocker(plan) === 'cuts') return 'Elegir momentos →';
   if (streamPlanBlocker(plan) === 'layout') return 'Ajustar cámara →';
-  return `Exportar ${shortsWord(plan.clips.length)} →`;
+  return `Exportar ${shortsWord(streamShortCount(plan))} →`;
 }

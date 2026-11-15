@@ -25,6 +25,8 @@ type StreamFrameProps = {
   clips: StreamClipRange[];
   selectedClipId: string | null;
   music: { url: string; volume: number } | null;
+  /** Music time each clip starts at; inside a joined Short the track runs on. */
+  musicOffsets: ReadonlyMap<string, number>;
   onPosition: (seconds: number) => void;
   onStatus: (status: PlaybackStatus) => void;
   onPlayingChange: (playing: boolean) => void;
@@ -123,7 +125,8 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
       const clip = current.mode === STREAM_PLAYBACK_MODE.source ? undefined : current.clips[clipIndex];
       playbackClipId = clip?.id ?? null;
       session.setRange(streamClipRange(clip));
-      mixer.configure(clip ?? null, clip ? current.music : null);
+      const music = clip && current.music ? { ...current.music, offsetSeconds: current.musicOffsets.get(clip.id) ?? 0 } : null;
+      mixer.configure(clip ?? null, music);
       latest.current.onClipChange(clip?.id ?? null);
     }
 
@@ -235,7 +238,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
     };
   }, [props.videoSrc]);
 
-  useEffect(() => { runtimeRef.current?.configure(); }, [props.mode, props.selectedClipId, props.clips, props.music]);
+  useEffect(() => { runtimeRef.current?.configure(); }, [props.mode, props.selectedClipId, props.clips, props.music, props.musicOffsets]);
   useEffect(() => { runtimeRef.current?.seek(props.seek.seconds); }, [props.seek]);
   useEffect(() => {
     if (props.playing) runtimeRef.current?.play();

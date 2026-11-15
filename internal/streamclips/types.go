@@ -111,7 +111,7 @@ type SourceProbe struct {
 	AudioStreams int `json:"audio_streams,omitempty"`
 	// AudioTitles holds each audio track's title tag in track order ("" when untitled).
 	AudioTitles []string `json:"audio_titles,omitempty"`
-	FrameRate       string  `json:"frame_rate,omitempty"`
+	FrameRate   string   `json:"frame_rate,omitempty"`
 	// Container is ffprobe's format_name, such as "mov,mp4,m4a,3gp,3g2,mj2" or "mpegts".
 	Container string `json:"container,omitempty"`
 	// VideoTimeBase is the selected video stream's ffprobe time_base (for
@@ -199,6 +199,7 @@ type EditPlan struct {
 	FaceCropReviewed bool               `json:"face_crop_reviewed,omitempty"`
 	GameplayCrop     CropRect           `json:"gameplay_crop"`
 	Clips            []ClipRange        `json:"clips"`
+	Groups           []ClipGroup        `json:"groups,omitempty"`
 	StreamerBanner   StreamerBannerPlan `json:"streamer_banner,omitzero"`
 	KeyDropBanner    KeyDropBannerPlan  `json:"keydrop_banner,omitzero"`
 	Music            MusicPlan          `json:"music,omitzero"`
@@ -357,12 +358,13 @@ type VideoEntry struct {
 	Performance     *VideoPerformance `json:"performance,omitempty"`
 }
 
-func NewVideoEntry(clip ClipRange, key string) VideoEntry {
+// NewVideoEntry describes one rendered output: a lone moment or a group.
+func NewVideoEntry(output PlanOutput, key string) VideoEntry {
 	return VideoEntry{
-		ClipID:          clip.ID,
-		Title:           clip.Title,
+		ClipID:          output.ID,
+		Title:           output.Title,
 		Key:             key,
-		DurationSeconds: clip.OutputDurationSeconds(),
+		DurationSeconds: output.DurationSeconds(),
 	}
 }
 
@@ -494,6 +496,9 @@ func (p EditPlan) Validate() error {
 			return fmt.Errorf("duplicate clip id %q", clip.ID)
 		}
 		seen[clip.ID] = true
+	}
+	if err := p.validateGroups(); err != nil {
+		return err
 	}
 	if p.Music.Key != "" && !musicKeyPattern.MatchString(p.Music.Key) {
 		return fmt.Errorf("invalid music key %q", p.Music.Key)
@@ -785,6 +790,7 @@ func NormalizeEditPlan(plan EditPlan) EditPlan {
 		plan.Clips[i] = normalizeClipRange(plan.Clips[i])
 		plan.Clips[i].ID = strings.TrimSpace(plan.Clips[i].ID)
 	}
+	plan.Groups = normalizeGroups(plan)
 	plan.StreamerBanner.Nick = strings.TrimSpace(plan.StreamerBanner.Nick)
 	plan.StreamerBanner.Platform = strings.ToLower(strings.TrimSpace(plan.StreamerBanner.Platform))
 	plan.KeyDropBanner.Family = keydropbanner.NormalizeFamily(plan.KeyDropBanner.Family)

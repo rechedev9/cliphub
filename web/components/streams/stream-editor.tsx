@@ -83,6 +83,14 @@ import { StreamDetectedPlays } from '@/components/streams/detected-plays';
 import { clipsWithPlays } from '@/lib/streams/plays';
 import { StreamKillFeedControls } from '@/components/streams/kill-feed-controls';
 import { killFeedDefaultPosition } from '@/lib/streams/kill-feed';
+import {
+  pruneStreamGroups,
+  restoreStreamGroup,
+  streamMusicOffsets,
+  streamPlanShorts,
+  type StreamShort,
+} from '@/lib/streams/groups';
+import { StreamReviewList } from '@/components/streams/stream-review-list';
 import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 import { recordRendererError } from '@/lib/desktop-telemetry';
 
@@ -129,9 +137,13 @@ export function StreamEditor({
     requestedStep === STREAM_STEP.results && stage === 'editing' && !hasRender ? STREAM_STEP.review : requestedStep;
   const [selectedClipId, setSelectedClipId] = useState<string | null>(plan.clips[0]?.id ?? null);
   const resultVideos = renderState?.videos ?? [];
+  const shorts = useMemo(() => streamPlanShorts(plan), [plan]);
+  // A moment inside a joined Short selects that Short: its video and, in Revisar, its preview.
+  const selectedShort = shorts.find((s) => s.clips.some((c) => c.id === selectedClipId));
+  const selectedVideoId = selectedShort?.id ?? selectedClipId;
   const resultIndex = Math.max(
     0,
-    resultVideos.findIndex((v) => v.clip_id === selectedClipId),
+    resultVideos.findIndex((v) => v.clip_id === selectedVideoId),
   );
   const resultClip = resultVideos[resultIndex];
   const resultTitle = resultClip?.title || `Short ${resultIndex + 1}`;
@@ -154,21 +166,27 @@ export function StreamEditor({
   const [playbackClipId, setPlaybackClipId] = useState(selectedClipId);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewReload, setPreviewReload] = useState(0);
+  // In Revisar the selected Short is the unit: a joined one plays its moments in the group's order.
+  const previewGroup = activeStep === STREAM_STEP.review && selectedShort?.groupId ? selectedShort : undefined;
+  const groupPlaying = previewGroup && playbackMode === STREAM_PLAYBACK_MODE.selected ? previewGroup : undefined;
+  const playbackClips = groupPlaying?.clips ?? plan.clips;
+  const sessionMode = groupPlaying ? STREAM_PLAYBACK_MODE.sequence : playbackMode;
   const playbackClock = useMemo(() => {
-    if (playbackMode === STREAM_PLAYBACK_MODE.source) return { elapsed: previewSeconds, duration: sourceDuration };
-    const activeIndex = streamPlaybackIndex(plan.clips, playbackClipId ?? selectedClipId);
-    const active = plan.clips[activeIndex];
+    if (sessionMode === STREAM_PLAYBACK_MODE.source) return { elapsed: previewSeconds, duration: sourceDuration };
+    const activeIndex = streamPlaybackIndex(playbackClips, playbackClipId ?? selectedClipId);
+    const active = playbackClips[activeIndex];
     if (!active) return { elapsed: 0, duration: 0 };
     const activeElapsed = Math.max(0, Math.min(previewSeconds, active.end_seconds) - active.start_seconds) / (active.edit?.speed ?? 1);
-    if (playbackMode === STREAM_PLAYBACK_MODE.selected) {
+    if (sessionMode === STREAM_PLAYBACK_MODE.selected) {
       return { elapsed: activeElapsed, duration: clipOutputDuration(active) };
     }
-    const prior = plan.clips.slice(0, activeIndex).reduce((sum, clip) => sum + clipOutputDuration(clip), 0);
+    const prior = playbackClips.slice(0, activeIndex).reduce((sum, clip) => sum + clipOutputDuration(clip), 0);
     return {
       elapsed: prior + activeElapsed,
-      duration: plan.clips.reduce((sum, clip) => sum + clipOutputDuration(clip), 0),
+      duration: playbackClips.reduce((sum, clip) => sum + clipOutputDuration(clip), 0),
     };
-  }, [playbackClipId, playbackMode, plan.clips, previewSeconds, selectedClipId, sourceDuration]);
+  }, [playbackClipId, sessionMode, playbackClips, previewSeconds, selectedClipId, sourceDuration]);
+  const musicOffsets = useMemo(() => streamMusicOffsets(shorts), [shorts]);
   const previewMusic = useMemo(() => {
     const song = songs?.find((entry) => entry.id === plan.music?.key);
     return song?.previewUrl ? { url: song.previewUrl, volume: plan.music?.volume ?? 0.25 } : null;
@@ -209,6 +227,8 @@ export function StreamEditor({
     setPreviewPlaying(false);
     setActiveStep(step);
     setPlaybackMode(step === 'cuts' ? STREAM_PLAYBACK_MODE.source : STREAM_PLAYBACK_MODE.selected);
+    const first = step === STREAM_STEP.review && selectedShort?.groupId ? selectedShort.clips[0] : undefined;
+    if (first) seek(first.start_seconds);
     panelRef.current?.scrollTo(0, 0);
   }
   function seek(seconds: number) {
@@ -217,10 +237,11 @@ export function StreamEditor({
     setPreviewSeek((previous) => ({ seconds: bounded, revision: previous.revision + 1 }));
   }
   function playSelected() {
-    if (!selectedClip) return;
+    const first = previewGroup?.clips[0] ?? selectedClip;
+    if (!first) return;
     setPlaybackMode(STREAM_PLAYBACK_MODE.selected);
     setPreviewError(null);
-    seek(selectedClip.start_seconds);
+    seek(first.start_seconds);
     setPreviewPlaying(true);
   }
 
@@ -333,7 +354,7 @@ export function StreamEditor({
     onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, start_seconds: start, end_seconds: end } });
   };
 
-  const setClips = (clips: StreamClipRange[]) => onPlanChange({ ...plan, clips });
+  const setClips = (clips: StreamClipRange[]) => onPlanChange(pruneStreamGroups({ ...plan, clips }));
   const selectClip = (clip: StreamClipRange) => {
     setSelectedClipId(clip.id);
     setCreatingMoment(false);
@@ -367,12 +388,19 @@ export function StreamEditor({
     setClips(next);
     selectClip(added);
   };
+  const selectShort = (short: StreamShort) => {
+    const [first] = short.clips;
+    if (!first) return;
+    setPreviewPlaying(false);
+    selectClip(first);
+  };
   const seekSource = (seconds: number) => {
     setPlaybackMode('source');
     setPreviewPlaying(false);
     seek(seconds);
   };
   const removeClip = (clip: StreamClipRange) => {
+    const group = plan.groups?.find((g) => g.clip_ids.includes(clip.id));
     const next = plan.clips.filter((c) => c.id !== clip.id);
     setClips(next);
     if (next.length) selectClip(next[0]);
@@ -388,8 +416,10 @@ export function StreamEditor({
         label: 'Deshacer',
         onClick: () => {
           const current = latestPlanRef.current;
-          if (!current.clips.some((c) => c.id === clip.id))
-            onPlanChange({ ...current, clips: insertClipSorted(current.clips, clip) });
+          if (!current.clips.some((c) => c.id === clip.id)) {
+            const restored = { ...current, clips: insertClipSorted(current.clips, clip) };
+            onPlanChange(group ? restoreStreamGroup(restored, group) : restored);
+          }
           selectClip(clip);
         },
       },
@@ -619,26 +649,20 @@ export function StreamEditor({
   } else if (activeStep === STREAM_STEP.review) {
     stepContent = (
       <>
-        <p className="text-body-sm text-fg-2">Revisa cada Short antes de exportar. Se guardará un vídeo por momento.</p>
+        <p className="text-body-sm text-fg-2">Revisa cada Short antes de exportar. Se guardará un vídeo por Short: junta momentos para que salgan en el mismo.</p>
         {blocker ? (
           <Button variant="outline" className="h-auto whitespace-normal" onClick={() => navigateStep(blocker)}>
             {rangesIssue || streamBlockerHint(plan)}
           </Button>
         ) : null}
-        <ul className="flex flex-col gap-2">
-          {plan.clips.map((clip, index) => (
-            <li key={clip.id}>
-              <Button
-                variant={selectedClip?.id === clip.id ? 'secondary' : 'outline'}
-                className="h-auto w-full justify-start whitespace-normal text-left"
-                onClick={() => selectClip(clip)}
-              >
-                {index + 1}. {clip.title || `Momento ${index + 1}`} ·{' '}
-                {formatStreamClock((clip.end_seconds - clip.start_seconds) / (clip.edit?.speed ?? 1))}
-              </Button>
-            </li>
-          ))}
-        </ul>
+        <StreamReviewList
+          plan={plan}
+          shorts={shorts}
+          selectedShortId={selectedShort?.id ?? null}
+          disabled={busy}
+          onSelect={selectShort}
+          onPlanChange={onPlanChange}
+        />
         <Button variant="outline" disabled={!selectedClip} onClick={playSelected}>
           Ver este Short
         </Button>
@@ -650,7 +674,7 @@ export function StreamEditor({
     );
   } else if (stage === 'rendering') {
     stepContent = (
-      <StreamRenderStage clips={plan.clips} renderState={renderState} variantLabel={variantMeta.label} />
+      <StreamRenderStage shorts={shorts} renderState={renderState} variantLabel={variantMeta.label} />
     );
   } else if (renderedPlan && hasRender) {
     stepContent = (
@@ -673,11 +697,12 @@ export function StreamEditor({
       videoSrc={videoSrc}
       seek={previewSeek}
       playing={previewPlaying}
-      mode={playbackMode}
+      mode={sessionMode}
       loop={playbackLoop}
-      clips={plan.clips}
+      clips={playbackClips}
       selectedClipId={selectedClipId}
       music={previewMusic}
+      musicOffsets={musicOffsets}
       onPosition={setPreviewSeconds}
       onStatus={setPlaybackStatus}
       onPlayingChange={setPreviewPlaying}
@@ -727,7 +752,7 @@ export function StreamEditor({
                     variant: plan.variant,
                     faceCrop,
                     gameplayCrop: plan.gameplay_crop,
-                    clips: plan.clips,
+                    clips: playbackClips,
                     activeClipId: playbackClipId ?? selectedClipId ?? undefined,
                     frameSeconds: previewSeconds,
                     streamerNick: plan.streamer_banner?.nick?.trim(),
@@ -751,14 +776,15 @@ export function StreamEditor({
                   playbackDuration={playbackClock.duration}
                   playing={previewPlaying}
                   status={playbackStatus}
-                  canPlay={!busy && sourceDuration > 0 && (playbackMode === STREAM_PLAYBACK_MODE.source || streamPlaybackIndex(plan.clips, selectedClipId) >= 0)}
+                  canPlay={!busy && sourceDuration > 0 && (playbackMode === STREAM_PLAYBACK_MODE.source || streamPlaybackIndex(playbackClips, selectedClipId) >= 0)}
                   mode={playbackMode}
                   hasSelection={!!selectedClip}
                   clipCount={plan.clips.length}
                   onModeChange={(mode) => {
                     setPreviewPlaying(false);
                     setPlaybackMode(mode);
-                    if (mode === STREAM_PLAYBACK_MODE.selected && selectedClip) seek(selectedClip.start_seconds);
+                    const first = previewGroup?.clips[0] ?? selectedClip;
+                    if (mode === STREAM_PLAYBACK_MODE.selected && first) seek(first.start_seconds);
                   }}
                   loop={playbackLoop}
                   onLoopChange={setPlaybackLoop}
@@ -782,14 +808,14 @@ export function StreamEditor({
                     onSeek={(seconds) => {
                       // Scrubbing inside a Short being previewed keeps that mode; anywhere else is the original.
                       const insideSelected =
-                        playbackMode === STREAM_PLAYBACK_MODE.selected &&
+                        sessionMode === STREAM_PLAYBACK_MODE.selected &&
                         selectedClip !== undefined &&
                         seconds >= selectedClip.start_seconds &&
                         seconds <= selectedClip.end_seconds;
                       // A sequence follows the playhead: the session switches to the Short under it.
                       const insidePreviewed =
-                        playbackMode === STREAM_PLAYBACK_MODE.sequence
-                          ? streamClipIndexAt(plan.clips, seconds) >= 0
+                        sessionMode === STREAM_PLAYBACK_MODE.sequence
+                          ? streamClipIndexAt(playbackClips, seconds) >= 0
                           : insideSelected;
                       if (!insidePreviewed) setPlaybackMode(STREAM_PLAYBACK_MODE.source);
                       seek(seconds);
@@ -810,7 +836,7 @@ export function StreamEditor({
 
         <StreamFooter
           error={error}
-          countLabel={shortsWord(plan.clips.length)}
+          countLabel={shortsWord(shorts.length)}
           summary={streamOutputSummary(plan, stale)}
           ctaLabel={ctaLabel}
           ctaDisabled={ctaDisabled}

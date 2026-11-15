@@ -175,6 +175,21 @@ test('seeks music only for configuration changes or meaningful drift', async () 
   }
 });
 
+test('starts the music at the offset a joined Short has already used', async () => {
+  const restore = installWebAudio();
+  try {
+    const mixer = new StreamAudioMixer({} as HTMLVideoElement, () => assert.fail('unexpected error'));
+    mixer.configure(clip({ edit: undefined }), { url: '/music/track.mp3', volume: 0.4, offsetSeconds: 10 });
+    await mixer.resume();
+    const music = FakeAudio.instances[0];
+    music.duration = 60;
+    mixer.sync(12, false); // 2 s into the moment, 10 s into the track.
+    assert.equal(music.currentTime, 12);
+  } finally {
+    restore();
+  }
+});
+
 test('controls music playback and suppresses late errors after disposal', async () => {
   const restore = installWebAudio();
   try {

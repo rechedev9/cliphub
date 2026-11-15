@@ -67,6 +67,9 @@ export type StreamClipRange = {
   edit?: StreamClipEdit;
 };
 
+/** Two or more moments rendered as one Short, in clip_ids order; mirrors streamclips.ClipGroup. */
+export type StreamClipGroup = { id: string; clip_ids: string[]; title?: string };
+
 /** A music catalog track mixed under the clip audio; empty key means none. */
 type StreamMusic = { key?: string; volume?: number };
 
@@ -109,6 +112,7 @@ export type StreamEditPlan = {
   face_crop_reviewed?: boolean;
   gameplay_crop?: NormalizedRect;
   clips: StreamClipRange[];
+  groups?: StreamClipGroup[];
   streamer_banner?: StreamerBanner;
   keydrop_banner?: KeyDropBanner;
   music?: StreamMusic;

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -193,8 +194,8 @@ func TestBuildFFmpegArgsOverlaysKeyDropBanner(t *testing.T) {
 	plan.KeyDropBanner = KeyDropBannerPlan{Style: "operator", Code: "TESTCODE", StartSeconds: &start, EndSeconds: &end}
 	clip := ClipRange{ID: "c1", StartSeconds: 0, EndSeconds: 4}
 	args, err := BuildFFmpegArgs(FFmpegInputs{
-		SourcePath:       "in.mp4",
-		OutputPath:       "out.mp4",
+		SourcePath: "in.mp4",
+		OutputPath: "out.mp4",
 		// Plate is pre-composited with the live code; filter only scales/overlays it.
 		KeyDropImagePath: "/cache/keydrop-banner.png",
 		SourceHasAudio:   true,
@@ -527,6 +528,47 @@ func TestBuildFFmpegArgsMixesMusicUnderOriginalAudio(t *testing.T) {
 	}
 	if strings.Contains(joined, "-shortest") {
 		t.Fatalf("amix duration=first already bounds the mix; -shortest is for silent sources only: %s", joined)
+	}
+}
+
+func TestBuildFFmpegArgsMusicCarriesOnInsideAJoinedShort(t *testing.T) {
+	plan := DefaultEditPlan()
+	plan.Music = MusicPlan{Key: "concrete-teeth", Volume: 0.3}
+	plan.Clips = []ClipRange{{ID: "clip-002", StartSeconds: 30, EndSeconds: 40}}
+
+	args, err := BuildFFmpegArgs(FFmpegInputs{
+		SourcePath: "source.mp4", OutputPath: "out.mp4", MusicPath: "music/concrete-teeth.mp3",
+		MusicOffsetSeconds: 12.5, SourceHasAudio: true,
+	}, plan, plan.Clips[0])
+	if err != nil {
+		t.Fatalf("BuildFFmpegArgs error = %v", err)
+	}
+	want := "[1:a]atrim=start=12.500000,asetpts=PTS-STARTPTS,volume=0.300000[bgm]"
+	if joined := strings.Join(args, " "); !strings.Contains(joined, want) {
+		t.Fatalf("args missing %q: %s", want, joined)
+	}
+}
+
+// A stale silent probe would map real audio into one part and none into a
+// sped-up one, and the stream-copy join would drop the audio after the cut.
+func TestBuildFFmpegArgsJoinedPartOfASilentSourceMapsNoAudio(t *testing.T) {
+	plan := DefaultEditPlan()
+	plan.Clips = []ClipRange{{ID: "clip-001", StartSeconds: 0, EndSeconds: 5}}
+	in := FFmpegInputs{SourcePath: "source.mp4", OutputPath: "out.mp4"}
+	lone, err := BuildFFmpegArgs(in, plan, plan.Clips[0])
+	if err != nil {
+		t.Fatalf("BuildFFmpegArgs error = %v", err)
+	}
+	if !slices.Contains(lone, "0:a?") {
+		t.Fatalf("a lone moment should keep the optional source audio: %v", lone)
+	}
+	in.JoinedPart = true
+	joined, err := BuildFFmpegArgs(in, plan, plan.Clips[0])
+	if err != nil {
+		t.Fatalf("BuildFFmpegArgs error = %v", err)
+	}
+	if slices.Contains(joined, "0:a?") {
+		t.Fatalf("a joined part of a silent source maps audio: %v", joined)
 	}
 }
 

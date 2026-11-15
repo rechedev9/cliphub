@@ -2,8 +2,9 @@
 
 import type { ReactNode } from 'react';
 import { Film } from 'lucide-react';
-import type { StreamClipRange, StreamRenderState } from '@/lib/api/streams';
-import { clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
+import type { StreamRenderState } from '@/lib/api/streams';
+import type { StreamShort } from '@/lib/streams/groups';
+import { formatStreamClock } from '@/lib/streams/plan';
 import { shortsWord, streamRenderQueued } from '@/lib/streams/editor';
 import { streamRenderProgressView } from '@/lib/streams/render-progress';
 import { LongOperation } from '@/components/studio/long-operation';
@@ -21,15 +22,15 @@ import { useElapsedSeconds } from '@/components/streams/use-elapsed-seconds';
  * speak one visual language.
  *
  * The bar fills with the encode progress the worker reads from FFmpeg, and
- * stays indeterminate while queued; the frames are the real clips from the
- * plan, labelled with their real output durations.
+ * stays indeterminate while queued; the frames are the Shorts the plan
+ * exports, a joined Short as one, labelled with their real output durations.
  */
 export function StreamRenderStage({
-  clips,
+  shorts,
   renderState,
   variantLabel,
 }: {
-  clips: StreamClipRange[];
+  shorts: StreamShort[];
   renderState: StreamRenderState | null;
   variantLabel: string;
 }): ReactNode {
@@ -45,15 +46,15 @@ export function StreamRenderStage({
 
       <LongOperation
         stage={stage}
-        detail={progress ? `${progress.clipLabel} · ${scope}` : `${shortsWord(clips.length)} · ${scope}`}
+        detail={progress ? `${progress.clipLabel} · ${scope}` : `${shortsWord(shorts.length)} · ${scope}`}
         percent={progress?.percent}
         elapsedSec={elapsed}
         tone="stream"
       />
 
       <ul className="grid grid-cols-2 gap-3">
-        {clips.map((clip, index) => (
-          <li key={clip.id} className="flex flex-col gap-2">
+        {shorts.map((short, index) => (
+          <li key={short.id} className="flex flex-col gap-2">
             {/* The progress bar above already names the stage; pending tiles stay neutral. */}
             <MediaFrame
               aspect="9:16"
@@ -66,10 +67,8 @@ export function StreamRenderStage({
                 </span>
               }
             />
-            <p className="truncate text-body-sm text-fg-2">{clip.title?.trim() || `Short ${index + 1}`}</p>
-            <p className="text-meta tabular-nums text-fg-3">
-              {formatStreamClock(clipOutputDuration(clip))}
-            </p>
+            <p className="truncate text-body-sm text-fg-2">{short.title}</p>
+            <p className="text-meta tabular-nums text-fg-3">{formatStreamClock(short.durationSeconds)}</p>
           </li>
         ))}
       </ul>

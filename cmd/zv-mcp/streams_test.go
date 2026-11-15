@@ -28,6 +28,7 @@ type fakeStream struct {
 	status      string
 	planVariant string
 	planClips   string
+	planGroups  string
 	savedPlan   map[string]json.RawMessage
 	putQuery    string
 	renderBody  string
@@ -68,7 +69,7 @@ func (f *fakeStream) connect(t *testing.T) *mcp.ClientSession {
 			{"name":"streamer-landscape-16x9","label":"YouTube Landscape 16:9","full_frame":true,"output_width":1920,"game_output_height":1080}]}`))
 	})
 	mux.HandleFunc("GET /api/stream-jobs/"+testStreamID+"/edit-plan", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"schema_version":"1.1","variant":"` + variant + `","clips":` + clips + `,
+		_, _ = w.Write([]byte(`{"schema_version":"1.1","variant":"` + variant + `","clips":` + clips + `,"groups":` + cmp.Or(f.planGroups, "null") + `,
 			"music":{"key":"song-7","volume":0.4},"updated_at":"2026-11-06T10:00:00Z"}`))
 	})
 	mux.HandleFunc("PUT /api/stream-jobs/"+testStreamID+"/edit-plan", func(w http.ResponseWriter, r *http.Request) {

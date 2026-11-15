@@ -32,12 +32,12 @@ const defaultStreamPlaysLimit = 20
 var streamPlayIDPattern = regexp.MustCompile(`^(play|voice)-[0-9]{1,6}$`)
 
 type findStreamPlaysIn struct {
-	ID          string `json:"id" jsonschema:"stream_id from import_stream or list_streams"`
-	Limit       int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 20. Marked shouts are always listed, past this limit"`
-	Rescan      bool   `json:"rescan,omitempty" jsonschema:"scan the video again even if it was scanned before"`
-	WaitSeconds int    `json:"wait_seconds,omitempty" jsonschema:"how long to wait for the scan, at most 55; call again while status is running"`
-	Voice       *bool  `json:"voice,omitempty" jsonschema:"look for voice peaks (the streamer raising their voice) as well as kills; default true. Changing it on a scanned stream scans again"`
-	VoiceSensitivity int `json:"voice_sensitivity,omitempty" jsonschema:"1 (only big shouts) to 5 (any raised voice); default 3. Changing it on a scanned stream scans again"`
+	ID               string `json:"id" jsonschema:"stream_id from import_stream or list_streams"`
+	Limit            int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 20. Marked shouts are always listed, past this limit"`
+	Rescan           bool   `json:"rescan,omitempty" jsonschema:"scan the video again even if it was scanned before"`
+	WaitSeconds      int    `json:"wait_seconds,omitempty" jsonschema:"how long to wait for the scan, at most 55; call again while status is running"`
+	Voice            *bool  `json:"voice,omitempty" jsonschema:"look for voice peaks (the streamer raising their voice) as well as kills; default true. Changing it on a scanned stream scans again"`
+	VoiceSensitivity int    `json:"voice_sensitivity,omitempty" jsonschema:"1 (only big shouts) to 5 (any raised voice); default 3. Changing it on a scanned stream scans again"`
 }
 
 type streamPlayOut struct {
@@ -121,9 +121,10 @@ type planMoment struct {
 
 // streamRenderRequest is what the user approves for render_stream.
 type streamRenderRequest struct {
-	Variant       string     `json:"variant"`
-	Clips         []planClip `json:"clips,omitempty"`
-	PlanUpdatedAt string     `json:"plan_updated_at"`
+	Variant       string         `json:"variant"`
+	Clips         []planClip     `json:"clips,omitempty"`
+	Groups        []planGroupArg `json:"groups,omitempty"`
+	PlanUpdatedAt string         `json:"plan_updated_at"`
 }
 
 // findStreamPlaysSchema is the inferred input schema with voice_sensitivity bounded to 1 to 5.
@@ -240,7 +241,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "render_stream", Meta: appToolMeta(jobProgressAppURI),
-		Description: "Render a stream's moments as videos in one layout from list_stream_variants, one MP4 per moment: vertical 9:16 Shorts or 16:9. " +
+		Description: "Render a stream's moments as videos in one layout from list_stream_variants, one MP4 per moment, or per group of moments joined with edit_stream_plan: vertical 9:16 Shorts or 16:9. " +
 			"play_ids from find_stream_plays are added to the moments the user saved in Studio, as the Añadir button does: a play that overlaps a saved moment is skipped. Empty renders the saved moments. " +
 			"A facecam layout needs the facecam crop checked once in Studio first. It encodes for minutes, so the user must approve it: " +
 			"if the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
@@ -298,12 +299,18 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 			if len(moments) == 0 {
 				return nil, streamRenderStartOut{}, errors.New("the stream has no moments saved; pass play_ids from find_stream_plays")
 			}
+			ids := make([]string, 0, len(moments))
 			for _, m := range moments {
 				body.Clips = append(body.Clips, m.clip)
+				ids = append(ids, m.clip.ID)
 			}
-			summary := fmt.Sprintf("Renderizar %s de %s con el diseño %s%s: %s. FFmpeg trabajará durante varios minutos.",
-				plural(len(moments), "vídeo", "vídeos"), streamName(j), variantLabel(body.Variant, variants),
-				momentOrigin(saved, added, len(in.PlayIDs)), describeClips(body.Clips))
+			if raw, ok := doc["groups"]; ok && string(raw) != "null" && json.Unmarshal(raw, &body.Groups) != nil {
+				return nil, streamRenderStartOut{}, errors.New("Studio returned an edit plan with invalid groups")
+			}
+			shorts := planShorts(ids, body.Groups)
+			summary := fmt.Sprintf("Renderizar %s de %s con el diseño %s%s%s: %s. FFmpeg trabajará durante varios minutos.",
+				plural(shorts, "vídeo", "vídeos"), streamName(j), variantLabel(body.Variant, variants),
+				momentOrigin(saved, added, len(in.PlayIDs)), joinedMoments(len(moments), shorts), describeShorts(body.Clips, body.Groups))
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "render_stream", JobID: in.ID, Request: body, Summary: summary, Given: in.Approve})
 			if err != nil {
 				return nil, streamRenderStartOut{}, err
@@ -593,6 +600,14 @@ func planMoments(doc map[string]json.RawMessage) ([]planMoment, error) {
 	return moments, nil
 }
 
+// joinedMoments says how many moments the groups fold into fewer videos.
+func joinedMoments(moments, shorts int) string {
+	if moments == shorts {
+		return ""
+	}
+	return fmt.Sprintf(" (%s, algunos unidos en un mismo Short)", plural(moments, "momento", "momentos"))
+}
+
 // momentOrigin says which videos come from saved moments and which from new plays.
 func momentOrigin(saved, added, asked int) string {
 	if asked == 0 {
@@ -668,18 +683,53 @@ func saveStreamRenderPlan(ctx context.Context, c *tuiclient.Client, in streamPla
 	return planTime(updatedAt)
 }
 
-func describeClips(clips []planClip) string {
-	parts := make([]string, 0, min(len(clips), maxSummaryPlays+1))
-	for i, c := range clips {
-		switch {
-		case i < maxSummaryPlays:
-			parts = append(parts, fmt.Sprintf("%s (%s a %s)", nonEmptyLabel(cleanName(c.Title), cleanName(c.ID)), clock(c.StartSeconds), clock(c.EndSeconds)))
-		case i == maxSummaryPlays:
-			parts = append(parts, fmt.Sprintf("y %d más", len(clips)-maxSummaryPlays))
+// describeShorts names each video in render order, as streamclips.EditPlan.Outputs builds them:
+// a group sits where its first listed moment is and plays its moments in the group's order.
+func describeShorts(clips []planClip, groups []planGroupArg) string {
+	byID := make(map[string]planClip, len(clips))
+	for _, c := range clips {
+		byID[c.ID] = c
+	}
+	groupOf := map[string]int{}
+	for gi, g := range groups {
+		present := slices.DeleteFunc(slices.Clone(g.ClipIDs), func(id string) bool { _, ok := byID[id]; return !ok })
+		if len(present) < 2 {
+			continue // planShorts counts such a group as loose moments too
+		}
+		for _, id := range present {
+			groupOf[id] = gi
 		}
 	}
-	return strings.Join(parts, "; ")
+	var shorts []string
+	emitted := map[int]bool{}
+	for _, c := range clips {
+		gi, grouped := groupOf[c.ID]
+		if !grouped {
+			shorts = append(shorts, fmt.Sprintf("%s (%s)", clipName(c), clipSpan(c)))
+			continue
+		}
+		if emitted[gi] {
+			continue
+		}
+		emitted[gi] = true
+		var names, spans []string
+		for _, id := range groups[gi].ClipIDs {
+			if m, ok := byID[id]; ok {
+				names, spans = append(names, clipName(m)), append(spans, clipSpan(m))
+			}
+		}
+		title := nonEmptyLabel(cleanName(groups[gi].Title), strings.Join(names, " + "))
+		shorts = append(shorts, fmt.Sprintf("%s (%s)", title, strings.Join(spans, ", ")))
+	}
+	if len(shorts) > maxSummaryPlays {
+		shorts = append(shorts[:maxSummaryPlays], fmt.Sprintf("y %d más", len(shorts)-maxSummaryPlays))
+	}
+	return strings.Join(shorts, "; ")
 }
+
+func clipName(c planClip) string { return nonEmptyLabel(cleanName(c.Title), cleanName(c.ID)) }
+
+func clipSpan(c planClip) string { return clock(c.StartSeconds) + " a " + clock(c.EndSeconds) }
 
 func nonEmptyLabel(label, fallback string) string {
 	if label == "" {
