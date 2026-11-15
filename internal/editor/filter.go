@@ -627,7 +627,7 @@ func appendEffectFilters(filters []string, short ShortEdit, singleCrop bool) []s
 		styled.BoxBorder = boxBorder
 		filters = append(filters, drawTextEffect(styled))
 	}
-	return appendCenteredKillfeedFilter(filters, short)
+	return appendShortASSFilters(filters, short)
 }
 
 func effectAmplitude(effect Effect, fallback float64) float64 {

@@ -81,6 +81,7 @@ var toggleOptions = []shortToggle{
 	{ID: "grenade_trails", Label: "Estelas de granadas", Description: "Dibuja el recorrido de las granadas de tu equipo sobre el gameplay, leído de la demo"},
 	{ID: "stats_card", Label: "Tarjeta de estadísticas", Description: "Cierra el Short con K/D, ADR, HS % y rating de ClipHub del jugador, y su nivel FACEIT si lo hay (solo 9:16)"},
 	{ID: "centered_killfeed", Label: "Kill feed centrada arriba", Description: "Dibuja tus kills en el centro, arriba del Short (solo 9:16)"},
+	{ID: "vertical_hud", Label: "HUD vertical", Description: "Marcador compacto arriba con reloj, ronda y vivos de cada bando leídos de la demo, y la kill feed centrada debajo (solo 9:16; no con el HUD nativo ni con Full HUD)"},
 	{ID: "voice_comms", Label: "Comms del equipo", Description: "Mezcla las voces del equipo en el audio"},
 	{ID: "native_hud", Label: "HUD nativo", Description: "Graba con el HUD original del juego"},
 	{ID: "victim_replay", Label: "Repetición desde la víctima", Description: "Tras cada jugada, la última baja otra vez vista por quien muere, a la velocidad elegida"},
@@ -135,6 +136,8 @@ type shortOptionsOut struct {
 
 	// ReplaySpeed lists the victim_replay_speed values; the id is the number to pass.
 	ReplaySpeed []shortOption `json:"replay_speed" jsonschema:"values for victim_replay_speed, used only with victim_replay"`
+	// VerticalHUDThemes are the catalog designs of the vertical HUD.
+	VerticalHUDThemes []shortOption `json:"vertical_hud_themes" jsonschema:"values for vertical_hud_theme, used only with vertical_hud"`
 }
 
 // shortChoices are the optional edit fields of generate_short. Unset fields keep the product defaults.
@@ -172,6 +175,8 @@ type shortChoices struct {
 	VictimReplaySpeed *float64 `json:"victim_replay_speed,omitempty" jsonschema:"victim replay speed: 0.25, 0.5 or 1; needs victim_replay; default 0.5"`
 	BrandWatermark    *bool    `json:"brand_watermark,omitempty" jsonschema:"draw the channel logo of the brand kit (get_brand_kit) as a watermark in its corner and opacity; needs a saved logo; default false"`
 	BrandBanner       *bool    `json:"brand_banner,omitempty" jsonschema:"show the sponsor banner of the brand kit in its time window; needs a saved banner; not with banner_style; default false"`
+	VerticalHUD       *bool    `json:"vertical_hud,omitempty" jsonschema:"9:16 HUD at the top of the Short: compact scoreboard with team names, score, clock and round, each side's alive count read from the demo at render time, and the centered kill feed under it (turns centered_killfeed on); short-9x16 only; not with native_hud or a preset that records the CS2 HUD (full-hud-60); default false"`
+	VerticalHUDTheme  string   `json:"vertical_hud_theme,omitempty" jsonschema:"catalog design of vertical_hud from list_short_options vertical_hud_themes (the list_hud_themes catalog); needs vertical_hud; default the first design"`
 }
 
 type songIn struct {
@@ -192,7 +197,7 @@ func registerShortOptions(server *mcp.Server, s *studio) {
 				return nil, shortOptionsOut{}, toolError(err)
 			}
 			return nil, shortOptionsOut{Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions,
-				Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies}, nil
+				Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies, VerticalHUDThemes: verticalHUDThemes()}, nil
 		})
 
 	// Only the Short picker app plays previews; MCP Apps hosts hide app-only tools from the model.
@@ -296,6 +301,9 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 	edit.CenteredKillfeed = orDefault(c.CenteredKillfeed, false)
 	if edit.CenteredKillfeed && edit.Format != "short-9x16" {
 		return edit, fmt.Errorf("centered_killfeed needs format short-9x16")
+	}
+	if err := resolveVerticalHUD(&edit, c); err != nil {
+		return edit, err
 	}
 	edit.PlayBadges, edit.StatsCard = orDefault(c.PlayBadges, false), orDefault(c.StatsCard, false)
 	edit.WinProbability = orDefault(c.WinProbability, false)
@@ -441,7 +449,7 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	for _, x := range []struct {
 		name string
 		on   bool
-	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter}, {"play_badges", e.PlayBadges}, {"win_probability", e.WinProbability}, {"player_labels", e.PlayerLabels}, {"grenade_trails", e.GrenadeTrails}, {"stats_card", e.StatsCard}, {"centered_killfeed", e.CenteredKillfeed},
+	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter}, {"play_badges", e.PlayBadges}, {"win_probability", e.WinProbability}, {"player_labels", e.PlayerLabels}, {"grenade_trails", e.GrenadeTrails}, {"stats_card", e.StatsCard}, {"centered_killfeed", e.CenteredKillfeed}, {"vertical_hud", e.VerticalHUD},
 		{"voice_comms", e.VoiceComms}, {"native_hud", e.NativeHUD}, {"victim_replay", e.VictimReplay}, {"cover", e.CoverStrategy == coverGenerated},
 		{"brand_watermark", e.BrandWatermark}, {"brand_banner", e.BrandBanner}} {
 		if x.on {
@@ -455,6 +463,9 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 		e.Format, e.KillEffect, e.Transition, music, strings.Join(extras, ", "))
 	if e.VictimReplay {
 		out += fmt.Sprintf(", repetición a %gx", cmp.Or(e.VictimReplaySpeed, 0.5))
+	}
+	if e.VerticalHUD && e.VerticalHUDTheme != "" {
+		out += ", diseño del HUD vertical " + e.VerticalHUDTheme
 	}
 	if e.IntroText != "" {
 		out += fmt.Sprintf(", apertura «%s»", e.IntroText)

@@ -335,13 +335,23 @@ func (s *scene) loadout(p Player, accent string) {
 
 // SVG and ASS use the same face, weight, fitted text and display list.
 func (r *Renderer) SVG(state Snapshot, target string) string {
+	return svgDocument(svgFrame{name: r.Theme.Name, w: Width, h: Height}, r.Scene(state, target))
+}
+
+// svgFrame is the drawn area of a display list: its view box and the design's name.
+type svgFrame struct {
+	name       string
+	x, y, w, h int
+}
+
+func svgDocument(frame svgFrame, nodes []Node) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="%s HUD"><defs><style>`, html.EscapeString(r.Theme.Name))
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="%d %d %d %d" role="img" aria-label="%s HUD"><defs><style>`, frame.w, frame.h, frame.x, frame.y, frame.w, frame.h, html.EscapeString(frame.name))
 	for _, face := range hudFaces {
 		fmt.Fprintf(&b, `@font-face{font-family:'%s';font-weight:%d;src:url(data:font/ttf;base64,%s)}`, face.Family, face.Weight, base64.StdEncoding.EncodeToString(face.Data))
 	}
 	b.WriteString(`</style></defs>`)
-	for _, n := range r.Scene(state, target) {
+	for _, n := range nodes {
 		if n.Path != "" {
 			fmt.Fprintf(&b, `<path d="%s" fill="#%s" opacity="%g"/>`, n.Path, n.Color, n.Opacity)
 			continue

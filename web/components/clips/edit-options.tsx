@@ -21,6 +21,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { BrandKitOptions } from './brand-kit-options';
+import { VerticalHudOptions } from './vertical-hud-options';
 
 /** Show the live character counter only once the input is getting close to the limit. */
 const COUNTER_THRESHOLD = BOOKEND_TEXT_MAX_LENGTH - 20;
@@ -35,6 +36,8 @@ export type EditOptionsProps = {
   killCounter?: boolean;
   /** False hides the stats card: a multi-POV video has no single player to sum up. */
   statsCard?: boolean;
+  /** False disables the vertical HUD: the chosen style records CS2's own HUD. */
+  verticalHud?: boolean;
 };
 
 /** "0,25x": the decimal comma of the Spanish UI. */
@@ -68,8 +71,11 @@ export function EditOptions({
   showFullDemoDelivery = false,
   killCounter = true,
   statsCard = true,
+  verticalHud = true,
 }: EditOptionsProps) {
   const onChange = (next: EditConfig): void => emit(exclusiveBanner(value, next));
+  const portraitShort = value.format === 'short-9x16' && !showFullDemoDelivery && !value.deathReel;
+  const hudFeed = portraitShort && verticalHud && value.verticalHud === true;
   return (
     <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
       {showFullDemoDelivery ? (
@@ -310,13 +316,19 @@ export function EditOptions({
         </OptionBlock>
       ) : null}
 
+      {portraitShort ? (
+        <OptionBlock label="Marcador" className="md:col-span-2">
+          <VerticalHudOptions value={value} onChange={onChange} disabled={disabled} allowed={verticalHud} />
+        </OptionBlock>
+      ) : null}
+
       {value.format === 'short-9x16' ? (
         <OptionBlock label="Kill feed" className="md:col-span-2">
           <ToggleGroup
             type="multiple"
-            value={value.centeredKillfeed ? ['centered-killfeed'] : []}
+            value={value.centeredKillfeed || hudFeed ? ['centered-killfeed'] : []}
             onValueChange={(items) => onChange({ ...value, centeredKillfeed: items.includes('centered-killfeed') })}
-            disabled={disabled}
+            disabled={disabled || hudFeed}
             variant="outline"
             className="flex-wrap"
           >
@@ -326,7 +338,9 @@ export function EditOptions({
             </ToggleGroupItem>
           </ToggleGroup>
           <p className="text-body-sm text-fg-3">
-            ClipHub dibuja tus kills en el centro, arriba del Short, en lugar de la kill feed de CS2.
+            {hudFeed
+              ? 'El HUD vertical la incluye, debajo del marcador.'
+              : 'ClipHub dibuja tus kills en el centro, arriba del Short, en lugar de la kill feed de CS2.'}
           </p>
         </OptionBlock>
       ) : null}

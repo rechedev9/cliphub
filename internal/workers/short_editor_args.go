@@ -7,7 +7,8 @@ import (
 	"github.com/rechedev9/cliphub/internal/renderplan"
 )
 
-// shortOverlayArgs are the editor flags of the victim replay, the centered kill feed, the play badges and the win chance.
+// shortOverlayArgs are the editor flags of the victim replay, the centered kill feed, the play badges,
+// the win chance and the vertical HUD.
 // The player labels and grenade trails go with their world track (shortDataArgs).
 func shortOverlayArgs(edit renderplan.EditRequest) []string {
 	var args []string
@@ -25,6 +26,12 @@ func shortOverlayArgs(edit renderplan.EditRequest) []string {
 	}
 	if edit.WinProbability {
 		args = append(args, "--win-probability")
+	}
+	if edit.VerticalHUD {
+		args = append(args, "--vertical-hud")
+		if edit.VerticalHUDTheme != "" {
+			args = append(args, "--vertical-hud-theme", edit.VerticalHUDTheme)
+		}
 	}
 	return args
 }

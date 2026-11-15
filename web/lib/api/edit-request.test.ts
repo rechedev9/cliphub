@@ -90,3 +90,24 @@ test('buildEditRequest sends centered_killfeed only for a vertical Short', () =>
   // Death clips have no kills to draw.
   assert.equal('centered_killfeed' in buildEditRequest(edit({ centeredKillfeed: true, deathReel: true })), false);
 });
+
+test('buildEditRequest sends the vertical HUD with its kill feed only for a vertical kill Short', () => {
+  const hud = buildEditRequest(edit({ verticalHud: true, verticalHudTheme: 'prism' }));
+  assert.equal(hud.vertical_hud, true);
+  assert.equal(hud.vertical_hud_theme, 'prism');
+  // The HUD draws its kill feed under the scoreboard, and the server refuses it without one.
+  assert.equal(hud.centered_killfeed, true);
+  assert.equal('vertical_hud_theme' in buildEditRequest(edit({ verticalHud: true })), false);
+  for (const off of [
+    edit({ verticalHud: true, verticalHudTheme: 'prism', format: 'landscape-16x9' }),
+    edit({ verticalHud: true, verticalHudTheme: 'prism', deathReel: true }),
+    edit({ verticalHud: true, verticalHudTheme: 'prism', nativeHud: true }),
+    edit({ verticalHud: true, verticalHudTheme: 'prism', matchRecap: true }),
+    edit({ verticalHudTheme: 'prism' }),
+  ]) {
+    const body = buildEditRequest(off);
+    assert.equal('vertical_hud' in body, false);
+    assert.equal('vertical_hud_theme' in body, false);
+    assert.equal('centered_killfeed' in body, false);
+  }
+});

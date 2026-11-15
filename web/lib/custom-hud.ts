@@ -20,6 +20,11 @@ export function customHudTheme(id: string | undefined): CustomHudTheme | undefin
   return catalog.find((theme) => theme.id === id);
 }
 
+/** The vertical HUD's design: the chosen one, else the catalog's first, as customhud.VerticalTheme. */
+export function verticalHudTheme(id: string | undefined): CustomHudTheme {
+  return customHudTheme(id) ?? catalog[0];
+}
+
 export function customHudLabel(id: string | undefined): string {
   return customHudTheme(id)?.name ?? 'Original de CS2';
 }

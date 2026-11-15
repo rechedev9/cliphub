@@ -8,7 +8,7 @@ import {
   parseEffectiveRenderMusic,
 } from './render-hydration.ts';
 import { DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
-import { buildEditRequest } from './edit-request.ts';
+import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
 import type { EditConfig, Video } from './types.ts';
 
 function intent(): ReelIntent {
@@ -309,4 +309,15 @@ test('a rendered death reel reads back as the same edit, so the reel is not gene
   const rendered = parseEffectiveEditConfig(buildEditRequest(intent));
   assert.equal(rendered?.deathReel, true);
   assert.deepEqual(buildEditRequest(rendered ?? DEFAULT_EDIT_CONFIG), buildEditRequest(intent));
+});
+
+test('a vertical HUD Short reads back as the same request and drops an unknown design', () => {
+  const sent: EditConfig = { ...DEFAULT_EDIT_CONFIG, format: 'short-9x16', verticalHud: true, verticalHudTheme: 'royale' };
+  const wire = buildEditRequest(sent);
+  const parsed = parseEffectiveEditConfig(wire);
+  assert.equal(parsed?.verticalHud, true);
+  assert.equal(parsed?.verticalHudTheme, 'royale');
+  assert.equal(parsed !== undefined && editConfigsEqual(parsed, sent), true);
+  assert.equal(parseEffectiveEditConfig({ ...wire, vertical_hud_theme: 'nope' })?.verticalHudTheme, undefined);
+  assert.equal(parseEffectiveEditConfig({ ...wire, vertical_hud: false })?.verticalHudTheme, undefined);
 });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { duplicateStyle, hudColor, hudPreviewUrl, hudStyleOf, isHudOptions, isHudStyle, isHudTeamNames, needsDrawnPreview, sameHudStyle } from './hud-themes.ts';
+import { duplicateStyle, hudColor, hudPreviewUrl, hudStyleOf, isHudOptions, isHudStyle, isHudTeamNames, needsDrawnPreview, sameHudStyle, verticalHudPreviewUrl } from './hud-themes.ts';
 
 test('a style is the Go shape: six upper-case hex digits and a radius of 0 to 15', () => {
   assert.equal(isHudStyle({ name: 'Mío', ct: '112233', t: 'AABBCC', background: '000000', radius: 15 }), true);
@@ -37,4 +37,8 @@ test('switches and team names are checked like Go and drawn in the preview only 
   assert.equal(hudPreviewUrl({ base: 'arena', options: { win_probability: true } }), '/api/full-demo/hud-themes/preview?base=arena&win_probability=1');
   const url = hudPreviewUrl({ base: 'arena', style: { name: 'a', ct: '111111', t: '222222', background: '333333', radius: 0 }, options: { hide_loadout: true }, names: { t_start: 'Team Spirit' } });
   assert.equal(url, '/api/full-demo/hud-themes/preview?base=arena&ct=111111&t=222222&background=333333&radius=0&hide_loadout=1&t_name=Team+Spirit');
+});
+
+test('the vertical preview asks the orchestrator for the 9:16 band of a catalog design', () => {
+  assert.equal(verticalHudPreviewUrl('prism'), '/api/full-demo/hud-themes/preview?base=prism&vertical=1');
 });

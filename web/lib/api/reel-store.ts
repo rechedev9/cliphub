@@ -1,3 +1,4 @@
+import { isCustomHudTheme } from '../custom-hud.ts';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import {
   isAffiliateStyle,
@@ -216,6 +217,8 @@ export function coerceEditConfig(value: unknown): EditConfig {
   if (raw.deathReel === true) cfg.deathReel = true;
   if (raw.separateShorts === true) cfg.separateShorts = true;
   if (raw.centeredKillfeed === true) cfg.centeredKillfeed = true;
+  if (raw.verticalHud === true) cfg.verticalHud = true;
+  if (cfg.verticalHud && isCustomHudTheme(raw.verticalHudTheme)) cfg.verticalHudTheme = raw.verticalHudTheme;
   const voiceVolume = coerceUnitVolume(raw.voiceVolume);
   if (voiceVolume !== undefined) cfg.voiceVolume = voiceVolume;
   if (raw.victimReplay === true) cfg.victimReplay = true;

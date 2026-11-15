@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/brandkit"
+	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
@@ -75,8 +76,12 @@ type EditRequest struct {
 	PlayerLabels  bool `json:"player_labels,omitempty"`
 	GrenadeTrails bool `json:"grenade_trails,omitempty"`
 	// StatsCard ends a 9:16 Short with the player's match stats and, when known, FACEIT data.
-	StatsCard           bool     `json:"stats_card,omitempty"`
-	CenteredKillfeed    bool     `json:"centered_killfeed,omitempty"`
+	StatsCard        bool `json:"stats_card,omitempty"`
+	CenteredKillfeed bool `json:"centered_killfeed,omitempty"`
+	// VerticalHUD draws a 9:16 scoreboard and alive counter read from the demo over the Short, with the
+	// centered kill feed under it, in the VerticalHUDTheme catalog design (empty is the first one).
+	VerticalHUD         bool     `json:"vertical_hud,omitempty"`
+	VerticalHUDTheme    string   `json:"vertical_hud_theme,omitempty"`
 	CoverStrategy       string   `json:"cover_strategy"`
 	CoverFirstFrame     bool     `json:"cover_first_frame"`
 	IntroText           string   `json:"intro_text,omitempty"`
@@ -158,6 +163,14 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 		req.WinProbability = false
 		req.VictimReplay = false
 		req.CenteredKillfeed = false
+		req.VerticalHUD = false
+	}
+	// The vertical HUD includes the centered kill feed, which keeps CS2's notices out of the 9:16 frame.
+	req.VerticalHUDTheme = strings.ToLower(strings.TrimSpace(req.VerticalHUDTheme))
+	if req.VerticalHUD {
+		req.CenteredKillfeed = true
+	} else {
+		req.VerticalHUDTheme = ""
 	}
 	// The default speed is stored as unset so equal choices give equal requests.
 	if !req.VictimReplay || req.VictimReplaySpeed == DefaultVictimReplaySpeed {
@@ -194,7 +207,7 @@ func (r EditRequest) validateFields() error {
 	if r.FullDemo != nil {
 		o := r.FullDemo.Document.Options
 		if r.Format != FormatLandscape16x9 || r.KillEffect != KillEffectClean || r.Transition != TransitionCut ||
-			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.VictimReplaySpeed != 0 || r.PlayBadges || r.WinProbability || r.PlayerLabels || r.GrenadeTrails || r.StatsCard || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.CoverFirstFrame ||
+			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.VictimReplaySpeed != 0 || r.PlayBadges || r.WinProbability || r.PlayerLabels || r.GrenadeTrails || r.StatsCard || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.VerticalHUD || r.VerticalHUDTheme != "" || r.CoverFirstFrame ||
 			r.IntroText != "" || r.OutroText != "" || r.KeyDropFamily != "" || r.KeyDropStyle != "" || r.KeyDropCode != "" ||
 			r.KeyDropPositionY != nil || r.KeyDropStartSeconds != nil || r.KeyDropEndSeconds != nil ||
 			r.VoiceComms != o.Audio.Voice.Enabled || r.VoiceVolume == nil || *r.VoiceVolume != o.Audio.Voice.Gain ||
@@ -218,6 +231,9 @@ func (r EditRequest) validateFields() error {
 	case FormatShort9x16, FormatLandscape16x9:
 	default:
 		return fmt.Errorf("unknown render format %q", r.Format)
+	}
+	if err := r.validateVerticalHUD(); err != nil {
+		return err
 	}
 	if r.CenteredKillfeed && r.Format != FormatShort9x16 {
 		return fmt.Errorf("centered killfeed needs the %s format", FormatShort9x16)
@@ -344,6 +360,30 @@ func (r EditRequest) validateBrand() error {
 		if r.KeyDropStyle != "" {
 			return fmt.Errorf("the sponsor banner and the affiliate banner cannot share a Short")
 		}
+	}
+	return nil
+}
+
+// validateVerticalHUD keeps the 9:16 HUD on a Short of plays whose capture has no CS2 HUD.
+func (r EditRequest) validateVerticalHUD() error {
+	if !r.VerticalHUD {
+		if r.VerticalHUDTheme != "" {
+			return fmt.Errorf("vertical_hud_theme needs vertical_hud")
+		}
+		return nil
+	}
+	switch {
+	case r.Format != FormatShort9x16:
+		return fmt.Errorf("the vertical HUD needs the %s format", FormatShort9x16)
+	case r.MatchRecap || r.FullDemo != nil || r.DeathReel:
+		return fmt.Errorf("the vertical HUD is for a Short of plays")
+	case r.NativeHUD:
+		return fmt.Errorf("the vertical HUD replaces the CS2 HUD; turn native_hud off")
+	case !r.CenteredKillfeed:
+		return fmt.Errorf("the vertical HUD draws the centered kill feed")
+	}
+	if r.VerticalHUDTheme != "" {
+		return customhud.ValidateTheme(r.VerticalHUDTheme)
 	}
 	return nil
 }

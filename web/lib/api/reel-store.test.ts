@@ -213,3 +213,12 @@ test('a malformed start refusal is dropped and the reel stays queued', () => {
   const [intent] = coerceIntents([{ ...valid, admissionFailure: { failureReason: 'x', retryAction: 'none' } }]);
   assert.equal(intent?.admissionFailure, undefined);
 });
+
+test('coerceEditConfig keeps the vertical HUD and only a catalog design for it', () => {
+  const kept = coerceEditConfig({ format: 'short-9x16', verticalHud: true, verticalHudTheme: 'prism' });
+  assert.equal(kept.verticalHud, true);
+  assert.equal(kept.verticalHudTheme, 'prism');
+  assert.equal(coerceEditConfig({ verticalHud: true, verticalHudTheme: 'nope' }).verticalHudTheme, undefined);
+  assert.equal(coerceEditConfig({ verticalHud: 'yes', verticalHudTheme: 'prism' }).verticalHud, undefined);
+  assert.equal(coerceEditConfig({ verticalHudTheme: 'prism' }).verticalHudTheme, undefined);
+});

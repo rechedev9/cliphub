@@ -134,6 +134,7 @@ func (h *Handlers) DeleteHUDTheme(w http.ResponseWriter, r *http.Request) {
 
 // GetHUDThemePreview handles GET /api/full-demo/hud-themes/preview: the example
 // scene drawn as SVG with a style, the composition switches and team names.
+// With vertical=1 it draws the band of the 9:16 Short HUD in that design instead.
 func (h *Handlers) GetHUDThemePreview(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	o := recapplan.OverlayOptions{HUDTheme: q.Get("base")}
@@ -165,6 +166,10 @@ func (h *Handlers) GetHUDThemePreview(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "hud preview", err)
 		return
 	}
+	if q.Get("vertical") == "1" {
+		writeHUDPreview(w, renderer.VerticalSVG(customhud.VerticalExample()))
+		return
+	}
 	state := customhud.Example()
 	state.SidesKnown = true
 	if o.HUDOptions.RoundWinBanner {
@@ -175,10 +180,14 @@ func (h *Handlers) GetHUDThemePreview(w http.ResponseWriter, r *http.Request) {
 		state.Phase, state.TimeRemaining, state.WinCT = "planted", 28, 62
 		state.Players[7].Alive, state.Players[7].Health = true, 100
 	}
+	writeHUDPreview(w, renderer.SVG(state, customhud.ExampleTarget))
+}
+
+func writeHUDPreview(w http.ResponseWriter, svg string) {
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Cache-Control", "private, max-age=3600")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; font-src data:")
-	_, _ = w.Write([]byte(renderer.SVG(state, customhud.ExampleTarget)))
+	_, _ = w.Write([]byte(svg))
 }
 
 func hudThemeID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {

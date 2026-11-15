@@ -87,6 +87,11 @@ export function hudPreviewUrl({ base, style, options, names }: { base: string; s
   return `${HUD_THEMES_API}/preview?${query.toString()}`;
 }
 
+/** The 9:16 Short band (scoreboard and alive counts) drawn by the same renderer as the video. */
+export function verticalHudPreviewUrl(base: string): string {
+  return `${HUD_THEMES_API}/preview?${new URLSearchParams({ base, vertical: '1' }).toString()}`;
+}
+
 async function call(path: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(path, { cache: 'no-store', ...init });
   const body: unknown = response.status === 204 ? null : await response.json().catch(() => null);

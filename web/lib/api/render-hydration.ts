@@ -1,6 +1,7 @@
 import type { ReelIntent } from './reel-store';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import { isBrandBanner, isBrandWatermark } from '../brand-kit.ts';
+import { isCustomHudTheme } from '../custom-hud.ts';
 import {
   isAffiliateStyle,
   isDemoSource,
@@ -76,6 +77,8 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   if (edit.brand_watermark === true || isBrandWatermark(edit.brand_watermark)) parsed.brandWatermark = true;
   if (edit.brand_banner === true || isBrandBanner(edit.brand_banner)) parsed.brandBanner = true;
   if (edit.centered_killfeed === true) parsed.centeredKillfeed = true;
+  if (edit.vertical_hud === true) parsed.verticalHud = true;
+  if (parsed.verticalHud && isCustomHudTheme(edit.vertical_hud_theme)) parsed.verticalHudTheme = edit.vertical_hud_theme;
   if (
     typeof edit.voice_volume === 'number' &&
     Number.isFinite(edit.voice_volume) &&

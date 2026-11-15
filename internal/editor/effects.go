@@ -163,7 +163,7 @@ func applyEffectsToManifest(manifest *Manifest, source effectsSource, ffmpegPath
 		effects = append(effects, generatedEditEffects(*short)...)
 		short.Effects = effects
 		manifest.Warnings = append(manifest.Warnings, refineKillfeedEffects(short, killfeedProbe)...)
-		if err := writeCenteredKillfeed(short); err != nil {
+		if err := writeShortASSOverlays(short); err != nil {
 			return fmt.Errorf("%s: %w", short.SegmentID, err)
 		}
 		if err := writeFullDemoConcatList(*short); err != nil {

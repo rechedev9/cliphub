@@ -11,6 +11,8 @@ export type EditRequestBody = {
   hook_text: boolean;
   kill_counter: boolean;
   centered_killfeed?: boolean;
+  vertical_hud?: boolean;
+  vertical_hud_theme?: string;
   match_recap: boolean;
   death_reel?: boolean;
   separate_shorts?: boolean;
@@ -69,7 +71,15 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     if (edit.brandWatermark) body.brand_watermark = true;
     if (edit.brandBanner && !edit.keyDropStyle?.trim()) body.brand_banner = true;
   }
-  if (edit.centeredKillfeed && edit.format === 'short-9x16' && !edit.fullDemo && !edit.deathReel) body.centered_killfeed = true;
+  const portraitShort = edit.format === 'short-9x16' && !edit.fullDemo && !edit.deathReel;
+  const verticalHud = portraitShort && !!edit.verticalHud && !edit.matchRecap && !edit.nativeHud;
+  if (verticalHud) {
+    body.vertical_hud = true;
+    const theme = edit.verticalHudTheme?.trim();
+    if (theme) body.vertical_hud_theme = theme;
+  }
+  // The vertical HUD draws its kill feed under the scoreboard, so it always carries it.
+  if ((edit.centeredKillfeed || verticalHud) && portraitShort) body.centered_killfeed = true;
   if (edit.voiceComms || edit.fullDemo) {
     body.voice_volume = edit.voiceVolume ?? 0.85;
   }

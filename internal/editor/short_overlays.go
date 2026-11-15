@@ -27,6 +27,8 @@ type ShortOverlays struct {
 	StatsCard *StatsCard `json:"stats_card,omitempty"`
 	// World holds each segment clip's player labels and grenade trails script.
 	World *WorldOverlay `json:"world,omitempty"`
+	// VerticalHUD is the 9:16 scoreboard and alive counter of each segment.
+	VerticalHUD *VerticalHUD `json:"vertical_hud,omitempty"`
 	// Watermark and Banner are the creator's brand kit, prepared by prepareBrandOverlays.
 	Watermark *BrandWatermark `json:"watermark,omitempty"`
 	Banner    *SponsorBanner  `json:"sponsor_banner,omitempty"`

@@ -24,7 +24,7 @@ import {
   selectionTimeline,
   SHORT_TARGET_SECONDS,
 } from '@/lib/produce/short-selection';
-import { canForgeReel, constrainEditConfig, reelCreativeBrief, type MusicBrief } from '@/lib/reel-brief';
+import { canForgeReel, constrainEditConfig, reelCreativeBrief, verticalHudAllowed, withPresetLimits, type MusicBrief } from '@/lib/reel-brief';
 import { selectShortsFormat, selectShortsPreset, shortsPresetsForFormat } from '@/lib/reel-format';
 import { cn } from '@/lib/utils';
 import { presetDescription } from '@/lib/preset-copy';
@@ -137,6 +137,8 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   }, [plays, selectedIds]);
   const selectedPreset = visiblePresets?.find((preset) => preset.name === variant) ?? null;
   const presetLabel = selectedPreset?.label ?? null;
+  // A Full HUD style keeps the draft's vertical HUD but never sends it.
+  const hudAllowed = verticalHudAllowed(selectedPreset);
   const briefItems = reelCreativeBrief(editConfig, selectedPreset, musicBriefFor(songTitle, musicVolume, gameVolume));
   const ready = canForgeReel({
     creating: busy,
@@ -196,13 +198,13 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
 
   async function onCreate(): Promise<void> {
     if (!ready) return;
-    await startReel(selectedPlays.map((play) => play.id), shape(editConfig, deathReel));
+    await startReel(selectedPlays.map((play) => play.id), withPresetLimits(shape(editConfig, deathReel), selectedPreset));
   }
 
   // Auto-Shorts: one capture of these plays, each rendered as its own Short.
   async function onCreateAutoShorts(playIds: string[]): Promise<void> {
     if (busy || playIds.length === 0 || selectedPreset === null) return;
-    await startReel(playIds, { ...shape(editConfig, false), separateShorts: true });
+    await startReel(playIds, { ...withPresetLimits(shape(editConfig, false), selectedPreset), separateShorts: true });
   }
 
   async function startReel(playIds: string[], edit: EditConfig): Promise<void> {
@@ -374,7 +376,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center justify-between gap-2 rounded-sm focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
               <span className={PANEL_TITLE_CLASS}>Textos y gráficos</span>
               <span className="flex items-center gap-1.5 text-body-sm text-fg-2">
-                <span className="wrap-anywhere">{overlaysSummary(editConfig)}</span>
+                <span className="wrap-anywhere">{overlaysSummary(withPresetLimits(editConfig, selectedPreset))}</span>
                 <ChevronRight aria-hidden className="size-4 text-fg-2 transition-transform duration-(--dur-fast) group-open/overlays:rotate-90" />
               </span>
             </summary>
@@ -385,6 +387,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
                 disabled={busy}
                 killCounter={!multiPov}
                 statsCard={!multiPov}
+                verticalHud={hudAllowed}
               />
             </div>
           </details>
@@ -485,7 +488,8 @@ function musicBriefFor(songTitle: string | null, volumePercent: number, gameVolu
 function overlaysSummary(edit: EditConfig): string {
   const parts: string[] = [];
   if (edit.killCounter) parts.push('Kill counter');
-  if (edit.centeredKillfeed && edit.format === 'short-9x16') parts.push('Kill feed centrada');
+  if (edit.verticalHud && edit.format === 'short-9x16' && !edit.deathReel) parts.push('HUD vertical');
+  if ((edit.centeredKillfeed || edit.verticalHud) && edit.format === 'short-9x16' && !edit.deathReel) parts.push('Kill feed centrada');
   if (edit.hookText) parts.push('Título');
   if (edit.intro || edit.outro) parts.push('Intro / outro');
   if (edit.playBadges) parts.push('Insignias');

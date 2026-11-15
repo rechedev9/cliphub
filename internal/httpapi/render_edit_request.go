@@ -31,6 +31,8 @@ type renderEditRequest struct {
 	GrenadeTrails       *bool               `json:"grenade_trails"`
 	StatsCard           *bool               `json:"stats_card"`
 	CenteredKillfeed    *bool               `json:"centered_killfeed"`
+	VerticalHUD         *bool               `json:"vertical_hud"`
+	VerticalHUDTheme    *string             `json:"vertical_hud_theme"`
 	CoverStrategy       *string             `json:"cover_strategy"`
 	CoverFirstFrame     *bool               `json:"cover_first_frame"`
 	IntroText           *string             `json:"intro_text"`
@@ -115,6 +117,12 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.CenteredKillfeed != nil {
 		base.CenteredKillfeed = *r.CenteredKillfeed
+	}
+	if r.VerticalHUD != nil {
+		base.VerticalHUD = *r.VerticalHUD
+	}
+	if r.VerticalHUDTheme != nil {
+		base.VerticalHUDTheme = *r.VerticalHUDTheme
 	}
 	if r.CoverStrategy != nil {
 		base.CoverStrategy = *r.CoverStrategy

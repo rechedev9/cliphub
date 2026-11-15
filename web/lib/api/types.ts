@@ -259,6 +259,10 @@ export type EditConfig = {
   killCounter: boolean;
   /** Short only: kill notices drawn by ClipHub, centered near the top. */
   centeredKillfeed?: boolean;
+  /** 9:16 only: a compact scoreboard and alive counts from the demo above the centered kill feed. */
+  verticalHud?: boolean;
+  /** A HUD catalog design for the vertical HUD; unset uses the first one. */
+  verticalHudTheme?: string;
   matchRecap: boolean;
   /** The plays are death clips (death plan), not kills. */
   deathReel?: boolean;

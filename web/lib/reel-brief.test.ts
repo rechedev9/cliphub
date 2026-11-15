@@ -6,6 +6,8 @@ import {
   constrainEditConfig,
   isLandscapeRecap,
   reelCreativeBrief,
+  verticalHudAllowed,
+  withPresetLimits,
 } from './reel-brief.ts';
 import type { EditConfig, Preset } from './api/types.ts';
 import { FULL_DEMO_EDIT, FULL_DEMO_PRESET } from './full-demo.ts';
@@ -282,4 +284,36 @@ test('a death reel drops the centered kill feed from the brief, since its clips 
   assert.match(hud(edit), /kill feed centrada arriba/);
   assert.doesNotMatch(hud({ ...edit, deathReel: true }), /kill feed centrada/);
   assert.equal('centeredKillfeed' in constrainEditConfig({ ...edit, deathReel: true }), false);
+});
+
+test('the vertical HUD is sent only over a style without the CS2 HUD and only on a kill Short', () => {
+  const edit: EditConfig = {
+    format: 'short-9x16',
+    killEffect: 'clean',
+    transition: 'cut',
+    hookText: false,
+    killCounter: false,
+    matchRecap: false,
+    voiceComms: false,
+    nativeHud: false,
+    coverStrategy: 'no-cover',
+    intro: false,
+    outro: false,
+    verticalHud: true,
+    verticalHudTheme: 'prism',
+  };
+  const fullHud: Preset = { ...PRESET, name: 'full-hud-60', label: 'Full HUD', hudMode: 'gameplay' };
+  const hud = (config: EditConfig, preset: Preset) =>
+    reelCreativeBrief(config, preset, { status: 'none' }).find((item) => item.label === 'HUD / killfeed')?.value ?? '';
+  assert.equal(verticalHudAllowed(PRESET), true);
+  assert.equal(verticalHudAllowed(null), true);
+  assert.equal(verticalHudAllowed(fullHud), false);
+  assert.equal(withPresetLimits(edit, PRESET), edit);
+  const limited = withPresetLimits(edit, fullHud);
+  assert.equal('verticalHud' in limited || 'verticalHudTheme' in limited, false);
+  assert.match(hud(edit, PRESET), /HUD vertical Prism con kill feed centrada/);
+  assert.doesNotMatch(hud(edit, fullHud), /HUD vertical/);
+  for (const config of [constrainEditConfig({ ...edit, deathReel: true }), constrainEditConfig({ ...edit, format: 'landscape-16x9' })]) {
+    assert.equal('verticalHud' in config || 'verticalHudTheme' in config, false);
+  }
 });

@@ -36,6 +36,10 @@ type ShortEdit struct {
 	DeathReel     bool   `json:"death_reel,omitempty"`
 	// CenteredKillfeed is omitted when off, like the server's own field.
 	CenteredKillfeed bool `json:"centered_killfeed,omitempty"`
+	// VerticalHUD draws the 9:16 scoreboard and alive counter with the centered kill feed,
+	// in the VerticalHUDTheme catalog design; an empty theme is the first design.
+	VerticalHUD      bool   `json:"vertical_hud,omitempty"`
+	VerticalHUDTheme string `json:"vertical_hud_theme,omitempty"`
 	// IntroText and OutroText replace the generated card text; empty keeps it.
 	IntroText string `json:"intro_text,omitempty"`
 	OutroText string `json:"outro_text,omitempty"`

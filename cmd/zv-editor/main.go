@@ -104,6 +104,9 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		playerLabels        = fs.Bool("player-labels", false, "draw each teammate's and each spotted enemy's name and health over the gameplay; needs --world-track")
 		grenadeTrails       = fs.Bool("grenade-trails", false, "draw the paths of the POV team's grenades over the gameplay; needs --world-track")
 		worldTrack          = fs.String("world-track", "", "optional world overlay track JSON sampled from the demo for --player-labels and --grenade-trails")
+		verticalHUD         = fs.Bool("vertical-hud", false, "draw the 9:16 scoreboard and alive counter at the top of the Short; needs --vertical-hud-track")
+		verticalHUDTheme    = fs.String("vertical-hud-theme", "", "custom HUD catalog design of --vertical-hud; empty uses the first design")
+		verticalHUDTrack    = fs.String("vertical-hud-track", "", "optional vertical HUD track JSON read from the demo for --vertical-hud")
 		statsCard           = fs.String("stats-card", "", "optional stats card JSON drawn at the end of a 9:16 short")
 		watermarkImage      = fs.String("watermark-image", "", "optional PNG or JPG logo drawn as a watermark for the whole short")
 		watermarkCorner     = fs.String("watermark-corner", "top-right", "watermark corner: top-left, top-right, bottom-left or bottom-right")
@@ -231,6 +234,9 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		PlayerLabels:          *playerLabels,
 		GrenadeTrails:         *grenadeTrails,
 		WorldTrackPath:        *worldTrack,
+		VerticalHUD:           *verticalHUD,
+		VerticalHUDTheme:      *verticalHUDTheme,
+		VerticalHUDTrackPath:  *verticalHUDTrack,
 		StatsCardPath:         *statsCard,
 		Watermark:             brandWatermarkFlag(*watermarkImage, *watermarkCorner, *watermarkOpacity),
 		SponsorBanner:         sponsorBannerFlag(*sponsorImage, *sponsorStart, *sponsorEnd),

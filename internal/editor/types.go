@@ -180,6 +180,11 @@ type Config struct {
 	PlayerLabels   bool
 	GrenadeTrails  bool
 	WorldTrackPath string
+	// VerticalHUD draws the 9:16 scoreboard and alive counter from VerticalHUDTrackPath, the
+	// customhud.VerticalTrack the render worker read, in the VerticalHUDTheme catalog design.
+	VerticalHUD          bool
+	VerticalHUDTheme     string
+	VerticalHUDTrackPath string
 	// Watermark and SponsorBanner are the brand kit images; their Path is the uploaded file.
 	Watermark     *BrandWatermark
 	SponsorBanner *SponsorBanner
@@ -384,6 +389,9 @@ type ShortEdit struct {
 	// script and the HUD faces libass loads for it.
 	KillfeedASS      string `json:"killfeed_ass,omitempty"`
 	KillfeedFontsDir string `json:"killfeed_fonts_dir,omitempty"`
+	// VerticalHUDASS and VerticalHUDFontsDir are the generated 9:16 HUD script and its faces.
+	VerticalHUDASS      string `json:"vertical_hud_ass,omitempty"`
+	VerticalHUDFontsDir string `json:"vertical_hud_fonts_dir,omitempty"`
 	// KeyDropFamily / KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
 	// the optional sponsor plate for a bounded window of the short.
 	KeyDropFamily          string      `json:"keydrop_family,omitempty"`

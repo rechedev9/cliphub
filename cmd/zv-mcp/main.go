@@ -61,6 +61,10 @@ generate_short player_labels draws over the gameplay the name and health of ever
 CS2 marks it spotted by the POV or the POV damages it; grenade_trails draws the path of the POV team's grenades.
 The render reads both from the demo and projects them through the POV's view; they hide while the POV is scoped or
 dead, are drawn on top of walls (the demo has no line of sight), and are not for Full Demo or a match recap.
+generate_short vertical_hud (9:16 only) draws a HUD made for Shorts over a capture without the CS2 HUD: a compact
+scoreboard at the top (team names, score, clock, round or bomb) and each side's alive count, read from the demo at
+render time, with the centered kill feed under it; vertical_hud_theme picks the design (list_short_options
+vertical_hud_themes). It is refused with native_hud or the full-hud-60 preset and is not for death reels.
 The brand kit (get_brand_kit, save_brand_kit) keeps the channel logo, drawn as a watermark in a corner with an
 opacity, and an own sponsor banner with a time window. generate_short and plan_full_demo take brand_watermark and
 brand_banner to apply it; the render copies the kit, and brand_banner does not go with the affiliate banner.
