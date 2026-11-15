@@ -2515,7 +2515,7 @@ func (w *RenderWorker) writeEditorInputs(ctx context.Context, cfg RenderWorkerCo
 	}
 	args = append(args, shortOverlayArgs(edit)...)
 	args = append(args, explicitCoverArgs(loadout, edit)...)
-	args = append(args, compileSegmentsArgs(recording.EditorialSegmentIDs(in.recordingResult))...)
+	args = append(args, compileSegmentsArgs(edit, recording.EditorialSegmentIDs(in.recordingResult))...)
 	if edit.FullDemo != nil {
 		ffmpeg := cfg.FFmpegPath
 		if ffmpeg == "" {
@@ -3343,18 +3343,6 @@ func last20FromFACEIT(src faceit.Last20) *demooverlay.Last20 {
 		return nil
 	}
 	return &out
-}
-
-// compileSegmentsArgs returns the zv-editor flags that compile a render's
-// segments into one upload-ready Short. A multi-segment
-// selection renders as a single concatenated Short (matching the "zv short"
-// CLI's --compile-segments behavior); a single segment keeps today's
-// per-segment short unchanged.
-func compileSegmentsArgs(segmentIDs []string) []string {
-	if len(segmentIDs) < 2 {
-		return nil
-	}
-	return []string{"--compile-segments", "--segments", strings.Join(segmentIDs, ",")}
 }
 
 // prepareCaptureAttemptRollback snapshots both UI-only documents before a new

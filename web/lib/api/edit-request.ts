@@ -13,6 +13,7 @@ export type EditRequestBody = {
   centered_killfeed?: boolean;
   match_recap: boolean;
   death_reel?: boolean;
+  separate_shorts?: boolean;
   voice_comms: boolean;
   voice_volume?: number;
   native_hud: boolean;
@@ -50,6 +51,7 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     cover_strategy: edit.coverStrategy,
   };
   if (edit.deathReel) body.death_reel = true;
+  else if (edit.separateShorts && !edit.matchRecap && !edit.fullDemo) body.separate_shorts = true;
   if (edit.fullDemo) body.full_demo = edit.fullDemo;
   else if (edit.victimReplay && !edit.matchRecap && !edit.deathReel) {
     body.victim_replay = true;

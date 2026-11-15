@@ -23,6 +23,7 @@ import { StudioEmptyState } from '@/components/studio/empty-state';
 import { PublishAssistantPanel } from '@/components/videos/publish-assistant-panel';
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
 import { FullDemoEvidence } from '@/components/videos/full-demo-evidence';
+import { AutoShortsList } from '@/components/videos/auto-shorts-list';
 
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
@@ -194,6 +195,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
       </aside>
 
       <FullDemoEvidence video={video} />
+      <AutoShortsList video={video} />
 
       {canAddMusic ? (
         <LibraryMusicDialog

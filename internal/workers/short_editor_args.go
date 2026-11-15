@@ -50,3 +50,16 @@ func keyDropArgs(edit renderplan.EditRequest) []string {
 	}
 	return args
 }
+
+// compileSegmentsArgs returns the zv-editor flags for a multi-segment render: one
+// concatenated Short, or with SeparateShorts one Short per segment of the same capture.
+// A single segment keeps the per-segment Short.
+func compileSegmentsArgs(edit renderplan.EditRequest, segmentIDs []string) []string {
+	if len(segmentIDs) < 2 {
+		return nil
+	}
+	if edit.SeparateShorts {
+		return []string{"--segments", strings.Join(segmentIDs, ",")}
+	}
+	return []string{"--compile-segments", "--segments", strings.Join(segmentIDs, ",")}
+}

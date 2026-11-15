@@ -262,6 +262,8 @@ export type EditConfig = {
   matchRecap: boolean;
   /** The plays are death clips (death plan), not kills. */
   deathReel?: boolean;
+  /** Auto-Shorts: each play is rendered as its own Short from one capture. */
+  separateShorts?: boolean;
   voiceComms: boolean;
   voiceVolume?: number;
   nativeHud: boolean;

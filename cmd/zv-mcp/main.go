@@ -46,6 +46,10 @@ wait_for_job until "parsed", list_moments, ask the user for the look with list_s
 choose_short_options for a picker), then generate_short with the chosen segment ids and options.
 A death reel (the seconds before each death of the player): list_moments with deaths, then
 generate_short with those segment ids and deaths set.
+Auto-Shorts (the Auto-Shorts button of the Short editor): generate_shorts_batch makes one Short per great play
+without picking plays: the best play of each round whose list_moments score reaches min_score (default 0.6), at
+most limit (default 5, up to 10), in one capture, each rendered as its own Short of one variant (list_videos lists them).
+It takes the same look options as generate_short and needs the same approval; follow with wait_for_job and the variant.
 generate_short also takes the music and game volume, the opening and closing text and an affiliate banner.
 It also takes play_badges (a badge for each clutch, ace or multikill), stats_card (a closing 9:16 card with the
 player's K/D, ADR, HS% and ClipHub rating, never an HLTV rating, plus FACEIT level, win rate and best map when FACEIT
@@ -273,7 +277,7 @@ Steam: steam_matches lists recent matches (sync_steam_matches looks for new ones
 downloads one by share code and makes a job: wait_for_job, and on "scanned" job_players then
 pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_storage_files,
 rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
-generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
+generate_short, generate_shorts_batch, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
 delete_stream_video, delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
 delete_report, delete_team_document, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
 install_transcriber, launch_practice, launch_bot_replay need the user's approval.

@@ -43,6 +43,7 @@ import { roundOrdinals } from '@/lib/produce/round-ordinals';
 import { playsInRounds, roundListLabel } from '@/lib/library/analysis-video';
 import { PresetPreview } from './preset-preview';
 import { PlayFilters } from './play-filters';
+import { AutoShortsDialog } from './auto-shorts-dialog';
 
 const PANEL_CLASS = 'flex min-w-0 flex-col gap-3 rounded-2xl bg-surface-2 p-4';
 const PANEL_TITLE_CLASS = 'font-display text-body font-bold text-fg-1';
@@ -195,23 +196,35 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
 
   async function onCreate(): Promise<void> {
     if (!ready) return;
+    await startReel(selectedPlays.map((play) => play.id), shape(editConfig, deathReel));
+  }
+
+  // Auto-Shorts: one capture of these plays, each rendered as its own Short.
+  async function onCreateAutoShorts(playIds: string[]): Promise<void> {
+    if (busy || playIds.length === 0 || selectedPreset === null) return;
+    await startReel(playIds, { ...shape(editConfig, false), separateShorts: true });
+  }
+
+  async function startReel(playIds: string[], edit: EditConfig): Promise<void> {
     setCreating(true);
     setCreateError(null);
+    const batch = edit.separateShorts === true;
     try {
       const video = await api.createVideo({
         matchId,
-        playIds: selectedPlays.map((play) => play.id),
+        playIds,
         mode: songId ? 'music' : 'clean',
         songId: songId ?? undefined,
         // Only a reduced volume travels; full volume stays the legacy default.
         musicVolume: songId && musicVolume < MUSIC_VOLUME.max ? musicVolume / 100 : undefined,
         gameVolume: songId ? gameVolume / 100 : undefined,
         variant: variant ?? undefined,
-        editConfig: shape(editConfig, deathReel),
+        editConfig: edit,
       });
       discardDraft();
       // A start Studio refused lands as a failed card in Mis vídeos; the toast says so instead of "en preparación".
-      if (video.status === 'failed') toast.error(landscape ? 'El resumen no ha empezado' : 'El Short no ha empezado', { description: parseFailureReason(video.failureReason).message });
+      if (video.status === 'failed') toast.error(failedStartTitle(landscape, batch), { description: parseFailureReason(video.failureReason).message });
+      else if (batch) toast('Auto-Shorts en preparación', { description: `CS2 graba ${playIds.length} ${playIds.length === 1 ? 'jugada' : 'jugadas'} y cada una sale como un Short en Mis vídeos.` });
       else toast(landscape ? 'Resumen en preparación' : 'Short en preparación', { description: 'Sigue la grabación y el montaje en Mis vídeos.' });
       router.push(doneHref);
     } catch (err) {
@@ -278,8 +291,11 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             selectedIds={selectedIds}
             title={deathReel ? 'Muertes' : 'Jugadas'}
             tone={tone}
-            toolbar={<Button type="button" size="xs" variant="outline" disabled={busy || visiblePlays.length === 0}
-              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true, victimReplaySpeed: editConfig.victimReplaySpeed, targetSeconds })] })}><Zap aria-hidden />{deathReel ? `Ajustar a ${targetMinutes} min` : `Elegir las mejores (${targetMinutes} min)`}</Button>}
+            toolbar={<div className="flex flex-wrap gap-2">
+              <Button type="button" size="xs" variant="outline" disabled={busy || visiblePlays.length === 0}
+                onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true, victimReplaySpeed: editConfig.victimReplaySpeed, targetSeconds })] })}><Zap aria-hidden />{deathReel ? `Ajustar a ${targetMinutes} min` : `Elegir las mejores (${targetMinutes} min)`}</Button>
+              {!landscape && !deathReel ? <AutoShortsDialog matchId={matchId} plays={killPlays} disabled={busy || selectedPreset === null} creating={creating} onCreate={(ids) => void onCreateAutoShorts(ids)} /> : null}
+            </div>}
             filters={<PlayFilters options={filterOptions} value={playFilter} disabled={busy} onChange={setPlayFilter} />}
             visibleIds={visibleIds}
             emptyFiltered={
@@ -454,6 +470,11 @@ function producerTitle(match: Match, landscape: boolean): string {
   if (names.length === 0) return landscape ? PRODUCE_SUMMARY_TITLE : PRODUCE_SHORT_TITLE;
   const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
   return landscape ? `El resumen de ${who}` : `El Short de ${who}`;
+}
+
+function failedStartTitle(landscape: boolean, batch: boolean): string {
+  if (landscape) return 'El resumen no ha empezado';
+  return batch ? 'Los Auto-Shorts no han empezado' : 'El Short no ha empezado';
 }
 
 function musicBriefFor(songTitle: string | null, volumePercent: number, gameVolumePercent: number): MusicBrief {

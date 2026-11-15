@@ -64,6 +64,7 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
     nativeHud: edit.native_hud === true,
   };
   if (edit.death_reel === true) parsed.deathReel = true;
+  if (edit.separate_shorts === true) parsed.separateShorts = true;
   if (edit.victim_replay === true) parsed.victimReplay = true;
   if (parsed.victimReplay && isVictimReplaySpeed(edit.victim_replay_speed)) parsed.victimReplaySpeed = edit.victim_replay_speed;
   if (edit.play_badges === true) parsed.playBadges = true;

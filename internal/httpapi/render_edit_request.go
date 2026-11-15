@@ -19,6 +19,7 @@ type renderEditRequest struct {
 	KillCounter         *bool               `json:"kill_counter"`
 	MatchRecap          *bool               `json:"match_recap"`
 	DeathReel           *bool               `json:"death_reel"`
+	SeparateShorts      *bool               `json:"separate_shorts"`
 	VoiceComms          *bool               `json:"voice_comms"`
 	VoiceVolume         *float64            `json:"voice_volume"`
 	NativeHUD           *bool               `json:"native_hud"`
@@ -74,6 +75,9 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.DeathReel != nil {
 		base.DeathReel = *r.DeathReel
+	}
+	if r.SeparateShorts != nil {
+		base.SeparateShorts = *r.SeparateShorts
 	}
 	if r.VoiceComms != nil {
 		base.VoiceComms = *r.VoiceComms

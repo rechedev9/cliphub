@@ -85,6 +85,8 @@ type EditRequest struct {
 	OverlayTheme        string   `json:"overlay_theme,omitempty"`
 	// DeathReel records the clips of the death plan instead of the kill plan.
 	DeathReel bool `json:"death_reel,omitempty"`
+	// SeparateShorts renders each chosen play as its own Short instead of one compilation (Auto-Shorts).
+	SeparateShorts bool `json:"separate_shorts,omitempty"`
 	// BrandWatermark and BrandBanner are copied whole from the brand kit, so a later kit edit never changes this render.
 	BrandWatermark *brandkit.Watermark `json:"brand_watermark,omitempty"`
 	BrandBanner    *brandkit.Banner    `json:"brand_banner,omitempty"`
@@ -198,6 +200,9 @@ func (r EditRequest) validateFields() error {
 	}
 	if r.DeathReel && (r.MatchRecap || r.FullDemo != nil) {
 		return fmt.Errorf("a death reel is not a match recap")
+	}
+	if r.SeparateShorts && (r.DeathReel || r.MatchRecap || r.FullDemo != nil) {
+		return fmt.Errorf("separate shorts are only for a reel of plays")
 	}
 	switch r.Format {
 	case FormatShort9x16, FormatLandscape16x9:

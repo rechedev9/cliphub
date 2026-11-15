@@ -180,6 +180,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerVideoLibraryTools(server, s)
 	registerApps(server, s)
 	registerShortOptions(server, s)
+	registerShortsBatchTool(server, s)
 	registerSeriesTools(server, s)
 	registerMultiPOVTools(server, s)
 	registerFindMomentsTool(server, s)
@@ -440,16 +441,8 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err := checkSegmentIDs(in.SegmentIDs); err != nil {
 				return nil, generateOut{}, err
 			}
-			if in.Preset != "" {
-				if err := checkArtifactName("preset", in.Preset); err != nil {
-					return nil, generateOut{}, err
-				}
-			}
-			edit, err := resolveEdit(in.shortChoices)
-			if err != nil {
-				return nil, generateOut{}, err
-			}
-			music, err := resolveMusic(in.shortChoices)
+			look := shortLook{Preset: in.Preset, shortChoices: in.shortChoices}
+			body, err := look.resolve()
 			if err != nil {
 				return nil, generateOut{}, err
 			}
@@ -457,27 +450,13 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, toolError(err)
 			}
-			if in.Music != "" {
-				songs, err := c.ListSongs(ctx)
-				if err != nil {
-					return nil, generateOut{}, toolError(err)
-				}
-				if err := checkMusic(in.Music, songs); err != nil {
-					return nil, generateOut{}, err
-				}
-			}
-			presets, err := c.Presets(ctx)
-			if err != nil {
-				return nil, generateOut{}, toolError(err)
-			}
-			preset, err := pickPreset(in.Preset, presets)
-			if err != nil {
+			if body.Preset, err = look.catalogPreset(ctx, c); err != nil {
 				return nil, generateOut{}, err
 			}
 			list, what := c.GetMoments, plural(len(in.SegmentIDs), "jugada", "jugadas")
 			if in.Deaths {
 				list, what = c.GetDeaths, plural(len(in.SegmentIDs), "muerte", "muertes")
-				edit.DeathReel, edit.HookText, edit.KillCounter, edit.CenteredKillfeed = true, false, false, false
+				body.Edit.DeathReel, body.Edit.HookText, body.Edit.KillCounter, body.Edit.CenteredKillfeed = true, false, false, false
 			}
 			doc, err := list(ctx, in.JobID)
 			if err != nil {
@@ -487,9 +466,9 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, err
 			}
-			body := tuiclient.GenerateRequest{Preset: preset, SegmentIDs: in.SegmentIDs, Music: music, Edit: edit}
+			body.SegmentIDs = in.SegmentIDs
 			summary := fmt.Sprintf("Grabar un Short con %s y el preset %s: %s. Opciones: %s. CS2 se abrirá a pantalla completa y grabará durante varios minutos.",
-				what, preset, plays, describeShortRequest(body))
+				what, body.Preset, plays, describeShortRequest(body))
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_short", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve})
 			if err != nil {
 				return nil, generateOut{}, err

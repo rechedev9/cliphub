@@ -42,7 +42,7 @@ var oversizedGoFiles = map[string]int{
 	"internal/reconcile/sweep_test.go":                     1136,
 	"internal/store/sqlite_library_repo.go":                1167,
 	"internal/tacticalplan/scout.go":                       1251,
-	"internal/workers/media_worker.go":                     4164,
+	"internal/workers/media_worker.go":                     4150,
 	"internal/workers/media_worker_segment_select_test.go": 1174,
 	"internal/workers/media_worker_test.go":                3140,
 }

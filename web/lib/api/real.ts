@@ -16,7 +16,7 @@ import { customHudTheme } from '../custom-hud.ts';
 import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, videoFromIntent, withAdmissionFailure, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type AdmissionFailure, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
-import { reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict } from './reel-identity.ts';
+import { autoShortsTitle, reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict } from './reel-identity.ts';
 import {
   applyEffectiveRenderMusic,
   clearVideoArtifactUrls,
@@ -498,7 +498,7 @@ export class RealApiClient implements ApiClient {
       : request.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
     const variant = request.variant ?? REEL_VARIANT;
     const suffix = request.songId ? `${variantLabel(variant, editConfig)} + Music` : variantLabel(variant, editConfig);
-    let selectionTitle = playsSelectionLabel(pickedPlays) ?? 'Highlight';
+    let selectionTitle = editConfig.separateShorts ? autoShortsTitle(pickedPlays.length) : (playsSelectionLabel(pickedPlays) ?? 'Highlight');
     if (recap) selectionTitle = `${pickedPlays.length} ${pickedPlays.length === 1 ? 'ronda' : 'rondas'}`;
     else if (editConfig.deathReel) selectionTitle = `${pickedPlays.length} ${pickedPlays.length === 1 ? 'muerte' : 'muertes'}`;
     const intent: ReelIntent = {

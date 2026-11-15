@@ -13,11 +13,25 @@ export type ReelIdentityInput = {
   editConfig?: EditConfig;
 };
 
+/** Auto-Shorts reels carry their own prefix, so a batch never replaces a compiled reel of the same plays. */
+const AUTO_SHORTS_REEL_PREFIX = 'auto';
+
+/** The plays part of a reel id, shared with the reels recovered from disk. */
+export function reelPlaysSuffix(playIds: readonly string[], edit?: Pick<EditConfig, 'separateShorts'>): string {
+  const plays = playIds.join('_');
+  return edit?.separateShorts ? `${AUTO_SHORTS_REEL_PREFIX}__${plays}` : plays;
+}
+
+/** Mis vídeos title of an Auto-Shorts batch: one Short per play. */
+export function autoShortsTitle(shorts: number): string {
+  return `Auto-Shorts: ${shorts} ${shorts === 1 ? 'Short' : 'Shorts'}`;
+}
+
 export function reelIdentity(input: ReelIdentityInput): string {
   if (input.editConfig && isLandscapeRecap(input.editConfig)) {
     return `${input.matchId}__${FULL_DEMO_REEL_SUFFIX}`;
   }
-  return `${input.matchId}__${input.playIds.join('_')}`;
+  return `${input.matchId}__${reelPlaysSuffix(input.playIds, input.editConfig)}`;
 }
 
 export function reelContractMatches(

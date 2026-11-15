@@ -292,3 +292,19 @@ func TestNormalizeEditRequestTrimsBookendTextWithoutEnablingBookends(t *testing.
 		t.Fatalf("bookend bools = %v / %v, want false: setting text must not enable the bookend", got.Intro, got.Outro)
 	}
 }
+
+func TestEditRequestValidateSeparateShortsOnlyForPlays(t *testing.T) {
+	base := EditRequest{Format: FormatShort9x16, KillEffect: KillEffectPunchIn, Transition: TransitionFlash, SeparateShorts: true}
+	if err := base.Validate(); err != nil {
+		t.Fatalf("separate Shorts of plays rejected: %v", err)
+	}
+	death := base
+	death.DeathReel = true
+	recap := base
+	recap.MatchRecap = true
+	for name, req := range map[string]EditRequest{"death reel": death, "match recap": recap} {
+		if err := req.Validate(); err == nil {
+			t.Errorf("%s with separate Shorts was accepted", name)
+		}
+	}
+}

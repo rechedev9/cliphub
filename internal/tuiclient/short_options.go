@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -52,6 +53,8 @@ type ShortEdit struct {
 	// BrandWatermark and BrandBanner draw the saved brand kit (GetBrandKit).
 	BrandWatermark bool `json:"brand_watermark,omitempty"`
 	BrandBanner    bool `json:"brand_banner,omitempty"`
+	// SeparateShorts renders each segment as its own Short from one capture (Auto-Shorts).
+	SeparateShorts bool `json:"separate_shorts,omitempty"`
 }
 
 // ShortMusic is the "music" object of a Short: a track id from ListSongs and its mix.
@@ -117,5 +120,39 @@ func (c *Client) StartShort(ctx context.Context, id string, req GenerateRequest)
 	}
 	var out EnqueueResponse
 	err := c.doJSON(ctx, http.MethodPost, jobPath(id)+"/generate", req, &out)
+	return out, err
+}
+
+// ShortsBatch is GET /api/jobs/{id}/shorts-batch: the best play of each round
+// over MinScore, at most Limit of them, in match order.
+type ShortsBatch struct {
+	MinScore   float64  `json:"min_score"`
+	Limit      int      `json:"limit"`
+	SegmentIDs []string `json:"segment_ids"`
+	Moments    []Moment `json:"moments"`
+}
+
+// ShortsBatchQuery asks for one job's Auto-Shorts choice; zero options keep the server defaults.
+type ShortsBatchQuery struct {
+	JobID    string
+	MinScore float64
+	Limit    int
+}
+
+// GetShortsBatch reads the Auto-Shorts choice of a job.
+func (c *Client) GetShortsBatch(ctx context.Context, q ShortsBatchQuery) (ShortsBatch, error) {
+	values := url.Values{}
+	if q.MinScore > 0 {
+		values.Set("min_score", strconv.FormatFloat(q.MinScore, 'f', -1, 64))
+	}
+	if q.Limit > 0 {
+		values.Set("limit", strconv.Itoa(q.Limit))
+	}
+	path := jobPath(q.JobID) + "/shorts-batch"
+	if len(values) > 0 {
+		path += "?" + values.Encode()
+	}
+	var out ShortsBatch
+	err := c.getJSON(ctx, path, &out)
 	return out, err
 }
