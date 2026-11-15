@@ -80,7 +80,7 @@ test('grouping moves the export fingerprint and survives a JSON round trip', () 
 
 test('music runs on inside a joined Short and starts over in a lone one', () => {
   const joined = joinStreamMoments(plan(), ['c1', 'c3']);
-  const offsets = streamMusicOffsets(joined);
+  const offsets = streamMusicOffsets(streamPlanShorts(joined));
   assert.deepEqual([offsets.get('c1'), offsets.get('c3'), offsets.get('c2')], [0, 10, 0]);
 });
 

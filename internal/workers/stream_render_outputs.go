@@ -29,6 +29,12 @@ type streamOutputAssembly struct {
 	output   streamclips.PlanOutput
 	rendered map[string]streamRenderedClip
 	outDir   string
+	// hasAudio says every part carries one audio track (music or source audio).
+	hasAudio bool
+	// progressAt is posted while a group joins, after every moment has encoded.
+	progress   *streamclips.RenderProgressBoard
+	jobID      uuid.UUID
+	progressAt streamclips.RenderProgress
 }
 
 // assembleStreamOutput writes one output video into the delivery folder: a
@@ -49,8 +55,9 @@ func (w *StreamRenderWorker) assembleStreamOutput(ctx context.Context, a streamO
 		return outPath, elapsed, os.Rename(parts[0], outPath)
 	}
 	started := time.Now()
+	a.progress.Set(a.jobID, a.progressAt)
 	// Every member shares the codec, size and frame rate, so the concat
-	// demuxer joins them with a hard cut and no second encode.
+	// demuxer joins the video with a hard cut and no second encode.
 	var list strings.Builder
 	for _, part := range parts {
 		fmt.Fprintf(&list, "file '%s'\n", strings.ReplaceAll(filepath.ToSlash(part), "'", `'\''`))
@@ -59,11 +66,7 @@ func (w *StreamRenderWorker) assembleStreamOutput(ctx context.Context, a streamO
 	if err := os.WriteFile(listPath, []byte(list.String()), 0o600); err != nil {
 		return "", 0, err
 	}
-	if _, err := w.runner.Run(ctx, a.ffmpeg,
-		"-hide_banner", "-loglevel", "error", "-y",
-		"-f", "concat", "-safe", "0", "-i", listPath,
-		"-c", "copy", "-movflags", "+faststart", outPath,
-	); err != nil {
+	if _, err := w.runner.Run(ctx, a.ffmpeg, streamJoinArgs(listPath, parts, a.hasAudio, outPath)...); err != nil {
 		return "", 0, fmt.Errorf("join group %s: %w", a.output.ID, err)
 	}
 	return outPath, elapsed + time.Since(started), nil
@@ -107,4 +110,22 @@ func publishStreamOutput(p streamOutputPublish) (streamPublishedOutput, error) {
 		delivery:  streamclips.DeliveryEntry{Name: deliveryName, Kind: "video", Key: deliveryKey},
 		artifacts: []streamPublishArtifact{{key: key, path: p.path}, {key: deliveryKey, path: p.path}},
 	}, nil
+}
+
+// streamJoinArgs copies the video through the concat demuxer and re-encodes
+// the audio with the concat filter: copying AAC parts keeps each part's
+// encoder delay, which shifts the audio about 23 ms at every cut.
+func streamJoinArgs(listPath string, parts []string, hasAudio bool, outPath string) []string {
+	args := []string{"-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", listPath}
+	if !hasAudio {
+		return append(args, "-map", "0:v", "-c:v", "copy", "-movflags", "+faststart", outPath)
+	}
+	var filter strings.Builder
+	for i, part := range parts {
+		args = append(args, "-i", part)
+		fmt.Fprintf(&filter, "[%d:a]", i+1)
+	}
+	fmt.Fprintf(&filter, "concat=n=%d:v=0:a=1[a]", len(parts))
+	return append(args, "-filter_complex", filter.String(), "-map", "0:v", "-map", "[a]",
+		"-c:v", "copy", "-c:a", "aac", "-b:a", streamclips.AACBitrate, "-movflags", "+faststart", outPath)
 }

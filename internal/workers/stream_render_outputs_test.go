@@ -106,3 +106,16 @@ func TestStreamRenderWorkerRendersOneVideoPerGroup(t *testing.T) {
 		t.Fatalf("concat list does not hold the group in its order:\n%s", list)
 	}
 }
+
+func TestStreamJoinArgsReencodeOnlyTheAudio(t *testing.T) {
+	args := strings.Join(streamJoinArgs("list.txt", []string{"a.mp4", "b.mp4"}, true, "out.mp4"), " ")
+	for _, want := range []string{"-i list.txt -i a.mp4 -i b.mp4", "[1:a][2:a]concat=n=2:v=0:a=1[a]", "-map 0:v -map [a] -c:v copy -c:a aac"} {
+		if !strings.Contains(args, want) {
+			t.Fatalf("join args missing %q: %s", want, args)
+		}
+	}
+	silent := strings.Join(streamJoinArgs("list.txt", []string{"a.mp4", "b.mp4"}, false, "out.mp4"), " ")
+	if strings.Contains(silent, "a.mp4") || !strings.Contains(silent, "-map 0:v -c:v copy") {
+		t.Fatalf("silent join args = %s", silent)
+	}
+}

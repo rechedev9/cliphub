@@ -55,9 +55,9 @@ export function streamShortCount(plan: StreamEditPlan): number {
 }
 
 /** Where the music already is when each moment starts: inside a group it runs on, as the export does. */
-export function streamMusicOffsets(plan: StreamEditPlan): Map<string, number> {
+export function streamMusicOffsets(shorts: readonly StreamShort[]): Map<string, number> {
   const offsets = new Map<string, number>();
-  for (const short of streamPlanShorts(plan)) {
+  for (const short of shorts) {
     let offset = 0;
     for (const clip of short.clips) {
       offsets.set(clip.id, offset);

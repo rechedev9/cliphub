@@ -8,7 +8,6 @@ import {
   joinStreamMoments,
   moveStreamGroupMoment,
   splitStreamGroup,
-  streamPlanShorts,
   type StreamShort,
 } from '@/lib/streams/groups';
 import { formatStreamClock } from '@/lib/streams/plan';
@@ -17,25 +16,28 @@ import { Button } from '@/components/ui/button';
 /** The Revisar list: one row per exported Short, with joining, separating and reordering grouped moments. */
 export function StreamReviewList({
   plan,
+  shorts,
   selectedShortId,
   disabled,
   onSelect,
   onPlanChange,
 }: {
   plan: StreamEditPlan;
+  shorts: readonly StreamShort[];
   selectedShortId: string | null;
   disabled: boolean;
   onSelect: (short: StreamShort) => void;
   onPlanChange: (plan: StreamEditPlan) => void;
 }): ReactNode {
-  const shorts = streamPlanShorts(plan);
-  const [picked, setPicked] = useState<readonly string[]>([]);
+  // Picks belong to one grouping: joining, separating or reordering clears them.
+  const [pick, setPick] = useState<{ groups: StreamEditPlan['groups']; ids: readonly string[] }>({ groups: plan.groups, ids: [] });
+  const picked = pick.groups === plan.groups ? pick.ids : [];
   const pickedClipIds = shorts.filter((s) => picked.includes(s.id)).flatMap((s) => s.clips.map((c) => c.id));
   const toggle = (id: string) =>
-    setPicked((current) => (current.includes(id) ? current.filter((p) => p !== id) : [...current, id]));
+    setPick({ groups: plan.groups, ids: picked.includes(id) ? picked.filter((p) => p !== id) : [...picked, id] });
   const join = () => {
     onPlanChange(joinStreamMoments(plan, pickedClipIds));
-    setPicked([]);
+    setPick({ groups: plan.groups, ids: [] });
   };
 
   return (

@@ -65,6 +65,9 @@ type FFmpegInputs struct {
 	JoinedPart bool
 }
 
+// AACBitrate is the audio bitrate of every stream render, joined Shorts included.
+const AACBitrate = defaultAACBitrate
+
 func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, error) {
 	plan = NormalizeEditPlan(plan)
 	clip = normalizeClipRange(clip)

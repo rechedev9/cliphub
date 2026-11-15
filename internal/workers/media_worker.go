@@ -1527,9 +1527,11 @@ func (w *StreamRenderWorker) render(
 		}
 		rendered[clip.ID] = streamRenderedClip{path: outPath, elapsed: time.Since(renderStarted)}
 	}
-	for _, output := range plan.Outputs() {
+	outputs := plan.Outputs()
+	for i, output := range outputs {
 		outPath, elapsed, err := w.assembleStreamOutput(runCtx, streamOutputAssembly{
-			ffmpeg: cfg.FFmpegPath, output: output, rendered: rendered, outDir: outDir,
+			ffmpeg: cfg.FFmpegPath, output: output, rendered: rendered, outDir: outDir, hasAudio: musicPath != "" || j.Probe.AudioCodec != "",
+			progress: cfg.Progress, jobID: j.ID, progressAt: streamclips.RenderProgress{Variant: variant, Percent: 99, Clip: i + 1, Clips: len(outputs)},
 		})
 		if err != nil {
 			return err
