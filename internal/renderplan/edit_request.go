@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/brandkit"
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
@@ -84,6 +85,9 @@ type EditRequest struct {
 	OverlayTheme        string   `json:"overlay_theme,omitempty"`
 	// DeathReel records the clips of the death plan instead of the kill plan.
 	DeathReel bool `json:"death_reel,omitempty"`
+	// BrandWatermark and BrandBanner are copied whole from the brand kit, so a later kit edit never changes this render.
+	BrandWatermark *brandkit.Watermark `json:"brand_watermark,omitempty"`
+	BrandBanner    *brandkit.Banner    `json:"brand_banner,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {
@@ -188,6 +192,9 @@ func (r EditRequest) validateFields() error {
 			r.CoverStrategy != o.Outputs.CoverPolicy || r.DemoSource != o.OverlaySource() || r.OverlayTheme != o.Overlays.Theme {
 			return fmt.Errorf("full demo edit fields contradict the approved document")
 		}
+	}
+	if err := r.validateBrand(); err != nil {
+		return err
 	}
 	if r.DeathReel && (r.MatchRecap || r.FullDemo != nil) {
 		return fmt.Errorf("a death reel is not a match recap")
@@ -300,4 +307,28 @@ func (r EditRequest) UsesFACEITOverlay() bool {
 		return false
 	}
 	return r.DemoSource == DemoSourceFACEIT
+}
+
+// validateBrand keeps the kit off a Full Demo, whose approved plan carries it, and off a Short with the affiliate plate in the same place.
+func (r EditRequest) validateBrand() error {
+	if r.BrandWatermark == nil && r.BrandBanner == nil {
+		return nil
+	}
+	if r.FullDemo != nil || r.MatchRecap {
+		return fmt.Errorf("a Full Demo takes the brand kit from its approved plan")
+	}
+	if r.BrandWatermark != nil {
+		if err := r.BrandWatermark.Validate(); err != nil {
+			return err
+		}
+	}
+	if r.BrandBanner != nil {
+		if err := r.BrandBanner.Validate(); err != nil {
+			return err
+		}
+		if r.KeyDropStyle != "" {
+			return fmt.Errorf("the sponsor banner and the affiliate banner cannot share a Short")
+		}
+	}
+	return nil
 }

@@ -145,6 +145,8 @@ func Routes(h *Handlers) chi.Router {
 	r.Post("/api/full-demo/overlay-images", h.CreateFullDemoImage)
 	r.Get("/api/full-demo/overlay-images/{id}", h.GetFullDemoImage)
 	r.Get("/api/full-demo/hud-themes", h.ListHUDThemes)
+	r.Get("/api/brand-kit", h.GetBrandKit)
+	r.Put("/api/brand-kit", h.SaveBrandKit)
 	r.Post("/api/full-demo/hud-themes", h.CreateHUDTheme)
 	r.Get("/api/full-demo/hud-themes/preview", h.GetHUDThemePreview)
 	r.Put("/api/full-demo/hud-themes/{id}", h.UpdateHUDTheme)

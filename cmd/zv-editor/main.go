@@ -101,6 +101,12 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		victimReplaySpeed   = fs.Float64("victim-replay-speed", 0, "victim replay speed: 0.25, 0.5 or 1; 0 keeps half speed")
 		playBadges          = fs.Bool("play-badges", false, "name each play's clutch, ace or multikill on screen")
 		statsCard           = fs.String("stats-card", "", "optional stats card JSON drawn at the end of a 9:16 short")
+		watermarkImage      = fs.String("watermark-image", "", "optional PNG or JPG logo drawn as a watermark for the whole short")
+		watermarkCorner     = fs.String("watermark-corner", "top-right", "watermark corner: top-left, top-right, bottom-left or bottom-right")
+		watermarkOpacity    = fs.Float64("watermark-opacity", 0.8, "watermark opacity from 0.1 to 1")
+		sponsorImage        = fs.String("sponsor-image", "", "optional PNG or JPG sponsor banner drawn near the bottom of the short")
+		sponsorStart        = fs.Float64("sponsor-start", 0, "sponsor banner appears at this second")
+		sponsorEnd          = fs.Float64("sponsor-end", 0, "sponsor banner disappears at this second; 0 keeps it to the end")
 		lineupCatalogPath   = fs.String("lineup-catalog", "", "optional directory with manual smoke lineup catalog JSON files")
 		segments            = fs.String("segments", "", "optional comma-separated segment ids to render, e.g. seg-001,seg-004")
 		limit               = fs.Int("limit", 0, "optional max number of shorts to render after segment filtering")
@@ -218,6 +224,8 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		VictimReplaySpeed:     *victimReplaySpeed,
 		PlayBadges:            *playBadges,
 		StatsCardPath:         *statsCard,
+		Watermark:             brandWatermarkFlag(*watermarkImage, *watermarkCorner, *watermarkOpacity),
+		SponsorBanner:         sponsorBannerFlag(*sponsorImage, *sponsorStart, *sponsorEnd),
 		LineupCatalogPath:     *lineupCatalogPath,
 		SegmentIDs:            segmentIDs,
 		Limit:                 *limit,
@@ -363,4 +371,18 @@ func openPath(path string) error {
 		return fmt.Errorf("open gallery: %w", err)
 	}
 	return nil
+}
+
+func brandWatermarkFlag(path, corner string, opacity float64) *editor.BrandWatermark {
+	if path == "" {
+		return nil
+	}
+	return &editor.BrandWatermark{Path: path, Corner: corner, Opacity: opacity}
+}
+
+func sponsorBannerFlag(path string, start, end float64) *editor.SponsorBanner {
+	if path == "" {
+		return nil
+	}
+	return &editor.SponsorBanner{Path: path, StartSeconds: start, EndSeconds: end}
 }

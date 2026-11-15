@@ -49,6 +49,9 @@ type ShortEdit struct {
 	VictimReplaySpeed float64 `json:"victim_replay_speed,omitempty"`
 	PlayBadges        bool    `json:"play_badges,omitempty"`
 	StatsCard         bool    `json:"stats_card,omitempty"`
+	// BrandWatermark and BrandBanner draw the saved brand kit (GetBrandKit).
+	BrandWatermark bool `json:"brand_watermark,omitempty"`
+	BrandBanner    bool `json:"brand_banner,omitempty"`
 }
 
 // ShortMusic is the "music" object of a Short: a track id from ListSongs and its mix.

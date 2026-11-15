@@ -20,6 +20,8 @@ export type EditRequestBody = {
   victim_replay_speed?: number;
   play_badges?: boolean;
   stats_card?: boolean;
+  brand_watermark?: boolean;
+  brand_banner?: boolean;
   cover_strategy: EditConfig['coverStrategy'];
   intro_text?: string;
   outro_text?: string;
@@ -56,6 +58,8 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
   if (!edit.fullDemo && !edit.matchRecap) {
     if (edit.playBadges && !edit.deathReel) body.play_badges = true;
     if (edit.statsCard && edit.format === 'short-9x16') body.stats_card = true;
+    if (edit.brandWatermark) body.brand_watermark = true;
+    if (edit.brandBanner && !edit.keyDropStyle?.trim()) body.brand_banner = true;
   }
   if (edit.centeredKillfeed && edit.format === 'short-9x16' && !edit.fullDemo && !edit.deathReel) body.centered_killfeed = true;
   if (edit.voiceComms || edit.fullDemo) {

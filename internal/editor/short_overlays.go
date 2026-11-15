@@ -23,6 +23,9 @@ type ShortOverlays struct {
 	PlayBadges bool `json:"play_badges,omitempty"`
 	// StatsCard closes a 9:16 Short with the player's match stats.
 	StatsCard *StatsCard `json:"stats_card,omitempty"`
+	// Watermark and Banner are the creator's brand kit, prepared by prepareBrandOverlays.
+	Watermark *BrandWatermark `json:"watermark,omitempty"`
+	Banner    *SponsorBanner  `json:"sponsor_banner,omitempty"`
 }
 
 // StatsCard is the player's line for the closing card. A nil field is unknown and is not drawn.

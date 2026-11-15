@@ -221,6 +221,8 @@ export function coerceEditConfig(value: unknown): EditConfig {
   if (cfg.victimReplay && isVictimReplaySpeed(raw.victimReplaySpeed)) cfg.victimReplaySpeed = raw.victimReplaySpeed;
   if (raw.playBadges === true) cfg.playBadges = true;
   if (raw.statsCard === true) cfg.statsCard = true;
+  if (raw.brandWatermark === true) cfg.brandWatermark = true;
+  if (raw.brandBanner === true) cfg.brandBanner = true;
   const family =
     typeof raw.keyDropFamily === 'string' ? normalizeAffiliateFamily(raw.keyDropFamily) : '';
   if (typeof raw.keyDropStyle === 'string') {

@@ -273,6 +273,10 @@ export type EditConfig = {
   playBadges?: boolean;
   /** 9:16 only: a closing card with the player's match stats and FACEIT data when known. */
   statsCard?: boolean;
+  /** Shorts only: the brand kit's logo as a watermark; the render copies the saved kit. */
+  brandWatermark?: boolean;
+  /** Shorts only: the brand kit's own sponsor banner; it replaces the affiliate banner. */
+  brandBanner?: boolean;
   coverStrategy: CoverStrategy;
   introText?: string;
   outroText?: string;

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"github.com/rechedev9/cliphub/internal/brandkit"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 )
@@ -38,6 +39,9 @@ type renderEditRequest struct {
 	KeyDropEndSeconds   *float64            `json:"keydrop_end_seconds"`
 	DemoSource          *string             `json:"demo_source"`
 	OverlayTheme        *string             `json:"overlay_theme"`
+	// BrandWatermark and BrandBanner turn the saved brand kit on or off; applyBrandKit resolves them.
+	BrandWatermark *brandChoice[brandkit.Watermark] `json:"brand_watermark"`
+	BrandBanner    *brandChoice[brandkit.Banner]    `json:"brand_banner"`
 }
 
 func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditRequest {

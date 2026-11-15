@@ -288,6 +288,16 @@ func (o Options) Validate() error {
 	if err := validateHUDLook(o.Overlays); err != nil {
 		return err
 	}
+	if wm := o.Overlays.Brand.Watermark; wm != nil {
+		if err := wm.Validate(); err != nil {
+			return err
+		}
+	}
+	if banner := o.Overlays.Brand.Banner; banner != nil {
+		if err := banner.Validate(); err != nil {
+			return err
+		}
+	}
 	if o.Capture.XRay {
 		return fmt.Errorf("full demo profile requires xray disabled")
 	}

@@ -16,9 +16,11 @@ import {
   type EditConfig,
 } from '@/lib/api/types';
 import { selectAffiliateFamily, selectAffiliateOff, selectAffiliateStyle } from '@/lib/affiliate-banner';
+import { exclusiveBanner } from '@/lib/brand-kit';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { BrandKitOptions } from './brand-kit-options';
 
 /** Show the live character counter only once the input is getting close to the limit. */
 const COUNTER_THRESHOLD = BOOKEND_TEXT_MAX_LENGTH - 20;
@@ -61,12 +63,13 @@ const transitionItems: Array<{ value: EditConfig['transition']; label: string }>
 /** Kill-effect, transition, and bookend controls. Aspect is the produce format. */
 export function EditOptions({
   value,
-  onChange,
+  onChange: emit,
   disabled = false,
   showFullDemoDelivery = false,
   killCounter = true,
   statsCard = true,
 }: EditOptionsProps) {
+  const onChange = (next: EditConfig): void => emit(exclusiveBanner(value, next));
   return (
     <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
       {showFullDemoDelivery ? (
@@ -350,6 +353,12 @@ export function EditOptions({
           </ToggleGroupItem>
         </ToggleGroup>
       </OptionBlock>
+
+      {showFullDemoDelivery ? null : (
+        <OptionBlock label="Kit de marca" className="md:col-span-2">
+          <BrandKitOptions value={value} onChange={onChange} disabled={disabled} />
+        </OptionBlock>
+      )}
 
       <OptionBlock label="Banner afiliado" className="md:col-span-2">
         <ToggleGroup

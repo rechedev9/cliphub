@@ -50,6 +50,9 @@ generate_short also takes the music and game volume, the opening and closing tex
 It also takes play_badges (a badge for each clutch, ace or multikill), stats_card (a closing 9:16 card with the
 player's K/D, ADR, HS% and ClipHub rating, never an HLTV rating, plus FACEIT level, win rate and best map when FACEIT
 has them) and victim_replay_speed (0.25, 0.5 or 1, with victim_replay).
+The brand kit (get_brand_kit, save_brand_kit) keeps the channel logo, drawn as a watermark in a corner with an
+opacity, and an own sponsor banner with a time window. generate_short and plan_full_demo take brand_watermark and
+brand_banner to apply it; the render copies the kit, and brand_banner does not go with the affiliate banner.
 A Full Demo (the whole match): choose_hud or list_hud_themes, plan_full_demo, then render_full_demo.
 Every custom HUD design also draws round facts from the demo: players alive per side, a win streak of 4 or more,
 3K/4K/ACE, the defuse bar with or without kit and the round MVP (list_hud_themes shows).

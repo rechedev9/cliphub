@@ -2535,13 +2535,11 @@ func (w *RenderWorker) writeEditorInputs(ctx context.Context, cfg RenderWorkerCo
 	if plateDir := overlayAssetsPlatesDir(w.storage); plateDir != "" {
 		args = append(args, "--overlay-assets", plateDir)
 	}
-	if edit.IntroText != "" {
-		args = append(args, "--intro-text", edit.IntroText)
+	brandArgs, err := w.brandArgs(ctx, edit, workDir)
+	if err != nil {
+		return editorInvocation{}, err
 	}
-	if edit.OutroText != "" {
-		args = append(args, "--outro-text", edit.OutroText)
-	}
-	args = append(args, keyDropArgs(edit)...)
+	args = append(append(append(args, bookendTextArgs(edit)...), keyDropArgs(edit)...), brandArgs...)
 	if cardPath := w.writeShortStatsCard(j, workDir, edit); cardPath != "" {
 		args = append(args, "--stats-card", cardPath)
 	}

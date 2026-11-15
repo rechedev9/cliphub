@@ -73,6 +73,7 @@ type planFullDemoIn struct {
 	Rounds              []int  `json:"rounds,omitempty" jsonschema:"only these round numbers; empty means every round"`
 	fullDemoExtrasIn
 	hudLookIn
+	brandChoiceIn
 	custom *hudthemes.Style // A user theme resolved from hud by resolveUserHUD.
 }
 
@@ -181,6 +182,9 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 				}
 			}
 			if err := resolveUserHUD(ctx, c, &in); err != nil {
+				return nil, fullDemoPlanOut{}, err
+			}
+			if err := resolveBrandKit(ctx, c, &in.brandChoiceIn); err != nil {
 				return nil, fullDemoPlanOut{}, err
 			}
 			options, err = applyFullDemoChoices(options, in)
@@ -350,6 +354,7 @@ func applyFullDemoChoices(options recapplan.Options, in planFullDemoIn) (recappl
 	if err := applyHUDLook(&options, in.hudLookIn); err != nil {
 		return recapplan.Options{}, err
 	}
+	applyBrandChoice(&options, in.brandChoiceIn)
 	if in.OverlaySource != "" {
 		source := strings.ToLower(strings.TrimSpace(in.OverlaySource))
 		if source == "local" {
@@ -483,7 +488,7 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	if out.HUDPortrait {
 		out.Summary += " Con tu retrato en el HUD."
 	}
-	out.Summary += describeHUDLook(o.Overlays)
+	out.Summary += describeHUDLook(o.Overlays) + describeBrand(o.Overlays.Brand)
 	if len(out.Bumpers) > 0 {
 		out.Summary += fmt.Sprintf(" Clips añadidos: %s.", strings.Join(out.Bumpers, ", "))
 	}

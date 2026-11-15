@@ -572,3 +572,11 @@ func spanishPublishWeekday(day time.Weekday) string {
 		return "domingo"
 	}
 }
+
+// WithPublishAssistantTrends enables optional Firecrawl discovery. Missing
+// public trend data never makes the manual publishing assistant unavailable.
+func WithPublishAssistantTrends(trends YouTubeTrends) Option {
+	return func(h *Handlers) {
+		h.youtubeTrends = trends
+	}
+}

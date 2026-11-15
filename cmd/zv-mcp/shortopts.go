@@ -82,6 +82,8 @@ var toggleOptions = []shortToggle{
 	{ID: "native_hud", Label: "HUD nativo", Description: "Graba con el HUD original del juego"},
 	{ID: "victim_replay", Label: "Repetición desde la víctima", Description: "Tras cada jugada, la última baja otra vez vista por quien muere, a la velocidad elegida"},
 	{ID: "cover", Label: "Portada", Description: "Genera candidatos de portada desde el gameplay", Default: true},
+	{ID: "brand_watermark", Label: "Marca de agua", Description: "Dibuja el logo del kit de marca en su esquina y con su opacidad (necesita un logo guardado)"},
+	{ID: "brand_banner", Label: "Banner de sponsor", Description: "Muestra el banner del kit de marca en su ventana de tiempo (necesita un banner guardado; no va con el banner de afiliado)"},
 }
 
 // bannerFamilies mirror AFFILIATE_FAMILY_CATALOG of the Studio UI (web/lib/api/types.ts).
@@ -162,6 +164,8 @@ type shortChoices struct {
 	StatsCard  *bool `json:"stats_card,omitempty" jsonschema:"closing card with the player's K/D, ADR, HS% and ClipHub rating (never an HLTV rating), plus FACEIT level, win rate and best map when FACEIT has them; short-9x16 only; default false"`
 	// VictimReplaySpeed is rejected without victim_replay.
 	VictimReplaySpeed *float64 `json:"victim_replay_speed,omitempty" jsonschema:"victim replay speed: 0.25, 0.5 or 1; needs victim_replay; default 0.5"`
+	BrandWatermark    *bool    `json:"brand_watermark,omitempty" jsonschema:"draw the channel logo of the brand kit (get_brand_kit) as a watermark in its corner and opacity; needs a saved logo; default false"`
+	BrandBanner       *bool    `json:"brand_banner,omitempty" jsonschema:"show the sponsor banner of the brand kit in its time window; needs a saved banner; not with banner_style; default false"`
 }
 
 type songIn struct {
@@ -301,6 +305,10 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 	if err := resolveBookendText(&edit, c); err != nil {
 		return edit, err
 	}
+	edit.BrandWatermark, edit.BrandBanner = orDefault(c.BrandWatermark, false), orDefault(c.BrandBanner, false)
+	if edit.BrandBanner && c.BannerStyle != "" {
+		return edit, errors.New("brand_banner and banner_style both put a banner in the same place; choose one")
+	}
 	return edit, resolveBanner(&edit, c)
 }
 
@@ -426,7 +434,8 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 		name string
 		on   bool
 	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter}, {"play_badges", e.PlayBadges}, {"stats_card", e.StatsCard}, {"centered_killfeed", e.CenteredKillfeed},
-		{"voice_comms", e.VoiceComms}, {"native_hud", e.NativeHUD}, {"victim_replay", e.VictimReplay}, {"cover", e.CoverStrategy == coverGenerated}} {
+		{"voice_comms", e.VoiceComms}, {"native_hud", e.NativeHUD}, {"victim_replay", e.VictimReplay}, {"cover", e.CoverStrategy == coverGenerated},
+		{"brand_watermark", e.BrandWatermark}, {"brand_banner", e.BrandBanner}} {
 		if x.on {
 			extras = append(extras, x.name)
 		}

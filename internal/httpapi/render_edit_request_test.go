@@ -33,6 +33,10 @@ func TestRenderEditRequestMergeCoversEveryField(t *testing.T) {
 	patch.FullDemo = &snapshot
 	pv := reflect.ValueOf(patch)
 	for i := range pv.NumField() {
+		// applyBrandKit resolves the brand choices from the saved kit (TestRenderBrandKitChoices).
+		if name := pv.Type().Field(i).Name; name == "BrandWatermark" || name == "BrandBanner" {
+			continue
+		}
 		if pv.Field(i).IsNil() {
 			t.Fatalf("fixture leaves %s unset; extend the JSON above", pv.Type().Field(i).Name)
 		}

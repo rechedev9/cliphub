@@ -168,6 +168,7 @@ type Handlers struct {
 	importedVideos      ImportedVideos
 	libraryRepo         LibraryRepository
 	hudThemes           HUDThemeRepository
+	brandKit            BrandKitRepository
 	lineups             lineups.Catalog
 	practiceGame        practice.Game
 	references          referenceCaches
@@ -230,14 +231,6 @@ func WithGenerateIntentStore(store *generateintent.Store) Option {
 func WithCapabilities(c Capabilities) Option {
 	return func(h *Handlers) {
 		h.capabilities = c
-	}
-}
-
-// WithPublishAssistantTrends enables optional Firecrawl discovery. Missing
-// public trend data never makes the manual publishing assistant unavailable.
-func WithPublishAssistantTrends(trends YouTubeTrends) Option {
-	return func(h *Handlers) {
-		h.youtubeTrends = trends
 	}
 }
 
@@ -1557,6 +1550,10 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	var musicVolume float64
 	var gameVolume *float64
 	editRequest = editPatch.merge(editRequest)
+	if err := h.applyBrandKit(r.Context(), editPatch, &editRequest); err != nil {
+		writeBrandKitError(w, err)
+		return
+	}
 	if err := h.approveFullDemo(r.Context(), j, &editRequest); err != nil {
 		rejectFullDemo(w, err)
 		return

@@ -173,6 +173,9 @@ type Config struct {
 	PlayBadges bool
 	// StatsCardPath is a StatsCard JSON drawn at the end of a 9:16 Short.
 	StatsCardPath string
+	// Watermark and SponsorBanner are the brand kit images; their Path is the uploaded file.
+	Watermark     *BrandWatermark
+	SponsorBanner *SponsorBanner
 }
 
 type ManifestOptions struct {

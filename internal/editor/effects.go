@@ -223,7 +223,7 @@ func generatedEditEffects(short ShortEdit) []Effect {
 	effects = append(append(effects, generatedKillCounterEffects(short)...), generatedPlayBadgeEffects(short)...)
 	effects = append(effects, generatedKillfeedEffects(short)...)
 	effects = append(append(effects, generatedBookendEffects(short)...), generatedStatsCardEffects(short)...)
-	effects = append(effects, generatedKeyDropEffect(short)...)
+	effects = append(append(effects, generatedKeyDropEffect(short)...), generatedBrandEffects(short)...)
 	effects = append(effects, generatedFullDemoOverlayEffects(short)...)
 	return effects
 }

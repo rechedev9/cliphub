@@ -1,5 +1,6 @@
 import type { ReelIntent } from './reel-store';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
+import { isBrandBanner, isBrandWatermark } from '../brand-kit.ts';
 import {
   isAffiliateStyle,
   isDemoSource,
@@ -67,6 +68,9 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   if (parsed.victimReplay && isVictimReplaySpeed(edit.victim_replay_speed)) parsed.victimReplaySpeed = edit.victim_replay_speed;
   if (edit.play_badges === true) parsed.playBadges = true;
   if (edit.stats_card === true) parsed.statsCard = true;
+  // The effective edit holds the kit copy the render used; true is a request that has not been rendered yet.
+  if (edit.brand_watermark === true || isBrandWatermark(edit.brand_watermark)) parsed.brandWatermark = true;
+  if (edit.brand_banner === true || isBrandBanner(edit.brand_banner)) parsed.brandBanner = true;
   if (edit.centered_killfeed === true) parsed.centeredKillfeed = true;
   if (
     typeof edit.voice_volume === 'number' &&

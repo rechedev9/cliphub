@@ -27,11 +27,12 @@ func BuildFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 		"-v", "error",
 		"-i", short.Input,
 	}
+	command = appendBrandImageInputs(command, short)
 	// Killfeed overlays need the source stream twice (program feed + crop
 	// branches), and the cover first-frame freeze needs the filtered stream
 	// twice, which -vf cannot express; plain renders keep the historical
 	// -vf command.
-	if killfeeds := killfeedEffects(short.Effects); len(killfeeds) > 0 || short.CoverFirstFrame {
+	if killfeeds := killfeedEffects(short.Effects); len(killfeeds) > 0 || short.CoverFirstFrame || len(singleClipBrandImages(short)) > 0 {
 		command = append(command,
 			"-filter_complex", strings.Join(singleClipVideoClauses(short, killfeeds), ";"),
 			"-map", "[v]",
@@ -98,7 +99,7 @@ func BuildMusicFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	}
 	audioOut += "[a]"
 	videoClauses := []string{fmt.Sprintf("[0:v]%s[v]", VideoFilter(short))}
-	if killfeeds := killfeedEffects(short.Effects); len(killfeeds) > 0 || short.CoverFirstFrame {
+	if killfeeds := killfeedEffects(short.Effects); len(killfeeds) > 0 || short.CoverFirstFrame || len(singleClipBrandImages(short)) > 0 {
 		videoClauses = singleClipVideoClauses(short, killfeeds)
 	}
 	gameVol := fmt.Sprintf("%.2f", gameMixVolume(short))
@@ -116,10 +117,13 @@ func BuildMusicFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 		"-i", short.Input,
 		"-stream_loop", "-1",
 		"-i", short.MusicPath,
+	}
+	command = appendBrandImageInputs(command, short)
+	command = append(command,
 		"-filter_complex", filter,
 		"-map", "[v]",
 		"-map", "[a]",
-	}
+	)
 	command = appendVideoEncodeArgs(command, short)
 	command = appendAudioCodecArgs(command)
 	command = append(command, "-movflags", "+faststart")
@@ -185,6 +189,10 @@ func singleClipVideoClauses(short ShortEdit, killfeeds []Effect) []string {
 			),
 		)
 		current = next
+	}
+	if images := singleClipBrandImages(short); len(images) > 0 {
+		clauses = appendImageOverlayClauses(clauses, current, singleClipImageInputStart(short), images, short, "vbrand")
+		current = "vbrand"
 	}
 	coverClauses, current := coverFirstFrameClauses(short, current)
 	clauses = append(clauses, coverClauses...)

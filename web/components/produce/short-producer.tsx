@@ -470,6 +470,8 @@ function overlaysSummary(edit: EditConfig): string {
   if (edit.playBadges) parts.push('Insignias');
   if (edit.statsCard && edit.format === 'short-9x16') parts.push('Estadísticas');
   if (edit.victimReplay) parts.push('Repetición');
+  if (edit.brandWatermark) parts.push('Marca de agua');
+  if (edit.brandBanner && !edit.keyDropStyle) parts.push('Sponsor');
   if (edit.keyDropStyle) parts.push('Afiliado');
   return parts.length > 0 ? parts.join(' + ') : 'Solo efectos';
 }
