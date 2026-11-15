@@ -21,6 +21,10 @@ const KIND_LABELS: Record<PlayKindFilter, string> = {
   noscope: 'Noscope',
   through_smoke: 'A través de humo',
   attacker_blind: 'Cegado',
+  entry: 'Entry',
+  retake: 'Retake',
+  eco_win: 'Eco ganada',
+  flick: 'Flick',
 };
 
 export type PlayFiltersProps = {

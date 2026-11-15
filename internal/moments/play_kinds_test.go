@@ -151,3 +151,36 @@ func TestParseFilterAcceptsTheNamedKinds(t *testing.T) {
 		t.Fatal("unknown kind passed")
 	}
 }
+
+func TestPlayKindsBecomeReasonsFiltersAndWeighTheScore(t *testing.T) {
+	plan := killplan.NewPlan()
+	plan.Demo.Tickrate = 64
+	one := func(k killplan.Kill) []killplan.Kill {
+		k.Tick, k.Weapon = 100, "ak47"
+		return []killplan.Kill{k}
+	}
+	plan.Segments = []killplan.Segment{
+		{ID: "plain", TickStart: 0, TickEnd: 640, Kills: one(killplan.Kill{})},
+		{ID: "entry", TickStart: 0, TickEnd: 640, Kills: one(killplan.Kill{Entry: true})},
+		{ID: "retake", TickStart: 0, TickEnd: 640, Kills: one(killplan.Kill{Retake: true})},
+		{ID: "eco", TickStart: 0, TickEnd: 640, Kills: one(killplan.Kill{EcoWin: true})},
+		{ID: "flick", TickStart: 0, TickEnd: 640, Kills: one(killplan.Kill{Flick: true})},
+	}
+	got := rankByID(plan)
+	for id, reason := range map[string]string{"entry": ReasonEntry, "retake": ReasonRetake, "eco": ReasonEcoWin, "flick": ReasonFlick} {
+		m := got[id]
+		if !hasReason(m.ReasonCodes, reason) || m.Score <= got["plain"].Score {
+			t.Fatalf("%s = %v score %v, want reason %q above plain %v", id, m.ReasonCodes, m.Score, reason, got["plain"].Score)
+		}
+		f, err := ParseFilter("", []string{reason}, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if kept := Apply(Rank(plan), f); len(kept) != 1 || kept[0].SegmentID != id {
+			t.Fatalf("kind %s kept %d plays, want only %s", reason, len(kept), id)
+		}
+	}
+	if got["flick"].Events.Flicks != 1 || len(got["plain"].ReasonCodes) != 1 {
+		t.Fatalf("flick events = %+v, plain reasons = %v", got["flick"].Events, got["plain"].ReasonCodes)
+	}
+}

@@ -74,6 +74,7 @@ type Events struct {
 	NoScopes       int      `json:"no_scopes,omitempty"`
 	ThroughSmoke   int      `json:"through_smoke,omitempty"`
 	AttackerBlind  int      `json:"attacker_blind,omitempty"`
+	Flicks         int      `json:"flicks,omitempty"`
 	Weapons        []string `json:"weapons,omitempty"`
 	Utility        int      `json:"utility,omitempty"`
 	KnownLineups   int      `json:"known_lineups,omitempty"`
@@ -167,7 +168,7 @@ func buildMoment(index int, segment killplan.Segment, plan killplan.Plan) Moment
 		TimeStart:       timeStart,
 		TimeEnd:         timeEnd,
 		DurationSeconds: duration,
-		Score:           score(scoreInput{events: events, duration: duration, clutchVs: segmentClutchVs(segment), clutchWon: clutchWon, fast: fast, swing: swing}),
+		Score:           score(scoreInput{events: events, duration: duration, clutchVs: segmentClutchVs(segment), clutchWon: clutchWon, fast: fast, swing: swing, reasons: reasons}),
 		ReasonCodes:     reasons,
 		Events:          events,
 		Weapons:         append([]string(nil), events.Weapons...),
@@ -203,6 +204,9 @@ func segmentEvents(segment killplan.Segment) Events {
 		}
 		if kill.AttackerBlind {
 			events.AttackerBlind++
+		}
+		if kill.Flick {
+			events.Flicks++
 		}
 	}
 	for _, u := range segment.Utility {
@@ -312,6 +316,20 @@ func reasonCodes(segment killplan.Segment, events Events) []string {
 	if events.AttackerBlind > 0 {
 		reasons[ReasonAttackerBlind] = true
 	}
+	if events.Flicks > 0 {
+		reasons[ReasonFlick] = true
+	}
+	for _, kill := range segment.Kills {
+		if kill.Entry {
+			reasons[ReasonEntry] = true
+		}
+		if kill.Retake {
+			reasons[ReasonRetake] = true
+		}
+		if kill.EcoWin {
+			reasons[ReasonEcoWin] = true
+		}
+	}
 	for _, weapon := range events.Weapons {
 		switch weapon {
 		case "awp", "weapon_awp":
@@ -379,7 +397,11 @@ type scoreInput struct {
 	clutchWon *bool
 	fast      string
 	swing     float64
+	reasons   []string
 }
+
+// playKindBonus weighs the kinds of play a segment counts once, however many kills it has.
+var playKindBonus = map[string]float64{ReasonEntry: 0.1, ReasonRetake: 0.12, ReasonEcoWin: 0.15}
 
 // fastBonus weighs each named fast multi-kill; a play takes only its best one.
 var fastBonus = map[string]float64{ReasonFastDouble: 0.06, ReasonFastTriple: 0.12, ReasonFastQuad: 0.18, ReasonFastAce: 0.25}
@@ -395,6 +417,7 @@ func score(in scoreInput) float64 {
 	points += float64(e.NoScopes) * 0.1
 	points += float64(e.ThroughSmoke) * 0.08
 	points += float64(e.AttackerBlind) * 0.08
+	points += float64(e.Flicks) * 0.06
 	points += float64(e.KnownLineups) * 0.18
 	points += float64(e.UnknownLineups) * 0.08
 	if in.duration > 0 && in.duration <= 18 {
@@ -407,6 +430,9 @@ func score(in scoreInput) float64 {
 		}
 	}
 	points += fastBonus[in.fast]
+	for _, reason := range in.reasons {
+		points += playKindBonus[reason]
+	}
 	points += 0.6 * in.swing
 	value := 1 - math.Exp(-math.Max(points, 0))
 	return math.Round(value*1000) / 1000

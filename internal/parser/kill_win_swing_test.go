@@ -46,7 +46,7 @@ func TestMarkClutchResultsUsesTheRoundWinner(t *testing.T) {
 		{Round: 5, ClutchVs: 3, Killer: ct},
 		{Round: 3, Killer: ct},
 	}
-	markClutchResults(kills, []RoundEnd{{Round: 3, Winner: "CT"}, {Round: 4, Winner: "T"}, {Round: 4, Winner: "CT"}, {Round: 5}})
+	markRoundResults(kills, []RoundEnd{{Round: 3, Winner: "CT"}, {Round: 4, Winner: "T"}, {Round: 4, Winner: "CT"}, {Round: 5}})
 	want := []string{killplan.ClutchWon, killplan.ClutchLost, "", ""}
 	for i, k := range kills {
 		if k.ClutchResult != want[i] {

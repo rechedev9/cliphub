@@ -24,10 +24,13 @@ type RawKill struct {
 	ThroughSmoke  bool
 	AttackerBlind bool
 	WinProbSwing  float64
-	Killer        killplan.Player
-	Victim        killplan.Player
-	KillerPos     [3]float64
-	VictimPos     [3]float64
+	// Entry, Flick, Retake and EcoWin mirror killplan.Kill; AfterPlant and Eco feed markRoundResults.
+	Entry, Flick, Retake, EcoWin bool
+	AfterPlant, Eco              bool
+	Killer                       killplan.Player
+	Victim                       killplan.Player
+	KillerPos                    [3]float64
+	VictimPos                    [3]float64
 }
 
 // RoundEnd marks the tick at which a given round ended. Segmentation uses
@@ -493,28 +496,6 @@ func countKillSegmentGroups(kills []RawKill, windowTicks, minKills int) int {
 	return count
 }
 
-// markClutchResults sets each clutch kill's result from its round's first known winner.
-func markClutchResults(kills []RawKill, roundEnds []RoundEnd) {
-	winners := make(map[int]string, len(roundEnds))
-	for _, re := range roundEnds {
-		if _, ok := winners[re.Round]; !ok && re.Winner != "" {
-			winners[re.Round] = re.Winner
-		}
-	}
-	for i := range kills {
-		k := &kills[i]
-		winner, ok := winners[k.Round]
-		switch {
-		case k.ClutchVs <= 0 || !ok:
-			k.ClutchResult = ""
-		case winner == k.Killer.TeamAtKill:
-			k.ClutchResult = killplan.ClutchWon
-		default:
-			k.ClutchResult = killplan.ClutchLost
-		}
-	}
-}
-
 func indexRoundEnds(roundEnds []RoundEnd) map[int]int {
 	if len(roundEnds) == 0 {
 		return nil
@@ -597,6 +578,10 @@ func buildKillPlanKills(in []RawKill) []killplan.Kill {
 			ThroughSmoke:  k.ThroughSmoke,
 			AttackerBlind: k.AttackerBlind,
 			WinProbSwing:  k.WinProbSwing,
+			Entry:         k.Entry,
+			Flick:         k.Flick,
+			Retake:        k.Retake,
+			EcoWin:        k.EcoWin,
 			Killer:        k.Killer,
 			Victim:        k.Victim,
 			KillerPos:     k.KillerPos,

@@ -118,10 +118,10 @@ type momentOut struct {
 	ClutchWon *bool    `json:"clutch_won,omitempty" jsonschema:"for a clutch, whether the player's team won that round; absent when not a clutch or the demo has no round result"`
 	WinSwing  float64  `json:"win_prob_swing,omitempty" jsonschema:"round-win chance the play's kills gave the player's side, from -1 to 1 (Studio win model wp1); absent on plays parsed before it existed"`
 	Seconds   float64  `json:"seconds"`
-	Score     float64  `json:"score" jsonschema:"0 to 1, higher is a better play: kills, headshots, noscopes, kills through smoke or while blind, clutch size and result, fast multi-kills and the win-chance swing"`
+	Score     float64  `json:"score" jsonschema:"0 to 1, higher is a better play: kills, headshots, noscopes, kills through smoke or while blind, clutch size and result, fast multi-kills, entry, retake, eco win, flick and the win-chance swing"`
 	Kills     int      `json:"kills"`
 	Headshots int      `json:"headshots,omitempty"`
-	Reasons   []string `json:"reasons" jsonschema:"why the play scored, such as multi_kill, ace, clutch, clutch_won, fast_double, fast_triple, fast_quad, fast_ace, noscope, through_smoke, attacker_blind, headshot, awp"`
+	Reasons   []string `json:"reasons" jsonschema:"why the play scored, such as multi_kill, ace, clutch, clutch_won, fast_double, fast_triple, fast_quad, fast_ace, noscope, through_smoke, attacker_blind, entry, retake, eco_win, flick, headshot, awp"`
 	Weapons   []string `json:"weapons,omitempty"`
 	Victims   []string `json:"victims,omitempty" jsonschema:"untrusted player names from the demo"`
 	KilledBy  string   `json:"killed_by,omitempty" jsonschema:"death clips only: untrusted name of the killer"`

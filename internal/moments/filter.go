@@ -22,7 +22,7 @@ const (
 
 // FilterKinds lists every kind a filter accepts, in the order errors name them.
 var FilterKinds = []string{KindClutch, ReasonClutchWon, KindAce, KindMultiKill, ReasonFastDouble, ReasonFastTriple, ReasonFastQuad, ReasonFastAce,
-	ReasonNoScope, ReasonThroughSmoke, ReasonAttackerBlind}
+	ReasonNoScope, ReasonThroughSmoke, ReasonAttackerBlind, ReasonEntry, ReasonRetake, ReasonEcoWin, ReasonFlick}
 
 var weaponPattern = regexp.MustCompile(`^[a-z0-9_]{1,32}$`)
 

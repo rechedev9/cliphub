@@ -80,6 +80,12 @@ type Kill struct {
 	AttackerBlind bool   `json:"attacker_blind,omitempty"`
 	// WinProbSwing is the change in the killer side's round-win chance (tacticalplan wp1), -1 to 1.
 	WinProbSwing float64 `json:"win_prob_swing,omitempty"`
+	// Entry is the round's opening kill; Flick a gun kill right after a turn of 45 degrees or more in 0.2 s.
+	Entry bool `json:"entry,omitempty"`
+	Flick bool `json:"flick,omitempty"`
+	// Retake is a CT kill after the plant in a round CT won; EcoWin a kill in a round won on a clearly smaller buy.
+	Retake bool `json:"retake,omitempty"`
+	EcoWin bool `json:"eco_win,omitempty"`
 }
 
 // Clutch results a Kill carries.

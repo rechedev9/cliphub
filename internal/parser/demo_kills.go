@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,8 @@ type gameInfo struct {
 	Round        int
 	ClutchVs     int
 	WinProbSwing float64
+	// Entry, Flick, AfterPlant and Eco are copied to the RawKill; see round_plays.go.
+	Entry, Flick, AfterPlant, Eco bool
 }
 
 // alivePlayer is one living player when a kill happens, so clutchVs needs no live parser.
@@ -89,16 +92,20 @@ func BuildRawKill(e events.Kill, gi gameInfo, targetID uint64, excludeTeamKills 
 		return RawKill{}, false
 	}
 	return RawKill{
-		Tick:     gi.Tick,
-		Round:    gi.Round,
-		Weapon:   weaponName(e.Weapon),
-		Headshot: e.IsHeadshot,
-		Wallbang: e.PenetratedObjects > 0,
-		ClutchVs: gi.ClutchVs,
+		Tick:          gi.Tick,
+		Round:         gi.Round,
+		Weapon:        weaponName(e.Weapon),
+		Headshot:      e.IsHeadshot,
+		Wallbang:      e.PenetratedObjects > 0,
+		ClutchVs:      gi.ClutchVs,
 		NoScope:       e.NoScope,
 		ThroughSmoke:  e.ThroughSmoke,
 		AttackerBlind: e.AttackerBlind,
 		WinProbSwing:  gi.WinProbSwing,
+		Entry:         gi.Entry,
+		Flick:         gi.Flick,
+		AfterPlant:    gi.AfterPlant,
+		Eco:           gi.Eco,
 		Killer: killplan.Player{
 			SteamID64:  strconv.FormatUint(e.Killer.SteamID64, 10),
 			NameInDemo: e.Killer.Name,
@@ -259,6 +266,8 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 	var liveTick, plantTick int
 	var planted bool
 	var crosshairs crosshairTimeline
+	var openingTaken bool
+	var trail viewTrail
 	var watch *utilityWatch
 	if mode == SegmentModeRecap || alsoRecap {
 		watch = newUtilityWatch(targetID, target, &maxTick, c.RecordTargetIdentity)
@@ -276,6 +285,8 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		sawMatchStart = true
 		activeRound = 0
 		roundLive = false
+		openingTaken = false
+		trail.reset()
 	})
 
 	p.RegisterEventHandler(func(e events.Kill) {
@@ -289,8 +300,18 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 			round = activeRound
 		}
 		gi := gameInfo{Tick: tick, Round: round}
+		if roundLive && !openingTaken && isOpeningCandidate(e) {
+			openingTaken = true
+			gi.Entry = true
+		}
 		if e.Killer != nil && e.Killer.SteamID64 == targetID && e.Victim != nil && gs.Participants() != nil {
-			alive := alivePlayers(gs.Participants().Playing())
+			playing := gs.Participants().Playing()
+			alive := alivePlayers(playing)
+			gi.Eco = ecoRound(roundPlayers(playing), e.Killer.Team)
+			gi.AfterPlant = roundLive && planted && e.Killer.Team == common.TeamCounterTerrorists
+			if yaw, pitch, ok := safeViewAngles(e.Killer); ok && isGunKill(e.Weapon) && p.TickRate() > 0 {
+				gi.Flick = trail.flick(viewSample{tick: tick, yaw: yaw, pitch: pitch}, int(math.Round(flickWindowSeconds*p.TickRate())))
+			}
 			killer := alivePlayer{SteamID64: e.Killer.SteamID64, Team: e.Killer.Team}
 			victim := alivePlayer{SteamID64: e.Victim.SteamID64, Team: e.Victim.Team, Equip: e.Victim.EquipmentValueFreezeTimeEnd()}
 			gi.ClutchVs = clutchVs(alive, killer, victim)
@@ -344,6 +365,8 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		activeRound = gs.TotalRoundsPlayed() + 1
 		roundLive = false
 		planted = false
+		openingTaken = false
+		trail.reset()
 		c.RecordRoundStart(RoundStart{Round: activeRound, Tick: tick})
 	})
 
@@ -381,6 +404,21 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		c.RecordRoundEnd(RoundEnd{Round: round, Tick: tick, Winner: sideLabel(e.Winner)})
 		activeRound = 0
 		roundLive = false
+	})
+
+	p.RegisterEventHandler(func(events.FrameDone) {
+		if !roundLive || p.GameState().Participants() == nil {
+			return
+		}
+		for _, player := range p.GameState().Participants().Playing() {
+			if player == nil || player.SteamID64 != targetID || !player.IsAlive() {
+				continue
+			}
+			if yaw, pitch, ok := safeViewAngles(player); ok {
+				trail.record(viewSample{tick: p.GameState().IngameTick(), yaw: yaw, pitch: pitch})
+			}
+			break
+		}
 	})
 
 	if alsoRecap {

@@ -19,6 +19,15 @@ const (
 	ReasonFastAce       = "fast_ace"
 )
 
+// Reason codes for the kind of play: the round's opening kill, a flick, a
+// post-plant CT kill in a round won by defuse, and a round won on an eco.
+const (
+	ReasonEntry  = "entry"
+	ReasonFlick  = "flick"
+	ReasonRetake = "retake"
+	ReasonEcoWin = "eco_win"
+)
+
 // fastWindows are the named fast multi-kills, biggest first: N kills within the seconds.
 var fastWindows = []struct {
 	reason  string

@@ -3,6 +3,7 @@ import type { Play, PlayPlayer, PlaySide } from '../api/types.ts';
 /** Play kinds the list filters by, in the order the filter shows them; each but ace is a moments reason code. */
 export const PLAY_KINDS = [
   'clutch', 'clutch_won', 'ace', 'fast_double', 'fast_triple', 'fast_quad', 'fast_ace', 'noscope', 'through_smoke', 'attacker_blind',
+  'entry', 'retake', 'eco_win', 'flick',
 ] as const;
 export type PlayKindFilter = (typeof PLAY_KINDS)[number];
 
