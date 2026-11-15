@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"strconv"
@@ -20,15 +21,18 @@ import (
 // Kill into a RawKill. It exists so BuildRawKill can be tested without a live
 // parser.
 type gameInfo struct {
-	Tick     int
-	Round    int
-	ClutchVs int
+	Tick         int
+	Round        int
+	ClutchVs     int
+	WinProbSwing float64
 }
 
 // alivePlayer is one living player when a kill happens, so clutchVs needs no live parser.
 type alivePlayer struct {
 	SteamID64 uint64
 	Team      common.Team
+	// Equip is the player's equipment value at freeze end, as the win model reads it.
+	Equip int
 }
 
 // clutchVs returns how many enemies the killer faced alone, counting the
@@ -59,7 +63,7 @@ func alivePlayers(players []*common.Player) []alivePlayer {
 	out := make([]alivePlayer, 0, len(players))
 	for _, p := range players {
 		if p != nil && p.IsAlive() {
-			out = append(out, alivePlayer{SteamID64: p.SteamID64, Team: p.Team})
+			out = append(out, alivePlayer{SteamID64: p.SteamID64, Team: p.Team, Equip: p.EquipmentValueFreezeTimeEnd()})
 		}
 	}
 	return out
@@ -91,6 +95,10 @@ func BuildRawKill(e events.Kill, gi gameInfo, targetID uint64, excludeTeamKills 
 		Headshot: e.IsHeadshot,
 		Wallbang: e.PenetratedObjects > 0,
 		ClutchVs: gi.ClutchVs,
+		NoScope:       e.NoScope,
+		ThroughSmoke:  e.ThroughSmoke,
+		AttackerBlind: e.AttackerBlind,
+		WinProbSwing:  gi.WinProbSwing,
 		Killer: killplan.Player{
 			SteamID64:  strconv.FormatUint(e.Killer.SteamID64, 10),
 			NameInDemo: e.Killer.Name,
@@ -197,6 +205,14 @@ var equipmentNames = map[common.EquipmentType]string{
 	common.EqWorld: "world",
 }
 
+// sideLabel is CT or T, or empty for any other team.
+func sideLabel(t common.Team) string {
+	if t == common.TeamCounterTerrorists || t == common.TeamTerrorists {
+		return teamLabel(t)
+	}
+	return ""
+}
+
 func teamLabel(t common.Team) string {
 	switch t {
 	case common.TeamCounterTerrorists:
@@ -240,6 +256,8 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 	var freezeDeaths []TargetDeath
 	var sawMatchStart bool
 	var factsLastTick int
+	var liveTick, plantTick int
+	var planted bool
 	var crosshairs crosshairTimeline
 	var watch *utilityWatch
 	if mode == SegmentModeRecap || alsoRecap {
@@ -272,8 +290,17 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		}
 		gi := gameInfo{Tick: tick, Round: round}
 		if e.Killer != nil && e.Killer.SteamID64 == targetID && e.Victim != nil && gs.Participants() != nil {
-			gi.ClutchVs = clutchVs(alivePlayers(gs.Participants().Playing()),
-				alivePlayer{SteamID64: e.Killer.SteamID64, Team: e.Killer.Team}, alivePlayer{SteamID64: e.Victim.SteamID64, Team: e.Victim.Team})
+			alive := alivePlayers(gs.Participants().Playing())
+			killer := alivePlayer{SteamID64: e.Killer.SteamID64, Team: e.Killer.Team}
+			victim := alivePlayer{SteamID64: e.Victim.SteamID64, Team: e.Victim.Team, Equip: e.Victim.EquipmentValueFreezeTimeEnd()}
+			gi.ClutchVs = clutchVs(alive, killer, victim)
+			if rate := p.TickRate(); roundLive && activeRound > 0 && rate > 0 {
+				in := killSwingInput{Map: cmp.Or(mapName, m.Map), Alive: alive, Killer: killer, Victim: victim, Seconds: float64(tick-liveTick) / rate}
+				if planted {
+					in.Planted, in.BombSeconds = true, float64(tick-plantTick)/rate
+				}
+				gi.WinProbSwing = killWinSwing(in)
+			}
 		}
 
 		targetDied := e.Victim != nil && e.Victim.SteamID64 == targetID
@@ -316,6 +343,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		}
 		activeRound = gs.TotalRoundsPlayed() + 1
 		roundLive = false
+		planted = false
 		c.RecordRoundStart(RoundStart{Round: activeRound, Tick: tick})
 	})
 
@@ -332,10 +360,15 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 			activeRound = gs.TotalRoundsPlayed() + 1
 		}
 		roundLive = true
+		liveTick = tick
 		c.RecordRoundLiveStart(RoundLiveStart{Round: activeRound, Tick: tick})
 	})
 
-	p.RegisterEventHandler(func(events.RoundEnd) {
+	p.RegisterEventHandler(func(events.BombPlanted) {
+		planted, plantTick = true, p.GameState().IngameTick()
+	})
+
+	p.RegisterEventHandler(func(e events.RoundEnd) {
 		gs := p.GameState()
 		tick := gs.IngameTick()
 		if tick > maxTick {
@@ -345,7 +378,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		if activeRound > 0 {
 			round = activeRound
 		}
-		c.RecordRoundEnd(RoundEnd{Round: round, Tick: tick})
+		c.RecordRoundEnd(RoundEnd{Round: round, Tick: tick, Winner: sideLabel(e.Winner)})
 		activeRound = 0
 		roundLive = false
 	})

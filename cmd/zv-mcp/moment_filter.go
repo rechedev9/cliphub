@@ -27,7 +27,7 @@ const (
 // find_player_moments share; Studio applies it (GET /api/jobs/{id}/moments).
 type momentFilterIn struct {
 	Weapon string   `json:"weapon,omitempty" jsonschema:"keep only plays where every kill used this weapon id, such as awp, ak47, deagle or m4a1_silencer"`
-	Kinds  []string `json:"kinds,omitempty" jsonschema:"keep only plays of any of these kinds: clutch (last one alive on the team), ace (5 kills), multi_kill (2 or more kills)"`
+	Kinds  []string `json:"kinds,omitempty" jsonschema:"keep only plays of any of these kinds: clutch (last one alive on the team), clutch_won (a clutch whose round the team won), ace (5 kills), multi_kill (2 or more kills), fast_double (2 kills in 1.5 s), fast_triple (3 in 10 s), fast_quad (4 in 15 s), fast_ace (5 in 45 s), noscope, through_smoke (a kill through a smoke), attacker_blind (a kill while flashed)"`
 	Side   string   `json:"side,omitempty" jsonschema:"keep only plays made on this side: CT or T"`
 	Player string   `json:"player,omitempty" jsonschema:"multi-POV jobs only: keep the plays of this player, by SteamID64 or name"`
 }

@@ -157,3 +157,14 @@ test('autoPickBestPlays never picks two players at the same moment and fills a l
   const many = Array.from({ length: 12 }, (_, i) => play(`p${i}`, i + 1, 3));
   assert.ok(estimatedSelectionSeconds(many.filter((p) => autoPickBestPlays(many, { targetSeconds: 180 }).has(p.id))) > SHORT_TARGET_SECONDS);
 });
+
+test('autoPickBestPlays ranks by the server score before kills', () => {
+  const plays = [
+    { ...play('triple', 1, 3), startSeconds: 0, endSeconds: 30, score: 0.6 },
+    { ...play('clutch', 2, 2), startSeconds: 40, endSeconds: 70, score: 0.8 },
+    { ...play('unscored', 3, 4), startSeconds: 80, endSeconds: 110 },
+  ];
+  assert.deepEqual([...autoPickBestPlays(plays)], ['clutch', 'triple']);
+  const old = plays.map(({ score: _score, ...rest }) => rest);
+  assert.deepEqual([...autoPickBestPlays(old)], ['unscored', 'triple'], 'without scores kills decide');
+});

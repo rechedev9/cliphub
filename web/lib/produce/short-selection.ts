@@ -41,7 +41,8 @@ export function formatClock(totalSeconds: number): string {
 }
 
 /**
- * Greedy best-of: highest kills first (plan order breaks ties), adding a
+ * Greedy best-of: highest server score first (internal/moments), then kills,
+ * then plan order, adding a
  * highlight only while the estimated total stays within the target. The
  * top-ranked highlight is always kept, so "Auto" never returns an empty
  * selection just because one long play overruns the target on its own.
@@ -53,7 +54,7 @@ export function autoPickBestPlays(
   const targetSeconds = options.targetSeconds ?? SHORT_TARGET_SECONDS;
   const ranked = plays
     .map((play, index) => ({ play, index }))
-    .sort((a, b) => b.play.kills - a.play.kills || a.index - b.index);
+    .sort((a, b) => (b.play.score ?? -1) - (a.play.score ?? -1) || b.play.kills - a.play.kills || a.index - b.index);
   const picked = new Set<string>();
   const pickedPlays: Play[] = [];
   let totalTenths = 0;

@@ -10,7 +10,18 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const ANY_WEAPON = 'any';
 const ANY_PLAYER = 'any';
-const KIND_LABELS: Record<PlayKindFilter, string> = { clutch: 'Clutch', ace: 'Ace' };
+const KIND_LABELS: Record<PlayKindFilter, string> = {
+  clutch: 'Clutch',
+  clutch_won: 'Clutch ganado',
+  ace: 'Ace',
+  fast_double: 'Doble rápida',
+  fast_triple: 'Triple en 10 s',
+  fast_quad: 'Cuádruple en 15 s',
+  fast_ace: 'Ace en 45 s',
+  noscope: 'Noscope',
+  through_smoke: 'A través de humo',
+  attacker_blind: 'Cegado',
+};
 
 export type PlayFiltersProps = {
   options: PlayFilterOptions;
@@ -54,7 +65,7 @@ export function PlayFilters({ options, value, disabled = false, onChange }: Play
         </Select>
       ) : null}
       {kinds.length > 0 ? (
-        <ToggleGroup type="single" variant="filter" spacing={2} aria-label="Tipo de jugada" disabled={disabled}
+        <ToggleGroup type="single" variant="filter" spacing={2} aria-label="Tipo de jugada" disabled={disabled} className="flex-wrap"
           value={value.kind ?? ''}
           onValueChange={(next: string) => onChange({ ...value, kind: kinds.find((kind) => kind === next) ?? null })}>
           {kinds.map((kind) => (

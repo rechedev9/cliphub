@@ -9,8 +9,8 @@
   "segment_filter": [
     "seg-012",
     "seg-001",
-    "seg-014",
-    "seg-006"
+    "seg-006",
+    "seg-014"
   ],
   "effects_preset": "gameplay-native",
   "output_format": "landscape-16x9",
@@ -140,27 +140,8 @@
           "victim_side": "T"
         },
         {
-          "tick": 61588,
-          "time_seconds": 42.625,
-          "weapon": "M4A1-S",
-          "attacker": "target",
-          "attacker_side": "CT",
-          "victim": "opponent-1",
-          "victim_side": "T"
-        },
-        {
-          "tick": 61700,
-          "time_seconds": 44.375,
-          "weapon": "M4A1-S",
-          "attacker": "target",
-          "attacker_side": "CT",
-          "victim": "opponent-4",
-          "victim_side": "T",
-          "headshot": true
-        },
-        {
           "tick": 22824,
-          "time_seconds": 54.375,
+          "time_seconds": 42.625,
           "weapon": "AK-47",
           "attacker": "target",
           "attacker_side": "CT",
@@ -169,12 +150,31 @@
         },
         {
           "tick": 22895,
-          "time_seconds": 55.484375,
+          "time_seconds": 43.734375,
           "weapon": "AK-47",
           "attacker": "target",
           "attacker_side": "CT",
           "victim": "opponent-4",
           "victim_side": "T"
+        },
+        {
+          "tick": 61588,
+          "time_seconds": 56.734375,
+          "weapon": "M4A1-S",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-1",
+          "victim_side": "T"
+        },
+        {
+          "tick": 61700,
+          "time_seconds": 58.484375,
+          "weapon": "M4A1-S",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-4",
+          "victim_side": "T",
+          "headshot": true
         }
       ],
       "parts": [
@@ -321,6 +321,72 @@
           "speed": 0.5
         },
         {
+          "segment_id": "seg-006",
+          "input": "$WORK/recording/segments/seg-006.mp4",
+          "source_artifact": {
+            "segment_id": "seg-006",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-006.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 7.109375,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 7.109375,
+          "timeline_start_seconds": 41.625,
+          "tick_start": 22632,
+          "tick_end": 23215,
+          "capture_tick_start": 22760,
+          "capture_tick_end": 23215,
+          "kills": [
+            {
+              "tick": 22824,
+              "time_seconds": 1,
+              "weapon": "AK-47",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-2",
+              "victim_side": "T"
+            },
+            {
+              "tick": 22895,
+              "time_seconds": 2.109375,
+              "weapon": "AK-47",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-4",
+              "victim_side": "T"
+            }
+          ],
+          "player": "target"
+        },
+        {
+          "segment_id": "seg-006-victim",
+          "input": "$WORK/recording/segments/seg-006-victim.mp4",
+          "source_artifact": {
+            "segment_id": "seg-006-victim",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-006-victim.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 3.5,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 7,
+          "timeline_start_seconds": 48.734375,
+          "speed": 0.5
+        },
+        {
           "segment_id": "seg-014",
           "input": "$WORK/recording/segments/seg-014.mp4",
           "source_artifact": {
@@ -338,7 +404,7 @@
             "channels": 2
           },
           "duration_seconds": 4.75,
-          "timeline_start_seconds": 41.625,
+          "timeline_start_seconds": 55.734375,
           "tick_start": 61396,
           "tick_end": 61828,
           "capture_tick_start": 61524,
@@ -374,72 +440,6 @@
             "type": "video",
             "role": "segment",
             "path": "$WORK/recording/segments/seg-014-victim.mp4",
-            "size_bytes": 1,
-            "duration_seconds": 3.5,
-            "frame_rate": "60/1",
-            "codec": "h264",
-            "width": 1920,
-            "height": 1080,
-            "sample_rate": 48000,
-            "channels": 2
-          },
-          "duration_seconds": 7,
-          "timeline_start_seconds": 46.375,
-          "speed": 0.5
-        },
-        {
-          "segment_id": "seg-006",
-          "input": "$WORK/recording/segments/seg-006.mp4",
-          "source_artifact": {
-            "segment_id": "seg-006",
-            "type": "video",
-            "role": "segment",
-            "path": "$WORK/recording/segments/seg-006.mp4",
-            "size_bytes": 1,
-            "duration_seconds": 7.109375,
-            "frame_rate": "60/1",
-            "codec": "h264",
-            "width": 1920,
-            "height": 1080,
-            "sample_rate": 48000,
-            "channels": 2
-          },
-          "duration_seconds": 7.109375,
-          "timeline_start_seconds": 53.375,
-          "tick_start": 22632,
-          "tick_end": 23215,
-          "capture_tick_start": 22760,
-          "capture_tick_end": 23215,
-          "kills": [
-            {
-              "tick": 22824,
-              "time_seconds": 1,
-              "weapon": "AK-47",
-              "attacker": "target",
-              "attacker_side": "CT",
-              "victim": "opponent-2",
-              "victim_side": "T"
-            },
-            {
-              "tick": 22895,
-              "time_seconds": 2.109375,
-              "weapon": "AK-47",
-              "attacker": "target",
-              "attacker_side": "CT",
-              "victim": "opponent-4",
-              "victim_side": "T"
-            }
-          ],
-          "player": "target"
-        },
-        {
-          "segment_id": "seg-006-victim",
-          "input": "$WORK/recording/segments/seg-006-victim.mp4",
-          "source_artifact": {
-            "segment_id": "seg-006-victim",
-            "type": "video",
-            "role": "segment",
-            "path": "$WORK/recording/segments/seg-006-victim.mp4",
             "size_bytes": 1,
             "duration_seconds": 3.5,
             "frame_rate": "60/1",
@@ -517,8 +517,8 @@
         },
         {
           "type": "text",
-          "start_seconds": 53.475,
-          "end_seconds": 55.575,
+          "start_seconds": 55.834375,
+          "end_seconds": 57.934375,
           "value": "TARGET",
           "x": "(w-text_w)/2",
           "y": "h*0.80",
@@ -548,7 +548,7 @@
         "-i",
         "$WORK/render-16-multi-pov-landscape/concat-list.txt",
         "-filter_complex",
-        "[0:v]setsar=1,format=yuv420p[vgeom];[vgeom]drawtext=text=\\'TEAMMATE\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-0.100)/0.120))\\,((2.200-t)/0.300))':enable='between(t\\,0.100\\,2.200)',drawtext=text=\\'TEAMMATE\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-24.038)/0.120))\\,((26.137-t)/0.300))':enable='between(t\\,24.038\\,26.137)',drawtext=text=\\'TARGET\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-41.725)/0.120))\\,((43.825-t)/0.300))':enable='between(t\\,41.725\\,43.825)',drawtext=text=\\'TARGET\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-53.475)/0.120))\\,((55.575-t)/0.300))':enable='between(t\\,53.475\\,55.575)',fade=t=in:st=0:d=1.000,format=yuv420p[v];[0:a]aformat=channel_layouts=stereo,aresample=48000[ga0];[ga0]anull[gamea];[gamea]loudnorm=I=-16:TP=-1.5:LRA=11[a]",
+        "[0:v]setsar=1,format=yuv420p[vgeom];[vgeom]drawtext=text=\\'TEAMMATE\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-0.100)/0.120))\\,((2.200-t)/0.300))':enable='between(t\\,0.100\\,2.200)',drawtext=text=\\'TEAMMATE\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-24.038)/0.120))\\,((26.137-t)/0.300))':enable='between(t\\,24.038\\,26.137)',drawtext=text=\\'TARGET\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-41.725)/0.120))\\,((43.825-t)/0.300))':enable='between(t\\,41.725\\,43.825)',drawtext=text=\\'TARGET\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-55.834)/0.120))\\,((57.934-t)/0.300))':enable='between(t\\,55.834\\,57.934)',fade=t=in:st=0:d=1.000,format=yuv420p[v];[0:a]aformat=channel_layouts=stereo,aresample=48000[ga0];[ga0]anull[gamea];[gamea]loudnorm=I=-16:TP=-1.5:LRA=11[a]",
         "-map",
         "[v]",
         "-map",

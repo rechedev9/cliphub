@@ -48,6 +48,8 @@ export type Play = {
   victimReplay?: boolean;
   /** Multi-POV matches only: whose POV the play uses. */
   player?: PlayPlayer;
+  /** From the server moments (internal/moments): 0 to 1 rank, reason codes, clutch result and win chance swing. */
+  score?: number; reasons?: string[]; clutchWon?: boolean; winProbSwing?: number;
 };
 export type PlayDeath = { killer?: string; weapon?: string; headshot: boolean };
 export type PlaySide = 'CT' | 'T';

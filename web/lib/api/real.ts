@@ -9,6 +9,7 @@ import {
 import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, ScannedDemo, SeriesDemo, JobStatusView } from './types.ts';
 import { JOB_WAIT_TIMEOUT_CODE, MATCH_STATUS_FAILED, PLAN_READY_STATUSES, ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from './types.ts';
 import { deathMomentsToPlays, planToMatch, planToPlays, type DeathMoments, type KillPlan } from './map.ts';
+import { readMomentScores, withMomentScores } from './moment-scores.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
 import { customHudTheme } from '../custom-hud.ts';
@@ -396,12 +397,11 @@ export class RealApiClient implements ApiClient {
 
   async findClips(matchId: string): Promise<Play[]> {
     if (!isJobId(matchId)) return [];
-
     const status = await this.beatStatus(matchId);
     // No plan until parsing finishes; it persists through record/render.
     if (status === null || !PLAN_READY_STATUSES.has(status)) return [];
-
-    const plays = planToPlays(matchId, await this.beatPlan(matchId));
+    const [plan, scores] = await Promise.all([this.beatPlan(matchId), this.send((dp) => ({ url: dp.momentsUrl(matchId) })).then(readMomentScores, () => undefined)]);
+    const plays = withMomentScores(planToPlays(matchId, plan), scores);
     // Reuse confirmed covers already hydrated by the library. A compilation's
     // cover must never be presented as a frame of every constituent play.
     const covers = new Map<string, string>();

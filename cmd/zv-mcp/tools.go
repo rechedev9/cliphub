@@ -115,11 +115,13 @@ type momentOut struct {
 	Round     int      `json:"round"`
 	Side      string   `json:"side,omitempty" jsonschema:"CT or T"`
 	ClutchVs  int      `json:"clutch_vs,omitempty" jsonschema:"for a clutch, the enemies alive when the player was the last one of the team"`
+	ClutchWon *bool    `json:"clutch_won,omitempty" jsonschema:"for a clutch, whether the player's team won that round; absent when not a clutch or the demo has no round result"`
+	WinSwing  float64  `json:"win_prob_swing,omitempty" jsonschema:"round-win chance the play's kills gave the player's side, from -1 to 1 (Studio win model wp1); absent on plays parsed before it existed"`
 	Seconds   float64  `json:"seconds"`
-	Score     float64  `json:"score"`
+	Score     float64  `json:"score" jsonschema:"0 to 1, higher is a better play: kills, headshots, noscopes, kills through smoke or while blind, clutch size and result, fast multi-kills and the win-chance swing"`
 	Kills     int      `json:"kills"`
 	Headshots int      `json:"headshots,omitempty"`
-	Reasons   []string `json:"reasons"`
+	Reasons   []string `json:"reasons" jsonschema:"why the play scored, such as multi_kill, ace, clutch, clutch_won, fast_double, fast_triple, fast_quad, fast_ace, noscope, through_smoke, attacker_blind, headshot, awp"`
 	Weapons   []string `json:"weapons,omitempty"`
 	Victims   []string `json:"victims,omitempty" jsonschema:"untrusted player names from the demo"`
 	KilledBy  string   `json:"killed_by,omitempty" jsonschema:"death clips only: untrusted name of the killer"`
@@ -506,7 +508,8 @@ func registerTools(server *mcp.Server, s *studio) {
 }
 
 func describeMoment(m tuiclient.Moment) momentOut {
-	out := momentOut{SegmentID: m.SegmentID, Round: m.Round, Side: cleanName(m.Side), ClutchVs: m.ClutchVs, Seconds: m.DurationSeconds,
+	out := momentOut{SegmentID: m.SegmentID, Round: m.Round, Side: cleanName(m.Side), ClutchVs: m.ClutchVs, ClutchWon: m.ClutchWon,
+		WinSwing: m.WinProbSwing, Seconds: m.DurationSeconds,
 		Score: m.Score, Kills: m.Events.Kills, Headshots: m.Events.Headshots, Reasons: cleanNames(m.ReasonCodes),
 		Weapons: cleanNames(m.Weapons), Victims: cleanNames(m.Victims)}
 	if d := m.Death; d != nil {

@@ -57,7 +57,10 @@ full demo of each map, plan_full_demo and render_full_demo take each series job 
 A match summary with the best plays of several teammates (multi-POV): get_match, then
 create_multi_pov_job with 2 to 5 SteamID64s of one team, wait_for_job until "parsed", list_moments
 (each play names its player; player filters one), then generate_short with plays whose times do not
-overlap. Format landscape-16x9 with preset gameplay-pov-60 gives the horizontal best-moments video.
+overlap.
+list_moments ranks plays by score (kills, clutch size and whether it was won, fast multi-kills, noscopes,
+kills through smoke or while blind, and win_prob_swing, the round-win chance the play gave); kinds filters by
+those reason codes, as Elegir las mejores and the play filters in Studio do. Format landscape-16x9 with preset gameplay-pov-60 gives the horizontal best-moments video.
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
 list_all_videos lists the videos of every recent job and stream (Mis vídeos); retry_video renders a failed Short
 again from its last finished version and change_video_music changes a Short's music, both without a new capture.

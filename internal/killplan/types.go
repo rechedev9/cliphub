@@ -73,7 +73,20 @@ type Kill struct {
 	VictimPos [3]float64 `json:"victim_pos"`
 	// ClutchVs is the enemies the killer faced as the last one alive, victim included; 0 otherwise.
 	ClutchVs int `json:"clutch_vs,omitempty"`
+	// ClutchResult is ClutchWon or ClutchLost from the round winner; empty when not a clutch or unknown.
+	ClutchResult  string `json:"clutch_result,omitempty"`
+	NoScope       bool   `json:"no_scope,omitempty"`
+	ThroughSmoke  bool   `json:"through_smoke,omitempty"`
+	AttackerBlind bool   `json:"attacker_blind,omitempty"`
+	// WinProbSwing is the change in the killer side's round-win chance (tacticalplan wp1), -1 to 1.
+	WinProbSwing float64 `json:"win_prob_swing,omitempty"`
 }
+
+// Clutch results a Kill carries.
+const (
+	ClutchWon  = "won"
+	ClutchLost = "lost"
+)
 
 // UtilityThrow captures one target-player utility event that can become a
 // standalone teaching clip, for example a smoke lineup.
