@@ -238,7 +238,7 @@ Read:
 | `list_stream_videos` | `GET /api/stream-jobs/{id}` (`rendered_outputs`), `GET /api/stream-jobs/{id}/summary`, and `GET .../renders/{variant}` per rendered layout for its `delivery` files other than MP4s ("Archivos adicionales": cover, metadata, plan, manifest); links through the UI origin |
 | `get_stream_edit_plan` | `GET /api/stream-jobs/{id}` and `GET .../edit-plan`: moments with their `edit`, `groups` (moments joined into one Short) and `shorts` (videos a render makes), banners, music, kill feed, effects, layout, crops and `face_crop_reviewed`, and `updated_at` |
 | `wait_for_stream` | polls `GET /api/stream-jobs/{id}` until it leaves `acquiring` |
-| `wait_for_stream_render` | polls `GET /api/stream-jobs/{id}/renders/{variant}`, or `GET .../summary` for variant `summary`; while `rendering`, `render_progress` gives the percent and the video being encoded (`progress`, such as `video 2 of 3`) |
+| `wait_for_stream_render` | polls `GET /api/stream-jobs/{id}/renders/{variant}`, or `GET .../summary` for variant `summary`; while `rendering`, `render_progress` gives the percent and the video being made, a joined Short counting once (`progress`, such as `video 2 of 3`) |
 | `storage_usage` | `GET /api/storage`: total bytes and the Full Demo captures a finished render covers (`freeable`), largest first |
 | `list_storage_files` | `GET /api/storage/files` (the first call starts the PC demo scan): PC demos, Studio demo copies and videos, newest first, 50 per list by default and at most 500, with totals; a path with control or format characters is left out |
 | `steam_matches` | `GET /api/steam/account`: recent matches and whether the history and a Steam session are set; secrets are never returned |

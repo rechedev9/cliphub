@@ -40,8 +40,11 @@ func TestGroupedPlanRendersOneVideoPerGroup(t *testing.T) {
 	if outputs[1].ID != "clip-2" {
 		t.Fatalf("lone output = %q", outputs[1].ID)
 	}
-	if got := plan.MusicOffsetSeconds("clip-3"); math.Abs(got-10) > 1e-9 {
-		t.Fatalf("music offset of the second member = %v, want 10", got)
+	if got := plan.Placements()["clip-3"]; got.Video != 1 || got.Videos != 2 || math.Abs(got.MusicOffsetSeconds-10) > 1e-9 {
+		t.Fatalf("second member placement = %+v, want video 1 of 2 at 10 s of music", got)
+	}
+	if got := plan.Placements()["clip-2"]; got.Video != 2 || got.MusicOffsetSeconds != 0 {
+		t.Fatalf("lone moment placement = %+v, want video 2 with the music from its start", got)
 	}
 }
 
@@ -53,7 +56,7 @@ func TestGroupOrderIsTheGroupsNotTheVODs(t *testing.T) {
 	if out.Title != "Ronda 12" || out.Clips[0].ID != "clip-3" {
 		t.Fatalf("reordered group = %q starting with %q", out.Title, out.Clips[0].ID)
 	}
-	if got := plan.MusicOffsetSeconds("clip-1"); math.Abs(got-15) > 1e-9 {
+	if got := plan.Placements()["clip-1"].MusicOffsetSeconds; math.Abs(got-15) > 1e-9 {
 		t.Fatalf("music offset = %v, want 15", got)
 	}
 }
@@ -98,24 +101,28 @@ func TestGroupFingerprintMovesWithGrouping(t *testing.T) {
 }
 
 func TestInvalidGroups(t *testing.T) {
-	cases := map[string]func(*EditPlan){
-		"one member":   func(p *EditPlan) { p.Groups[0].ClipIDs = []string{"clip-1"} },
-		"unknown clip": func(p *EditPlan) { p.Groups[0].ClipIDs = []string{"clip-1", "clip-9"} },
-		"id of a clip": func(p *EditPlan) { p.Groups[0].ID = "clip-2" },
-		"bad id":       func(p *EditPlan) { p.Groups[0].ID = "../x" },
-		"clip in two": func(p *EditPlan) {
+	cases := map[string]struct {
+		mutate func(*EditPlan)
+		want   string
+	}{
+		"one member":   {func(p *EditPlan) { p.Groups[0].ClipIDs = []string{"clip-1"} }, "at least 2"},
+		"unknown clip": {func(p *EditPlan) { p.Groups[0].ClipIDs = []string{"clip-1", "clip-9"} }, "unknown clip"},
+		"id of a clip": {func(p *EditPlan) { p.Groups[0].ID = "clip-2" }, "already used"},
+		"bad id":       {func(p *EditPlan) { p.Groups[0].ID = "../x" }, "invalid group id"},
+		"clip in two": {func(p *EditPlan) {
 			p.Groups = append(p.Groups, ClipGroup{ID: "group-2", ClipIDs: []string{"clip-1", "clip-2"}})
-		},
-		"duplicate groups": func(p *EditPlan) {
+		}, "in groups group-1 and group-2"},
+		"clip twice": {func(p *EditPlan) { p.Groups[0].ClipIDs = []string{"clip-1", "clip-3", "clip-1"} }, "lists clip clip-1 twice"},
+		"duplicate groups": {func(p *EditPlan) {
 			p.Groups = append(p.Groups, ClipGroup{ID: "group-1", ClipIDs: []string{"clip-2", "clip-2"}})
-		},
+		}, "already used"},
 	}
-	for name, mutate := range cases {
+	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			plan := groupedPlan()
-			mutate(&plan)
-			if err := plan.Validate(); err == nil {
-				t.Fatal("Validate accepted an invalid group")
+			c.mutate(&plan)
+			if err := plan.Validate(); err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("Validate = %v, want an error with %q", err, c.want)
 			}
 		})
 	}

@@ -13,9 +13,6 @@ type ClipGroup struct {
 	Title   string   `json:"title,omitempty"`
 }
 
-// ShortMaxSeconds is the YouTube Shorts length limit a joined Short is warned against.
-const ShortMaxSeconds = 60
-
 // PlanOutput is one video a render produces: a lone moment or a group.
 type PlanOutput struct {
 	ID    string
@@ -75,19 +72,27 @@ func (p EditPlan) Outputs() []PlanOutput {
 	return outputs
 }
 
-// MusicOffsetSeconds is where the music track already is when a clip starts:
-// inside a group the track carries on across the cut instead of restarting.
-func (p EditPlan) MusicOffsetSeconds(clipID string) float64 {
-	for _, out := range p.Outputs() {
+// ClipPlacement is where a clip lands in the render: the 1-based video it is
+// part of, out of Videos, and the music time it starts at inside that video.
+type ClipPlacement struct {
+	Video              int
+	Videos             int
+	MusicOffsetSeconds float64
+}
+
+// Placements maps each clip id to its place. Inside a group the music carries
+// on across the cut instead of restarting.
+func (p EditPlan) Placements() map[string]ClipPlacement {
+	outputs := p.Outputs()
+	placements := make(map[string]ClipPlacement, len(p.Clips))
+	for i, out := range outputs {
 		offset := 0.0
 		for _, clip := range out.Clips {
-			if clip.ID == clipID {
-				return offset
-			}
+			placements[clip.ID] = ClipPlacement{Video: i + 1, Videos: len(outputs), MusicOffsetSeconds: offset}
 			offset += clip.OutputDurationSeconds()
 		}
 	}
-	return 0
+	return placements
 }
 
 func (p EditPlan) validateGroups() error {
@@ -116,6 +121,9 @@ func (p EditPlan) validateGroups() error {
 				return fmt.Errorf("group %s names unknown clip %q", group.ID, id)
 			}
 			if other, taken := member[id]; taken {
+				if other == group.ID {
+					return fmt.Errorf("group %s lists clip %s twice", group.ID, id)
+				}
 				return fmt.Errorf("clip %s is in groups %s and %s", id, other, group.ID)
 			}
 			member[id] = group.ID

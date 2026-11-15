@@ -77,6 +77,30 @@ func TestEditStreamPlanJoinsAndSeparatesMoments(t *testing.T) {
 		"groups": []map[string]any{{"clip_ids": []string{"clip-001", "clip-999"}}}}, "not a moment of this plan")
 	toolFails(t, cs, "edit_stream_plan", map[string]any{"id": testStreamID, "expected_updated_at": "2026-11-06T10:00:00Z",
 		"groups": []map[string]any{{"clip_ids": []string{"clip-001", "clip-002"}}, {"clip_ids": []string{"clip-002", "clip-003"}}}}, "in two groups")
+	toolFails(t, cs, "edit_stream_plan", map[string]any{"id": testStreamID, "expected_updated_at": "2026-11-06T10:00:00Z",
+		"groups": []map[string]any{{"clip_ids": []string{"clip-001", "clip-002", "clip-001"}}}}, "lists moment clip-001 twice")
+}
+
+func TestEditStreamPlanKeepsTheSavedTitleOfReturnedGroups(t *testing.T) {
+	long := strings.Repeat("Ronda larga ", 7)
+	f := &fakeStream{
+		planClips:  `[{"id":"clip-001","start_seconds":10,"end_seconds":20},{"id":"clip-002","start_seconds":30,"end_seconds":40}]`,
+		planGroups: `[{"id":"group-001","clip_ids":["clip-001","clip-002"],"title":"` + long + `"}]`,
+	}
+	cs := f.connect(t)
+	var read streamPlanOut
+	callTool(t, cs, "get_stream_edit_plan", map[string]any{"id": testStreamID}, &read)
+	if read.Groups[0].Title == long {
+		t.Fatal("the read title was not shortened; the test needs a longer one")
+	}
+	group := read.Groups[0]
+	group.ClipIDs = []string{"clip-002", "clip-001"}
+	callTool(t, cs, "edit_stream_plan", map[string]any{"id": testStreamID, "expected_updated_at": "2026-11-06T10:00:00Z",
+		"groups": []planGroupArg{group}}, &read)
+	want := `[{"id":"group-001","clip_ids":["clip-002","clip-001"],"title":"` + long + `"}]`
+	if got := string(f.savedPlan["groups"]); got != want {
+		t.Errorf("saved groups %s, want the saved title kept", got)
+	}
 }
 
 func TestRenderStreamCountsAJoinedShortOnce(t *testing.T) {

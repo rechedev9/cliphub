@@ -12,7 +12,7 @@ type RenderProgress struct {
 	// Percent covers every clip of the render, from 0 to 99; publishing the
 	// revision is what completes it.
 	Percent float64 `json:"percent"`
-	// Clip is the 1-based clip FFmpeg is encoding now, out of Clips.
+	// Clip is the 1-based video being made, out of Clips; a group of moments is one video.
 	Clip  int `json:"clip"`
 	Clips int `json:"clips"`
 }

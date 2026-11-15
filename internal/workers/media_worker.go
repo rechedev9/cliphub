@@ -1494,6 +1494,7 @@ func (w *StreamRenderWorker) render(
 	}
 	defer cfg.Progress.Clear(j.ID)
 	rendered := make(map[string]streamRenderedClip, len(plan.Clips))
+	placements := plan.Placements()
 	for i, clip := range plan.Clips {
 		textPaths, err := writeClipOverlayTexts(workDir, clip)
 		if err != nil {
@@ -1509,14 +1510,14 @@ func (w *StreamRenderWorker) render(
 		outPath := filepath.Join(workDir, "parts", clip.ID+".mp4")
 		renderStarted := time.Now()
 		run := func(ctx context.Context, args []string) error {
-			return w.runClipWithProgress(ctx, cfg, streamClipProgress{jobID: j.ID, plan: plan, index: i, args: args})
+			return w.runClipWithProgress(ctx, cfg, streamClipProgress{jobID: j.ID, plan: plan, index: i, placement: placements[clip.ID], args: args})
 		}
 		warning, err := renderStreamClip(runCtx, streamClipRender{run: run, plan: plan, clip: clip,
 			in: streamclips.FFmpegInputs{
 				SourcePath: sourcePath, OutputPath: outPath, MusicPath: musicPath, BannerFontPath: bannerFontPath,
 				KeyDropImagePath: keyDropImagePath, SourceHasAudio: j.Probe.AudioCodec != "", TextOverlayPaths: textPaths,
 				KillFeed: killFeed, SourceWidth: j.Probe.Width, SourceHeight: j.Probe.Height,
-				MusicOffsetSeconds: plan.MusicOffsetSeconds(clip.ID),
+				MusicOffsetSeconds: placements[clip.ID].MusicOffsetSeconds,
 			}})
 		if err != nil {
 			return fmt.Errorf("render clip %s: %w", clip.ID, err)

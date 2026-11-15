@@ -6,7 +6,9 @@ import {
   joinStreamMoments,
   moveStreamGroupMoment,
   pruneStreamGroups,
+  restoreStreamGroup,
   splitStreamGroup,
+  streamMusicOffsets,
   streamPlanShorts,
   streamShortCount,
 } from './groups.ts';
@@ -74,4 +76,21 @@ test('grouping moves the export fingerprint and survives a JSON round trip', () 
   const restored: StreamEditPlan = JSON.parse(JSON.stringify(joined));
   assert.equal(planFingerprint(restored), planFingerprint(joined));
   assert.equal(streamShortCount(restored), 2);
+});
+
+test('music runs on inside a joined Short and starts over in a lone one', () => {
+  const joined = joinStreamMoments(plan(), ['c1', 'c3']);
+  const offsets = streamMusicOffsets(joined);
+  assert.deepEqual([offsets.get('c1'), offsets.get('c3'), offsets.get('c2')], [0, 10, 0]);
+});
+
+test('undoing a removed moment puts its group back', () => {
+  const joined = joinStreamMoments(plan(), ['c1', 'c2']);
+  const group = joined.groups?.[0];
+  assert.ok(group);
+  const removed = pruneStreamGroups({ ...joined, clips: joined.clips.filter((c) => c.id !== 'c2') });
+  const restored = restoreStreamGroup({ ...removed, clips: joined.clips }, group);
+  assert.deepEqual(restored.groups, joined.groups);
+  const elsewhere = joinStreamMoments({ ...removed, clips: joined.clips }, ['c1', 'c3']);
+  assert.deepEqual(restoreStreamGroup(elsewhere, group).groups?.map((g) => g.clip_ids), [['c1', 'c3']]);
 });

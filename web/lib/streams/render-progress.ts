@@ -3,7 +3,7 @@ import type { StreamRenderProgress } from '../api/streams.ts';
 export type StreamRenderProgressView = {
   /** Whole percent, 0 to 100. */
   percent: number;
-  /** 1-based clip FFmpeg is encoding now, out of `clips`. */
+  /** 1-based Short being made, out of `clips`; a joined Short counts once. */
   clip: number;
   clips: number;
   /** "Short 2 de 4" */

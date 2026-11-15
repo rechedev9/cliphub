@@ -213,7 +213,15 @@ func applyStreamPlanEdit(doc map[string]json.RawMessage, in editStreamPlanIn) (m
 		}
 	}
 	if in.Groups != nil {
-		groups, err := withGroupIDs(*in.Groups)
+		var saved []planGroupArg
+		if raw, ok := doc["groups"]; ok && json.Unmarshal(raw, &saved) != nil {
+			return nil, errors.New("Studio returned an edit plan with invalid groups")
+		}
+		kept, err := keepSavedGroups(*in.Groups, saved)
+		if err != nil {
+			return nil, err
+		}
+		groups, err := withGroupIDs(kept)
 		if err != nil {
 			return nil, err
 		}
@@ -313,6 +321,25 @@ func withClipIDs(clips []planClipArg) ([]planClipArg, error) {
 	return out, nil
 }
 
+// keepSavedGroups puts back the saved id and title of a group the caller
+// returned as read, since get_stream_edit_plan shortens and cleans them.
+func keepSavedGroups(groups, saved []planGroupArg) ([]planGroupArg, error) {
+	out := slices.Clone(groups)
+	for i := range out {
+		g := &out[i]
+		j := slices.IndexFunc(saved, func(s planGroupArg) bool { return g.ID != "" && cleanName(s.ID) == g.ID })
+		if j >= 0 {
+			g.ID = saved[j].ID
+		}
+		if j >= 0 && g.Title == cleanName(saved[j].Title) {
+			g.Title = saved[j].Title
+		} else if len([]rune(g.Title)) > maxTitleRunes {
+			return nil, fmt.Errorf("a group title takes at most %d characters", maxTitleRunes)
+		}
+	}
+	return out, nil
+}
+
 // withGroupIDs names the new groups group-001, group-002... past the ids already taken.
 func withGroupIDs(groups []planGroupArg) ([]planGroupArg, error) {
 	out := slices.Clone(groups)
@@ -320,9 +347,6 @@ func withGroupIDs(groups []planGroupArg) ([]planGroupArg, error) {
 	for _, g := range out {
 		if len(g.ClipIDs) < 2 {
 			return nil, errors.New("a group joins at least 2 moments")
-		}
-		if len([]rune(g.Title)) > maxTitleRunes {
-			return nil, fmt.Errorf("a group title takes at most %d characters", maxTitleRunes)
 		}
 		if g.ID != "" {
 			taken[g.ID] = true
@@ -349,16 +373,19 @@ func checkGroupMembers(groups []planGroupArg, clips []planClipArg) error {
 	for _, c := range clips {
 		known[cleanName(c.ID)] = true
 	}
-	taken := map[string]bool{}
-	for _, g := range groups {
+	taken := map[string]int{}
+	for gi, g := range groups {
 		for _, id := range g.ClipIDs {
 			if !known[id] {
 				return fmt.Errorf("group clip id %s is not a moment of this plan; use the ids get_stream_edit_plan returns", cleanName(id))
 			}
-			if taken[id] {
+			if prev, ok := taken[id]; ok {
+				if prev == gi {
+					return fmt.Errorf("a group lists moment %s twice", cleanName(id))
+				}
 				return fmt.Errorf("moment %s is in two groups; a moment joins one Short at most", cleanName(id))
 			}
-			taken[id] = true
+			taken[id] = gi
 		}
 	}
 	return nil

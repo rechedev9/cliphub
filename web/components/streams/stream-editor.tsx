@@ -83,7 +83,14 @@ import { StreamDetectedPlays } from '@/components/streams/detected-plays';
 import { clipsWithPlays } from '@/lib/streams/plays';
 import { StreamKillFeedControls } from '@/components/streams/kill-feed-controls';
 import { killFeedDefaultPosition } from '@/lib/streams/kill-feed';
-import { pruneStreamGroups, streamPlanShorts, streamShortCount, type StreamShort } from '@/lib/streams/groups';
+import {
+  pruneStreamGroups,
+  restoreStreamGroup,
+  streamMusicOffsets,
+  streamPlanShorts,
+  streamShortCount,
+  type StreamShort,
+} from '@/lib/streams/groups';
 import { StreamReviewList } from '@/components/streams/stream-review-list';
 import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 import { recordRendererError } from '@/lib/desktop-telemetry';
@@ -131,9 +138,12 @@ export function StreamEditor({
     requestedStep === STREAM_STEP.results && stage === 'editing' && !hasRender ? STREAM_STEP.review : requestedStep;
   const [selectedClipId, setSelectedClipId] = useState<string | null>(plan.clips[0]?.id ?? null);
   const resultVideos = renderState?.videos ?? [];
+  // A moment inside a joined Short selects that Short's video.
+  const selectedVideoId =
+    streamPlanShorts(plan).find((s) => s.clips.some((c) => c.id === selectedClipId))?.id ?? selectedClipId;
   const resultIndex = Math.max(
     0,
-    resultVideos.findIndex((v) => v.clip_id === selectedClipId),
+    resultVideos.findIndex((v) => v.clip_id === selectedVideoId),
   );
   const resultClip = resultVideos[resultIndex];
   const resultTitle = resultClip?.title || `Short ${resultIndex + 1}`;
@@ -178,6 +188,7 @@ export function StreamEditor({
       duration: playbackClips.reduce((sum, clip) => sum + clipOutputDuration(clip), 0),
     };
   }, [playbackClipId, playbackMode, playbackClips, previewSeconds, selectedClipId, sourceDuration]);
+  const musicOffsets = useMemo(() => streamMusicOffsets(plan), [plan]);
   const previewMusic = useMemo(() => {
     const song = songs?.find((entry) => entry.id === plan.music?.key);
     return song?.previewUrl ? { url: song.previewUrl, volume: plan.music?.volume ?? 0.25 } : null;
@@ -398,6 +409,7 @@ export function StreamEditor({
     seek(seconds);
   };
   const removeClip = (clip: StreamClipRange) => {
+    const group = plan.groups?.find((g) => g.clip_ids.includes(clip.id));
     const next = plan.clips.filter((c) => c.id !== clip.id);
     setClips(next);
     if (next.length) selectClip(next[0]);
@@ -413,8 +425,10 @@ export function StreamEditor({
         label: 'Deshacer',
         onClick: () => {
           const current = latestPlanRef.current;
-          if (!current.clips.some((c) => c.id === clip.id))
-            onPlanChange({ ...current, clips: insertClipSorted(current.clips, clip) });
+          if (!current.clips.some((c) => c.id === clip.id)) {
+            const restored = { ...current, clips: insertClipSorted(current.clips, clip) };
+            onPlanChange(group ? restoreStreamGroup(restored, group) : restored);
+          }
           selectClip(clip);
         },
       },
@@ -668,7 +682,7 @@ export function StreamEditor({
     );
   } else if (stage === 'rendering') {
     stepContent = (
-      <StreamRenderStage clips={plan.clips} renderState={renderState} variantLabel={variantMeta.label} />
+      <StreamRenderStage shorts={streamPlanShorts(plan)} renderState={renderState} variantLabel={variantMeta.label} />
     );
   } else if (renderedPlan && hasRender) {
     stepContent = (
@@ -696,6 +710,7 @@ export function StreamEditor({
       clips={playbackClips}
       selectedClipId={selectedClipId}
       music={previewMusic}
+      musicOffsets={musicOffsets}
       onPosition={setPreviewSeconds}
       onStatus={setPlaybackStatus}
       onPlayingChange={setPreviewPlaying}

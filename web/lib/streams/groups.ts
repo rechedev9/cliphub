@@ -13,15 +13,15 @@ export type StreamShort = {
   groupId: string | null;
 };
 
-function momentTitle(plan: StreamEditPlan, clip: StreamClipRange): string {
-  return clip.title?.trim() || `Momento ${plan.clips.indexOf(clip) + 1}`;
-}
-
 /** The videos an export makes, mirroring streamclips.EditPlan.Outputs: a group sits where its first moment is. */
 export function streamPlanShorts(plan: StreamEditPlan): StreamShort[] {
-  const groups = plan.groups ?? [];
   const groupOf = new Map<string, StreamClipGroup>();
-  for (const group of groups) for (const id of group.clip_ids) groupOf.set(id, group);
+  for (const group of plan.groups ?? []) for (const id of group.clip_ids) groupOf.set(id, group);
+  const byId = new Map(plan.clips.map((clip, index) => [clip.id, { clip, index }]));
+  const title = (id: string): string => {
+    const entry = byId.get(id);
+    return entry?.clip.title?.trim() || `Momento ${(entry?.index ?? 0) + 1}`;
+  };
   const emitted = new Set<string>();
   const shorts: StreamShort[] = [];
   for (const clip of plan.clips) {
@@ -29,7 +29,7 @@ export function streamPlanShorts(plan: StreamEditPlan): StreamShort[] {
     if (!group) {
       shorts.push({
         id: clip.id,
-        title: momentTitle(plan, clip),
+        title: title(clip.id),
         clips: [clip],
         durationSeconds: clipOutputDuration(clip),
         groupId: null,
@@ -38,10 +38,10 @@ export function streamPlanShorts(plan: StreamEditPlan): StreamShort[] {
     }
     if (emitted.has(group.id)) continue;
     emitted.add(group.id);
-    const members = group.clip_ids.flatMap((id) => plan.clips.filter((c) => c.id === id));
+    const members = group.clip_ids.flatMap((id) => byId.get(id)?.clip ?? []);
     shorts.push({
       id: group.id,
-      title: group.title?.trim() || members.map((c) => momentTitle(plan, c)).join(' + '),
+      title: group.title?.trim() || members.map((c) => title(c.id)).join(' + '),
       clips: members,
       durationSeconds: members.reduce((sum, c) => sum + clipOutputDuration(c), 0),
       groupId: group.id,
@@ -52,6 +52,19 @@ export function streamPlanShorts(plan: StreamEditPlan): StreamShort[] {
 
 export function streamShortCount(plan: StreamEditPlan): number {
   return streamPlanShorts(plan).length;
+}
+
+/** Where the music already is when each moment starts: inside a group it runs on, as the export does. */
+export function streamMusicOffsets(plan: StreamEditPlan): Map<string, number> {
+  const offsets = new Map<string, number>();
+  for (const short of streamPlanShorts(plan)) {
+    let offset = 0;
+    for (const clip of short.clips) {
+      offsets.set(clip.id, offset);
+      offset += clipOutputDuration(clip);
+    }
+  }
+  return offsets;
 }
 
 /** Drops removed moments from their groups and any group left with one, as the Go plan does. */
@@ -75,6 +88,18 @@ export function joinStreamMoments(plan: StreamEditPlan, clipIds: readonly string
   const group: StreamClipGroup = { id: `group-${Date.now()}-${groupSeq}`, clip_ids: chosen };
   const others = (plan.groups ?? []).map((g) => ({ ...g, clip_ids: g.clip_ids.filter((id) => !chosen.includes(id)) }));
   return pruneStreamGroups({ ...plan, groups: [...others, group] });
+}
+
+/** Puts back a group a removed moment left, as Deshacer does; a member since joined elsewhere stays there. */
+export function restoreStreamGroup(plan: StreamEditPlan, group: StreamClipGroup): StreamEditPlan {
+  const ids = new Set(plan.clips.map((c) => c.id));
+  const current = plan.groups ?? [];
+  const taken = new Set(current.filter((g) => g.id !== group.id).flatMap((g) => g.clip_ids));
+  const restored = { ...group, clip_ids: group.clip_ids.filter((id) => ids.has(id) && !taken.has(id)) };
+  const groups = current.some((g) => g.id === group.id)
+    ? current.map((g) => (g.id === group.id ? restored : g))
+    : [...current, restored];
+  return pruneStreamGroups({ ...plan, groups });
 }
 
 export function splitStreamGroup(plan: StreamEditPlan, groupId: string): StreamEditPlan {
