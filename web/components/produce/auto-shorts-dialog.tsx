@@ -102,7 +102,7 @@ export function AutoShortsDialog({ matchId, plays, disabled, creating, onCreate 
                 const play = byId.get(id);
                 return <li key={id} className="flex min-w-0 gap-2 text-body-sm text-fg-1">
                   <span className="tabular-nums text-fg-3">{index + 1}.</span>
-                  <span className="min-w-0 wrap-anywhere">Ronda {play?.round} · {play?.label}</span>
+                  <span className="min-w-0 wrap-anywhere">{play?.label}</span>
                 </li>;
               })}
             </ol>
