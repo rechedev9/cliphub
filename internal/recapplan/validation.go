@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/rechedev9/cliphub/internal/customhud"
@@ -283,6 +285,9 @@ func (o Options) Validate() error {
 	if o.Overlays.HUDPortrait != nil && o.Overlays.HUDTheme != "focus" {
 		return fmt.Errorf("HUD portrait requires the Focus theme")
 	}
+	if err := validateHUDLook(o.Overlays); err != nil {
+		return err
+	}
 	if o.Capture.XRay {
 		return fmt.Errorf("full demo profile requires xray disabled")
 	}
@@ -517,6 +522,29 @@ func validateCrosshairSamples(samples []CrosshairSample, endTick int) error {
 			return fmt.Errorf("invalid crosshair evidence timeline")
 		}
 		previous = sample.Tick
+	}
+	return nil
+}
+
+// MaxTeamNameRunes bounds a team name on the HUD scoreboard.
+const MaxTeamNameRunes = 32
+
+// validateHUDLook checks the render-only HUD choices: a user theme, the
+// composition switches and the team names. Each needs a custom HUD.
+func validateHUDLook(o OverlayOptions) error {
+	custom := o.HUDCustom != nil || o.HUDOptions != (customhud.Options{}) || o.TeamNames != (customhud.Teams{})
+	if custom && o.HUDTheme == "" {
+		return fmt.Errorf("HUD theme, options and team names require a custom HUD")
+	}
+	if o.HUDCustom != nil {
+		if err := o.HUDCustom.Validate(); err != nil {
+			return fmt.Errorf("hud_custom: %w", err)
+		}
+	}
+	for _, name := range []string{o.TeamNames.CTStart, o.TeamNames.TStart} {
+		if name != strings.TrimSpace(name) || utf8.RuneCountInString(name) > MaxTeamNameRunes || strings.IndexFunc(name, unicode.IsControl) >= 0 {
+			return fmt.Errorf("team names must be trimmed and hold at most %d characters", MaxTeamNameRunes)
+		}
 	}
 	return nil
 }

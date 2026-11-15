@@ -177,10 +177,12 @@ func (h *Handlers) GetFullDemoPlan(w http.ResponseWriter, r *http.Request) {
 		rejectFullDemo(w, err)
 		return
 	}
-	response := map[string]any{"document": d, "defaults": h.fullDemoDefaultOptions(j.ID), "pro_players": fullDemoProPlayers, "compatibility": "editorial-v1"}
+	defaults := h.fullDemoDefaultOptions(j.ID)
+	defaults.Overlays.TeamNames = h.fullDemoTeamNames(r.Context(), j.ID)
+	response := map[string]any{"document": d, "defaults": defaults, "pro_players": fullDemoProPlayers, "compatibility": "editorial-v1"}
 	if !found {
 		response["document"], response["compatibility"] = nil, "legacy-until-planned-and-approved"
-		response["defaults"] = h.withDetectedProSettings(r.Context(), j.ID, h.fullDemoDefaultOptions(j.ID))
+		response["defaults"] = h.withDetectedProSettings(r.Context(), j.ID, defaults)
 	}
 	writeJSON(w, http.StatusOK, response)
 }

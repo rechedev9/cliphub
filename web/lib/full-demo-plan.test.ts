@@ -424,3 +424,29 @@ test('a round selection from analysis survives normalization and every round dro
   assert.equal(fullDemoOptionsKey(all), fullDemoOptionsKey(defaults));
   assert.equal(isFullDemoOptions({ ...defaults, rounds: [0] }), false);
 });
+
+test('the HUD look survives drafts and the render request, and leaves with the custom HUD', () => {
+  const snapshot = fixture();
+  snapshot.document.options.capture.hud_profile = CUSTOM_HUD_CAPTURE_PROFILE;
+  snapshot.document.options.overlays.hud_theme = 'apex';
+  snapshot.document.options.overlays.hud_custom = { name: 'Mio', ct: '112233', t: '445566', background: '000000', radius: 4 };
+  snapshot.document.options.overlays.hud_options = { compact_header: true, hide_loadout: false };
+  snapshot.document.options.overlays.team_names = { ct_start: 'Vitality', t_start: '' };
+  const options = snapshot.document.options;
+  assert.ok(isFullDemoOptions(options));
+  const current = currentFullDemoOptions(options);
+  // Go omitzero drops false switches and empty names; the draft must match it.
+  assert.deepEqual(current.overlays.hud_options, { compact_header: true });
+  assert.deepEqual(current.overlays.team_names, { ct_start: 'Vitality' });
+  assert.deepEqual(current.overlays.hud_custom, options.overlays.hud_custom);
+  const off = currentFullDemoOptions({ ...options, overlays: { ...options.overlays, hud_options: { compact_header: false }, team_names: { ct_start: '' } } });
+  assert.equal('hud_options' in off.overlays, false);
+  assert.equal('team_names' in off.overlays, false);
+  snapshot.document.options = current;
+  const edit = fullDemoPlanEdit(snapshot);
+  assert.deepEqual(parseEffectiveEditConfig(buildEditRequest(edit)), edit);
+  assert.deepEqual(coerceEditConfig(JSON.parse(JSON.stringify(edit))), edit);
+  const native = { ...current, capture: { ...current.capture, hud_profile: NATIVE_HUD_CAPTURE_PROFILE }, overlays: { ...current.overlays, hud_theme: undefined } };
+  assert.equal(isFullDemoOptions(native), false);
+  assert.equal(isFullDemoOptions({ ...current, overlays: { ...current.overlays, hud_custom: { ...options.overlays.hud_custom, ct: 'zz' } } }), false);
+});

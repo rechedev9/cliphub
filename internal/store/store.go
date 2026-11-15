@@ -154,6 +154,7 @@ type Repositories struct {
 	EditorAssets   EditorAssetRepository
 	EditorProjects EditorProjectRepository
 	Library        LibraryRepository
+	HUDThemes      HUDThemeRepository
 	db             *sql.DB
 }
 
@@ -200,6 +201,7 @@ func OpenSQLite(path string) (*Repositories, error) {
 		EditorAssets:   assets,
 		EditorProjects: projects,
 		Library:        NewSQLiteLibraryRepository(jobs.db),
+		HUDThemes:      NewSQLiteHUDThemeRepository(jobs.db),
 		db:             jobs.db,
 	}, nil
 }
@@ -211,5 +213,6 @@ func NewMemory() *Repositories {
 		EditorAssets:   NewMemoryEditorAssetRepository(),
 		EditorProjects: NewMemoryEditorProjectRepository(),
 		Library:        NewMemoryLibraryRepository(),
+		HUDThemes:      NewMemoryHUDThemeRepository(),
 	}
 }

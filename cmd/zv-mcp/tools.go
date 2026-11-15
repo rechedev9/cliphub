@@ -172,6 +172,7 @@ type generateOut struct {
 func registerTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 	registerFullDemoTools(server, s)
+	registerHUDThemeTools(server, s)
 	registerRoundPOVTool(server, s)
 	registerProSettingsTool(server)
 	registerVideoTools(server, s)

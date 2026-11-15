@@ -32,6 +32,10 @@ type Snapshot struct {
 	Defuse        *Defuse  `json:"defuse,omitempty"`
 	MVP           *MVP     `json:"mvp,omitempty"`
 	Streak        Streak   `json:"-"` // Derived by roundTracker at render time.
+	// Swapped is true once the team that started CT plays T; SidesKnown says it was derived.
+	Swapped    bool   `json:"-"`
+	SidesKnown bool   `json:"-"`
+	Winner     string `json:"-"` // Side that won the round, only while it is ended.
 }
 
 // Defuse is the defuse in progress. EndTick is 0 when the bomb's own

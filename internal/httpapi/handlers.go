@@ -167,6 +167,7 @@ type Handlers struct {
 	labBundleRoot       string
 	importedVideos      ImportedVideos
 	libraryRepo         LibraryRepository
+	hudThemes           HUDThemeRepository
 	lineups             lineups.Catalog
 	practiceGame        practice.Game
 	references          referenceCaches
@@ -210,13 +211,6 @@ func WithUploadConcurrency(limit int) Option {
 func WithRateLimit(rps float64, burst int) Option {
 	return func(h *Handlers) {
 		h.rateLimiter = newRateLimiter(rps, burst)
-	}
-}
-
-func WithEditorRepositories(assets EditorAssetRepository, projects EditorProjectRepository) Option {
-	return func(h *Handlers) {
-		h.editorAssets = assets
-		h.editorProjects = projects
 	}
 }
 

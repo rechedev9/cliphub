@@ -63,6 +63,10 @@ func (s *scene) focusCard(p Player) {
 		s.rect("focus/bar", x+18, y+h-11, (w-36)*min(100, p.Health)/100, 4, "63DC96", 5)
 	}
 
+	if s.r.Options.HideLoadout {
+		s.movementKeys(p)
+		return
+	}
 	// Without a magazine the weapon centers in the space the ammo row would use.
 	right, armed := x+w-18, p.Known && p.Alive && p.Ammo >= 0
 	weaponMid := y + 54

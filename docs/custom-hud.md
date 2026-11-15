@@ -405,3 +405,16 @@ demo that announces it. On three local match demos (2026-11-15) the defuse
 deadline was 10 s without a kit and 5 s with one, and the MVP was found for
 almost every round. Cards fade in over 12 frames on the source clock; a card
 already on screen at the start of a window does not fade again.
+
+## Own themes, composition and team names (renderer v9)
+
+All three change only the render. `CaptureHash` leaves overlays out, so a capture is reused and only the plan hash changes.
+
+- **Own themes.** The user duplicates a catalog design and changes its name, CT and T colours, plate colour and corner radius (0 to 15 px). Studio keeps up to 10 in the `hud_themes` table (`internal/store`, migration 28). The table stays on the PC, outside the library sync. A plan copies the theme whole into `overlays.hud_custom`, with the catalog base in `overlays.hud_theme`. Editing or deleting a saved theme never changes a plan already made. Without a radius the plates keep the base shape. Radius 0 draws square plates, and any other value draws rounded plates (`Theme.WithStyle`).
+- **Composition (`overlays.hud_options`).**
+  - `compact_header` hides the ten player cards and their 3K/4K/ACE tags.
+  - `hide_loadout` hides the weapon and ammo: the loadout panel, or the right half of the Focus card.
+  - `round_win_banner` draws the winning team under the scoreboard while the round is ended. The renderer's round tracker gives the winner from a one-point score change. With no such change, no banner is drawn.
+- **Team names (`overlays.team_names`).** The names go by starting side. The plan defaults fill them from the library match of the job's demo: the assigned team, then the clan name. The tracker finds which side each team plays now: it records every player's side in the first round where both sides have players, then takes the majority. When the side cannot be told, the plan names are left out. The score plate label then falls back to the demo's clan name, and then to CT or T.
+- **Preview.** `GET /api/full-demo/hud-themes/preview` draws the example scene as SVG with the same display list as the video. The web selector shows it when a theme, a switch or a name is set.
+- **Not drawn.** Team logos and player avatars are not on the HUD. ASS draws no images, and the scoreboard strip has no free space for them. The library's logos are SVG from the CS2 install, and the shipped FFmpeg cannot be assumed to rasterize them.

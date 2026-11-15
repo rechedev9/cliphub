@@ -141,7 +141,7 @@ func TestChooseHUDWorksWithoutUI(t *testing.T) {
 	if !strings.Contains(text, "plan_full_demo") || !strings.Contains(text, nativeHUDID+" ("+nativeHUDName+")") {
 		t.Errorf("text = %q", text)
 	}
-	themes := hudOptions()
+	themes := hudOptions(nil)
 	if len(themes) < 2 || themes[len(themes)-1].ID != nativeHUDID {
 		t.Errorf("themes = %+v", themes)
 	}

@@ -31,6 +31,8 @@ type Node struct {
 type Renderer struct {
 	Theme    Theme
 	Portrait bool
+	Options  Options
+	Teams    Teams
 }
 
 type scene struct {
@@ -83,20 +85,30 @@ func shapePath(kind string, x, y, w, h int) string {
 	case "notch":
 		return polygon(x+12, y, x+w, y, x+w, y+h-12, x+w-12, y+h-12, x+w-12, y+h, x, y+h, x, y+12, x+12, y+12)
 	case "round":
-		r := min(8, h/2)
-		k := float64(r) * .55228475
-		return fmt.Sprintf("M %d %d L %d %d C %.2f %d %d %.2f %d %d L %d %d C %d %.2f %.2f %d %d %d L %d %d C %.2f %d %d %.2f %d %d L %d %d C %d %.2f %.2f %d %d %d Z",
-			x+r, y, x+w-r, y, float64(x+w-r)+k, y, x+w, float64(y+r)-k, x+w, y+r, x+w, y+h-r, x+w, float64(y+h-r)+k, float64(x+w-r)+k, y+h, x+w-r, y+h, x+r, y+h, float64(x+r)-k, y+h, x, float64(y+h-r)+k, x, y+h-r, x, y+r, x, float64(y+r)-k, float64(x+r)-k, y, x+r, y)
+		return roundedPath(x, y, w, h, min(8, h/2))
 	default:
 		return polygon(x, y, x+w, y, x+w, y+h, x, y+h)
 	}
 }
 
+func (t Theme) plate(x, y, w, h int) string {
+	if t.Shape == "round" && t.Radius > 0 {
+		return roundedPath(x, y, w, h, min(t.Radius, h/2, w/2))
+	}
+	return shapePath(t.Shape, x, y, w, h)
+}
+
+func roundedPath(x, y, w, h, r int) string {
+	k := float64(r) * .55228475
+	return fmt.Sprintf("M %d %d L %d %d C %.2f %d %d %.2f %d %d L %d %d C %d %.2f %.2f %d %d %d L %d %d C %.2f %d %d %.2f %d %d L %d %d C %d %.2f %.2f %d %d %d Z",
+		x+r, y, x+w-r, y, float64(x+w-r)+k, y, x+w, float64(y+r)-k, x+w, y+r, x+w, y+h-r, x+w, float64(y+h-r)+k, float64(x+w-r)+k, y+h, x+w-r, y+h, x+r, y+h, float64(x+r)-k, y+h, x, float64(y+h-r)+k, x, y+h-r, x, y+r, x, float64(y+r)-k, float64(x+r)-k, y, x+r, y)
+}
+
 func (s *scene) panel(id string, x, y, w, h int, accent string) {
 	t := s.r.Theme
-	s.path(id+"/shadow", shapePath(t.Shape, x, y+3, w, h), "000000", 0)
+	s.path(id+"/shadow", t.plate(x, y+3, w, h), "000000", 0)
 	s.fade(.18)
-	s.path(id+"/plate", shapePath(t.Shape, x, y, w, h), t.Background, 1)
+	s.path(id+"/plate", t.plate(x, y, w, h), t.Background, 1)
 	s.fade(t.Opacity)
 	if strings.HasPrefix(id, "score") {
 		// Keep clock and score luminance stable through flashes and camera
@@ -142,6 +154,9 @@ func (r *Renderer) Scene(state Snapshot, target string) []Node {
 	s.roundFacts(state, ct, tr)
 	ct, tr = ct[:min(5, len(ct))], tr[:min(5, len(tr))]
 	for side, players := range [][]Player{ct, tr} {
+		if r.Options.CompactHeader {
+			break
+		}
 		accent := t.CT
 		if side == 1 {
 			accent = t.T
@@ -178,9 +193,9 @@ func (s *scene) scoreboard(state Snapshot) {
 		id, label, color string
 		x, points        int
 	}{{"ct", "CT", t.CT, center - 160, state.CTScore}, {"t", "T", t.T, center + 86, state.TScore}} {
-		s.path("score/"+side.id+"-plate", shapePath(t.Shape, side.x, y, 74, 64), side.color, 2)
+		s.path("score/"+side.id+"-plate", t.plate(side.x, y, 74, 64), side.color, 2)
 		s.typeText("score/"+side.id+"-points", strconv.Itoa(side.points), side.x+37, y+25, 43, 62, 700, t.Background, "center")
-		s.typeText("score/"+side.id+"-label", side.label, side.x+37, y+51, 12, 62, 600, t.Background, "center")
+		s.typeText("score/"+side.id+"-label", s.r.teamName(state, side.label), side.x+37, y+51, 12, 62, 600, t.Background, "center")
 	}
 	timeText, color := "--:--", t.Text
 	if state.TimeRemaining >= 0 {
@@ -264,7 +279,7 @@ func (s *scene) focus(p Player) {
 		accent = t.Muted
 	}
 	s.panel("focus", x, y, w, h, accent)
-	s.path("focus/header", shapePath(t.Shape, x, y, w, 38), accent, 2)
+	s.path("focus/header", t.plate(x, y, w, 38), accent, 2)
 	s.text("focus/name", p.Name, x+w/2, y+19, 27, w-30, t.Background, "center")
 	hp, armor := "—", "—"
 	if p.Known {
@@ -288,8 +303,11 @@ func (s *scene) focus(p Player) {
 func (s *scene) loadout(p Player, accent string) {
 	t := s.r.Theme
 	x, y, w := t.LoadoutX, t.LoadoutY, t.LoadoutWidth
+	if s.r.Options.HideLoadout {
+		return
+	}
 	s.panel("loadout", x, y, w, 90, accent)
-	s.path("loadout/header", shapePath(t.Shape, x+3, y+3, w-6, 28), t.Surface, 2)
+	s.path("loadout/header", t.plate(x+3, y+3, w-6, 28), t.Surface, 2)
 	s.fade(.7)
 	kda, ammo := "K/D/A  —/—/—", "—"
 	if p.Known {

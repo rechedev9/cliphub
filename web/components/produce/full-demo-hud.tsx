@@ -4,12 +4,14 @@ import { Expand } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_THEMES, NATIVE_HUD_CAPTURE_PROFILE, customHudTheme, type CustomHudTheme } from '@/lib/custom-hud';
 import { uploadFullDemoPortrait, type FullDemoOptions, type FullDemoAssetRef } from '@/lib/full-demo-plan';
+import { hudPreviewUrl, needsDrawnPreview, type HudOptions, type HudStyle, type HudTeamNames } from '@/lib/hud-themes';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { MapCover } from '@/components/brand/map-cover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
-import { FullDemoChoice, FullDemoGroup } from './full-demo-fields';
+import { FullDemoGroup } from './full-demo-fields';
+import { HudLookControls, HudThemePicker } from './full-demo-hud-look';
 import { NativeHudArt } from './full-demo-native-hud';
 
 type HudKind = 'custom' | 'native';
@@ -23,7 +25,7 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
 }): ReactNode {
   const theme = customHudTheme(options.overlays.hud_theme);
   // The design (and Focus portrait) set aside for the CS2 HUD, restored when switching back.
-  const [setAside, setSetAside] = useState<{ theme?: string; portrait?: FullDemoAssetRef | null }>({});
+  const [setAside, setSetAside] = useState<{ theme?: string; portrait?: FullDemoAssetRef | null; style?: HudStyle; look?: HudOptions; names?: HudTeamNames }>({});
   const selected = theme ?? customHudTheme(setAside.theme) ?? CUSTOM_HUD_THEMES[0];
   const kind: HudKind = theme ? 'custom' : 'native';
   const portrait = options.overlays.hud_portrait;
@@ -60,24 +62,26 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
     onChange({ ...options, overlays });
   }
 
-  function choose(id: string, kept = portrait): void {
-    const { hud_portrait: _portrait, ...overlays } = options.overlays;
+  function choose(id: string, kept = portrait, style?: HudStyle, restored?: { look?: HudOptions; names?: HudTeamNames }): void {
+    const { hud_portrait: _portrait, hud_custom: _custom, ...current } = options.overlays;
+    // The CS2 HUD set the switches and names aside; coming back restores them.
+    const overlays = restored ? { ...current, ...(restored.look ? { hud_options: restored.look } : {}), ...(restored.names ? { team_names: restored.names } : {}) } : current;
     cancelUpload();
     setError(null);
     onChange({
       ...options,
       capture: { ...options.capture, hud_profile: CUSTOM_HUD_CAPTURE_PROFILE },
-      overlays: { ...overlays, hud_theme: id, ...(id === 'focus' && kept ? { hud_portrait: kept } : {}) },
+      overlays: { ...overlays, hud_theme: id, ...(id === 'focus' && kept ? { hud_portrait: kept } : {}), ...(style ? { hud_custom: style } : {}) },
     });
   }
 
   function chooseKind(next: HudKind): void {
     if (next === kind) return;
-    if (next === 'custom' && selected) { choose(selected.id, setAside.portrait); return; }
-    const { hud_theme: _theme, hud_portrait: _portrait, ...overlays } = options.overlays;
+    if (next === 'custom' && selected) { choose(selected.id, setAside.portrait, setAside.style, setAside); return; }
+    const { hud_theme: _theme, hud_portrait: _portrait, hud_custom: style, hud_options: look, team_names: names, ...overlays } = options.overlays;
     cancelUpload();
     setError(null);
-    setSetAside({ theme: theme?.id, portrait });
+    setSetAside({ theme: theme?.id, portrait, style, look, names });
     onChange({ ...options, capture: { ...options.capture, hud_profile: NATIVE_HUD_CAPTURE_PROFILE }, overlays });
   }
 
@@ -95,7 +99,7 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
         </div>
       </fieldset>
       {kind === 'custom' && selected ? <div className="grid min-w-0 gap-2">
-        <FullDemoChoice label="Diseño" value={selected.id} options={CUSTOM_HUD_THEMES.map((theme) => ({ value: theme.id, label: theme.name }))} onChange={choose} />
+        <HudThemePicker base={selected.id} style={options.overlays.hud_custom} onSelect={(id, style) => choose(id, portrait, style)} />
         <p className="text-body-sm text-fg-2">{selected.description}</p>
         <p className="text-body-sm text-fg-3">Todos los diseños añaden bajo el marcador los jugadores vivos de cada bando, la racha de 4 o más rondas, el 3K, 4K o ACE de la ronda, la barra de desactivación con o sin kit y el MVP al cerrar cada ronda.</p>
         {selected.id === 'focus' ? <div className="min-w-0 space-y-2">
@@ -105,6 +109,9 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
           {portrait ? <Button type="button" variant="secondary" onClick={removePortrait}>Quitar retrato</Button> : null}
           {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
         </div> : null}
+        <HudLookControls options={options.overlays.hud_options} names={options.overlays.team_names}
+          onOptions={(hud_options) => onChange({ ...options, overlays: { ...options.overlays, hud_options } })}
+          onNames={(team_names) => onChange({ ...options, overlays: { ...options.overlays, team_names } })} />
       </div> : <p className="text-body-sm text-fg-2">Vida, munición, radar, killfeed y la mira del jugador. Arriba queda la barra de equipos de CS2, con el dinero y la utilidad de ambos equipos.</p>}
       <fieldset className="min-w-0 border-t border-border-subtle pt-3.5">
         <legend className="sr-only">Vista</legend>
@@ -125,16 +132,16 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
 export function FullDemoHudPreview({ options, map }: { options: FullDemoOptions; map: string }): ReactNode {
   const theme = customHudTheme(options.overlays.hud_theme);
   const portrait = options.overlays.hud_portrait;
-  const previewName = theme ? `HUD ${theme.name}` : 'HUD original de CS2';
+  const previewName = theme ? `HUD ${options.overlays.hud_custom?.name ?? theme.name}` : 'HUD original de CS2';
   return <div className="mx-auto w-full max-w-[min(100%,110dvh)] min-w-0 space-y-2">
     <Dialog>
       <DialogTrigger asChild><button type="button" aria-label={`Ampliar ${previewName}`}
         className="relative block w-full min-w-0 overflow-hidden rounded-2xl text-left ring-2 ring-format-full/70 shadow-[var(--elev-2)] transition-shadow hover:ring-format-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
-        <HudPreview theme={theme} map={map} portrait={portrait} />
+        <HudPreview theme={theme} map={map} portrait={portrait} overlays={options.overlays} />
       </button></DialogTrigger>
       <DialogContent className="max-h-[92dvh] gap-4 overflow-y-auto p-4 sm:max-w-[min(1540px,calc(100%-3rem))]">
         <DialogHeader><DialogTitle>{previewName}</DialogTitle></DialogHeader>
-        <div className="min-w-0 overflow-hidden rounded border border-border-subtle"><HudPreview theme={theme} map={map} portrait={portrait} /></div>
+        <div className="min-w-0 overflow-hidden rounded border border-border-subtle"><HudPreview theme={theme} map={map} portrait={portrait} overlays={options.overlays} /></div>
       </DialogContent>
     </Dialog>
     <p className="flex items-center gap-1.5 text-body-sm text-fg-3"><Expand className="size-3.5 shrink-0" aria-hidden />Ejemplo con datos ilustrativos. Pulsa la imagen para ampliarla.</p>
@@ -158,13 +165,17 @@ function HudKindCard({ name, kind, checked, title, detail, onChange }: {
   </label>;
 }
 
-function HudPreview({ theme, map, portrait }: {
-  theme?: CustomHudTheme; map: string; portrait?: FullDemoAssetRef | null;
+function HudPreview({ theme, map, portrait, overlays }: {
+  theme?: CustomHudTheme; map: string; portrait?: FullDemoAssetRef | null; overlays: FullDemoOptions['overlays'];
 }): ReactNode {
   const hasPortrait = theme?.id === 'focus' && Boolean(portrait);
+  // The drawn preview is the video's own renderer; it has no portrait, so Focus with one keeps the catalog picture.
+  const drawn = theme && !hasPortrait && needsDrawnPreview(overlays.hud_custom, overlays.hud_options, overlays.team_names)
+    ? hudPreviewUrl({ base: theme.id, style: overlays.hud_custom, options: overlays.hud_options, names: overlays.team_names }) : null;
+  const name = overlays.hud_custom?.name ?? theme?.name;
   return <div className="relative isolate aspect-video w-full overflow-hidden bg-surface-0">
     <MapCover map={map} className="absolute inset-0 opacity-70" />
-    {theme ? <img src={`/hud/${theme.id}${hasPortrait ? '-portrait' : ''}.webp`} alt={`Vista previa del HUD ${theme.name}`} className="absolute inset-0 size-full object-contain" width={1920} height={1080} /> : <NativeHudArt />}
+    {theme ? <img src={drawn ?? `/hud/${theme.id}${hasPortrait ? '-portrait' : ''}.webp`} alt={`Vista previa del HUD ${name}`} className="absolute inset-0 size-full object-contain" width={1920} height={1080} /> : <NativeHudArt />}
     {hasPortrait && portrait ? <img src={`/api/full-demo/overlay-images/${portrait.id}`} alt="Retrato del jugador" className="absolute object-contain object-bottom" style={{ left: `${654 / 1920 * 100}%`, top: `${898 / 1080 * 100}%`, width: `${116 / 1920 * 100}%`, height: `${116 / 1080 * 100}%` }} /> : null}
   </div>;
 }

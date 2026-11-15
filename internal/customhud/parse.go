@@ -390,6 +390,8 @@ type roundTracker struct {
 	ctScore, tScore int
 	streakTeam      map[string]bool
 	streak          int
+	startSide       map[string]string
+	winner          string
 }
 
 func (t *roundTracker) next(s Snapshot) Snapshot {
@@ -419,6 +421,13 @@ func (t *roundTracker) next(s Snapshot) Snapshot {
 		}
 	}
 	t.scored, t.ctScore, t.tScore = true, s.CTScore, s.TScore
+	if s.Phase == "freeze" {
+		t.winner = ""
+	}
+	if s.Phase == "ended" {
+		s.Winner = t.winner
+	}
+	t.sides(&s)
 	s.Streak = Streak{}
 	if t.streak > 0 {
 		sides := map[string]int{}
@@ -437,8 +446,42 @@ func (t *roundTracker) next(s Snapshot) Snapshot {
 	return s
 }
 
+// sides records each player's side in the first round with both sides seen,
+// then finds which side the team that started CT plays by majority.
+func (t *roundTracker) sides(s *Snapshot) {
+	if t.startSide == nil && s.Round >= 1 {
+		seen, count := map[string]string{}, map[string]int{}
+		for _, p := range s.Players {
+			if !p.Inactive {
+				seen[p.SteamID] = p.Side
+				count[p.Side]++
+			}
+		}
+		if count["CT"] > 0 && count["T"] > 0 {
+			t.startSide = seen
+		}
+	}
+	if t.startSide == nil {
+		return
+	}
+	same, swapped := 0, 0
+	for _, p := range s.Players {
+		start, ok := t.startSide[p.SteamID]
+		if p.Inactive || !ok {
+			continue
+		}
+		if start == p.Side {
+			same++
+		} else {
+			swapped++
+		}
+	}
+	s.SidesKnown, s.Swapped = same != swapped, swapped > same
+}
+
 // The streak follows the players, so it survives the halftime side swap.
 func (t *roundTracker) win(s Snapshot, side string) {
+	t.winner = side
 	winners := map[string]bool{}
 	shared := 0
 	for _, p := range s.Players {
