@@ -510,6 +510,11 @@ no date, and an import without `played_at` fell back to the import time.
   replaces only a date still equal to the import time (`library.DatedByImport`),
   so a date set by hand stays. Tests: `TestLibraryMatchDateContract`,
   `TestReconcileFaceitMatchDatesDatesOnlyMatchesOnTheirImportTime`.
+- The web import follows the same order: the browser scan (`cmd/zv-scan-wasm`)
+  returns the spray date as `playedAt`, the upload sends it as `played_at`, and
+  ClipMind falls back to the FACEIT start when `CLIPMIND_FACEIT_API_KEY` is set.
+  Uploading a demo again dates a match still on its import time
+  (`TestUploadLibraryAnalysisDatesAMatchAnEarlierUploadLeftOnItsImportDay`).
 
 ## Local test environment caveat
 

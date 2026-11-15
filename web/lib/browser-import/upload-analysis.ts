@@ -54,6 +54,7 @@ export function analysisForm(input: Pick<UploadInput, 'scan' | 'fallbackName' | 
   form.set('file_name', scan.fileName === '' ? input.fallbackName : scan.fileName);
   form.set('size_bytes', String(scan.sizeBytes));
   form.set('cs2_build', String(scan.cs2Build));
+  if (scan.playedAt > 0) form.set('played_at', new Date(scan.playedAt * 1000).toISOString());
   if (input.workspace !== undefined) form.set('workspace_id', input.workspace);
   return form;
 }
