@@ -62,6 +62,9 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 	var plantedBomb st.Entity
 	lastTick := -1
 	identities := map[string]Player{}
+	var defuse *Defuse
+	var mvp *MVP
+	mvps := map[string]int{}
 	var failure error
 	var movement movementCommands
 	p.RegisterNetMessageHandler(movement.read)
@@ -94,6 +97,7 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 		currentRound = 0
 		phase = "unknown"
 		lastTick = -1
+		defuse, mvp, mvps = nil, nil, map[string]int{}
 	})
 	p.RegisterEventHandler(func(events.RoundStart) {
 		gs := p.GameState()
@@ -102,6 +106,7 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 		}
 		currentRound = gs.TotalRoundsPlayed() + 1
 		phase = "freeze"
+		defuse, mvp = nil, nil
 	})
 	p.RegisterEventHandler(func(events.RoundFreezetimeEnd) {
 		gs := p.GameState()
@@ -116,9 +121,10 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 			phase = "planted"
 		}
 	})
-	p.RegisterEventHandler(func(events.BombDefuseStart) {
+	p.RegisterEventHandler(func(e events.BombDefuseStart) {
 		if phase == "planted" {
 			phase = "defusing"
+			defuse = &Defuse{Kit: e.HasKit, StartTick: p.GameState().IngameTick()}
 		}
 	})
 	p.RegisterEventHandler(func(events.BombDefuseAborted) {
@@ -127,6 +133,11 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 		}
 	})
 	p.RegisterEventHandler(func(events.RoundEnd) { phase = "ended" })
+	p.RegisterEventHandler(func(e events.RoundMVPAnnouncement) {
+		if phase == "ended" && e.Player != nil && e.Player.SteamID64 != 0 {
+			mvp = &MVP{SteamID: strconv.FormatUint(e.Player.SteamID64, 10), Reason: mvpReason(e.Reason)}
+		}
+	})
 	p.RegisterEventHandler(func(events.FrameDone) {
 		if failure != nil {
 			return
@@ -152,6 +163,19 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 		lastTick = tick
 		s := Snapshot{Tick: tick, Round: currentRound, Phase: phase, TimeRemaining: -1, Players: []Player{}}
 		s.TimeRemaining = sourceClock(gs.Rules().Entity(), plantedBomb, serverTick, tickRate, phase)
+		if phase != "defusing" {
+			defuse = nil
+		}
+		if defuse != nil {
+			if defuse.EndTick == 0 {
+				defuse.EndTick = defuseEndTick(plantedBomb, serverTick, tickRate, tick)
+			}
+			copied := *defuse
+			s.Defuse = &copied
+		}
+		if phase != "ended" {
+			mvp = nil
+		}
 		if team := gs.TeamCounterTerrorists(); team != nil {
 			s.CTScore = team.Score()
 			s.CTName = cleanText(team.ClanName(), 64)
@@ -204,6 +228,18 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 				return
 			}
 			s.Players = append(s.Players, player)
+			if count, ok := sourceMVPs(pl.Entity); !ok {
+				delete(mvps, player.SteamID)
+			} else if phase != "ended" {
+				mvps[player.SteamID] = count
+			} else if before, seen := mvps[player.SteamID]; mvp == nil && seen && count > before {
+				// Without the announcement, the scoreboard's MVP counter names the player.
+				mvp = &MVP{SteamID: player.SteamID}
+			}
+		}
+		if mvp != nil {
+			copied := *mvp
+			s.MVP = &copied
 		}
 		// Preserve observed identity, never stale stats or an active roster
 		// slot, when a player disconnects or their controller disappears.
@@ -307,6 +343,118 @@ func sourceClock(rules, bomb st.Entity, serverTick uint32, tickRate int, phase s
 		return -1
 	}
 	return max(0, int(math.Ceil(deadline-float64(serverTick)/float64(tickRate))))
+}
+
+// The bomb records when the defuse completes; its length is never assumed.
+func defuseEndTick(bomb st.Entity, serverTick uint32, tickRate, tick int) int {
+	if bomb == nil || serverTick == 0 || tickRate < 1 {
+		return 0
+	}
+	value, ok := bomb.PropertyValue("m_flDefuseCountDown")
+	if !ok || value.Any == nil {
+		return 0
+	}
+	remaining := float64(value.Float()) - float64(serverTick)/float64(tickRate)
+	if math.IsNaN(remaining) || remaining <= 0 || remaining > 12 {
+		return 0
+	}
+	return tick + int(math.Round(remaining*float64(tickRate)))
+}
+
+func sourceMVPs(controller st.Entity) (int, bool) {
+	value, ok := controller.PropertyValue("m_iMVPs")
+	if !ok || value.Any == nil {
+		return 0, false
+	}
+	return value.Int(), true
+}
+
+func mvpReason(reason events.RoundMVPReason) string {
+	switch reason {
+	case events.MVPReasonMostEliminations:
+		return MVPEliminations
+	case events.MVPReasonBombDefused:
+		return MVPBombDefused
+	case events.MVPReasonBombPlanted:
+		return MVPBombPlanted
+	}
+	return ""
+}
+
+// roundTracker derives facts the recorded scoreboard implies: kills since the
+// round began and the current run of round wins. Feed it every snapshot in order.
+type roundTracker struct {
+	round           int
+	baseline        map[string]int
+	scored          bool
+	ctScore, tScore int
+	streakTeam      map[string]bool
+	streak          int
+}
+
+func (t *roundTracker) next(s Snapshot) Snapshot {
+	if s.Round != t.round || t.baseline == nil {
+		t.round, t.baseline = s.Round, map[string]int{}
+	}
+	players := make([]Player, len(s.Players))
+	for i, p := range s.Players {
+		if p.Known && !p.Inactive {
+			base, ok := t.baseline[p.SteamID]
+			if !ok {
+				base = p.Kills
+				t.baseline[p.SteamID] = base
+			}
+			p.RoundKills = max(0, p.Kills-base)
+		}
+		players[i] = p
+	}
+	s.Players = players
+	// A halftime swap exchanges both scores; only one side gaining a point is a win.
+	if t.scored {
+		switch {
+		case s.CTScore == t.ctScore+1 && s.TScore == t.tScore:
+			t.win(s, "CT")
+		case s.TScore == t.tScore+1 && s.CTScore == t.ctScore:
+			t.win(s, "T")
+		}
+	}
+	t.scored, t.ctScore, t.tScore = true, s.CTScore, s.TScore
+	s.Streak = Streak{}
+	if t.streak > 0 {
+		sides := map[string]int{}
+		for _, p := range s.Players {
+			if !p.Inactive && t.streakTeam[p.SteamID] {
+				sides[p.Side]++
+			}
+		}
+		if sides["CT"] != sides["T"] {
+			s.Streak = Streak{Side: "CT", Rounds: t.streak}
+			if sides["T"] > sides["CT"] {
+				s.Streak.Side = "T"
+			}
+		}
+	}
+	return s
+}
+
+// The streak follows the players, so it survives the halftime side swap.
+func (t *roundTracker) win(s Snapshot, side string) {
+	winners := map[string]bool{}
+	shared := 0
+	for _, p := range s.Players {
+		if !p.Inactive && p.Side == side {
+			winners[p.SteamID] = true
+			if t.streakTeam[p.SteamID] {
+				shared++
+			}
+		}
+	}
+	if t.streak > 0 && shared*2 > len(winners) {
+		t.streak++
+	} else {
+		t.streak = 1
+	}
+	t.streakTeam = winners
 }
 
 // CS2 m_iClip1 is the actual magazine count (verified against capture). Older

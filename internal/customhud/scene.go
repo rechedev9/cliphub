@@ -25,6 +25,7 @@ type Node struct {
 	Opacity    float64
 	Font       string
 	Weight     int
+	FadeIn     bool // Fades in when it appears mid-render, never at the window start.
 }
 
 type Renderer struct {
@@ -138,6 +139,7 @@ func (r *Renderer) Scene(state Snapshot, target string) []Node {
 	sort.SliceStable(ct, func(i, j int) bool { return ct[i].SteamID < ct[j].SteamID })
 	sort.SliceStable(tr, func(i, j int) bool { return tr[i].SteamID < tr[j].SteamID })
 	s.scoreboard(state)
+	s.roundFacts(state, ct, tr)
 	ct, tr = ct[:min(5, len(ct))], tr[:min(5, len(tr))]
 	for side, players := range [][]Player{ct, tr} {
 		accent := t.CT
@@ -150,6 +152,7 @@ func (r *Renderer) Scene(state Snapshot, target string) []Node {
 				x = 1132 + i*68
 			}
 			s.player(p, x, 28, accent, target)
+			s.roundKills(p, x, accent)
 		}
 	}
 	for _, p := range state.Players {

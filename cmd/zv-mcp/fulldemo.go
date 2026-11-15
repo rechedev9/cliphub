@@ -44,7 +44,17 @@ type hudThemeOut struct {
 
 type hudThemesOut struct {
 	Themes []hudThemeOut `json:"themes"`
+	Shows  []string      `json:"shows" jsonschema:"round facts every custom design draws under the scoreboard, in Spanish; the native HUD has none of them"`
 	Note   string        `json:"note,omitempty"`
+}
+
+// customHUDShows mirrors the round facts line of the web HUD selector.
+var customHUDShows = []string{
+	"jugadores vivos de cada bando junto al marcador",
+	"racha de un equipo con 4 o más rondas seguidas",
+	"3K, 4K o ACE del jugador en la ronda",
+	"barra de desactivación de la bomba, con o sin kit",
+	"tarjeta MVP al cerrar cada ronda",
 }
 
 type planFullDemoIn struct {
@@ -100,10 +110,11 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_hud_themes", Annotations: readOnly,
 		Description: "List the HUD designs a Full Demo (long video of a whole match) can use, with a preview image of each. " +
-			"Show the previews and ask the user which design they want before plan_full_demo. Names and descriptions are in Spanish."},
+			"Show the previews and ask the user which design they want before plan_full_demo. Names and descriptions are in Spanish. " +
+			"Every custom design also shows the round facts in shows: players alive, a win streak of 4 or more, 3K/4K/ACE, the defuse bar with or without kit and the round MVP."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, hudThemesOut, error) {
 			previews, note := fetchHUDPreviews(ctx, s)
-			out := hudThemesOut{Note: note}
+			out := hudThemesOut{Shows: customHUDShows, Note: note}
 			var content []mcp.Content
 			var text strings.Builder
 			add := func(id, name, description string) {
@@ -117,6 +128,7 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			for _, t := range customhud.Themes() {
 				add(t.ID, t.Name, t.Description)
 			}
+			fmt.Fprintf(&text, "Todos los diseños personalizados muestran: %s.\n", strings.Join(customHUDShows, "; "))
 			add(nativeHUDID, nativeHUDName, nativeHUDText)
 			if note != "" {
 				text.WriteString(note + "\n")

@@ -97,6 +97,7 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
       {kind === 'custom' && selected ? <div className="grid min-w-0 gap-2">
         <FullDemoChoice label="Diseño" value={selected.id} options={CUSTOM_HUD_THEMES.map((theme) => ({ value: theme.id, label: theme.name }))} onChange={choose} />
         <p className="text-body-sm text-fg-2">{selected.description}</p>
+        <p className="text-body-sm text-fg-3">Todos los diseños añaden bajo el marcador los jugadores vivos de cada bando, la racha de 4 o más rondas, el 3K, 4K o ACE de la ronda, la barra de desactivación con o sin kit y el MVP al cerrar cada ronda.</p>
         {selected.id === 'focus' ? <div className="min-w-0 space-y-2">
           <label htmlFor={id} className="text-body-sm text-fg-2">Retrato del jugador (opcional)</label>
           <Input id={id} type="file" accept="image/png,image/jpeg" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void upload(file); }} />

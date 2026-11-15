@@ -51,6 +51,8 @@ It also takes play_badges (a badge for each clutch, ace or multikill), stats_car
 player's K/D, ADR, HS% and ClipHub rating, never an HLTV rating, plus FACEIT level, win rate and best map when FACEIT
 has them) and victim_replay_speed (0.25, 0.5 or 1, with victim_replay).
 A Full Demo (the whole match): choose_hud or list_hud_themes, plan_full_demo, then render_full_demo.
+Every custom HUD design also draws round facts from the demo: players alive per side, a win streak of 4 or more,
+3K/4K/ACE, the defuse bar with or without kit and the round MVP (list_hud_themes shows).
 plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for the focus HUD and intro,
 sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo

@@ -378,7 +378,7 @@ Short look and Full Demo HUD:
 | --- | --- |
 | `list_short_options` | format, kill effect, transition, music, extras (play badges and the stats card among them), the victim replay speeds and the affiliate banner families and styles, each with a one-line Spanish description and the default |
 | `get_song_audio` | one track as audio content, app-only (`_meta.ui.visibility: ["app"]`) |
-| `list_hud_themes` | the 11 custom HUDs plus "Original de CS2", with 640x360 JPEG thumbnails of the previews as image content (about 4k tokens for all 11) |
+| `list_hud_themes` | the 11 custom HUDs plus "Original de CS2", with 640x360 JPEG thumbnails of the previews as image content (about 4k tokens for all 11). `shows` lists the round facts every custom design draws: players alive, a win streak of 4 or more, 3K/4K/ACE, the defuse bar with or without kit and the round MVP |
 | `choose_short_options` | MCP App `ui://cliphub/short-options`: picker with play buttons; text fallback without UI |
 | `choose_hud` | MCP App `ui://cliphub/hud-gallery`: preview grid that calls `plan_full_demo` |
 | `show_zones` | MCP App `ui://cliphub/zone-map`: the map outline with the zones of a finding marked (lower floor dashed) and its `studio_path`; text fallback without UI |

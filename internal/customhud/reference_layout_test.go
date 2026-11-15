@@ -30,12 +30,19 @@ func TestBroadcastLayoutKeepsOneUpperRosterAndFixedPlayerCorners(t *testing.T) {
 			if strings.Contains(n.ID, "alive/") || n.Text == "ALIVE" || n.Text == "VS" {
 				t.Fatalf("%s duplicated alive information: %s", theme.ID, n.ID)
 			}
+			if strings.HasSuffix(n.ID, "-alive") && n.Y > 120 {
+				t.Fatalf("%s alive counter left the scoreboard: %+v", theme.ID, n)
+			}
 			if strings.HasPrefix(n.ID, "player/") && strings.HasSuffix(n.ID, "/name") {
 				roster++
 				if n.Y > 94 {
 					t.Fatalf("%s roster left the top row: %+v", theme.ID, n)
 				}
 			}
+		}
+		// Example has four living CTs and one living T.
+		if nodes["score/ct-alive"].Text != "4 ALIVE" || nodes["score/t-alive"].Text != "1 ALIVE" {
+			t.Fatalf("%s alive counters=%q/%q", theme.ID, nodes["score/ct-alive"].Text, nodes["score/t-alive"].Text)
 		}
 		if roster != 10 || nodes["focus/name"].X > 330 || nodes["focus/name"].Y < 940 || nodes["focus/ammo"].X < 1550 || nodes["focus/ammo"].Y < 950 {
 			t.Fatalf("%s lost the reference composition", theme.ID)
@@ -64,7 +71,7 @@ func TestReferenceLayoutPaintsOnlyTheUpperStripAndLowerCorners(t *testing.T) {
 		t.Skip("FFmpeg unavailable")
 	}
 	allowed := []image.Rectangle{
-		image.Rect(440, 20, 1480, 100),
+		image.Rect(440, 20, 1480, 122),
 		image.Rect(24, 935, 332, 1050),
 		image.Rect(1548, 946, 1896, 1050),
 	}

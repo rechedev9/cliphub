@@ -57,9 +57,15 @@ func (r *Renderer) ASS(d Timeline, window Window) (string, error) {
 	}
 	startTick := window.StartTick + int(window.SourceOffsetFrames*int64(d.TickRate)/60)
 	endTick := window.StartTick + int((window.SourceOffsetFrames+window.Frames-1)*int64(d.TickRate)/60)
-	initial, ok := d.At(startTick)
-	if !ok || endTick > d.EndTick {
+	if _, ok := d.At(startTick); !ok || endTick > d.EndTick {
 		return "", fmt.Errorf("HUD telemetry does not cover the render window")
+	}
+	// Round kills and streaks depend on every earlier snapshot, not only the window.
+	tracker := &roundTracker{}
+	first := 0
+	var initial Snapshot
+	for ; first < len(d.Snapshots) && d.Snapshots[first].Tick <= startTick; first++ {
+		initial = tracker.next(d.Snapshots[first])
 	}
 	if !hasTarget(initial, d.TargetSteamID) {
 		return "", fmt.Errorf("HUD telemetry has no observed player at tick %d", startTick)
@@ -67,17 +73,22 @@ func (r *Renderer) ASS(d Timeline, window Window) (string, error) {
 	var b strings.Builder
 	b.WriteString("[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nScaledBorderAndShadow: yes\nWrapStyle: 2\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: HUD,Montserrat ExtraBold,20,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
 	type activeNode struct {
-		node  Node
-		start int64
+		node     Node
+		start    int64
+		entrance bool
 	}
 	active := map[string]activeNode{}
 	emit := func(a activeNode, end int64) {
 		if end <= a.start {
 			return
 		}
-		fmt.Fprintf(&b, "Dialogue: %d,%s,%s,HUD,,0,0,0,,%s\n", a.node.Layer, assTime(a.start), assTime(end), assNode(a.node))
+		text := assNode(a.node)
+		if a.entrance && a.node.FadeIn {
+			text = fadeIn(text)
+		}
+		fmt.Fprintf(&b, "Dialogue: %d,%s,%s,HUD,,0,0,0,,%s\n", a.node.Layer, assTime(a.start), assTime(end), text)
 	}
-	apply := func(state Snapshot, frame int64) {
+	apply := func(state Snapshot, frame int64, entrance bool) {
 		next := map[string]Node{}
 		for _, node := range r.Scene(state, d.TargetSteamID) {
 			next[node.ID] = node
@@ -96,18 +107,16 @@ func (r *Renderer) ASS(d Timeline, window Window) (string, error) {
 		}
 		for key, node := range next {
 			if _, ok := active[key]; !ok {
-				active[key] = activeNode{node, frame}
+				active[key] = activeNode{node, frame, entrance}
 			}
 		}
 	}
-	apply(initial, 0)
-	for _, state := range d.Snapshots {
-		if state.Tick <= startTick {
-			continue
-		}
-		if state.Tick > endTick {
+	apply(initial, 0, false)
+	for _, recorded := range d.Snapshots[first:] {
+		if recorded.Tick > endTick {
 			break
 		}
+		state := tracker.next(recorded)
 		if !hasTarget(state, d.TargetSteamID) {
 			return "", fmt.Errorf("HUD telemetry lost observed player at tick %d", state.Tick)
 		}
@@ -118,7 +127,7 @@ func (r *Renderer) ASS(d Timeline, window Window) (string, error) {
 		if frame < 0 {
 			continue
 		}
-		apply(state, frame)
+		apply(state, frame, true)
 	}
 	keys := make([]string, 0, len(active))
 	for key := range active {
@@ -129,6 +138,7 @@ func (r *Renderer) ASS(d Timeline, window Window) (string, error) {
 		emit(active[key], window.Frames)
 	}
 	r.writeDamageEvents(&b, d, window)
+	r.writeDefuseEvents(&b, d, window)
 	return b.String(), nil
 }
 

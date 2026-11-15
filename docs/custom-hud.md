@@ -379,3 +379,29 @@ The PR was closed unmerged on 2026-08-26 and the pinned 2.192.4
 an official release ships it, it belongs in the "Original de CS2" capture
 profile; do not build it from the unmerged branch (see the HLAE pin rules in
 `docs/incidents.md`, HLAE pin and CS2 updates).
+
+## Round facts (renderer v8, telemetry v6)
+
+Every broadcast design shows these elements in the strip under the scoreboard:
+
+- **Players alive** under each score plate, counted from the snapshot roster.
+  A side with an unknown slot (no pawn data) shows no count.
+- **Round kills**: a `3K`, `4K` or `ACE` tag under the roster slot of a player
+  with three or more kills this round.
+- **Win streak**: `N IN A ROW` under the score plate of a team with four or more
+  round wins in a row. The streak follows the players, so it survives halftime.
+- **Defuse bar**: `WITH KIT` or `NO KIT` and a bar that fills until the bomb's
+  own `m_flDefuseCountDown`. With no recorded deadline the bar is not drawn.
+- **MVP card** at round end: the player, their round kills and the reason.
+
+Round kills and the streak are derived at render time by `roundTracker`
+(`internal/customhud/parse.go`) from the scoreboard kills and the team scores.
+They are not stored in the telemetry. The defuse and the MVP are recorded
+snapshot fields, which is why the telemetry version moved to v6.
+
+CS2 demos do not fire `round_mvp`, so the MVP comes from the scoreboard's
+`m_iMVPs` counter and the card shows no reason. The reason appears only for a
+demo that announces it. On three local match demos (2026-11-15) the defuse
+deadline was 10 s without a kit and 5 s with one, and the MVP was found for
+almost every round. Cards fade in over 12 frames on the source clock; a card
+already on screen at the start of a window does not fade again.
