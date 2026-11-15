@@ -222,6 +222,8 @@ export function coerceEditConfig(value: unknown): EditConfig {
   if (cfg.victimReplay && isVictimReplaySpeed(raw.victimReplaySpeed)) cfg.victimReplaySpeed = raw.victimReplaySpeed;
   if (raw.playBadges === true) cfg.playBadges = true;
   if (raw.winProbability === true) cfg.winProbability = true;
+  if (raw.playerLabels === true) cfg.playerLabels = true;
+  if (raw.grenadeTrails === true) cfg.grenadeTrails = true;
   if (raw.statsCard === true) cfg.statsCard = true;
   if (raw.brandWatermark === true) cfg.brandWatermark = true;
   if (raw.brandBanner === true) cfg.brandBanner = true;

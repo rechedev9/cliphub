@@ -52,6 +52,9 @@ type ShortEdit struct {
 	StatsCard         bool    `json:"stats_card,omitempty"`
 	// WinProbability shows each side's post-plant round-win chance.
 	WinProbability bool `json:"win_probability,omitempty"`
+	// PlayerLabels and GrenadeTrails draw names, health and team grenade paths over the gameplay.
+	PlayerLabels  bool `json:"player_labels,omitempty"`
+	GrenadeTrails bool `json:"grenade_trails,omitempty"`
 	// BrandWatermark and BrandBanner draw the saved brand kit (GetBrandKit).
 	BrandWatermark bool `json:"brand_watermark,omitempty"`
 	BrandBanner    bool `json:"brand_banner,omitempty"`

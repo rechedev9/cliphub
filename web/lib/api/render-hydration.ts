@@ -69,6 +69,8 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   if (parsed.victimReplay && isVictimReplaySpeed(edit.victim_replay_speed)) parsed.victimReplaySpeed = edit.victim_replay_speed;
   if (edit.play_badges === true) parsed.playBadges = true;
   if (edit.win_probability === true) parsed.winProbability = true;
+  if (edit.player_labels === true) parsed.playerLabels = true;
+  if (edit.grenade_trails === true) parsed.grenadeTrails = true;
   if (edit.stats_card === true) parsed.statsCard = true;
   // The effective edit holds the kit copy the render used; true is a request that has not been rendered yet.
   if (edit.brand_watermark === true || isBrandWatermark(edit.brand_watermark)) parsed.brandWatermark = true;

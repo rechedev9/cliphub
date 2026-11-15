@@ -61,3 +61,16 @@ test('the post-plant win chance travels for a kill Short and comes back from a r
   assert.equal('win_probability' in buildEditRequest({ ...FULL_DEMO_EDIT, winProbability: true }), false);
   assert.equal(constrainEditConfig(edit({ deathReel: true, winProbability: true })).winProbability, undefined);
 });
+
+test('player labels and grenade trails travel for plays, a death reel included, and come back from a render', () => {
+  const body = buildEditRequest(edit({ playerLabels: true, grenadeTrails: true, deathReel: true }));
+  assert.equal(body.player_labels, true);
+  assert.equal(body.grenade_trails, true);
+  const parsed = parseEffectiveEditConfig(body);
+  assert.equal(parsed?.playerLabels, true);
+  assert.equal(parsed?.grenadeTrails, true);
+  const recap = buildEditRequest(edit({ format: 'landscape-16x9', matchRecap: true, playerLabels: true, grenadeTrails: true }));
+  assert.equal('player_labels' in recap || 'grenade_trails' in recap, false);
+  const fullDemo = buildEditRequest({ ...FULL_DEMO_EDIT, playerLabels: true, grenadeTrails: true });
+  assert.equal('player_labels' in fullDemo || 'grenade_trails' in fullDemo, false);
+});

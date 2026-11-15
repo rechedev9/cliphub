@@ -275,6 +275,10 @@ export type EditConfig = {
   playBadges?: boolean;
   /** Each team's round-win chance after the plant, from the kill plan. */
   winProbability?: boolean;
+  /** Shorts only: name and health over teammates and over enemies the POV spotted or hit, read from the demo. */
+  playerLabels?: boolean;
+  /** Shorts only: the flight path of the POV team's grenades, read from the demo. */
+  grenadeTrails?: boolean;
   /** 9:16 only: a closing card with the player's match stats and FACEIT data when known. */
   statsCard?: boolean;
   /** Shorts only: the brand kit's logo as a watermark; the render copies the saved kit. */

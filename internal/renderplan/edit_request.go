@@ -70,6 +70,10 @@ type EditRequest struct {
 	PlayBadges bool `json:"play_badges,omitempty"`
 	// WinProbability shows each side's post-plant round-win chance from the kill plan.
 	WinProbability bool `json:"win_probability,omitempty"`
+	// PlayerLabels draws teammates' and seen enemies' names and health over the gameplay, and
+	// GrenadeTrails the paths of the POV team's grenades; the render reads both from the demo.
+	PlayerLabels  bool `json:"player_labels,omitempty"`
+	GrenadeTrails bool `json:"grenade_trails,omitempty"`
 	// StatsCard ends a 9:16 Short with the player's match stats and, when known, FACEIT data.
 	StatsCard           bool     `json:"stats_card,omitempty"`
 	CenteredKillfeed    bool     `json:"centered_killfeed,omitempty"`
@@ -190,7 +194,7 @@ func (r EditRequest) validateFields() error {
 	if r.FullDemo != nil {
 		o := r.FullDemo.Document.Options
 		if r.Format != FormatLandscape16x9 || r.KillEffect != KillEffectClean || r.Transition != TransitionCut ||
-			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.VictimReplaySpeed != 0 || r.PlayBadges || r.WinProbability || r.StatsCard || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.CoverFirstFrame ||
+			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.VictimReplaySpeed != 0 || r.PlayBadges || r.WinProbability || r.PlayerLabels || r.GrenadeTrails || r.StatsCard || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.CoverFirstFrame ||
 			r.IntroText != "" || r.OutroText != "" || r.KeyDropFamily != "" || r.KeyDropStyle != "" || r.KeyDropCode != "" ||
 			r.KeyDropPositionY != nil || r.KeyDropStartSeconds != nil || r.KeyDropEndSeconds != nil ||
 			r.VoiceComms != o.Audio.Voice.Enabled || r.VoiceVolume == nil || *r.VoiceVolume != o.Audio.Voice.Gain ||
@@ -206,6 +210,9 @@ func (r EditRequest) validateFields() error {
 	}
 	if r.SeparateShorts && (r.DeathReel || r.MatchRecap || r.FullDemo != nil) {
 		return fmt.Errorf("separate shorts are only for a reel of plays")
+	}
+	if (r.PlayerLabels || r.GrenadeTrails) && r.MatchRecap && r.FullDemo == nil {
+		return fmt.Errorf("player labels and grenade trails are for plays, not a match recap")
 	}
 	switch r.Format {
 	case FormatShort9x16, FormatLandscape16x9:

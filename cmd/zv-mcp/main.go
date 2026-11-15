@@ -57,6 +57,10 @@ has them) and victim_replay_speed (0.25, 0.5 or 1, with victim_replay).
 win_probability (generate_short) and plan_full_demo win_probability (custom HUD) show each team's round-win chance
 after the plant, from ClipHub's own wp1 model, only while the bomb has 5 s or more left and each side has 2 or more
 alive; in a Short it needs a job parsed with this version, and it hides whenever a fact is missing.
+generate_short player_labels draws over the gameplay the name and health of every teammate, and of an enemy while
+CS2 marks it spotted by the POV or the POV damages it; grenade_trails draws the path of the POV team's grenades.
+The render reads both from the demo and projects them through the POV's view; they hide while the POV is scoped or
+dead, are drawn on top of walls (the demo has no line of sight), and are not for Full Demo or a match recap.
 The brand kit (get_brand_kit, save_brand_kit) keeps the channel logo, drawn as a watermark in a corner with an
 opacity, and an own sponsor banner with a time window. generate_short and plan_full_demo take brand_watermark and
 brand_banner to apply it; the render copies the kit, and brand_banner does not go with the affiliate banner.

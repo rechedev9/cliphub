@@ -10,12 +10,12 @@ import (
 func TestResolveEditShortOverlays(t *testing.T) {
 	on := true
 	quarter, half, odd := 0.25, 0.5, 0.75
-	edit, err := resolveEdit(shortChoices{PlayBadges: &on, WinProbability: &on, StatsCard: &on, VictimReplay: &on, VictimReplaySpeed: &quarter})
+	edit, err := resolveEdit(shortChoices{PlayBadges: &on, WinProbability: &on, PlayerLabels: &on, GrenadeTrails: &on, StatsCard: &on, VictimReplay: &on, VictimReplaySpeed: &quarter})
 	if err != nil {
 		t.Fatal(err)
 	}
 	req := decodeEdit(t, edit)
-	if !req.PlayBadges || !req.WinProbability || !req.StatsCard || req.VictimReplaySpeed != 0.25 {
+	if !req.PlayBadges || !req.WinProbability || !req.PlayerLabels || !req.GrenadeTrails || !req.StatsCard || req.VictimReplaySpeed != 0.25 {
 		t.Fatalf("overlays not sent: %+v", req)
 	}
 	if err := req.Validate(); err != nil {
@@ -34,7 +34,7 @@ func TestResolveEditShortOverlays(t *testing.T) {
 		}
 	}
 	summary := describeShortRequest(tuiclient.GenerateRequest{Edit: edit})
-	if !strings.Contains(summary, "play_badges") || !strings.Contains(summary, "win_probability") || !strings.Contains(summary, "stats_card") || !strings.Contains(summary, "repetición a 0.25x") {
+	if !strings.Contains(summary, "play_badges") || !strings.Contains(summary, "win_probability") || !strings.Contains(summary, "player_labels") || !strings.Contains(summary, "grenade_trails") || !strings.Contains(summary, "stats_card") || !strings.Contains(summary, "repetición a 0.25x") {
 		t.Errorf("summary misses the overlays: %s", summary)
 	}
 }

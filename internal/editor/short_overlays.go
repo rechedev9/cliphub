@@ -25,6 +25,8 @@ type ShortOverlays struct {
 	WinProbability map[string][]WinProbCue `json:"win_probability,omitempty"`
 	// StatsCard closes a 9:16 Short with the player's match stats.
 	StatsCard *StatsCard `json:"stats_card,omitempty"`
+	// World holds each segment clip's player labels and grenade trails script.
+	World *WorldOverlay `json:"world,omitempty"`
 	// Watermark and Banner are the creator's brand kit, prepared by prepareBrandOverlays.
 	Watermark *BrandWatermark `json:"watermark,omitempty"`
 	Banner    *SponsorBanner  `json:"sponsor_banner,omitempty"`

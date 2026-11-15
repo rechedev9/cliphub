@@ -2540,9 +2540,7 @@ func (w *RenderWorker) writeEditorInputs(ctx context.Context, cfg RenderWorkerCo
 		return editorInvocation{}, err
 	}
 	args = append(append(append(args, bookendTextArgs(edit)...), keyDropArgs(edit)...), brandArgs...)
-	if cardPath := w.writeShortStatsCard(j, workDir, edit); cardPath != "" {
-		args = append(args, "--stats-card", cardPath)
-	}
+	args = append(args, w.shortDataArgs(ctx, shortDataInput{job: j, edit: edit, result: in.recordingResult, workDir: workDir})...)
 	if cfg.FFmpegPath != "" {
 		args = append(args, "--ffmpeg", cfg.FFmpegPath)
 	}

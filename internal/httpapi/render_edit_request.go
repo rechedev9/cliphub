@@ -27,6 +27,8 @@ type renderEditRequest struct {
 	VictimReplaySpeed   *float64            `json:"victim_replay_speed"`
 	PlayBadges          *bool               `json:"play_badges"`
 	WinProbability      *bool               `json:"win_probability"`
+	PlayerLabels        *bool               `json:"player_labels"`
+	GrenadeTrails       *bool               `json:"grenade_trails"`
 	StatsCard           *bool               `json:"stats_card"`
 	CenteredKillfeed    *bool               `json:"centered_killfeed"`
 	CoverStrategy       *string             `json:"cover_strategy"`
@@ -101,6 +103,12 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.WinProbability != nil {
 		base.WinProbability = *r.WinProbability
+	}
+	if r.PlayerLabels != nil {
+		base.PlayerLabels = *r.PlayerLabels
+	}
+	if r.GrenadeTrails != nil {
+		base.GrenadeTrails = *r.GrenadeTrails
 	}
 	if r.StatsCard != nil {
 		base.StatsCard = *r.StatsCard

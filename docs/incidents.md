@@ -575,3 +575,28 @@ Studio treats those maps as prepared again: the next import of an imported map s
 the new file and refreshes its series while the series is still marked as written by an
 import. A new `cliphub-community` also adds the `series` column to an old catalog on
 first open and clears the file stamps, so its first `pro-matches` run rereads every analysis.
+
+## Player labels and grenade trails over the gameplay (`internal/worldoverlay`, C4, 2026-11-15)
+
+`player_labels` and `grenade_trails` are drawn by `zv-editor`, not by CS2 or HLAE.
+
+- CS2's own overhead names would need `cl_teamid_overhead_mode` and
+  `cl_drawhud_force_teamid_overhead`, which the Full Demo capture evidence pins
+  and `recording.CaptureInputFingerprint` hashes, so turning them on changes the
+  certified capture. Grenade trajectory cvars work only on a listen server, not
+  in demo playback. Keep the capture unchanged.
+- The render worker reads the demo inside each captured play
+  (`parser.ExtractWorldTrack`, `world-track.json`): the POV's eye and view
+  angles, the other living players, CS2's `m_bSpottedByMask` and the POV's
+  `player_hurt`, and the grenade projectiles. `worldoverlay.Script` projects
+  them with CS2's camera (default FOV 90 on a 4:3 basis, so the focal length is
+  height / 1.5) into one ASS script per segment clip, drawn before any scale,
+  crop or zoom. Tests: `internal/worldoverlay`, `TestRunDrawsTheWorldOverlayOnEachPlayButNotTheReplay`.
+- The demo has no line of sight. An enemy is labelled only while CS2 marks it
+  spotted by the POV or right after the POV hits it, and every label is drawn on
+  top of walls. Only the POV team's grenades get a trail.
+- Labels hide while the POV is scoped, for a few ticks after a zoom change (CS2
+  animates the FOV), and while the POV is dead. A victim replay part, a match
+  recap and a Full Demo get no world overlay.
+- A missing demo or a failed read renders the Short without the overlay and logs
+  why; a track of another demo or tick rate fails the render.

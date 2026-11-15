@@ -42,7 +42,7 @@ func BuildFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 		command = append(command,
 			"-map", "0:v:0",
 			"-map", "0:a?",
-			"-vf", VideoFilter(short),
+			"-vf", sourceVideoFilter(short),
 		)
 	}
 	command = appendVideoEncodeArgs(command, short)
@@ -98,7 +98,7 @@ func BuildMusicFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 		audioOut += ",loudnorm=I=-16:TP=-1.5:LRA=11"
 	}
 	audioOut += "[a]"
-	videoClauses := []string{fmt.Sprintf("[0:v]%s[v]", VideoFilter(short))}
+	videoClauses := []string{fmt.Sprintf("[0:v]%s[v]", sourceVideoFilter(short))}
 	if killfeeds := killfeedEffects(short.Effects); len(killfeeds) > 0 || short.CoverFirstFrame || len(singleClipBrandImages(short)) > 0 {
 		videoClauses = singleClipVideoClauses(short, killfeeds)
 	}
@@ -161,7 +161,7 @@ func tailTrimArgs(short ShortEdit) []string {
 func singleClipVideoClauses(short ShortEdit, killfeeds []Effect) []string {
 	var clauses []string
 	if len(killfeeds) == 0 {
-		clauses = []string{fmt.Sprintf("[0:v]%s[vbase]", VideoFilter(short))}
+		clauses = []string{fmt.Sprintf("[0:v]%s[vbase]", sourceVideoFilter(short))}
 	} else {
 		split := fmt.Sprintf("[0:v]split=%d[main]", len(killfeeds)+1)
 		for i := range killfeeds {
@@ -169,7 +169,7 @@ func singleClipVideoClauses(short ShortEdit, killfeeds []Effect) []string {
 		}
 		clauses = []string{
 			split,
-			fmt.Sprintf("[main]%s[vbase]", VideoFilter(short)),
+			fmt.Sprintf("[main]%s[vbase]", sourceVideoFilter(short)),
 		}
 	}
 	current := "vbase"
@@ -305,6 +305,10 @@ func CompilationFilter(short ShortEdit) string {
 	for i, part := range short.Parts {
 		partShort.SegmentOrdinal = i + 1
 		partShort.SegmentTotal = len(short.Parts)
+		world := ""
+		if !isVictimReplayPart(part) {
+			world = worldOverlayFilter(short, part.SegmentID)
+		}
 		partDuration := compilationPartDuration(short, part)
 		partFrames := max(1, int(math.Round(partDuration*float64(fps))))
 		gapFrames := int(math.Round(part.GapBeforeSeconds * float64(fps)))
@@ -322,8 +326,8 @@ func CompilationFilter(short ShortEdit) string {
 					// trim to a single source frame before VideoFilter: only
 					// that frame survives, so filtering the rest of the part
 					// just to discard it is wasted work.
-					"[%d:v]trim=end_frame=1,%s,loop=loop=-1:size=1:start=0,setpts=N/%d/TB,trim=end_frame=%d[%s]",
-					i, VideoFilter(partShort), fps, gapFrames, gapV,
+					"[%d:v]trim=end_frame=1,%s%s,loop=loop=-1:size=1:start=0,setpts=N/%d/TB,trim=end_frame=%d[%s]",
+					i, world, VideoFilter(partShort), fps, gapFrames, gapV,
 				),
 				fmt.Sprintf("anullsrc=channel_layout=stereo:sample_rate=48000:d=%.6f[%s]", gapDuration, gapA),
 			)
@@ -337,7 +341,7 @@ func CompilationFilter(short ShortEdit) string {
 			slowFlash = "" // The transition already flashes into every part.
 		}
 		clauses = append(clauses,
-			fmt.Sprintf("[%d:v]%s%s%s,trim=end_frame=%d,setpts=PTS-STARTPTS[%s]", i, slowIn, VideoFilter(partShort), slowFlash, partFrames, videoLabel),
+			fmt.Sprintf("[%d:v]%s%s%s%s,trim=end_frame=%d,setpts=PTS-STARTPTS[%s]", i, world, slowIn, VideoFilter(partShort), slowFlash, partFrames, videoLabel),
 			fmt.Sprintf("[%d:a]aformat=channel_layouts=stereo,aresample=48000%s,atrim=duration=%.6f,asetpts=PTS-STARTPTS[%s]", i, slowAudio, partDuration, audioLabel),
 		)
 		if voice := voiceMixFilter(short, i, part, audioLabel, partDuration); voice != "" {

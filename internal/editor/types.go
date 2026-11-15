@@ -175,6 +175,11 @@ type Config struct {
 	StatsCardPath string
 	// WinProbability shows each side's post-plant round-win chance from the kill plan.
 	WinProbability bool
+	// PlayerLabels and GrenadeTrails draw names, health and team grenade paths over the gameplay
+	// from WorldTrackPath, the worldoverlay.Track the render worker sampled from the demo.
+	PlayerLabels   bool
+	GrenadeTrails  bool
+	WorldTrackPath string
 	// Watermark and SponsorBanner are the brand kit images; their Path is the uploaded file.
 	Watermark     *BrandWatermark
 	SponsorBanner *SponsorBanner

@@ -1,6 +1,6 @@
 'use client';
 
-import { ChartColumn, Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Percent, Rewind, Trophy, Type, Zap } from 'lucide-react';
+import { ChartColumn, Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Percent, Rewind, Spline, Trophy, Type, UserRound, Zap } from 'lucide-react';
 import {
   AFFILIATE_FAMILY_CATALOG,
   BOOKEND_TEXT_MAX_LENGTH,
@@ -256,6 +256,35 @@ export function EditOptions({
                 Tras cada jugada, su última baja otra vez, vista por quien muere. A 1x va a velocidad real.
               </p>
             </>
+          ) : null}
+        </OptionBlock>
+      )}
+
+      {showFullDemoDelivery || value.matchRecap ? null : (
+        <OptionBlock label="Sobre el juego" className="md:col-span-2">
+          <ToggleGroup
+            type="multiple"
+            value={[value.playerLabels ? 'player-labels' : '', value.grenadeTrails ? 'grenade-trails' : ''].filter(Boolean)}
+            onValueChange={(items) =>
+              onChange({ ...value, playerLabels: items.includes('player-labels'), grenadeTrails: items.includes('grenade-trails') })
+            }
+            disabled={disabled}
+            variant="outline"
+            className="flex-wrap"
+          >
+            <ToggleGroupItem value="player-labels" aria-label="Nombres y vida">
+              <UserRound className="size-4" />
+              Nombres y vida
+            </ToggleGroupItem>
+            <ToggleGroupItem value="grenade-trails" aria-label="Estelas de granadas">
+              <Spline className="size-4" />
+              Estelas de granadas
+            </ToggleGroupItem>
+          </ToggleGroup>
+          {value.playerLabels || value.grenadeTrails ? (
+            <p className="text-body-sm text-fg-3">
+              Se leen de la demo y se dibujan sobre la jugada: nombre y vida de tus compañeros y de los rivales que CS2 marca como vistos o que dañas, y la trayectoria de las granadas de tu equipo. Se ocultan con la mira de zoom o al morir y se ven a través de las paredes.
+            </p>
           ) : null}
         </OptionBlock>
       )}

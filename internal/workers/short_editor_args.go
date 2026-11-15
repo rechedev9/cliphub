@@ -8,6 +8,7 @@ import (
 )
 
 // shortOverlayArgs are the editor flags of the victim replay, the centered kill feed, the play badges and the win chance.
+// The player labels and grenade trails go with their world track (shortDataArgs).
 func shortOverlayArgs(edit renderplan.EditRequest) []string {
 	var args []string
 	if edit.VictimReplay {

@@ -101,6 +101,9 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		victimReplaySpeed   = fs.Float64("victim-replay-speed", 0, "victim replay speed: 0.25, 0.5 or 1; 0 keeps half speed")
 		playBadges          = fs.Bool("play-badges", false, "name each play's clutch, ace or multikill on screen")
 		winProbability      = fs.Bool("win-probability", false, "show each side's post-plant round-win chance from the kill plan")
+		playerLabels        = fs.Bool("player-labels", false, "draw each teammate's and each spotted enemy's name and health over the gameplay; needs --world-track")
+		grenadeTrails       = fs.Bool("grenade-trails", false, "draw the paths of the POV team's grenades over the gameplay; needs --world-track")
+		worldTrack          = fs.String("world-track", "", "optional world overlay track JSON sampled from the demo for --player-labels and --grenade-trails")
 		statsCard           = fs.String("stats-card", "", "optional stats card JSON drawn at the end of a 9:16 short")
 		watermarkImage      = fs.String("watermark-image", "", "optional PNG or JPG logo drawn as a watermark for the whole short")
 		watermarkCorner     = fs.String("watermark-corner", "top-right", "watermark corner: top-left, top-right, bottom-left or bottom-right")
@@ -225,6 +228,9 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		VictimReplaySpeed:     *victimReplaySpeed,
 		PlayBadges:            *playBadges,
 		WinProbability:        *winProbability,
+		PlayerLabels:          *playerLabels,
+		GrenadeTrails:         *grenadeTrails,
+		WorldTrackPath:        *worldTrack,
 		StatsCardPath:         *statsCard,
 		Watermark:             brandWatermarkFlag(*watermarkImage, *watermarkCorner, *watermarkOpacity),
 		SponsorBanner:         sponsorBannerFlag(*sponsorImage, *sponsorStart, *sponsorEnd),

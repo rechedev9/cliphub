@@ -490,6 +490,8 @@ function overlaysSummary(edit: EditConfig): string {
   if (edit.intro || edit.outro) parts.push('Intro / outro');
   if (edit.playBadges) parts.push('Insignias');
   if (edit.winProbability) parts.push('Prob. de victoria');
+  if (edit.playerLabels) parts.push('Nombres y vida');
+  if (edit.grenadeTrails) parts.push('Estelas de granadas');
   if (edit.statsCard && edit.format === 'short-9x16') parts.push('Estadísticas');
   if (edit.victimReplay) parts.push('Repetición');
   if (edit.brandWatermark) parts.push('Marca de agua');

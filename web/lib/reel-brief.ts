@@ -107,6 +107,12 @@ export function constrainEditConfig(edit: EditConfig): EditConfig {
   return next;
 }
 
+function worldOverlayLabel(edit: EditConfig): string {
+  if (edit.matchRecap) return 'No';
+  const parts = [edit.playerLabels ? 'Nombres y vida' : '', edit.grenadeTrails ? 'Estelas de granadas' : ''].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : 'No';
+}
+
 /** The exact values used for capture and rendering. */
 export function reelCreativeBrief(
   raw: EditConfig,
@@ -138,6 +144,7 @@ export function reelCreativeBrief(
     { label: 'Título / contador', value: `${edit.hookText ? 'Título automático' : 'Sin título automático'} · ${edit.killCounter ? 'Contador activado' : 'Sin contador'}` },
     { label: 'Insignias / tarjeta', value: `${edit.playBadges ? 'Insignias de jugada' : 'Sin insignias'} · ${edit.statsCard ? 'Tarjeta de estadísticas' : 'Sin tarjeta'}` },
     { label: 'Prob. de victoria', value: edit.winProbability ? 'Tras el plantado' : 'No' },
+    { label: 'Sobre el juego', value: worldOverlayLabel(edit) },
     { label: 'Intro', value: bookendLabel(edit.intro, edit.introText, 'titular generado') },
     { label: 'Outro', value: bookendLabel(edit.outro, edit.outroText, 'firma ClipHub') },
     {
