@@ -25,6 +25,7 @@ import {
   SHORT_TARGET_SECONDS,
 } from '@/lib/produce/short-selection';
 import { canForgeReel, constrainEditConfig, reelCreativeBrief, verticalHudAllowed, withPresetLimits, type MusicBrief } from '@/lib/reel-brief';
+import { radarAllowed } from '@/lib/radar-overlay';
 import { selectShortsFormat, selectShortsPreset, shortsPresetsForFormat } from '@/lib/reel-format';
 import { cn } from '@/lib/utils';
 import { presetDescription } from '@/lib/preset-copy';
@@ -388,6 +389,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
                 killCounter={!multiPov}
                 statsCard={!multiPov}
                 verticalHud={hudAllowed}
+                radar={radarAllowed(selectedPreset)}
               />
             </div>
           </details>
@@ -490,6 +492,7 @@ function overlaysSummary(edit: EditConfig): string {
   if (edit.killCounter) parts.push('Kill counter');
   if (edit.verticalHud && edit.format === 'short-9x16' && !edit.deathReel) parts.push('HUD vertical');
   if ((edit.centeredKillfeed || edit.verticalHud) && edit.format === 'short-9x16' && !edit.deathReel) parts.push('Kill feed centrada');
+  if (edit.radar) parts.push('Radar');
   if (edit.hookText) parts.push('Título');
   if (edit.intro || edit.outro) parts.push('Intro / outro');
   if (edit.playBadges) parts.push('Insignias');

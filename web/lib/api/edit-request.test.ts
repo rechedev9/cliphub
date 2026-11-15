@@ -111,3 +111,23 @@ test('buildEditRequest sends the vertical HUD with its kill feed only for a vert
     assert.equal('centered_killfeed' in body, false);
   }
 });
+
+test('buildEditRequest sends the radar with its chosen options only for a Short without CS2 HUD', () => {
+  const body = buildEditRequest(edit({ radar: true, radarPosition: 'top-right', radarSize: 'large', radarOpacity: 0.6 }));
+  assert.equal(body.radar, true);
+  assert.equal(body.radar_position, 'top-right');
+  assert.equal(body.radar_size, 'large');
+  assert.equal(body.radar_opacity, 0.6);
+  // Defaults go unset, as the server stores them, so a rendered radar reads back as the same request.
+  const defaults = buildEditRequest(edit({ radar: true, radarSize: 'medium', radarOpacity: 0.9 }));
+  assert.equal(defaults.radar, true);
+  for (const key of ['radar_position', 'radar_size', 'radar_opacity'] as const) assert.equal(key in defaults, false);
+  for (const off of [
+    edit({ radar: true, nativeHud: true }),
+    edit({ radar: true, matchRecap: true }),
+    edit({ radarPosition: 'top-left', radarSize: 'large' }),
+  ]) {
+    const sent = buildEditRequest(off);
+    for (const key of ['radar', 'radar_position', 'radar_size', 'radar_opacity'] as const) assert.equal(key in sent, false);
+  }
+});

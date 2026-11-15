@@ -2,6 +2,7 @@ import { affiliateFamilyLabel, affiliateStyleLabel, type EditConfig, type Preset
 import { verticalHudTheme } from './custom-hud.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
 import { formatDecimal } from './format.ts';
+import { radarAllowed, radarBriefLabel } from './radar-overlay.ts';
 import { resolvedReelFormat } from './reel-format.ts';
 
 export type CreativeBriefItem = {
@@ -117,12 +118,22 @@ export function verticalHudAllowed(preset: Pick<Preset, 'hudMode'> | null): bool
   return preset?.hudMode !== 'gameplay';
 }
 
-/** The edit that is sent: a vertical HUD the chosen style cannot carry stays in the draft only. */
+/** The edit that is sent: a vertical HUD or a radar the chosen style cannot carry stays in the draft only. */
 export function withPresetLimits(edit: EditConfig, preset: Pick<Preset, 'hudMode'> | null): EditConfig {
-  if (!edit.verticalHud || verticalHudAllowed(preset)) return edit;
+  const dropHud = !!edit.verticalHud && !verticalHudAllowed(preset);
+  const dropRadar = !!edit.radar && !radarAllowed(preset);
+  if (!dropHud && !dropRadar) return edit;
   const next: EditConfig = { ...edit };
-  delete next.verticalHud;
-  delete next.verticalHudTheme;
+  if (dropHud) {
+    delete next.verticalHud;
+    delete next.verticalHudTheme;
+  }
+  if (dropRadar) {
+    delete next.radar;
+    delete next.radarPosition;
+    delete next.radarSize;
+    delete next.radarOpacity;
+  }
   return next;
 }
 
@@ -166,6 +177,7 @@ export function reelCreativeBrief(
     { label: 'Insignias / tarjeta', value: `${edit.playBadges ? 'Insignias de jugada' : 'Sin insignias'} · ${edit.statsCard ? 'Tarjeta de estadísticas' : 'Sin tarjeta'}` },
     { label: 'Prob. de victoria', value: edit.winProbability ? 'Tras el plantado' : 'No' },
     { label: 'Sobre el juego', value: worldOverlayLabel(edit) },
+    { label: 'Radar', value: radarBriefLabel(edit) },
     { label: 'Intro', value: bookendLabel(edit.intro, edit.introText, 'titular generado') },
     { label: 'Outro', value: bookendLabel(edit.outro, edit.outroText, 'firma ClipHub') },
     {

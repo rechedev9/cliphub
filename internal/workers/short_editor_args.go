@@ -8,7 +8,7 @@ import (
 )
 
 // shortOverlayArgs are the editor flags of the victim replay, the centered kill feed, the play badges,
-// the win chance and the vertical HUD.
+// the win chance, the vertical HUD and the radar.
 // The player labels and grenade trails go with their world track (shortDataArgs).
 func shortOverlayArgs(edit renderplan.EditRequest) []string {
 	var args []string
@@ -31,6 +31,18 @@ func shortOverlayArgs(edit renderplan.EditRequest) []string {
 		args = append(args, "--vertical-hud")
 		if edit.VerticalHUDTheme != "" {
 			args = append(args, "--vertical-hud-theme", edit.VerticalHUDTheme)
+		}
+	}
+	if edit.Radar {
+		args = append(args, "--radar")
+		if edit.RadarPosition != "" {
+			args = append(args, "--radar-position", edit.RadarPosition)
+		}
+		if edit.RadarSize != "" {
+			args = append(args, "--radar-size", edit.RadarSize)
+		}
+		if edit.RadarOpacity != 0 {
+			args = append(args, "--radar-opacity", strconv.FormatFloat(edit.RadarOpacity, 'f', -1, 64))
 		}
 	}
 	return args

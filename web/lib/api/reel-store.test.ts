@@ -222,3 +222,15 @@ test('coerceEditConfig keeps the vertical HUD and only a catalog design for it',
   assert.equal(coerceEditConfig({ verticalHud: 'yes', verticalHudTheme: 'prism' }).verticalHud, undefined);
   assert.equal(coerceEditConfig({ verticalHudTheme: 'prism' }).verticalHudTheme, undefined);
 });
+
+test('coerceEditConfig keeps the radar and only the options it knows', () => {
+  const kept = coerceEditConfig({ format: 'short-9x16', radar: true, radarPosition: 'bottom-right', radarSize: 'small', radarOpacity: 0.5 });
+  assert.equal(kept.radar, true);
+  assert.equal(kept.radarPosition, 'bottom-right');
+  assert.equal(kept.radarSize, 'small');
+  assert.equal(kept.radarOpacity, 0.5);
+  const odd = coerceEditConfig({ radar: true, radarPosition: 'center', radarSize: 'huge', radarOpacity: 0.1 });
+  assert.equal(odd.radar, true);
+  assert.equal(odd.radarPosition ?? odd.radarSize ?? odd.radarOpacity, undefined);
+  assert.equal(coerceEditConfig({ radarPosition: 'top-left' }).radarPosition, undefined);
+});

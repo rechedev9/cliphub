@@ -48,6 +48,9 @@ func (g GenerateIntent) Validate() error {
 	if preset, _ := editor.PresetByName(g.Variant); g.Edit.VerticalHUD && preset.HUDMode == "gameplay" {
 		return fmt.Errorf("the vertical HUD needs a preset that records without the CS2 HUD, not %s", g.Variant)
 	}
+	if preset, _ := editor.PresetByName(g.Variant); g.Edit.Radar && preset.HUDMode == "gameplay" {
+		return fmt.Errorf("ClipHub's radar needs a preset that records without the CS2 HUD and its radar, not %s", g.Variant)
+	}
 	if g.MusicVolume < 0 || g.MusicVolume > 1 {
 		return fmt.Errorf("music volume must be between 0 and 1")
 	}

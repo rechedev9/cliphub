@@ -245,7 +245,7 @@ func brandImageSize(path string) (int, int, error) {
 func singleClipBrandImages(short ShortEdit) []Effect {
 	var out []Effect
 	for _, effect := range imageEffects(short.Effects) {
-		if effect.Source == "brand-watermark" || effect.Source == "brand-banner" {
+		if effect.Source == "brand-watermark" || effect.Source == "brand-banner" || effect.Source == "radar" {
 			out = append(out, effect)
 		}
 	}

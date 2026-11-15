@@ -107,6 +107,13 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		verticalHUD         = fs.Bool("vertical-hud", false, "draw the 9:16 scoreboard and alive counter at the top of the Short; needs --vertical-hud-track")
 		verticalHUDTheme    = fs.String("vertical-hud-theme", "", "custom HUD catalog design of --vertical-hud; empty uses the first design")
 		verticalHUDTrack    = fs.String("vertical-hud-track", "", "optional vertical HUD track JSON read from the demo for --vertical-hud")
+		radar               = fs.Bool("radar", false, "draw ClipHub's radar with players, smokes, fires, flashes and the bomb in a corner; needs --radar-track")
+		radarPosition       = fs.String("radar-position", "", "radar corner: top-left, top-right, bottom-left or bottom-right; empty picks the format's corner")
+		radarSize           = fs.String("radar-size", "", "radar size: small, medium or large; empty is medium")
+		radarOpacity        = fs.Float64("radar-opacity", 0, "radar opacity from 0.4 to 1; 0 is the default 0.9")
+		radarTrack          = fs.String("radar-track", "", "optional radar track JSON read from the demo for --radar")
+		radarImage          = fs.String("radar-image", "", "optional map art PNG under the radar")
+		radarImageLower     = fs.String("radar-image-lower", "", "optional lower level map art PNG of a two-level map")
 		statsCard           = fs.String("stats-card", "", "optional stats card JSON drawn at the end of a 9:16 short")
 		watermarkImage      = fs.String("watermark-image", "", "optional PNG or JPG logo drawn as a watermark for the whole short")
 		watermarkCorner     = fs.String("watermark-corner", "top-right", "watermark corner: top-left, top-right, bottom-left or bottom-right")
@@ -237,6 +244,13 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		VerticalHUD:           *verticalHUD,
 		VerticalHUDTheme:      *verticalHUDTheme,
 		VerticalHUDTrackPath:  *verticalHUDTrack,
+		Radar:                 *radar,
+		RadarPosition:         *radarPosition,
+		RadarSize:             *radarSize,
+		RadarOpacity:          *radarOpacity,
+		RadarTrackPath:        *radarTrack,
+		RadarImagePath:        *radarImage,
+		RadarLowerImagePath:   *radarImageLower,
 		StatsCardPath:         *statsCard,
 		Watermark:             brandWatermarkFlag(*watermarkImage, *watermarkCorner, *watermarkOpacity),
 		SponsorBanner:         sponsorBannerFlag(*sponsorImage, *sponsorStart, *sponsorEnd),

@@ -2,6 +2,7 @@ import type { ReelIntent } from './reel-store';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import { isBrandBanner, isBrandWatermark } from '../brand-kit.ts';
 import { isCustomHudTheme } from '../custom-hud.ts';
+import { coerceRadarOpacity, isRadarPosition, isRadarSize } from '../radar-overlay.ts';
 import {
   isAffiliateStyle,
   isDemoSource,
@@ -79,6 +80,13 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   if (edit.centered_killfeed === true) parsed.centeredKillfeed = true;
   if (edit.vertical_hud === true) parsed.verticalHud = true;
   if (parsed.verticalHud && isCustomHudTheme(edit.vertical_hud_theme)) parsed.verticalHudTheme = edit.vertical_hud_theme;
+  if (edit.radar === true) {
+    parsed.radar = true;
+    if (isRadarPosition(edit.radar_position)) parsed.radarPosition = edit.radar_position;
+    if (isRadarSize(edit.radar_size)) parsed.radarSize = edit.radar_size;
+    const radarOpacity = coerceRadarOpacity(edit.radar_opacity);
+    if (radarOpacity !== undefined) parsed.radarOpacity = radarOpacity;
+  }
   if (
     typeof edit.voice_volume === 'number' &&
     Number.isFinite(edit.voice_volume) &&

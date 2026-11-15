@@ -1,4 +1,5 @@
 import { persistAffiliateFamily } from '../affiliate-banner.ts';
+import { radarEditFields } from '../radar-overlay.ts';
 import { DEFAULT_VICTIM_REPLAY_SPEED, type EditConfig } from './types.ts';
 
 export type EditRequestBody = {
@@ -13,6 +14,10 @@ export type EditRequestBody = {
   centered_killfeed?: boolean;
   vertical_hud?: boolean;
   vertical_hud_theme?: string;
+  radar?: boolean;
+  radar_position?: string;
+  radar_size?: string;
+  radar_opacity?: number;
   match_recap: boolean;
   death_reel?: boolean;
   separate_shorts?: boolean;
@@ -80,6 +85,13 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
   }
   // The vertical HUD draws its kill feed under the scoreboard, so it always carries it.
   if ((edit.centeredKillfeed || verticalHud) && portraitShort) body.centered_killfeed = true;
+  const radar = radarEditFields(edit);
+  if (radar.radar) {
+    body.radar = true;
+    if (radar.radarPosition) body.radar_position = radar.radarPosition;
+    if (radar.radarSize) body.radar_size = radar.radarSize;
+    if (radar.radarOpacity !== undefined) body.radar_opacity = radar.radarOpacity;
+  }
   if (edit.voiceComms || edit.fullDemo) {
     body.voice_volume = edit.voiceVolume ?? 0.85;
   }

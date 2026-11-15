@@ -46,6 +46,11 @@ export function bestMomentsEdit(edit: EditConfig): EditConfig {
   delete next.centeredKillfeed;
   delete next.verticalHud;
   delete next.verticalHudTheme;
+  // The best-moments video records CS2's HUD, whose own radar is already in the frame.
+  delete next.radar;
+  delete next.radarPosition;
+  delete next.radarSize;
+  delete next.radarOpacity;
   delete next.statsCard;
   delete next.demoSource;
   delete next.overlayTheme;

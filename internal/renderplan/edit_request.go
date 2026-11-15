@@ -80,8 +80,14 @@ type EditRequest struct {
 	CenteredKillfeed bool `json:"centered_killfeed,omitempty"`
 	// VerticalHUD draws a 9:16 scoreboard and alive counter read from the demo over the Short, with the
 	// centered kill feed under it, in the VerticalHUDTheme catalog design (empty is the first one).
-	VerticalHUD         bool     `json:"vertical_hud,omitempty"`
-	VerticalHUDTheme    string   `json:"vertical_hud_theme,omitempty"`
+	VerticalHUD      bool   `json:"vertical_hud,omitempty"`
+	VerticalHUDTheme string `json:"vertical_hud_theme,omitempty"`
+	// Radar draws ClipHub's radar in a corner, read from the demo: RadarPosition (empty is the format's
+	// corner), RadarSize (empty is medium) and RadarOpacity (0 is radaroverlay.DefaultOpacity).
+	Radar               bool     `json:"radar,omitempty"`
+	RadarPosition       string   `json:"radar_position,omitempty"`
+	RadarSize           string   `json:"radar_size,omitempty"`
+	RadarOpacity        float64  `json:"radar_opacity,omitempty"`
 	CoverStrategy       string   `json:"cover_strategy"`
 	CoverFirstFrame     bool     `json:"cover_first_frame"`
 	IntroText           string   `json:"intro_text,omitempty"`
@@ -176,7 +182,7 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	if !req.VictimReplay || req.VictimReplaySpeed == DefaultVictimReplaySpeed {
 		req.VictimReplaySpeed = 0
 	}
-	return req
+	return normalizeRadar(req)
 }
 
 func (r EditRequest) Validate() error {
@@ -207,7 +213,7 @@ func (r EditRequest) validateFields() error {
 	if r.FullDemo != nil {
 		o := r.FullDemo.Document.Options
 		if r.Format != FormatLandscape16x9 || r.KillEffect != KillEffectClean || r.Transition != TransitionCut ||
-			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.VictimReplaySpeed != 0 || r.PlayBadges || r.WinProbability || r.PlayerLabels || r.GrenadeTrails || r.StatsCard || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.VerticalHUD || r.VerticalHUDTheme != "" || r.CoverFirstFrame ||
+			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.VictimReplaySpeed != 0 || r.PlayBadges || r.WinProbability || r.PlayerLabels || r.GrenadeTrails || r.StatsCard || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.VerticalHUD || r.VerticalHUDTheme != "" || r.Radar || r.RadarPosition != "" || r.RadarSize != "" || r.RadarOpacity != 0 || r.CoverFirstFrame ||
 			r.IntroText != "" || r.OutroText != "" || r.KeyDropFamily != "" || r.KeyDropStyle != "" || r.KeyDropCode != "" ||
 			r.KeyDropPositionY != nil || r.KeyDropStartSeconds != nil || r.KeyDropEndSeconds != nil ||
 			r.VoiceComms != o.Audio.Voice.Enabled || r.VoiceVolume == nil || *r.VoiceVolume != o.Audio.Voice.Gain ||
@@ -233,6 +239,9 @@ func (r EditRequest) validateFields() error {
 		return fmt.Errorf("unknown render format %q", r.Format)
 	}
 	if err := r.validateVerticalHUD(); err != nil {
+		return err
+	}
+	if err := r.validateRadar(); err != nil {
 		return err
 	}
 	if r.CenteredKillfeed && r.Format != FormatShort9x16 {

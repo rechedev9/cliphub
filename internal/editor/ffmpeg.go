@@ -194,6 +194,8 @@ func singleClipVideoClauses(short ShortEdit, killfeeds []Effect) []string {
 		clauses = appendImageOverlayClauses(clauses, current, singleClipImageInputStart(short), images, short, "vbrand")
 		current = "vbrand"
 	}
+	radar, current := radarClauses(short, current)
+	clauses = append(clauses, radar...)
 	coverClauses, current := coverFirstFrameClauses(short, current)
 	clauses = append(clauses, coverClauses...)
 	return append(clauses, fmt.Sprintf("[%s]format=yuv420p[v]", current))
@@ -424,6 +426,8 @@ func appendCompilationProgramVideo(clauses []string, short ShortEdit, catLabel s
 		clauses = appendImageOverlayClauses(clauses, current, imageInputStart, images, short, "vimages")
 		current = "vimages"
 	}
+	radar, current := radarClauses(short, current)
+	clauses = append(clauses, radar...)
 	coverClauses, coverOut := coverFirstFrameClauses(short, current)
 	clauses = append(clauses, coverClauses...)
 	return append(clauses, fmt.Sprintf("[%s]format=yuv420p[v]", coverOut))

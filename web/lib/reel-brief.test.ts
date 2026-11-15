@@ -63,6 +63,7 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Insignias / tarjeta', value: 'Sin insignias · Sin tarjeta' },
     { label: 'Prob. de victoria', value: 'No' },
     { label: 'Sobre el juego', value: 'No' },
+    { label: 'Radar', value: 'No' },
     { label: 'Intro', value: 'Sí · «Entrada»' },
     { label: 'Outro', value: 'No' },
     { label: 'Afiliado', value: 'No' },
@@ -316,4 +317,32 @@ test('the vertical HUD is sent only over a style without the CS2 HUD and only on
   for (const config of [constrainEditConfig({ ...edit, deathReel: true }), constrainEditConfig({ ...edit, format: 'landscape-16x9' })]) {
     assert.equal('verticalHud' in config || 'verticalHudTheme' in config, false);
   }
+});
+
+test('a style that records CS2 HUD drops the radar from the sent edit and the brief', () => {
+  const edit: EditConfig = {
+    format: 'short-9x16',
+    killEffect: 'clean',
+    transition: 'cut',
+    hookText: false,
+    killCounter: false,
+    matchRecap: false,
+    voiceComms: false,
+    nativeHud: false,
+    coverStrategy: 'no-cover',
+    intro: false,
+    outro: false,
+    radar: true,
+    radarPosition: 'top-right',
+    radarSize: 'large',
+    radarOpacity: 0.6,
+  };
+  const fullHud: Preset = { ...PRESET, name: 'full-hud-60', label: 'Full HUD', hudMode: 'gameplay' };
+  const radar = (config: EditConfig) =>
+    reelCreativeBrief(config, PRESET, { status: 'none' }).find((item) => item.label === 'Radar')?.value;
+  assert.equal(withPresetLimits(edit, PRESET), edit);
+  const limited = withPresetLimits(edit, fullHud);
+  for (const key of ['radar', 'radarPosition', 'radarSize', 'radarOpacity'] as const) assert.equal(key in limited, false);
+  assert.equal(radar(edit), 'Arriba a la derecha · Grande · 60 %');
+  assert.equal(radar(limited), 'No');
 });

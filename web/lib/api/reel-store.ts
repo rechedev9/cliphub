@@ -1,4 +1,5 @@
 import { isCustomHudTheme } from '../custom-hud.ts';
+import { coerceRadarOpacity, isRadarPosition, isRadarSize } from '../radar-overlay.ts';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import {
   isAffiliateStyle,
@@ -219,6 +220,13 @@ export function coerceEditConfig(value: unknown): EditConfig {
   if (raw.centeredKillfeed === true) cfg.centeredKillfeed = true;
   if (raw.verticalHud === true) cfg.verticalHud = true;
   if (cfg.verticalHud && isCustomHudTheme(raw.verticalHudTheme)) cfg.verticalHudTheme = raw.verticalHudTheme;
+  if (raw.radar === true) {
+    cfg.radar = true;
+    if (isRadarPosition(raw.radarPosition)) cfg.radarPosition = raw.radarPosition;
+    if (isRadarSize(raw.radarSize)) cfg.radarSize = raw.radarSize;
+    const radarOpacity = coerceRadarOpacity(raw.radarOpacity);
+    if (radarOpacity !== undefined) cfg.radarOpacity = radarOpacity;
+  }
   const voiceVolume = coerceUnitVolume(raw.voiceVolume);
   if (voiceVolume !== undefined) cfg.voiceVolume = voiceVolume;
   if (raw.victimReplay === true) cfg.victimReplay = true;

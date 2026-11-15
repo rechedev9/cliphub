@@ -1,4 +1,5 @@
 import type { FullDemoSnapshot } from '../full-demo-plan.ts';
+import type { RadarPosition, RadarSize } from '../radar-overlay.ts';
 
 export type SteamUser = { id: string; personaName: string; avatarUrl: string };
 export type MatchStats = {
@@ -263,6 +264,11 @@ export type EditConfig = {
   verticalHud?: boolean;
   /** A HUD catalog design for the vertical HUD; unset uses the first one. */
   verticalHudTheme?: string;
+  /** ClipHub's radar in a corner, read from the demo; unset corner, size and opacity are the defaults. */
+  radar?: boolean;
+  radarPosition?: RadarPosition;
+  radarSize?: RadarSize;
+  radarOpacity?: number;
   matchRecap: boolean;
   /** The plays are death clips (death plan), not kills. */
   deathReel?: boolean;

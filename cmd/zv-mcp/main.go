@@ -65,6 +65,11 @@ generate_short vertical_hud (9:16 only) draws a HUD made for Shorts over a captu
 scoreboard at the top (team names, score, clock, round or bomb) and each side's alive count, read from the demo at
 render time, with the centered kill feed under it; vertical_hud_theme picks the design (list_short_options
 vertical_hud_themes). It is refused with native_hud or the full-hud-60 preset and is not for death reels.
+generate_short radar draws ClipHub's own radar in a corner: the map, every living player and where they look,
+smokes, molotov fires, flashes, HE grenades, the round's deaths and the bomb, read from the demo at render time;
+radar_position, radar_size and radar_opacity (percent) set it (list_short_options radar_positions, radar_sizes).
+It is refused with native_hud or the full-hud-60 preset, whose capture already shows CS2's radar, which is never
+hidden; it skips victim replays and is not for Full Demo or a match recap.
 The brand kit (get_brand_kit, save_brand_kit) keeps the channel logo, drawn as a watermark in a corner with an
 opacity, and an own sponsor banner with a time window. generate_short and plan_full_demo take brand_watermark and
 brand_banner to apply it; the render copies the kit, and brand_banner does not go with the affiliate banner.

@@ -143,12 +143,15 @@ func writeVerticalHUD(short *ShortEdit) error {
 }
 
 // writeShortASSOverlays writes the libass scripts the post-concat chain draws: the centered
-// kill feed and the vertical HUD.
+// kill feed, the vertical HUD and the radar, whose plates it adds as image effects.
 func writeShortASSOverlays(short *ShortEdit) error {
 	if err := writeCenteredKillfeed(short); err != nil {
 		return err
 	}
-	return writeVerticalHUD(short)
+	if err := writeVerticalHUD(short); err != nil {
+		return err
+	}
+	return writeRadarOverlay(short)
 }
 
 // appendShortASSFilters draws the vertical HUD, then the centered kill feed under it.

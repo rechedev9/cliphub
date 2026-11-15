@@ -188,6 +188,15 @@ type Config struct {
 	// Watermark and SponsorBanner are the brand kit images; their Path is the uploaded file.
 	Watermark     *BrandWatermark
 	SponsorBanner *SponsorBanner
+	// Radar draws ClipHub's radar from RadarTrackPath, the radaroverlay.Track the render worker read,
+	// over the map art in RadarImagePath (and RadarLowerImagePath for a two-level map).
+	Radar               bool
+	RadarPosition       string
+	RadarSize           string
+	RadarOpacity        float64
+	RadarTrackPath      string
+	RadarImagePath      string
+	RadarLowerImagePath string
 }
 
 type ManifestOptions struct {
@@ -392,6 +401,9 @@ type ShortEdit struct {
 	// VerticalHUDASS and VerticalHUDFontsDir are the generated 9:16 HUD script and its faces.
 	VerticalHUDASS      string `json:"vertical_hud_ass,omitempty"`
 	VerticalHUDFontsDir string `json:"vertical_hud_fonts_dir,omitempty"`
+	// RadarASS and RadarFontsDir are the radar's moving layer, drawn over its plate images.
+	RadarASS      string `json:"radar_ass,omitempty"`
+	RadarFontsDir string `json:"radar_fonts_dir,omitempty"`
 	// KeyDropFamily / KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
 	// the optional sponsor plate for a bounded window of the short.
 	KeyDropFamily          string      `json:"keydrop_family,omitempty"`

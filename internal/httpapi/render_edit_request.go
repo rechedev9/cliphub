@@ -33,6 +33,10 @@ type renderEditRequest struct {
 	CenteredKillfeed    *bool               `json:"centered_killfeed"`
 	VerticalHUD         *bool               `json:"vertical_hud"`
 	VerticalHUDTheme    *string             `json:"vertical_hud_theme"`
+	Radar               *bool               `json:"radar"`
+	RadarPosition       *string             `json:"radar_position"`
+	RadarSize           *string             `json:"radar_size"`
+	RadarOpacity        *float64            `json:"radar_opacity"`
 	CoverStrategy       *string             `json:"cover_strategy"`
 	CoverFirstFrame     *bool               `json:"cover_first_frame"`
 	IntroText           *string             `json:"intro_text"`
@@ -123,6 +127,18 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.VerticalHUDTheme != nil {
 		base.VerticalHUDTheme = *r.VerticalHUDTheme
+	}
+	if r.Radar != nil {
+		base.Radar = *r.Radar
+	}
+	if r.RadarPosition != nil {
+		base.RadarPosition = *r.RadarPosition
+	}
+	if r.RadarSize != nil {
+		base.RadarSize = *r.RadarSize
+	}
+	if r.RadarOpacity != nil {
+		base.RadarOpacity = *r.RadarOpacity
 	}
 	if r.CoverStrategy != nil {
 		base.CoverStrategy = *r.CoverStrategy

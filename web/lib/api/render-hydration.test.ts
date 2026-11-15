@@ -321,3 +321,14 @@ test('a vertical HUD Short reads back as the same request and drops an unknown d
   assert.equal(parseEffectiveEditConfig({ ...wire, vertical_hud_theme: 'nope' })?.verticalHudTheme, undefined);
   assert.equal(parseEffectiveEditConfig({ ...wire, vertical_hud: false })?.verticalHudTheme, undefined);
 });
+
+test('a Short with the radar reads back as the same request and drops unknown options', () => {
+  const sent: EditConfig = { ...DEFAULT_EDIT_CONFIG, format: 'short-9x16', radar: true, radarPosition: 'top-left', radarSize: 'large', radarOpacity: 0.7 };
+  const wire = buildEditRequest(sent);
+  const parsed = parseEffectiveEditConfig(wire);
+  assert.equal(parsed?.radar, true);
+  assert.equal(parsed?.radarPosition, 'top-left');
+  assert.equal(parsed !== undefined && editConfigsEqual(parsed, sent), true);
+  assert.equal(parseEffectiveEditConfig({ ...wire, radar_size: 'huge' })?.radarSize, undefined);
+  assert.equal(parseEffectiveEditConfig({ ...wire, radar: false })?.radarPosition, undefined);
+});

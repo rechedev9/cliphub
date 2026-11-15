@@ -21,6 +21,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { BrandKitOptions } from './brand-kit-options';
+import { RadarOptions } from './radar-options';
 import { VerticalHudOptions } from './vertical-hud-options';
 
 /** Show the live character counter only once the input is getting close to the limit. */
@@ -38,6 +39,8 @@ export type EditOptionsProps = {
   statsCard?: boolean;
   /** False disables the vertical HUD: the chosen style records CS2's own HUD. */
   verticalHud?: boolean;
+  /** False disables ClipHub's radar: the chosen style records CS2's own HUD and radar. */
+  radar?: boolean;
 };
 
 /** "0,25x": the decimal comma of the Spanish UI. */
@@ -72,6 +75,7 @@ export function EditOptions({
   killCounter = true,
   statsCard = true,
   verticalHud = true,
+  radar = true,
 }: EditOptionsProps) {
   const onChange = (next: EditConfig): void => emit(exclusiveBanner(value, next));
   const portraitShort = value.format === 'short-9x16' && !showFullDemoDelivery && !value.deathReel;
@@ -292,6 +296,12 @@ export function EditOptions({
               Se leen de la demo y se dibujan sobre la jugada: nombre y vida de tus compañeros y de los rivales que CS2 marca como vistos o que dañas, y la trayectoria de las granadas de tu equipo. Se ocultan con la mira de zoom o al morir y se ven a través de las paredes.
             </p>
           ) : null}
+        </OptionBlock>
+      )}
+
+      {showFullDemoDelivery || value.matchRecap ? null : (
+        <OptionBlock label="Radar" className="md:col-span-2">
+          <RadarOptions value={value} onChange={onChange} disabled={disabled} allowed={radar && !value.nativeHud} />
         </OptionBlock>
       )}
 

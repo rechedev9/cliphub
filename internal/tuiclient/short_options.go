@@ -40,6 +40,12 @@ type ShortEdit struct {
 	// in the VerticalHUDTheme catalog design; an empty theme is the first design.
 	VerticalHUD      bool   `json:"vertical_hud,omitempty"`
 	VerticalHUDTheme string `json:"vertical_hud_theme,omitempty"`
+	// Radar draws ClipHub's radar in RadarPosition, at RadarSize and RadarOpacity; empty and 0 keep
+	// the format's corner, the medium size and the default opacity.
+	Radar         bool    `json:"radar,omitempty"`
+	RadarPosition string  `json:"radar_position,omitempty"`
+	RadarSize     string  `json:"radar_size,omitempty"`
+	RadarOpacity  float64 `json:"radar_opacity,omitempty"`
 	// IntroText and OutroText replace the generated card text; empty keeps it.
 	IntroText string `json:"intro_text,omitempty"`
 	OutroText string `json:"outro_text,omitempty"`
