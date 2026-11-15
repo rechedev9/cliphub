@@ -79,12 +79,9 @@ logs/
 .loop/
 .loop_tmp_crops/
 
-# Local Vercel project links and build output.
-.vercel/
 # Local Pi runtime state
 .atl/
 .omo/
-.vercel
 
 # The landing ships its own film loops.
 !landing/public/film/*.mp4
