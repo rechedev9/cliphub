@@ -24,6 +24,7 @@ function scanned(name: string): ScanResult {
     map: 'de_mirage',
     rounds: 24,
     cs2Build: 1,
+    playedAt: 0,
     document: '{}',
     positions: new Uint8Array([1]),
     sizeBytes: 10,

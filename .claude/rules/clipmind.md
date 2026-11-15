@@ -39,6 +39,8 @@ One VPS, SSH alias `openclaw`, behind its edge Caddy. None of these ship in the 
 
 `deploy/` holds the VPS copies of the Compose files, Dockerfiles, Caddyfiles and systemd units, and `deploy/edge-caddy.txt` the ClipHub blocks of the shared edge Caddyfile. A change to one of them is deployed by copying it to the VPS in the same step as the code, so the two copies stay equal.
 
+Secrets stay out of `deploy/`: the ClipMind Compose file reads `CLIPMIND_FACEIT_API_KEY` from `/opt/cliphub-strats/.env` (mode 600, never copied back). Without it, FACEIT uploads without a signed spray keep their import day (`docs/incidents.md`, Match dates).
+
 ## Deploy ClipMind
 
 From the release commit, after the Studio release is published:

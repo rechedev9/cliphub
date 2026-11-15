@@ -35,6 +35,7 @@ test('the upload names the workspace the demo was queued in, and ClipMind refusi
     map: 'de_mirage',
     rounds: 24,
     cs2Build: 1,
+    playedAt: 0,
     document: '{}',
     positions: new Uint8Array([1]),
     sizeBytes: 10,
@@ -48,4 +49,21 @@ test('the upload names the workspace the demo was queued in, and ClipMind refusi
   assert.equal(moved.ok ? undefined : moved.pause, 'workspace');
   const other = readUploadAnswer(409, { error: 'choose a workspace first', code: 'no_workspace' });
   assert.equal(other.ok ? 'ok' : other.pause, undefined, 'any other conflict fails only its file');
+});
+
+test('the upload sends the date the demo shows, and no date when it shows none', () => {
+  const scan: ScanSuccess = {
+    ok: true,
+    sha256: 'sha',
+    map: 'de_mirage',
+    rounds: 24,
+    cs2Build: 1,
+    playedAt: 1_794_668_400,
+    document: '{}',
+    positions: new Uint8Array([1]),
+    sizeBytes: 10,
+    fileName: '1-63c8199e-efe6-44b2-b2ba-be93c6570a90.dem',
+  };
+  assert.equal(analysisForm({ scan, fallbackName: 'a.dem' }).get('played_at'), '2026-11-14T15:00:00.000Z');
+  assert.equal(analysisForm({ scan: { ...scan, playedAt: 0 }, fallbackName: 'a.dem' }).has('played_at'), false);
 });
