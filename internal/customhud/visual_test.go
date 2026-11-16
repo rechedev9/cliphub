@@ -243,3 +243,82 @@ func TestDamageFadePreservesSourceClockAcrossTrim(t *testing.T) {
 		}
 	}
 }
+
+func TestDefuseFillGrowsInTheRenderedVideo(t *testing.T) {
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("FFmpeg unavailable")
+	}
+	r, err := NewRenderer("arena")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ass, err := r.ASS(defuseTimeline(true, 5), Window{StartTick: 100, Frames: 420})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fonts, err := mediafont.MaterializeHUD()
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(t.TempDir(), "defuse.ass")
+	if err := os.WriteFile(file, []byte(ass), 0600); err != nil {
+		t.Fatal(err)
+	}
+	x, y, w, _ := defuseTrack()
+	// The defuse starts at frame 60 and completes at frame 360.
+	filter := ASSFilter(file, fonts, false) + fmt.Sprintf(",select='eq(n,60)+eq(n,210)+eq(n,359)',format=rgb24,crop=%d:1:%d:%d", w, x, y+1)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, ffmpeg, "-v", "error", "-f", "lavfi", "-i", "color=black:s=1920x1080:r=60,format=yuv444p", "-vf", filter, "-frames:v", "3", "-fps_mode", "vfr", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	raw, err := cmd.Output()
+	if err != nil || len(raw) != 3*w*3 {
+		t.Fatalf("defuse raster: %v, %d bytes\n%s", err, len(raw), stderr.String())
+	}
+	filled := make([]int, 3)
+	for frame := range filled {
+		for px := range w {
+			if raw[(frame*w+px)*3+1] > 150 {
+				filled[frame]++
+			}
+		}
+	}
+	if filled[0] > w/20 || filled[1] < w*2/5 || filled[1] > w*3/5 || filled[2] < w*9/10 {
+		t.Fatalf("defuse fill did not follow the five second kit defuse: %v of %d", filled, w)
+	}
+}
+
+func TestRoundCardsStayInTheStripBelowTheScoreboard(t *testing.T) {
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("FFmpeg unavailable")
+	}
+	state := Example()
+	state.Phase = "ended"
+	state.Players[1].RoundKills = 4
+	state.Players[1].Name = strings.Repeat("W", 80)
+	state.MVP = &MVP{SteamID: state.Players[1].SteamID, Reason: MVPEliminations}
+	state.Streak = Streak{Side: "CT", Rounds: 12}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	for _, theme := range Themes() {
+		r, err := NewRenderer(theme.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		frame, err := RasterizePreview(ctx, ffmpeg, isolatedSceneASS(t, r.Scene(state, ExampleTarget)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Everything new lies between the roster and the MVP card shadow, never over the crosshair.
+		for py := 122; py < 700; py++ {
+			for px := range Width {
+				if frame.NRGBAAt(px, py).A >= 8 && (py >= 206 || px < 780 || px > 1140) {
+					t.Fatalf("%s round card painted at %d,%d", theme.ID, px, py)
+				}
+			}
+		}
+	}
+}

@@ -45,6 +45,8 @@ type Config struct {
 	CommunityURL string
 	// FaceitAPIKey enables linking players to FACEIT; empty disables it.
 	FaceitAPIKey string
+	// DemoWorkspaceID is a workspace anyone may read without an account; empty disables the demo.
+	DemoWorkspaceID string
 }
 
 // Server is the ClipMind HTTP server.
@@ -192,11 +194,37 @@ func (s *Server) routes() http.Handler {
 		r.Get("/api/sync/artifacts", s.withTenant(permSync, s.handleListArtifacts))
 		r.Get("/api/sync/artifacts/{demo}/{name}", s.withTenant(permSync, s.handleGetArtifact))
 		r.Put("/api/sync/artifacts/{demo}/{name}", s.withTenant(permSync, s.handlePutArtifact))
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(s.requireAuthOrDemo)
 		for _, rule := range workspaceRoutes() {
 			r.Method(rule.method, rule.pattern, s.workspaceRoute(rule.perm))
 		}
 	})
 	return r
+}
+
+// DemoHeader asks for the public demo workspace instead of a sign-in.
+const DemoHeader = "X-ClipHub-Demo"
+
+// requireAuthOrDemo lets a request with no credential read the demo workspace;
+// any credential, even a broken one, goes through requireAuth as usual.
+func (s *Server) requireAuthOrDemo(next http.Handler) http.Handler {
+	authed := s.requireAuth(next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hasCredential := r.Header.Get("Authorization") != "" || r.Header.Get("X-ClipHub-Token") != ""
+		if hasCredential || s.cfg.DemoWorkspaceID == "" || r.Header.Get(DemoHeader) != "1" {
+			authed.ServeHTTP(w, r)
+			return
+		}
+		if !s.limits.allow("demo|"+clientIP(r, s.cfg.TrustProxy), 600, time.Minute) {
+			w.Header().Set("Retry-After", "60")
+			writeError(w, http.StatusTooManyRequests, "rate_limited", "too many requests, try again later")
+			return
+		}
+		p := accounts.Principal{SessionID: "demo", WorkspaceID: s.cfg.DemoWorkspaceID, Role: roleViewer}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, p)))
+	})
 }
 
 func securityHeaders(next http.Handler) http.Handler {

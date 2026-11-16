@@ -5,6 +5,8 @@ export type ScanResult =
       map: string;
       rounds: number;
       cs2Build: number;
+      /** Unix seconds of the earliest signed spray, the date the demo shows; 0 when it has none. */
+      playedAt: number;
       document: string;
       positions: Uint8Array;
       /** Bytes of the decompressed .dem, as Studio stores them. */
@@ -53,6 +55,7 @@ function parseScanResult(value: unknown): ScanResult | undefined {
     if (!isString(value.map)) return undefined;
     if (!isNumber(value.rounds)) return undefined;
     if (!isNumber(value.cs2Build)) return undefined;
+    if (value.playedAt !== undefined && !isNumber(value.playedAt)) return undefined;
     if (!isString(value.document)) return undefined;
     if (!(value.positions instanceof Uint8Array)) return undefined;
     if (!isNumber(value.sizeBytes) || !isString(value.fileName)) return undefined;
@@ -62,6 +65,7 @@ function parseScanResult(value: unknown): ScanResult | undefined {
       map: value.map,
       rounds: value.rounds,
       cs2Build: value.cs2Build,
+      playedAt: value.playedAt ?? 0,
       document: value.document,
       positions: value.positions,
       sizeBytes: value.sizeBytes,

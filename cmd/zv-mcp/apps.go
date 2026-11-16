@@ -9,6 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/hudthemes"
 )
 
 // MCP Apps (ext-apps, spec 2026-01-26): a tool names a ui:// resource in
@@ -94,7 +95,7 @@ func registerApps(server *mcp.Server, s *studio) {
 				return nil, chooseShortOut{}, toolError(err)
 			}
 			out := chooseShortOut{JobID: in.JobID, SegmentIDs: in.SegmentIDs, shortOptionsOut: shortOptionsOut{
-				Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions, Music: musicOptions(songs), Toggles: toggleOptions, Banners: bannerFamilies}}
+				Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions, Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies}}
 			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: describeShortChoices(out.shortOptionsOut)}}}, out, nil
 		})
 
@@ -102,11 +103,12 @@ func registerApps(server *mcp.Server, s *studio) {
 		Description: "Let the user pick the HUD design of a Full Demo for job_id from a gallery of previews. " +
 			"Without a UI the result lists the designs: ask the user in chat, then call plan_full_demo with hud. " +
 			"With the gallery, the user's confirmation runs plan_full_demo itself and reports the plan_hash back; then follow with render_full_demo."},
-		func(_ context.Context, _ *mcp.CallToolRequest, in chooseHUDIn) (*mcp.CallToolResult, chooseHUDOut, error) {
+		func(ctx context.Context, _ *mcp.CallToolRequest, in chooseHUDIn) (*mcp.CallToolResult, chooseHUDOut, error) {
 			if err := checkUUID("job_id", in.JobID); err != nil {
 				return nil, chooseHUDOut{}, err
 			}
-			out := chooseHUDOut{JobID: in.JobID, Themes: hudOptions()}
+			own, _ := fetchUserHUDThemes(ctx, s)
+			out := chooseHUDOut{JobID: in.JobID, Themes: hudOptions(own)}
 			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: describeHUDChoices(out.Themes)}}}, out, nil
 		})
 }
@@ -150,11 +152,19 @@ func composeAppPage(file string) (string, error) {
 	return html, nil
 }
 
-func hudOptions() []hudOption {
+// hudOptions lists the catalog, then the user's own themes, then the native HUD.
+func hudOptions(own []hudthemes.Theme) []hudOption {
 	themes := customhud.Themes()
-	out := make([]hudOption, 0, len(themes)+1)
+	out := make([]hudOption, 0, len(themes)+len(own)+1)
 	for _, t := range themes {
 		out = append(out, hudOption{ID: t.ID, Name: t.Name, Description: t.Description})
+	}
+	for _, t := range own {
+		base := t.Base
+		if theme, ok := customhud.Lookup(t.Base); ok {
+			base = theme.Name
+		}
+		out = append(out, hudOption{ID: t.ID.String(), Name: cleanName(t.Name), Description: "Tema propio sobre " + base + ", con tus colores."})
 	}
 	return append(out, hudOption{ID: nativeHUDID, Name: nativeHUDName, Description: nativeHUDText})
 }
@@ -191,6 +201,7 @@ func describeShortChoices(o shortOptionsOut) string {
 	for _, t := range o.Toggles {
 		fmt.Fprintf(&b, "- %s%s (%s): %s\n", t.ID, defaultMark(t.Default), t.Label, t.Description)
 	}
+	list("Victim replay speed, with victim_replay", "victim_replay_speed", o.ReplaySpeed)
 	b.WriteString("\nWith music: music_volume 5 to 100 (default 100), game_volume 0 to 100 (default 70).\n")
 	b.WriteString("With intro or outro: intro_text, outro_text (empty keeps the generated text).\n")
 	b.WriteString("\nAffiliate banner (banner_family and banner_style; none by default; banner_code, banner_start_seconds 0, banner_end_seconds 4):\n")

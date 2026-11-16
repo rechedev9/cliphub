@@ -5,11 +5,12 @@ import { Clapperboard, RefreshCw } from 'lucide-react';
 import { deleteLibraryDemo, isLibraryNotFound, type LibraryMatch } from '@/lib/api/library';
 import { PRODUCE_FORMAT } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
-import { PARSE_STATE_LABEL, demoErrorLabel, matchTitle, scoreline, withoutDemo, type Outcome, type PartidaRow } from '@/lib/library/partidas';
+import { OUTCOME_LABEL, PARSE_STATE_LABEL, demoErrorLabel, matchTitle, ownFirstScoreline, withoutDemo, type Outcome, type PartidaRow } from '@/lib/library/partidas';
 import { cn } from '@/lib/utils';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { OpenInCrearButton } from '@/components/matches/open-in-crear-button';
 import { TeamLogo } from '@/components/matches/team-logo';
+import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -31,11 +32,11 @@ const STACK_NAME: Record<Outcome, string> = {
   draw: 'text-fg-2',
 };
 
-/** The two scores stacked beside their team names, the winner in green and bold, the loser in red and dim. */
-export function ScoreStack({ match }: { match: LibraryMatch }): ReactNode {
+/** The two scores stacked beside their team names, the own team on top, the winner in green and bold, the loser in red and dim. */
+export function ScoreStack({ match, ownTeam = null }: { match: LibraryMatch; ownTeam?: string | null }): ReactNode {
   return (
     <span title={matchTitle(match)} className="flex min-w-40 flex-col gap-0.5 text-body-sm">
-      {scoreline(match).map((side, index) => (
+      {ownFirstScoreline(match, ownTeam).map((side, index) => (
         <span key={index} className="grid grid-cols-[1.75rem_1rem_minmax(0,1fr)] items-center gap-2">
           <span className={cn('text-right font-bold tabular-nums', STACK_SCORE[side.outcome])}>{side.score}</span>
           <TeamLogo name={side.name} className="size-4" />
@@ -46,13 +47,29 @@ export function ScoreStack({ match }: { match: LibraryMatch }): ReactNode {
   );
 }
 
+const OUTCOME_BADGE = {
+  win: { variant: 'success', letter: 'V' },
+  loss: { variant: 'danger', letter: 'D' },
+  draw: { variant: 'secondary', letter: 'E' },
+} as const;
+
+/** V, D or E for the own team, so the result reads at a glance; the row's own label already says it to screen readers. */
+export function OutcomeBadge({ outcome }: { outcome: Outcome }): ReactNode {
+  const { variant, letter } = OUTCOME_BADGE[outcome];
+  return (
+    <Badge aria-hidden variant={variant} shape="square" title={OUTCOME_LABEL[outcome]} className="w-6 justify-center px-0 font-bold">
+      {letter}
+    </Badge>
+  );
+}
+
 export function isPending(row: PartidaRow): boolean {
   return row.demo.state === 'queued' || row.demo.state === 'parsing';
 }
 
-/** "Vitality 13 : 7 MOUZ", the winner in full ink and the loser dimmed. */
-export function Scoreline({ match }: { match: LibraryMatch }): ReactNode {
-  const [left, right] = scoreline(match);
+/** "Vitality 13 : 7 MOUZ", the own team on the left, the winner in full ink and the loser dimmed. */
+export function Scoreline({ match, ownTeam = null }: { match: LibraryMatch; ownTeam?: string | null }): ReactNode {
+  const [left, right] = ownFirstScoreline(match, ownTeam);
   return (
     <span title={matchTitle(match)} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
       <span className={cn('truncate text-right', OUTCOME_CLASS[left.outcome])}>{left.name}</span>

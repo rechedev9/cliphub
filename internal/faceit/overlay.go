@@ -22,6 +22,9 @@ type OverlayPlayer struct {
 	LifetimeMatches *int
 	Verified        bool
 	Premium         bool
+
+	// BestMap is BestRecentMap of the same recent matches as Recent.
+	BestMap string
 }
 
 // OverlayPlayers looks up each SteamID on the Data API. It returns partial
@@ -125,6 +128,7 @@ func (c *Client) overlayPlayer(ctx context.Context, steamID string) (OverlayPlay
 		return OverlayPlayer{}, fmt.Errorf("recent matches: %w", matchesErr)
 	}
 	out.Recent = AggregateLast20(matches)
+	out.BestMap = BestRecentMap(matches)
 	out.LifetimeMatches = lifetime
 	// Unchanged: a ranking failure is swallowed and the card ships without a
 	// rank rather than failing the whole roster.

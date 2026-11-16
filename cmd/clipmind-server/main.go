@@ -17,6 +17,8 @@
 //	CLIPMIND_CS2_PATH      cs2.exe or the linux cs2 binary of a CS2 install (SteamCMD app 730); maps and icons come from it
 //	CLIPMIND_COMMUNITY_URL pro data server: empty for the default, "off" for none
 //	CLIPMIND_FACEIT_API_KEY FACEIT Data API key; empty disables linking players to FACEIT
+//	CLIPMIND_DEMO_WORKSPACE workspace id anyone may read without an account; empty disables the demo
+//	                       (the web needs CLIPHUB_DEMO_HOME, the page /demo opens, such as /equipos/<id>)
 //
 // Operator commands work on CLIPMIND_DATA_DIR and read passwords from standard input:
 //
@@ -98,6 +100,7 @@ func run() error {
 		CS2Path:      os.Getenv("CLIPMIND_CS2_PATH"),
 		CommunityURL: os.Getenv("CLIPMIND_COMMUNITY_URL"),
 		FaceitAPIKey: os.Getenv("CLIPMIND_FACEIT_API_KEY"),
+		DemoWorkspaceID: os.Getenv("CLIPMIND_DEMO_WORKSPACE"),
 	})
 	if err != nil {
 		return err

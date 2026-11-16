@@ -204,7 +204,10 @@ func parseDemo(ctx context.Context, demo, target string, mode parser.SegmentMode
 	}
 
 	meta := parser.PlanMeta{DemoPath: demo, SHA256: sha}
-	p := demoinfocs.NewParser(f)
+	p, err := demosafe.NewParser(f)
+	if err != nil {
+		return killplan.Plan{}, err
+	}
 	defer p.Close()
 	return parser.RunWithContext(ctx, p, target, rules.Default(), meta, parser.RunOptions{SegmentMode: mode})
 }
@@ -220,7 +223,10 @@ func topFragger(ctx context.Context, demo string) (string, error) {
 	}
 	defer f.Close()
 
-	p := demoinfocs.NewParser(f)
+	p, err := demosafe.NewParser(f)
+	if err != nil {
+		return "", err
+	}
 	defer p.Close()
 
 	kills := map[uint64]int{}
@@ -277,7 +283,12 @@ var errNoTarget = errors.New("no killer found in demo to auto-select a target")
 
 // classify maps a parse error to a stable obs class label and message.
 func classify(err error) (class, message string) {
+	// A read error at open reaches here inside demosafe's panic error, so the file checks come first.
 	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return "file_not_found", err.Error()
+	case errors.Is(err, os.ErrPermission):
+		return "file_permission", err.Error()
 	case errors.Is(err, demosafe.ErrPanicked):
 		return "panic", err.Error()
 	case errors.Is(err, errNoTarget):
@@ -286,10 +297,6 @@ func classify(err error) (class, message string) {
 		return "target_not_found", err.Error()
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return "canceled", err.Error()
-	case errors.Is(err, os.ErrNotExist):
-		return "file_not_found", err.Error()
-	case errors.Is(err, os.ErrPermission):
-		return "file_permission", err.Error()
 	default:
 		return "corrupt", err.Error()
 	}

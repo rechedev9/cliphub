@@ -31,10 +31,10 @@ var oversizedGoFiles = map[string]int{
 	"internal/editor/effects_test.go":                      1173,
 	"internal/editor/filter.go":                            1019,
 	"internal/editor/killfeed_probe_test.go":               1028,
-	"internal/editor/manifest.go":                          1193,
+	"internal/editor/manifest.go":                          1190,
 	"internal/editor/manifest_test.go":                     1372,
 	"internal/faceit/index.go":                             1097,
-	"internal/httpapi/handlers.go":                         2638,
+	"internal/httpapi/handlers.go":                         2497,
 	"internal/httpapi/handlers_generate_test.go":           1040,
 	"internal/httpapi/handlers_test.go":                    6350,
 	"internal/httpapi/stream_handlers.go":                  1101,
@@ -42,7 +42,7 @@ var oversizedGoFiles = map[string]int{
 	"internal/reconcile/sweep_test.go":                     1136,
 	"internal/store/sqlite_library_repo.go":                1167,
 	"internal/tacticalplan/scout.go":                       1251,
-	"internal/workers/media_worker.go":                     4183,
+	"internal/workers/media_worker.go":                     4148,
 	"internal/workers/media_worker_segment_select_test.go": 1174,
 	"internal/workers/media_worker_test.go":                3140,
 }
@@ -52,15 +52,8 @@ func TestGoFileLength(t *testing.T) {
 	root := repoRoot(t)
 	seen := map[string]bool{}
 	var problems []string
-	// Ask git so ignored build output and nested worktrees never count; untracked new files still do.
-	list := exec.Command("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "*.go")
-	list.Dir = root
-	out, err := list.Output()
-	if err != nil {
-		t.Fatalf("git ls-files: %v", err)
-	}
-	for _, rel := range strings.Split(string(out), "\x00") {
-		if rel == "" || strings.HasPrefix(rel, "testdata/") || strings.Contains(rel, "/testdata/") {
+	for _, rel := range gitGoFiles(t, goFileListing{untracked: true}) {
+		if strings.HasPrefix(rel, "testdata/") || strings.Contains(rel, "/testdata/") {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
@@ -95,4 +88,32 @@ func TestGoFileLength(t *testing.T) {
 		sort.Strings(problems)
 		t.Fatalf("Go files must stay at or under %d lines:\n%s", maxGoFileLines, strings.Join(problems, "\n"))
 	}
+}
+
+// goFileListing picks the Go files gitGoFiles returns.
+type goFileListing struct {
+	// untracked adds files not committed yet, so a new oversized file fails before it lands.
+	untracked bool
+}
+
+// gitGoFiles lists the repo's Go files by slash path. Asking git keeps ignored build output and nested worktrees out.
+func gitGoFiles(t *testing.T, listing goFileListing) []string {
+	t.Helper()
+	args := []string{"ls-files", "-z", "--cached"}
+	if listing.untracked {
+		args = append(args, "--others", "--exclude-standard")
+	}
+	list := exec.Command("git", append(args, "--", "*.go")...)
+	list.Dir = repoRoot(t)
+	out, err := list.Output()
+	if err != nil {
+		t.Fatalf("git ls-files: %v", err)
+	}
+	var files []string
+	for _, rel := range strings.Split(string(out), "\x00") {
+		if rel != "" {
+			files = append(files, rel)
+		}
+	}
+	return files
 }

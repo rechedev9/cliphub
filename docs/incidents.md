@@ -533,6 +533,98 @@ its own death.
 - A crash from another worker during a scan also counts against the demo
   being scanned. To diagnose, read the non-empty files in `crashes/`.
 
+### Incident: a demo with a reconnected player failed as damaged (Studio 5.24.0, 2026-11-16)
+
+Two users could not turn a demo into a match or a Demo completa. Two causes
+followed each other on the same demo.
+
+- First cause: CS2 patch 14197 (the `fixed8` fields above). Studio 5.17.1 to
+  5.21.1 failed every new demo with `nextByte: insufficient buffer`.
+  demoinfocs v5.3.0 (#517, Studio 5.22.0) fixed it, but demos that had already
+  failed stayed failed.
+- Second cause, still in 5.24.0: after a reconnect, `Participants().All()`
+  lists a player twice, either as two `*Player` with the same SteamID64 or as
+  one pointer under two user IDs. Both entries took the same slot and the
+  positions encoder refused the frame (`slot 1 appears twice in the frame at
+  tick 59020`). The round economy also counted that player twice.
+  `playersBySlot` (`internal/tactical/participants.go`) now keeps one entry
+  per slot for frames and economy: on the T or CT team, then connected with
+  an entity, with a pawn, alive, a non-zero position, the slot's previous
+  EntityID, the highest EntityID, the highest UserID. A new controller that
+  is not on a team yet never beats a stale one that still holds T or CT.
+  `appendFrame` stays strict. Tests:
+  `TestDuplicateParticipantsLeaveOneSamplePerSlot`,
+  `TestEconomyCountsADuplicatedPlayerOnce`,
+  `TestPlayersBySlotKeepsThePreviousEntityOnATie`.
+- Both failures showed as "dañada": `tacticalFailureClass` only looked at
+  typed errors, so a wrapped `demo_incompatible:` became `demo_unreadable`.
+  It now keeps the `obs.ClassOf` class (`demo_incompatible`,
+  `truncated_demo`, `pov_demo`) and files an error that wraps
+  `tactical.ErrEncodePositions` as `tactical_internal`, a Studio bug with its
+  own `DEMO_ERROR_LABEL`. Only a stored message, rebuilt for the retry after an
+  upgrade, is matched by its `encode positions:` text. A new
+  class goes into `internal/telemetry/types.go` and
+  `desktop/src/telemetry-journal.ts` together
+  (`TestDesktopJournalAllowlistsMatchTheCollector`). Test: `TestTacticalFailureClass`.
+  The collector on the VPS today rejects a whole batch with an unknown class,
+  so deploy this collector before the Studio release that sends
+  `tactical_internal`. This collector files an unknown `pipeline.error` class as
+  `unknown` and keeps the batch, so a later class needs no deploy order. Test:
+  `TestValidateBatchFilesANewPipelineClassAsUnknown`.
+- A failure every attempt repeats (`tacticalClassFinal`) ends the library and
+  tactical task on its first attempt with `asynq.SkipRetry` instead of parsing
+  the whole demo again. A failure that can clear (a missing file, the disk)
+  leaves the demo `parsing` until its last attempt. A read error under the
+  parser (`*fs.PathError`, a cancelled context) is one of those: `demosafe`
+  keeps a panicked error on the chain and `tagParseError` does not tag it
+  `demo_incompatible`. Tests:
+  `TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt`,
+  `TestTacticalWorkerEndsAnIncompatibleDemoOnTheFirstAttempt`,
+  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`.
+- `demoinfocs.NewParser` reads its first buffer at once and panics on a read
+  error, outside any recover, so Studio's inline queue re-raised it and the
+  orchestrator stopped. Production code now builds every parser through
+  `demosafe.NewParser`, which returns that panic as an error with the
+  `*fs.PathError` still on the chain, so the scan stays retryable. An
+  `io.EOF` or `io.ErrUnexpectedEOF` on that first read means the file is
+  empty or cut: it comes back as `demosafe.ErrDemoTooShort`
+  (`truncated_demo:`), which the parser, tactical and library workers end on
+  the first attempt. `batch` checks the file errors before `ErrPanicked`, so
+  a file it cannot read is not labelled `panic`. Tests:
+  `TestNewParserReturnsAReadError`, `TestNewParserRefusesAnEmptyDemo`, the
+  first-read and empty cases of
+  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`, the empty demo in
+  `TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt` and
+  `TestProcessScanRosterEndsUnreadableDemoOnFirstAttempt`, `TestClassify`,
+  and the guard `TestDemoParsersOpenThroughDemosafe` (`cmd/zv`), which
+  fails when a tracked non-test file other than
+  `internal/demosafe/demosafe.go` calls `demoinfocs.NewParser` or
+  `NewParserWithConfig`, qualified or dot-imported.
+- After an upgrade, `ResumeLibraryScans` scans a failed demo once more when
+  what reads it changed. `library/<id>/scan-failed-build` records
+  `parser=<demoinfocs version>;build=<vcs revision>` of the Studio that last
+  failed or retried the demo. `demo_incompatible` (or an older
+  `demo_unreadable` whose message carries `demo_incompatible:`) retries only
+  when the demoinfocs version changed; `tactical_internal` and
+  `map_uncalibrated` retry when the build changed. A plain value from before
+  the parser part counts as an older build. A binary without a VCS stamp
+  records `build=devel`, so `scripts/build.ps1` asserts the stamp. A retry
+  whose queued state or enqueue fails clears the record. Damaged, truncated
+  and POV demos are never retried on their own. Limit: a panic in a Studio
+  event handler is tagged `demo_incompatible` too, so after a Studio fix it
+  waits for a new demoinfocs or for Analizar. Tests:
+  `TestClaimLibraryRetryAfterUpgrade`,
+  `TestClaimLibraryRetryAfterUpgradeKeysEachClassOnWhatReadsIt`,
+  `TestResumeLibraryScansRetriesAnIncompatibleDemoOnce`,
+  `TestResumeLibraryScansKeepsTheRetryOfARefusedFailedDemo`,
+  `TestResumeLibraryScansKeepsTheRetryWhenQueueingTheDemoFails`.
+- The `level=error` noise in the same reports was `wait_for_job` polling a
+  render variant before its state existed. That 404 (`render variant not
+  found`) now logs at info; a 404 for a missing job stays an error. Test:
+  `TestHTTPTraceLogsRenderVariantNotReadyPollBelowErrorLevel`.
+- The duplicate was rebuilt with synthetic players; the users' demo was not
+  available, so which of the two shapes it had is unknown.
+
 ## Match dates (`library.MatchDate`, 2026-11-13)
 
 ### Incident: FACEIT demos dated by their import day (Studio 5.21.1, 2026-11-13)
@@ -553,6 +645,11 @@ no date, and an import without `played_at` fell back to the import time.
   replaces only a date still equal to the import time (`library.DatedByImport`),
   so a date set by hand stays. Tests: `TestLibraryMatchDateContract`,
   `TestReconcileFaceitMatchDatesDatesOnlyMatchesOnTheirImportTime`.
+- The web import follows the same order: the browser scan (`cmd/zv-scan-wasm`)
+  returns the spray date as `playedAt`, the upload sends it as `played_at`, and
+  ClipMind falls back to the FACEIT start when `CLIPMIND_FACEIT_API_KEY` is set.
+  Uploading a demo again dates a match still on its import time
+  (`TestUploadLibraryAnalysisDatesAMatchAnEarlierUploadLeftOnItsImportDay`).
 
 ## Local test environment caveat
 
@@ -580,16 +677,13 @@ Trust a delta only when `wall_cv_percent` is under 10 (`run_noisy` otherwise) an
 
 ## Releases
 
-- Version lives in `desktop/package.json` and `landing/lib/site.ts`
-  (`DOWNLOAD_URL`, `RELEASE_VERSION`, `INSTALLER_SIZE`). Bump both, commit
-  `chore(release): prepare Studio X.Y.Z`, then push an annotated tag
-  `vX.Y.Z` ("ClipHub Studio X.Y.Z"). `.github/workflows/desktop-release.yml`
-  builds the installer and publishes the GitHub Release as `latest`, which
-  is what the in-app updater reads.
+- The steps are in [Release](../.claude/rules/release.md#steps).
 - The in-app updater (`desktop/src/app-update.ts`, scheduled by `APP_UPDATE_START_DELAY_MS`
   and `APP_UPDATE_INTERVAL_MS` in `main.ts`) downloads and verifies the new installer in the
   background and installs only when the user presses Reiniciar. It waits while
   `zv-recorder.exe` or `zv-editor.exe` runs (`desktop/src/studio-jobs.ts`).
+- On 2026-11-14 the landing still offered 5.19.0 while Studio was at 5.23.0, because the
+  ClipMind and landing deploy after the release was skipped.
 
 ## Pro match series and veto backfill (G7, 2026-11-10)
 
@@ -616,3 +710,28 @@ Studio treats those maps as prepared again: the next import of an imported map s
 the new file and refreshes its series while the series is still marked as written by an
 import. A new `cliphub-community` also adds the `series` column to an old catalog on
 first open and clears the file stamps, so its first `pro-matches` run rereads every analysis.
+
+## Player labels and grenade trails over the gameplay (`internal/worldoverlay`, C4, 2026-11-15)
+
+`player_labels` and `grenade_trails` are drawn by `zv-editor`, not by CS2 or HLAE.
+
+- CS2's own overhead names would need `cl_teamid_overhead_mode` and
+  `cl_drawhud_force_teamid_overhead`, which the Full Demo capture evidence pins
+  and `recording.CaptureInputFingerprint` hashes, so turning them on changes the
+  certified capture. Grenade trajectory cvars work only on a listen server, not
+  in demo playback. Keep the capture unchanged.
+- The render worker reads the demo inside each captured play
+  (`parser.ExtractWorldTrack`, `world-track.json`): the POV's eye and view
+  angles, the other living players, CS2's `m_bSpottedByMask` and the POV's
+  `player_hurt`, and the grenade projectiles. `worldoverlay.Script` projects
+  them with CS2's camera (default FOV 90 on a 4:3 basis, so the focal length is
+  height / 1.5) into one ASS script per segment clip, drawn before any scale,
+  crop or zoom. Tests: `internal/worldoverlay`, `TestRunDrawsTheWorldOverlayOnEachPlayButNotTheReplay`.
+- The demo has no line of sight. An enemy is labelled only while CS2 marks it
+  spotted by the POV or right after the POV hits it, and every label is drawn on
+  top of walls. Only the POV team's grenades get a trail.
+- Labels hide while the POV is scoped, for a few ticks after a zoom change (CS2
+  animates the FOV), and while the POV is dead. A victim replay part, a match
+  recap and a Full Demo get no world overlay.
+- A missing demo or a failed read renders the Short without the overlay and logs
+  why; a track of another demo or tick rate fails the render.

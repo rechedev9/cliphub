@@ -167,6 +167,8 @@ type Handlers struct {
 	labBundleRoot       string
 	importedVideos      ImportedVideos
 	libraryRepo         LibraryRepository
+	hudThemes           HUDThemeRepository
+	brandKit            BrandKitRepository
 	lineups             lineups.Catalog
 	practiceGame        practice.Game
 	references          referenceCaches
@@ -213,13 +215,6 @@ func WithRateLimit(rps float64, burst int) Option {
 	}
 }
 
-func WithEditorRepositories(assets EditorAssetRepository, projects EditorProjectRepository) Option {
-	return func(h *Handlers) {
-		h.editorAssets = assets
-		h.editorProjects = projects
-	}
-}
-
 // WithGenerateIntentStore shares guided-generate synchronization with the
 // record worker. Desktop startup supplies one store to both owners so an old
 // completion cannot race with accepting a newer run.
@@ -236,14 +231,6 @@ func WithGenerateIntentStore(store *generateintent.Store) Option {
 func WithCapabilities(c Capabilities) Option {
 	return func(h *Handlers) {
 		h.capabilities = c
-	}
-}
-
-// WithPublishAssistantTrends enables optional Firecrawl discovery. Missing
-// public trend data never makes the manual publishing assistant unavailable.
-func WithPublishAssistantTrends(trends YouTubeTrends) Option {
-	return func(h *Handlers) {
-		h.youtubeTrends = trends
 	}
 }
 
@@ -1482,141 +1469,6 @@ func (m *renderMusicRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// renderEditRequest preserves JSON field presence so review corrections can
-// update one choice without resetting the rest of the approved edit contract.
-type renderEditRequest struct {
-	FullDemo            *recapplan.Snapshot `json:"full_demo"`
-	Format              *string             `json:"format"`
-	KillEffect          *string             `json:"killEffect"`
-	Transition          *string             `json:"transition"`
-	Intro               *bool               `json:"intro"`
-	Outro               *bool               `json:"outro"`
-	HookText            *bool               `json:"hook_text"`
-	KillCounter         *bool               `json:"kill_counter"`
-	MatchRecap          *bool               `json:"match_recap"`
-	DeathReel           *bool               `json:"death_reel"`
-	VoiceComms          *bool               `json:"voice_comms"`
-	VoiceVolume         *float64            `json:"voice_volume"`
-	NativeHUD           *bool               `json:"native_hud"`
-	VictimReplay        *bool               `json:"victim_replay"`
-	CenteredKillfeed    *bool               `json:"centered_killfeed"`
-	CoverStrategy       *string             `json:"cover_strategy"`
-	CoverFirstFrame     *bool               `json:"cover_first_frame"`
-	IntroText           *string             `json:"intro_text"`
-	OutroText           *string             `json:"outro_text"`
-	KeyDropFamily       *string             `json:"keydrop_family"`
-	KeyDropStyle        *string             `json:"keydrop_style"`
-	KeyDropCode         *string             `json:"keydrop_code"`
-	KeyDropPositionY    *float64            `json:"keydrop_position_y"`
-	KeyDropStartSeconds *float64            `json:"keydrop_start_seconds"`
-	KeyDropEndSeconds   *float64            `json:"keydrop_end_seconds"`
-	DemoSource          *string             `json:"demo_source"`
-	OverlayTheme        *string             `json:"overlay_theme"`
-}
-
-func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditRequest {
-	if r.FullDemo != nil {
-		base = renderplan.FullDemoEditRequest(*r.FullDemo)
-	}
-	if r.Format != nil {
-		base.Format = *r.Format
-	}
-	if r.KillEffect != nil {
-		base.KillEffect = *r.KillEffect
-	}
-	if r.Transition != nil {
-		base.Transition = *r.Transition
-	}
-	if r.Intro != nil {
-		base.Intro = *r.Intro
-	}
-	if r.Outro != nil {
-		base.Outro = *r.Outro
-	}
-	if r.HookText != nil {
-		base.HookText = *r.HookText
-	}
-	if r.KillCounter != nil {
-		base.KillCounter = *r.KillCounter
-	}
-	if r.MatchRecap != nil {
-		base.MatchRecap = *r.MatchRecap
-	}
-	if r.DeathReel != nil {
-		base.DeathReel = *r.DeathReel
-	}
-	if r.VoiceComms != nil {
-		base.VoiceComms = *r.VoiceComms
-	}
-	if r.VoiceVolume != nil {
-		v := *r.VoiceVolume
-		base.VoiceVolume = &v
-	}
-	if r.NativeHUD != nil {
-		base.NativeHUD = *r.NativeHUD
-	}
-	if r.VictimReplay != nil {
-		base.VictimReplay = *r.VictimReplay
-	}
-	if r.CenteredKillfeed != nil {
-		base.CenteredKillfeed = *r.CenteredKillfeed
-	}
-	if r.CoverStrategy != nil {
-		base.CoverStrategy = *r.CoverStrategy
-	}
-	if r.CoverFirstFrame != nil {
-		base.CoverFirstFrame = *r.CoverFirstFrame
-	}
-	if r.IntroText != nil {
-		base.IntroText = *r.IntroText
-	}
-	if r.OutroText != nil {
-		base.OutroText = *r.OutroText
-	}
-	if r.KeyDropFamily != nil {
-		base.KeyDropFamily = *r.KeyDropFamily
-	}
-	if r.KeyDropStyle != nil {
-		base.KeyDropStyle = *r.KeyDropStyle
-	}
-	if r.KeyDropCode != nil {
-		base.KeyDropCode = *r.KeyDropCode
-	}
-	if r.KeyDropPositionY != nil {
-		y := *r.KeyDropPositionY
-		base.KeyDropPositionY = &y
-	}
-	if r.KeyDropStartSeconds != nil {
-		s := *r.KeyDropStartSeconds
-		base.KeyDropStartSeconds = &s
-	}
-	if r.KeyDropEndSeconds != nil {
-		e := *r.KeyDropEndSeconds
-		base.KeyDropEndSeconds = &e
-	}
-	if r.DemoSource != nil {
-		base.DemoSource = *r.DemoSource
-	}
-	if r.OverlayTheme != nil {
-		base.OverlayTheme = *r.OverlayTheme
-	}
-	return renderplan.NormalizeEditRequest(base)
-}
-
-func (r renderEditRequest) complete() bool {
-	return r.Format != nil &&
-		r.KillEffect != nil &&
-		r.Transition != nil &&
-		r.Intro != nil &&
-		r.Outro != nil &&
-		r.HookText != nil &&
-		r.KillCounter != nil &&
-		r.CoverStrategy != nil &&
-		r.CoverFirstFrame != nil &&
-		r.IntroText != nil &&
-		r.OutroText != nil
-}
-
 // StartRenderVariant handles POST /api/jobs/{id}/renders/{variant}.
 func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	// The full job: an explicit segment selection is validated against
@@ -1698,6 +1550,10 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	var musicVolume float64
 	var gameVolume *float64
 	editRequest = editPatch.merge(editRequest)
+	if err := h.applyBrandKit(r.Context(), editPatch, &editRequest); err != nil {
+		writeBrandKitError(w, err)
+		return
+	}
 	if err := h.approveFullDemo(r.Context(), j, &editRequest); err != nil {
 		rejectFullDemo(w, err)
 		return

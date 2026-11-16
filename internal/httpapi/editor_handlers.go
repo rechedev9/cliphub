@@ -689,3 +689,10 @@ func isBadRequest(err error) bool {
 	var br badRequestError
 	return errors.As(err, &br)
 }
+
+func WithEditorRepositories(assets EditorAssetRepository, projects EditorProjectRepository) Option {
+	return func(h *Handlers) {
+		h.editorAssets = assets
+		h.editorProjects = projects
+	}
+}

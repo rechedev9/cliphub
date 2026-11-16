@@ -379,3 +379,72 @@ The PR was closed unmerged on 2026-08-26 and the pinned 2.192.4
 an official release ships it, it belongs in the "Original de CS2" capture
 profile; do not build it from the unmerged branch (see the HLAE pin rules in
 `docs/incidents.md`, HLAE pin and CS2 updates).
+
+## Round facts (renderer v8, telemetry v6)
+
+Every broadcast design shows these elements in the strip under the scoreboard:
+
+- **Players alive** under each score plate, counted from the snapshot roster.
+  A side with an unknown slot (no pawn data) shows no count.
+- **Round kills**: a `3K`, `4K` or `ACE` tag under the roster slot of a player
+  with three or more kills this round.
+- **Win streak**: `N IN A ROW` under the score plate of a team with four or more
+  round wins in a row. The streak follows the players, so it survives halftime.
+- **Defuse bar**: `WITH KIT` or `NO KIT` and a bar that fills until the bomb's
+  own `m_flDefuseCountDown`. With no recorded deadline the bar is not drawn.
+- **MVP card** at round end: the player, their round kills and the reason.
+
+Round kills and the streak are derived at render time by `roundTracker`
+(`internal/customhud/parse.go`) from the scoreboard kills and the team scores.
+They are not stored in the telemetry. The defuse and the MVP are recorded
+snapshot fields, which is why the telemetry version moved to v6.
+
+CS2 demos do not fire `round_mvp`, so the MVP comes from the scoreboard's
+`m_iMVPs` counter and the card shows no reason. The reason appears only for a
+demo that announces it. On three local match demos (2026-11-15) the defuse
+deadline was 10 s without a kit and 5 s with one, and the MVP was found for
+almost every round. Cards fade in over 12 frames on the source clock; a card
+already on screen at the start of a window does not fade again.
+
+## Own themes, composition and team names (renderer v9)
+
+All three change only the render. `CaptureHash` leaves overlays out, so a capture is reused and only the plan hash changes.
+
+- **Own themes.** The user duplicates a catalog design and changes its name, CT and T colours, plate colour and corner radius (0 to 15 px). Studio keeps up to 10 in the `hud_themes` table (`internal/store`, migration 28). The table stays on the PC, outside the library sync. A plan copies the theme whole into `overlays.hud_custom`, with the catalog base in `overlays.hud_theme`. Editing or deleting a saved theme never changes a plan already made. Without a radius the plates keep the base shape. Radius 0 draws square plates, and any other value draws rounded plates (`Theme.WithStyle`).
+- **Composition (`overlays.hud_options`).**
+  - `compact_header` hides the ten player cards and their 3K/4K/ACE tags.
+  - `hide_loadout` hides the weapon and ammo: the loadout panel, or the right half of the Focus card.
+  - `round_win_banner` draws the winning team under the scoreboard while the round is ended. The renderer's round tracker gives the winner from a one-point score change. With no such change, no banner is drawn.
+- **Team names (`overlays.team_names`).** The names go by starting side. The plan defaults fill them from the library match of the job's demo: the assigned team, then the clan name. The tracker finds which side each team plays now: it records every player's side in the first round where both sides have players, then takes the majority. When the side cannot be told, the plan names are left out. The score plate label then falls back to the demo's clan name, and then to CT or T.
+- **Preview.** `GET /api/full-demo/hud-themes/preview` draws the example scene as SVG with the same display list as the video. The web selector shows it when a theme, a switch or a name is set.
+- **Not drawn.** Team logos and player avatars are not on the HUD. ASS draws no images, and the scoreboard strip has no free space for them. The library's logos are SVG from the CS2 install, and the shipped FFmpeg cannot be assumed to rasterize them.
+
+## Post-plant win probability (renderer v10, telemetry v7)
+
+`overlays.hud_options.win_probability` draws each side's round-win chance in the strip under the scoreboard, where the MVP card shows once the round ends. The telemetry records two new facts for it, so the version moved to v7:
+
+- `plant_tick` on a snapshot: the tick of `bomb_planted`, set only while planted or defusing.
+- `equip` on a player: the game's freeze-end equipment value (`m_unFreezetimeEndEquipmentValue`), left out during freeze time, when the pawn still holds the previous round's value.
+
+The round tracker computes the chance with `tacticalplan.PostPlantWinPctCT`, the same wp1 model as the moments' win swing. It reads the bomb clock from `m_flC4Blow`, the seconds since the plant, the alive players and their equipment. The panel shows only while the clock reads 5 s or more and each side has 2 or more alive. It hides when any fact is missing: an unknown roster slot, a living player without equipment, or no plant tick. Shorts draw the same chance from the kill plan's `win_prob` spans (`internal/parser/post_plant_win.go`). The parser reads the exact bomb deadline there, so a Short hides the chance at exactly 5 s left. The HUD uses its whole-second clock, which still reads 5 until 4 s are left, so it can show the chance up to one second longer.
+
+
+## Vertical HUD for Shorts (vertical-hud-v1)
+
+`edit.vertical_hud` draws a HUD made for 9:16 Shorts: a compact scoreboard at the top (CT plate, clock plate, T plate), each side's alive count with one pip per roster slot under its score plate, and the centered kill feed under them. It is an editor overlay, not a capture change: the Short is still recorded without the CS2 HUD (Kill Feed, Viral Aggressive or Clean POV), and the vertical HUD turns `centered_killfeed` on, which already keeps CS2's notices outside the 9:16 frame. The server refuses it with `native_hud`, the `full-hud-60` preset, a death reel and a match recap. The editor also leaves it out, with a warning, over a capture that shows the CS2 HUD or that brought CS2's notices into the frame.
+
+- **Data.** The render worker reads the job's HUD telemetry (`customhud.Extract`, cached under the Full Demo HUD key, so both share one extraction per demo) and `Timeline.VerticalTrack` keeps the scoreboard state inside each captured play: team names (the demo's clan names, then CT or T), score, round, phase, clock and alive counts. An alive count is left out when any active slot of that side has no pawn data. Without a stored demo or telemetry the Short renders without the HUD.
+- **Render.** `zv-editor --vertical-hud --vertical-hud-track <json>` moves each play's states onto the edited timeline like the kill cues, and `customhud.VerticalASS` writes one libass script drawn after the effects, beside the centered kill feed. The band runs from y=150 to y=276 on the 1080x1920 frame. It waits for the hook title on the same line, stops before the stats card, fades in and out around gaps and is never drawn over a victim replay.
+- **Design.** `edit.vertical_hud_theme` is a catalog design id (default the first). Only its colours, plate shape, accent and opacity apply. `GET /api/full-demo/hud-themes/preview?base=<id>&vertical=1` draws the band as SVG with the same display list.
+- **Studio.** The Short producer's Marcador block turns it on, picks the design and shows the drawn preview. A Full HUD style disables it and keeps it in the draft without sending it (`withPresetLimits` in `web/lib/reel-brief.ts`).
+- **Not drawn.** The kill feed lists only the kills of the filmed plays from the kill plan, not every kill of the round. User HUD themes and team names from the library are not offered for Shorts.
+
+## ClipHub radar for Shorts (radar-overlay-v1)
+
+`edit.radar` draws ClipHub's own radar in a corner of a Short (9:16 or 16:9): the bundled map art of the 2D Replay, every living player as a dot in its side colour with a point toward where it looks (the POV with a white rim), smokes, molotov fires, flash and HE bursts, a cross where each player of the round died and the bomb (carried, dropped or planted). It is an editor overlay, not a capture change. The server refuses it with `native_hud`, a match recap, a Full Demo and the `full-hud-60` preset; the editor also leaves it out, with a warning, over a capture whose HUD mode is not `clean` or `deathnotices`.
+
+- **Why the CS2 radar is never hidden.** A Short with the radar is recorded without the CS2 HUD already, so there is no native radar to hide. A preset that shows the CS2 HUD keeps its radar: hiding it would change the capture cvars of that preset, and the Full Demo custom HUD profile forces `cl_drawhud_force_radar` as part of its certified capture (`recording/full_demo_evidence.go`). The radar is refused there instead.
+- **Data.** The render worker reads each captured play from the demo (`parser.ExtractRadarTrack`, `radaroverlay.SamplesPerSecond` samples a second, victim replays skipped, at most 600 s in all) and writes `radar-track.json` with the map art from `data/maps`. Positions are the demo's own; utility is placed where it went off, a fire ends when its last flame goes out and everything of a round clears at the next round start. A map without a `radarmap` calibration, a missing demo or a failed read renders the Short without the radar.
+- **Render.** `zv-editor --radar --radar-track <json> --radar-image <png>` bakes the plate (map art on a dark rounded square, alpha times the opacity) as an image effect per play and writes one libass script on the edited timeline, drawn after the other image overlays. Players move with `\move` between samples; a jump of 400 units or more is a respawn and does not slide. On a two-level map the plate shows the level the POV stood on most and players on the other level are dimmed. The radar waits for the hook title or the intro and stops before the outro and the stats card.
+- **Placement.** `radar_position` is a corner or empty for the format's corner (bottom left in 9:16, top left in 16:9); a 9:16 Short keeps the top corners under the title band and the bottom corners above the Shorts caption band. `radar_size` is small, medium or large (0.26, 0.32 or 0.40 of the short side) and `radar_opacity` goes from 0.4 to 1 (default 0.9). The radar stacks clear of the brand watermark, the sponsor banner and the affiliate plate.
+- **Not drawn.** The radar is a fixed whole-map view: it does not rotate or follow the POV like CS2's. Fires are a fixed radius like the 2D Replay, not their flame area. It shows every player, as the 2D Replay does, not only what the POV's team saw.

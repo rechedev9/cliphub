@@ -47,8 +47,9 @@ type uploadResult struct {
 
 // UploadLibraryAnalysis handles POST /api/library/uploads: a multipart body
 // with the tactical document ("document"), the position blob ("positions"),
-// the demo's "file_name" and "size_bytes", and optionally "cs2_build" and
-// "workspace_id", the workspace the demo was queued in. It does what the
+// the demo's "file_name" and "size_bytes", and optionally "cs2_build",
+// "played_at" (RFC 3339, the date the demo shows) and "workspace_id", the
+// workspace the demo was queued in. It does what the
 // library worker does after a scan, for a scan done in the browser.
 func (h *Handlers) UploadLibraryAnalysis(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBodyBytes)
@@ -83,6 +84,7 @@ func (h *Handlers) UploadLibraryAnalysis(w http.ResponseWriter, r *http.Request)
 	}
 	size, _ := strconv.ParseInt(r.FormValue("size_bytes"), 10, 64)
 	build, _ := strconv.Atoi(r.FormValue("cs2_build"))
+	shown := uploadPlayedAt(r.FormValue("played_at"))
 	fileName := path.Base(strings.ReplaceAll(strings.TrimSpace(r.FormValue("file_name")), `\`, "/"))
 	if fileName == "." || fileName == "/" || fileName == "" {
 		fileName = doc.Demo.SHA256[:12] + ".dem"
@@ -106,6 +108,7 @@ func (h *Handlers) UploadLibraryAnalysis(w http.ResponseWriter, r *http.Request)
 			internalError(w, "load the existing match", err)
 			return
 		}
+		match = h.dateUploadedMatch(r.Context(), demo, match, shown)
 		writeJSON(w, http.StatusOK, uploadResult{Created: false, Demo: demo, Match: match})
 		return
 	}
@@ -128,6 +131,7 @@ func (h *Handlers) UploadLibraryAnalysis(w http.ResponseWriter, r *http.Request)
 	analysis := library.AnalysisFromDocument(demo.ID, doc)
 	analysis.Source = demo.Source
 	analysis.CS2Build = build
+	analysis.PlayedAt = shown
 	match, err := h.libraryRepo.SaveAnalysis(r.Context(), analysis)
 	if err != nil {
 		_ = h.libraryRepo.SetDemoState(r.Context(), demo.ID, library.ParseFailed, "write_library", err.Error())
@@ -139,6 +143,7 @@ func (h *Handlers) UploadLibraryAnalysis(w http.ResponseWriter, r *http.Request)
 		internalError(w, "reload the uploaded demo", err)
 		return
 	}
+	match = h.dateUploadedMatch(r.Context(), demo, match, shown)
 	writeJSON(w, http.StatusCreated, uploadResult{Created: true, Demo: demo, Match: match})
 }
 

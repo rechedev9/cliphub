@@ -1,0 +1,7 @@
+FROM node:24.19.0-alpine3.24
+WORKDIR /app
+COPY app/ ./
+USER node
+ENV NODE_ENV=production HOSTNAME=0.0.0.0 PORT=3000 NEXT_TELEMETRY_DISABLED=1
+EXPOSE 3000
+CMD ["node", "server.js"]

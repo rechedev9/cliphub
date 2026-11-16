@@ -31,6 +31,12 @@ export type RawRenderView = {
     hook_text?: boolean;
     kill_counter?: boolean;
     centered_killfeed?: boolean;
+    vertical_hud?: boolean;
+    vertical_hud_theme?: string;
+    radar?: boolean;
+    radar_position?: string;
+    radar_size?: string;
+    radar_opacity?: number;
     cover_strategy?: EditConfig['coverStrategy'];
     intro_text?: string;
     outro_text?: string;

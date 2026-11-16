@@ -253,6 +253,7 @@ export function planFingerprint(plan: StreamEditPlan): string {
     faceReviewed: plan.face_crop_reviewed ?? false,
     game: rect(plan.gameplay_crop),
     clips: plan.clips.map((c) => [c.id, c.start_seconds, c.end_seconds, c.title ?? '', edit(c.edit)]),
+    groups: (plan.groups ?? []).map((g) => [g.id, g.clip_ids, g.title ?? '']),
     streamerNick: plan.streamer_banner?.nick?.trim() ?? '',
     streamerPlatform: plan.streamer_banner?.platform === 'kick' ? 'kick' : 'twitch',
     streamerPosition: plan.streamer_banner?.position_y ?? null,

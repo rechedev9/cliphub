@@ -44,7 +44,10 @@ func CollectDemo(ctx context.Context, req DemoRequest) (Report, []Packet, []Sigh
 	}
 	defer f.Close()
 
-	p := demoinfocs.NewParser(f)
+	p, err := demosafe.NewParser(f)
+	if err != nil {
+		return Report{}, nil, nil, err
+	}
 	defer p.Close()
 	return collectContext(ctx, p, target, abs, nil)
 }

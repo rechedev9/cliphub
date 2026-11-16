@@ -1,4 +1,5 @@
 import type { FullDemoSnapshot } from '../full-demo-plan.ts';
+import type { RadarPosition, RadarSize } from '../radar-overlay.ts';
 
 export type SteamUser = { id: string; personaName: string; avatarUrl: string };
 export type MatchStats = {
@@ -48,11 +49,20 @@ export type Play = {
   victimReplay?: boolean;
   /** Multi-POV matches only: whose POV the play uses. */
   player?: PlayPlayer;
+  /** From the server moments (internal/moments): 0 to 1 rank, reason codes, clutch result and win chance swing. */
+  score?: number; reasons?: string[]; clutchWon?: boolean; winProbSwing?: number;
 };
 export type PlayDeath = { killer?: string; weapon?: string; headshot: boolean };
 export type PlaySide = 'CT' | 'T';
 export type RenderMode = 'clean' | 'music';
 export type RenderFormat = 'short-9x16' | 'landscape-16x9';
+/** Victim replay speeds (renderplan.VictimReplaySpeeds); 0.5 is the default. */
+export const VICTIM_REPLAY_SPEEDS = [0.25, 0.5, 1] as const;
+export type VictimReplaySpeed = (typeof VICTIM_REPLAY_SPEEDS)[number];
+export const DEFAULT_VICTIM_REPLAY_SPEED: VictimReplaySpeed = 0.5;
+export function isVictimReplaySpeed(value: unknown): value is VictimReplaySpeed {
+  return VICTIM_REPLAY_SPEEDS.some((speed) => speed === value);
+}
 type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash' | 'shake' | 'glitch';
 type TransitionStyle = 'cut' | 'flash' | 'whip' | 'dip' | 'glitch' | 'zoom-whip';
 type CoverStrategy = 'generated-gameplay' | 'no-cover';
@@ -250,14 +260,41 @@ export type EditConfig = {
   killCounter: boolean;
   /** Short only: kill notices drawn by ClipHub, centered near the top. */
   centeredKillfeed?: boolean;
+  /** 9:16 only: a compact scoreboard and alive counts from the demo above the centered kill feed. */
+  verticalHud?: boolean;
+  /** A HUD catalog design for the vertical HUD; unset uses the first one. */
+  verticalHudTheme?: string;
+  /** ClipHub's radar in a corner, read from the demo; unset corner, size and opacity are the defaults. */
+  radar?: boolean;
+  radarPosition?: RadarPosition;
+  radarSize?: RadarSize;
+  radarOpacity?: number;
   matchRecap: boolean;
   /** The plays are death clips (death plan), not kills. */
   deathReel?: boolean;
+  /** Auto-Shorts: each play is rendered as its own Short from one capture. */
+  separateShorts?: boolean;
   voiceComms: boolean;
   voiceVolume?: number;
   nativeHud: boolean;
-  /** Shorts only: replay each play's last kill from the victim, slowed down. */
+  /** Shorts only: replay each play's last kill from the victim, at victimReplaySpeed. */
   victimReplay?: boolean;
+  /** Unset plays the replay at DEFAULT_VICTIM_REPLAY_SPEED. */
+  victimReplaySpeed?: VictimReplaySpeed;
+  /** A badge naming each play's clutch, ace or multikill. */
+  playBadges?: boolean;
+  /** Each team's round-win chance after the plant, from the kill plan. */
+  winProbability?: boolean;
+  /** Shorts only: name and health over teammates and over enemies the POV spotted or hit, read from the demo. */
+  playerLabels?: boolean;
+  /** Shorts only: the flight path of the POV team's grenades, read from the demo. */
+  grenadeTrails?: boolean;
+  /** 9:16 only: a closing card with the player's match stats and FACEIT data when known. */
+  statsCard?: boolean;
+  /** Shorts only: the brand kit's logo as a watermark; the render copies the saved kit. */
+  brandWatermark?: boolean;
+  /** Shorts only: the brand kit's own sponsor banner; it replaces the affiliate banner. */
+  brandBanner?: boolean;
   coverStrategy: CoverStrategy;
   introText?: string;
   outroText?: string;

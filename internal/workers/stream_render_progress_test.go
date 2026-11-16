@@ -50,7 +50,9 @@ func TestRenderStreamClipReportsProgressAcrossClips(t *testing.T) {
 			{ID: "b", StartSeconds: 20, EndSeconds: 30},
 		},
 	}
-	err := w.runClipWithProgress(context.Background(), cfg, streamClipProgress{jobID: jobID, plan: plan, index: 1, args: []string{"-i", "in.mp4", "out.mp4"}})
+	err := w.runClipWithProgress(context.Background(), cfg, streamClipProgress{
+		jobID: jobID, plan: plan, index: 1, placement: plan.Placements()["b"], args: []string{"-i", "in.mp4", "out.mp4"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,5 +65,31 @@ func TestRenderStreamClipReportsProgressAcrossClips(t *testing.T) {
 	}
 	if len(runner.args) < 3 || runner.args[0] != "-progress" || runner.args[1] != "pipe:1" {
 		t.Fatalf("args = %v, want -progress pipe:1 first", runner.args)
+	}
+}
+
+func TestRenderStreamClipCountsAJoinedShortAsOneVideo(t *testing.T) {
+	board := streamclips.NewRenderProgressBoard()
+	jobID := uuid.New()
+	runner := &progressScriptRunner{board: board, jobID: jobID, outUs: []int64{5_000_000}}
+	w := &StreamRenderWorker{runner: runner}
+	plan := streamclips.EditPlan{
+		Variant: streamclips.VariantStreamerFullframeNoCam,
+		Clips: []streamclips.ClipRange{
+			{ID: "a", StartSeconds: 0, EndSeconds: 10},
+			{ID: "b", StartSeconds: 20, EndSeconds: 30},
+			{ID: "c", StartSeconds: 40, EndSeconds: 50},
+		},
+		Groups: []streamclips.ClipGroup{{ID: "g", ClipIDs: []string{"a", "b"}}},
+	}
+	err := w.runClipWithProgress(context.Background(), StreamRenderWorkerConfig{FFmpegPath: "ffmpeg", Progress: board}, streamClipProgress{
+		jobID: jobID, plan: plan, index: 1, placement: plan.Placements()["b"], args: []string{"-i", "in.mp4", "out.mp4"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The second moment of the group is still video 1 of 2, while the percent counts moments.
+	if got, _ := board.Get(jobID); got.Clip != 1 || got.Clips != 2 || got.Percent != 50 {
+		t.Fatalf("progress = %+v, want video 1 of 2 at 50 %%", got)
 	}
 }

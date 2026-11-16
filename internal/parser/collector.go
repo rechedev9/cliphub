@@ -177,6 +177,7 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 	planRules := c.rules
 	planKillsAfterFilters := c.killsAfterFilters
 	var segs []killplan.Segment
+	var rounds []killplan.RoundResult
 	switch mode {
 	case SegmentModeRecap:
 		planRules = recapRules(c.rules)
@@ -189,6 +190,8 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 		planKillsAfterFilters = 0
 		segs = SegmentDeaths(DeathSegmentsInput{Deaths: c.targetDeaths, LiveStarts: c.liveStarts, RoundStarts: c.roundStarts, Tickrate: m.Tickrate})
 	default:
+		markRoundResults(c.kills, c.roundEnds)
+		rounds = roundResults(c.roundEnds)
 		segs = Segment(c.kills, c.roundEnds, c.roundStarts, c.rules, m.Tickrate)
 	}
 	segs = clampSegmentsToDuration(segs, m.DurationTicks, m.Tickrate)
@@ -211,6 +214,7 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 	}
 	plan.Rules = planRules
 	plan.Segments = segs
+	plan.Rounds = rounds
 	plan.Stats = killplan.Stats{
 		TotalKillsTarget:     c.totalKillsTarget,
 		KillsAfterFilters:    planKillsAfterFilters,

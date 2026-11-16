@@ -1,7 +1,9 @@
 import type { EditConfig } from './api/types.ts';
 import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_LEGACY_CAPTURE_PROFILE, CUSTOM_HUD_THEMES, NATIVE_HUD_CAPTURE_PROFILE, isCustomHudCaptureProfile, isCustomHudTheme } from './custom-hud.ts';
 import { fullDemoTransitionPreset } from './full-demo-transitions.ts';
+import { isHudOptions, isHudStyle, isHudTeamNames, type HudOptions, type HudTeamNames } from './hud-themes.ts';
 import { uploadForm, type UploadProgress } from './api/upload.ts';
+import { isBrandOverlay, type BrandOverlay } from './brand-kit.ts';
 
 export const FULL_DEMO_PROFILE = 'full-demo-pov-chill-v1';
 export const FULL_DEMO_CAPTURE_VARIANT = 'gameplay-pov-60';
@@ -116,7 +118,11 @@ const optionsShape = object({
     mode: oneOf('generated', 'screenshots'), team1_image: nullable(assetRef), team2_image: nullable(assetRef), scoreboard_image: nullable(assetRef),
     hud_theme: (value): value is string | undefined => value === undefined || isCustomHudTheme(value),
     hud_portrait: nullable(assetRef),
-  }, ['mode', 'team1_image', 'team2_image', 'scoreboard_image', 'hud_theme', 'hud_portrait']),
+    // Mirror recapplan's render-only HUD look; Go omits each when empty.
+    hud_custom: isHudStyle, hud_options: isHudOptions, team_names: isHudTeamNames,
+    // Mirrors recapplan.BrandOverlay, the brand kit copy; it draws with any HUD.
+    brand: isBrandOverlay,
+  }, ['mode', 'team1_image', 'team2_image', 'scoreboard_image', 'hud_theme', 'hud_portrait', 'hud_custom', 'hud_options', 'team_names', 'brand']),
   outputs: object({ media_profile: oneOf('h264-1080p60-aac48-stereo'), cover_policy: oneOf('no-cover', 'generated-gameplay'), metadata_policy: oneOf('factual-v1') }),
   transitions: nullable(transitionOptions),
   bumpers: bumperOptions,
@@ -147,7 +153,7 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
   // Go's `omitempty` leaves retired image fields out of persisted plans. Do
   // the same here so an already-approved document does not become dirty just
   // because the old screenshot option disappeared from the form.
-  const { team1_image: _team1Image, team2_image: _team2Image, scoreboard_image: _scoreboardImage, hud_portrait: portrait, ...overlays } = fixed.overlays;
+  const { team1_image: _team1Image, team2_image: _team2Image, scoreboard_image: _scoreboardImage, hud_portrait: portrait, hud_custom: hudCustom, hud_options: hudOptions, team_names: teamNames, brand, ...overlays } = fixed.overlays;
   if (!nativeHud && !hudTheme) throw new Error('No hay diseños de HUD disponibles.');
   return {
     ...fixed,
@@ -185,11 +191,35 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
       mode: 'generated',
       ...(hudTheme ? { hud_theme: hudTheme } : {}),
       ...(hudTheme === 'focus' && portrait ? { hud_portrait: portrait } : {}),
+      ...(hudTheme ? hudLook(hudCustom, hudOptions, teamNames) : {}),
+      ...brandOverlay(brand),
     },
     transitions: { ...fullDemoTransitionPreset(), enabled: fixed.transitions?.enabled ?? true },
     outputs: { ...fixed.outputs, cover_policy: 'no-cover', metadata_policy: 'factual-v1' },
     ...legacySponsorBumper(fixed.bumpers, legacySponsor),
   };
+}
+
+/** Go's omitzero drops false switches and empty names, so the draft does the same and an approved plan stays clean. */
+function hudLook(custom: FullDemoOptions['overlays']['hud_custom'], options: HudOptions | undefined, names: HudTeamNames | undefined): Partial<FullDemoOptions['overlays']> {
+  const switches: HudOptions = {
+    ...(options?.compact_header ? { compact_header: true } : {}),
+    ...(options?.hide_loadout ? { hide_loadout: true } : {}),
+    ...(options?.round_win_banner ? { round_win_banner: true } : {}),
+    ...(options?.win_probability ? { win_probability: true } : {}),
+  };
+  const teams: HudTeamNames = { ...(names?.ct_start ? { ct_start: names.ct_start } : {}), ...(names?.t_start ? { t_start: names.t_start } : {}) };
+  return {
+    ...(custom ? { hud_custom: custom } : {}),
+    ...(Object.keys(switches).length > 0 ? { hud_options: switches } : {}),
+    ...(Object.keys(teams).length > 0 ? { team_names: teams } : {}),
+  };
+}
+
+/** Go's omitzero drops an empty brand overlay and omitempty each missing half. */
+function brandOverlay(brand: BrandOverlay | undefined): { brand?: BrandOverlay } {
+  const kept: BrandOverlay = { ...(brand?.watermark ? { watermark: brand.watermark } : {}), ...(brand?.banner ? { banner: brand.banner } : {}) };
+  return Object.keys(kept).length > 0 ? { brand: kept } : {};
 }
 
 /** An old draft's chosen sponsor video moves to the sponsor slot; an empty or disabled one is dropped. */
@@ -216,6 +246,7 @@ export function isFullDemoOptions(value: unknown): value is FullDemoOptions {
   if (lowpass > 0 && lowpass < 200) return false;
   if (Boolean(value.overlays.hud_theme) !== isCustomHudCaptureProfile(capture.hud_profile)) return false;
   if (value.overlays.hud_portrait && value.overlays.hud_theme !== 'focus') return false;
+  if (!value.overlays.hud_theme && (value.overlays.hud_custom || value.overlays.hud_options || value.overlays.team_names)) return false;
   if (editorial.max_freeze_seconds < editorial.freeze_seconds) return false;
   if (capture.crosshair.mode === 'observed' && capture.crosshair.code !== '') return false;
   if (capture.crosshair.mode === 'provided-code' && !/^CSGO(?:-[ABCDEFGHJKLMNOPQRSTUVWXYZabcdefhijkmnopqrstuvwxyz23456789]{5}){5}$/.test(capture.crosshair.code)) return false;

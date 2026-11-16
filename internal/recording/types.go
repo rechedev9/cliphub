@@ -213,6 +213,8 @@ type RecordingSegment struct {
 	// ReplayOnly skips the main window: a stored capture already has its clip,
 	// so this run records only the victim replay.
 	ReplayOnly bool `json:"replay_only,omitempty"`
+	// WinProb is the kill plan's post-plant win chance, read by the Short overlay.
+	WinProb []killplan.WinProbSpan `json:"win_prob,omitempty"`
 }
 
 // VictimReplay is the window around one kill seen by the player who died.
@@ -374,6 +376,7 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 			Kills:   killsInsideWindow(s.Kills, s.TickStart, s.TickEnd),
 			Utility: utilityInsideWindow(s.Utility, s.TickStart, s.TickEnd),
 			Observe: observedPOV(s, plan.Target),
+			WinProb: s.WinProb,
 		})
 	}
 	// Kill-plan order is editorial: a top-moments selection is deliberately
@@ -461,6 +464,7 @@ func (p RecordingPlan) ToKillPlan() killplan.Plan {
 			Kills:       append([]killplan.Kill(nil), segment.Kills...),
 			Utility:     append([]killplan.UtilityThrow(nil), segment.Utility...),
 			POV:         segment.Observe,
+			WinProb:     segment.WinProb,
 		}
 		out.Segments = append(out.Segments, converted)
 		out.Stats.TotalKillsTarget += len(converted.Kills)

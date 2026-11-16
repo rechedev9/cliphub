@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server.js';
 import { localAPIRequestError } from './lib/api/local-request-guard.ts';
 import { clearedCookies, resolveSession, sessionCookies, ACCESS_COOKIE, ACCESS_HEADER, REFRESH_COOKIE, type CookieSpec } from './lib/clipmind/session.ts';
+import { DEMO_COOKIE, DEMO_PATH, demoCookieOptions, demoDecision, demoHome } from './lib/clipmind/demo.ts';
 import { currentEdition, isPathAvailable, isPublicWebPath } from './lib/edition.ts';
 
 /** The API routes this proxy guards; the rest check the guard in-handler. */
@@ -52,25 +53,50 @@ async function webEdition(request: NextRequest): Promise<NextResponse> {
   forwarded.delete(ACCESS_HEADER);
   if (isPublicWebPath(pathname)) return NextResponse.next({ request: { headers: forwarded } });
 
+  const home = demoHome();
   const session = await resolveSession(request.cookies);
   if (session === undefined) {
     let response: NextResponse;
-    if (isAPI(pathname)) {
+    if (pathname === DEMO_PATH) {
+      response = redirectTo(request, home ?? '/crear-cuenta');
+      if (home !== undefined) response.cookies.set(DEMO_COOKIE, '1', demoCookieOptions(secure));
+    } else if (home !== undefined && request.cookies.get(DEMO_COOKIE)?.value === '1') {
+      response = demoVisit(request, forwarded);
+    } else if (isAPI(pathname)) {
       response = NextResponse.json({ error: 'sign in required', code: 'unauthorized' }, { status: 401 });
     } else {
-      const url = request.nextUrl.clone();
-      url.pathname = '/iniciar-sesion';
-      url.search = `?next=${encodeURIComponent(`${pathname}${search}`)}`;
-      response = NextResponse.redirect(url, 307);
+      response = redirectTo(request, `/iniciar-sesion?next=${encodeURIComponent(`${pathname}${search}`)}`);
     }
     // A sign-in that no longer works is dropped, so the next visit starts clean.
     if (request.cookies.has(ACCESS_COOKIE) || request.cookies.has(REFRESH_COOKIE)) applyCookies(response, clearedCookies(secure));
     return response;
   }
   forwarded.set(ACCESS_HEADER, session.access);
-  const response = NextResponse.next({ request: { headers: forwarded } });
+  // Someone signed in has their own library, not the demo's.
+  const response = pathname === DEMO_PATH ? redirectTo(request, '/') : NextResponse.next({ request: { headers: forwarded } });
   if (session.renewed !== undefined) applyCookies(response, sessionCookies(session.renewed, secure));
+  // Signed in now, so the demo banner goes.
+  if (request.cookies.has(DEMO_COOKIE)) response.cookies.delete(DEMO_COOKIE);
   return response;
+}
+
+/** A visitor of the public demo: reads go through, writes and account pages do not. */
+function demoVisit(request: NextRequest, forwarded: Headers): NextResponse {
+  const { pathname } = request.nextUrl;
+  const decision = demoDecision(request.method, pathname);
+  if (decision === 'read_only') {
+    return NextResponse.json({ error: 'the demo is read-only', code: 'demo_read_only' }, { status: 403 });
+  }
+  if (decision === 'sign_up') {
+    if (isAPI(pathname)) return NextResponse.json({ error: 'sign in required', code: 'unauthorized' }, { status: 401 });
+    return redirectTo(request, '/crear-cuenta');
+  }
+  return NextResponse.next({ request: { headers: forwarded } });
+}
+
+/** A 307 to a same-origin path, which may carry its own query. */
+function redirectTo(request: NextRequest, path: string): NextResponse {
+  return NextResponse.redirect(new URL(path, request.nextUrl), 307);
 }
 
 export const config = {

@@ -1,6 +1,11 @@
 import type { Play, PlayPlayer, PlaySide } from '../api/types.ts';
 
-export type PlayKindFilter = 'clutch' | 'ace';
+/** Play kinds the list filters by, in the order the filter shows them; each but ace is a moments reason code. */
+export const PLAY_KINDS = [
+  'clutch', 'clutch_won', 'ace', 'fast_double', 'fast_triple', 'fast_quad', 'fast_ace', 'noscope', 'through_smoke', 'attacker_blind',
+  'entry', 'retake', 'eco_win', 'flick',
+] as const;
+export type PlayKindFilter = (typeof PLAY_KINDS)[number];
 
 /** Narrows the "Prepara tu Short" list; null keeps every play. Mirrors internal/moments.Filter. */
 export type PlayFilter = {
@@ -19,6 +24,14 @@ export function isFilterActive(filter: PlayFilter): boolean {
   return filter.weapon !== null || filter.kind !== null || filter.side !== null || filter.player !== null;
 }
 
+/** Clutch and ace read the plan itself, so they work on plays without server reasons. */
+function hasKind(play: Play, kind: PlayKindFilter): boolean {
+  if (kind === 'clutch') return play.clutchVs !== undefined && play.clutchVs > 0;
+  if (kind === 'ace') return play.kills >= ACE_KILLS;
+  if (kind === 'clutch_won') return play.clutchWon === true;
+  return play.reasons?.includes(kind) === true;
+}
+
 /** A weapon keeps the plays where every kill used it; a kind or a side keeps the plays that have it. */
 export function playMatches(play: Play, filter: PlayFilter): boolean {
   if (filter.side !== null && play.side !== filter.side) return false;
@@ -27,8 +40,7 @@ export function playMatches(play: Play, filter: PlayFilter): boolean {
     const weapons = play.weapons ?? [];
     if (weapons.length === 0 || weapons.some((weapon) => weapon !== filter.weapon)) return false;
   }
-  if (filter.kind === 'clutch' && !(play.clutchVs && play.clutchVs > 0)) return false;
-  if (filter.kind === 'ace' && play.kills < ACE_KILLS) return false;
+  if (filter.kind !== null && !hasKind(play, filter.kind)) return false;
   return true;
 }
 
@@ -49,23 +61,16 @@ export function playFilterOptions(plays: readonly Play[]): PlayFilterOptions {
   const weapons = new Map<string, number>();
   const sides = new Set<PlaySide>();
   const players: PlayPlayer[] = [];
-  let clutch = false;
-  let ace = false;
   for (const play of plays) {
     const used = play.weapons ?? [];
     // Only a weapon that can carry a whole play is worth offering.
     if (used.length === 1) weapons.set(used[0], (weapons.get(used[0]) ?? 0) + 1);
     if (play.side) sides.add(play.side);
     if (play.player && !players.some((p) => p.steamId === play.player?.steamId)) players.push(play.player);
-    if (play.clutchVs && play.clutchVs > 0) clutch = true;
-    if (play.kills >= ACE_KILLS) ace = true;
   }
-  const kinds: PlayKindFilter[] = [];
-  if (clutch) kinds.push('clutch');
-  if (ace) kinds.push('ace');
   return {
     weapons: [...weapons.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([weapon]) => weapon),
-    kinds,
+    kinds: PLAY_KINDS.filter((kind) => plays.some((play) => hasKind(play, kind))),
     sides: (['CT', 'T'] as const).filter((side) => sides.has(side)),
     players,
   };

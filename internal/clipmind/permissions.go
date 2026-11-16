@@ -19,11 +19,15 @@ const (
 	permSync   permission = "sync"
 )
 
+// roleViewer is the visitor of the public demo: it only reads.
+const roleViewer = "viewer"
+
 // rolePermissions: every member has the same rights in a workspace. Owner-only
 // actions (expel, transfer, delete) are account routes, not library routes.
 var rolePermissions = map[string][]permission{
-	"owner":  {permRead, permWrite, permUpload, permSync},
-	"member": {permRead, permWrite, permUpload, permSync},
+	"owner":    {permRead, permWrite, permUpload, permSync},
+	"member":   {permRead, permWrite, permUpload, permSync},
+	roleViewer: {permRead},
 }
 
 // allows checks the principal's role; sync is for a person's devices only, since

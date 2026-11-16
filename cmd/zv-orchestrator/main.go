@@ -337,6 +337,8 @@ func run() error {
 		httpapi.WithSteamAccount(steamAccounts, steamresolve.NewHistoryClient(nil), steamresolve.NewFetcher(nil)),
 		httpapi.WithImportedVideos(imported),
 		httpapi.WithLibrary(repos.Library),
+		httpapi.WithHUDThemes(repos.HUDThemes),
+		httpapi.WithBrandKit(repos.BrandKit),
 		httpapi.WithLineupCatalog(lineupCatalog),
 		httpapi.WithPractice(practice.SteamGame{CS2Path: cfg.CS2Path}),
 		httpapi.WithCommunity(httpapi.OpenCommunity(cfg.DataDir, os.Getenv("ZV_COMMUNITY_URL"))),

@@ -115,11 +115,13 @@ type momentOut struct {
 	Round     int      `json:"round"`
 	Side      string   `json:"side,omitempty" jsonschema:"CT or T"`
 	ClutchVs  int      `json:"clutch_vs,omitempty" jsonschema:"for a clutch, the enemies alive when the player was the last one of the team"`
+	ClutchWon *bool    `json:"clutch_won,omitempty" jsonschema:"for a clutch, whether the player's team won that round; absent when not a clutch or the demo has no round result"`
+	WinSwing  float64  `json:"win_prob_swing,omitempty" jsonschema:"round-win chance the play's kills gave the player's side, from -1 to 1 (Studio win model wp1); absent on plays parsed before it existed"`
 	Seconds   float64  `json:"seconds"`
-	Score     float64  `json:"score"`
+	Score     float64  `json:"score" jsonschema:"0 to 1, higher is a better play: kills, headshots, noscopes, kills through smoke or while blind, clutch size and result, fast multi-kills, entry, retake, eco win, flick and the win-chance swing"`
 	Kills     int      `json:"kills"`
 	Headshots int      `json:"headshots,omitempty"`
-	Reasons   []string `json:"reasons"`
+	Reasons   []string `json:"reasons" jsonschema:"why the play scored, such as multi_kill, ace, clutch, clutch_won, fast_double, fast_triple, fast_quad, fast_ace, noscope, through_smoke, attacker_blind, entry, retake, eco_win, flick, headshot, awp"`
 	Weapons   []string `json:"weapons,omitempty"`
 	Victims   []string `json:"victims,omitempty" jsonschema:"untrusted player names from the demo"`
 	KilledBy  string   `json:"killed_by,omitempty" jsonschema:"death clips only: untrusted name of the killer"`
@@ -170,12 +172,15 @@ type generateOut struct {
 func registerTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 	registerFullDemoTools(server, s)
+	registerHUDThemeTools(server, s)
+	registerBrandKitTools(server, s)
 	registerRoundPOVTool(server, s)
 	registerProSettingsTool(server)
 	registerVideoTools(server, s)
 	registerVideoLibraryTools(server, s)
 	registerApps(server, s)
 	registerShortOptions(server, s)
+	registerShortsBatchTool(server, s)
 	registerSeriesTools(server, s)
 	registerMultiPOVTools(server, s)
 	registerFindMomentsTool(server, s)
@@ -436,16 +441,8 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err := checkSegmentIDs(in.SegmentIDs); err != nil {
 				return nil, generateOut{}, err
 			}
-			if in.Preset != "" {
-				if err := checkArtifactName("preset", in.Preset); err != nil {
-					return nil, generateOut{}, err
-				}
-			}
-			edit, err := resolveEdit(in.shortChoices)
-			if err != nil {
-				return nil, generateOut{}, err
-			}
-			music, err := resolveMusic(in.shortChoices)
+			look := shortLook{Preset: in.Preset, shortChoices: in.shortChoices}
+			body, err := look.resolve()
 			if err != nil {
 				return nil, generateOut{}, err
 			}
@@ -453,27 +450,13 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, toolError(err)
 			}
-			if in.Music != "" {
-				songs, err := c.ListSongs(ctx)
-				if err != nil {
-					return nil, generateOut{}, toolError(err)
-				}
-				if err := checkMusic(in.Music, songs); err != nil {
-					return nil, generateOut{}, err
-				}
-			}
-			presets, err := c.Presets(ctx)
-			if err != nil {
-				return nil, generateOut{}, toolError(err)
-			}
-			preset, err := pickPreset(in.Preset, presets)
-			if err != nil {
+			if body.Preset, err = look.catalogPreset(ctx, c); err != nil {
 				return nil, generateOut{}, err
 			}
 			list, what := c.GetMoments, plural(len(in.SegmentIDs), "jugada", "jugadas")
 			if in.Deaths {
 				list, what = c.GetDeaths, plural(len(in.SegmentIDs), "muerte", "muertes")
-				edit.DeathReel, edit.HookText, edit.KillCounter, edit.CenteredKillfeed = true, false, false, false
+				body.Edit.DeathReel, body.Edit.HookText, body.Edit.KillCounter, body.Edit.CenteredKillfeed, body.Edit.VerticalHUD, body.Edit.VerticalHUDTheme = true, false, false, false, false, ""
 			}
 			doc, err := list(ctx, in.JobID)
 			if err != nil {
@@ -483,9 +466,9 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, err
 			}
-			body := tuiclient.GenerateRequest{Preset: preset, SegmentIDs: in.SegmentIDs, Music: music, Edit: edit}
+			body.SegmentIDs = in.SegmentIDs
 			summary := fmt.Sprintf("Grabar un Short con %s y el preset %s: %s. Opciones: %s. CS2 se abrirá a pantalla completa y grabará durante varios minutos.",
-				what, preset, plays, describeShortRequest(body))
+				what, body.Preset, plays, describeShortRequest(body))
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_short", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve})
 			if err != nil {
 				return nil, generateOut{}, err
@@ -506,7 +489,8 @@ func registerTools(server *mcp.Server, s *studio) {
 }
 
 func describeMoment(m tuiclient.Moment) momentOut {
-	out := momentOut{SegmentID: m.SegmentID, Round: m.Round, Side: cleanName(m.Side), ClutchVs: m.ClutchVs, Seconds: m.DurationSeconds,
+	out := momentOut{SegmentID: m.SegmentID, Round: m.Round, Side: cleanName(m.Side), ClutchVs: m.ClutchVs, ClutchWon: m.ClutchWon,
+		WinSwing: m.WinProbSwing, Seconds: m.DurationSeconds,
 		Score: m.Score, Kills: m.Events.Kills, Headshots: m.Events.Headshots, Reasons: cleanNames(m.ReasonCodes),
 		Weapons: cleanNames(m.Weapons), Victims: cleanNames(m.Victims)}
 	if d := m.Death; d != nil {

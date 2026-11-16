@@ -64,6 +64,8 @@ const DEMO_ERROR_LABEL: Record<string, string> = {
   demo_incompatible: 'Esta versión de Studio no entiende el formato de la demo.',
   map_uncalibrated: 'El mapa aún no tiene radar calibrado, así que no se puede analizar.',
   write_artifact: 'No se pudo guardar el análisis en disco.',
+  tactical_internal:
+    'El análisis falló por un error de Studio, no porque la demo esté dañada. Actualiza Studio y pulsa Reintentar.',
   write_library: 'No se pudo guardar la partida en la biblioteca.',
   enqueue_failed: 'No se pudo poner la demo en cola.',
 };
@@ -167,6 +169,13 @@ export function scoreline(match: LibraryMatch): readonly [ScoreSide, ScoreSide] 
     { name: teamLabel(left), score: leftScore, outcome: scoreOutcome(leftScore, rightScore) },
     { name: teamLabel(right), score: rightScore, outcome: scoreOutcome(rightScore, leftScore) },
   ];
+}
+
+/** The scoreline with the own team first, so a list of the team's partidas reads top to bottom; without it, matchTitle order. */
+export function ownFirstScoreline(match: LibraryMatch, ownId: string | null): readonly [ScoreSide, ScoreSide] {
+  const [left, right] = scoreline(match);
+  const ownKey = ownId === null ? undefined : match.teams.find((team) => team.team_id === ownId)?.key;
+  return ownKey === 't-start' ? [right, left] : [left, right];
 }
 
 /** One map chip of Partidas: the raw map name, how it reads, and how many listed partidas it has. */

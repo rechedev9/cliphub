@@ -1,0 +1,36 @@
+[Unit]
+Description=ClipHub community indexer (new pro demos into the pro reference)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cliphub-community
+Group=cliphub-community
+EnvironmentFile=/etc/cliphub-community/community.env
+ExecStartPre=/usr/bin/sqlite3 /var/lib/cliphub-community/community.db ".backup /var/backups/cliphub-community/community.db"
+ExecStart=/opt/cliphub-community/cliphub-community index -max 400
+TimeoutStartSec=8h
+Nice=10
+CPUQuota=150%
+MemoryMax=1536M
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectProc=invisible
+RestrictNamespaces=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/cliphub-community /var/backups/cliphub-community
+UMask=0077

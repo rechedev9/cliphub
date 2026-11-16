@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, RefreshCw, Zap } from 'lucide-react';
+import { ChevronRight, Clapperboard, RefreshCw, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { parseFailureReason } from '@/lib/api/failure-reason';
@@ -13,6 +13,7 @@ import { FORGE_HINT_LOADING_PRESETS, forgeHint } from '@/lib/forge-hint';
 import { shortCreateErrorMessage } from '@/lib/produce/short-create-error';
 import { PRODUCE_SHORT_CTA, PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE, PRODUCE_SUMMARY_CTA, PRODUCE_SUMMARY_TITLE } from '@/lib/produce/copy';
 import { addWithoutClashes, BEST_MOMENTS_TARGET_SECONDS, bestMomentsEdit, clashingPlay } from '@/lib/produce/multi-pov';
+import { autoPovNotes, autoPovSummary, fetchAutoPov } from '@/lib/produce/auto-pov';
 import { defaultShortSettings } from '@/lib/produce/short-draft';
 import { filterPlays, NO_PLAY_FILTER, playFilterOptions, type PlayFilter } from '@/lib/produce/play-filter';
 import { useShortDraft } from '@/hooks/use-short-draft';
@@ -23,8 +24,10 @@ import {
   roundsSummary,
   selectionTimeline,
   SHORT_TARGET_SECONDS,
+  victimReplaySeconds,
 } from '@/lib/produce/short-selection';
-import { canForgeReel, constrainEditConfig, reelCreativeBrief, type MusicBrief } from '@/lib/reel-brief';
+import { canForgeReel, constrainEditConfig, reelCreativeBrief, verticalHudAllowed, withPresetLimits, type MusicBrief } from '@/lib/reel-brief';
+import { radarAllowed } from '@/lib/radar-overlay';
 import { selectShortsFormat, selectShortsPreset, shortsPresetsForFormat } from '@/lib/reel-format';
 import { cn } from '@/lib/utils';
 import { presetDescription } from '@/lib/preset-copy';
@@ -43,6 +46,7 @@ import { roundOrdinals } from '@/lib/produce/round-ordinals';
 import { playsInRounds, roundListLabel } from '@/lib/library/analysis-video';
 import { PresetPreview } from './preset-preview';
 import { PlayFilters } from './play-filters';
+import { AutoShortsDialog } from './auto-shorts-dialog';
 
 const PANEL_CLASS = 'flex min-w-0 flex-col gap-3 rounded-2xl bg-surface-2 p-4';
 const PANEL_TITLE_CLASS = 'font-display text-body font-bold text-fg-1';
@@ -80,7 +84,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const targetMinutes = Math.round(targetSeconds / 60);
   const shape = (edit: EditConfig, deaths: boolean): EditConfig => landscape
     ? bestMomentsEdit(constrainEditConfig({ ...edit, format }))
-    : constrainEditConfig({ ...edit, format, deathReel: deaths, ...(multiPov ? { killCounter: false } : {}) });
+    : constrainEditConfig({ ...edit, format, deathReel: deaths, ...(multiPov ? { killCounter: false, statsCard: false } : {}) });
   const [presets, setPresets] = useState<Preset[] | null>(null);
   const [presetAttempt, setPresetAttempt] = useState(0);
   const focusIds = focusRounds ? playsInRounds(killPlays, focusRounds) : [];
@@ -95,6 +99,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const [stylesOpen, setStylesOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  // Elegir automáticamente: the picked ids, who it left out and each play's reason.
+  const [autoPov, setAutoPov] = useState<{ ids: string[]; summary: string | null; notes: Map<string, string> } | null>(null);
+  const [directing, setDirecting] = useState(false);
   const busy = creating || !loaded;
   const [playFilter, setPlayFilter] = useState<PlayFilter>(NO_PLAY_FILTER);
   const filterOptions = useMemo(() => playFilterOptions(plays), [plays]);
@@ -120,8 +127,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   }, [updateSettings, presetAttempt, format]);
 
   const selectedPlays = plays.filter((play) => selectedIds.has(play.id));
-  const cues = selectionTimeline(plays, { selectedIds, victimReplay: editConfig.victimReplay === true });
-  const estimatedSeconds = estimatedSelectionSeconds(selectedPlays, { victimReplay: editConfig.victimReplay === true });
+  const replay = { victimReplay: editConfig.victimReplay === true, victimReplaySpeed: editConfig.victimReplaySpeed };
+  const cues = selectionTimeline(plays, { selectedIds, ...replay });
+  const estimatedSeconds = estimatedSelectionSeconds(selectedPlays, replay);
   const overTarget = estimatedSeconds > targetSeconds;
   const visiblePresets = presets === null ? null : shortsPresetsForFormat(presets, format);
   // Multi-POV: a play overlapping a chosen play of another player cannot be filmed with it.
@@ -133,8 +141,12 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
     }
     return out;
   }, [plays, selectedIds]);
+  // The summary stays only while the selection is still the automatic one.
+  const autoPovNote = autoPov !== null && autoPov.ids.length === selectedIds.size && autoPov.ids.every((id) => selectedIds.has(id)) ? autoPov.summary : null;
   const selectedPreset = visiblePresets?.find((preset) => preset.name === variant) ?? null;
   const presetLabel = selectedPreset?.label ?? null;
+  // A Full HUD style keeps the draft's vertical HUD but never sends it.
+  const hudAllowed = verticalHudAllowed(selectedPreset);
   const briefItems = reelCreativeBrief(editConfig, selectedPreset, musicBriefFor(songTitle, musicVolume, gameVolume));
   const ready = canForgeReel({
     creating: busy,
@@ -150,6 +162,28 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
       else if (!clashes.has(playId)) next.add(playId);
       return { selectedIds: [...next] };
     });
+  }
+
+  // Auto-POV: Studio picks the players and plays like an observer, within the video's length and never two POVs at once.
+  async function chooseAutomatically(): Promise<void> {
+    if (busy || directing) return;
+    setDirecting(true);
+    try {
+      const direction = await fetchAutoPov(matchId, { targetSeconds, extraSeconds: victimReplaySeconds(replay) });
+      const known = new Set(killPlays.map((play) => play.id));
+      const ids = direction.segmentIds.filter((id) => known.has(id));
+      if (ids.length === 0) {
+        toast('Ninguna jugada para el resumen', { description: 'Estos jugadores no tienen kills en la demo. Elige las jugadas a mano.' });
+        return;
+      }
+      setPlayFilter(NO_PLAY_FILTER);
+      updateSettings({ selectedIds: ids });
+      setAutoPov({ ids, summary: autoPovSummary(direction), notes: autoPovNotes(direction) });
+    } catch {
+      toast.error('No se pudo elegir automáticamente', { description: 'Studio no ha respondido. Prueba de nuevo o elige las jugadas a mano.' });
+    } finally {
+      setDirecting(false);
+    }
   }
 
   function changeEditConfig(next: EditConfig): void {
@@ -194,23 +228,35 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
 
   async function onCreate(): Promise<void> {
     if (!ready) return;
+    await startReel(selectedPlays.map((play) => play.id), withPresetLimits(shape(editConfig, deathReel), selectedPreset));
+  }
+
+  // Auto-Shorts: one capture of these plays, each rendered as its own Short.
+  async function onCreateAutoShorts(playIds: string[]): Promise<void> {
+    if (busy || playIds.length === 0 || selectedPreset === null) return;
+    await startReel(playIds, { ...withPresetLimits(shape(editConfig, false), selectedPreset), separateShorts: true });
+  }
+
+  async function startReel(playIds: string[], edit: EditConfig): Promise<void> {
     setCreating(true);
     setCreateError(null);
+    const batch = edit.separateShorts === true;
     try {
       const video = await api.createVideo({
         matchId,
-        playIds: selectedPlays.map((play) => play.id),
+        playIds,
         mode: songId ? 'music' : 'clean',
         songId: songId ?? undefined,
         // Only a reduced volume travels; full volume stays the legacy default.
         musicVolume: songId && musicVolume < MUSIC_VOLUME.max ? musicVolume / 100 : undefined,
         gameVolume: songId ? gameVolume / 100 : undefined,
         variant: variant ?? undefined,
-        editConfig: shape(editConfig, deathReel),
+        editConfig: edit,
       });
       discardDraft();
       // A start Studio refused lands as a failed card in Mis vídeos; the toast says so instead of "en preparación".
-      if (video.status === 'failed') toast.error(landscape ? 'El resumen no ha empezado' : 'El Short no ha empezado', { description: parseFailureReason(video.failureReason).message });
+      if (video.status === 'failed') toast.error(failedStartTitle(landscape, batch), { description: parseFailureReason(video.failureReason).message });
+      else if (batch) toast('Auto-Shorts en preparación', { description: `CS2 graba ${playIds.length} ${playIds.length === 1 ? 'jugada' : 'jugadas'} y cada una sale como un Short en Mis vídeos.` });
       else toast(landscape ? 'Resumen en preparación' : 'Short en preparación', { description: 'Sigue la grabación y el montaje en Mis vídeos.' });
       router.push(doneHref);
     } catch (err) {
@@ -243,7 +289,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
         <ShortHero
           tone={tone}
           title={heroTitle}
-          meta={`${[match.map, `${plays.length} ${deathReel ? 'muertes' : 'jugadas'}`].filter(Boolean).join(' · ')} · Elige qué jugadas entran.`}
+          meta={match.map}
           cues={cues}
           totalSeconds={estimatedSeconds}
           targetSeconds={targetSeconds}
@@ -254,6 +300,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
                   ? `Llegas desde el análisis: van elegidas las jugadas de ${focusRounds.length === 1 ? 'la ronda' : 'las rondas'} ${roundListLabel(focusRounds)}.`
                   : `El jugador no hace kills en ${focusRounds.length === 1 ? 'la ronda' : 'las rondas'} ${roundListLabel(focusRounds)}: va la selección automática.`}
               </p>
+            ) : null}
+            {autoPovNote ? (
+              <p role="status" className="text-body-sm text-fg-2">{autoPovNote}</p>
             ) : null}
             {restored ? (
               <p role="status" className="text-body-sm text-fg-2">
@@ -277,8 +326,16 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             selectedIds={selectedIds}
             title={deathReel ? 'Muertes' : 'Jugadas'}
             tone={tone}
-            toolbar={<Button type="button" size="xs" variant="outline" disabled={busy || visiblePlays.length === 0}
-              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true, targetSeconds })] })}><Zap aria-hidden />{deathReel ? `Ajustar a ${targetMinutes} min` : `Elegir las mejores (${targetMinutes} min)`}</Button>}
+            toolbar={<div className="flex flex-wrap gap-2">
+              <Button type="button" size="xs" variant="outline" disabled={busy || visiblePlays.length === 0}
+                onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true, victimReplaySpeed: editConfig.victimReplaySpeed, targetSeconds })] })}><Zap aria-hidden />{deathReel ? `Ajustar a ${targetMinutes} min` : `Elegir las mejores (${targetMinutes} min)`}</Button>
+              {multiPov && !deathReel ? (
+                <Button type="button" size="xs" variant="outline" disabled={busy || killPlays.length === 0} loading={directing} loadingText="Eligiendo…"
+                  title="Elige jugadores y jugadas como un observador: clutches, duelos, la bomba y las rachas, sin dos vistas a la vez."
+                  onClick={() => void chooseAutomatically()}><Clapperboard aria-hidden />Elegir automáticamente</Button>
+              ) : null}
+              {!landscape && !deathReel ? <AutoShortsDialog matchId={matchId} plays={killPlays} disabled={busy || selectedPreset === null} creating={creating} onCreate={(ids) => void onCreateAutoShorts(ids)} /> : null}
+            </div>}
             filters={<PlayFilters options={filterOptions} value={playFilter} disabled={busy} onChange={setPlayFilter} />}
             visibleIds={visibleIds}
             emptyFiltered={
@@ -286,6 +343,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             }
             counter={<span className="tabular-nums">{selectedPlays.length} de {plays.length}</span>}
             clashes={multiPov ? clashes : undefined}
+            notes={autoPov?.notes}
             onToggle={toggleSelect}
             onSelectAll={() => !busy && updateSettings({ selectedIds: addWithoutClashes(selectedPlays, visiblePlays).map((play) => play.id) })}
             onClear={() => !busy && updateSettings({ selectedIds: [] })}
@@ -357,7 +415,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center justify-between gap-2 rounded-sm focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
               <span className={PANEL_TITLE_CLASS}>Textos y gráficos</span>
               <span className="flex items-center gap-1.5 text-body-sm text-fg-2">
-                <span className="wrap-anywhere">{overlaysSummary(editConfig)}</span>
+                <span className="wrap-anywhere">{overlaysSummary(withPresetLimits(editConfig, selectedPreset))}</span>
                 <ChevronRight aria-hidden className="size-4 text-fg-2 transition-transform duration-(--dur-fast) group-open/overlays:rotate-90" />
               </span>
             </summary>
@@ -367,6 +425,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
                 onChange={changeEditConfig}
                 disabled={busy}
                 killCounter={!multiPov}
+                statsCard={!multiPov}
+                verticalHud={hudAllowed}
+                radar={radarAllowed(selectedPreset)}
               />
             </div>
           </details>
@@ -454,6 +515,11 @@ function producerTitle(match: Match, landscape: boolean): string {
   return landscape ? `El resumen de ${who}` : `El Short de ${who}`;
 }
 
+function failedStartTitle(landscape: boolean, batch: boolean): string {
+  if (landscape) return 'El resumen no ha empezado';
+  return batch ? 'Los Auto-Shorts no han empezado' : 'El Short no ha empezado';
+}
+
 function musicBriefFor(songTitle: string | null, volumePercent: number, gameVolumePercent: number): MusicBrief {
   if (songTitle) return { status: 'track', title: songTitle, volumePercent, gameVolumePercent };
   return { status: 'none' };
@@ -462,10 +528,19 @@ function musicBriefFor(songTitle: string | null, volumePercent: number, gameVolu
 function overlaysSummary(edit: EditConfig): string {
   const parts: string[] = [];
   if (edit.killCounter) parts.push('Kill counter');
-  if (edit.centeredKillfeed && edit.format === 'short-9x16') parts.push('Kill feed centrada');
+  if (edit.verticalHud && edit.format === 'short-9x16' && !edit.deathReel) parts.push('HUD vertical');
+  if ((edit.centeredKillfeed || edit.verticalHud) && edit.format === 'short-9x16' && !edit.deathReel) parts.push('Kill feed centrada');
+  if (edit.radar) parts.push('Radar');
   if (edit.hookText) parts.push('Título');
   if (edit.intro || edit.outro) parts.push('Intro / outro');
+  if (edit.playBadges) parts.push('Insignias');
+  if (edit.winProbability) parts.push('Prob. de victoria');
+  if (edit.playerLabels) parts.push('Nombres y vida');
+  if (edit.grenadeTrails) parts.push('Estelas de granadas');
+  if (edit.statsCard && edit.format === 'short-9x16') parts.push('Estadísticas');
   if (edit.victimReplay) parts.push('Repetición');
+  if (edit.brandWatermark) parts.push('Marca de agua');
+  if (edit.brandBanner && !edit.keyDropStyle) parts.push('Sponsor');
   if (edit.keyDropStyle) parts.push('Afiliado');
   return parts.length > 0 ? parts.join(' + ') : 'Solo efectos';
 }

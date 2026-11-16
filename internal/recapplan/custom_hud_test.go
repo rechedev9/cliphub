@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/hudthemes"
 )
 
 func TestFocusPortraitIsVerifiedPersistedAndOnlyChangesRender(t *testing.T) {
@@ -110,5 +111,54 @@ func TestCustomHUDRequiresCompatibleCaptureAndThemesReuseIt(t *testing.T) {
 	currentHash, _ := first.CaptureHash()
 	if legacyHash == currentHash {
 		t.Fatal("radar profile revision reused a capture with different native settings")
+	}
+}
+
+func TestHUDLookIsKeptValidatedAndOnlyChangesRender(t *testing.T) {
+	o := fixtureOptions()
+	o.Capture.HUDProfile, o.Overlays.HUDTheme = customhud.CaptureProfile, "arena"
+	plain, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "not_requested"}, nil, "facts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	radius := 6
+	o.Overlays.HUDCustom = &hudthemes.Style{Name: "Mío", CT: "112233", T: "445566", Background: "000000", Radius: &radius}
+	o.Overlays.HUDOptions = customhud.Options{CompactHeader: true, RoundWinBanner: true}
+	o.Overlays.TeamNames = customhud.Teams{CTStart: "Vitality", TStart: "Spirit"}
+	styled, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "not_requested"}, nil, "facts")
+	if err != nil || len(styled.Blockers) != 0 {
+		t.Fatalf("styled plan: %v %+v", err, styled.Blockers)
+	}
+	a, _ := plain.CaptureHash()
+	b, _ := styled.CaptureHash()
+	if a != b || plain.PlanHash == styled.PlanHash {
+		t.Fatal("the HUD look must change approval but reuse the capture")
+	}
+	fresh := DefaultOptions()
+	fresh.Overlays.HUDCustom, fresh.Overlays.HUDOptions, fresh.Overlays.TeamNames = o.Overlays.HUDCustom, o.Overlays.HUDOptions, o.Overlays.TeamNames
+	canonical, err := CanonicalNewOptions(fresh)
+	if err != nil || !reflect.DeepEqual(canonical.Overlays.HUDCustom, o.Overlays.HUDCustom) || canonical.Overlays.HUDOptions != o.Overlays.HUDOptions || canonical.Overlays.TeamNames != o.Overlays.TeamNames {
+		t.Fatalf("canonical options dropped the HUD look: %+v, %v", canonical.Overlays, err)
+	}
+	renderer, err := o.Overlays.HUDRenderer()
+	if err != nil || renderer.Theme.CT != "112233" || renderer.Theme.Radius != 6 || !renderer.Options.CompactHeader || renderer.Teams.TStart != "Spirit" {
+		t.Fatalf("renderer = %+v, %v", renderer, err)
+	}
+	for name, change := range map[string]func(*Options){
+		"bad colour":     func(o *Options) { o.Overlays.HUDCustom.CT = "zz" },
+		"long name":      func(o *Options) { o.Overlays.TeamNames.CTStart = strings.Repeat("a", MaxTeamNameRunes+1) },
+		"native with it": func(o *Options) { o.Overlays.HUDTheme, o.Capture.HUDProfile = "", NativeHUDProfile },
+	} {
+		bad := o
+		custom := *o.Overlays.HUDCustom
+		bad.Overlays.HUDCustom = &custom
+		change(&bad)
+		if bad.Validate() == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	body, _ := json.Marshal(plain.Options.Overlays)
+	if strings.Contains(string(body), "hud_options") || strings.Contains(string(body), "team_names") || strings.Contains(string(body), "hud_custom") {
+		t.Fatalf("an unstyled plan changed its wire format: %s", body)
 	}
 }

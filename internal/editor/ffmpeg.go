@@ -27,11 +27,12 @@ func BuildFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 		"-v", "error",
 		"-i", short.Input,
 	}
+	command = appendBrandImageInputs(command, short)
 	// Killfeed overlays need the source stream twice (program feed + crop
 	// branches), and the cover first-frame freeze needs the filtered stream
 	// twice, which -vf cannot express; plain renders keep the historical
 	// -vf command.
-	if killfeeds := killfeedEffects(short.Effects); len(killfeeds) > 0 || short.CoverFirstFrame {
+	if killfeeds := killfeedEffects(short.Effects); len(killfeeds) > 0 || short.CoverFirstFrame || len(singleClipBrandImages(short)) > 0 {
 		command = append(command,
 			"-filter_complex", strings.Join(singleClipVideoClauses(short, killfeeds), ";"),
 			"-map", "[v]",
@@ -41,7 +42,7 @@ func BuildFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 		command = append(command,
 			"-map", "0:v:0",
 			"-map", "0:a?",
-			"-vf", VideoFilter(short),
+			"-vf", sourceVideoFilter(short),
 		)
 	}
 	command = appendVideoEncodeArgs(command, short)
@@ -97,8 +98,8 @@ func BuildMusicFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 		audioOut += ",loudnorm=I=-16:TP=-1.5:LRA=11"
 	}
 	audioOut += "[a]"
-	videoClauses := []string{fmt.Sprintf("[0:v]%s[v]", VideoFilter(short))}
-	if killfeeds := killfeedEffects(short.Effects); len(killfeeds) > 0 || short.CoverFirstFrame {
+	videoClauses := []string{fmt.Sprintf("[0:v]%s[v]", sourceVideoFilter(short))}
+	if killfeeds := killfeedEffects(short.Effects); len(killfeeds) > 0 || short.CoverFirstFrame || len(singleClipBrandImages(short)) > 0 {
 		videoClauses = singleClipVideoClauses(short, killfeeds)
 	}
 	gameVol := fmt.Sprintf("%.2f", gameMixVolume(short))
@@ -116,10 +117,13 @@ func BuildMusicFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 		"-i", short.Input,
 		"-stream_loop", "-1",
 		"-i", short.MusicPath,
+	}
+	command = appendBrandImageInputs(command, short)
+	command = append(command,
 		"-filter_complex", filter,
 		"-map", "[v]",
 		"-map", "[a]",
-	}
+	)
 	command = appendVideoEncodeArgs(command, short)
 	command = appendAudioCodecArgs(command)
 	command = append(command, "-movflags", "+faststart")
@@ -157,7 +161,7 @@ func tailTrimArgs(short ShortEdit) []string {
 func singleClipVideoClauses(short ShortEdit, killfeeds []Effect) []string {
 	var clauses []string
 	if len(killfeeds) == 0 {
-		clauses = []string{fmt.Sprintf("[0:v]%s[vbase]", VideoFilter(short))}
+		clauses = []string{fmt.Sprintf("[0:v]%s[vbase]", sourceVideoFilter(short))}
 	} else {
 		split := fmt.Sprintf("[0:v]split=%d[main]", len(killfeeds)+1)
 		for i := range killfeeds {
@@ -165,7 +169,7 @@ func singleClipVideoClauses(short ShortEdit, killfeeds []Effect) []string {
 		}
 		clauses = []string{
 			split,
-			fmt.Sprintf("[main]%s[vbase]", VideoFilter(short)),
+			fmt.Sprintf("[main]%s[vbase]", sourceVideoFilter(short)),
 		}
 	}
 	current := "vbase"
@@ -186,6 +190,12 @@ func singleClipVideoClauses(short ShortEdit, killfeeds []Effect) []string {
 		)
 		current = next
 	}
+	if images := singleClipBrandImages(short); len(images) > 0 {
+		clauses = appendImageOverlayClauses(clauses, current, singleClipImageInputStart(short), images, short, "vbrand")
+		current = "vbrand"
+	}
+	radar, current := radarClauses(short, current)
+	clauses = append(clauses, radar...)
 	coverClauses, current := coverFirstFrameClauses(short, current)
 	clauses = append(clauses, coverClauses...)
 	return append(clauses, fmt.Sprintf("[%s]format=yuv420p[v]", current))
@@ -297,6 +307,10 @@ func CompilationFilter(short ShortEdit) string {
 	for i, part := range short.Parts {
 		partShort.SegmentOrdinal = i + 1
 		partShort.SegmentTotal = len(short.Parts)
+		world := ""
+		if !isVictimReplayPart(part) {
+			world = worldOverlayFilter(short, part.SegmentID)
+		}
 		partDuration := compilationPartDuration(short, part)
 		partFrames := max(1, int(math.Round(partDuration*float64(fps))))
 		gapFrames := int(math.Round(part.GapBeforeSeconds * float64(fps)))
@@ -314,8 +328,8 @@ func CompilationFilter(short ShortEdit) string {
 					// trim to a single source frame before VideoFilter: only
 					// that frame survives, so filtering the rest of the part
 					// just to discard it is wasted work.
-					"[%d:v]trim=end_frame=1,%s,loop=loop=-1:size=1:start=0,setpts=N/%d/TB,trim=end_frame=%d[%s]",
-					i, VideoFilter(partShort), fps, gapFrames, gapV,
+					"[%d:v]trim=end_frame=1,%s%s,loop=loop=-1:size=1:start=0,setpts=N/%d/TB,trim=end_frame=%d[%s]",
+					i, world, VideoFilter(partShort), fps, gapFrames, gapV,
 				),
 				fmt.Sprintf("anullsrc=channel_layout=stereo:sample_rate=48000:d=%.6f[%s]", gapDuration, gapA),
 			)
@@ -329,7 +343,7 @@ func CompilationFilter(short ShortEdit) string {
 			slowFlash = "" // The transition already flashes into every part.
 		}
 		clauses = append(clauses,
-			fmt.Sprintf("[%d:v]%s%s%s,trim=end_frame=%d,setpts=PTS-STARTPTS[%s]", i, slowIn, VideoFilter(partShort), slowFlash, partFrames, videoLabel),
+			fmt.Sprintf("[%d:v]%s%s%s%s,trim=end_frame=%d,setpts=PTS-STARTPTS[%s]", i, world, slowIn, VideoFilter(partShort), slowFlash, partFrames, videoLabel),
 			fmt.Sprintf("[%d:a]aformat=channel_layouts=stereo,aresample=48000%s,atrim=duration=%.6f,asetpts=PTS-STARTPTS[%s]", i, slowAudio, partDuration, audioLabel),
 		)
 		if voice := voiceMixFilter(short, i, part, audioLabel, partDuration); voice != "" {
@@ -412,6 +426,8 @@ func appendCompilationProgramVideo(clauses []string, short ShortEdit, catLabel s
 		clauses = appendImageOverlayClauses(clauses, current, imageInputStart, images, short, "vimages")
 		current = "vimages"
 	}
+	radar, current := radarClauses(short, current)
+	clauses = append(clauses, radar...)
 	coverClauses, coverOut := coverFirstFrameClauses(short, current)
 	clauses = append(clauses, coverClauses...)
 	return append(clauses, fmt.Sprintf("[%s]format=yuv420p[v]", coverOut))
@@ -678,7 +694,7 @@ func voiceMixWindow(part ShortPart, tickrate int, partDuration float64) (start, 
 
 func voiceMixFilter(short ShortEdit, partIdx int, part ShortPart, gameLabel string, partDuration float64) string {
 	start, end := voiceMixWindow(part, short.VoiceTickrate, partDuration)
-	if len(short.VoiceTracks) == 0 || short.VoiceTickrate <= 0 || end <= start || isSlowMotion(part) {
+	if len(short.VoiceTracks) == 0 || short.VoiceTickrate <= 0 || end <= start || isSlowMotion(part) || isVictimReplayPart(part) {
 		return ""
 	}
 	base := voiceInputStart(short)

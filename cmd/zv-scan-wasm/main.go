@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"syscall/js"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/tactical"
 )
@@ -71,6 +72,7 @@ func zvScanDemo(_ js.Value, args []js.Value) any {
 		"document":  string(document) + "\n",
 		"positions": positions,
 		"cs2Build":  result.Header.BuildNum,
+		"playedAt":  playedAtSeconds(result.PlayedAt),
 		"sizeBytes": stream.n,
 		"fileName":  uploadName(fileName),
 	}
@@ -84,6 +86,14 @@ func scanDemo(r io.Reader) (result tactical.Result, err error) {
 		}
 	}()
 	return tactical.ScanReader(context.Background(), r, tactical.Options{})
+}
+
+// playedAtSeconds is the earliest signed spray in Unix seconds, 0 when the demo had none.
+func playedAtSeconds(at time.Time) int64 {
+	if at.IsZero() {
+		return 0
+	}
+	return at.Unix()
 }
 
 func failResult(msg string) map[string]any {

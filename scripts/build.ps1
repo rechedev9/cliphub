@@ -80,6 +80,29 @@ function Assert-FaceitKeyEmbedded {
     }
 }
 
+# The library retry after an upgrade keys on vcs.revision; without it every build reads as "devel".
+# Returns the stamped revision and whether vcs.modified=true.
+function Assert-VcsRevisionStamped {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+    $output = & go version -m $Path
+    if ($LASTEXITCODE -ne 0) {
+        throw "go version -m failed for $Path with exit $LASTEXITCODE"
+    }
+    $settings = @($output | ForEach-Object { [string]$_ })
+    $revision = $settings | ForEach-Object { [regex]::Match($_, '^\s*build\s+vcs\.revision=(\S+)\s*$') } |
+        Where-Object { $_.Success } | Select-Object -First 1
+    if ($null -eq $revision) {
+        throw "$(Split-Path -Leaf $Path) carries no vcs.revision. Build from a git checkout with git on PATH and without -buildvcs=false in GOFLAGS."
+    }
+    return [pscustomobject]@{
+        Revision = $revision.Groups[1].Value
+        Modified = [bool]($settings | Where-Object { $_ -match '^\s*build\s+vcs\.modified=true\s*$' })
+    }
+}
+
 $commands = @(
     "zv",
     "zv-parser",
@@ -127,6 +150,15 @@ try {
         throw "FACEIT_API_KEY contains unsupported characters for binary embedding"
     }
 
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        throw "git is not on PATH, so go build cannot stamp vcs.revision and the library retry after an upgrade would compare devel with devel. Install Git and retry."
+    }
+    $headRevision = [string](& git rev-parse HEAD)
+    if ($LASTEXITCODE -ne 0) {
+        throw "git rev-parse HEAD failed with exit $LASTEXITCODE"
+    }
+    $modifiedTree = $false
+    $foreignRevision = ""
     foreach ($name in $commands) {
         $out = Join-Path $stagingDir "$name.exe"
         $pkg = "./cmd/$name"
@@ -150,6 +182,24 @@ try {
         if ($name -eq "zv-orchestrator" -and $faceitEmbedKey -ne "") {
             Assert-FaceitKeyEmbedded -Path $out -Key $faceitEmbedKey
         }
+        $stamp = Assert-VcsRevisionStamped -Path $out
+        if ($stamp.Modified) {
+            $modifiedTree = $true
+        }
+        if ($stamp.Revision -ne $headRevision.Trim()) {
+            $foreignRevision = $stamp.Revision
+        }
+    }
+    # Go stamps the enclosing checkout when the repo is a worktree nested in another one.
+    if ($foreignRevision -ne "") {
+        $message = "The binaries carry vcs.revision $foreignRevision, not HEAD $($headRevision.Trim()). Build from a checkout that is not nested in another git repo."
+        if ($RequireFaceitEmbed) {
+            throw $message
+        }
+        Write-Host $message -ForegroundColor Yellow
+    }
+    if ($modifiedTree) {
+        Write-Host "The binaries carry vcs.modified=true: uncommitted changes keep the commit's vcs.revision, so the library retry after an upgrade does not treat them as a new build." -ForegroundColor Yellow
     }
 
     # Publish only after the complete runtime set exists. The helper is a

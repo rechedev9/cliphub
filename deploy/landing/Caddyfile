@@ -1,0 +1,29 @@
+# ClipHub landing (static Next export). TLS and the domain live in the edge Caddy.
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	root * /srv
+	header {
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(), geolocation=(), microphone=(), payment=()"
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+	}
+	@og path /opengraph-image
+	header @og Content-Type "image/png"
+	@hashed path /_next/static/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	@unhashed not path /_next/static/*
+	header @unhashed Cache-Control "no-cache"
+	try_files {path} {path}.html
+	file_server
+	handle_errors 404 {
+		rewrite * /404.html
+		file_server
+	}
+}

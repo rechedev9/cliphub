@@ -37,6 +37,7 @@ test('parseResultMessage accepts a success result', () => {
       map: 'de_mirage',
       rounds: 24,
       cs2Build: 14000,
+      playedAt: 1_794_668_400,
       document: '{"schema_version":"1"}\n',
       positions,
       sizeBytes: 168_232_051,

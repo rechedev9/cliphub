@@ -8,22 +8,21 @@
     "build": "next build",
     "start": "next start -p 3100",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint app components lib next.config.mjs postcss.config.mjs"
+    "lint": "oxlint app components lib test next.config.mjs postcss.config.mjs",
+    "test": "node --test --test-reporter=dot \"test/**/*.test.ts\""
   },
   "dependencies": {
     "lucide-react": "^0.469.0",
     "next": "^15.5.29",
     "react": "^19",
     "react-dom": "^19",
-    "sharp": "^0.35.5",
-    "three": "^0.181.2"
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.2",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/three": "^0.181.0",
     "oxlint": "^1.91.0",
     "oxlint-tsgolint": "^0.24.0",
     "tailwindcss": "^4.3.2",

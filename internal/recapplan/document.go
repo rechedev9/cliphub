@@ -4,7 +4,9 @@ import (
 	"slices"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/brandkit"
 	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/hudthemes"
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
@@ -277,16 +279,29 @@ type LoudnessOptions struct {
 }
 
 type OverlayOptions struct {
-	HUDTheme        string    `json:"hud_theme,omitempty"`
-	HUDPortrait     *AssetRef `json:"hud_portrait,omitempty"`
-	Roster          bool      `json:"roster"`
-	Scoreboard      bool      `json:"scoreboard"`
-	Theme           string    `json:"theme"`
-	Source          string    `json:"source"`
-	Mode            string    `json:"mode,omitempty"`
-	Team1Image      *AssetRef `json:"team1_image,omitempty"`
-	Team2Image      *AssetRef `json:"team2_image,omitempty"`
-	ScoreboardImage *AssetRef `json:"scoreboard_image,omitempty"`
+	HUDTheme    string    `json:"hud_theme,omitempty"`
+	HUDPortrait *AssetRef `json:"hud_portrait,omitempty"`
+	// HUDCustom is a user theme on the HUDTheme base, copied whole so the
+	// approved plan never depends on the saved theme. Render only, like the rest.
+	HUDCustom       *hudthemes.Style  `json:"hud_custom,omitempty"`
+	HUDOptions      customhud.Options `json:"hud_options,omitzero"`
+	TeamNames       customhud.Teams   `json:"team_names,omitzero"`
+	Roster          bool              `json:"roster"`
+	Scoreboard      bool              `json:"scoreboard"`
+	Theme           string            `json:"theme"`
+	Source          string            `json:"source"`
+	Mode            string            `json:"mode,omitempty"`
+	Team1Image      *AssetRef         `json:"team1_image,omitempty"`
+	Team2Image      *AssetRef         `json:"team2_image,omitempty"`
+	ScoreboardImage *AssetRef         `json:"scoreboard_image,omitempty"`
+	// Brand is the creator's brand kit, copied whole like HUDCustom so a later kit edit never changes the plan.
+	Brand BrandOverlay `json:"brand,omitzero"`
+}
+
+// BrandOverlay is the watermark and sponsor banner drawn over the rounds; nil is off.
+type BrandOverlay struct {
+	Watermark *brandkit.Watermark `json:"watermark,omitempty"`
+	Banner    *brandkit.Banner    `json:"banner,omitempty"`
 }
 
 type OutputOptions struct {

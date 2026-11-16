@@ -36,7 +36,7 @@ var (
 		"record:demo", "compose:final", "render:variant", "render:stream-clip",
 		"stream:acquire", "render:timeline", "interrupted", "not_found",
 		"auth_required", "unavailable", "blocked", "too_large", "not_playable", "error",
-		"demo_unreadable", "demo_incompatible", "pov_demo", "map_uncalibrated", "write_artifact",
+		"demo_unreadable", "demo_incompatible", "pov_demo", "map_uncalibrated", "write_artifact", "tactical_internal",
 		"file_error", "corrupt", "target_not_found", "parse_failed",
 		"capture_incompatible", "unplayable_start", "record_failed", "rhythm_failed",
 		"render_failed", "stage_failed", "write_plan", "ffmpeg_failed", "unknown",
@@ -165,12 +165,23 @@ func validateEvent(event Event, now time.Time) (Event, error) {
 	default:
 		return Event{}, errors.New("kind is invalid")
 	}
+	event.Class = journalClass(event)
 	if err := validateEventCode(event); err != nil {
 		return Event{}, err
 	}
 	event.OccurredAt = event.OccurredAt.UTC()
 	event.Fingerprint = canonicalFingerprint(event)
 	return event, nil
+}
+
+// journalClass files a pipeline.error class this collector does not list as "unknown",
+// so a class from a newer Studio keeps its batch and the raw class is never stored.
+func journalClass(event Event) string {
+	if event.Component == "orchestrator" && event.Kind == KindError && event.Name == "pipeline.error" &&
+		!allowedJournalClasses[event.Class] {
+		return "unknown"
+	}
+	return event.Class
 }
 
 func validateEventCode(event Event) error {

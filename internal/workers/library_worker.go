@@ -17,9 +17,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/demosafe"
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
@@ -134,18 +134,29 @@ func (w *LibraryWorker) ProcessAnalyzeLibraryDemo(ctx context.Context, id uuid.U
 	}
 	if scanErr != nil {
 		class := tacticalFailureClass(scanErr)
+		final := tacticalClassFinal(class)
+		// A retry leaves the demo parsing, so the UI never shows a failure the next attempt may clear.
+		if !final && !taskIsTerminal(ctx) {
+			if _, err := w.repo.GetDemo(ctx, id); errors.Is(err, library.ErrNotFound) {
+				w.discard(id)
+				return nil
+			}
+			logWorkerError(id, tasks.TypeAnalyzeLibraryDemo+" will retry", scanErr)
+			return scanErr
+		}
 		if err := w.repo.SetDemoState(ctx, id, library.ParseFailed, class, scanErr.Error()); errors.Is(err, library.ErrNotFound) {
 			w.discard(id)
 			return nil
 		} else if err != nil {
 			logWorkerError(id, "write library demo state", err)
-		}
-		if !taskIsTerminal(ctx) {
-			logWorkerError(id, tasks.TypeAnalyzeLibraryDemo+" will retry", scanErr)
-			return scanErr
+		} else {
+			w.putScanText(artifacts.LibraryScanFailedBuildKey(id), currentScanIdentity().String())
 		}
 		recordStageFailure(id, obs.StageTactical, tasks.TypeAnalyzeLibraryDemo, class, scanErr)
 		logWorkerError(id, tasks.TypeAnalyzeLibraryDemo+" failed", scanErr)
+		if final {
+			return fmt.Errorf("%w: %w", scanErr, asynq.SkipRetry)
+		}
 		return scanErr
 	}
 	logWorkerArtifacts(id, tasks.TypeAnalyzeLibraryDemo, []string{artifacts.LibraryTacticalIndexKey(id), artifacts.LibraryTacticalPositionsKey(id)})
@@ -229,7 +240,10 @@ func checkLibraryDemo(ctx context.Context, path string) error {
 	if err != nil || !parser.DemoRecordingUnclosed(header) {
 		return err
 	}
-	p := demoinfocs.NewParser(f)
+	p, err := demosafe.NewParser(f)
+	if err != nil {
+		return err
+	}
 	defer p.Close()
 	// Any other failure is the tactical scan's to report.
 	if _, err := parser.RosterScanWithContext(ctx, p); errors.Is(err, parser.ErrTruncatedDemo) {

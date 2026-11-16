@@ -151,6 +151,8 @@ type Moment struct {
 	Round           int          `json:"round"`
 	Side            string       `json:"side,omitempty"`
 	ClutchVs        int          `json:"clutch_vs,omitempty"`
+	ClutchWon       *bool        `json:"clutch_won,omitempty"`
+	WinProbSwing    float64      `json:"win_prob_swing,omitempty"`
 	TickStart       int          `json:"tick_start"`
 	DurationSeconds float64      `json:"duration_seconds"`
 	Score           float64      `json:"score"`

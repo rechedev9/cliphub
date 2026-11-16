@@ -187,6 +187,11 @@ func LibraryScanCrashesKey(id uuid.UUID) string {
 	return path.Join(LibraryDemoPrefix(id), "scan-crashes")
 }
 
+// LibraryScanFailedBuildKey holds the Studio build that last failed a library demo or retried it on its own.
+func LibraryScanFailedBuildKey(id uuid.UUID) string {
+	return path.Join(LibraryDemoPrefix(id), "scan-failed-build")
+}
+
 // GenerateIntentKey is the storage key for a job's one-click generate intent:
 // the latest accepted preset, music, and edit shown by the workbench. Record
 // tasks carry their own immutable intent rather than reading this mutable view.

@@ -57,7 +57,16 @@ type FFmpegInputs struct {
 	// feed; SourceWidth and SourceHeight place them on the game panel.
 	KillFeed                  []KillFeedNotice
 	SourceWidth, SourceHeight int
+	// MusicOffsetSeconds skips the start of the track so a joined Short's
+	// music runs on across the cut instead of restarting each moment.
+	MusicOffsetSeconds float64
+	// JoinedPart marks one part of a joined Short: the stream-copy join needs
+	// every part to carry the same streams, so a silent probe maps no audio.
+	JoinedPart bool
 }
+
+// AACBitrate is the audio bitrate of every stream render, joined Shorts included.
+const AACBitrate = defaultAACBitrate
 
 func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, error) {
 	plan = NormalizeEditPlan(plan)
@@ -157,6 +166,9 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 			volume = defaultMusicVolume
 		}
 		musicLabel := fmt.Sprintf("[%d:a]", musicInput)
+		if in.MusicOffsetSeconds > 0 {
+			musicLabel += fmt.Sprintf("atrim=start=%s,asetpts=PTS-STARTPTS,", floatArg(in.MusicOffsetSeconds))
+		}
 		if in.SourceHasAudio {
 			// Gain and tempo edits apply to the source before the mix so the
 			// music keeps its own volume and pace; fades apply to the mix.
@@ -192,7 +204,7 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 			filter += ";[0:a]" + chain + "[a]"
 			audioMap = "[a]"
 		}
-	} else if clip.Edit.speed() != 1 {
+	} else if clip.Edit.speed() != 1 || in.JoinedPart {
 		// A probed-silent source renders without an audio track when speed
 		// changes the timeline: with a correct probe 0:a? maps nothing anyway,
 		// and with a stale probe passing the stream untouched would desync it.

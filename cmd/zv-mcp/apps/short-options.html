@@ -27,6 +27,8 @@ function defaults(data) {
     choice[field] = first ? first.id : "";
   }
   for (const t of data.toggles) choice[t.id] = Boolean(t.default);
+  const speed = (data.replay_speed || []).find((o) => o.default);
+  choice.victim_replay_speed = speed ? speed.id : "";
   return choice;
 }
 
@@ -51,6 +53,12 @@ function render() {
   ]);
   sections.push([el("h2", {}, "Música"), el("div", { class: "rows", role: "radiogroup", "aria-label": "Música" }, musicRows())]);
   sections.push([el("h2", {}, "Extras"), el("div", { class: "rows" }, data.toggles.map(toggleRow))]);
+  if (choice.victim_replay && (data.replay_speed || []).length > 0) {
+    const title = "Velocidad de la repetición";
+    sections.push([el("h2", {}, title), el("div", { class: "grid", role: "radiogroup", "aria-label": title },
+      data.replay_speed.map((o) => el("button", { class: "card", type: "button", role: "radio", "data-key": "victim_replay_speed:" + o.id, "aria-checked": String(choice.victim_replay_speed === o.id), onclick: () => change("victim_replay_speed", o.id) },
+        el("b", {}, o.label), el("span", {}, o.description))))]);
+  }
   root.replaceChildren(...sections.flat(), footer());
   const again = focused ? root.querySelector('[data-key="' + focused + '"]') : null;
   if (again) again.focus();
@@ -160,6 +168,7 @@ function request() {
   const args = { job_id: state.jobId, segment_ids: state.segmentIds, format: c.format, kill_effect: c.kill_effect, transition: c.transition };
   if (c.music) args.music = c.music;
   for (const t of state.data.toggles) args[t.id] = Boolean(c[t.id]);
+  if (c.victim_replay && c.victim_replay_speed) args.victim_replay_speed = Number(c.victim_replay_speed);
   return args;
 }
 

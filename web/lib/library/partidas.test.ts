@@ -4,10 +4,12 @@ import type { LibraryDemo, LibraryMatch, LibraryMatchPlayer, LibraryMatchTeam } 
 import {
   adrLabel,
   buildPartidaRows,
+  demoErrorLabel,
   inDateRange,
   kdLabel,
   mapChips,
   mapPerformance,
+  ownFirstScoreline,
   matchScoreLabel,
   matchTitle,
   partidaDate,
@@ -99,6 +101,13 @@ test('a team outcome reads its own score against the rival', () => {
   assert.equal(teamOutcome(m, 'other'), null);
 });
 
+test('the own team leads the scoreline wherever it started', () => {
+  const m = match('m1', 'de_cache', side('ct-start', 7, MOUZ, 'MOUZ'), side('t-start', 13, VIT, 'Vitality'));
+  assert.deepEqual(ownFirstScoreline(m, VIT).map((entry) => entry.name), ['Vitality', 'MOUZ']);
+  assert.deepEqual(ownFirstScoreline(m, MOUZ).map((entry) => entry.name), ['MOUZ', 'Vitality']);
+  assert.deepEqual(ownFirstScoreline(m, null), scoreline(m));
+});
+
 test('map performance sums each map once per match, most played first', () => {
   const matches = [
     match('m1', 'de_mirage', side('ct-start', 13, VIT, 'Vitality'), side('t-start', 7, MOUZ, 'MOUZ')),
@@ -142,4 +151,10 @@ test('the utility ratio compares grenades per round with the teammates', () => {
   assert.equal(utilityRatioLabel({ count: 60, total: 40 }, { count: 160, total: 160 }), '1,50');
   assert.equal(utilityRatioLabel({ count: 3, total: 4 }, { count: 0, total: 16 }), '');
   assert.equal(utilityRatioLabel({ count: 0, total: 0 }, { count: 4, total: 4 }), '');
+});
+
+test('a Studio failure is not blamed on the demo, and an unknown code gets the generic label', () => {
+  assert.match(demoErrorLabel('tactical_internal'), /error de Studio/);
+  assert.equal(demoErrorLabel('demo_incompatible'), 'Esta versión de Studio no entiende el formato de la demo.');
+  assert.equal(demoErrorLabel('nope'), 'El análisis de la demo falló.');
 });

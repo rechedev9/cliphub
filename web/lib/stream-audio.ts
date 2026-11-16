@@ -4,7 +4,8 @@ import { streamFadeEnvelope } from './stream-playback.ts';
 const DEFAULT_MUSIC_VOLUME = 0.25;
 const MUSIC_SEEK_DRIFT_SECONDS = 0.25;
 
-type MusicSelection = { url: string; volume: number };
+/** offsetSeconds is where the track already is when the clip starts, as inside a joined Short. */
+type MusicSelection = { url: string; volume: number; offsetSeconds?: number };
 
 /**
  * Owns the Web Audio graph for one fresh stream playback video element.
@@ -172,7 +173,7 @@ export class StreamAudioMixer {
     musicGain.gain.setValueAtTime(timing.fade * effectiveMusicVolume(this.music.volume), this.context.currentTime);
     element.playbackRate = 1;
 
-    const target = loopedMusicTime(timing.outputSeconds, element.duration);
+    const target = loopedMusicTime(timing.outputSeconds + (this.music.offsetSeconds ?? 0), element.duration);
     if (this.musicNeedsSeek || Math.abs(element.currentTime - target) > MUSIC_SEEK_DRIFT_SECONDS) {
       try {
         element.currentTime = target;
@@ -251,7 +252,12 @@ function clipIdentity(clip: StreamClipRange | null): string | null {
 
 function validMusic(music: MusicSelection | null): MusicSelection | null {
   if (!music || typeof music.url !== 'string' || music.url.trim() === '') return null;
-  return { url: music.url, volume: music.volume };
+  const offset = music.offsetSeconds;
+  return {
+    url: music.url,
+    volume: music.volume,
+    offsetSeconds: typeof offset === 'number' && Number.isFinite(offset) && offset > 0 ? offset : 0,
+  };
 }
 
 function finiteBetween(value: number | undefined, min: number, max: number, fallback: number): number {

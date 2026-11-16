@@ -107,7 +107,10 @@ func scanDemo(demoPath, contains string) (rosterResult, error) {
 	}
 	defer f.Close()
 
-	p := demoinfocs.NewParser(f)
+	p, err := demosafe.NewParser(f)
+	if err != nil {
+		return rosterResult{}, err
+	}
 	defer p.Close()
 
 	players := map[uint64]*playerStats{}

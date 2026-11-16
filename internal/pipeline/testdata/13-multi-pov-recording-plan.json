@@ -315,8 +315,8 @@
   "editorial_segment_ids": [
     "seg-012",
     "seg-001",
-    "seg-014",
-    "seg-006"
+    "seg-006",
+    "seg-014"
   ],
   "stream": {
     "mode": "ffmpeg_direct",

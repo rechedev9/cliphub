@@ -6,10 +6,12 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+
+	"github.com/rechedev9/cliphub/internal/hudthemes"
 )
 
-const Version = "broadcast-hud-v7"
-const TelemetryVersion = "broadcast-hud-v5"
+const Version = "broadcast-hud-v10"
+const TelemetryVersion = "broadcast-hud-v7"
 const CaptureProfile = "broadcast-clean-v2"
 const LegacyCaptureProfile = "broadcast-clean"
 
@@ -41,6 +43,35 @@ type Theme struct {
 	LoadoutWidth int     `json:"loadout_width"`
 	Accent       string  `json:"accent"`
 	Opacity      float64 `json:"opacity"`
+	// Radius is the corner radius of a round shape; 0 keeps the design's own.
+	Radius int `json:"radius,omitempty"`
+}
+
+// Options are the composition switches of overlays.hud_options.
+type Options struct {
+	CompactHeader  bool `json:"compact_header,omitempty"`
+	HideLoadout    bool `json:"hide_loadout,omitempty"`
+	RoundWinBanner bool `json:"round_win_banner,omitempty"`
+	// WinProbability shows each side's post-plant round-win chance (tacticalplan wp1).
+	WinProbability bool `json:"win_probability,omitempty"`
+}
+
+// Teams names the teams by the side each one started the match on.
+type Teams struct {
+	CTStart string `json:"ct_start,omitempty"`
+	TStart  string `json:"t_start,omitempty"`
+}
+
+// WithStyle applies a user theme to its catalog base. The layout stays the base's.
+func (t Theme) WithStyle(s hudthemes.Style) Theme {
+	t.Name, t.CT, t.T, t.Background = s.Name, s.CT, s.T, s.Background
+	if s.Radius != nil {
+		t.Shape, t.Radius = "square", 0
+		if *s.Radius > 0 {
+			t.Shape, t.Radius = "round", *s.Radius
+		}
+	}
+	return t
 }
 
 var catalog = func() []Theme {

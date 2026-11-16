@@ -53,6 +53,72 @@ func TestEditStreamPlanReplacesOnlyTheGivenParts(t *testing.T) {
 	}
 }
 
+func TestEditStreamPlanJoinsAndSeparatesMoments(t *testing.T) {
+	f := &fakeStream{planClips: `[{"id":"clip-001","start_seconds":10,"end_seconds":20},{"id":"clip-002","start_seconds":30,"end_seconds":40},{"id":"clip-003","start_seconds":50,"end_seconds":60}]`}
+	cs := f.connect(t)
+	var out streamPlanOut
+	callTool(t, cs, "edit_stream_plan", map[string]any{
+		"id": testStreamID, "expected_updated_at": "2026-11-06T10:00:00Z",
+		"groups": []map[string]any{{"clip_ids": []string{"clip-003", "clip-001"}, "title": "TRIPLE + ACE"}},
+	}, &out)
+	if got := string(f.savedPlan["groups"]); got != `[{"id":"group-001","clip_ids":["clip-003","clip-001"],"title":"TRIPLE + ACE"}]` {
+		t.Errorf("saved groups %s", got)
+	}
+	if out.Shorts != 2 || len(out.Groups) != 1 || out.Groups[0].ClipIDs[0] != "clip-003" {
+		t.Errorf("returned %+v", out)
+	}
+	callTool(t, cs, "edit_stream_plan", map[string]any{"id": testStreamID, "expected_updated_at": "2026-11-06T10:00:00Z", "groups": []any{}}, &out)
+	if string(f.savedPlan["groups"]) != `[]` || out.Shorts != 3 {
+		t.Errorf("separating saved %s, shorts %d", f.savedPlan["groups"], out.Shorts)
+	}
+	toolFails(t, cs, "edit_stream_plan", map[string]any{"id": testStreamID, "expected_updated_at": "2026-11-06T10:00:00Z",
+		"groups": []map[string]any{{"clip_ids": []string{"clip-001"}}}}, "at least 2")
+	toolFails(t, cs, "edit_stream_plan", map[string]any{"id": testStreamID, "expected_updated_at": "2026-11-06T10:00:00Z",
+		"groups": []map[string]any{{"clip_ids": []string{"clip-001", "clip-999"}}}}, "not a moment of this plan")
+	toolFails(t, cs, "edit_stream_plan", map[string]any{"id": testStreamID, "expected_updated_at": "2026-11-06T10:00:00Z",
+		"groups": []map[string]any{{"clip_ids": []string{"clip-001", "clip-002"}}, {"clip_ids": []string{"clip-002", "clip-003"}}}}, "in two groups")
+	toolFails(t, cs, "edit_stream_plan", map[string]any{"id": testStreamID, "expected_updated_at": "2026-11-06T10:00:00Z",
+		"groups": []map[string]any{{"clip_ids": []string{"clip-001", "clip-002", "clip-001"}}}}, "lists moment clip-001 twice")
+}
+
+func TestEditStreamPlanKeepsTheSavedTitleOfReturnedGroups(t *testing.T) {
+	long := strings.Repeat("Ronda larga ", 7)
+	f := &fakeStream{
+		planClips:  `[{"id":"clip-001","start_seconds":10,"end_seconds":20},{"id":"clip-002","start_seconds":30,"end_seconds":40}]`,
+		planGroups: `[{"id":"group-001","clip_ids":["clip-001","clip-002"],"title":"` + long + `"}]`,
+	}
+	cs := f.connect(t)
+	var read streamPlanOut
+	callTool(t, cs, "get_stream_edit_plan", map[string]any{"id": testStreamID}, &read)
+	if read.Groups[0].Title == long {
+		t.Fatal("the read title was not shortened; the test needs a longer one")
+	}
+	group := read.Groups[0]
+	group.ClipIDs = []string{"clip-002", "clip-001"}
+	callTool(t, cs, "edit_stream_plan", map[string]any{"id": testStreamID, "expected_updated_at": "2026-11-06T10:00:00Z",
+		"groups": []planGroupArg{group}}, &read)
+	want := `[{"id":"group-001","clip_ids":["clip-002","clip-001"],"title":"` + long + `"}]`
+	if got := string(f.savedPlan["groups"]); got != want {
+		t.Errorf("saved groups %s, want the saved title kept", got)
+	}
+}
+
+func TestRenderStreamCountsAJoinedShortOnce(t *testing.T) {
+	f := &fakeStream{
+		planClips:  `[{"id":"clip-001","start_seconds":10,"end_seconds":20,"title":"Triple"},{"id":"clip-002","start_seconds":30,"end_seconds":40},{"id":"clip-003","start_seconds":50,"end_seconds":60}]`,
+		planGroups: `[{"id":"group-001","clip_ids":["clip-003","clip-001"]}]`,
+	}
+	cs := f.connect(t)
+	var ask streamRenderStartOut
+	callTool(t, cs, "render_stream", map[string]any{"id": testStreamID, "variant": "streamer-landscape-16x9"}, &ask)
+	if !ask.NeedsApproval || !strings.Contains(ask.Summary, "Renderizar 2 vídeos") || !strings.Contains(ask.Summary, "3 momentos, algunos unidos") {
+		t.Errorf("summary %q", ask.Summary)
+	}
+	if want := ": clip-003 + Triple (0:50 a 1:00, 0:10 a 0:20); clip-002 (0:30 a 0:40)."; !strings.Contains(ask.Summary, want) {
+		t.Errorf("summary %q does not list the Shorts as %q", ask.Summary, want)
+	}
+}
+
 func TestEditStreamPlanRefusesBadInput(t *testing.T) {
 	cs := (&fakeStream{}).connect(t)
 	at := "2026-11-06T10:00:00Z"

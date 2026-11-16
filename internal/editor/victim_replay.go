@@ -2,12 +2,16 @@ package editor
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
-// victimReplaySpeed slows the victim POV replay to half speed.
+// victimReplaySpeed is the default speed of the victim POV replay: half speed.
 const victimReplaySpeed = 0.5
+
+// victimReplaySpeeds are the speeds a replay may be asked for (renderplan.VictimReplaySpeeds).
+var victimReplaySpeeds = []float64{0.25, victimReplaySpeed, 1}
 
 // victimReplayFlashSeconds is the white flash that marks the cut to the replay.
 const victimReplayFlashSeconds = 0.15
@@ -17,9 +21,11 @@ type replaySource struct {
 	result  recording.RecordingResult
 	segment recording.RecordingSegment
 	baseDir string
+	// speed 0 keeps victimReplaySpeed.
+	speed float64
 }
 
-// part is the slowed victim POV part that follows the segment's own part.
+// part is the victim POV part, at the chosen speed, that follows the segment's own part.
 // Without a recorded clip it returns a warning instead.
 func (s replaySource) part() (ShortPart, string, bool) {
 	if s.segment.VictimReplay == nil {
@@ -33,9 +39,28 @@ func (s replaySource) part() (ShortPart, string, bool) {
 		SegmentID:       clip.SegmentID,
 		Input:           resolvePath(s.baseDir, clip.Path),
 		SourceArtifact:  clip.Artifact,
-		DurationSeconds: clip.DurationSeconds / victimReplaySpeed,
-		Speed:           victimReplaySpeed,
+		DurationSeconds: clip.DurationSeconds / s.playbackSpeed(),
+		Speed:           s.playbackSpeed(),
 	}, "", true
+}
+
+func (s replaySource) playbackSpeed() float64 {
+	if s.speed > 0 {
+		return s.speed
+	}
+	return victimReplaySpeed
+}
+
+// attach appends the replay to a single-clip Short, or adds the warning of a missing clip.
+func (s replaySource) attach(edit ShortEdit, warnings []string) (ShortEdit, []string) {
+	replay, warning, ok := s.part()
+	if ok {
+		return s.appendTo(edit, replay), warnings
+	}
+	if warning != "" {
+		warnings = append(warnings, warning)
+	}
+	return edit, warnings
 }
 
 // appendTo turns a single-clip Short into the clip followed by its victim
@@ -65,13 +90,29 @@ func isSlowMotion(part ShortPart) bool {
 	return part.Speed > 0 && part.Speed < 1
 }
 
-// slowMotionFilters return the video prefix, video suffix and audio suffix
-// that slow a part down; a normal-speed part gets empty strings.
+func isVictimReplayPart(part ShortPart) bool {
+	return strings.HasSuffix(part.SegmentID, recording.VictimReplaySuffix)
+}
+
+// slowMotionFilters return the video prefix, video suffix and audio suffix of
+// a victim replay: the white flash at any speed, the slow down below 1x.
 func slowMotionFilters(part ShortPart) (videoIn, videoOut, audio string) {
-	if !isSlowMotion(part) {
-		return "", "", ""
+	if isVictimReplayPart(part) {
+		videoOut = fmt.Sprintf(",fade=t=in:st=0:d=%.3f:color=white", victimReplayFlashSeconds)
 	}
-	return fmt.Sprintf("setpts=PTS/%.3f,", part.Speed),
-		fmt.Sprintf(",fade=t=in:st=0:d=%.3f:color=white", victimReplayFlashSeconds),
-		fmt.Sprintf(",atempo=%.3f", part.Speed)
+	if !isSlowMotion(part) {
+		return "", videoOut, ""
+	}
+	return fmt.Sprintf("setpts=PTS/%.3f,", part.Speed), videoOut, atempoChain(part.Speed)
+}
+
+// atempoChain slows audio by speed; one atempo filter goes no lower than 0.5.
+func atempoChain(speed float64) string {
+	var b strings.Builder
+	for speed < 0.5 {
+		b.WriteString(",atempo=0.500")
+		speed /= 0.5
+	}
+	fmt.Fprintf(&b, ",atempo=%.3f", speed)
+	return b.String()
 }

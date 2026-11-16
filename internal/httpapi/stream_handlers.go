@@ -487,11 +487,10 @@ func (h *Handlers) streamRenderedOutputs(j streamclips.Job) ([]streamRenderedOut
 			})
 		}
 	}
-	slices.SortFunc(outputs, func(a, b streamRenderedOutput) int {
-		if c := strings.Compare(a.Variant, b.Variant); c != 0 {
-			return c
-		}
-		return strings.Compare(a.ClipID, b.ClipID)
+	// Within a variant the videos keep the render's order, where a joined
+	// Short sits at its first moment; a clip-id sort would put groups last.
+	slices.SortStableFunc(outputs, func(a, b streamRenderedOutput) int {
+		return strings.Compare(a.Variant, b.Variant)
 	})
 	return outputs, nil
 }

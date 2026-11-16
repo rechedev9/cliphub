@@ -1,8 +1,10 @@
 package parser
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"sync/atomic"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
@@ -19,8 +21,8 @@ var errPOVDemo = errors.New("pov_demo: the demo was recorded by a player's clien
 // parseToEnd is the single choke point every parse path (kills, smokes,
 // roster, utility, tactical) runs a demo through; demosafe turns a parser panic into an error.
 //
-// Every failure but a cancellation is tagged "demo_incompatible: " so obs.ClassOf
-// gives the job the demo-format FailureCode, panic or not.
+// Every failure but a cancellation or a read error is tagged "demo_incompatible: " so
+// obs.ClassOf gives the job the demo-format FailureCode, panic or not.
 func parseToEnd(p demoinfocs.Parser) error {
 	return tagParseError(demosafe.ParseToEnd(p))
 }
@@ -29,11 +31,17 @@ func tagParseError(parseErr error) error {
 	switch {
 	case parseErr == nil, errors.Is(parseErr, demoinfocs.ErrUnexpectedEndOfDemo):
 		return nil
-	case errors.Is(parseErr, demoinfocs.ErrCancelled):
+	case errors.Is(parseErr, demoinfocs.ErrCancelled), isReadError(parseErr):
 		return parseErr
 	default:
 		return fmt.Errorf("demo_incompatible: %w", parseErr)
 	}
+}
+
+// isReadError reports a failure of the file or the context under the demo, which a retry may not repeat.
+func isReadError(err error) bool {
+	_, ok := errors.AsType[*fs.PathError](err)
+	return ok || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 // parseCaptureDemo is parseToEnd for the paths that feed a capture (roster,

@@ -11,14 +11,10 @@ next-env.d.ts
 # production
 /build
 
-# vercel
-/.vercel
-
 # misc
 *.tsbuildinfo
 .DS_Store
 
-.vercel
 .env*
 !.env.example
 

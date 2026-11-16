@@ -29,6 +29,43 @@ type Snapshot struct {
 	Phase         string   `json:"phase"`
 	TimeRemaining int      `json:"time_remaining"` // -1 means unobserved, never a guessed timer.
 	Players       []Player `json:"players"`
+	Defuse        *Defuse  `json:"defuse,omitempty"`
+	MVP           *MVP     `json:"mvp,omitempty"`
+	// PlantTick is the tick of the round's plant, set only while planted or defusing.
+	PlantTick int    `json:"plant_tick,omitempty"`
+	Streak    Streak `json:"-"` // Derived by roundTracker at render time.
+	// Swapped is true once the team that started CT plays T; SidesKnown says it was derived.
+	Swapped    bool   `json:"-"`
+	SidesKnown bool   `json:"-"`
+	Winner     string `json:"-"` // Side that won the round, only while it is ended.
+	// WinCT is the CT post-plant win chance in percent; 0 hides the overlay.
+	WinCT int `json:"-"`
+}
+
+// Defuse is the defuse in progress. EndTick is 0 when the bomb's own
+// completion deadline was not recorded; the length is never assumed.
+type Defuse struct {
+	Kit       bool `json:"kit"`
+	StartTick int  `json:"start_tick"`
+	EndTick   int  `json:"end_tick,omitempty"`
+}
+
+// MVP is the round's MVP as the game announced or counted it.
+type MVP struct {
+	SteamID string `json:"steamid64"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+const (
+	MVPEliminations = "eliminations"
+	MVPBombDefused  = "bomb_defused"
+	MVPBombPlanted  = "bomb_planted"
+)
+
+// Streak is the run of consecutive round wins of the team now on Side.
+type Streak struct {
+	Side   string
+	Rounds int
 }
 
 type Player struct {
@@ -48,6 +85,10 @@ type Player struct {
 	Ammo     int     `json:"ammo"` // -1 for equipment that has no magazine.
 	Reserve  int     `json:"reserve"`
 	Movement *uint64 `json:"movement,omitempty"` // Recorded actions; nil means unavailable, not released keys.
+	// Equip is the game's freeze-end equipment value; 0 is unrecorded, never a guess.
+	Equip int `json:"equip,omitempty"`
+	// RoundKills is derived from the scoreboard at render time, never stored.
+	RoundKills int `json:"-"`
 }
 
 func (d Timeline) Validate() error {
@@ -73,15 +114,40 @@ func (d Timeline) Validate() error {
 			return fmt.Errorf("invalid custom HUD state at tick %d", s.Tick)
 		}
 		last = s.Tick
+		if !validRoundFacts(s, d.TickRate) {
+			return fmt.Errorf("invalid custom HUD round facts at tick %d", s.Tick)
+		}
 		seen := map[string]bool{}
 		for _, p := range s.Players {
-			if seen[p.SteamID] || p.SteamID == "" || (p.Side != "CT" && p.Side != "T") || len(p.Name) > 512 || len(p.Weapon) > 128 || p.Health < 0 || p.Armor < 0 {
+			if seen[p.SteamID] || p.SteamID == "" || (p.Side != "CT" && p.Side != "T") || len(p.Name) > 512 || len(p.Weapon) > 128 || p.Health < 0 || p.Armor < 0 || p.Equip < 0 || p.Equip > 100000 {
 				return fmt.Errorf("invalid custom HUD player at tick %d", s.Tick)
 			}
 			seen[p.SteamID] = true
 		}
 	}
 	return nil
+}
+
+func validRoundFacts(s Snapshot, tickRate int) bool {
+	if s.PlantTick != 0 && ((s.Phase != "planted" && s.Phase != "defusing") || s.PlantTick < 0 || s.PlantTick > s.Tick || s.Tick-s.PlantTick > 120*tickRate) {
+		return false
+	}
+	if f := s.Defuse; f != nil {
+		if s.Phase != "defusing" || f.StartTick < 0 || f.StartTick > s.Tick || (f.EndTick != 0 && (f.EndTick <= f.StartTick || f.EndTick-f.StartTick > 15*tickRate)) {
+			return false
+		}
+	}
+	if m := s.MVP; m != nil {
+		if s.Phase != "ended" || m.SteamID == "" || len(m.SteamID) > 20 {
+			return false
+		}
+		switch m.Reason {
+		case "", MVPEliminations, MVPBombDefused, MVPBombPlanted:
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (d Timeline) At(tick int) (Snapshot, bool) {

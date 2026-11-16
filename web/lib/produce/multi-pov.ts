@@ -44,6 +44,14 @@ export const BEST_MOMENTS_TARGET_SECONDS = 180;
 export function bestMomentsEdit(edit: EditConfig): EditConfig {
   const next: EditConfig = { ...edit, format: 'landscape-16x9', matchRecap: false, nativeHud: true, voiceComms: true, voiceVolume: edit.voiceVolume ?? FULL_DEMO_VOICE_VOLUME, deathReel: false, killCounter: false };
   delete next.centeredKillfeed;
+  delete next.verticalHud;
+  delete next.verticalHudTheme;
+  // The best-moments video records CS2's HUD, whose own radar is already in the frame.
+  delete next.radar;
+  delete next.radarPosition;
+  delete next.radarSize;
+  delete next.radarOpacity;
+  delete next.statsCard;
   delete next.demoSource;
   delete next.overlayTheme;
   return next;

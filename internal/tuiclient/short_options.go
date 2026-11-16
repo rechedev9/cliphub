@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -35,6 +36,16 @@ type ShortEdit struct {
 	DeathReel     bool   `json:"death_reel,omitempty"`
 	// CenteredKillfeed is omitted when off, like the server's own field.
 	CenteredKillfeed bool `json:"centered_killfeed,omitempty"`
+	// VerticalHUD draws the 9:16 scoreboard and alive counter with the centered kill feed,
+	// in the VerticalHUDTheme catalog design; an empty theme is the first design.
+	VerticalHUD      bool   `json:"vertical_hud,omitempty"`
+	VerticalHUDTheme string `json:"vertical_hud_theme,omitempty"`
+	// Radar draws ClipHub's radar in RadarPosition, at RadarSize and RadarOpacity; empty and 0 keep
+	// the format's corner, the medium size and the default opacity.
+	Radar         bool    `json:"radar,omitempty"`
+	RadarPosition string  `json:"radar_position,omitempty"`
+	RadarSize     string  `json:"radar_size,omitempty"`
+	RadarOpacity  float64 `json:"radar_opacity,omitempty"`
 	// IntroText and OutroText replace the generated card text; empty keeps it.
 	IntroText string `json:"intro_text,omitempty"`
 	OutroText string `json:"outro_text,omitempty"`
@@ -44,6 +55,21 @@ type ShortEdit struct {
 	KeyDropCode         string   `json:"keydrop_code,omitempty"`
 	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
 	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
+
+	// VictimReplaySpeed is 0.25 or 1; 0 keeps the default half speed.
+	VictimReplaySpeed float64 `json:"victim_replay_speed,omitempty"`
+	PlayBadges        bool    `json:"play_badges,omitempty"`
+	StatsCard         bool    `json:"stats_card,omitempty"`
+	// WinProbability shows each side's post-plant round-win chance.
+	WinProbability bool `json:"win_probability,omitempty"`
+	// PlayerLabels and GrenadeTrails draw names, health and team grenade paths over the gameplay.
+	PlayerLabels  bool `json:"player_labels,omitempty"`
+	GrenadeTrails bool `json:"grenade_trails,omitempty"`
+	// BrandWatermark and BrandBanner draw the saved brand kit (GetBrandKit).
+	BrandWatermark bool `json:"brand_watermark,omitempty"`
+	BrandBanner    bool `json:"brand_banner,omitempty"`
+	// SeparateShorts renders each segment as its own Short from one capture (Auto-Shorts).
+	SeparateShorts bool `json:"separate_shorts,omitempty"`
 }
 
 // ShortMusic is the "music" object of a Short: a track id from ListSongs and its mix.
@@ -109,5 +135,39 @@ func (c *Client) StartShort(ctx context.Context, id string, req GenerateRequest)
 	}
 	var out EnqueueResponse
 	err := c.doJSON(ctx, http.MethodPost, jobPath(id)+"/generate", req, &out)
+	return out, err
+}
+
+// ShortsBatch is GET /api/jobs/{id}/shorts-batch: the best play of each round
+// over MinScore, at most Limit of them, in match order.
+type ShortsBatch struct {
+	MinScore   float64  `json:"min_score"`
+	Limit      int      `json:"limit"`
+	SegmentIDs []string `json:"segment_ids"`
+	Moments    []Moment `json:"moments"`
+}
+
+// ShortsBatchQuery asks for one job's Auto-Shorts choice; zero options keep the server defaults.
+type ShortsBatchQuery struct {
+	JobID    string
+	MinScore float64
+	Limit    int
+}
+
+// GetShortsBatch reads the Auto-Shorts choice of a job.
+func (c *Client) GetShortsBatch(ctx context.Context, q ShortsBatchQuery) (ShortsBatch, error) {
+	values := url.Values{}
+	if q.MinScore > 0 {
+		values.Set("min_score", strconv.FormatFloat(q.MinScore, 'f', -1, 64))
+	}
+	if q.Limit > 0 {
+		values.Set("limit", strconv.Itoa(q.Limit))
+	}
+	path := jobPath(q.JobID) + "/shorts-batch"
+	if len(values) > 0 {
+		path += "?" + values.Encode()
+	}
+	var out ShortsBatch
+	err := c.getJSON(ctx, path, &out)
 	return out, err
 }

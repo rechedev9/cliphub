@@ -220,7 +220,7 @@ func NewEditDocument(opts NewEditDocumentOptions) EditDocument {
 			CaptionsEnabled: opts.CaptionsEnabled,
 			Output:          opts.Output,
 		},
-		Layers: Layers{},
+		Layers: Layers{Watermark: opts.Edit.BrandWatermark != nil},
 		Publish: Publish{
 			Status: "draft",
 		},

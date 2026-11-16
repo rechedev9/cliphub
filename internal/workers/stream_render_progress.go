@@ -16,10 +16,11 @@ type progressCommandRunner interface {
 }
 
 type streamClipProgress struct {
-	jobID uuid.UUID
-	plan  streamclips.EditPlan
-	index int
-	args  []string
+	jobID     uuid.UUID
+	plan      streamclips.EditPlan
+	index     int
+	placement streamclips.ClipPlacement
+	args      []string
 }
 
 // runClipWithProgress runs one clip's FFmpeg render and posts the render's
@@ -27,7 +28,10 @@ type streamClipProgress struct {
 func (w *StreamRenderWorker) runClipWithProgress(ctx context.Context, cfg StreamRenderWorkerConfig, r streamClipProgress) error {
 	clips := len(r.plan.Clips)
 	report := func(fraction float64) {
-		cfg.Progress.Set(r.jobID, streamclips.NewRenderProgress(r.plan.Variant, r.index, clips, fraction))
+		progress := streamclips.NewRenderProgress(r.plan.Variant, r.index, clips, fraction)
+		// The percent weighs every moment; the label counts videos, where a group is one.
+		progress.Clip, progress.Clips = r.placement.Video, r.placement.Videos
+		cfg.Progress.Set(r.jobID, progress)
 	}
 	report(0)
 	runner, ok := w.runner.(progressCommandRunner)

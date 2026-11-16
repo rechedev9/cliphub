@@ -98,6 +98,29 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		outputFPS           = fs.Int("fps", 0, "optional final output FPS; defaults to 60")
 		compileSegments     = fs.Bool("compile-segments", false, "render selected segments as one compilation short")
 		victimReplay        = fs.Bool("victim-replay", false, "append each short's victim POV replay in slow motion when the capture has one")
+		victimReplaySpeed   = fs.Float64("victim-replay-speed", 0, "victim replay speed: 0.25, 0.5 or 1; 0 keeps half speed")
+		playBadges          = fs.Bool("play-badges", false, "name each play's clutch, ace or multikill on screen")
+		winProbability      = fs.Bool("win-probability", false, "show each side's post-plant round-win chance from the kill plan")
+		playerLabels        = fs.Bool("player-labels", false, "draw each teammate's and each spotted enemy's name and health over the gameplay; needs --world-track")
+		grenadeTrails       = fs.Bool("grenade-trails", false, "draw the paths of the POV team's grenades over the gameplay; needs --world-track")
+		worldTrack          = fs.String("world-track", "", "optional world overlay track JSON sampled from the demo for --player-labels and --grenade-trails")
+		verticalHUD         = fs.Bool("vertical-hud", false, "draw the 9:16 scoreboard and alive counter at the top of the Short; needs --vertical-hud-track")
+		verticalHUDTheme    = fs.String("vertical-hud-theme", "", "custom HUD catalog design of --vertical-hud; empty uses the first design")
+		verticalHUDTrack    = fs.String("vertical-hud-track", "", "optional vertical HUD track JSON read from the demo for --vertical-hud")
+		radar               = fs.Bool("radar", false, "draw ClipHub's radar with players, smokes, fires, flashes and the bomb in a corner; needs --radar-track")
+		radarPosition       = fs.String("radar-position", "", "radar corner: top-left, top-right, bottom-left or bottom-right; empty picks the format's corner")
+		radarSize           = fs.String("radar-size", "", "radar size: small, medium or large; empty is medium")
+		radarOpacity        = fs.Float64("radar-opacity", 0, "radar opacity from 0.4 to 1; 0 is the default 0.9")
+		radarTrack          = fs.String("radar-track", "", "optional radar track JSON read from the demo for --radar")
+		radarImage          = fs.String("radar-image", "", "optional map art PNG under the radar")
+		radarImageLower     = fs.String("radar-image-lower", "", "optional lower level map art PNG of a two-level map")
+		statsCard           = fs.String("stats-card", "", "optional stats card JSON drawn at the end of a 9:16 short")
+		watermarkImage      = fs.String("watermark-image", "", "optional PNG or JPG logo drawn as a watermark for the whole short")
+		watermarkCorner     = fs.String("watermark-corner", "top-right", "watermark corner: top-left, top-right, bottom-left or bottom-right")
+		watermarkOpacity    = fs.Float64("watermark-opacity", 0.8, "watermark opacity from 0.1 to 1")
+		sponsorImage        = fs.String("sponsor-image", "", "optional PNG or JPG sponsor banner drawn near the bottom of the short")
+		sponsorStart        = fs.Float64("sponsor-start", 0, "sponsor banner appears at this second")
+		sponsorEnd          = fs.Float64("sponsor-end", 0, "sponsor banner disappears at this second; 0 keeps it to the end")
 		lineupCatalogPath   = fs.String("lineup-catalog", "", "optional directory with manual smoke lineup catalog JSON files")
 		segments            = fs.String("segments", "", "optional comma-separated segment ids to render, e.g. seg-001,seg-004")
 		limit               = fs.Int("limit", 0, "optional max number of shorts to render after segment filtering")
@@ -212,6 +235,25 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		OutputFPS:             *outputFPS,
 		CompileSegments:       *compileSegments,
 		VictimReplay:          *victimReplay,
+		VictimReplaySpeed:     *victimReplaySpeed,
+		PlayBadges:            *playBadges,
+		WinProbability:        *winProbability,
+		PlayerLabels:          *playerLabels,
+		GrenadeTrails:         *grenadeTrails,
+		WorldTrackPath:        *worldTrack,
+		VerticalHUD:           *verticalHUD,
+		VerticalHUDTheme:      *verticalHUDTheme,
+		VerticalHUDTrackPath:  *verticalHUDTrack,
+		Radar:                 *radar,
+		RadarPosition:         *radarPosition,
+		RadarSize:             *radarSize,
+		RadarOpacity:          *radarOpacity,
+		RadarTrackPath:        *radarTrack,
+		RadarImagePath:        *radarImage,
+		RadarLowerImagePath:   *radarImageLower,
+		StatsCardPath:         *statsCard,
+		Watermark:             brandWatermarkFlag(*watermarkImage, *watermarkCorner, *watermarkOpacity),
+		SponsorBanner:         sponsorBannerFlag(*sponsorImage, *sponsorStart, *sponsorEnd),
 		LineupCatalogPath:     *lineupCatalogPath,
 		SegmentIDs:            segmentIDs,
 		Limit:                 *limit,
@@ -357,4 +399,18 @@ func openPath(path string) error {
 		return fmt.Errorf("open gallery: %w", err)
 	}
 	return nil
+}
+
+func brandWatermarkFlag(path, corner string, opacity float64) *editor.BrandWatermark {
+	if path == "" {
+		return nil
+	}
+	return &editor.BrandWatermark{Path: path, Corner: corner, Opacity: opacity}
+}
+
+func sponsorBannerFlag(path string, start, end float64) *editor.SponsorBanner {
+	if path == "" {
+		return nil
+	}
+	return &editor.SponsorBanner{Path: path, StartSeconds: start, EndSeconds: end}
 }

@@ -1,9 +1,12 @@
+import { isCustomHudTheme } from '../custom-hud.ts';
+import { coerceRadarOpacity, isRadarPosition, isRadarSize } from '../radar-overlay.ts';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import {
   isAffiliateStyle,
   isDemoSource,
   isKeyDropStyle,
   isOverlayTheme,
+  isVictimReplaySpeed,
   normalizeAffiliateFamily,
   type EditConfig,
   type RenderMode,
@@ -213,10 +216,28 @@ export function coerceEditConfig(value: unknown): EditConfig {
     outroText: coerceBookendText(raw.outroText),
   };
   if (raw.deathReel === true) cfg.deathReel = true;
+  if (raw.separateShorts === true) cfg.separateShorts = true;
   if (raw.centeredKillfeed === true) cfg.centeredKillfeed = true;
+  if (raw.verticalHud === true) cfg.verticalHud = true;
+  if (cfg.verticalHud && isCustomHudTheme(raw.verticalHudTheme)) cfg.verticalHudTheme = raw.verticalHudTheme;
+  if (raw.radar === true) {
+    cfg.radar = true;
+    if (isRadarPosition(raw.radarPosition)) cfg.radarPosition = raw.radarPosition;
+    if (isRadarSize(raw.radarSize)) cfg.radarSize = raw.radarSize;
+    const radarOpacity = coerceRadarOpacity(raw.radarOpacity);
+    if (radarOpacity !== undefined) cfg.radarOpacity = radarOpacity;
+  }
   const voiceVolume = coerceUnitVolume(raw.voiceVolume);
   if (voiceVolume !== undefined) cfg.voiceVolume = voiceVolume;
   if (raw.victimReplay === true) cfg.victimReplay = true;
+  if (cfg.victimReplay && isVictimReplaySpeed(raw.victimReplaySpeed)) cfg.victimReplaySpeed = raw.victimReplaySpeed;
+  if (raw.playBadges === true) cfg.playBadges = true;
+  if (raw.winProbability === true) cfg.winProbability = true;
+  if (raw.playerLabels === true) cfg.playerLabels = true;
+  if (raw.grenadeTrails === true) cfg.grenadeTrails = true;
+  if (raw.statsCard === true) cfg.statsCard = true;
+  if (raw.brandWatermark === true) cfg.brandWatermark = true;
+  if (raw.brandBanner === true) cfg.brandBanner = true;
   const family =
     typeof raw.keyDropFamily === 'string' ? normalizeAffiliateFamily(raw.keyDropFamily) : '';
   if (typeof raw.keyDropStyle === 'string') {

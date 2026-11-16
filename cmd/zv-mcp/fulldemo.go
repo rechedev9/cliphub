@@ -17,6 +17,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/hudthemes"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/tuiclient"
@@ -43,13 +44,26 @@ type hudThemeOut struct {
 }
 
 type hudThemesOut struct {
-	Themes []hudThemeOut `json:"themes"`
-	Note   string        `json:"note,omitempty"`
+	Themes  []hudThemeOut     `json:"themes"`
+	Custom  []userHUDThemeOut `json:"custom" jsonschema:"the user's own themes (save_hud_theme); their id also goes in plan_full_demo hud"`
+	Max     int               `json:"max_custom" jsonschema:"how many own themes Studio keeps"`
+	Shows   []string          `json:"shows" jsonschema:"round facts every custom design draws under the scoreboard, in Spanish; the native HUD has none of them"`
+	Options []string          `json:"options" jsonschema:"plan_full_demo switches every custom design takes, in Spanish"`
+	Note    string            `json:"note,omitempty"`
+}
+
+// customHUDShows mirrors the round facts line of the web HUD selector.
+var customHUDShows = []string{
+	"jugadores vivos de cada bando junto al marcador",
+	"racha de un equipo con 4 o más rondas seguidas",
+	"3K, 4K o ACE del jugador en la ronda",
+	"barra de desactivación de la bomba, con o sin kit",
+	"tarjeta MVP al cerrar cada ronda",
 }
 
 type planFullDemoIn struct {
 	JobID               string `json:"job_id" jsonschema:"a parsed job from create_job"`
-	HUD                 string `json:"hud,omitempty" jsonschema:"HUD design id from list_hud_themes, or native for the original CS2 HUD; empty keeps Studio's default design"`
+	HUD                 string `json:"hud,omitempty" jsonschema:"HUD design id or user theme id from list_hud_themes, or native for the original CS2 HUD; empty keeps Studio's default design"`
 	OverlaySource       string `json:"overlay_source,omitempty" jsonschema:"origin of the match data in the intro and scoreboard: demo (local demo), faceit, premier or professional"`
 	TeamVoices          *bool  `json:"team_voices,omitempty" jsonschema:"include the player's team voice chat; default on"`
 	VoiceLevel          *int   `json:"voice_level,omitempty" jsonschema:"team voices level in percent, 0 to 200; default 110"`
@@ -58,6 +72,9 @@ type planFullDemoIn struct {
 	TrueView            *bool  `json:"true_view,omitempty" jsonschema:"original 1:1 POV (CS2 TrueView) instead of the standard view; default off"`
 	Rounds              []int  `json:"rounds,omitempty" jsonschema:"only these round numbers; empty means every round"`
 	fullDemoExtrasIn
+	hudLookIn
+	brandChoiceIn
+	custom *hudthemes.Style // A user theme resolved from hud by resolveUserHUD.
 }
 
 type fullDemoPlanOut struct {
@@ -100,10 +117,13 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_hud_themes", Annotations: readOnly,
 		Description: "List the HUD designs a Full Demo (long video of a whole match) can use, with a preview image of each. " +
-			"Show the previews and ask the user which design they want before plan_full_demo. Names and descriptions are in Spanish."},
+			"Show the previews and ask the user which design they want before plan_full_demo. Names and descriptions are in Spanish. " +
+			"Every custom design also shows the round facts in shows: players alive, a win streak of 4 or more, 3K/4K/ACE, the defuse bar with or without kit and the round MVP. " +
+			"custom lists the user's own themes (save_hud_theme), without previews; options lists the plan_full_demo switches every custom design takes."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, hudThemesOut, error) {
 			previews, note := fetchHUDPreviews(ctx, s)
-			out := hudThemesOut{Note: note}
+			own, ownNote := fetchUserHUDThemes(ctx, s)
+			out := hudThemesOut{Custom: []userHUDThemeOut{}, Max: hudthemes.MaxThemes, Shows: customHUDShows, Options: hudLookChoices, Note: strings.TrimSpace(note + " " + ownNote)}
 			var content []mcp.Content
 			var text strings.Builder
 			add := func(id, name, description string) {
@@ -117,9 +137,16 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			for _, t := range customhud.Themes() {
 				add(t.ID, t.Name, t.Description)
 			}
+			for _, t := range own {
+				theme := userHUDTheme(t)
+				out.Custom = append(out.Custom, theme)
+				fmt.Fprintf(&text, "%s (tema propio %s, sobre %s): CT #%s, T #%s, fondo #%s\n", theme.ID, theme.Name, theme.Base, theme.CT, theme.T, theme.Background)
+			}
+			fmt.Fprintf(&text, "Todos los diseños personalizados muestran: %s.\n", strings.Join(customHUDShows, "; "))
+			fmt.Fprintf(&text, "Y admiten en plan_full_demo: %s.\n", strings.Join(hudLookChoices, "; "))
 			add(nativeHUDID, nativeHUDName, nativeHUDText)
-			if note != "" {
-				text.WriteString(note + "\n")
+			if out.Note != "" {
+				text.WriteString(out.Note + "\n")
 			}
 			content = append([]mcp.Content{&mcp.TextContent{Text: strings.TrimSpace(text.String())}}, content...)
 			return &mcp.CallToolResult{Content: content}, out, nil
@@ -153,6 +180,12 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 				if err := applyFullDemoExtras(ctx, uploader, &options, in); err != nil {
 					return nil, fullDemoPlanOut{}, err
 				}
+			}
+			if err := resolveUserHUD(ctx, c, &in); err != nil {
+				return nil, fullDemoPlanOut{}, err
+			}
+			if err := resolveBrandKit(ctx, c, &in.brandChoiceIn); err != nil {
+				return nil, fullDemoPlanOut{}, err
 			}
 			options, err = applyFullDemoChoices(options, in)
 			if err != nil {
@@ -316,7 +349,12 @@ func applyFullDemoChoices(options recapplan.Options, in planFullDemoIn) (recappl
 		if err := setHUD(&options, in.HUD); err != nil {
 			return recapplan.Options{}, err
 		}
+		options.Overlays.HUDCustom = in.custom
 	}
+	if err := applyHUDLook(&options, in.hudLookIn); err != nil {
+		return recapplan.Options{}, err
+	}
+	applyBrandChoice(&options, in.brandChoiceIn)
 	if in.OverlaySource != "" {
 		source := strings.ToLower(strings.TrimSpace(in.OverlaySource))
 		if source == "local" {
@@ -421,6 +459,9 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 		hud = nativeHUDID
 	} else if theme, ok := customhud.Lookup(hud); ok {
 		hudName = theme.Name
+		if c := o.Overlays.HUDCustom; c != nil {
+			hudName = fmt.Sprintf("%s (tema propio sobre %s)", cleanName(c.Name), theme.Name)
+		}
 	}
 	source := o.SourceKind
 	effects := o.Transitions != nil && o.Transitions.Enabled
@@ -447,6 +488,7 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	if out.HUDPortrait {
 		out.Summary += " Con tu retrato en el HUD."
 	}
+	out.Summary += describeHUDLook(o.Overlays) + describeBrand(o.Overlays.Brand)
 	if len(out.Bumpers) > 0 {
 		out.Summary += fmt.Sprintf(" Clips añadidos: %s.", strings.Join(out.Bumpers, ", "))
 	}

@@ -1458,16 +1458,14 @@ func (w *StreamRenderWorker) render(
 		return fmt.Errorf("materialize stream source: %w", err)
 	}
 	outDir := filepath.Join(workDir, "out", "shortslistosparasubir")
-	if err := os.MkdirAll(outDir, 0o750); err != nil {
-		return err
+	for _, dir := range []string{outDir, filepath.Join(workDir, "parts")} {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			return err
+		}
 	}
 
 	runCtx, cancel := context.WithTimeout(ctx, cfg.timeoutDuration())
 	defer cancel()
-	type publishArtifact struct {
-		key  string
-		path string
-	}
 	revisionID := uuid.New()
 	revisionPrefix, err := streamclips.RenderRevisionPrefix(j.ID, variant, revisionID)
 	if err != nil {
@@ -1484,7 +1482,7 @@ func (w *StreamRenderWorker) render(
 	}()
 	var videos []streamclips.VideoEntry
 	var delivery []streamclips.DeliveryEntry
-	var publishArtifacts []publishArtifact
+	var publishArtifacts []streamPublishArtifact
 	var warnings []string
 	firstRenderedVideo := ""
 	musicPath := ""
@@ -1495,6 +1493,8 @@ func (w *StreamRenderWorker) render(
 		}
 	}
 	defer cfg.Progress.Clear(j.ID)
+	rendered := make(map[string]streamRenderedClip, len(plan.Clips))
+	placements := plan.Placements()
 	for i, clip := range plan.Clips {
 		textPaths, err := writeClipOverlayTexts(workDir, clip)
 		if err != nil {
@@ -1507,16 +1507,17 @@ func (w *StreamRenderWorker) render(
 			// A clip without its feed still renders; the warning says why.
 			warnings = append(warnings, fmt.Sprintf("clip %s: kill feed not redrawn: %v", clip.ID, err))
 		}
-		outPath := filepath.Join(outDir, clip.ID+".mp4")
+		outPath := filepath.Join(workDir, "parts", clip.ID+".mp4")
 		renderStarted := time.Now()
 		run := func(ctx context.Context, args []string) error {
-			return w.runClipWithProgress(ctx, cfg, streamClipProgress{jobID: j.ID, plan: plan, index: i, args: args})
+			return w.runClipWithProgress(ctx, cfg, streamClipProgress{jobID: j.ID, plan: plan, index: i, placement: placements[clip.ID], args: args})
 		}
 		warning, err := renderStreamClip(runCtx, streamClipRender{run: run, plan: plan, clip: clip,
 			in: streamclips.FFmpegInputs{
 				SourcePath: sourcePath, OutputPath: outPath, MusicPath: musicPath, BannerFontPath: bannerFontPath,
 				KeyDropImagePath: keyDropImagePath, SourceHasAudio: j.Probe.AudioCodec != "", TextOverlayPaths: textPaths,
 				KillFeed: killFeed, SourceWidth: j.Probe.Width, SourceHeight: j.Probe.Height,
+				MusicOffsetSeconds: placements[clip.ID].MusicOffsetSeconds, JoinedPart: placements[clip.ID].Joined,
 			}})
 		if err != nil {
 			return fmt.Errorf("render clip %s: %w", clip.ID, err)
@@ -1524,30 +1525,29 @@ func (w *StreamRenderWorker) render(
 		if warning != "" {
 			warnings = append(warnings, warning)
 		}
-		renderElapsed := time.Since(renderStarted)
-		var outputBytes int64
-		if info, statErr := os.Stat(outPath); statErr == nil {
-			outputBytes = info.Size()
-		}
-
-		key, err := streamclips.RenderRevisionVideoKey(j.ID, variant, revisionID, clip.ID)
+		rendered[clip.ID] = streamRenderedClip{path: outPath, elapsed: time.Since(renderStarted)}
+	}
+	outputs := plan.Outputs()
+	for i, output := range outputs {
+		outPath, elapsed, err := w.assembleStreamOutput(runCtx, streamOutputAssembly{
+			ffmpeg: cfg.FFmpegPath, output: output, rendered: rendered, outDir: outDir, hasAudio: musicPath != "" || j.Probe.AudioCodec != "",
+			progress: cfg.Progress, jobID: j.ID, progressAt: streamclips.RenderProgress{Variant: variant, Percent: 99, Clip: i + 1, Clips: len(outputs)},
+		})
 		if err != nil {
 			return err
 		}
-		publishArtifacts = append(publishArtifacts, publishArtifact{key: key, path: outPath})
-		deliveryName := clip.ID + ".mp4"
-		deliveryKey, err := streamclips.RenderRevisionDeliveryKey(j.ID, variant, revisionID, deliveryName)
+		published, err := publishStreamOutput(streamOutputPublish{
+			jobID: j.ID, variant: variant, revisionID: revisionID, output: output, path: outPath, elapsed: elapsed,
+		})
 		if err != nil {
 			return err
 		}
-		publishArtifacts = append(publishArtifacts, publishArtifact{key: deliveryKey, path: outPath})
+		publishArtifacts = append(publishArtifacts, published.artifacts...)
 		if firstRenderedVideo == "" {
 			firstRenderedVideo = outPath
 		}
-		delivery = append(delivery, streamclips.DeliveryEntry{Name: deliveryName, Kind: "video", Key: deliveryKey})
-		video := streamclips.NewVideoEntry(clip, key)
-		video.Performance = streamclips.NewVideoPerformance(renderElapsed, video.DurationSeconds, outputBytes)
-		videos = append(videos, video)
+		delivery = append(delivery, published.delivery)
+		videos = append(videos, published.video)
 	}
 
 	if len(videos) > 0 {
@@ -1559,7 +1559,7 @@ func (w *StreamRenderWorker) render(
 		if err != nil {
 			return err
 		}
-		publishArtifacts = append(publishArtifacts, publishArtifact{key: coverKey, path: coverPath})
+		publishArtifacts = append(publishArtifacts, streamPublishArtifact{key: coverKey, path: coverPath})
 		delivery = append(delivery, streamclips.DeliveryEntry{Name: "cover.jpg", Kind: "cover", Key: coverKey})
 	}
 	planPath := filepath.Join(outDir, "edit-plan.json")
@@ -1574,7 +1574,7 @@ func (w *StreamRenderWorker) render(
 	if err != nil {
 		return err
 	}
-	publishArtifacts = append(publishArtifacts, publishArtifact{key: planKey, path: planPath})
+	publishArtifacts = append(publishArtifacts, streamPublishArtifact{key: planKey, path: planPath})
 	delivery = append(delivery, streamclips.DeliveryEntry{Name: "edit-plan.json", Kind: "plan", Key: planKey})
 	metadataPath := filepath.Join(outDir, "metadata.txt")
 	metadata := fmt.Sprintf("Título: %s\nOrigen: %s\nFormato: %s\nClips: %d\n", strings.TrimSpace(j.Title), publicSourceURL(j.SourceURL), variant, len(videos))
@@ -1585,7 +1585,7 @@ func (w *StreamRenderWorker) render(
 	if err != nil {
 		return err
 	}
-	publishArtifacts = append(publishArtifacts, publishArtifact{key: metadataKey, path: metadataPath})
+	publishArtifacts = append(publishArtifacts, streamPublishArtifact{key: metadataKey, path: metadataPath})
 	delivery = append(delivery, streamclips.DeliveryEntry{Name: "metadata.txt", Kind: "metadata", Key: metadataKey})
 	manifestPath := filepath.Join(outDir, "manifest.json")
 	manifestBytes, err := json.MarshalIndent(struct {
@@ -1604,7 +1604,7 @@ func (w *StreamRenderWorker) render(
 	if err != nil {
 		return err
 	}
-	publishArtifacts = append(publishArtifacts, publishArtifact{key: manifestKey, path: manifestPath})
+	publishArtifacts = append(publishArtifacts, streamPublishArtifact{key: manifestKey, path: manifestPath})
 	delivery = append(delivery, streamclips.DeliveryEntry{Name: "manifest.json", Kind: "manifest", Key: manifestKey})
 
 	// Media and sidecars are uploaded into a new immutable revision. Until the
@@ -2513,14 +2513,9 @@ func (w *RenderWorker) writeEditorInputs(ctx context.Context, cfg RenderWorkerCo
 		"--intro=" + strconv.FormatBool(edit.Intro),
 		"--outro=" + strconv.FormatBool(edit.Outro),
 	}
-	if edit.VictimReplay {
-		args = append(args, "--victim-replay")
-	}
-	if edit.CenteredKillfeed {
-		args = append(args, "--centered-killfeed")
-	}
+	args = append(args, shortOverlayArgs(edit)...)
 	args = append(args, explicitCoverArgs(loadout, edit)...)
-	args = append(args, compileSegmentsArgs(recording.EditorialSegmentIDs(in.recordingResult))...)
+	args = append(args, compileSegmentsArgs(edit, recording.EditorialSegmentIDs(in.recordingResult))...)
 	if edit.FullDemo != nil {
 		ffmpeg := cfg.FFmpegPath
 		if ffmpeg == "" {
@@ -2540,30 +2535,12 @@ func (w *RenderWorker) writeEditorInputs(ctx context.Context, cfg RenderWorkerCo
 	if plateDir := overlayAssetsPlatesDir(w.storage); plateDir != "" {
 		args = append(args, "--overlay-assets", plateDir)
 	}
-	if edit.IntroText != "" {
-		args = append(args, "--intro-text", edit.IntroText)
+	brandArgs, err := w.brandArgs(ctx, edit, workDir)
+	if err != nil {
+		return editorInvocation{}, err
 	}
-	if edit.OutroText != "" {
-		args = append(args, "--outro-text", edit.OutroText)
-	}
-	if style := strings.TrimSpace(edit.KeyDropStyle); style != "" {
-		if family := strings.TrimSpace(edit.KeyDropFamily); family != "" {
-			args = append(args, "--keydrop-family", family)
-		}
-		args = append(args, "--keydrop-style", style)
-		if code := strings.TrimSpace(edit.KeyDropCode); code != "" {
-			args = append(args, "--keydrop-code", code)
-		}
-		if y := edit.KeyDropPositionY; y != nil {
-			args = append(args, "--keydrop-position-y", strconv.FormatFloat(*y, 'f', 6, 64))
-		}
-		if s := edit.KeyDropStartSeconds; s != nil {
-			args = append(args, "--keydrop-start", strconv.FormatFloat(*s, 'f', 6, 64))
-		}
-		if e := edit.KeyDropEndSeconds; e != nil {
-			args = append(args, "--keydrop-end", strconv.FormatFloat(*e, 'f', 6, 64))
-		}
-	}
+	args = append(append(append(args, bookendTextArgs(edit)...), keyDropArgs(edit)...), brandArgs...)
+	args = append(args, w.shortDataArgs(ctx, shortDataInput{job: j, edit: edit, result: in.recordingResult, workDir: workDir})...)
 	if cfg.FFmpegPath != "" {
 		args = append(args, "--ffmpeg", cfg.FFmpegPath)
 	}
@@ -3364,18 +3341,6 @@ func last20FromFACEIT(src faceit.Last20) *demooverlay.Last20 {
 		return nil
 	}
 	return &out
-}
-
-// compileSegmentsArgs returns the zv-editor flags that compile a render's
-// segments into one upload-ready Short. A multi-segment
-// selection renders as a single concatenated Short (matching the "zv short"
-// CLI's --compile-segments behavior); a single segment keeps today's
-// per-segment short unchanged.
-func compileSegmentsArgs(segmentIDs []string) []string {
-	if len(segmentIDs) < 2 {
-		return nil
-	}
-	return []string{"--compile-segments", "--segments", strings.Join(segmentIDs, ",")}
 }
 
 // prepareCaptureAttemptRollback snapshots both UI-only documents before a new

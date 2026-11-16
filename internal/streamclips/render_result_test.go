@@ -16,7 +16,7 @@ func TestNewVideoEntryDerivesClipMetadata(t *testing.T) {
 		EndSeconds:   16.75,
 	}
 
-	got := NewVideoEntry(clip, "stream-jobs/id/renders/variant/videos/clip-001.mp4")
+	got := NewVideoEntry(PlanOutput{ID: clip.ID, Title: clip.Title, Clips: []ClipRange{clip}}, "stream-jobs/id/renders/variant/videos/clip-001.mp4")
 
 	if got.ClipID != "clip-001" || got.Title != "Opening pick" {
 		t.Fatalf("identity fields = %#v", got)

@@ -13,7 +13,7 @@
     "time_start_seconds": 672,
     "time_end_seconds": 690.938,
     "duration_seconds": 18.938,
-    "score": 0.92,
+    "score": 0.601,
     "reason_codes": [
       "awp",
       "headshot",
@@ -50,7 +50,7 @@
     "time_start_seconds": 84.5,
     "time_end_seconds": 97.188,
     "duration_seconds": 12.688,
-    "score": 0.78,
+    "score": 0.542,
     "reason_codes": [
       "headshot",
       "multi_kill",
@@ -73,6 +73,41 @@
     "default_variant": "viral-60-clean"
   },
   {
+    "id": "mom-006",
+    "source": "killplan",
+    "segment_id": "seg-006",
+    "player": "target",
+    "steamid64": "76561198000000100",
+    "map": "de_mirage",
+    "round": 4,
+    "side": "CT",
+    "tick_start": 22632,
+    "tick_end": 23215,
+    "time_start_seconds": 353.625,
+    "time_end_seconds": 362.734,
+    "duration_seconds": 9.109,
+    "score": 0.542,
+    "reason_codes": [
+      "fast_double",
+      "multi_kill",
+      "rifle"
+    ],
+    "events": {
+      "kills": 2,
+      "weapons": [
+        "ak47"
+      ]
+    },
+    "weapons": [
+      "ak47"
+    ],
+    "victims": [
+      "opponent-2",
+      "opponent-4"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
     "id": "mom-014",
     "source": "killplan",
     "segment_id": "seg-014",
@@ -86,7 +121,7 @@
     "time_start_seconds": 959.313,
     "time_end_seconds": 966.063,
     "duration_seconds": 6.75,
-    "score": 0.78,
+    "score": 0.542,
     "reason_codes": [
       "headshot",
       "multi_kill",
@@ -109,40 +144,6 @@
     "default_variant": "viral-60-clean"
   },
   {
-    "id": "mom-006",
-    "source": "killplan",
-    "segment_id": "seg-006",
-    "player": "target",
-    "steamid64": "76561198000000100",
-    "map": "de_mirage",
-    "round": 4,
-    "side": "CT",
-    "tick_start": 22632,
-    "tick_end": 23215,
-    "time_start_seconds": 353.625,
-    "time_end_seconds": 362.734,
-    "duration_seconds": 9.109,
-    "score": 0.72,
-    "reason_codes": [
-      "multi_kill",
-      "rifle"
-    ],
-    "events": {
-      "kills": 2,
-      "weapons": [
-        "ak47"
-      ]
-    },
-    "weapons": [
-      "ak47"
-    ],
-    "victims": [
-      "opponent-2",
-      "opponent-4"
-    ],
-    "default_variant": "viral-60-clean"
-  },
-  {
     "id": "mom-003",
     "source": "killplan",
     "segment_id": "seg-003",
@@ -156,7 +157,7 @@
     "time_start_seconds": 274.859,
     "time_end_seconds": 282.859,
     "duration_seconds": 8,
-    "score": 0.56,
+    "score": 0.429,
     "reason_codes": [
       "headshot"
     ],
@@ -189,7 +190,7 @@
     "time_start_seconds": 330.5,
     "time_end_seconds": 338.5,
     "duration_seconds": 8,
-    "score": 0.56,
+    "score": 0.429,
     "reason_codes": [
       "headshot",
       "rifle"
@@ -223,7 +224,7 @@
     "time_start_seconds": 331.375,
     "time_end_seconds": 339.375,
     "duration_seconds": 8,
-    "score": 0.56,
+    "score": 0.429,
     "reason_codes": [
       "headshot",
       "rifle"
@@ -257,7 +258,7 @@
     "time_start_seconds": 434.375,
     "time_end_seconds": 442.375,
     "duration_seconds": 8,
-    "score": 0.56,
+    "score": 0.429,
     "reason_codes": [
       "headshot",
       "rifle"
@@ -291,7 +292,7 @@
     "time_start_seconds": 457.859,
     "time_end_seconds": 465.859,
     "duration_seconds": 8,
-    "score": 0.56,
+    "score": 0.429,
     "reason_codes": [
       "headshot",
       "rifle"
@@ -325,7 +326,7 @@
     "time_start_seconds": 812.984,
     "time_end_seconds": 820.984,
     "duration_seconds": 8,
-    "score": 0.56,
+    "score": 0.429,
     "reason_codes": [
       "headshot",
       "rifle"
@@ -359,7 +360,7 @@
     "time_start_seconds": 1029.797,
     "time_end_seconds": 1037.797,
     "duration_seconds": 8,
-    "score": 0.56,
+    "score": 0.429,
     "reason_codes": [
       "headshot",
       "rifle"
@@ -393,7 +394,7 @@
     "time_start_seconds": 1362.188,
     "time_end_seconds": 1370.188,
     "duration_seconds": 8,
-    "score": 0.56,
+    "score": 0.429,
     "reason_codes": [
       "headshot"
     ],
@@ -426,7 +427,7 @@
     "time_start_seconds": 1455.719,
     "time_end_seconds": 1463.719,
     "duration_seconds": 8,
-    "score": 0.56,
+    "score": 0.429,
     "reason_codes": [
       "headshot"
     ],
@@ -459,7 +460,7 @@
     "time_start_seconds": 1556.547,
     "time_end_seconds": 1564.547,
     "duration_seconds": 8,
-    "score": 0.56,
+    "score": 0.429,
     "reason_codes": [
       "headshot",
       "rifle"
@@ -493,7 +494,7 @@
     "time_start_seconds": 1661.063,
     "time_end_seconds": 1669.063,
     "duration_seconds": 8,
-    "score": 0.56,
+    "score": 0.429,
     "reason_codes": [
       "headshot",
       "rifle"
@@ -527,7 +528,7 @@
     "time_start_seconds": 186,
     "time_end_seconds": 194,
     "duration_seconds": 8,
-    "score": 0.5,
+    "score": 0.393,
     "reason_codes": [],
     "events": {
       "kills": 1,
@@ -557,7 +558,7 @@
     "time_start_seconds": 424.984,
     "time_end_seconds": 432.984,
     "duration_seconds": 8,
-    "score": 0.5,
+    "score": 0.393,
     "reason_codes": [
       "rifle"
     ],
@@ -589,7 +590,7 @@
     "time_start_seconds": 543.547,
     "time_end_seconds": 551.547,
     "duration_seconds": 8,
-    "score": 0.5,
+    "score": 0.393,
     "reason_codes": [
       "awp"
     ],
@@ -621,7 +622,7 @@
     "time_start_seconds": 623.672,
     "time_end_seconds": 631.672,
     "duration_seconds": 8,
-    "score": 0.5,
+    "score": 0.393,
     "reason_codes": [
       "rifle"
     ],
@@ -653,7 +654,7 @@
     "time_start_seconds": 1015.797,
     "time_end_seconds": 1023.797,
     "duration_seconds": 8,
-    "score": 0.5,
+    "score": 0.393,
     "reason_codes": [
       "rifle"
     ],
@@ -685,7 +686,7 @@
     "time_start_seconds": 1271.094,
     "time_end_seconds": 1279.094,
     "duration_seconds": 8,
-    "score": 0.5,
+    "score": 0.393,
     "reason_codes": [
       "pistol"
     ],
@@ -717,7 +718,7 @@
     "time_start_seconds": 1403.813,
     "time_end_seconds": 1408.813,
     "duration_seconds": 5,
-    "score": 0.5,
+    "score": 0.393,
     "reason_codes": [],
     "events": {
       "kills": 1,
@@ -747,7 +748,7 @@
     "time_start_seconds": 1481.266,
     "time_end_seconds": 1489.266,
     "duration_seconds": 8,
-    "score": 0.5,
+    "score": 0.393,
     "reason_codes": [],
     "events": {
       "kills": 1,
@@ -777,7 +778,7 @@
     "time_start_seconds": 1939.234,
     "time_end_seconds": 1947.234,
     "duration_seconds": 8,
-    "score": 0.5,
+    "score": 0.393,
     "reason_codes": [
       "rifle"
     ],
@@ -809,7 +810,7 @@
     "time_start_seconds": 1979.625,
     "time_end_seconds": 1984.625,
     "duration_seconds": 5,
-    "score": 0.5,
+    "score": 0.393,
     "reason_codes": [
       "rifle"
     ],

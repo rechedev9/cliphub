@@ -1,16 +1,21 @@
 package workers
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/store"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 func importLibraryDemo(t *testing.T, repo *store.MemoryLibraryRepository, files *fakeStorage, name string, data []byte) library.Demo {
@@ -48,6 +53,52 @@ func TestLibraryWorkerRecordsAnUnreadableDemo(t *testing.T) {
 	}
 	if _, ok := files.files[artifacts.LibraryTacticalIndexKey(d.ID)]; ok {
 		t.Fatal("a failed scan published a tactical document")
+	}
+}
+
+// incompatibleDemo is a demo whose header is whole but whose body the parser rejects as demo_incompatible.
+func incompatibleDemo() []byte {
+	return append([]byte("PBDEMS2\x00\x10\x00\x00\x00\x00\x00\x00\x00"), bytes.Repeat([]byte{0x01}, 4096)...)
+}
+
+// A failure every attempt would repeat ends the task on its first run; a missing
+// file may still appear, so it keeps its retry and the demo is not failed yet.
+func TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt(t *testing.T) {
+	firstOfTwo := tasks.WithTaskAttempt(context.Background(), 0, 1)
+	repo := store.NewMemoryLibraryRepository()
+	files := newFakeStorage()
+
+	incompatible := importLibraryDemo(t, repo, files, "incompatible.dem", incompatibleDemo())
+	err := NewLibraryWorker(repo, files).ProcessAnalyzeLibraryDemo(firstOfTwo, incompatible.ID)
+	if !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("incompatible demo error = %v, want it to wrap asynq.SkipRetry", err)
+	}
+	got, _ := repo.GetDemo(context.Background(), incompatible.ID)
+	if got.State != library.ParseFailed || got.ErrorCode != obs.ClassDemoIncompatible {
+		t.Fatalf("incompatible demo = %+v, want failed as %s", got, obs.ClassDemoIncompatible)
+	}
+	if events := journalEventsFor(t, obs.Default(), incompatible.ID.String(), obs.ClassDemoIncompatible); len(events) != 1 {
+		t.Fatalf("journal events = %#v, want the one terminal failure", events)
+	}
+
+	repo = store.NewMemoryLibraryRepository()
+	empty := importLibraryDemo(t, repo, files, "empty.dem", []byte{})
+	err = NewLibraryWorker(repo, files).ProcessAnalyzeLibraryDemo(firstOfTwo, empty.ID)
+	if !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("empty demo error = %v, want it to wrap asynq.SkipRetry", err)
+	}
+	if got, _ := repo.GetDemo(context.Background(), empty.ID); got.State != library.ParseFailed || got.ErrorCode != obs.ClassTruncatedDemo {
+		t.Fatalf("empty demo = %+v, want failed as %s", got, obs.ClassTruncatedDemo)
+	}
+
+	repo = store.NewMemoryLibraryRepository()
+	missing := importLibraryDemo(t, repo, files, "missing.dem", nil)
+	err = NewLibraryWorker(repo, files).ProcessAnalyzeLibraryDemo(firstOfTwo, missing.ID)
+	if err == nil || errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("missing demo error = %v, want a retryable error", err)
+	}
+	if got, _ := repo.GetDemo(context.Background(), missing.ID); got.State == library.ParseFailed {
+		t.Fatalf("missing demo = %+v, failed before its last attempt", got)
 	}
 }
 

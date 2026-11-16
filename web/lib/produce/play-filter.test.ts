@@ -45,3 +45,24 @@ test('a multi-POV match filters by player and offers each player once', () => {
   assert.deepEqual(ids(filterPlays(mixed, { ...NO_PLAY_FILTER, player: ropz.steamId })), ['r1', 'r2']);
   assert.deepEqual(playFilterOptions(mixed).players, [ropz, b1t]);
 });
+
+test('server reason kinds filter and appear only when some play has them', () => {
+  const scored = [
+    play('won', { clutchVs: 2, clutchWon: true, reasons: ['clutch', 'clutch_won', 'fast_double'] }),
+    play('lost', { clutchVs: 3, clutchWon: false, reasons: ['clutch', 'noscope'] }),
+  ];
+  assert.deepEqual(ids(filterPlays(scored, { ...NO_PLAY_FILTER, kind: 'clutch_won' })), ['won']);
+  assert.deepEqual(ids(filterPlays(scored, { ...NO_PLAY_FILTER, kind: 'noscope' })), ['lost']);
+  assert.deepEqual(playFilterOptions(scored).kinds, ['clutch', 'clutch_won', 'fast_double', 'noscope']);
+});
+
+test('entry, retake, eco win and flick filter by their reason codes', () => {
+  const scored = [
+    play('open', { reasons: ['entry', 'flick'] }),
+    play('retake', { reasons: ['retake', 'eco_win'] }),
+    play('plain', { reasons: ['rifle'] }),
+  ];
+  assert.deepEqual(ids(filterPlays(scored, { ...NO_PLAY_FILTER, kind: 'entry' })), ['open']);
+  assert.deepEqual(ids(filterPlays(scored, { ...NO_PLAY_FILTER, kind: 'eco_win' })), ['retake']);
+  assert.deepEqual(playFilterOptions(scored).kinds, ['entry', 'retake', 'eco_win', 'flick']);
+});

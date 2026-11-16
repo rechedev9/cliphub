@@ -34,8 +34,8 @@
 *.tga
 *.exr
 
-# Landing assets are shipped source, not pipeline output: Vercel serves them
-# straight from the repo, so an ignored file never reaches production.
+# Landing assets are shipped source, not pipeline output: the static export
+# copies them from the repo, so an ignored file never reaches production.
 !landing/public/video/*.webm
 *.y4m
 *.yuv
@@ -79,9 +79,10 @@ logs/
 .loop/
 .loop_tmp_crops/
 
-# Local Vercel project links and build output.
-.vercel/
 # Local Pi runtime state
 .atl/
 .omo/
-.vercel
+
+# The landing ships its own film loops.
+!landing/public/film/*.mp4
+!landing/public/film/*.webm

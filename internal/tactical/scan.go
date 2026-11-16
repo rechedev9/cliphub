@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/demosafe"
 	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/radarmap"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
@@ -103,7 +104,10 @@ func ScanReader(ctx context.Context, r io.Reader, opts Options) (Result, error) 
 		return Result{}, err
 	}
 	return scanHashed(ctx, r, opts, func(reader io.Reader) (Result, error) {
-		p := demoinfocs.NewParser(reader)
+		p, err := demosafe.NewParser(reader)
+		if err != nil {
+			return Result{}, err
+		}
 		defer p.Close()
 		return ScanWithContext(ctx, p, opts)
 	})
@@ -169,6 +173,7 @@ type scanner struct {
 	maxTick     int
 
 	slots     map[uint64]uint8
+	picker    slotPicker
 	players   []*playerAcc
 	teams     map[string]*teamAcc
 	clanNames map[tacticalplan.Side]string
@@ -530,15 +535,17 @@ func (s *scanner) onFrame() {
 		}
 	}
 	s.lastEmittedTick = tick
+	s.sampleFrame(tick, s.p.GameState().Participants().All())
+	s.followDrop()
+	s.watchFires()
+}
 
-	gs := s.p.GameState()
+// sampleFrame records one position frame of the current round from the participant list.
+func (s *scanner) sampleFrame(tick int, all []*common.Player) {
 	frame := tacticalplan.Frame{Tick: tick}
 	var samples sampleSlots
-	for _, pl := range gs.Participants().All() {
-		slot, ok := s.slotFor(pl)
-		if !ok {
-			continue
-		}
+	for _, c := range s.playersBySlot(tick, all) {
+		pl, slot := c.player, c.slot
 		side := sideOf(pl.Team)
 		if side == "" {
 			continue
@@ -565,8 +572,6 @@ func (s *scanner) onFrame() {
 			s.occupancyAdd(pos.X, pos.Y, pos.Z, pl.LastPlaceName())
 		}
 	}
-	s.followDrop()
-	s.watchFires()
 	frame.Samples = samples.ordered()
 	if len(frame.Samples) > 0 {
 		s.current.frames = append(s.current.frames, frame)

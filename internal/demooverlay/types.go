@@ -210,6 +210,8 @@ type Enrichment struct {
 	LifetimeMatches *int
 	Verified        bool
 	Premium         bool
+	// BestMap is the best map of the recent matches; only the Short stats card shows it.
+	BestMap string `json:",omitempty"`
 }
 
 func intPtr(v int) *int {

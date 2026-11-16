@@ -229,6 +229,7 @@ func fullDemoEnrichment(player faceit.OverlayPlayer) demooverlay.Enrichment {
 		LifetimeMatches: player.LifetimeMatches,
 		Verified:        player.Verified,
 		Premium:         player.Premium,
+		BestMap:         player.BestMap,
 	}
 }
 
