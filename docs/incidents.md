@@ -79,6 +79,24 @@ Rules that follow from it:
   stage directory, also when `ZV_MEDIA_WORK_DIR` is set. Read the stderr
   from telemetry instead.
 
+### Incident: a slow PC's Full Demo render was cut at the fixed deadline (2026-11-16)
+
+A Full Demo of 18 rounds (23 min of video) failed at exactly 20 minutes with
+`zv-editor.exe: exit status 1: context deadline exceeded`, outcome `timeout`.
+Every FFmpeg step had finished; that PC renders at about 2.5 times the video
+length, and the worker gave every render the fixed `ZV_RENDER_TIMEOUT`.
+
+- Scaled render deadline (`internal/workers/render_timeout.go`): a Full Demo
+  gets a multiple of its approved program length plus setup time, never less
+  than the configured deadline. Shorts keep the configured one. It mirrors the
+  capture deadline in `internal/workers/capture_timeout.go`.
+- An editor run that its deadline cut fails with `render_timeout:`, which
+  Studio explains in Spanish (`web/lib/api/failure-reason.ts`) instead of the
+  generic message.
+- The inline queue puts no attempt timeout on render tasks, so the worker's
+  deadline is the only cap.
+- Tests: `internal/workers/render_timeout_test.go`.
+
 ### Capture tail shortfall tolerance (2026-09-22)
 
 A 64 Hz round window can map to a fractional frame count (2040 ticks =
@@ -367,6 +385,31 @@ the user's machine.
 - Read it from `pipeline.error` in telemetry before you guess at the cause.
   A faulting module outside CS2 (GPU driver, overlay, antivirus) is the user's
   machine, not ClipHub.
+
+### Incident: a capture hung for 40 minutes, and CS2 without Steam was relaunched (2026-11-16)
+
+One user's Full Demo capture logged `cs2 build:` and then nothing until the
+recorder's own deadline ended it with a bare `context deadline exceeded`.
+`cs2.exe` was running but never started the demo, and the wait loop returned
+the deadline without the console tail. The same user earlier had a CS2 that
+quit about 20 s after launch with exit code 0x64; the console tail said
+`SteamAPI_Init failed ... Steam is probably not running.` The worker treated
+that as a transient crash and relaunched CS2 for nothing.
+
+- Inactivity watchdog (`cmd/zv-recorder/capture_stall.go`): while the owned
+  `cs2.exe` runs and the capture is not yet verified, the console log or a file
+  under the capture output must change. After `captureStallLimit` without
+  either, the wait ends with `capture_stalled:` and stops that `cs2.exe` the
+  way the other failure paths do: only a process this run saw. A verified
+  capture belongs to the grace close, not the watchdog.
+- A wait cut by the watchdog or by the recorder's deadline logs the console
+  tail, the `cs2.exe` window titles and a `cs2 stall:` line, so telemetry shows
+  where CS2 stopped. The console tail keeps the Steam text on purpose.
+- The worker (`internal/workers/record_failure.go`) turns the Steamworks text
+  into `steam_not_running:` and keeps `capture_stalled:` as the reason. Neither
+  is relaunched: both repeat until the user fixes Steam or CS2. Studio shows a
+  Spanish message for each (`web/lib/api/failure-reason.ts`).
+- Tests: `cmd/zv-recorder/capture_wait_test.go`, `internal/workers/record_failure_test.go`.
 
 ## Full Demo render lab (`zv-editor lab`, 2026-09-26)
 

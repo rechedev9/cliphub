@@ -18,6 +18,10 @@ paths:
 
 Studio ships FFmpeg 8.1.2. Some Full Demo and `internal/demooverlay` tests fail on FFmpeg 9.x because `-filter_complex_script` was removed. Treat those failures as pre-existing and do not change the shipped command to fix them. `docs/incidents.md`, **Local test environment caveat**.
 
+## Render deadline
+
+A Full Demo render's deadline scales with its approved program length and never drops below the configured one; a run its deadline cut fails with `render_timeout`. Do not go back to one fixed deadline for every render. `docs/incidents.md`, **a slow PC's Full Demo render was cut at the fixed deadline**.
+
 ## Pipeline golden test
 
 `internal/pipeline` is the one deterministic Short pipeline test: plain `go test`, golden files in `internal/pipeline/testdata/`, no CS2, network, real clock or video encode, and no scripts beside it.

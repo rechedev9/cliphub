@@ -4,6 +4,15 @@ export const DEMO_INCOMPATIBLE_PREFIX = 'demo_incompatible:' as const;
 /** Stable prefix when CS2 crashes rewinding playdemo to demo tick 0. */
 export const UNPLAYABLE_START_PREFIX = 'unplayable_start:' as const;
 
+/** Stable prefix when cs2.exe ran but the capture made no progress. */
+const CAPTURE_STALLED_PREFIX = 'capture_stalled:' as const;
+
+/** Stable prefix when CS2 could not reach the Steam client. */
+const STEAM_NOT_RUNNING_PREFIX = 'steam_not_running:' as const;
+
+/** Stable prefix when zv-editor ran past its deadline. */
+const RENDER_TIMEOUT_PREFIX = 'render_timeout:' as const;
+
 /** Parser marker for a client-recorded demo; scan and parse failures carry it after a wrap prefix. */
 const POV_DEMO_MARKER = 'pov_demo:' as const;
 
@@ -56,6 +65,9 @@ export type FailureReason = {
     | 'pov-verification'
     | 'pov-acquisition'
     | 'capture-flake'
+    | 'capture-stalled'
+    | 'steam-not-running'
+    | 'render-timeout'
     | 'render-mismatch'
     | 'studio-session'
     | 'generic';
@@ -104,6 +116,8 @@ const CAPTURE_KINDS: ReadonlySet<FailureReason['kind']> = new Set([
   'pov-verification',
   'pov-acquisition',
   'capture-flake',
+  'capture-stalled',
+  'steam-not-running',
   'recording-not-reusable',
   'silent-capture',
 ]);
@@ -122,6 +136,14 @@ const DEMO_PLAYBACK_ENDED_MESSAGE =
 const UNPLAYABLE_START_MESSAGE =
   'CS2 se cierra al rebobinar esta demo al tick 0, antes de la primera ronda. ' +
   'No relances CS2: no es un fallo de POV ni de HLAE.';
+
+const CAPTURE_STALLED_MESSAGE =
+  'CS2 se abrió pero no empezó a reproducir la demo. Cierra CS2, comprueba que Steam está abierto y reintenta.';
+
+const STEAM_NOT_RUNNING_MESSAGE = 'Abre Steam con tu sesión iniciada y reintenta.';
+
+const RENDER_TIMEOUT_MESSAGE =
+  'El vídeo tardó más de lo previsto en este equipo. Reintenta con Studio en primer plano y sin otros programas pesados.';
 
 export const POV_DEMO_MESSAGE =
   'Esta demo es POV: la grabó un jugador desde su propio juego y CS2 no deja fijar la cámara en ningún jugador. ' +
@@ -199,6 +221,18 @@ function classifyFailureReason(reason: string | undefined, context: FailureConte
 
   if (reason.startsWith(UNPLAYABLE_START_PREFIX)) {
     return { kind: 'unplayable-start', message: UNPLAYABLE_START_MESSAGE, retryCanHelp: false };
+  }
+
+  if (reason.startsWith(STEAM_NOT_RUNNING_PREFIX)) {
+    return { kind: 'steam-not-running', message: STEAM_NOT_RUNNING_MESSAGE, retryCanHelp: true };
+  }
+
+  if (reason.startsWith(CAPTURE_STALLED_PREFIX)) {
+    return { kind: 'capture-stalled', message: CAPTURE_STALLED_MESSAGE, retryCanHelp: true };
+  }
+
+  if (reason.startsWith(RENDER_TIMEOUT_PREFIX)) {
+    return { kind: 'render-timeout', message: RENDER_TIMEOUT_MESSAGE, retryCanHelp: true };
   }
 
   if (reason.includes(POV_DEMO_MARKER)) {

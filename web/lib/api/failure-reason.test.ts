@@ -82,6 +82,38 @@ test('playback-ended demo is demo-incompatible with its own message', () => {
   assert.match(result.message, /Se capturaron 3 de 16 jugadas/);
 });
 
+test('a stalled capture, a missing Steam and a slow render each get their own retryable message', () => {
+  const cases: Array<{ reason: string; kind: string; message: RegExp; fullDemo: boolean }> = [
+    {
+      reason: 'capture_stalled: cs2.exe kept running but made no capture progress for 5m0s',
+      kind: 'capture-stalled',
+      message: /^CS2 se abrió pero no empezó a reproducir la demo\. Cierra CS2, comprueba que Steam está abierto y reintenta\.$/,
+      fullDemo: true,
+    },
+    {
+      reason: 'steam_not_running: CS2 could not reach the Steam client (Steam is not running or not signed in)',
+      kind: 'steam-not-running',
+      message: /^Abre Steam con tu sesión iniciada y reintenta\.$/,
+      fullDemo: false,
+    },
+    {
+      reason: 'render_timeout: zv-editor did not finish within 1h47m0s: zv-editor.exe failed: exit status 1',
+      kind: 'render-timeout',
+      message: /^El vídeo tardó más de lo previsto en este equipo\. Reintenta con Studio en primer plano y sin otros programas pesados\.$/,
+      fullDemo: true,
+    },
+  ];
+  for (const { reason, kind, message, fullDemo } of cases) {
+    // The Full Demo planner fallback must not swallow these prefixes.
+    const result = parseFailureReason(reason, { fullDemo, fullDemoPlannerVersion: 'full-demo-editorial-v1' });
+    assert.equal(result.kind, kind, reason);
+    assert.equal(result.retryCanHelp, true, reason);
+    assert.match(result.message, message, reason);
+  }
+  assert.equal(jobFailureTitle('capture_stalled: cs2.exe kept running'), FAILED_STRIP_LABEL.capture);
+  assert.equal(jobFailureTitle('steam_not_running: CS2 could not reach the Steam client'), FAILED_STRIP_LABEL.capture);
+});
+
 test('generic reasons stay retryable with the diagnostics copy and do not leak internals', () => {
   const cases: Array<{ reason: string | undefined; leaks?: RegExp }> = [
     { reason: undefined },

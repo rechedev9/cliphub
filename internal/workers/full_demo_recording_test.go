@@ -21,6 +21,13 @@ import (
 // strings are not media and never certify an actual capture or render.
 func fullDemoPublicationFixture(t *testing.T, content string, mutations ...func(*recapplan.Facts, *recapplan.Options)) (recording.RecordingResult, string, string) {
 	t.Helper()
+	result, dir, path, _ := plannedFullDemoFixture(t, content, "facts.json", mutations...)
+	return result, dir, path
+}
+
+// plannedFullDemoFixture plans from facts stored at factsRef and also returns those facts.
+func plannedFullDemoFixture(t *testing.T, content, factsRef string, mutations ...func(*recapplan.Facts, *recapplan.Options)) (recording.RecordingResult, string, string, recapplan.Facts) {
+	t.Helper()
 	f := recapplan.Facts{SchemaVersion: recapplan.DocumentVersion, DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198000000001", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 2000, Complete: true,
 		Crosshairs: []recapplan.CrosshairSample{{Tick: 0, Code: "CSGO-WsnnD-eHaMw-QNDf9-oxuDh-ydOUD"}},
 		Rounds:     []recapplan.RoundFacts{{ID: "round-001", Number: 1, StartTick: 100, FreezeEndTick: 400, RoundEndTick: 1000, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}}}
@@ -34,7 +41,7 @@ func fullDemoPublicationFixture(t *testing.T, content string, mutations ...func(
 	for _, mutate := range mutations {
 		mutate(&f, &o)
 	}
-	d, err := recapplan.Plan(f, o, recapplan.VoiceEvidence{Availability: "not_requested"}, nil, "facts.json")
+	d, err := recapplan.Plan(f, o, recapplan.VoiceEvidence{Availability: "not_requested"}, nil, factsRef)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +107,7 @@ func fullDemoPublicationFixture(t *testing.T, content string, mutations ...func(
 	if err := result.DigestSegmentFiles(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	return result, dir, filepath.Join(dir, "recording-result.json")
+	return result, dir, filepath.Join(dir, "recording-result.json"), f
 }
 
 // The recorder returns JSON over a process boundary. Empty event lists in a
