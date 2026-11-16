@@ -552,7 +552,7 @@ func (s *scanner) sampleFrame(tick int, all []*common.Player) {
 			continue
 		}
 		s.current.sides[slot] = side
-		added := samples.add(tacticalplan.Sample{
+		samples.add(tacticalplan.Sample{
 			Slot:   slot,
 			X:      pos.X,
 			Y:      pos.Y,
@@ -563,10 +563,6 @@ func (s *scanner) sampleFrame(tick int, all []*common.Player) {
 			Pitch:  float64(pl.ViewDirectionY()),
 			Gear:   sampleGear(pl),
 		})
-		if !added {
-			s.warn("slot %d was sampled twice at tick %d; the first sample was kept", slot, tick)
-			continue
-		}
 		if pl.IsAlive() {
 			s.current.markPlayed(slot)
 			s.occupancyAdd(pos.X, pos.Y, pos.Z, pl.LastPlaceName())

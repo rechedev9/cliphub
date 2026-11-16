@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -61,9 +62,8 @@ func leadingAnalysisVersion(dec *json.Decoder) (int, bool) {
 	return 0, true
 }
 
-// ResumeLibraryScans re-queues every demo a previous process left queued or
-// parsing, as the desktop queue lives in memory, every ready demo whose
-// analysis an older scanner made, and every demo an older build could not read.
+// ResumeLibraryScans re-queues the demos left queued or parsing (the desktop queue lives in memory),
+// the ready demos an older scanner analysed and the demos an older build could not read.
 func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 	if h.libraryRepo == nil {
 		return 0, nil
@@ -82,16 +82,8 @@ func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 			if d.Source.WithoutDemo() {
 				continue
 			}
-			switch d.State {
-			case library.ParseFailed:
-				if workers.ClaimLibraryRetryAfterUpgrade(h.storage, d) {
-					pending = append(pending, d)
-				}
-			case library.ParseReady:
-				if h.libraryAnalysisStale(d.ID) {
-					pending = append(pending, d)
-				}
-			default:
+			// A failed demo is listed here and claimed for its retry in the loop below.
+			if d.State != library.ParseReady || h.libraryAnalysisStale(d.ID) {
 				pending = append(pending, d)
 			}
 		}
@@ -104,8 +96,15 @@ func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 	resumed := 0
 	var firstErr error
 	for _, d := range pending {
+		// Claimed next to the queueing, so a start that stops before this demo spends no retry.
+		if d.State == library.ParseFailed && !workers.ClaimLibraryRetryAfterUpgrade(h.storage, d) {
+			continue
+		}
 		if err := h.libraryRepo.SetDemoState(ctx, d.ID, library.ParseQueued, "", ""); err != nil {
 			firstErr = cmp.Or(firstErr, err)
+			if !errors.Is(err, library.ErrNotFound) {
+				h.releaseLibraryRetry(d)
+			}
 			continue
 		}
 		if err := h.enqueueLibraryScan(ctx, d.ID); err != nil {
@@ -115,17 +114,22 @@ func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 					log.Printf("httpapi: restore library demo %s to %s: %v", d.ID, d.State, err)
 				}
 			}
-			// The claim recorded this build; a refused retry clears it so the next start tries again.
-			if d.State == library.ParseFailed {
-				if err := h.storage.Put(artifacts.LibraryScanFailedBuildKey(d.ID), strings.NewReader("")); err != nil {
-					log.Printf("httpapi: release library demo %s retry: %v", d.ID, err)
-				}
-			}
+			h.releaseLibraryRetry(d)
 			continue
 		}
 		resumed++
 	}
 	return resumed, firstErr
+}
+
+// releaseLibraryRetry clears the identity a claim recorded for a failed demo that was not queued, so the next start tries again.
+func (h *Handlers) releaseLibraryRetry(d library.Demo) {
+	if d.State != library.ParseFailed {
+		return
+	}
+	if err := h.storage.Put(artifacts.LibraryScanFailedBuildKey(d.ID), strings.NewReader("")); err != nil {
+		log.Printf("httpapi: release library demo %s retry: %v", d.ID, err)
+	}
 }
 
 // AnalyzeLibraryDemo handles POST /api/library/demos/{id}/analyze, which

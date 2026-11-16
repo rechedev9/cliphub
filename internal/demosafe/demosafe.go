@@ -20,6 +20,11 @@ func ParseToEnd(p demoinfocs.Parser) error {
 func Recover(fn func() error) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
+			// An error value stays on the chain, so a read error the bit reader panics with stays visible.
+			if e, ok := r.(error); ok {
+				err = fmt.Errorf("%w: %w", ErrPanicked, e)
+				return
+			}
 			err = fmt.Errorf("%w: %v", ErrPanicked, r)
 		}
 	}()

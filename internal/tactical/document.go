@@ -1,12 +1,16 @@
 package tactical
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/rechedev9/cliphub/internal/radarmap"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
+
+// ErrEncodePositions marks a positions blob the scan built wrong: a Studio bug, not a bad demo.
+var ErrEncodePositions = errors.New("encode positions")
 
 // derivedRadarSize is the pixel resolution used when a map has no shipped
 // calibration. It matches the size CS2 draws its own overviews at.
@@ -340,7 +344,7 @@ func (s *scanner) encodePositions(tickrate float64) (tacticalplan.Blob, error) {
 	}
 	blob, err := tacticalplan.EncodePositions(rounds, sampleTicks, tickrate)
 	if err != nil {
-		return tacticalplan.Blob{}, fmt.Errorf("encode positions: %w", err)
+		return tacticalplan.Blob{}, fmt.Errorf("%w: %w", ErrEncodePositions, err)
 	}
 	return blob, nil
 }

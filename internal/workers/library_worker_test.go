@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io/fs"
 	"strings"
 	"testing"
 	"time"
@@ -219,4 +220,13 @@ func TestLibraryScanLockLetsASuspectedDemoGoFirst(t *testing.T) {
 	}
 	unlockFirst()
 	(<-got)()
+}
+
+// A read error while the parser fills its first buffer comes back as a retryable error, not a panic.
+func TestOpenDemoParserReturnsAReadError(t *testing.T) {
+	readErr := &fs.PathError{Op: "read", Path: "demo.dem", Err: errors.New("the process cannot access the file")}
+	p, err := openDemoParser(failingReader{readErr})
+	if p != nil || !errors.Is(err, readErr) {
+		t.Fatalf("openDemoParser = %v, %v; want no parser and the read error", p, err)
+	}
 }

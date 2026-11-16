@@ -9,9 +9,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
@@ -48,9 +51,9 @@ func TestResumeLibraryScansRescansAnalysesFromAnOlderScanner(t *testing.T) {
 	}
 }
 
-// A demo an older build could not read is scanned again once on the next
-// build; a damaged demo, or a second start of the same build, leaves it failed.
-func TestResumeLibraryScansRetriesAnIncompatibleDemoOncePerBuild(t *testing.T) {
+// A demo an older Studio could not read is scanned again once; a damaged demo,
+// or a second start of the same Studio, leaves it failed.
+func TestResumeLibraryScansRetriesAnIncompatibleDemoOnce(t *testing.T) {
 	env := newLibraryTestEnv(t)
 	ctx := context.Background()
 	incompatible := library.Demo{SHA256: "i", FileName: "i.dem"}
@@ -112,6 +115,46 @@ func TestResumeLibraryScansKeepsTheRetryOfARefusedFailedDemo(t *testing.T) {
 	env.queue.err = nil
 	if resumed, err := env.h.ResumeLibraryScans(ctx); err != nil || resumed != 1 {
 		t.Fatalf("next start: ResumeLibraryScans = %d, %v; want the refused retry queued", resumed, err)
+	}
+}
+
+// queueRefusingRepo fails every write that would queue a demo while refuse is set.
+type queueRefusingRepo struct {
+	*store.MemoryLibraryRepository
+	refuse bool
+}
+
+func (r *queueRefusingRepo) SetDemoState(ctx context.Context, id uuid.UUID, state library.ParseState, errorCode, message string) error {
+	if r.refuse && state == library.ParseQueued {
+		return errors.New("database is locked")
+	}
+	return r.MemoryLibraryRepository.SetDemoState(ctx, id, state, errorCode, message)
+}
+
+// A claimed retry whose queued state could not be written is not spent: the next start queues it.
+func TestResumeLibraryScansKeepsTheRetryWhenQueueingTheDemoFails(t *testing.T) {
+	env := newLibraryTestEnv(t)
+	ctx := context.Background()
+	repo := &queueRefusingRepo{MemoryLibraryRepository: env.repo}
+	d := library.Demo{SHA256: "i", FileName: "i.dem"}
+	if _, err := repo.CreateDemo(ctx, &d); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.SetDemoState(ctx, d.ID, library.ParseFailed, obs.ClassDemoIncompatible, "parsing demo: demo_incompatible: nextByte"); err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(newFakeRepo(), env.storage, env.queue, WithLibrary(repo))
+
+	repo.refuse = true
+	if resumed, err := h.ResumeLibraryScans(ctx); err == nil || resumed != 0 || len(env.queue.enqueued) != 0 {
+		t.Fatalf("refused start: ResumeLibraryScans = %d, %v, enqueued %d; want the state error and nothing queued", resumed, err, len(env.queue.enqueued))
+	}
+	repo.refuse = false
+	if resumed, err := h.ResumeLibraryScans(ctx); err != nil || resumed != 1 {
+		t.Fatalf("next start: ResumeLibraryScans = %d, %v; want the retry queued", resumed, err)
+	}
+	if got, _ := repo.GetDemo(ctx, d.ID); got.State != library.ParseQueued {
+		t.Fatalf("demo state = %s, want queued", got.State)
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/demosafe"
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
@@ -150,7 +151,7 @@ func (w *LibraryWorker) ProcessAnalyzeLibraryDemo(ctx context.Context, id uuid.U
 		} else if err != nil {
 			logWorkerError(id, "write library demo state", err)
 		} else {
-			w.putScanText(artifacts.LibraryScanFailedBuildKey(id), scannerBuild())
+			w.putScanText(artifacts.LibraryScanFailedBuildKey(id), currentScanIdentity().String())
 		}
 		recordStageFailure(id, obs.StageTactical, tasks.TypeAnalyzeLibraryDemo, class, scanErr)
 		logWorkerError(id, tasks.TypeAnalyzeLibraryDemo+" failed", scanErr)
@@ -240,13 +241,29 @@ func checkLibraryDemo(ctx context.Context, path string) error {
 	if err != nil || !parser.DemoRecordingUnclosed(header) {
 		return err
 	}
-	p := demoinfocs.NewParser(f)
+	p, err := openDemoParser(f)
+	if err != nil {
+		return err
+	}
 	defer p.Close()
 	// Any other failure is the tactical scan's to report.
 	if _, err := parser.RosterScanWithContext(ctx, p); errors.Is(err, parser.ErrTruncatedDemo) {
 		return err
 	}
 	return ctx.Err()
+}
+
+// openDemoParser builds a parser, which reads its first buffer at once and panics on a read error.
+func openDemoParser(r io.Reader) (demoinfocs.Parser, error) {
+	var p demoinfocs.Parser
+	err := demosafe.Recover(func() error {
+		p = demoinfocs.NewParser(r)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open demo parser: %w", err)
+	}
+	return p, nil
 }
 
 // discard removes the folder of a demo deleted while its scan ran, so the

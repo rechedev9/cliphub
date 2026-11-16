@@ -505,38 +505,62 @@ followed each other on the same demo.
   positions encoder refused the frame (`slot 1 appears twice in the frame at
   tick 59020`). The round economy also counted that player twice.
   `playersBySlot` (`internal/tactical/participants.go`) now keeps one entry
-  per slot for frames and economy: connected with an entity, then with a pawn,
-  alive, a non-zero position, the slot's previous EntityID, the highest
-  EntityID, the highest UserID. `appendFrame` stays strict. Tests:
+  per slot for frames and economy: on the T or CT team, then connected with
+  an entity, with a pawn, alive, a non-zero position, the slot's previous
+  EntityID, the highest EntityID, the highest UserID. A new controller that
+  is not on a team yet never beats a stale one that still holds T or CT.
+  `appendFrame` stays strict. Tests:
   `TestDuplicateParticipantsLeaveOneSamplePerSlot`,
   `TestEconomyCountsADuplicatedPlayerOnce`,
   `TestPlayersBySlotKeepsThePreviousEntityOnATie`.
 - Both failures showed as "dañada": `tacticalFailureClass` only looked at
   typed errors, so a wrapped `demo_incompatible:` became `demo_unreadable`.
   It now keeps the `obs.ClassOf` class (`demo_incompatible`,
-  `truncated_demo`, `pov_demo`) and files an `encode positions:` error as
-  `tactical_internal`, a Studio bug with its own `DEMO_ERROR_LABEL`. A new
+  `truncated_demo`, `pov_demo`) and files an error that wraps
+  `tactical.ErrEncodePositions` as `tactical_internal`, a Studio bug with its
+  own `DEMO_ERROR_LABEL`. Only a stored message, rebuilt for the retry after an
+  upgrade, is matched by its `encode positions:` text. A new
   class goes into `internal/telemetry/types.go` and
   `desktop/src/telemetry-journal.ts` together
   (`TestDesktopJournalAllowlistsMatchTheCollector`). Test: `TestTacticalFailureClass`.
-  The collector rejects a whole batch with an unknown class, so deploy the
-  collector before the Studio release that sends it.
+  The collector on the VPS today rejects a whole batch with an unknown class,
+  so deploy this collector before the Studio release that sends
+  `tactical_internal`. This collector files an unknown `pipeline.error` class as
+  `unknown` and keeps the batch, so a later class needs no deploy order. Test:
+  `TestValidateBatchFilesANewPipelineClassAsUnknown`.
 - A failure every attempt repeats (`tacticalClassFinal`) ends the library and
   tactical task on its first attempt with `asynq.SkipRetry` instead of parsing
   the whole demo again. A failure that can clear (a missing file, the disk)
-  leaves the demo `parsing` until its last attempt. Tests:
+  leaves the demo `parsing` until its last attempt. A read error under the
+  parser (`*fs.PathError`, a cancelled context) is one of those: `demosafe`
+  keeps a panicked error on the chain and `tagParseError` does not tag it
+  `demo_incompatible`. `demoinfocs.NewParser` reads its first buffer at once
+  and panics on a read error: the library worker's cut-demo check builds it
+  through `openDemoParser`, but `tactical.ScanReader` and the other parse
+  paths do not yet, so there that error still stops Studio and the crash
+  count retries the demo. Tests:
   `TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt`,
-  `TestTacticalWorkerEndsAnIncompatibleDemoOnTheFirstAttempt`.
+  `TestTacticalWorkerEndsAnIncompatibleDemoOnTheFirstAttempt`,
+  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`,
+  `TestOpenDemoParserReturnsAReadError`.
 - After an upgrade, `ResumeLibraryScans` scans a failed demo once more when
-  its class depends on the Studio build (`demo_incompatible`,
-  `tactical_internal`, `map_uncalibrated`, or an older `demo_unreadable`
-  whose message carries `demo_incompatible:`). `library/<id>/scan-failed-build`
-  holds the build that last failed or retried the demo, so each build retries it
-  at most once; a retry the queue refuses clears it. Damaged, truncated and POV
-  demos are never retried on their own. Tests:
+  what reads it changed. `library/<id>/scan-failed-build` records
+  `parser=<demoinfocs version>;build=<vcs revision>` of the Studio that last
+  failed or retried the demo. `demo_incompatible` (or an older
+  `demo_unreadable` whose message carries `demo_incompatible:`) retries only
+  when the demoinfocs version changed; `tactical_internal` and
+  `map_uncalibrated` retry when the build changed. A plain value from before
+  the parser part counts as an older build. A binary without a VCS stamp
+  records `build=devel`, so `scripts/build.ps1` asserts the stamp. A retry
+  whose queued state or enqueue fails clears the record. Damaged, truncated
+  and POV demos are never retried on their own. Limit: a panic in a Studio
+  event handler is tagged `demo_incompatible` too, so after a Studio fix it
+  waits for a new demoinfocs or for Analizar. Tests:
   `TestClaimLibraryRetryAfterUpgrade`,
-  `TestResumeLibraryScansRetriesAnIncompatibleDemoOncePerBuild`,
-  `TestResumeLibraryScansKeepsTheRetryOfARefusedFailedDemo`.
+  `TestClaimLibraryRetryAfterUpgradeKeysEachClassOnWhatReadsIt`,
+  `TestResumeLibraryScansRetriesAnIncompatibleDemoOnce`,
+  `TestResumeLibraryScansKeepsTheRetryOfARefusedFailedDemo`,
+  `TestResumeLibraryScansKeepsTheRetryWhenQueueingTheDemoFails`.
 - The `level=error` noise in the same reports was `wait_for_job` polling a
   render variant before its state existed. That 404 (`render variant not
   found`) now logs at info; a 404 for a missing job stays an error. Test:

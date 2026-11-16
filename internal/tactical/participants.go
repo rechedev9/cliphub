@@ -37,7 +37,8 @@ func (s *scanner) playersBySlot(tick int, all []*common.Player) []slotPlayer {
 			s.picker.warned = true
 			s.warn("player %q is listed twice at tick %d; one entry per player was kept", pl.Name, tick)
 		}
-		if slices.Compare(s.candidateRank(slot, pl), s.candidateRank(slot, prev)) > 0 {
+		next, kept := s.candidateRank(slot, pl), s.candidateRank(slot, prev)
+		if slices.Compare(next[:], kept[:]) > 0 {
 			picked[slot] = pl
 		}
 	}
@@ -54,10 +55,12 @@ func (s *scanner) playersBySlot(tick int, all []*common.Player) []slotPlayer {
 }
 
 // candidateRank orders two entries of one slot: the larger rank is the live player.
+// A T or CT team comes first so an entry the side filter drops never beats one it keeps.
 // UserID breaks the last tie so the pick does not follow the map order of All().
-func (s *scanner) candidateRank(slot uint8, p *common.Player) []int {
+func (s *scanner) candidateRank(slot uint8, p *common.Player) [8]int {
 	pos := p.Position()
-	return []int{
+	return [8]int{
+		rankBit(sideOf(p.Team) != ""),
 		rankBit(p.IsConnected && p.Entity != nil),
 		rankBit(p.PlayerPawnEntity() != nil),
 		rankBit(p.IsAlive()),

@@ -123,10 +123,14 @@ func duplicateCases(w *testWorld) map[string][]*common.Player {
 	ct := w.player(testPlayer{steamID: 10, userID: 1, entityID: 1, team: common.TeamCounterTerrorists, connected: true, pawn: true, pos: r3.Vector{X: 100, Y: 100}, money: 1000, equip: 3000})
 	live := w.player(testPlayer{steamID: 20, userID: 9, entityID: 2, team: common.TeamTerrorists, connected: true, pawn: true, pos: r3.Vector{X: -500, Y: 250, Z: 8}, money: 4000, equip: 4700})
 	stale := w.player(testPlayer{steamID: 20, userID: 3, entityID: 7, team: common.TeamTerrorists, money: 800})
+	// The stale controller still holds T while the new one is connected but not on a team yet.
+	staleOnTeam := w.player(testPlayer{steamID: 20, userID: 4, entityID: 3, team: common.TeamTerrorists, pawn: true, pos: r3.Vector{X: -500, Y: 250, Z: 8}, money: 4000, equip: 4700})
+	unassigned := w.player(testPlayer{steamID: 20, userID: 11, entityID: 8, team: common.TeamUnassigned, connected: true, pawn: true, pos: r3.Vector{X: 40, Y: 40}, money: 800})
 	return map[string][]*common.Player{
 		"reconnect leaves a stale player":       {ct, live, stale},
 		"reconnect with the stale player first": {ct, stale, live},
 		"same player under two user ids":        {ct, live, live},
+		"new controller not on a team yet":      {ct, staleOnTeam, unassigned},
 	}
 }
 
@@ -177,18 +181,5 @@ func TestPlayersBySlotKeepsThePreviousEntityOnATie(t *testing.T) {
 	s.picker.lastEntity[0] = 2
 	if got := s.playersBySlot(2, []*common.Player{second, first}); got[0].player != first {
 		t.Fatal("the EntityID of the previous frame must win over a higher one")
-	}
-}
-
-func TestSampleSlotsKeepTheFirstSample(t *testing.T) {
-	var slots sampleSlots
-	if !slots.add(tacticalplan.Sample{Slot: 15, X: 1}) {
-		t.Fatal("first sample of a slot rejected")
-	}
-	if slots.add(tacticalplan.Sample{Slot: 15, X: 2}) || slots.add(tacticalplan.Sample{Slot: 17, X: 3}) {
-		t.Fatal("a repeated or out-of-range slot was accepted")
-	}
-	if got := slots.ordered(); len(got) != 1 || got[0].X != 1 {
-		t.Fatal(got)
 	}
 }

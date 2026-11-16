@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"strings"
 	"testing"
 
@@ -215,13 +217,52 @@ func TestTacticalFailureClass(t *testing.T) {
 		{"invalid file type", fmt.Errorf("scan tactical: %w", demoinfocs.ErrInvalidFileType), tacticalClassDemoIncompatible},
 		{"wrapped parser error", fmt.Errorf("scan tactical: parsing demo: demo_incompatible: nextByte: insufficient buffer (701 of 701)"), tacticalClassDemoIncompatible},
 		{"wrapped truncated demo", fmt.Errorf("scan tactical: parsing demo: truncated_demo: cut before the first round"), obs.ClassTruncatedDemo},
-		{"positions encoder", fmt.Errorf("scan tactical: encode positions: slot 1 appears twice in the frame at tick 59020"), tacticalClassInternal},
+		{"positions encoder", fmt.Errorf("scan tactical: %w", relabelled{"blob refused", tactical.ErrEncodePositions}), tacticalClassInternal},
+		{"stored positions encoder message", errors.New("scan tactical: encode positions: slot 1 appears twice in the frame at tick 59020"), tacticalClassInternal},
 		{"anything else", fmt.Errorf("parsing demo: corrupt frame"), tacticalClassDemoUnreadable},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := tacticalFailureClass(tc.err); got != tc.want {
 				t.Fatalf("tacticalFailureClass = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// relabelled hides an error's text behind another message, so only errors.Is can find it.
+type relabelled struct {
+	msg string
+	err error
+}
+
+func (r relabelled) Error() string { return r.msg }
+
+func (r relabelled) Unwrap() error { return r.err }
+
+type failingReader struct{ err error }
+
+func (r failingReader) Read([]byte) (int, error) { return 0, r.err }
+
+// A read error from the OS may clear on the next attempt; a demo the parser rejects never does.
+func TestTacticalScanRetriesAReadErrorAndEndsAFormatError(t *testing.T) {
+	readErr := &fs.PathError{Op: "read", Path: "demo.dem", Err: errors.New("the process cannot access the file")}
+	for _, tc := range []struct {
+		name  string
+		demo  io.Reader
+		final bool
+	}{
+		{"read error", io.MultiReader(bytes.NewReader(incompatibleDemo()[:16]), failingReader{readErr}), false},
+		{"format error", bytes.NewReader(incompatibleDemo()), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tactical.ScanReader(context.Background(), tc.demo, tactical.Options{})
+			if err == nil {
+				t.Fatal("ScanReader error = nil, want a failure")
+			}
+			class := tacticalFailureClass(fmt.Errorf("scan tactical: %w", err))
+			if got := tacticalClassFinal(class); got != tc.final {
+				t.Fatalf("class %q of %v: final = %v, want %v", class, err, got, tc.final)
 			}
 		})
 	}

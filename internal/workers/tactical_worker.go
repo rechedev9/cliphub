@@ -34,7 +34,7 @@ const (
 	tacticalClassInternal         = "tactical_internal"
 )
 
-// phraseEncodePositions opens the error of a positions blob the scan itself built wrong: a Studio bug, not a bad demo.
+// phraseEncodePositions opens the stored message of a tactical.ErrEncodePositions failure.
 const phraseEncodePositions = "encode positions:"
 
 // TacticalRepository is the subset of *job.Repository the tactical worker needs.
@@ -270,10 +270,14 @@ func tacticalFailureClass(err error) string {
 	if f, ok := errors.AsType[*tacticalFailure](err); ok {
 		return f.class
 	}
+	if errors.Is(err, tactical.ErrEncodePositions) {
+		return tacticalClassInternal
+	}
 	switch class := obs.ClassOf(err.Error()); class {
 	case obs.ClassDemoIncompatible, obs.ClassTruncatedDemo, obs.ClassPOVDemo:
 		return class
 	}
+	// Only a stored message rebuilt with errors.New (library_reanalysis.go) needs the text match.
 	if strings.Contains(err.Error(), phraseEncodePositions) {
 		return tacticalClassInternal
 	}
