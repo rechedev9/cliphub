@@ -47,7 +47,10 @@ func ExtractRadarTrack(ctx context.Context, demo io.Reader, opts RadarTrackOptio
 		return track, fmt.Errorf("radar track needs a tick rate and at least one window")
 	}
 	s := newRadarSampler(opts)
-	p := demoinfocs.NewParser(demo)
+	p, err := demosafe.NewParser(demo)
+	if err != nil {
+		return track, fmt.Errorf("radar track: %w", err)
+	}
 	defer p.Close()
 	s.register(p)
 	stop := make(chan struct{})
@@ -59,7 +62,7 @@ func ExtractRadarTrack(ctx context.Context, demo io.Reader, opts RadarTrackOptio
 		case <-stop:
 		}
 	})
-	err := demosafe.Recover(func() error {
+	err = demosafe.Recover(func() error {
 		for {
 			more, err := p.ParseNextFrame()
 			if err != nil {

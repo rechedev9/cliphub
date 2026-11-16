@@ -17,7 +17,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/demosafe"
@@ -241,7 +240,7 @@ func checkLibraryDemo(ctx context.Context, path string) error {
 	if err != nil || !parser.DemoRecordingUnclosed(header) {
 		return err
 	}
-	p, err := openDemoParser(f)
+	p, err := demosafe.NewParser(f)
 	if err != nil {
 		return err
 	}
@@ -251,19 +250,6 @@ func checkLibraryDemo(ctx context.Context, path string) error {
 		return err
 	}
 	return ctx.Err()
-}
-
-// openDemoParser builds a parser, which reads its first buffer at once and panics on a read error.
-func openDemoParser(r io.Reader) (demoinfocs.Parser, error) {
-	var p demoinfocs.Parser
-	err := demosafe.Recover(func() error {
-		p = demoinfocs.NewParser(r)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("open demo parser: %w", err)
-	}
-	return p, nil
 }
 
 // discard removes the folder of a demo deleted while its scan ran, so the

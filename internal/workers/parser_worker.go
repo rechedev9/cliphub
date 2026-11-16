@@ -15,10 +15,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/deathplan"
+	"github.com/rechedev9/cliphub/internal/demosafe"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
@@ -150,7 +150,10 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 	defer cleanup()
 
 	// ensureRoster ran first, so the roster scan already logged the demo facts.
-	p := demoinfocs.NewParser(demo)
+	p, err := demosafe.NewParser(demo)
+	if err != nil {
+		return killplan.Plan{}, err
+	}
 	defer p.Close()
 
 	meta := parser.PlanMeta{
@@ -194,7 +197,10 @@ func (w *ParserWorker) parseKills(ctx context.Context, j job.Job, steamID string
 		return killplan.Plan{}, err
 	}
 	defer cleanup()
-	p := demoinfocs.NewParser(demo)
+	p, err := demosafe.NewParser(demo)
+	if err != nil {
+		return killplan.Plan{}, err
+	}
 	defer p.Close()
 	plan, err := parser.RunKillsWithContext(ctx, p, steamID, j.Rules, parser.PlanMeta{DemoPath: j.DemoPath, SHA256: j.DemoSHA256})
 	if errors.Is(err, parser.ErrTargetNotFound) {
@@ -233,7 +239,10 @@ func (w *ParserWorker) scanRoster(ctx context.Context, j job.Job, step string) (
 		return "", fmt.Errorf("scan roster: %w", err)
 	}
 
-	p := demoinfocs.NewParser(demo)
+	p, err := demosafe.NewParser(demo)
+	if err != nil {
+		return "", fmt.Errorf("scan roster: %w", err)
+	}
 	defer p.Close()
 	header := parser.TrackDemoHeader(p)
 	first := parser.TrackFirstPacketTick(p)

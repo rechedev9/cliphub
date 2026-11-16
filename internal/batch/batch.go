@@ -204,7 +204,10 @@ func parseDemo(ctx context.Context, demo, target string, mode parser.SegmentMode
 	}
 
 	meta := parser.PlanMeta{DemoPath: demo, SHA256: sha}
-	p := demoinfocs.NewParser(f)
+	p, err := demosafe.NewParser(f)
+	if err != nil {
+		return killplan.Plan{}, err
+	}
 	defer p.Close()
 	return parser.RunWithContext(ctx, p, target, rules.Default(), meta, parser.RunOptions{SegmentMode: mode})
 }
@@ -220,7 +223,10 @@ func topFragger(ctx context.Context, demo string) (string, error) {
 	}
 	defer f.Close()
 
-	p := demoinfocs.NewParser(f)
+	p, err := demosafe.NewParser(f)
+	if err != nil {
+		return "", err
+	}
 	defer p.Close()
 
 	kills := map[uint64]int{}

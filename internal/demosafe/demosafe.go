@@ -4,6 +4,7 @@ package demosafe
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 )
@@ -14,6 +15,19 @@ var ErrPanicked = errors.New("parser panicked")
 // ParseToEnd is p.ParseToEnd with a parser panic returned as an ErrPanicked error.
 func ParseToEnd(p demoinfocs.Parser) error {
 	return Recover(p.ParseToEnd)
+}
+
+// NewParser builds a demoinfocs parser, which reads its first buffer at once and panics on a read error.
+func NewParser(r io.Reader) (demoinfocs.Parser, error) {
+	var p demoinfocs.Parser
+	err := Recover(func() error {
+		p = demoinfocs.NewParser(r)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open demo parser: %w", err)
+	}
+	return p, nil
 }
 
 // Recover runs fn and returns a panic on this goroutine as an ErrPanicked error.

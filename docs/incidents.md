@@ -534,15 +534,20 @@ followed each other on the same demo.
   leaves the demo `parsing` until its last attempt. A read error under the
   parser (`*fs.PathError`, a cancelled context) is one of those: `demosafe`
   keeps a panicked error on the chain and `tagParseError` does not tag it
-  `demo_incompatible`. `demoinfocs.NewParser` reads its first buffer at once
-  and panics on a read error: the library worker's cut-demo check builds it
-  through `openDemoParser`, but `tactical.ScanReader` and the other parse
-  paths do not yet, so there that error still stops Studio and the crash
-  count retries the demo. Tests:
+  `demo_incompatible`. Tests:
   `TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt`,
   `TestTacticalWorkerEndsAnIncompatibleDemoOnTheFirstAttempt`,
-  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`,
-  `TestOpenDemoParserReturnsAReadError`.
+  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`.
+- `demoinfocs.NewParser` reads its first buffer at once and panics on a read
+  error, outside any recover, so Studio's inline queue re-raised it and the
+  orchestrator stopped. Production code now builds every parser through
+  `demosafe.NewParser`, which returns that panic as an error with the
+  `*fs.PathError` still on the chain, so the scan stays retryable. Tests:
+  `TestNewParserReturnsAReadError`, the first-read case of
+  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`, and the guard
+  `TestDemoParsersOpenThroughDemosafe` (`cmd/zv`), which fails when a
+  non-test file other than `internal/demosafe/demosafe.go` calls
+  `demoinfocs.NewParser` or `NewParserWithConfig`.
 - After an upgrade, `ResumeLibraryScans` scans a failed demo once more when
   what reads it changed. `library/<id>/scan-failed-build` records
   `parser=<demoinfocs version>;build=<vcs revision>` of the Studio that last

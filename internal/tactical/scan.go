@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/demosafe"
 	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/radarmap"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
@@ -103,7 +104,10 @@ func ScanReader(ctx context.Context, r io.Reader, opts Options) (Result, error) 
 		return Result{}, err
 	}
 	return scanHashed(ctx, r, opts, func(reader io.Reader) (Result, error) {
-		p := demoinfocs.NewParser(reader)
+		p, err := demosafe.NewParser(reader)
+		if err != nil {
+			return Result{}, err
+		}
 		defer p.Close()
 		return ScanWithContext(ctx, p, opts)
 	})
