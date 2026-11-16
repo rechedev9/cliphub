@@ -4,6 +4,15 @@ export const DEMO_INCOMPATIBLE_PREFIX = 'demo_incompatible:' as const;
 /** Stable prefix when CS2 crashes rewinding playdemo to demo tick 0. */
 export const UNPLAYABLE_START_PREFIX = 'unplayable_start:' as const;
 
+/** Stable prefix when cs2.exe ran but the capture made no progress. */
+const CAPTURE_STALLED_PREFIX = 'capture_stalled:' as const;
+
+/** Stable prefix when CS2 could not reach the Steam client. */
+const STEAM_NOT_RUNNING_PREFIX = 'steam_not_running:' as const;
+
+/** Stable prefix when zv-editor ran past its deadline. */
+const RENDER_TIMEOUT_PREFIX = 'render_timeout:' as const;
+
 /** Parser marker for a client-recorded demo; scan and parse failures carry it after a wrap prefix. */
 const POV_DEMO_MARKER = 'pov_demo:' as const;
 
@@ -56,6 +65,9 @@ export type FailureReason = {
     | 'pov-verification'
     | 'pov-acquisition'
     | 'capture-flake'
+    | 'capture-stalled'
+    | 'steam-not-running'
+    | 'render-timeout'
     | 'render-mismatch'
     | 'studio-session'
     | 'generic';
@@ -97,6 +109,17 @@ export const JOB_RECAPTURE_FAILURE_MESSAGE =
   'La captura guardada no se puede reutilizar con esta versión de ClipHub; la demo está bien. ' +
   'Borra esta partida y vuelve a subir la demo para grabarla de nuevo; si se repite, comparte el diagnóstico desde Ajustes.';
 
+/** Job-level Steam failure: CS2 could not reach Steam, so nothing was recorded. */
+export const JOB_STEAM_NOT_RUNNING_MESSAGE =
+  'No se pudo grabar porque CS2 no pudo conectar con Steam; la demo está bien. ' +
+  'Abre Steam con tu sesión iniciada, borra esta partida y vuelve a subir la demo para grabarla de nuevo.';
+
+/** Job-level stall: the watchdog stopped a CS2 that made no capture progress. */
+export const JOB_CAPTURE_STALLED_MESSAGE =
+  'CS2 dejó de avanzar durante la captura y ClipHub lo cerró; la demo está bien. ' +
+  'Comprueba que Steam está abierto, borra esta partida y vuelve a subir la demo para grabarla de nuevo; ' +
+  'si se repite, comparte el diagnóstico desde Ajustes.';
+
 /** Eyebrow for a failed partida that is not a capture failure. */
 export const JOB_FAILED_TITLE = 'La demo no se pudo procesar';
 
@@ -104,6 +127,8 @@ const CAPTURE_KINDS: ReadonlySet<FailureReason['kind']> = new Set([
   'pov-verification',
   'pov-acquisition',
   'capture-flake',
+  'capture-stalled',
+  'steam-not-running',
   'recording-not-reusable',
   'silent-capture',
 ]);
@@ -122,6 +147,16 @@ const DEMO_PLAYBACK_ENDED_MESSAGE =
 const UNPLAYABLE_START_MESSAGE =
   'CS2 se cierra al rebobinar esta demo al tick 0, antes de la primera ronda. ' +
   'No relances CS2: no es un fallo de POV ni de HLAE.';
+
+// The watchdog fires before playback starts and on a capture that froze mid-way, and it already stopped CS2.
+const CAPTURE_STALLED_MESSAGE =
+  'CS2 dejó de avanzar (no empezó a reproducir la demo o se quedó congelado) y ClipHub lo cerró. ' +
+  'Comprueba que Steam está abierto y reintenta.';
+
+const STEAM_NOT_RUNNING_MESSAGE = 'Abre Steam con tu sesión iniciada y reintenta.';
+
+const RENDER_TIMEOUT_MESSAGE =
+  'El vídeo tardó más de lo previsto en este equipo. Reintenta con Studio en primer plano y sin otros programas pesados.';
 
 export const POV_DEMO_MESSAGE =
   'Esta demo es POV: la grabó un jugador desde su propio juego y CS2 no deja fijar la cámara en ningún jugador. ' +
@@ -176,6 +211,8 @@ export function parseFailureReason(reason: string | undefined, context: FailureC
     let message = JOB_GENERIC_FAILURE_MESSAGE;
     if (failure.kind === 'capture-flake') message = JOB_CAPTURE_FAILURE_MESSAGE;
     else if (failure.kind === 'recording-not-reusable') message = JOB_RECAPTURE_FAILURE_MESSAGE;
+    else if (failure.kind === 'steam-not-running') message = JOB_STEAM_NOT_RUNNING_MESSAGE;
+    else if (failure.kind === 'capture-stalled') message = JOB_CAPTURE_STALLED_MESSAGE;
     return { ...failure, message, retryCanHelp: false };
   }
   return failure;
@@ -199,6 +236,18 @@ function classifyFailureReason(reason: string | undefined, context: FailureConte
 
   if (reason.startsWith(UNPLAYABLE_START_PREFIX)) {
     return { kind: 'unplayable-start', message: UNPLAYABLE_START_MESSAGE, retryCanHelp: false };
+  }
+
+  if (reason.startsWith(STEAM_NOT_RUNNING_PREFIX)) {
+    return { kind: 'steam-not-running', message: STEAM_NOT_RUNNING_MESSAGE, retryCanHelp: true };
+  }
+
+  if (reason.startsWith(CAPTURE_STALLED_PREFIX)) {
+    return { kind: 'capture-stalled', message: CAPTURE_STALLED_MESSAGE, retryCanHelp: true };
+  }
+
+  if (reason.startsWith(RENDER_TIMEOUT_PREFIX)) {
+    return { kind: 'render-timeout', message: RENDER_TIMEOUT_MESSAGE, retryCanHelp: true };
   }
 
   if (reason.includes(POV_DEMO_MARKER)) {

@@ -21,6 +21,12 @@ import (
 const observedRecorderError = `C:\...\zv-recorder.exe failed: exit status 1: 2026/07/19 13:44:07 windowed capture: patched c:\program files (x86)\steam\userdata\50084006\730\local\cfg\cs2_video.txt (fullscreen/borderless off for this run)
 error: cs2 demo playback failed with NETWORK_DISCONNECT_MESSAGE_PARSE_ERROR; check console log "..."`
 
+// steamExitRecorderError is a CS2 that quit after SteamAPI_Init failed, as the
+// recorder reports it with the console tail.
+const steamExitRecorderError = `zv-recorder.exe failed: exit status 1: cs2 console: SteamAPI_Init failed. Cannot create IPC pipe to Steam client process. Steam is probably not running.
+cs2 exit: cs2.exe exit code 0x00000064 after 20.1s; no Windows crash report
+error: capture POV verification failed: CS2 exited without the completed POV verification marker (cs2.exe exit code 0x00000064 after 20.1s; no Windows crash report); check CS2 console log "..."`
+
 func TestRecordFailureReason(t *testing.T) {
 	segment := recording.RecordingArtifact{SegmentID: "seg-001", Role: "segment", Type: "video", Path: "segments/seg-001.mp4"}
 	requested16 := make([]string, 16)
@@ -60,6 +66,25 @@ func TestRecordFailureReason(t *testing.T) {
 			err:       errors.New("zv-recorder.exe failed: exit status 1: error: capture POV verification failed: demo playback ended before every protected segment completed; check CS2 console log \"c:\\\\game\\\\csgo\\\\console.log\""),
 			requested: []string{"seg-001"},
 			want:      "demo_incompatible: cs2 cannot replay this demo to the end (playback stops before every protected segment completes)",
+		},
+		{
+			name:      "stalled capture keeps the recorder's capture_stalled line",
+			err:       errors.New("zv-recorder.exe failed: exit status 1: cs2 console: map loaded\ncs2 stall: no activity for 300s\nerror: capture_stalled: cs2.exe kept running but made no capture progress for 5m0s"),
+			requested: []string{"seg-001"},
+			want:      "capture_stalled: cs2.exe kept running but made no capture progress for 5m0s",
+		},
+		{
+			name:      "steam not running outranks the missing attestation",
+			err:       errors.New(steamExitRecorderError),
+			requested: []string{"seg-001"},
+			want:      "steam_not_running: CS2 could not reach the Steam client (Steam is not running or not signed in)",
+		},
+		{
+			name:      "steam not running seen only in the structured result",
+			err:       errors.New("exit status 1"),
+			result:    recording.RecordingResult{Error: "SteamAPI_Init failed. Cannot create IPC pipe to Steam client process. Steam is probably not running."},
+			requested: []string{"seg-001"},
+			want:      "steam_not_running: CS2 could not reach the Steam client (Steam is not running or not signed in)",
 		},
 		{
 			name:      "generic failure uses last error line",
@@ -180,6 +205,19 @@ func TestRetryableCaptureCrash(t *testing.T) {
 		{
 			name:   "unplayable start is deterministic",
 			runErr: errors.New(unplayableStartPrefix + " " + missingCaptureAttestationMarker),
+		},
+		{
+			name:   "steam not running is not a crash a relaunch can fix",
+			runErr: errors.New(steamExitRecorderError),
+		},
+		{
+			name:   "steam not running in the structured result",
+			runErr: errors.New("exit status 1"),
+			result: recording.RecordingResult{Error: missingCaptureAttestationMarker + "\ncs2 console: " + steamNotRunningMarker},
+		},
+		{
+			name:   "stalled capture is not relaunched",
+			runErr: errors.New("error: " + captureStalledPrefix + " cs2.exe kept running but made no capture progress for 5m0s\n" + missingCaptureAttestationMarker),
 		},
 		{
 			name: "success is not retried",

@@ -2040,7 +2040,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	}
 	args, outDir, publishDir := invocation.args, invocation.outDir, invocation.publishDir
 
-	runCtx, cancel := context.WithTimeout(ctx, cfg.timeoutDuration())
+	runCtx, cancel := context.WithTimeout(ctx, cfg.renderTimeout(edit.FullDemo))
 	defer cancel()
 
 	progressPath := filepath.Join(workDir, "editor-progress.json")
@@ -2056,7 +2056,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		reporter.watch(progressCtx)
 	}()
 
-	_, runErr := w.runner.Run(runCtx, cfg.EditorPath, args...)
+	runErr := w.runEditor(runCtx, args)
 	progressCancel()
 	<-progressDone
 

@@ -20,8 +20,8 @@ const maxGoFileLines = 1000
 // their size then. They may shrink but never grow; drop an entry once its file fits.
 var oversizedGoFiles = map[string]int{
 	"cmd/zv-orchestrator/inline_queue_test.go":             1971,
-	"cmd/zv-recorder/main.go":                              1814,
-	"cmd/zv-recorder/main_test.go":                         1492,
+	"cmd/zv-recorder/main.go":                              1652,
+	"cmd/zv-recorder/main_test.go":                         1087,
 	"cmd/zv/app_e2e_test.go":                               1038,
 	"cmd/zv/app_workflows_e2e_test.go":                     1377,
 	"cmd/zv/short_commands_test.go":                        1134,

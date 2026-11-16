@@ -16,6 +16,17 @@ const demoIncompatiblePrefix = "demo_incompatible:"
 // unplayableStartPrefix is the stable marker for a CS2 playdemo tick-0 crash.
 const unplayableStartPrefix = "unplayable_start:"
 
+// captureStalledPrefix is the recorder's stable marker for a cs2.exe that ran
+// without making capture progress. Relaunching against the same machine state repeats it.
+const captureStalledPrefix = "capture_stalled:"
+
+// steamNotRunningPrefix is the stable reason when CS2 could not reach the Steam client.
+const steamNotRunningPrefix = "steam_not_running:"
+
+// steamNotRunningMarker is the Steamworks SteamAPI_Init failure text the
+// recorder forwards from the CS2 console tail.
+const steamNotRunningMarker = "Steam is probably not running"
+
 const resetBreakpadMarker = "ResetBreakpadAppId"
 
 // networkDisconnectMarker is the CS2 playback error substring that is stable
@@ -71,7 +82,9 @@ func retryableCaptureCrash(runErr error, result recording.RecordingResult) bool 
 	}
 	return !strings.Contains(text, networkDisconnectMarker) &&
 		!strings.Contains(text, playbackEndedMarker) &&
-		!strings.Contains(text, unplayableStartPrefix)
+		!strings.Contains(text, unplayableStartPrefix) &&
+		!strings.Contains(text, captureStalledPrefix) &&
+		!strings.Contains(text, steamNotRunningMarker)
 }
 
 // tickZeroCopyCanHelp reports a CS2 crash in its opening rewind to demo tick 0
@@ -92,6 +105,10 @@ func tickZeroCopyCanHelp(runErr error, result recording.RecordingResult, demoPat
 // original text when there is none.
 func recordFailureReason(runErr error, result recording.RecordingResult, requested []string) string {
 	text := runErr.Error()
+	// Without Steam nothing else can work, so it outranks whatever CS2 did next.
+	if strings.Contains(text+"\n"+result.Error, steamNotRunningMarker) {
+		return steamNotRunningPrefix + " CS2 could not reach the Steam client (Steam is not running or not signed in)"
+	}
 	if strings.Contains(text, networkDisconnectMarker) || strings.Contains(text, playbackEndedMarker) {
 		reason := demoIncompatiblePrefix + demoIncompatibleMessage(text)
 		if captured := capturedSegmentCount(result); captured > 0 {
@@ -105,6 +122,12 @@ func recordFailureReason(runErr error, result recording.RecordingResult, request
 			reason += fmt.Sprintf("; captured %d/%d segments before the failure", captured, len(requested))
 		}
 		return reason
+	}
+	if strings.Contains(text, captureStalledPrefix) {
+		if line, ok := lastErrorLine(text); ok && strings.HasPrefix(line, captureStalledPrefix) {
+			return line
+		}
+		return captureStalledPrefix + " cs2.exe kept running but made no capture progress"
 	}
 	if line, ok := lastErrorLine(text); ok {
 		return "recorder failed: " + line
