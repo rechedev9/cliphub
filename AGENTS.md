@@ -60,7 +60,7 @@ Each rule has a check or a longer page behind it. Follow the link before you wor
 - A store method lands in SQLite and memory with a shared contract test. [SQLite store](.claude/rules/store-sqlite.md).
 - No e2e suites, verification scripts, evidence folders or reports; the `internal/pipeline` golden test is the one exception. Unit tests are welcome where they test real logic. [Render and the editor](.claude/rules/render-editor.md).
 - No CI on pushes or pull requests. Run the checks for what you touched; the full Go suite before a PR and before a release. [Release](.claude/rules/release.md).
-- Check a user-visible change by hand in a throwaway Studio profile, never the real `%APPDATA%\cliphub-studio` and never through the session's `cliphub-studio` MCP. [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md).
+- Check a user-visible change by hand in a throwaway Studio profile, never the real `%APPDATA%\cliphub-studio` and never through the session's `cliphub-studio` MCP. Delete the profile when the check is done. [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md).
 - The repository is public: write `<user>` and `%APPDATA%`, never tokens, keys, support codes or `agent-session.json` contents.
 
 ## Index

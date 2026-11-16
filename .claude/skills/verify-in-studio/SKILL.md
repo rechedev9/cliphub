@@ -37,4 +37,13 @@ A new profile shows the first-run guide and fetches HLAE on first boot.
 3. In the PR, write a few lines on what you did and saw. A PR that changes what a user sees embeds screenshots of the changed screen from the browser pane, attached with `gh pr create --attach` or `gh pr edit --attach`. Never commit them.
 4. Redact the PR text and screenshots: `<user>` and `%APPDATA%`, no tokens, keys, support codes or contents of `agent-session.json`.
 
-The check is finished when the changed flow and one failure path behaved as expected in the throwaway profile and the PR says what you did and saw. It does not replace the automated checks in [Build and check](../../../AGENTS.md#build-and-check): before a PR they are green too, with the full Go suite (`-timeout 30m`, not `-short`).
+## Clean up
+
+Each profile keeps demos, captures and renders, and stale ones once filled 200 GB of `C:`. When the check is done, close Studio and the `zv-mcp.exe` you started, then delete your profile and any profile older than two days:
+
+```powershell
+Remove-Item -Recurse -Force $p
+Get-ChildItem C:\temp\cliphub-try -Directory | Where-Object LastWriteTime -lt (Get-Date).AddDays(-2) | Remove-Item -Recurse -Force
+```
+
+The check is finished when the changed flow and one failure path behaved as expected in the throwaway profile, the PR says what you did and saw, and the profile is deleted. It does not replace the automated checks in [Build and check](../../../AGENTS.md#build-and-check): before a PR they are green too, with the full Go suite (`-timeout 30m`, not `-short`).
