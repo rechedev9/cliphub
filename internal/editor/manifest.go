@@ -331,6 +331,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 			KillCounter:         opts.KillCounter,
 			KillfeedOverlay:     killfeedOverlay,
 			CenteredKillfeed:    centeredKillfeed,
+			Overlays:            opts.Overlays,
 			TailTrimSeconds:     opts.TailTrimSeconds,
 			OutputFPS:           outputFPS,
 			VideoCRF:            videoCRF,
@@ -371,12 +372,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 			edit.CoverTimeSeconds = coverTime
 		}
 		if opts.VictimReplay {
-			source := replaySource{result: result, segment: segment, baseDir: baseDir}
-			if replay, warning, ok := source.part(); ok {
-				edit = source.appendTo(edit, replay)
-			} else if warning != "" {
-				manifest.Warnings = append(manifest.Warnings, warning)
-			}
+			edit, manifest.Warnings = replaySource{result: result, segment: segment, baseDir: baseDir, speed: opts.VictimReplaySpeed}.attach(edit, manifest.Warnings)
 		}
 		if qualityChecks {
 			edit.QualityLogPath = filepath.Join(logDir, logBase+"-quality.log")
@@ -521,7 +517,7 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 		cursor = partStart + duration
 		// Beat-synced timelines place every part themselves; a replay would shift them.
 		if opts.VictimReplay && c.RhythmSync == nil {
-			if replay, _, ok := (replaySource{result: result, segment: segment, baseDir: c.BaseDir}).part(); ok {
+			if replay, _, ok := (replaySource{result: result, segment: segment, baseDir: c.BaseDir, speed: opts.VictimReplaySpeed}).part(); ok {
 				replay.TimelineStartSeconds = cursor
 				parts = append(parts, replay)
 				cursor += replay.DurationSeconds
@@ -575,6 +571,7 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 		KillCounter:            c.KillCounter,
 		KillfeedOverlay:        c.KillfeedOverlay,
 		CenteredKillfeed:       c.CenteredKillfeed,
+		Overlays:               opts.Overlays,
 		TailTrimSeconds:        tailTrimForRhythm(c),
 		OutputFPS:              c.OutputFPS,
 		SourceWidth:            result.Plan.Stream.Width,
@@ -824,8 +821,8 @@ func killCues(segment recording.RecordingSegment, tickrate int) []KillCue {
 			AttackerSide: kill.Killer.TeamAtKill,
 			Victim:       kill.Victim.NameInDemo,
 			VictimSide:   kill.Victim.TeamAtKill,
-			Headshot:     kill.Headshot,
-			Wallbang:     kill.Wallbang,
+			Headshot:     kill.Headshot, Wallbang: kill.Wallbang,
+			ClutchVs: kill.ClutchVs, ClutchResult: kill.ClutchResult,
 		})
 	}
 	return out

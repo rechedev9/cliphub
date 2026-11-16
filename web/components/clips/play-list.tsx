@@ -23,6 +23,8 @@ export type PlayListProps = {
   emptyFiltered?: ReactNode;
   /** Multi-POV only: play id → the player whose chosen play it overlaps. */
   clashes?: ReadonlyMap<string, string>;
+  /** Play id → why Elegir automáticamente picked it. */
+  notes?: ReadonlyMap<string, string>;
   /** The format colour of the flow, for the selected cards. */
   tone?: FormatTone;
   onToggle: (id: string) => void;
@@ -46,6 +48,7 @@ export function PlayList({
   visibleIds,
   emptyFiltered,
   clashes,
+  notes,
   tone = 'short',
   onToggle,
   onSelectAll,
@@ -104,6 +107,7 @@ export function PlayList({
             reelPosition={positions.get(play.id) ?? null}
             ordinal={ordinals.get(play.id)}
             clashWith={clashes?.get(play.id)}
+            note={notes?.get(play.id)}
             tone={tone}
             onToggle={() => onToggle(play.id)}
           />

@@ -16,6 +16,15 @@ const STATUS_URL = `/api/demos/${JOB}/status`;
 const PLAN_URL = `/api/demos/${JOB}/plan`;
 const RECAP_URL = `/api/demos/${JOB}/recap-plan`;
 const ROSTER_URL = `/api/demos/${JOB}/roster`;
+const MOMENTS_URL = `/api/demos/${JOB}/moments`;
+
+/** The server scores seg-2 above seg-1 and knows its clutch was won. */
+const MOMENTS = {
+  moments: [
+    { segment_id: 'seg-2', score: 0.81, reason_codes: ['clutch', 'clutch_won'], clutch_won: true, win_prob_swing: 0.4 },
+    { segment_id: 'seg-1', score: 0.5, reason_codes: ['multi_kill'] },
+  ],
+};
 
 /** Two segments plus a same-timeline duplicate, so the dedup rule governs the count. */
 const PLAN = {
@@ -95,6 +104,7 @@ function planReadyReply(url: string): Response {
   if (url === PLAN_URL) return json(PLAN);
   if (url === RECAP_URL) return json(RECAP_PLAN);
   if (url === ROSTER_URL) return json(ROSTER);
+  if (url === MOMENTS_URL) return json(MOMENTS);
   return json({ error: `unexpected fetch: ${url}`, code: 'error' }, 500);
 }
 
@@ -107,18 +117,21 @@ test('a plan-ready constructor beat reads /status once and its documents in one 
     assert.deepEqual(await gate.release(), [STATUS_URL], 'the three calls share one status read');
     assert.deepEqual(
       await gate.release(),
-      [PLAN_URL, RECAP_URL, ROSTER_URL].sort(),
-      'plan, recap-plan and roster open together',
+      [PLAN_URL, RECAP_URL, ROSTER_URL, MOMENTS_URL].sort(),
+      'plan, recap-plan, roster and moments open together',
     );
     assert.deepEqual(await gate.release(), [], 'no third hop: the waterfall is gone');
 
     const [match, plays, rounds] = await beat;
-    assert.equal(gate.calls.length, 4);
+    assert.equal(gate.calls.length, 5);
     assert.equal(gate.calls.filter((url) => url === STATUS_URL).length, 1);
     assert.equal(gate.calls.filter((url) => url === PLAN_URL).length, 1, 'the kill plan is fetched once');
     // The Match and the Plays come from that one parsed plan; the duplicate
     // timeline segment is dropped in both.
     assert.deepEqual(plays.map((play) => play.id), ['seg-1', 'seg-2']);
+    assert.deepEqual(plays.map((play) => play.score), [0.5, 0.81], 'the server scores join the plays');
+    assert.equal(plays[1].clutchWon, true);
+    assert.equal(plays[1].winProbSwing, 0.4);
     assert.equal(match?.decentPlays, 2);
     assert.equal(match?.map, 'Inferno');
     assert.equal(match?.player, 'zack');
@@ -160,6 +173,7 @@ test('per-document failures stay in their own call', async () => {
   }> = [
     { name: 'recap-plan', broken: RECAP_URL, wantMatch: 'ok', wantPlays: 'ok', wantRounds: 'throws' },
     { name: 'roster', broken: ROSTER_URL, wantMatch: 'ok', wantPlays: 'ok', wantRounds: 'ok' },
+    { name: 'moments', broken: MOMENTS_URL, wantMatch: 'ok', wantPlays: 'ok', wantRounds: 'ok' },
     { name: 'plan', broken: PLAN_URL, wantMatch: 'throws', wantPlays: 'throws', wantRounds: 'ok' },
     { name: 'status', broken: STATUS_URL, wantMatch: 'throws', wantPlays: 'throws', wantRounds: 'throws' },
   ];
@@ -198,7 +212,7 @@ test('a later beat re-reads the plan instead of serving the previous one', async
     // status, so nothing may survive a settled beat.
     const second = client.findClips(JOB);
     assert.deepEqual(await gate.release(), [STATUS_URL]);
-    assert.deepEqual(await gate.release(), [PLAN_URL]);
+    assert.deepEqual(await gate.release(), [PLAN_URL, MOMENTS_URL].sort());
     await second;
     assert.equal(gate.calls.filter((url) => url === PLAN_URL).length, 2);
   } finally {
@@ -218,13 +232,13 @@ test('aborting creation while its match facts load never persists or reconciles 
 
     assert.deepEqual(await gate.release(), [STATUS_URL], 'creation begins by reading shared facts');
     controller.abort();
-    assert.deepEqual(await gate.release(), [PLAN_URL, ROSTER_URL].sort(), 'the in-flight reads may complete after cancellation');
+    assert.deepEqual(await gate.release(), [PLAN_URL, ROSTER_URL, MOMENTS_URL].sort(), 'the in-flight reads may complete after cancellation');
     await rejected;
 
     const { intents, reels } = client as unknown as Seedable;
     assert.equal(intents.size, 0, 'no durable intent survives a cancelled admission');
     assert.equal(reels.size, 0, 'no queued view is created');
-    assert.equal(gate.calls.length, 3, 'cancellation never starts reconciliation');
+    assert.equal(gate.calls.length, 4, 'cancellation never starts reconciliation');
   } finally {
     gate.restore();
   }
@@ -284,7 +298,7 @@ test('plays reuse only ready covers from the same single-segment capture', async
       assert.equal(plays[0]?.thumbnailUrl, scenario === 'single' ? video.thumbnailUrl : undefined, scenario);
       assert.equal(plays[1]?.thumbnailUrl, undefined, 'another play must never borrow the image');
     }
-    assert.equal(gate.calls.length, 8, 'covers do not add requests or start captures');
+    assert.equal(gate.calls.length, 12, 'covers do not add requests or start captures');
   } finally { gate.restore(); }
 });
 

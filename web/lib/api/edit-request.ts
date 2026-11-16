@@ -1,5 +1,6 @@
 import { persistAffiliateFamily } from '../affiliate-banner.ts';
-import type { EditConfig } from './types.ts';
+import { radarEditFields } from '../radar-overlay.ts';
+import { DEFAULT_VICTIM_REPLAY_SPEED, type EditConfig } from './types.ts';
 
 export type EditRequestBody = {
   full_demo?: EditConfig['fullDemo'];
@@ -11,12 +12,27 @@ export type EditRequestBody = {
   hook_text: boolean;
   kill_counter: boolean;
   centered_killfeed?: boolean;
+  vertical_hud?: boolean;
+  vertical_hud_theme?: string;
+  radar?: boolean;
+  radar_position?: string;
+  radar_size?: string;
+  radar_opacity?: number;
   match_recap: boolean;
   death_reel?: boolean;
+  separate_shorts?: boolean;
   voice_comms: boolean;
   voice_volume?: number;
   native_hud: boolean;
   victim_replay?: boolean;
+  victim_replay_speed?: number;
+  play_badges?: boolean;
+  win_probability?: boolean;
+  player_labels?: boolean;
+  grenade_trails?: boolean;
+  stats_card?: boolean;
+  brand_watermark?: boolean;
+  brand_banner?: boolean;
   cover_strategy: EditConfig['coverStrategy'];
   intro_text?: string;
   outro_text?: string;
@@ -45,9 +61,37 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     cover_strategy: edit.coverStrategy,
   };
   if (edit.deathReel) body.death_reel = true;
+  else if (edit.separateShorts && !edit.matchRecap && !edit.fullDemo) body.separate_shorts = true;
   if (edit.fullDemo) body.full_demo = edit.fullDemo;
-  else if (edit.victimReplay && !edit.matchRecap && !edit.deathReel) body.victim_replay = true;
-  if (edit.centeredKillfeed && edit.format === 'short-9x16' && !edit.fullDemo && !edit.deathReel) body.centered_killfeed = true;
+  else if (edit.victimReplay && !edit.matchRecap && !edit.deathReel) {
+    body.victim_replay = true;
+    if (edit.victimReplaySpeed !== undefined && edit.victimReplaySpeed !== DEFAULT_VICTIM_REPLAY_SPEED) body.victim_replay_speed = edit.victimReplaySpeed;
+  }
+  if (!edit.fullDemo && !edit.matchRecap) {
+    if (edit.playBadges && !edit.deathReel) body.play_badges = true;
+    if (edit.winProbability && !edit.deathReel) body.win_probability = true;
+    if (edit.playerLabels) body.player_labels = true;
+    if (edit.grenadeTrails) body.grenade_trails = true;
+    if (edit.statsCard && edit.format === 'short-9x16') body.stats_card = true;
+    if (edit.brandWatermark) body.brand_watermark = true;
+    if (edit.brandBanner && !edit.keyDropStyle?.trim()) body.brand_banner = true;
+  }
+  const portraitShort = edit.format === 'short-9x16' && !edit.fullDemo && !edit.deathReel;
+  const verticalHud = portraitShort && !!edit.verticalHud && !edit.matchRecap && !edit.nativeHud;
+  if (verticalHud) {
+    body.vertical_hud = true;
+    const theme = edit.verticalHudTheme?.trim();
+    if (theme) body.vertical_hud_theme = theme;
+  }
+  // The vertical HUD draws its kill feed under the scoreboard, so it always carries it.
+  if ((edit.centeredKillfeed || verticalHud) && portraitShort) body.centered_killfeed = true;
+  const radar = radarEditFields(edit);
+  if (radar.radar) {
+    body.radar = true;
+    if (radar.radarPosition) body.radar_position = radar.radarPosition;
+    if (radar.radarSize) body.radar_size = radar.radarSize;
+    if (radar.radarOpacity !== undefined) body.radar_opacity = radar.radarOpacity;
+  }
   if (edit.voiceComms || edit.fullDemo) {
     body.voice_volume = edit.voiceVolume ?? 0.85;
   }

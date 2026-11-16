@@ -136,6 +136,12 @@ func (o OverlayOptions) ImageSlots() []OverlayImageSlot {
 	if o.HUDTheme == "focus" && o.HUDPortrait != nil {
 		slots = append(slots, OverlayImageSlot{"retrato del jugador", o.HUDPortrait})
 	}
+	if wm := o.Brand.Watermark; wm != nil {
+		slots = append(slots, OverlayImageSlot{"marca de agua", &AssetRef{ID: wm.Image.ID, SHA256: wm.Image.SHA256}})
+	}
+	if banner := o.Brand.Banner; banner != nil {
+		slots = append(slots, OverlayImageSlot{"banner de sponsor", &AssetRef{ID: banner.Image.ID, SHA256: banner.Image.SHA256}})
+	}
 	if o.Mode != "screenshots" {
 		return slots
 	}

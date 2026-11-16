@@ -22,6 +22,15 @@ type Plan struct {
 	Rules         any       `json:"rules,omitempty"`
 	Segments      []Segment `json:"segments"`
 	Stats         Stats     `json:"stats"`
+	// Rounds is each round's winner and the target's side, in round order; kill plans only.
+	Rounds []RoundResult `json:"rounds,omitempty"`
+}
+
+// RoundResult is how one round ended. TargetSide is empty when the target was not playing at the end.
+type RoundResult struct {
+	Number     int    `json:"number"`
+	Winner     string `json:"winner"`
+	TargetSide string `json:"target_side,omitempty"`
 }
 
 // Demo holds metadata about the source demo file.
@@ -58,6 +67,17 @@ type Segment struct {
 	Death *Kill `json:"death,omitempty"`
 	// POV is the player filmed in a multi-POV plan; nil means the plan target.
 	POV *Target `json:"pov,omitempty"`
+	// WinProb is the post-plant round-win chance inside the window, for the Short overlay.
+	WinProb []WinProbSpan `json:"win_prob,omitempty"`
+}
+
+// WinProbSpan is the post-plant win chance over a tick range (tacticalplan wp1). It
+// exists only while the bomb has 5 s or more left and each side has 2 or more alive.
+type WinProbSpan struct {
+	TickStart int `json:"tick_start"`
+	TickEnd   int `json:"tick_end"`
+	// CTPct is the CT side's chance in whole percent; T has the rest.
+	CTPct int `json:"ct_pct"`
 }
 
 // Kill captures the metadata downstream stages need to choose effects
@@ -73,7 +93,28 @@ type Kill struct {
 	VictimPos [3]float64 `json:"victim_pos"`
 	// ClutchVs is the enemies the killer faced as the last one alive, victim included; 0 otherwise.
 	ClutchVs int `json:"clutch_vs,omitempty"`
+	// ClutchResult is ClutchWon or ClutchLost from the round winner; empty when not a clutch or unknown.
+	ClutchResult  string `json:"clutch_result,omitempty"`
+	NoScope       bool   `json:"no_scope,omitempty"`
+	ThroughSmoke  bool   `json:"through_smoke,omitempty"`
+	AttackerBlind bool   `json:"attacker_blind,omitempty"`
+	// WinProbSwing is the change in the killer side's round-win chance (tacticalplan wp1), -1 to 1.
+	WinProbSwing float64 `json:"win_prob_swing,omitempty"`
+	// Entry is the round's opening kill; Flick a gun kill right after a turn of 45 degrees or more in 0.2 s.
+	Entry bool `json:"entry,omitempty"`
+	Flick bool `json:"flick,omitempty"`
+	// Retake is a CT kill after the plant in a round CT won; EcoWin a kill in a round won on a clearly smaller buy.
+	Retake bool `json:"retake,omitempty"`
+	EcoWin bool `json:"eco_win,omitempty"`
+	// PostPlant is a kill in a live round with the bomb planted, by either side.
+	PostPlant bool `json:"post_plant,omitempty"`
 }
+
+// Clutch results a Kill carries.
+const (
+	ClutchWon  = "won"
+	ClutchLost = "lost"
+)
 
 // UtilityThrow captures one target-player utility event that can become a
 // standalone teaching clip, for example a smoke lineup.

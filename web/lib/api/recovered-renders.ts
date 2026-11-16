@@ -4,6 +4,7 @@ import { canHaveRenderState } from './reel-reconcile.ts';
 import { DEFAULT_EDIT_CONFIG, FULL_DEMO_REEL_SUFFIX } from './reel-store.ts';
 import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.ts';
 import { dataPlane } from './dataplane.ts';
+import { autoShortsTitle, reelPlaysSuffix } from './reel-identity.ts';
 
 /**
  * Finished renders the orchestrator still holds but no local reel intent points
@@ -52,7 +53,7 @@ export type RecoveredVideo = {
 export function recoveredVideoId(jobId: string, variant: string, segmentIds: readonly string[] | undefined): string | null {
   if (variant === RECOVERY_FULL_DEMO_VARIANT) return `${jobId}__${FULL_DEMO_REEL_SUFFIX}`;
   if (!segmentIds || segmentIds.length === 0) return null;
-  return `${jobId}__${segmentIds.join('_')}`;
+  return `${jobId}__${reelPlaysSuffix(segmentIds)}`;
 }
 
 /** Jobs whose renders are worth one read: they may hold render state and were not read at this status yet. */
@@ -76,7 +77,9 @@ export function recoveredVideo(
   knownIds: ReadonlySet<string>,
 ): RecoveredVideo | null {
   if (render.status !== 'ready' || !render.videoName) return null;
-  const id = recoveredVideoId(job.jobId, variant, render.segmentIds);
+  const batch = render.editConfig?.separateShorts === true && variant !== RECOVERY_FULL_DEMO_VARIANT;
+  const baseId = recoveredVideoId(job.jobId, variant, render.segmentIds);
+  const id = batch && baseId !== null ? `${job.jobId}__${reelPlaysSuffix(render.segmentIds ?? [], render.editConfig)}` : baseId;
   if (id === null || knownIds.has(id)) return null;
 
   const full = variant === RECOVERY_FULL_DEMO_VARIANT;
@@ -84,9 +87,8 @@ export function recoveredVideo(
     ? { ...DEFAULT_EDIT_CONFIG, ...render.editConfig, format: 'landscape-16x9', matchRecap: true }
     : { ...DEFAULT_EDIT_CONFIG, ...render.editConfig, format: 'short-9x16', matchRecap: false };
   const plays = render.segmentIds?.length ?? 0;
-  const title = full
-    ? 'Demo completa'
-    : `${plays} ${plays === 1 ? 'jugada' : 'jugadas'} - ${SHORT_VARIANT_LABELS[variant] ?? variant}`;
+  const selection = batch ? autoShortsTitle(plays) : `${plays} ${plays === 1 ? 'jugada' : 'jugadas'}`;
+  const title = full ? 'Demo completa' : `${selection} - ${SHORT_VARIANT_LABELS[variant] ?? variant}`;
 
   const dp = dataPlane();
   const revision = full ? renderRevisionFromPrefix(render.artifactPrefix, job.jobId, variant) : undefined;

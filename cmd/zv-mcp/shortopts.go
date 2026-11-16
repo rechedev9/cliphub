@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -55,6 +56,13 @@ var (
 	}
 )
 
+// replaySpeedOptions are renderplan.VictimReplaySpeeds; the id is the victim_replay_speed value.
+var replaySpeedOptions = []shortOption{
+	{ID: "0.25", Label: "0,25x", Description: "Muy lenta, cuatro veces más larga"},
+	{ID: "0.5", Label: "0,5x", Description: "Cámara lenta", Default: true},
+	{ID: "1", Label: "1x", Description: "A velocidad real"},
+}
+
 type shortToggle struct {
 	ID          string `json:"id"`
 	Label       string `json:"label"`
@@ -67,11 +75,20 @@ var toggleOptions = []shortToggle{
 	{ID: "outro", Label: "Cierre", Description: "Tarjeta de cierre al final del vídeo"},
 	{ID: "hook_text", Label: "Título automático", Description: "Texto gancho al inicio del vídeo"},
 	{ID: "kill_counter", Label: "Contador de kills", Description: "Contador de bajas visible durante la jugada"},
+	{ID: "play_badges", Label: "Insignias de jugada", Description: "Nombra el clutch (1vX, ganado si se sabe), el ace o la multikill de cada jugada"},
+	{ID: "win_probability", Label: "Probabilidad de victoria", Description: "Tras el plantado, el % de victoria de cada equipo (con 5 s o más de bomba y 2 o más vivos por bando)"},
+	{ID: "player_labels", Label: "Nombres y vida", Description: "Nombre y barra de vida sobre cada compañero, y sobre cada rival que tu jugador ve o daña, leídos de la demo"},
+	{ID: "grenade_trails", Label: "Estelas de granadas", Description: "Dibuja el recorrido de las granadas de tu equipo sobre el gameplay, leído de la demo"},
+	{ID: "stats_card", Label: "Tarjeta de estadísticas", Description: "Cierra el Short con K/D, ADR, HS % y rating de ClipHub del jugador, y su nivel FACEIT si lo hay (solo 9:16)"},
 	{ID: "centered_killfeed", Label: "Kill feed centrada arriba", Description: "Dibuja tus kills en el centro, arriba del Short (solo 9:16)"},
+	{ID: "vertical_hud", Label: "HUD vertical", Description: "Marcador compacto arriba con reloj, ronda y vivos de cada bando leídos de la demo, y la kill feed centrada debajo (solo 9:16; no con el HUD nativo ni con Full HUD)"},
+	{ID: "radar", Label: "Radar de ClipHub", Description: "Radar propio en una esquina con jugadores, humos, molotovs, flashes y bomba leídos de la demo, con posición, tamaño y opacidad (no con el HUD nativo ni con Full HUD, que ya muestran el radar de CS2)"},
 	{ID: "voice_comms", Label: "Comms del equipo", Description: "Mezcla las voces del equipo en el audio"},
 	{ID: "native_hud", Label: "HUD nativo", Description: "Graba con el HUD original del juego"},
-	{ID: "victim_replay", Label: "Repetición desde la víctima", Description: "Tras cada jugada, la última baja otra vez a cámara lenta vista por quien muere"},
+	{ID: "victim_replay", Label: "Repetición desde la víctima", Description: "Tras cada jugada, la última baja otra vez vista por quien muere, a la velocidad elegida"},
 	{ID: "cover", Label: "Portada", Description: "Genera candidatos de portada desde el gameplay", Default: true},
+	{ID: "brand_watermark", Label: "Marca de agua", Description: "Dibuja el logo del kit de marca en su esquina y con su opacidad (necesita un logo guardado)"},
+	{ID: "brand_banner", Label: "Banner de sponsor", Description: "Muestra el banner del kit de marca en su ventana de tiempo (necesita un banner guardado; no va con el banner de afiliado)"},
 }
 
 // bannerFamilies mirror AFFILIATE_FAMILY_CATALOG of the Studio UI (web/lib/api/types.ts).
@@ -117,6 +134,13 @@ type shortOptionsOut struct {
 	Music      []musicOption  `json:"music" jsonschema:"track ids for the music field; leaving music unset renders without music"`
 	Toggles    []shortToggle  `json:"toggles" jsonschema:"on/off extras; unset keeps each default"`
 	Banners    []bannerFamily `json:"banners" jsonschema:"affiliate banner (Banner afiliado) families and styles; no banner unless banner_style is set"`
+
+	// ReplaySpeed lists the victim_replay_speed values; the id is the number to pass.
+	ReplaySpeed []shortOption `json:"replay_speed" jsonschema:"values for victim_replay_speed, used only with victim_replay"`
+	// VerticalHUDThemes are the catalog designs of the vertical HUD.
+	VerticalHUDThemes []shortOption `json:"vertical_hud_themes" jsonschema:"values for vertical_hud_theme, used only with vertical_hud"`
+	RadarPositions    []shortOption `json:"radar_positions" jsonschema:"values for radar_position, used only with radar"`
+	RadarSizes        []shortOption `json:"radar_sizes" jsonschema:"values for radar_size, used only with radar"`
 }
 
 // shortChoices are the optional edit fields of generate_short. Unset fields keep the product defaults.
@@ -131,7 +155,7 @@ type shortChoices struct {
 	KillCounter  *bool  `json:"kill_counter,omitempty" jsonschema:"kill counter overlay; default false"`
 	VoiceComms   *bool  `json:"voice_comms,omitempty" jsonschema:"mix team voice comms; default false"`
 	NativeHUD    *bool  `json:"native_hud,omitempty" jsonschema:"record with the native game HUD; default false"`
-	VictimReplay *bool  `json:"victim_replay,omitempty" jsonschema:"after each play, replay its last kill in slow motion from the victim's view; default false"`
+	VictimReplay *bool  `json:"victim_replay,omitempty" jsonschema:"after each play, replay its last kill from the victim's view; default false"`
 	Cover        *bool  `json:"cover,omitempty" jsonschema:"generate cover candidates; default true"`
 	// CenteredKillfeed is rejected outside short-9x16, like the server does.
 	CenteredKillfeed *bool    `json:"centered_killfeed,omitempty" jsonschema:"draw the kill feed centered near the top; short-9x16 only; default false"`
@@ -144,6 +168,22 @@ type shortChoices struct {
 	BannerCode       string   `json:"banner_code,omitempty" jsonschema:"affiliate code on the banner: letters, digits, _ or -, at most 16; empty uses Studio's default code"`
 	BannerStart      *float64 `json:"banner_start_seconds,omitempty" jsonschema:"second of the Short when the banner appears; default 0"`
 	BannerEnd        *float64 `json:"banner_end_seconds,omitempty" jsonschema:"second of the Short when the banner leaves; default 4"`
+
+	PlayBadges     *bool `json:"play_badges,omitempty" jsonschema:"badge naming each play's clutch (1vX, GANADO when the round was won), ace or multikill; default false"`
+	WinProbability *bool `json:"win_probability,omitempty" jsonschema:"after the plant, each team's round-win chance (ClipHub's wp1 model) while the bomb has 5 s or more left and each side has 2 or more alive; plays from jobs parsed before this option show nothing; default false"`
+	PlayerLabels   *bool `json:"player_labels,omitempty" jsonschema:"over the gameplay, the name and a health bar above every teammate, and above an enemy while CS2 marks it spotted by the POV or the POV damages it; read from the demo at render time; hidden while the POV is scoped or dead; default false"`
+	GrenadeTrails  *bool `json:"grenade_trails,omitempty" jsonschema:"over the gameplay, the path of every grenade the POV's team throws, read from the demo at render time; hidden while the POV is scoped or dead; default false"`
+	StatsCard      *bool `json:"stats_card,omitempty" jsonschema:"closing card with the player's K/D, ADR, HS% and ClipHub rating (never an HLTV rating), plus FACEIT level, win rate and best map when FACEIT has them; short-9x16 only; default false"`
+	// VictimReplaySpeed is rejected without victim_replay.
+	VictimReplaySpeed *float64 `json:"victim_replay_speed,omitempty" jsonschema:"victim replay speed: 0.25, 0.5 or 1; needs victim_replay; default 0.5"`
+	BrandWatermark    *bool    `json:"brand_watermark,omitempty" jsonschema:"draw the channel logo of the brand kit (get_brand_kit) as a watermark in its corner and opacity; needs a saved logo; default false"`
+	BrandBanner       *bool    `json:"brand_banner,omitempty" jsonschema:"show the sponsor banner of the brand kit in its time window; needs a saved banner; not with banner_style; default false"`
+	VerticalHUD       *bool    `json:"vertical_hud,omitempty" jsonschema:"9:16 HUD at the top of the Short: compact scoreboard with team names, score, clock and round, each side's alive count read from the demo at render time, and the centered kill feed under it (turns centered_killfeed on); short-9x16 only; not with native_hud or a preset that records the CS2 HUD (full-hud-60); default false"`
+	VerticalHUDTheme  string   `json:"vertical_hud_theme,omitempty" jsonschema:"catalog design of vertical_hud from list_short_options vertical_hud_themes (the list_hud_themes catalog); needs vertical_hud; default the first design"`
+	Radar             *bool    `json:"radar,omitempty" jsonschema:"ClipHub's own radar in a corner of the Short: the map with every living player and where they look, smokes, molotov fires, flashes, HE grenades, deaths of the round and the bomb, read from the demo at render time; not over victim replays, the hook title or the stats card; not with native_hud or a preset that records the CS2 HUD and its radar (full-hud-60); default false"`
+	RadarPosition     string   `json:"radar_position,omitempty" jsonschema:"radar corner from list_short_options radar_positions; needs radar; default auto (bottom left in 9:16, top left in 16:9)"`
+	RadarSize         string   `json:"radar_size,omitempty" jsonschema:"radar size from list_short_options radar_sizes; needs radar; default medium"`
+	RadarOpacity      *int     `json:"radar_opacity,omitempty" jsonschema:"radar opacity in percent, 40 to 100; needs radar; default 90"`
 }
 
 type songIn struct {
@@ -164,7 +204,8 @@ func registerShortOptions(server *mcp.Server, s *studio) {
 				return nil, shortOptionsOut{}, toolError(err)
 			}
 			return nil, shortOptionsOut{Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions,
-				Music: musicOptions(songs), Toggles: toggleOptions, Banners: bannerFamilies}, nil
+				Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies, VerticalHUDThemes: verticalHUDThemes(),
+				RadarPositions: radarPositionOptions, RadarSizes: radarSizeOptions}, nil
 		})
 
 	// Only the Short picker app plays previews; MCP Apps hosts hide app-only tools from the model.
@@ -269,6 +310,21 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 	if edit.CenteredKillfeed && edit.Format != "short-9x16" {
 		return edit, fmt.Errorf("centered_killfeed needs format short-9x16")
 	}
+	if err := resolveVerticalHUD(&edit, c); err != nil {
+		return edit, err
+	}
+	if err := resolveRadar(&edit, c); err != nil {
+		return edit, err
+	}
+	edit.PlayBadges, edit.StatsCard = orDefault(c.PlayBadges, false), orDefault(c.StatsCard, false)
+	edit.WinProbability = orDefault(c.WinProbability, false)
+	edit.PlayerLabels, edit.GrenadeTrails = orDefault(c.PlayerLabels, false), orDefault(c.GrenadeTrails, false)
+	if edit.StatsCard && edit.Format != "short-9x16" {
+		return edit, fmt.Errorf("stats_card needs format short-9x16")
+	}
+	if err := resolveReplaySpeed(&edit, c.VictimReplaySpeed); err != nil {
+		return edit, err
+	}
 	edit.CoverStrategy = coverNone
 	if orDefault(c.Cover, true) {
 		edit.CoverStrategy = coverGenerated
@@ -276,7 +332,29 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 	if err := resolveBookendText(&edit, c); err != nil {
 		return edit, err
 	}
+	edit.BrandWatermark, edit.BrandBanner = orDefault(c.BrandWatermark, false), orDefault(c.BrandBanner, false)
+	if edit.BrandBanner && c.BannerStyle != "" {
+		return edit, errors.New("brand_banner and banner_style both put a banner in the same place; choose one")
+	}
 	return edit, resolveBanner(&edit, c)
+}
+
+// resolveReplaySpeed keeps the default half speed unset, as the Studio UI sends it.
+func resolveReplaySpeed(edit *tuiclient.ShortEdit, speed *float64) error {
+	if speed == nil {
+		return nil
+	}
+	if !edit.VictimReplay {
+		return errors.New("victim_replay_speed needs victim_replay set to true")
+	}
+	id := strconv.FormatFloat(*speed, 'f', -1, 64)
+	if _, err := pickOption("victim_replay_speed", id, replaySpeedOptions); err != nil {
+		return err
+	}
+	if id != "0.5" {
+		edit.VictimReplaySpeed = *speed
+	}
+	return nil
 }
 
 func resolveBookendText(edit *tuiclient.ShortEdit, c shortChoices) error {
@@ -382,8 +460,9 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	for _, x := range []struct {
 		name string
 		on   bool
-	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter}, {"centered_killfeed", e.CenteredKillfeed},
-		{"voice_comms", e.VoiceComms}, {"native_hud", e.NativeHUD}, {"victim_replay", e.VictimReplay}, {"cover", e.CoverStrategy == coverGenerated}} {
+	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter}, {"play_badges", e.PlayBadges}, {"win_probability", e.WinProbability}, {"player_labels", e.PlayerLabels}, {"grenade_trails", e.GrenadeTrails}, {"stats_card", e.StatsCard}, {"centered_killfeed", e.CenteredKillfeed}, {"vertical_hud", e.VerticalHUD}, {"radar", e.Radar},
+		{"voice_comms", e.VoiceComms}, {"native_hud", e.NativeHUD}, {"victim_replay", e.VictimReplay}, {"cover", e.CoverStrategy == coverGenerated},
+		{"brand_watermark", e.BrandWatermark}, {"brand_banner", e.BrandBanner}} {
 		if x.on {
 			extras = append(extras, x.name)
 		}
@@ -393,6 +472,13 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	}
 	out := fmt.Sprintf("formato %s, efecto de baja %s, transición %s, música %s, extras: %s",
 		e.Format, e.KillEffect, e.Transition, music, strings.Join(extras, ", "))
+	if e.VictimReplay {
+		out += fmt.Sprintf(", repetición a %gx", cmp.Or(e.VictimReplaySpeed, 0.5))
+	}
+	if e.VerticalHUD && e.VerticalHUDTheme != "" {
+		out += ", diseño del HUD vertical " + e.VerticalHUDTheme
+	}
+	out += describeRadar(e)
 	if e.IntroText != "" {
 		out += fmt.Sprintf(", apertura «%s»", e.IntroText)
 	}

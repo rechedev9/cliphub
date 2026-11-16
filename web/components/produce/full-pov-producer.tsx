@@ -28,6 +28,7 @@ import { FullDemoOverlays } from './full-demo-overlays';
 import { FullDemoTransitions } from './full-demo-transitions';
 import { FullDemoProSettings } from './full-demo-pro-settings';
 import { FullDemoHud, FullDemoHudPreview } from './full-demo-hud';
+import { FullDemoBrand } from './full-demo-brand';
 import { FullDemoActionBar, FullDemoSummary } from './full-demo-summary';
 import { customHudLabel } from '@/lib/custom-hud';
 import { roundListLabel } from '@/lib/library/analysis-video';
@@ -225,6 +226,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
         <FullDemoHudPreview options={options} map={match.map} />
         <FullDemoBumpers options={options} document={document} rounds={orderRounds} onChange={change} onAssetBusy={assetBusy} />
         <FullDemoHud options={options} onChange={change} onAssetBusy={assetBusy} />
+        <FullDemoBrand options={options} onChange={change} />
         <div className="grid min-w-0 items-start gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))]">
           <FullDemoAudio options={options} document={document} onChange={change} />
           <FullDemoGroup title="Grabación">

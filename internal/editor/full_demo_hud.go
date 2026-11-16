@@ -30,11 +30,10 @@ func fullDemoHUDFilter(short ShortEdit, item recapplan.TimelineItem, output stri
 	if short.fullDemo == nil || short.fullDemo.hud == nil {
 		return "", fmt.Errorf("custom HUD telemetry is missing")
 	}
-	renderer, err := customhud.NewRenderer(short.FullDemo.Effective.Options.Overlays.HUDTheme)
+	renderer, err := short.FullDemo.Effective.Options.Overlays.HUDRenderer()
 	if err != nil {
 		return "", err
 	}
-	renderer.Portrait = short.FullDemo.Effective.Options.Overlays.HUDPortrait != nil
 	ass, err := renderer.ASS(*short.fullDemo.hud, customhud.Window{StartTick: item.SourceStartTick, SourceOffsetFrames: item.SourceOffsetFrames, Frames: item.EndFrame - item.StartFrame})
 	if err != nil {
 		return "", err

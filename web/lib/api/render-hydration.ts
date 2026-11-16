@@ -1,10 +1,14 @@
 import type { ReelIntent } from './reel-store';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
+import { isBrandBanner, isBrandWatermark } from '../brand-kit.ts';
+import { isCustomHudTheme } from '../custom-hud.ts';
+import { coerceRadarOpacity, isRadarPosition, isRadarSize } from '../radar-overlay.ts';
 import {
   isAffiliateStyle,
   isDemoSource,
   isKeyDropStyle,
   isOverlayTheme,
+  isVictimReplaySpeed,
   normalizeAffiliateFamily,
   type EditConfig,
   type Video,
@@ -62,8 +66,27 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
     nativeHud: edit.native_hud === true,
   };
   if (edit.death_reel === true) parsed.deathReel = true;
+  if (edit.separate_shorts === true) parsed.separateShorts = true;
   if (edit.victim_replay === true) parsed.victimReplay = true;
+  if (parsed.victimReplay && isVictimReplaySpeed(edit.victim_replay_speed)) parsed.victimReplaySpeed = edit.victim_replay_speed;
+  if (edit.play_badges === true) parsed.playBadges = true;
+  if (edit.win_probability === true) parsed.winProbability = true;
+  if (edit.player_labels === true) parsed.playerLabels = true;
+  if (edit.grenade_trails === true) parsed.grenadeTrails = true;
+  if (edit.stats_card === true) parsed.statsCard = true;
+  // The effective edit holds the kit copy the render used; true is a request that has not been rendered yet.
+  if (edit.brand_watermark === true || isBrandWatermark(edit.brand_watermark)) parsed.brandWatermark = true;
+  if (edit.brand_banner === true || isBrandBanner(edit.brand_banner)) parsed.brandBanner = true;
   if (edit.centered_killfeed === true) parsed.centeredKillfeed = true;
+  if (edit.vertical_hud === true) parsed.verticalHud = true;
+  if (parsed.verticalHud && isCustomHudTheme(edit.vertical_hud_theme)) parsed.verticalHudTheme = edit.vertical_hud_theme;
+  if (edit.radar === true) {
+    parsed.radar = true;
+    if (isRadarPosition(edit.radar_position)) parsed.radarPosition = edit.radar_position;
+    if (isRadarSize(edit.radar_size)) parsed.radarSize = edit.radar_size;
+    const radarOpacity = coerceRadarOpacity(edit.radar_opacity);
+    if (radarOpacity !== undefined) parsed.radarOpacity = radarOpacity;
+  }
   if (
     typeof edit.voice_volume === 'number' &&
     Number.isFinite(edit.voice_volume) &&

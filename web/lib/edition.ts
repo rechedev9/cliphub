@@ -19,6 +19,7 @@ const DESKTOP_PAGE_ROUTES = [
 const DESKTOP_API_PREFIXES = [
   '/api/editor',
   '/api/full-demo',
+  '/api/brand-kit',
   '/api/streams',
   '/api/imported-videos',
   '/api/songs',

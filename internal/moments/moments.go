@@ -34,11 +34,15 @@ type Moment struct {
 	SegmentID string `json:"segment_id"`
 	Player    string `json:"player,omitempty"`
 	// SteamID64 is the moment's player, set only in multi-POV plans.
-	SteamID64       string         `json:"steamid64,omitempty"`
-	Map             string         `json:"map,omitempty"`
-	Round           int            `json:"round"`
-	Side            string         `json:"side,omitempty"`
-	ClutchVs        int            `json:"clutch_vs,omitempty"`
+	SteamID64 string `json:"steamid64,omitempty"`
+	Map       string `json:"map,omitempty"`
+	Round     int    `json:"round"`
+	Side      string `json:"side,omitempty"`
+	ClutchVs  int    `json:"clutch_vs,omitempty"`
+	// ClutchWon says whether the player's team took a clutch round; nil when not a clutch or unknown.
+	ClutchWon *bool `json:"clutch_won,omitempty"`
+	// WinProbSwing adds the round-win chance the play's kills gave the player's side.
+	WinProbSwing    float64        `json:"win_prob_swing,omitempty"`
 	TickStart       int            `json:"tick_start"`
 	TickEnd         int            `json:"tick_end"`
 	TimeStart       float64        `json:"time_start_seconds,omitempty"`
@@ -67,6 +71,10 @@ type Events struct {
 	Kills          int      `json:"kills"`
 	Headshots      int      `json:"headshots,omitempty"`
 	Wallbangs      int      `json:"wallbangs,omitempty"`
+	NoScopes       int      `json:"no_scopes,omitempty"`
+	ThroughSmoke   int      `json:"through_smoke,omitempty"`
+	AttackerBlind  int      `json:"attacker_blind,omitempty"`
+	Flicks         int      `json:"flicks,omitempty"`
 	Weapons        []string `json:"weapons,omitempty"`
 	Utility        int      `json:"utility,omitempty"`
 	KnownLineups   int      `json:"known_lineups,omitempty"`
@@ -130,10 +138,19 @@ func Rank(plan killplan.Plan) []Moment {
 func buildMoment(index int, segment killplan.Segment, plan killplan.Plan) Moment {
 	tickrate := plan.Demo.Tickrate
 	events := segmentEvents(segment)
+	fast := fastMultiKill(segment, tickrate)
+	clutchWon := segmentClutchWon(segment)
 	reasons := reasonCodes(segment, events)
+	if fast != "" {
+		reasons = insertReason(reasons, fast)
+	}
+	if clutchWon != nil && *clutchWon {
+		reasons = insertReason(reasons, ReasonClutchWon)
+	}
 	warnings := warnings(segment, tickrate)
 	duration := durationSeconds(segment, tickrate)
 	timeStart, timeEnd := timeRangeSeconds(segment, tickrate)
+	swing := segmentWinSwing(segment)
 	return Moment{
 		ID:              fmt.Sprintf("mom-%03d", index),
 		Source:          "killplan",
@@ -144,12 +161,14 @@ func buildMoment(index int, segment killplan.Segment, plan killplan.Plan) Moment
 		Round:           segment.Round,
 		Side:            segmentSide(segment),
 		ClutchVs:        segmentClutchVs(segment),
+		ClutchWon:       clutchWon,
+		WinProbSwing:    swing,
 		TickStart:       segment.TickStart,
 		TickEnd:         segment.TickEnd,
 		TimeStart:       timeStart,
 		TimeEnd:         timeEnd,
 		DurationSeconds: duration,
-		Score:           score(events, duration),
+		Score:           score(scoreInput{events: events, duration: duration, clutchVs: segmentClutchVs(segment), clutchWon: clutchWon, fast: fast, swing: swing, reasons: reasons}),
 		ReasonCodes:     reasons,
 		Events:          events,
 		Weapons:         append([]string(nil), events.Weapons...),
@@ -176,6 +195,18 @@ func segmentEvents(segment killplan.Segment) Events {
 		}
 		if kill.Wallbang {
 			events.Wallbangs++
+		}
+		if kill.NoScope {
+			events.NoScopes++
+		}
+		if kill.ThroughSmoke {
+			events.ThroughSmoke++
+		}
+		if kill.AttackerBlind {
+			events.AttackerBlind++
+		}
+		if kill.Flick {
+			events.Flicks++
 		}
 	}
 	for _, u := range segment.Utility {
@@ -276,6 +307,29 @@ func reasonCodes(segment killplan.Segment, events Events) []string {
 	if events.Wallbangs > 0 {
 		reasons["wallbang"] = true
 	}
+	if events.NoScopes > 0 {
+		reasons[ReasonNoScope] = true
+	}
+	if events.ThroughSmoke > 0 {
+		reasons[ReasonThroughSmoke] = true
+	}
+	if events.AttackerBlind > 0 {
+		reasons[ReasonAttackerBlind] = true
+	}
+	if events.Flicks > 0 {
+		reasons[ReasonFlick] = true
+	}
+	for _, kill := range segment.Kills {
+		if kill.Entry {
+			reasons[ReasonEntry] = true
+		}
+		if kill.Retake {
+			reasons[ReasonRetake] = true
+		}
+		if kill.EcoWin {
+			reasons[ReasonEcoWin] = true
+		}
+	}
 	for _, weapon := range events.Weapons {
 		switch weapon {
 		case "awp", "weapon_awp":
@@ -336,20 +390,52 @@ func timeRangeSeconds(segment killplan.Segment, tickrate int) (float64, float64)
 	return start, end
 }
 
-func score(events Events, duration float64) float64 {
-	value := 0.2
-	value += float64(events.Kills) * 0.22
-	value += float64(events.Headshots) * 0.06
-	value += float64(events.Wallbangs) * 0.08
-	value += float64(events.KnownLineups) * 0.18
-	value += float64(events.UnknownLineups) * 0.08
-	if duration > 0 && duration <= 18 {
-		value += 0.08
+type scoreInput struct {
+	events    Events
+	duration  float64
+	clutchVs  int
+	clutchWon *bool
+	fast      string
+	swing     float64
+	reasons   []string
+}
+
+// playKindBonus weighs the kinds of play a segment counts once, however many kills it has.
+var playKindBonus = map[string]float64{ReasonEntry: 0.1, ReasonRetake: 0.12, ReasonEcoWin: 0.15}
+
+// fastBonus weighs each named fast multi-kill; a play takes only its best one.
+var fastBonus = map[string]float64{ReasonFastDouble: 0.06, ReasonFastTriple: 0.12, ReasonFastQuad: 0.18, ReasonFastAce: 0.25}
+
+// score adds points for what makes a play worth watching and maps them to
+// 0..1 with 1-e^-x, so big plays keep their order instead of tying at a cap.
+func score(in scoreInput) float64 {
+	e := in.events
+	points := 0.2
+	points += float64(e.Kills) * 0.22
+	points += float64(e.Headshots) * 0.06
+	points += float64(e.Wallbangs) * 0.08
+	points += float64(e.NoScopes) * 0.1
+	points += float64(e.ThroughSmoke) * 0.08
+	points += float64(e.AttackerBlind) * 0.08
+	points += float64(e.Flicks) * 0.06
+	points += float64(e.KnownLineups) * 0.18
+	points += float64(e.UnknownLineups) * 0.08
+	if in.duration > 0 && in.duration <= 18 {
+		points += 0.08
 	}
-	if value > 1 {
-		value = 1
+	if in.clutchVs > 0 {
+		points += 0.08 * float64(in.clutchVs)
+		if in.clutchWon != nil && *in.clutchWon {
+			points += 0.15 + 0.05*float64(in.clutchVs)
+		}
 	}
-	return math.Round(value*100) / 100
+	points += fastBonus[in.fast]
+	for _, reason := range in.reasons {
+		points += playKindBonus[reason]
+	}
+	points += 0.6 * in.swing
+	value := 1 - math.Exp(-math.Max(points, 0))
+	return math.Round(value*1000) / 1000
 }
 
 func multiPOVSteamID(plan killplan.Plan, segment killplan.Segment) string {

@@ -1,4 +1,4 @@
-import type { Play } from '../api/types.ts';
+import type { Play, VictimReplaySpeed } from '../api/types.ts';
 import { clashingPlay } from './multi-pov.ts';
 
 /** A Short should stay at or under one minute. */
@@ -8,7 +8,7 @@ export const SHORT_TARGET_SECONDS = 60;
 const BASE_SECONDS = 6;
 const SECONDS_PER_KILL = 3;
 type PlayTiming = Pick<Play, 'kills' | 'startSeconds' | 'endSeconds' | 'victimReplay'>;
-type ReplayOption = { victimReplay?: boolean };
+type ReplayOption = { victimReplay?: boolean; victimReplaySpeed?: VictimReplaySpeed };
 
 export function estimatedPlaySeconds(play: PlayTiming): number {
   const { startSeconds, endSeconds } = play;
@@ -21,6 +21,13 @@ export function estimatedPlaySeconds(play: PlayTiming): number {
 
 /** A victim replay is about 3.5 s of capture played at half speed. */
 export const VICTIM_REPLAY_SECONDS = 7;
+const VICTIM_REPLAY_CAPTURE_SECONDS = 3.5;
+
+/** What a victim replay adds to each play at the chosen speed; 0 with the replay off. */
+export function victimReplaySeconds(options: ReplayOption): number {
+  if (!options.victimReplay) return 0;
+  return options.victimReplaySpeed ? VICTIM_REPLAY_CAPTURE_SECONDS / options.victimReplaySpeed : VICTIM_REPLAY_SECONDS;
+}
 
 export function estimatedSelectionSeconds(plays: ReadonlyArray<PlayTiming>, options: ReplayOption = {}): number {
   return plays.reduce((total, play) => total + estimatedPlayTenths(play, options), 0) / 10;
@@ -28,7 +35,7 @@ export function estimatedSelectionSeconds(plays: ReadonlyArray<PlayTiming>, opti
 
 /** Accumulate the displayed precision as integers so an exact minute stays within budget. */
 function estimatedPlayTenths(play: PlayTiming, options: ReplayOption): number {
-  const replay = options.victimReplay && play.victimReplay !== false ? VICTIM_REPLAY_SECONDS : 0;
+  const replay = play.victimReplay !== false ? victimReplaySeconds(options) : 0;
   return Math.round((estimatedPlaySeconds(play) + replay) * 10);
 }
 
@@ -41,7 +48,8 @@ export function formatClock(totalSeconds: number): string {
 }
 
 /**
- * Greedy best-of: highest kills first (plan order breaks ties), adding a
+ * Greedy best-of: highest server score first (internal/moments), then kills,
+ * then plan order, adding a
  * highlight only while the estimated total stays within the target. The
  * top-ranked highlight is always kept, so "Auto" never returns an empty
  * selection just because one long play overruns the target on its own.
@@ -53,7 +61,7 @@ export function autoPickBestPlays(
   const targetSeconds = options.targetSeconds ?? SHORT_TARGET_SECONDS;
   const ranked = plays
     .map((play, index) => ({ play, index }))
-    .sort((a, b) => b.play.kills - a.play.kills || a.index - b.index);
+    .sort((a, b) => (b.play.score ?? -1) - (a.play.score ?? -1) || b.play.kills - a.play.kills || a.index - b.index);
   const picked = new Set<string>();
   const pickedPlays: Play[] = [];
   let totalTenths = 0;

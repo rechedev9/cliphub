@@ -1,21 +1,28 @@
 'use client';
 
-import { Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Rewind, Type, Zap } from 'lucide-react';
+import { ChartColumn, Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Percent, Rewind, Spline, Trophy, Type, UserRound, Zap } from 'lucide-react';
 import {
   AFFILIATE_FAMILY_CATALOG,
   BOOKEND_TEXT_MAX_LENGTH,
   DEFAULT_KEYDROP_CODE,
   KEYDROP_CODE_RE,
+  DEFAULT_VICTIM_REPLAY_SPEED,
+  VICTIM_REPLAY_SPEEDS,
   affiliateDisplayLabel,
   affiliateFamilyLabel,
   isAffiliateStyle,
+  isVictimReplaySpeed,
   stylesForFamily,
   type EditConfig,
 } from '@/lib/api/types';
 import { selectAffiliateFamily, selectAffiliateOff, selectAffiliateStyle } from '@/lib/affiliate-banner';
+import { exclusiveBanner } from '@/lib/brand-kit';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { BrandKitOptions } from './brand-kit-options';
+import { RadarOptions } from './radar-options';
+import { VerticalHudOptions } from './vertical-hud-options';
 
 /** Show the live character counter only once the input is getting close to the limit. */
 const COUNTER_THRESHOLD = BOOKEND_TEXT_MAX_LENGTH - 20;
@@ -28,7 +35,18 @@ export type EditOptionsProps = {
   showFullDemoDelivery?: boolean;
   /** False hides the kill counter: a multi-POV video counts no single player's kills. */
   killCounter?: boolean;
+  /** False hides the stats card: a multi-POV video has no single player to sum up. */
+  statsCard?: boolean;
+  /** False disables the vertical HUD: the chosen style records CS2's own HUD. */
+  verticalHud?: boolean;
+  /** False disables ClipHub's radar: the chosen style records CS2's own HUD and radar. */
+  radar?: boolean;
 };
+
+/** "0,25x": the decimal comma of the Spanish UI. */
+function speedLabel(speed: number): string {
+  return `${String(speed).replace('.', ',')}x`;
+}
 
 const effectItems: Array<{ value: EditConfig['killEffect']; label: string }> = [
   { value: 'punch-in', label: 'Impacto' },
@@ -51,11 +69,17 @@ const transitionItems: Array<{ value: EditConfig['transition']; label: string }>
 /** Kill-effect, transition, and bookend controls. Aspect is the produce format. */
 export function EditOptions({
   value,
-  onChange,
+  onChange: emit,
   disabled = false,
   showFullDemoDelivery = false,
   killCounter = true,
+  statsCard = true,
+  verticalHud = true,
+  radar = true,
 }: EditOptionsProps) {
+  const onChange = (next: EditConfig): void => emit(exclusiveBanner(value, next));
+  const portraitShort = value.format === 'short-9x16' && !showFullDemoDelivery && !value.deathReel;
+  const hudFeed = portraitShort && verticalHud && value.verticalHud === true;
   return (
     <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
       {showFullDemoDelivery ? (
@@ -158,12 +182,14 @@ export function EditOptions({
       <OptionBlock label="Texto automático" className="md:col-span-2">
         <ToggleGroup
           type="multiple"
-          value={[value.hookText ? 'hook-text' : '', value.killCounter ? 'kill-counter' : ''].filter(Boolean)}
+          value={[value.hookText ? 'hook-text' : '', value.killCounter ? 'kill-counter' : '', value.playBadges ? 'play-badges' : '', value.winProbability ? 'win-probability' : ''].filter(Boolean)}
           onValueChange={(items) =>
             onChange({
               ...value,
               hookText: items.includes('hook-text'),
               killCounter: items.includes('kill-counter'),
+              playBadges: items.includes('play-badges'),
+              winProbability: items.includes('win-probability'),
             })
           }
           disabled={disabled}
@@ -180,7 +206,25 @@ export function EditOptions({
               Contador de kills
             </ToggleGroupItem>
           ) : null}
+          <ToggleGroupItem value="play-badges" aria-label="Insignias de jugada">
+            <Trophy className="size-4" />
+            Insignias de jugada
+          </ToggleGroupItem>
+          <ToggleGroupItem value="win-probability" aria-label="Probabilidad de victoria">
+            <Percent className="size-4" />
+            Probabilidad de victoria
+          </ToggleGroupItem>
         </ToggleGroup>
+        {value.playBadges ? (
+          <p className="text-body-sm text-fg-3">
+            Tras la última baja de cada jugada, una insignia nombra el clutch (1vX, ganado si se sabe), el ace o la multikill.
+          </p>
+        ) : null}
+        {value.winProbability ? (
+          <p className="text-body-sm text-fg-3">
+            Tras el plantado, el % de victoria de cada equipo mientras queden 5 s o más de bomba y 2 o más vivos por bando. Las partidas analizadas antes de esta versión no lo muestran hasta reanalizarlas.
+          </p>
+        ) : null}
       </OptionBlock>
 
       {showFullDemoDelivery ? null : (
@@ -199,20 +243,102 @@ export function EditOptions({
             </ToggleGroupItem>
           </ToggleGroup>
           {value.victimReplay ? (
+            <>
+              <ToggleGroup
+                type="single"
+                value={String(value.victimReplaySpeed ?? DEFAULT_VICTIM_REPLAY_SPEED)}
+                onValueChange={(raw) => {
+                  const speed = Number(raw);
+                  if (isVictimReplaySpeed(speed)) onChange({ ...value, victimReplaySpeed: speed });
+                }}
+                disabled={disabled}
+                variant="outline"
+                className="flex-wrap"
+                aria-label="Velocidad de la repetición"
+              >
+                {VICTIM_REPLAY_SPEEDS.map((speed) => (
+                  <ToggleGroupItem key={speed} value={String(speed)} aria-label={`Velocidad ${speedLabel(speed)}`}>
+                    {speedLabel(speed)}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <p className="text-body-sm text-fg-3">
+                Tras cada jugada, su última baja otra vez, vista por quien muere. A 1x va a velocidad real.
+              </p>
+            </>
+          ) : null}
+        </OptionBlock>
+      )}
+
+      {showFullDemoDelivery || value.matchRecap ? null : (
+        <OptionBlock label="Sobre el juego" className="md:col-span-2">
+          <ToggleGroup
+            type="multiple"
+            value={[value.playerLabels ? 'player-labels' : '', value.grenadeTrails ? 'grenade-trails' : ''].filter(Boolean)}
+            onValueChange={(items) =>
+              onChange({ ...value, playerLabels: items.includes('player-labels'), grenadeTrails: items.includes('grenade-trails') })
+            }
+            disabled={disabled}
+            variant="outline"
+            className="flex-wrap"
+          >
+            <ToggleGroupItem value="player-labels" aria-label="Nombres y vida">
+              <UserRound className="size-4" />
+              Nombres y vida
+            </ToggleGroupItem>
+            <ToggleGroupItem value="grenade-trails" aria-label="Estelas de granadas">
+              <Spline className="size-4" />
+              Estelas de granadas
+            </ToggleGroupItem>
+          </ToggleGroup>
+          {value.playerLabels || value.grenadeTrails ? (
             <p className="text-body-sm text-fg-3">
-              Tras cada jugada, su última baja otra vez a cámara lenta, vista por quien muere.
+              Se leen de la demo y se dibujan sobre la jugada: nombre y vida de tus compañeros y de los rivales que CS2 marca como vistos o que dañas, y la trayectoria de las granadas de tu equipo. Se ocultan con la mira de zoom o al morir y se ven a través de las paredes.
             </p>
           ) : null}
         </OptionBlock>
       )}
 
+      {showFullDemoDelivery || value.matchRecap ? null : (
+        <OptionBlock label="Radar" className="md:col-span-2">
+          <RadarOptions value={value} onChange={onChange} disabled={disabled} allowed={radar && !value.nativeHud} />
+        </OptionBlock>
+      )}
+
+      {value.format === 'short-9x16' && statsCard && !showFullDemoDelivery ? (
+        <OptionBlock label="Tarjeta final" className="md:col-span-2">
+          <ToggleGroup
+            type="multiple"
+            value={value.statsCard ? ['stats-card'] : []}
+            onValueChange={(items) => onChange({ ...value, statsCard: items.includes('stats-card') })}
+            disabled={disabled}
+            variant="outline"
+            className="flex-wrap"
+          >
+            <ToggleGroupItem value="stats-card" aria-label="Estadísticas del jugador">
+              <ChartColumn className="size-4" />
+              Estadísticas del jugador
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <p className="text-body-sm text-fg-3">
+            Cierra el Short con K/D, ADR, HS % y el rating de ClipHub del jugador. Si FACEIT tiene sus datos, añade su nivel, su porcentaje de victorias y su mejor mapa.
+          </p>
+        </OptionBlock>
+      ) : null}
+
+      {portraitShort ? (
+        <OptionBlock label="Marcador" className="md:col-span-2">
+          <VerticalHudOptions value={value} onChange={onChange} disabled={disabled} allowed={verticalHud} />
+        </OptionBlock>
+      ) : null}
+
       {value.format === 'short-9x16' ? (
         <OptionBlock label="Kill feed" className="md:col-span-2">
           <ToggleGroup
             type="multiple"
-            value={value.centeredKillfeed ? ['centered-killfeed'] : []}
+            value={value.centeredKillfeed || hudFeed ? ['centered-killfeed'] : []}
             onValueChange={(items) => onChange({ ...value, centeredKillfeed: items.includes('centered-killfeed') })}
-            disabled={disabled}
+            disabled={disabled || hudFeed}
             variant="outline"
             className="flex-wrap"
           >
@@ -222,7 +348,9 @@ export function EditOptions({
             </ToggleGroupItem>
           </ToggleGroup>
           <p className="text-body-sm text-fg-3">
-            ClipHub dibuja tus kills en el centro, arriba del Short, en lugar de la kill feed de CS2.
+            {hudFeed
+              ? 'El HUD vertical la incluye, debajo del marcador.'
+              : 'ClipHub dibuja tus kills en el centro, arriba del Short, en lugar de la kill feed de CS2.'}
           </p>
         </OptionBlock>
       ) : null}
@@ -288,6 +416,12 @@ export function EditOptions({
           </ToggleGroupItem>
         </ToggleGroup>
       </OptionBlock>
+
+      {showFullDemoDelivery ? null : (
+        <OptionBlock label="Kit de marca" className="md:col-span-2">
+          <BrandKitOptions value={value} onChange={onChange} disabled={disabled} />
+        </OptionBlock>
+      )}
 
       <OptionBlock label="Banner afiliado" className="md:col-span-2">
         <ToggleGroup

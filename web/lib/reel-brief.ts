@@ -1,6 +1,8 @@
 import { affiliateFamilyLabel, affiliateStyleLabel, type EditConfig, type Preset } from './api/types.ts';
+import { verticalHudTheme } from './custom-hud.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
 import { formatDecimal } from './format.ts';
+import { radarAllowed, radarBriefLabel } from './radar-overlay.ts';
 import { resolvedReelFormat } from './reel-format.ts';
 
 export type CreativeBriefItem = {
@@ -86,17 +88,59 @@ export function isLandscapeHighlights(edit: Pick<EditConfig, 'format' | 'matchRe
 
 export function constrainEditConfig(edit: EditConfig): EditConfig {
   // The hook, the counter and the centered kill feed tell kills; Studio drops them from a death reel too.
-  if (edit.deathReel && (edit.hookText || edit.killCounter || edit.centeredKillfeed)) {
+  if (edit.deathReel && (edit.hookText || edit.killCounter || edit.centeredKillfeed || edit.verticalHud || edit.playBadges || edit.winProbability)) {
     const next: EditConfig = { ...edit, hookText: false, killCounter: false };
     delete next.centeredKillfeed;
+    delete next.verticalHud;
+    delete next.verticalHudTheme;
+    delete next.playBadges;
+    delete next.winProbability;
     return constrainEditConfig(next);
   }
-  if (edit.format !== 'short-9x16') return edit;
+  if (edit.format !== 'short-9x16') {
+    if (!edit.statsCard && !edit.verticalHud) return edit;
+    // The stats card and the vertical HUD are drawn for 9:16 only.
+    const next: EditConfig = { ...edit };
+    delete next.statsCard;
+    delete next.verticalHud;
+    delete next.verticalHudTheme;
+    return next;
+  }
   if (!edit.matchRecap && !edit.voiceComms && !edit.nativeHud && !edit.demoSource && !edit.overlayTheme) return edit;
   const next: EditConfig = { ...edit, matchRecap: false, voiceComms: false, nativeHud: false };
   delete next.demoSource;
   delete next.overlayTheme;
   return next;
+}
+
+/** Full HUD records CS2's own HUD, so Studio refuses the vertical HUD over it. */
+export function verticalHudAllowed(preset: Pick<Preset, 'hudMode'> | null): boolean {
+  return preset?.hudMode !== 'gameplay';
+}
+
+/** The edit that is sent: a vertical HUD or a radar the chosen style cannot carry stays in the draft only. */
+export function withPresetLimits(edit: EditConfig, preset: Pick<Preset, 'hudMode'> | null): EditConfig {
+  const dropHud = !!edit.verticalHud && !verticalHudAllowed(preset);
+  const dropRadar = !!edit.radar && !radarAllowed(preset);
+  if (!dropHud && !dropRadar) return edit;
+  const next: EditConfig = { ...edit };
+  if (dropHud) {
+    delete next.verticalHud;
+    delete next.verticalHudTheme;
+  }
+  if (dropRadar) {
+    delete next.radar;
+    delete next.radarPosition;
+    delete next.radarSize;
+    delete next.radarOpacity;
+  }
+  return next;
+}
+
+function worldOverlayLabel(edit: EditConfig): string {
+  if (edit.matchRecap) return 'No';
+  const parts = [edit.playerLabels ? 'Nombres y vida' : '', edit.grenadeTrails ? 'Estelas de granadas' : ''].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : 'No';
 }
 
 /** The exact values used for capture and rendering. */
@@ -105,14 +149,16 @@ export function reelCreativeBrief(
   preset: Preset | null,
   music: MusicBrief,
 ): CreativeBriefItem[] {
-  const edit = constrainEditConfig(raw);
+  const edit = withPresetLimits(constrainEditConfig(raw), preset);
   let hud = 'Pendiente de estilo';
   if (edit.nativeHud) {
     hud = NATIVE_HUD_LABEL;
   } else if (preset?.hudMode) {
     hud = HUD_LABEL[preset.hudMode] ?? `Modo ${preset.hudMode}`;
   }
-  if (edit.centeredKillfeed && edit.format === 'short-9x16') {
+  if (edit.verticalHud && edit.format === 'short-9x16') {
+    hud = `${hud} · HUD vertical ${verticalHudTheme(edit.verticalHudTheme).name} con kill feed centrada`;
+  } else if (edit.centeredKillfeed && edit.format === 'short-9x16') {
     hud = `${hud} · kill feed centrada arriba`;
   }
   return [
@@ -128,6 +174,10 @@ export function reelCreativeBrief(
     { label: 'Efecto de kill', value: EFFECT_LABEL[edit.killEffect] },
     { label: 'Transición', value: TRANSITION_LABEL[edit.transition] },
     { label: 'Título / contador', value: `${edit.hookText ? 'Título automático' : 'Sin título automático'} · ${edit.killCounter ? 'Contador activado' : 'Sin contador'}` },
+    { label: 'Insignias / tarjeta', value: `${edit.playBadges ? 'Insignias de jugada' : 'Sin insignias'} · ${edit.statsCard ? 'Tarjeta de estadísticas' : 'Sin tarjeta'}` },
+    { label: 'Prob. de victoria', value: edit.winProbability ? 'Tras el plantado' : 'No' },
+    { label: 'Sobre el juego', value: worldOverlayLabel(edit) },
+    { label: 'Radar', value: radarBriefLabel(edit) },
     { label: 'Intro', value: bookendLabel(edit.intro, edit.introText, 'titular generado') },
     { label: 'Outro', value: bookendLabel(edit.outro, edit.outroText, 'firma ClipHub') },
     {

@@ -128,6 +128,12 @@ func CanonicalNewOptions(options Options) (Options, error) {
 	if canonical.Overlays.HUDTheme == "focus" {
 		canonical.Overlays.HUDPortrait = options.Overlays.HUDPortrait
 	}
+	canonical.Overlays.Brand = options.Overlays.Brand
+	if canonical.Overlays.HUDTheme != "" {
+		canonical.Overlays.HUDCustom = options.Overlays.HUDCustom
+		canonical.Overlays.HUDOptions = options.Overlays.HUDOptions
+		canonical.Overlays.TeamNames = options.Overlays.TeamNames
+	}
 
 	// Roster and scoreboard are generated from factual demo data. The overlay
 	// source is deliberately demo: SourceKind above is the only origin signal.

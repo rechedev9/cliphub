@@ -42,7 +42,7 @@ const PICK_MODES = [{ value: 'one', label: 'Un jugador' }, { value: 'team', labe
 
 const MODE_HINT = {
   one: 'El vídeo sigue sus jugadas desde su vista.',
-  team: 'De 2 a 5 del mismo equipo: sus mejores jugadas, cada una desde su vista.',
+  team: 'De 2 a 5 del mismo equipo, cada jugada desde su vista. Con todo el equipo, «Elegir automáticamente» decide a quién enseñar.',
 } as const satisfies Record<PickMode, string>;
 
 /** Clip-worthiness weights higher multi-kill rounds most strongly. */

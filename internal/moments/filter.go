@@ -20,6 +20,10 @@ const (
 	KindMultiKill = "multi_kill"
 )
 
+// FilterKinds lists every kind a filter accepts, in the order errors name them.
+var FilterKinds = []string{KindClutch, ReasonClutchWon, KindAce, KindMultiKill, ReasonFastDouble, ReasonFastTriple, ReasonFastQuad, ReasonFastAce,
+	ReasonNoScope, ReasonThroughSmoke, ReasonAttackerBlind, ReasonEntry, ReasonRetake, ReasonEcoWin, ReasonFlick}
+
 var weaponPattern = regexp.MustCompile(`^[a-z0-9_]{1,32}$`)
 
 // Filter narrows a list of moments. Zero fields match everything.
@@ -48,8 +52,8 @@ func ParseFilter(weapon string, kinds []string, side string) (Filter, error) {
 		if kind == "" {
 			continue
 		}
-		if kind != KindClutch && kind != KindAce && kind != KindMultiKill {
-			return Filter{}, fmt.Errorf("kind must be %s, %s or %s", KindClutch, KindAce, KindMultiKill)
+		if !slices.Contains(FilterKinds, kind) {
+			return Filter{}, fmt.Errorf("kind must be one of %s", strings.Join(FilterKinds, ", "))
 		}
 		if !slices.Contains(f.Kinds, kind) {
 			f.Kinds = append(f.Kinds, kind)

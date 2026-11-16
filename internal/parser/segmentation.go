@@ -12,16 +12,25 @@ import (
 // independent of any demoinfocs types so the segmenter can be tested in
 // isolation with synthetic data.
 type RawKill struct {
-	Tick      int
-	Round     int
-	Weapon    string
-	Headshot  bool
-	Wallbang  bool
-	ClutchVs  int
-	Killer    killplan.Player
-	Victim    killplan.Player
-	KillerPos [3]float64
-	VictimPos [3]float64
+	Tick     int
+	Round    int
+	Weapon   string
+	Headshot bool
+	Wallbang bool
+	ClutchVs int
+	// ClutchResult, NoScope, ThroughSmoke, AttackerBlind and WinProbSwing mirror killplan.Kill.
+	ClutchResult  string
+	NoScope       bool
+	ThroughSmoke  bool
+	AttackerBlind bool
+	WinProbSwing  float64
+	// Entry, Flick, Retake and EcoWin mirror killplan.Kill; AfterPlant (killplan PostPlant) and Eco feed markRoundResults.
+	Entry, Flick, Retake, EcoWin bool
+	AfterPlant, Eco              bool
+	Killer                       killplan.Player
+	Victim                       killplan.Player
+	KillerPos                    [3]float64
+	VictimPos                    [3]float64
 }
 
 // RoundEnd marks the tick at which a given round ended. Segmentation uses
@@ -30,6 +39,10 @@ type RawKill struct {
 type RoundEnd struct {
 	Round int
 	Tick  int
+	// Winner is CT or T; empty for a draw or an unknown side.
+	Winner string
+	// TargetSide is the target's side at the round end, CT or T; empty when the target was not playing.
+	TargetSide string
 }
 
 // RoundStart marks the tick at which a given round began (CS2 freeze start).
@@ -557,15 +570,25 @@ func buildKillPlanKills(in []RawKill) []killplan.Kill {
 	out := make([]killplan.Kill, len(in))
 	for i, k := range in {
 		out[i] = killplan.Kill{
-			Tick:      k.Tick,
-			Weapon:    k.Weapon,
-			Headshot:  k.Headshot,
-			Wallbang:  k.Wallbang,
-			ClutchVs:  k.ClutchVs,
-			Killer:    k.Killer,
-			Victim:    k.Victim,
-			KillerPos: k.KillerPos,
-			VictimPos: k.VictimPos,
+			Tick:          k.Tick,
+			Weapon:        k.Weapon,
+			Headshot:      k.Headshot,
+			Wallbang:      k.Wallbang,
+			ClutchVs:      k.ClutchVs,
+			ClutchResult:  k.ClutchResult,
+			NoScope:       k.NoScope,
+			ThroughSmoke:  k.ThroughSmoke,
+			AttackerBlind: k.AttackerBlind,
+			WinProbSwing:  k.WinProbSwing,
+			Entry:         k.Entry,
+			Flick:         k.Flick,
+			Retake:        k.Retake,
+			EcoWin:        k.EcoWin,
+			PostPlant:     k.AfterPlant,
+			Killer:        k.Killer,
+			Victim:        k.Victim,
+			KillerPos:     k.KillerPos,
+			VictimPos:     k.VictimPos,
 		}
 	}
 	return out

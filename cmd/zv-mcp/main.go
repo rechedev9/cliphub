@@ -46,8 +46,40 @@ wait_for_job until "parsed", list_moments, ask the user for the look with list_s
 choose_short_options for a picker), then generate_short with the chosen segment ids and options.
 A death reel (the seconds before each death of the player): list_moments with deaths, then
 generate_short with those segment ids and deaths set.
+Auto-Shorts (the Auto-Shorts button of the Short editor): generate_shorts_batch makes one Short per great play
+without picking plays: the best play of each round whose list_moments score reaches min_score (default 0.6), at
+most limit (default 5, up to 10), in one capture, each rendered as its own Short of one variant (list_videos lists them).
+It takes the same look options as generate_short and needs the same approval; follow with wait_for_job and the variant.
 generate_short also takes the music and game volume, the opening and closing text and an affiliate banner.
+It also takes play_badges (a badge for each clutch, ace or multikill), stats_card (a closing 9:16 card with the
+player's K/D, ADR, HS% and ClipHub rating, never an HLTV rating, plus FACEIT level, win rate and best map when FACEIT
+has them) and victim_replay_speed (0.25, 0.5 or 1, with victim_replay).
+win_probability (generate_short) and plan_full_demo win_probability (custom HUD) show each team's round-win chance
+after the plant, from ClipHub's own wp1 model, only while the bomb has 5 s or more left and each side has 2 or more
+alive; in a Short it needs a job parsed with this version, and it hides whenever a fact is missing.
+generate_short player_labels draws over the gameplay the name and health of every teammate, and of an enemy while
+CS2 marks it spotted by the POV or the POV damages it; grenade_trails draws the path of the POV team's grenades.
+The render reads both from the demo and projects them through the POV's view; they hide while the POV is scoped or
+dead, are drawn on top of walls (the demo has no line of sight), and are not for Full Demo or a match recap.
+generate_short vertical_hud (9:16 only) draws a HUD made for Shorts over a capture without the CS2 HUD: a compact
+scoreboard at the top (team names, score, clock, round or bomb) and each side's alive count, read from the demo at
+render time, with the centered kill feed under it; vertical_hud_theme picks the design (list_short_options
+vertical_hud_themes). It is refused with native_hud or the full-hud-60 preset and is not for death reels.
+generate_short radar draws ClipHub's own radar in a corner: the map, every living player and where they look,
+smokes, molotov fires, flashes, HE grenades, the round's deaths and the bomb, read from the demo at render time;
+radar_position, radar_size and radar_opacity (percent) set it (list_short_options radar_positions, radar_sizes).
+It is refused with native_hud or the full-hud-60 preset, whose capture already shows CS2's radar, which is never
+hidden; it skips victim replays and is not for Full Demo or a match recap.
+The brand kit (get_brand_kit, save_brand_kit) keeps the channel logo, drawn as a watermark in a corner with an
+opacity, and an own sponsor banner with a time window. generate_short and plan_full_demo take brand_watermark and
+brand_banner to apply it; the render copies the kit, and brand_banner does not go with the affiliate banner.
 A Full Demo (the whole match): choose_hud or list_hud_themes, plan_full_demo, then render_full_demo.
+Every custom HUD design also draws round facts from the demo: players alive per side, a win streak of 4 or more,
+3K/4K/ACE, the defuse bar with or without kit and the round MVP (list_hud_themes shows).
+The user's own HUD themes (list_hud_themes custom) copy a catalog design with other colours and corner radius:
+save_hud_theme creates or edits one (up to 10), delete_hud_theme removes one, and its id goes in plan_full_demo hud.
+plan_full_demo also takes compact_header, hide_inventory, round_win_banner, win_probability and the team names team_ct_start and
+team_t_start for the custom HUD scoreboard; they change only the render, never the capture.
 plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for the focus HUD and intro,
 sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo
@@ -57,7 +89,15 @@ full demo of each map, plan_full_demo and render_full_demo take each series job 
 A match summary with the best plays of several teammates (multi-POV): get_match, then
 create_multi_pov_job with 2 to 5 SteamID64s of one team, wait_for_job until "parsed", list_moments
 (each play names its player; player filters one), then generate_short with plays whose times do not
-overlap. Format landscape-16x9 with preset gameplay-pov-60 gives the horizontal best-moments video.
+overlap.
+Auto-POV (Elegir automáticamente in that summary): auto_pov_summary picks the players and plays itself, like a
+broadcast observer: the play score plus a clutch, the round's opening duel or chained duels, the bomb planted and
+momentum (a big win-chance swing, a comeback after 3 or more lost rounds, a run of 3 or more), across players within
+target_seconds (default 180; 60 for a Short) and never two players at once. Create the job with the whole team so it
+chooses who appears, then pass its segment_ids to generate_short unchanged.
+list_moments ranks plays by score (kills, clutch size and whether it was won, fast multi-kills, noscopes,
+kills through smoke or while blind, entry (opening kill), retake, eco_win, flick, and win_prob_swing, the round-win chance the play gave); kinds filters by
+those reason codes, as Elegir las mejores and the play filters in Studio do. Format landscape-16x9 with preset gameplay-pov-60 gives the horizontal best-moments video.
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
 list_all_videos lists the videos of every recent job and stream (Mis vídeos); retry_video renders a failed Short
 again from its last finished version and change_video_music changes a Short's music, both without a new capture.
@@ -258,7 +298,7 @@ Steam: steam_matches lists recent matches (sync_steam_matches looks for new ones
 downloads one by share code and makes a job: wait_for_job, and on "scanned" job_players then
 pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_storage_files,
 rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
-generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
+generate_short, generate_shorts_batch, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
 delete_stream_video, delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
 delete_report, delete_team_document, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
 install_transcriber, launch_practice, launch_bot_replay need the user's approval.

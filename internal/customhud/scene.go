@@ -25,11 +25,14 @@ type Node struct {
 	Opacity    float64
 	Font       string
 	Weight     int
+	FadeIn     bool // Fades in when it appears mid-render, never at the window start.
 }
 
 type Renderer struct {
 	Theme    Theme
 	Portrait bool
+	Options  Options
+	Teams    Teams
 }
 
 type scene struct {
@@ -82,20 +85,30 @@ func shapePath(kind string, x, y, w, h int) string {
 	case "notch":
 		return polygon(x+12, y, x+w, y, x+w, y+h-12, x+w-12, y+h-12, x+w-12, y+h, x, y+h, x, y+12, x+12, y+12)
 	case "round":
-		r := min(8, h/2)
-		k := float64(r) * .55228475
-		return fmt.Sprintf("M %d %d L %d %d C %.2f %d %d %.2f %d %d L %d %d C %d %.2f %.2f %d %d %d L %d %d C %.2f %d %d %.2f %d %d L %d %d C %d %.2f %.2f %d %d %d Z",
-			x+r, y, x+w-r, y, float64(x+w-r)+k, y, x+w, float64(y+r)-k, x+w, y+r, x+w, y+h-r, x+w, float64(y+h-r)+k, float64(x+w-r)+k, y+h, x+w-r, y+h, x+r, y+h, float64(x+r)-k, y+h, x, float64(y+h-r)+k, x, y+h-r, x, y+r, x, float64(y+r)-k, float64(x+r)-k, y, x+r, y)
+		return roundedPath(x, y, w, h, min(8, h/2))
 	default:
 		return polygon(x, y, x+w, y, x+w, y+h, x, y+h)
 	}
 }
 
+func (t Theme) plate(x, y, w, h int) string {
+	if t.Shape == "round" && t.Radius > 0 {
+		return roundedPath(x, y, w, h, min(t.Radius, h/2, w/2))
+	}
+	return shapePath(t.Shape, x, y, w, h)
+}
+
+func roundedPath(x, y, w, h, r int) string {
+	k := float64(r) * .55228475
+	return fmt.Sprintf("M %d %d L %d %d C %.2f %d %d %.2f %d %d L %d %d C %d %.2f %.2f %d %d %d L %d %d C %.2f %d %d %.2f %d %d L %d %d C %d %.2f %.2f %d %d %d Z",
+		x+r, y, x+w-r, y, float64(x+w-r)+k, y, x+w, float64(y+r)-k, x+w, y+r, x+w, y+h-r, x+w, float64(y+h-r)+k, float64(x+w-r)+k, y+h, x+w-r, y+h, x+r, y+h, float64(x+r)-k, y+h, x, float64(y+h-r)+k, x, y+h-r, x, y+r, x, float64(y+r)-k, float64(x+r)-k, y, x+r, y)
+}
+
 func (s *scene) panel(id string, x, y, w, h int, accent string) {
 	t := s.r.Theme
-	s.path(id+"/shadow", shapePath(t.Shape, x, y+3, w, h), "000000", 0)
+	s.path(id+"/shadow", t.plate(x, y+3, w, h), "000000", 0)
 	s.fade(.18)
-	s.path(id+"/plate", shapePath(t.Shape, x, y, w, h), t.Background, 1)
+	s.path(id+"/plate", t.plate(x, y, w, h), t.Background, 1)
 	s.fade(t.Opacity)
 	if strings.HasPrefix(id, "score") {
 		// Keep clock and score luminance stable through flashes and camera
@@ -138,8 +151,12 @@ func (r *Renderer) Scene(state Snapshot, target string) []Node {
 	sort.SliceStable(ct, func(i, j int) bool { return ct[i].SteamID < ct[j].SteamID })
 	sort.SliceStable(tr, func(i, j int) bool { return tr[i].SteamID < tr[j].SteamID })
 	s.scoreboard(state)
+	s.roundFacts(state, ct, tr)
 	ct, tr = ct[:min(5, len(ct))], tr[:min(5, len(tr))]
 	for side, players := range [][]Player{ct, tr} {
+		if r.Options.CompactHeader {
+			break
+		}
 		accent := t.CT
 		if side == 1 {
 			accent = t.T
@@ -150,6 +167,7 @@ func (r *Renderer) Scene(state Snapshot, target string) []Node {
 				x = 1132 + i*68
 			}
 			s.player(p, x, 28, accent, target)
+			s.roundKills(p, x, accent)
 		}
 	}
 	for _, p := range state.Players {
@@ -175,9 +193,9 @@ func (s *scene) scoreboard(state Snapshot) {
 		id, label, color string
 		x, points        int
 	}{{"ct", "CT", t.CT, center - 160, state.CTScore}, {"t", "T", t.T, center + 86, state.TScore}} {
-		s.path("score/"+side.id+"-plate", shapePath(t.Shape, side.x, y, 74, 64), side.color, 2)
+		s.path("score/"+side.id+"-plate", t.plate(side.x, y, 74, 64), side.color, 2)
 		s.typeText("score/"+side.id+"-points", strconv.Itoa(side.points), side.x+37, y+25, 43, 62, 700, t.Background, "center")
-		s.typeText("score/"+side.id+"-label", side.label, side.x+37, y+51, 12, 62, 600, t.Background, "center")
+		s.typeText("score/"+side.id+"-label", s.r.teamName(state, side.label), side.x+37, y+51, 12, 62, 600, t.Background, "center")
 	}
 	timeText, color := "--:--", t.Text
 	if state.TimeRemaining >= 0 {
@@ -261,7 +279,7 @@ func (s *scene) focus(p Player) {
 		accent = t.Muted
 	}
 	s.panel("focus", x, y, w, h, accent)
-	s.path("focus/header", shapePath(t.Shape, x, y, w, 38), accent, 2)
+	s.path("focus/header", t.plate(x, y, w, 38), accent, 2)
 	s.text("focus/name", p.Name, x+w/2, y+19, 27, w-30, t.Background, "center")
 	hp, armor := "—", "—"
 	if p.Known {
@@ -285,8 +303,11 @@ func (s *scene) focus(p Player) {
 func (s *scene) loadout(p Player, accent string) {
 	t := s.r.Theme
 	x, y, w := t.LoadoutX, t.LoadoutY, t.LoadoutWidth
+	if s.r.Options.HideLoadout {
+		return
+	}
 	s.panel("loadout", x, y, w, 90, accent)
-	s.path("loadout/header", shapePath(t.Shape, x+3, y+3, w-6, 28), t.Surface, 2)
+	s.path("loadout/header", t.plate(x+3, y+3, w-6, 28), t.Surface, 2)
 	s.fade(.7)
 	kda, ammo := "K/D/A  —/—/—", "—"
 	if p.Known {
@@ -314,13 +335,23 @@ func (s *scene) loadout(p Player, accent string) {
 
 // SVG and ASS use the same face, weight, fitted text and display list.
 func (r *Renderer) SVG(state Snapshot, target string) string {
+	return svgDocument(svgFrame{name: r.Theme.Name, w: Width, h: Height}, r.Scene(state, target))
+}
+
+// svgFrame is the drawn area of a display list: its view box and the design's name.
+type svgFrame struct {
+	name       string
+	x, y, w, h int
+}
+
+func svgDocument(frame svgFrame, nodes []Node) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="%s HUD"><defs><style>`, html.EscapeString(r.Theme.Name))
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="%d %d %d %d" role="img" aria-label="%s HUD"><defs><style>`, frame.w, frame.h, frame.x, frame.y, frame.w, frame.h, html.EscapeString(frame.name))
 	for _, face := range hudFaces {
 		fmt.Fprintf(&b, `@font-face{font-family:'%s';font-weight:%d;src:url(data:font/ttf;base64,%s)}`, face.Family, face.Weight, base64.StdEncoding.EncodeToString(face.Data))
 	}
 	b.WriteString(`</style></defs>`)
-	for _, n := range r.Scene(state, target) {
+	for _, n := range nodes {
 		if n.Path != "" {
 			fmt.Fprintf(&b, `<path d="%s" fill="#%s" opacity="%g"/>`, n.Path, n.Color, n.Opacity)
 			continue

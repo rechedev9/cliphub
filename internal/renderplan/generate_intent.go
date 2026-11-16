@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/rechedev9/cliphub/internal/editor"
 )
 
 // GenerateIntent is the normalized choice behind a one-click reel generation
@@ -42,6 +44,12 @@ func (g GenerateIntent) Validate() error {
 	}
 	if _, err := LoadoutForVariant(g.Variant); err != nil {
 		return err
+	}
+	if preset, _ := editor.PresetByName(g.Variant); g.Edit.VerticalHUD && preset.HUDMode == "gameplay" {
+		return fmt.Errorf("the vertical HUD needs a preset that records without the CS2 HUD, not %s", g.Variant)
+	}
+	if preset, _ := editor.PresetByName(g.Variant); g.Edit.Radar && preset.HUDMode == "gameplay" {
+		return fmt.Errorf("ClipHub's radar needs a preset that records without the CS2 HUD and its radar, not %s", g.Variant)
 	}
 	if g.MusicVolume < 0 || g.MusicVolume > 1 {
 		return fmt.Errorf("music volume must be between 0 and 1")

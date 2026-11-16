@@ -104,7 +104,7 @@ func TestProgressToolsLinkTheProgressView(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]string{}
-	for _, name := range []string{"import_demo", "wait_for_demo", "wait_for_job", "generate_short", "render_full_demo", "render_stream", "render_stream_summary", "wait_for_stream_render", "retry_video", "change_video_music"} {
+	for _, name := range []string{"import_demo", "wait_for_demo", "wait_for_job", "generate_short", "generate_shorts_batch", "render_full_demo", "render_stream", "render_stream_summary", "wait_for_stream_render", "retry_video", "change_video_music"} {
 		want[name] = jobProgressAppURI
 	}
 	assertToolsLinkUI(t, listed.Tools, want)
@@ -141,7 +141,7 @@ func TestChooseHUDWorksWithoutUI(t *testing.T) {
 	if !strings.Contains(text, "plan_full_demo") || !strings.Contains(text, nativeHUDID+" ("+nativeHUDName+")") {
 		t.Errorf("text = %q", text)
 	}
-	themes := hudOptions()
+	themes := hudOptions(nil)
 	if len(themes) < 2 || themes[len(themes)-1].ID != nativeHUDID {
 		t.Errorf("themes = %+v", themes)
 	}

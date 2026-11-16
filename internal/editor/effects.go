@@ -163,7 +163,7 @@ func applyEffectsToManifest(manifest *Manifest, source effectsSource, ffmpegPath
 		effects = append(effects, generatedEditEffects(*short)...)
 		short.Effects = effects
 		manifest.Warnings = append(manifest.Warnings, refineKillfeedEffects(short, killfeedProbe)...)
-		if err := writeCenteredKillfeed(short); err != nil {
+		if err := writeShortASSOverlays(short); err != nil {
 			return fmt.Errorf("%s: %w", short.SegmentID, err)
 		}
 		if err := writeFullDemoConcatList(*short); err != nil {
@@ -220,10 +220,10 @@ func generatedEditEffects(short ShortEdit) []Effect {
 	effects = append(effects, generatedKillEffects(short)...)
 	effects = append(effects, generatedTransitionEffects(short)...)
 	effects = append(append(effects, generatedHookEffect(short)...), generatedPlayerTagEffects(short)...)
-	effects = append(effects, generatedKillCounterEffects(short)...)
+	effects = append(append(effects, generatedKillCounterEffects(short)...), generatedPlayBadgeEffects(short)...)
 	effects = append(effects, generatedKillfeedEffects(short)...)
-	effects = append(effects, generatedBookendEffects(short)...)
-	effects = append(effects, generatedKeyDropEffect(short)...)
+	effects = append(append(append(effects, generatedBookendEffects(short)...), generatedStatsCardEffects(short)...), generatedWinProbEffects(short)...)
+	effects = append(append(effects, generatedKeyDropEffect(short)...), generatedBrandEffects(short)...)
 	effects = append(effects, generatedFullDemoOverlayEffects(short)...)
 	return effects
 }
@@ -424,8 +424,8 @@ func generatedHookEffect(short ShortEdit) []Effect {
 
 // generatedKillCounterEffects pops a running kill count at each kill cue, with
 // a milestone label (2K/3K/4K/ACE) replacing the plain number on the final
-// kill of a multi-kill. Pops end at the next kill when kills land closer than
-// the pop window, so labels never stack.
+// kill of a multi-kill unless the play badge names it. Pops end at the next kill
+// when kills land closer than the pop window, so labels never stack.
 func generatedKillCounterEffects(short ShortEdit) []Effect {
 	if !short.KillCounter || len(short.Kills) == 0 || short.MultiPOV() {
 		return nil
@@ -434,7 +434,7 @@ func generatedKillCounterEffects(short ShortEdit) []Effect {
 	for i, kill := range short.Kills {
 		value := fmt.Sprintf("%d", i+1)
 		size := 60
-		if i == len(short.Kills)-1 && len(short.Kills) >= 2 {
+		if i == len(short.Kills)-1 && len(short.Kills) >= 2 && !short.Overlays.PlayBadges {
 			if milestone := killMilestoneLabel(len(short.Kills)); milestone != "" {
 				value = milestone
 				size = 72

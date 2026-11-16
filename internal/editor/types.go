@@ -167,6 +167,36 @@ type Config struct {
 	ProgressOutPath string
 	// VictimReplay appends each Short's victim POV clip when the capture has one.
 	VictimReplay bool
+	// VictimReplaySpeed is 0.25, 0.5 or 1; 0 keeps the default half speed.
+	VictimReplaySpeed float64
+	// PlayBadges names each play's clutch, ace or multikill on screen.
+	PlayBadges bool
+	// StatsCardPath is a StatsCard JSON drawn at the end of a 9:16 Short.
+	StatsCardPath string
+	// WinProbability shows each side's post-plant round-win chance from the kill plan.
+	WinProbability bool
+	// PlayerLabels and GrenadeTrails draw names, health and team grenade paths over the gameplay
+	// from WorldTrackPath, the worldoverlay.Track the render worker sampled from the demo.
+	PlayerLabels   bool
+	GrenadeTrails  bool
+	WorldTrackPath string
+	// VerticalHUD draws the 9:16 scoreboard and alive counter from VerticalHUDTrackPath, the
+	// customhud.VerticalTrack the render worker read, in the VerticalHUDTheme catalog design.
+	VerticalHUD          bool
+	VerticalHUDTheme     string
+	VerticalHUDTrackPath string
+	// Watermark and SponsorBanner are the brand kit images; their Path is the uploaded file.
+	Watermark     *BrandWatermark
+	SponsorBanner *SponsorBanner
+	// Radar draws ClipHub's radar from RadarTrackPath, the radaroverlay.Track the render worker read,
+	// over the map art in RadarImagePath (and RadarLowerImagePath for a two-level map).
+	Radar               bool
+	RadarPosition       string
+	RadarSize           string
+	RadarOpacity        float64
+	RadarTrackPath      string
+	RadarImagePath      string
+	RadarLowerImagePath string
 }
 
 type ManifestOptions struct {
@@ -194,6 +224,8 @@ type ManifestOptions struct {
 	OutputFPS           int
 	CompileSegments     bool
 	VictimReplay        bool
+	VictimReplaySpeed   float64
+	Overlays            ShortOverlays
 	LineupCatalogPath   string
 	SegmentIDs          []string
 	Limit               int
@@ -366,6 +398,12 @@ type ShortEdit struct {
 	// script and the HUD faces libass loads for it.
 	KillfeedASS      string `json:"killfeed_ass,omitempty"`
 	KillfeedFontsDir string `json:"killfeed_fonts_dir,omitempty"`
+	// VerticalHUDASS and VerticalHUDFontsDir are the generated 9:16 HUD script and its faces.
+	VerticalHUDASS      string `json:"vertical_hud_ass,omitempty"`
+	VerticalHUDFontsDir string `json:"vertical_hud_fonts_dir,omitempty"`
+	// RadarASS and RadarFontsDir are the radar's moving layer, drawn over its plate images.
+	RadarASS      string `json:"radar_ass,omitempty"`
+	RadarFontsDir string `json:"radar_fonts_dir,omitempty"`
 	// KeyDropFamily / KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
 	// the optional sponsor plate for a bounded window of the short.
 	KeyDropFamily          string      `json:"keydrop_family,omitempty"`
@@ -398,6 +436,9 @@ type ShortEdit struct {
 	QualityCommand         []string    `json:"quality_command,omitempty"`
 	RenderLogPath          string      `json:"render_log_path,omitempty"`
 	QualityLogPath         string      `json:"quality_log_path,omitempty"`
+
+	// Overlays are the optional play badges and closing stats card.
+	Overlays ShortOverlays `json:"overlays,omitzero"`
 }
 
 type ShortPart struct {
@@ -428,6 +469,9 @@ type KillCue struct {
 	VictimSide   string  `json:"victim_side,omitempty"`
 	Headshot     bool    `json:"headshot,omitempty"`
 	Wallbang     bool    `json:"wallbang,omitempty"`
+	// ClutchVs and ClutchResult copy the kill plan's clutch for the play badge.
+	ClutchVs     int    `json:"clutch_vs,omitempty"`
+	ClutchResult string `json:"clutch_result,omitempty"`
 }
 
 type SmokeCue struct {
