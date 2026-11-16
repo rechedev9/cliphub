@@ -36,7 +36,10 @@ func ExtractWorldTrack(ctx context.Context, demo io.Reader, opts WorldTrackOptio
 		return track, fmt.Errorf("world track needs a tick rate and at least one window")
 	}
 	sampler := newWorldSampler(opts)
-	p := demoinfocs.NewParser(demo)
+	p, err := demosafe.NewParser(demo)
+	if err != nil {
+		return track, fmt.Errorf("world track: %w", err)
+	}
 	defer p.Close()
 	p.RegisterEventHandler(func(e events.PlayerHurt) {
 		if e.Attacker != nil && e.Player != nil {
@@ -52,7 +55,7 @@ func ExtractWorldTrack(ctx context.Context, demo io.Reader, opts WorldTrackOptio
 		case <-stop:
 		}
 	})
-	err := demosafe.Recover(func() error {
+	err = demosafe.Recover(func() error {
 		for {
 			more, err := p.ParseNextFrame()
 			if err != nil {

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io/fs"
 	"strings"
 	"testing"
 	"time"
@@ -80,6 +79,16 @@ func TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt(t *testing.T) {
 	}
 	if events := journalEventsFor(t, obs.Default(), incompatible.ID.String(), obs.ClassDemoIncompatible); len(events) != 1 {
 		t.Fatalf("journal events = %#v, want the one terminal failure", events)
+	}
+
+	repo = store.NewMemoryLibraryRepository()
+	empty := importLibraryDemo(t, repo, files, "empty.dem", []byte{})
+	err = NewLibraryWorker(repo, files).ProcessAnalyzeLibraryDemo(firstOfTwo, empty.ID)
+	if !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("empty demo error = %v, want it to wrap asynq.SkipRetry", err)
+	}
+	if got, _ := repo.GetDemo(context.Background(), empty.ID); got.State != library.ParseFailed || got.ErrorCode != obs.ClassTruncatedDemo {
+		t.Fatalf("empty demo = %+v, want failed as %s", got, obs.ClassTruncatedDemo)
 	}
 
 	repo = store.NewMemoryLibraryRepository()
@@ -220,13 +229,4 @@ func TestLibraryScanLockLetsASuspectedDemoGoFirst(t *testing.T) {
 	}
 	unlockFirst()
 	(<-got)()
-}
-
-// A read error while the parser fills its first buffer comes back as a retryable error, not a panic.
-func TestOpenDemoParserReturnsAReadError(t *testing.T) {
-	readErr := &fs.PathError{Op: "read", Path: "demo.dem", Err: errors.New("the process cannot access the file")}
-	p, err := openDemoParser(failingReader{readErr})
-	if p != nil || !errors.Is(err, readErr) {
-		t.Fatalf("openDemoParser = %v, %v; want no parser and the read error", p, err)
-	}
 }

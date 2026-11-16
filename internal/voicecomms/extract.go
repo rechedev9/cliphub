@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strconv"
 
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
+	"github.com/rechedev9/cliphub/internal/demosafe"
 )
 
 func ExtractFile(demoPath, target, dir string) (Index, Report, error) {
@@ -38,7 +38,10 @@ func extractFile(ctx context.Context, demoPath, target, dir string, strict bool)
 		_ = os.RemoveAll(filepath.Join(dir, ".voice-spill"))
 	}()
 
-	p := demoinfocs.NewParser(f)
+	p, err := demosafe.NewParser(f)
+	if err != nil {
+		return ExtractionResult{Availability: ExtractionFailed}, err
+	}
 	defer p.Close()
 	report, packets, sightings, err := collectContext(ctx, p, target, abs, spill)
 	if err != nil {

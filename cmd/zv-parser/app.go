@@ -15,8 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
-
+	"github.com/rechedev9/cliphub/internal/demosafe"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/lineups"
 	"github.com/rechedev9/cliphub/internal/parser"
@@ -195,7 +194,11 @@ func runParse(args []string, stdout, stderr io.Writer) int {
 		SHA256:   sha,
 	}
 
-	p := demoinfocs.NewParser(demoFile)
+	p, err := demosafe.NewParser(demoFile)
+	if err != nil {
+		fmt.Fprintf(stderr, "error: reading demo: %v\n", err)
+		return exitFileError
+	}
 	defer p.Close()
 
 	plan, err := parser.RunWithOptions(p, pa.steamid, r, meta, parser.RunOptions{SegmentMode: mode})

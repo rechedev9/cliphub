@@ -32,19 +32,20 @@ const maxIdentities = 64
 // Extract consumes the whole immutable demo, checking its digest as it goes.
 // It does not launch CS2 and never substitutes example values for missing data.
 func Extract(ctx context.Context, input io.Reader, demoSHA, target string, tickRate int) (Timeline, error) {
-	return extract(ctx, input, demoSHA, target, tickRate, func(reader io.Reader) demoinfocs.Parser {
-		return demoinfocs.NewParser(reader)
-	})
+	return extract(ctx, input, demoSHA, target, tickRate, demosafe.NewParser)
 }
 
-func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickRate int, newParser func(io.Reader) demoinfocs.Parser) (Timeline, error) {
+func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickRate int, newParser func(io.Reader) (demoinfocs.Parser, error)) (Timeline, error) {
 	d := Timeline{Version: TelemetryVersion, DemoSHA256: demoSHA, TargetSteamID: target, TickRate: tickRate, Snapshots: []Snapshot{}}
 	if len(demoSHA) != 64 || len(target) != 17 || tickRate < 1 || tickRate > 1024 {
 		return d, fmt.Errorf("invalid HUD extraction identity")
 	}
 	digest := sha256.New()
 	reader := io.TeeReader(input, digest)
-	p := newParser(reader)
+	p, err := newParser(reader)
+	if err != nil {
+		return d, fmt.Errorf("parse custom HUD: %w", err)
+	}
 	defer p.Close()
 	stop := make(chan struct{})
 	var wg sync.WaitGroup

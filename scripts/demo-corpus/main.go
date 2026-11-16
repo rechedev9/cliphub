@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
+	"github.com/rechedev9/cliphub/internal/demosafe"
 	"github.com/rechedev9/cliphub/internal/demozstd"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/parser"
@@ -302,7 +302,12 @@ func analyze(s source, out string) (result demoResult) {
 		result.Error = err.Error()
 		return
 	}
-	p := demoinfocs.NewParser(f)
+	p, err := demosafe.NewParser(f)
+	if err != nil {
+		f.Close()
+		result.Error = err.Error()
+		return
+	}
 	roster, err := parser.RosterScan(p)
 	p.Close()
 	f.Close()
@@ -346,7 +351,11 @@ func analyzeTarget(s source, player parser.PlayerStat, out string) (result targe
 		return
 	}
 	defer f.Close()
-	p := demoinfocs.NewParser(f)
+	p, err := demosafe.NewParser(f)
+	if err != nil {
+		result.ParseError = err.Error()
+		return
+	}
 	defer p.Close()
 	dual, err := parser.RunKillsAndRecapWithContext(context.Background(), p, player.SteamID64, rules.Default(), parser.PlanMeta{DemoPath: s.Prepared, SHA256: s.SHA256})
 	if err != nil {

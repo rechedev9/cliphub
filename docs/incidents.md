@@ -534,15 +534,29 @@ followed each other on the same demo.
   leaves the demo `parsing` until its last attempt. A read error under the
   parser (`*fs.PathError`, a cancelled context) is one of those: `demosafe`
   keeps a panicked error on the chain and `tagParseError` does not tag it
-  `demo_incompatible`. `demoinfocs.NewParser` reads its first buffer at once
-  and panics on a read error: the library worker's cut-demo check builds it
-  through `openDemoParser`, but `tactical.ScanReader` and the other parse
-  paths do not yet, so there that error still stops Studio and the crash
-  count retries the demo. Tests:
+  `demo_incompatible`. Tests:
   `TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt`,
   `TestTacticalWorkerEndsAnIncompatibleDemoOnTheFirstAttempt`,
-  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`,
-  `TestOpenDemoParserReturnsAReadError`.
+  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`.
+- `demoinfocs.NewParser` reads its first buffer at once and panics on a read
+  error, outside any recover, so Studio's inline queue re-raised it and the
+  orchestrator stopped. Production code now builds every parser through
+  `demosafe.NewParser`, which returns that panic as an error with the
+  `*fs.PathError` still on the chain, so the scan stays retryable. An
+  `io.EOF` or `io.ErrUnexpectedEOF` on that first read means the file is
+  empty or cut: it comes back as `demosafe.ErrDemoTooShort`
+  (`truncated_demo:`), which the parser, tactical and library workers end on
+  the first attempt. `batch` checks the file errors before `ErrPanicked`, so
+  a file it cannot read is not labelled `panic`. Tests:
+  `TestNewParserReturnsAReadError`, `TestNewParserRefusesAnEmptyDemo`, the
+  first-read and empty cases of
+  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`, the empty demo in
+  `TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt` and
+  `TestProcessScanRosterEndsUnreadableDemoOnFirstAttempt`, `TestClassify`,
+  and the guard `TestDemoParsersOpenThroughDemosafe` (`cmd/zv`), which
+  fails when a tracked non-test file other than
+  `internal/demosafe/demosafe.go` calls `demoinfocs.NewParser` or
+  `NewParserWithConfig`, qualified or dot-imported.
 - After an upgrade, `ResumeLibraryScans` scans a failed demo once more when
   what reads it changed. `library/<id>/scan-failed-build` records
   `parser=<demoinfocs version>;build=<vcs revision>` of the Studio that last

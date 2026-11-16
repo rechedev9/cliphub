@@ -250,10 +250,13 @@ func TestTacticalScanRetriesAReadErrorAndEndsAFormatError(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		demo  io.Reader
+		class string
 		final bool
 	}{
-		{"read error", io.MultiReader(bytes.NewReader(incompatibleDemo()[:16]), failingReader{readErr}), false},
-		{"format error", bytes.NewReader(incompatibleDemo()), true},
+		{"read error", io.MultiReader(bytes.NewReader(incompatibleDemo()[:16]), failingReader{readErr}), tacticalClassDemoUnreadable, false},
+		{"read error on the first read", failingReader{readErr}, tacticalClassDemoUnreadable, false},
+		{"empty demo", bytes.NewReader(nil), obs.ClassTruncatedDemo, true},
+		{"format error", bytes.NewReader(incompatibleDemo()), obs.ClassDemoIncompatible, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := tactical.ScanReader(context.Background(), tc.demo, tactical.Options{})
@@ -261,8 +264,14 @@ func TestTacticalScanRetriesAReadErrorAndEndsAFormatError(t *testing.T) {
 				t.Fatal("ScanReader error = nil, want a failure")
 			}
 			class := tacticalFailureClass(fmt.Errorf("scan tactical: %w", err))
+			if class != tc.class {
+				t.Fatalf("class of %v = %q, want %q", err, class, tc.class)
+			}
 			if got := tacticalClassFinal(class); got != tc.final {
 				t.Fatalf("class %q of %v: final = %v, want %v", class, err, got, tc.final)
+			}
+			if !tc.final && !errors.Is(err, readErr) {
+				t.Fatalf("ScanReader error = %v, want the read error on the chain", err)
 			}
 		})
 	}
