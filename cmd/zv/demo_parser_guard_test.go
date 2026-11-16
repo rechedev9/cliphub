@@ -2,11 +2,11 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,19 +18,15 @@ const demoinfocsImport = "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfo
 // demoParserHelper is the one production file that may build a parser outside demosafe.NewParser.
 const demoParserHelper = "internal/demosafe/demosafe.go"
 
+var demoParserConstructors = map[string]bool{"NewParser": true, "NewParserWithConfig": true}
+
 // TestDemoParsersOpenThroughDemosafe fails when production code builds a demoinfocs parser
 // directly: the constructor panics on a read error, and only demosafe.NewParser recovers it.
 func TestDemoParsersOpenThroughDemosafe(t *testing.T) {
 	root := repoRoot(t)
-	list := exec.Command("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "*.go")
-	list.Dir = root
-	out, err := list.Output()
-	if err != nil {
-		t.Fatalf("git ls-files: %v", err)
-	}
 	var problems []string
-	for _, rel := range strings.Split(string(out), "\x00") {
-		if rel == "" || rel == demoParserHelper || strings.HasSuffix(rel, "_test.go") || strings.Contains(rel, "testdata/") {
+	for _, rel := range gitGoFiles(t, goFileListing{}) {
+		if rel == demoParserHelper || strings.HasSuffix(rel, "_test.go") || strings.Contains(rel, "testdata/") {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
@@ -43,19 +39,23 @@ func TestDemoParsersOpenThroughDemosafe(t *testing.T) {
 		if !bytes.Contains(data, []byte(strconv.Quote(demoinfocsImport))) {
 			continue
 		}
-		problems = append(problems, directParserCalls(t, rel, data)...)
+		calls, err := directParserCalls(rel, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		problems = append(problems, calls...)
 	}
 	if len(problems) > 0 {
 		t.Fatalf("build demo parsers with demosafe.NewParser, which returns a read error instead of panicking:\n%s", strings.Join(problems, "\n"))
 	}
 }
 
-func directParserCalls(t *testing.T, rel string, data []byte) []string {
-	t.Helper()
+// directParserCalls lists the demoinfocs parser constructors the file at rel names, qualified or dot-imported.
+func directParserCalls(rel string, data []byte) ([]string, error) {
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, rel, data, parser.SkipObjectResolution)
+	f, err := parser.ParseFile(fset, rel, data, 0)
 	if err != nil {
-		t.Fatalf("parse %s: %v", rel, err)
+		return nil, fmt.Errorf("parse %s: %w", rel, err)
 	}
 	name := ""
 	for _, spec := range f.Imports {
@@ -67,9 +67,18 @@ func directParserCalls(t *testing.T, rel string, data []byte) []string {
 		}
 	}
 	var problems []string
+	if name == "." {
+		// A dot-imported name stays unresolved, unlike a local one of the same name.
+		for _, id := range f.Unresolved {
+			if demoParserConstructors[id.Name] {
+				problems = append(problems, fset.Position(id.Pos()).String()+": "+id.Name)
+			}
+		}
+		return problems, nil
+	}
 	ast.Inspect(f, func(n ast.Node) bool {
 		sel, ok := n.(*ast.SelectorExpr)
-		if !ok || (sel.Sel.Name != "NewParser" && sel.Sel.Name != "NewParserWithConfig") {
+		if !ok || !demoParserConstructors[sel.Sel.Name] {
 			return true
 		}
 		if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == name {
@@ -77,5 +86,5 @@ func directParserCalls(t *testing.T, rel string, data []byte) []string {
 		}
 		return true
 	})
-	return problems
+	return problems, nil
 }

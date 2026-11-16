@@ -542,12 +542,21 @@ followed each other on the same demo.
   error, outside any recover, so Studio's inline queue re-raised it and the
   orchestrator stopped. Production code now builds every parser through
   `demosafe.NewParser`, which returns that panic as an error with the
-  `*fs.PathError` still on the chain, so the scan stays retryable. Tests:
-  `TestNewParserReturnsAReadError`, the first-read case of
-  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`, and the guard
-  `TestDemoParsersOpenThroughDemosafe` (`cmd/zv`), which fails when a
-  non-test file other than `internal/demosafe/demosafe.go` calls
-  `demoinfocs.NewParser` or `NewParserWithConfig`.
+  `*fs.PathError` still on the chain, so the scan stays retryable. An
+  `io.EOF` or `io.ErrUnexpectedEOF` on that first read means the file is
+  empty or cut: it comes back as `demosafe.ErrDemoTooShort`
+  (`truncated_demo:`), which the parser, tactical and library workers end on
+  the first attempt. `batch` checks the file errors before `ErrPanicked`, so
+  a file it cannot read is not labelled `panic`. Tests:
+  `TestNewParserReturnsAReadError`, `TestNewParserRefusesAnEmptyDemo`, the
+  first-read and empty cases of
+  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`, the empty demo in
+  `TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt` and
+  `TestProcessScanRosterEndsUnreadableDemoOnFirstAttempt`, `TestClassify`,
+  and the guard `TestDemoParsersOpenThroughDemosafe` (`cmd/zv`), which
+  fails when a tracked non-test file other than
+  `internal/demosafe/demosafe.go` calls `demoinfocs.NewParser` or
+  `NewParserWithConfig`, qualified or dot-imported.
 - After an upgrade, `ResumeLibraryScans` scans a failed demo once more when
   what reads it changed. `library/<id>/scan-failed-build` records
   `parser=<demoinfocs version>;build=<vcs revision>` of the Studio that last

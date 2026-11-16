@@ -283,7 +283,12 @@ var errNoTarget = errors.New("no killer found in demo to auto-select a target")
 
 // classify maps a parse error to a stable obs class label and message.
 func classify(err error) (class, message string) {
+	// A read error at open reaches here inside demosafe's panic error, so the file checks come first.
 	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return "file_not_found", err.Error()
+	case errors.Is(err, os.ErrPermission):
+		return "file_permission", err.Error()
 	case errors.Is(err, demosafe.ErrPanicked):
 		return "panic", err.Error()
 	case errors.Is(err, errNoTarget):
@@ -292,10 +297,6 @@ func classify(err error) (class, message string) {
 		return "target_not_found", err.Error()
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return "canceled", err.Error()
-	case errors.Is(err, os.ErrNotExist):
-		return "file_not_found", err.Error()
-	case errors.Is(err, os.ErrPermission):
-		return "file_permission", err.Error()
 	default:
 		return "corrupt", err.Error()
 	}

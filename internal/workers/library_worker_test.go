@@ -82,6 +82,16 @@ func TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt(t *testing.T) {
 	}
 
 	repo = store.NewMemoryLibraryRepository()
+	empty := importLibraryDemo(t, repo, files, "empty.dem", []byte{})
+	err = NewLibraryWorker(repo, files).ProcessAnalyzeLibraryDemo(firstOfTwo, empty.ID)
+	if !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("empty demo error = %v, want it to wrap asynq.SkipRetry", err)
+	}
+	if got, _ := repo.GetDemo(context.Background(), empty.ID); got.State != library.ParseFailed || got.ErrorCode != obs.ClassTruncatedDemo {
+		t.Fatalf("empty demo = %+v, want failed as %s", got, obs.ClassTruncatedDemo)
+	}
+
+	repo = store.NewMemoryLibraryRepository()
 	missing := importLibraryDemo(t, repo, files, "missing.dem", nil)
 	err = NewLibraryWorker(repo, files).ProcessAnalyzeLibraryDemo(firstOfTwo, missing.ID)
 	if err == nil || errors.Is(err, asynq.SkipRetry) {

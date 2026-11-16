@@ -1,6 +1,7 @@
 package demosafe
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"strings"
@@ -31,8 +32,16 @@ func (r failingReader) Read([]byte) (int, error) { return 0, r.err }
 func TestNewParserReturnsAReadError(t *testing.T) {
 	readErr := &fs.PathError{Op: "read", Path: "demo.dem", Err: errors.New("the process cannot access the file")}
 	p, err := NewParser(failingReader{readErr})
-	if p != nil || !errors.Is(err, readErr) || !strings.HasPrefix(err.Error(), "open demo parser: parser panicked: ") {
+	if p != nil || !errors.Is(err, readErr) || !errors.Is(err, ErrPanicked) {
 		t.Fatalf("NewParser = %v, %v; want no parser and the read error", p, err)
+	}
+}
+
+// An empty demo is a cut file, not a read error a retry may clear.
+func TestNewParserRefusesAnEmptyDemo(t *testing.T) {
+	p, err := NewParser(bytes.NewReader(nil))
+	if p != nil || !errors.Is(err, ErrDemoTooShort) || errors.Is(err, ErrPanicked) {
+		t.Fatalf("NewParser = %v, %v; want no parser and ErrDemoTooShort", p, err)
 	}
 }
 

@@ -12,6 +12,9 @@ import (
 // ErrPanicked marks a parse that panicked instead of returning an error.
 var ErrPanicked = errors.New("parser panicked")
 
+// ErrDemoTooShort is a demo that ends during the parser's first read, so every retry fails the same way.
+var ErrDemoTooShort = errors.New("truncated_demo: the demo file is empty or cut short")
+
 // ParseToEnd is p.ParseToEnd with a parser panic returned as an ErrPanicked error.
 func ParseToEnd(p demoinfocs.Parser) error {
 	return Recover(p.ParseToEnd)
@@ -24,10 +27,14 @@ func NewParser(r io.Reader) (demoinfocs.Parser, error) {
 		p = demoinfocs.NewParser(r)
 		return nil
 	})
-	if err != nil {
+	switch {
+	case err == nil:
+		return p, nil
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return nil, fmt.Errorf("open demo parser: %w", ErrDemoTooShort)
+	default:
 		return nil, fmt.Errorf("open demo parser: %w", err)
 	}
-	return p, nil
 }
 
 // Recover runs fn and returns a panic on this goroutine as an ErrPanicked error.
