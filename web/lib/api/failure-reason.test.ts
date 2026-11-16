@@ -6,9 +6,11 @@ import {
   DEMO_INCOMPATIBLE_PREFIX,
   FAILED_STRIP_LABEL,
   JOB_CAPTURE_FAILURE_MESSAGE,
+  JOB_CAPTURE_STALLED_MESSAGE,
   JOB_FAILED_TITLE,
   JOB_GENERIC_FAILURE_MESSAGE,
   JOB_RECAPTURE_FAILURE_MESSAGE,
+  JOB_STEAM_NOT_RUNNING_MESSAGE,
   MISMATCH_REDRIVE_FAILURE_REASON,
   POV_DEMO_MESSAGE,
   SILENT_CAPTURE_MESSAGE,
@@ -87,7 +89,7 @@ test('a stalled capture, a missing Steam and a slow render each get their own re
     {
       reason: 'capture_stalled: cs2.exe kept running but made no capture progress for 5m0s',
       kind: 'capture-stalled',
-      message: /^CS2 se abrió pero no empezó a reproducir la demo\. Cierra CS2, comprueba que Steam está abierto y reintenta\.$/,
+      message: /^CS2 dejó de avanzar \(no empezó a reproducir la demo o se quedó congelado\) y ClipHub lo cerró\. Comprueba que Steam está abierto y reintenta\.$/,
       fullDemo: true,
     },
     {
@@ -112,6 +114,20 @@ test('a stalled capture, a missing Steam and a slow render each get their own re
   }
   assert.equal(jobFailureTitle('capture_stalled: cs2.exe kept running'), FAILED_STRIP_LABEL.capture);
   assert.equal(jobFailureTitle('steam_not_running: CS2 could not reach the Steam client'), FAILED_STRIP_LABEL.capture);
+});
+
+test('a failed partida keeps the Steam and stalled-capture guidance without a retry or a delete-the-demo hint', () => {
+  const cases = [
+    { reason: 'steam_not_running: CS2 could not reach the Steam client (Steam is not running or not signed in)', message: JOB_STEAM_NOT_RUNNING_MESSAGE },
+    { reason: 'capture_stalled: cs2.exe kept running but made no capture progress for 5m0s', message: JOB_CAPTURE_STALLED_MESSAGE },
+  ];
+  for (const { reason, message } of cases) {
+    const result = parseFailureReason(reason, { job: true });
+    assert.equal(result.message, message, reason);
+    assert.equal(result.retryCanHelp, false, reason);
+    assert.match(result.message, /Steam/, reason);
+    assert.doesNotMatch(result.message, /Elimínala de Partidas|Reintenta|reintenta/, reason);
+  }
 });
 
 test('generic reasons stay retryable with the diagnostics copy and do not leak internals', () => {

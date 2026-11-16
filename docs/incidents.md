@@ -400,15 +400,18 @@ that as a transient crash and relaunched CS2 for nothing.
   `cs2.exe` runs and the capture is not yet verified, the console log or a file
   under the capture output must change. After `captureStallLimit` without
   either, the wait ends with `capture_stalled:` and stops that `cs2.exe` the
-  way the other failure paths do: only a process this run saw. A verified
-  capture belongs to the grace close, not the watchdog.
+  way the other failure paths do: only a process this run saw. It also ends a
+  capture that froze after it started recording, so Studio's copy does not
+  claim the demo never played. A verified capture belongs to the grace close,
+  not the watchdog.
 - A wait cut by the watchdog or by the recorder's deadline logs the console
   tail, the `cs2.exe` window titles and a `cs2 stall:` line, so telemetry shows
   where CS2 stopped. The console tail keeps the Steam text on purpose.
 - The worker (`internal/workers/record_failure.go`) turns the Steamworks text
   into `steam_not_running:` and keeps `capture_stalled:` as the reason. Neither
   is relaunched: both repeat until the user fixes Steam or CS2. Studio shows a
-  Spanish message for each (`web/lib/api/failure-reason.ts`).
+  Spanish message for each (`web/lib/api/failure-reason.ts`), with its own
+  job-level copy on the failed partida row, which has no retry button.
 - Tests: `cmd/zv-recorder/capture_wait_test.go`, `internal/workers/record_failure_test.go`.
 
 ## Full Demo render lab (`zv-editor lab`, 2026-09-26)

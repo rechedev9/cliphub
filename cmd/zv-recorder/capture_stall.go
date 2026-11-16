@@ -11,8 +11,8 @@ import (
 	"github.com/rechedev9/cliphub/internal/winproc"
 )
 
-// A playing capture writes the console or its take files every few seconds,
-// even through a fast-forwarded gap, so five quiet minutes mean CS2 never started.
+// A playing capture writes the console or its take files every few seconds, even through
+// a fast-forwarded gap, so five quiet minutes mean CS2 never started or froze mid-capture.
 const (
 	captureStallLimit = 5 * time.Minute
 	captureStallProbe = 5 * time.Second

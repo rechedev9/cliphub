@@ -217,7 +217,7 @@ func TestRetryableCaptureCrash(t *testing.T) {
 		},
 		{
 			name:   "stalled capture is not relaunched",
-			runErr: errors.New("error: " + captureStalledPrefix + " cs2.exe kept running but made no capture progress for 5m0s"),
+			runErr: errors.New("error: " + captureStalledPrefix + " cs2.exe kept running but made no capture progress for 5m0s\n" + missingCaptureAttestationMarker),
 		},
 		{
 			name: "success is not retried",
