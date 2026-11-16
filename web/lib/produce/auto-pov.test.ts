@@ -44,10 +44,11 @@ test('cue labels name the observer reason in Spanish and drop unknown details', 
   assert.equal(cueLabel({ kind: 'momentum', detail: 'swing', count: 0, value: 0.4 }), 'Gira la ronda');
 });
 
-test('the summary counts each shown player and names the ones left out', () => {
+test('the summary names only the players the pick left out', () => {
   const got = parseAutoPov(ANSWER);
   assert.ok(got);
-  assert.equal(autoPovSummary(got), '2 jugadas (ropz 1 y b1t 1). Sin jugadas: jL.');
+  assert.equal(autoPovSummary(got), 'La elección automática no incluye ninguna jugada de jL.');
+  assert.equal(autoPovSummary({ ...got, players: got.players.filter((p) => p.plays > 0) }), null);
 });
 
 test('the request carries the budget and the victim replay each play adds, capped', () => {

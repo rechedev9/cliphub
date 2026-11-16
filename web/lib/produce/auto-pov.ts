@@ -105,12 +105,9 @@ function namesList(names: readonly string[]): string {
   return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
 }
 
-/** "6 jugadas (ropz 3, b1t 2 y jL 1). Sin jugadas: m0NESY." */
-export function autoPovSummary(direction: AutoPovDirection): string {
-  const shown = direction.players.filter((p) => p.plays > 0).sort((a, b) => b.plays - a.plays);
+/** Only the players the pick left out: the count and the split already show in the plays. */
+export function autoPovSummary(direction: AutoPovDirection): string | null {
   const left = direction.players.filter((p) => p.plays === 0).map((p) => p.name);
-  const total = direction.segmentIds.length;
-  let text = `${total} ${total === 1 ? 'jugada' : 'jugadas'} (${namesList(shown.map((p) => `${p.name} ${p.plays}`))}).`;
-  if (left.length > 0) text += ` Sin jugadas: ${namesList(left)}.`;
-  return text;
+  if (left.length === 0) return null;
+  return `La elección automática no incluye ninguna jugada de ${namesList(left)}.`;
 }

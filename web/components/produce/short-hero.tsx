@@ -4,11 +4,8 @@ import { formatClock, SHORT_TARGET_SECONDS, type SelectionCue } from '@/lib/prod
 import { FORMAT_TONE, type FormatTone } from '@/components/studio/format-tone';
 import { cn } from '@/lib/utils';
 
-/** Side colours carry no foreground token; the page ground reads on both in each theme. */
-const SIDE_BLOCK: Readonly<Record<PlaySide, string>> = {
-  CT: 'bg-side-ct text-background',
-  T: 'bg-side-t text-background',
-};
+/** The same side stripe as the play rows below, so a block reads as its row. */
+const SIDE_STRIPE: Readonly<Record<PlaySide, string>> = { CT: 'bg-side-ct', T: 'bg-side-t' };
 /** Below this many seconds the room block is too narrow for its label. */
 const ROOM_LABEL_MIN_SECONDS = 6;
 
@@ -33,7 +30,7 @@ export function ShortHero({ tone, title, meta, notices, cues, totalSeconds, targ
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
         <div className="flex min-w-0 flex-[1_1_22rem] flex-col gap-1.5">
           <h1 id="short-hero-title" className="wrap-anywhere font-display text-display-sm font-semibold text-fg-1">{title}</h1>
-          <p className="wrap-anywhere text-body-sm text-fg-2">{meta}</p>
+          {meta ? <p className="wrap-anywhere text-body-sm text-fg-2">{meta}</p> : null}
           {notices}
         </div>
         <p className="flex items-baseline gap-2 tabular-nums">
@@ -66,9 +63,13 @@ function Filmstrip({ tone, cues, totalSeconds, targetSeconds }: FilmstripProps):
     <div role="img" aria-label={label} className="flex h-9 min-w-0 gap-1">
       {cues.map((cue, index) => (
         <span key={cue.play.id} style={{ flex: `${cue.seconds} 1 0` }}
-          className={cn('flex min-w-1 items-center overflow-hidden whitespace-nowrap rounded-md px-2 text-meta font-bold tabular-nums',
-            cue.play.side ? SIDE_BLOCK[cue.play.side] : FORMAT_TONE[tone].fill)}>
-          {index + 1}{cue.play.death ? '' : ` · ${cue.play.kills}K`}
+          className="@container relative flex min-w-1 items-center overflow-hidden whitespace-nowrap rounded-md border border-border-subtle bg-surface-2 pl-2.5 pr-2 text-meta font-semibold tabular-nums text-fg-1">
+          <span aria-hidden className={cn('absolute inset-y-0 left-0 w-1', cue.play.side ? SIDE_STRIPE[cue.play.side] : FORMAT_TONE[tone].fill)} />
+          {/* One inline run so the space before "·" survives; a narrow block keeps only its number. */}
+          <span>
+            {index + 1}
+            {cue.play.death ? null : <span className="hidden text-fg-2 @[2.75rem]:inline">{` · ${cue.play.kills}K`}</span>}
+          </span>
         </span>
       ))}
       {room > 0 ? (

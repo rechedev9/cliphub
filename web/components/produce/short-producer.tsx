@@ -99,8 +99,8 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const [stylesOpen, setStylesOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  // Elegir automáticamente: the picked ids, a summary of who got plays and each play's reason.
-  const [autoPov, setAutoPov] = useState<{ ids: string[]; summary: string; notes: Map<string, string> } | null>(null);
+  // Elegir automáticamente: the picked ids, who it left out and each play's reason.
+  const [autoPov, setAutoPov] = useState<{ ids: string[]; summary: string | null; notes: Map<string, string> } | null>(null);
   const [directing, setDirecting] = useState(false);
   const busy = creating || !loaded;
   const [playFilter, setPlayFilter] = useState<PlayFilter>(NO_PLAY_FILTER);
@@ -289,7 +289,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
         <ShortHero
           tone={tone}
           title={heroTitle}
-          meta={`${[match.map, `${plays.length} ${deathReel ? 'muertes' : 'jugadas'}`].filter(Boolean).join(' · ')} · Elige qué jugadas entran.`}
+          meta={match.map}
           cues={cues}
           totalSeconds={estimatedSeconds}
           targetSeconds={targetSeconds}
@@ -302,7 +302,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
               </p>
             ) : null}
             {autoPovNote ? (
-              <p role="status" className="text-body-sm text-fg-2">Elección automática: {autoPovNote}</p>
+              <p role="status" className="text-body-sm text-fg-2">{autoPovNote}</p>
             ) : null}
             {restored ? (
               <p role="status" className="text-body-sm text-fg-2">
