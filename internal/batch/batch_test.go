@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,6 +67,9 @@ func TestFindDemos(t *testing.T) {
 }
 
 func TestClassify(t *testing.T) {
+	// A read error at open reaches classify inside demosafe's panic error.
+	_, locked := demosafe.NewParser(failingReader{&fs.PathError{Op: "read", Path: "demo.dem", Err: os.ErrPermission}})
+	_, gone := demosafe.NewParser(failingReader{&fs.PathError{Op: "read", Path: "demo.dem", Err: os.ErrNotExist}})
 	cases := []struct {
 		name string
 		err  error
@@ -78,6 +82,8 @@ func TestClassify(t *testing.T) {
 		{"deadline", context.DeadlineExceeded, "canceled"},
 		{"missing", os.ErrNotExist, "file_not_found"},
 		{"perm", os.ErrPermission, "file_permission"},
+		{"locked at open", locked, "file_permission"},
+		{"gone at open", gone, "file_not_found"},
 		{"other", errors.New("boom"), "corrupt"},
 	}
 	for _, c := range cases {
@@ -92,6 +98,10 @@ func TestClassify(t *testing.T) {
 		})
 	}
 }
+
+type failingReader struct{ err error }
+
+func (r failingReader) Read([]byte) (int, error) { return 0, r.err }
 
 func TestRunNoDemos(t *testing.T) {
 	rec := newRecorder(t)

@@ -490,6 +490,98 @@ its own death.
 - A crash from another worker during a scan also counts against the demo
   being scanned. To diagnose, read the non-empty files in `crashes/`.
 
+### Incident: a demo with a reconnected player failed as damaged (Studio 5.24.0, 2026-11-16)
+
+Two users could not turn a demo into a match or a Demo completa. Two causes
+followed each other on the same demo.
+
+- First cause: CS2 patch 14197 (the `fixed8` fields above). Studio 5.17.1 to
+  5.21.1 failed every new demo with `nextByte: insufficient buffer`.
+  demoinfocs v5.3.0 (#517, Studio 5.22.0) fixed it, but demos that had already
+  failed stayed failed.
+- Second cause, still in 5.24.0: after a reconnect, `Participants().All()`
+  lists a player twice, either as two `*Player` with the same SteamID64 or as
+  one pointer under two user IDs. Both entries took the same slot and the
+  positions encoder refused the frame (`slot 1 appears twice in the frame at
+  tick 59020`). The round economy also counted that player twice.
+  `playersBySlot` (`internal/tactical/participants.go`) now keeps one entry
+  per slot for frames and economy: on the T or CT team, then connected with
+  an entity, with a pawn, alive, a non-zero position, the slot's previous
+  EntityID, the highest EntityID, the highest UserID. A new controller that
+  is not on a team yet never beats a stale one that still holds T or CT.
+  `appendFrame` stays strict. Tests:
+  `TestDuplicateParticipantsLeaveOneSamplePerSlot`,
+  `TestEconomyCountsADuplicatedPlayerOnce`,
+  `TestPlayersBySlotKeepsThePreviousEntityOnATie`.
+- Both failures showed as "dañada": `tacticalFailureClass` only looked at
+  typed errors, so a wrapped `demo_incompatible:` became `demo_unreadable`.
+  It now keeps the `obs.ClassOf` class (`demo_incompatible`,
+  `truncated_demo`, `pov_demo`) and files an error that wraps
+  `tactical.ErrEncodePositions` as `tactical_internal`, a Studio bug with its
+  own `DEMO_ERROR_LABEL`. Only a stored message, rebuilt for the retry after an
+  upgrade, is matched by its `encode positions:` text. A new
+  class goes into `internal/telemetry/types.go` and
+  `desktop/src/telemetry-journal.ts` together
+  (`TestDesktopJournalAllowlistsMatchTheCollector`). Test: `TestTacticalFailureClass`.
+  The collector on the VPS today rejects a whole batch with an unknown class,
+  so deploy this collector before the Studio release that sends
+  `tactical_internal`. This collector files an unknown `pipeline.error` class as
+  `unknown` and keeps the batch, so a later class needs no deploy order. Test:
+  `TestValidateBatchFilesANewPipelineClassAsUnknown`.
+- A failure every attempt repeats (`tacticalClassFinal`) ends the library and
+  tactical task on its first attempt with `asynq.SkipRetry` instead of parsing
+  the whole demo again. A failure that can clear (a missing file, the disk)
+  leaves the demo `parsing` until its last attempt. A read error under the
+  parser (`*fs.PathError`, a cancelled context) is one of those: `demosafe`
+  keeps a panicked error on the chain and `tagParseError` does not tag it
+  `demo_incompatible`. Tests:
+  `TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt`,
+  `TestTacticalWorkerEndsAnIncompatibleDemoOnTheFirstAttempt`,
+  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`.
+- `demoinfocs.NewParser` reads its first buffer at once and panics on a read
+  error, outside any recover, so Studio's inline queue re-raised it and the
+  orchestrator stopped. Production code now builds every parser through
+  `demosafe.NewParser`, which returns that panic as an error with the
+  `*fs.PathError` still on the chain, so the scan stays retryable. An
+  `io.EOF` or `io.ErrUnexpectedEOF` on that first read means the file is
+  empty or cut: it comes back as `demosafe.ErrDemoTooShort`
+  (`truncated_demo:`), which the parser, tactical and library workers end on
+  the first attempt. `batch` checks the file errors before `ErrPanicked`, so
+  a file it cannot read is not labelled `panic`. Tests:
+  `TestNewParserReturnsAReadError`, `TestNewParserRefusesAnEmptyDemo`, the
+  first-read and empty cases of
+  `TestTacticalScanRetriesAReadErrorAndEndsAFormatError`, the empty demo in
+  `TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt` and
+  `TestProcessScanRosterEndsUnreadableDemoOnFirstAttempt`, `TestClassify`,
+  and the guard `TestDemoParsersOpenThroughDemosafe` (`cmd/zv`), which
+  fails when a tracked non-test file other than
+  `internal/demosafe/demosafe.go` calls `demoinfocs.NewParser` or
+  `NewParserWithConfig`, qualified or dot-imported.
+- After an upgrade, `ResumeLibraryScans` scans a failed demo once more when
+  what reads it changed. `library/<id>/scan-failed-build` records
+  `parser=<demoinfocs version>;build=<vcs revision>` of the Studio that last
+  failed or retried the demo. `demo_incompatible` (or an older
+  `demo_unreadable` whose message carries `demo_incompatible:`) retries only
+  when the demoinfocs version changed; `tactical_internal` and
+  `map_uncalibrated` retry when the build changed. A plain value from before
+  the parser part counts as an older build. A binary without a VCS stamp
+  records `build=devel`, so `scripts/build.ps1` asserts the stamp. A retry
+  whose queued state or enqueue fails clears the record. Damaged, truncated
+  and POV demos are never retried on their own. Limit: a panic in a Studio
+  event handler is tagged `demo_incompatible` too, so after a Studio fix it
+  waits for a new demoinfocs or for Analizar. Tests:
+  `TestClaimLibraryRetryAfterUpgrade`,
+  `TestClaimLibraryRetryAfterUpgradeKeysEachClassOnWhatReadsIt`,
+  `TestResumeLibraryScansRetriesAnIncompatibleDemoOnce`,
+  `TestResumeLibraryScansKeepsTheRetryOfARefusedFailedDemo`,
+  `TestResumeLibraryScansKeepsTheRetryWhenQueueingTheDemoFails`.
+- The `level=error` noise in the same reports was `wait_for_job` polling a
+  render variant before its state existed. That 404 (`render variant not
+  found`) now logs at info; a 404 for a missing job stays an error. Test:
+  `TestHTTPTraceLogsRenderVariantNotReadyPollBelowErrorLevel`.
+- The duplicate was rebuilt with synthetic players; the users' demo was not
+  available, so which of the two shapes it had is unknown.
+
 ## Match dates (`library.MatchDate`, 2026-11-13)
 
 ### Incident: FACEIT demos dated by their import day (Studio 5.21.1, 2026-11-13)

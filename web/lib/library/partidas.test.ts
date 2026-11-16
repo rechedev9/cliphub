@@ -4,6 +4,7 @@ import type { LibraryDemo, LibraryMatch, LibraryMatchPlayer, LibraryMatchTeam } 
 import {
   adrLabel,
   buildPartidaRows,
+  demoErrorLabel,
   inDateRange,
   kdLabel,
   mapChips,
@@ -150,4 +151,10 @@ test('the utility ratio compares grenades per round with the teammates', () => {
   assert.equal(utilityRatioLabel({ count: 60, total: 40 }, { count: 160, total: 160 }), '1,50');
   assert.equal(utilityRatioLabel({ count: 3, total: 4 }, { count: 0, total: 16 }), '');
   assert.equal(utilityRatioLabel({ count: 0, total: 0 }, { count: 4, total: 4 }), '');
+});
+
+test('a Studio failure is not blamed on the demo, and an unknown code gets the generic label', () => {
+  assert.match(demoErrorLabel('tactical_internal'), /error de Studio/);
+  assert.equal(demoErrorLabel('demo_incompatible'), 'Esta versión de Studio no entiende el formato de la demo.');
+  assert.equal(demoErrorLabel('nope'), 'El análisis de la demo falló.');
 });

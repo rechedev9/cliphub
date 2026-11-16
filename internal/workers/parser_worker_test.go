@@ -329,6 +329,15 @@ func TestProcessScanRosterEndsUnreadableDemoOnFirstAttempt(t *testing.T) {
 		t.Fatalf("unreadable demo status = %v, want %v", unreadable.lastStatus(), job.StatusFailed)
 	}
 
+	if err := store.Put("demos/empty.dem", bytes.NewReader(nil)); err != nil {
+		t.Fatalf("Put error = %v", err)
+	}
+	empty := newFakeJobRepo(job.Job{ID: uuid.New(), Status: job.StatusQueued, DemoPath: "demos/empty.dem"})
+	err = NewParserWorker(empty, store).ProcessScanRoster(firstOfTwo, empty.only().ID)
+	if !errors.Is(err, asynq.SkipRetry) || obs.ClassOf(err.Error()) != obs.ClassTruncatedDemo {
+		t.Fatalf("empty demo error = %v, want a %s failure that wraps asynq.SkipRetry", err, obs.ClassTruncatedDemo)
+	}
+
 	missing := newFakeJobRepo(job.Job{ID: uuid.New(), Status: job.StatusQueued, DemoPath: "demos/missing.dem"})
 	err = NewParserWorker(missing, store).ProcessScanRoster(firstOfTwo, missing.only().ID)
 	if err == nil || errors.Is(err, asynq.SkipRetry) {

@@ -114,7 +114,10 @@ func ProbeDemo(demoPath string) (PlayabilityReport, error) {
 	}
 	defer f.Close()
 
-	p := demoinfocs.NewParser(f)
+	p, err := demosafe.NewParser(f)
+	if err != nil {
+		return PlayabilityReport{}, err
+	}
 	defer p.Close()
 
 	var mapName string

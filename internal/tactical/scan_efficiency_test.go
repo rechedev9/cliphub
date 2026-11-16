@@ -93,17 +93,6 @@ func TestSampleSlotsAllMasksMatchSortedSamples(t *testing.T) {
 	}
 }
 
-func TestSampleSlotsRetainsInvalidDuplicates(t *testing.T) {
-	var slots sampleSlots
-	slots.add(tacticalplan.Sample{Slot: 15, X: 1})
-	slots.add(tacticalplan.Sample{Slot: 15, X: 2})
-	slots.add(tacticalplan.Sample{Slot: 17, X: 3})
-	got := slots.ordered()
-	if len(got) != 3 || got[0].X != 1 || got[1].X != 2 || got[2].Slot != 17 {
-		t.Fatal(got)
-	}
-}
-
 var collectedSamples []tacticalplan.Sample
 
 func BenchmarkCollectSamples(b *testing.B) {

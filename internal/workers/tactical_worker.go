@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,7 +31,11 @@ const (
 	tacticalClassDemoIncompatible = "demo_incompatible"
 	tacticalClassMapUncalibrated  = "map_uncalibrated"
 	tacticalClassWriteArtifact    = "write_artifact"
+	tacticalClassInternal         = "tactical_internal"
 )
+
+// phraseEncodePositions opens the stored message of a tactical.ErrEncodePositions failure.
+const phraseEncodePositions = "encode positions:"
 
 // TacticalRepository is the subset of *job.Repository the tactical worker needs.
 // The scan only ever reads the demo: the analysis is an orthogonal artifact
@@ -111,12 +116,17 @@ func (w *TacticalWorker) ProcessAnalyzeTactical(ctx context.Context, jobID uuid.
 		if err := w.writeStatus(j.ID, sampleHZ, artifacts.TacticalStateFailed, scanErr.Error()); err != nil {
 			logWorkerError(j.ID, "write tactical status", err)
 		}
-		if !taskIsTerminal(ctx) {
+		class := tacticalFailureClass(scanErr)
+		final := tacticalClassFinal(class)
+		if !final && !taskIsTerminal(ctx) {
 			logWorkerError(j.ID, tasks.TypeAnalyzeTactical+" will retry", scanErr)
 			return scanErr
 		}
-		recordStageFailure(j.ID, obs.StageTactical, tasks.TypeAnalyzeTactical, tacticalFailureClass(scanErr), scanErr)
+		recordStageFailure(j.ID, obs.StageTactical, tasks.TypeAnalyzeTactical, class, scanErr)
 		logWorkerError(j.ID, tasks.TypeAnalyzeTactical+" failed", scanErr)
+		if final {
+			return fmt.Errorf("%w: %w", scanErr, asynq.SkipRetry)
+		}
 		return scanErr
 	}
 
@@ -260,8 +270,29 @@ func tacticalFailureClass(err error) string {
 	if f, ok := errors.AsType[*tacticalFailure](err); ok {
 		return f.class
 	}
+	if errors.Is(err, tactical.ErrEncodePositions) {
+		return tacticalClassInternal
+	}
+	switch class := obs.ClassOf(err.Error()); class {
+	case obs.ClassDemoIncompatible, obs.ClassTruncatedDemo, obs.ClassPOVDemo:
+		return class
+	}
+	// Only a stored message rebuilt with errors.New (library_reanalysis.go) needs the text match.
+	if strings.Contains(err.Error(), phraseEncodePositions) {
+		return tacticalClassInternal
+	}
 	if errors.Is(err, demoinfocs.ErrInvalidFileType) {
 		return tacticalClassDemoIncompatible
 	}
 	return tacticalClassDemoUnreadable
+}
+
+// tacticalClassFinal reports a failure every retry of the same demo hits again,
+// so the queue ends the task at once instead of parsing the whole demo twice.
+func tacticalClassFinal(class string) bool {
+	switch class {
+	case obs.ClassDemoIncompatible, obs.ClassTruncatedDemo, obs.ClassPOVDemo, tacticalClassInternal, tacticalClassMapUncalibrated:
+		return true
+	}
+	return false
 }

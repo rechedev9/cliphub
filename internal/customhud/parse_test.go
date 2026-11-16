@@ -73,7 +73,7 @@ func extractFrames(t *testing.T, frames ...func(*extractionParser)) Timeline {
 	t.Helper()
 	pl := &common.Player{SteamID64: 76561199000000001, Name: "observed", Team: common.TeamCounterTerrorists, IsConnected: true, Entity: propertyEntity{}}
 	p := &extractionParser{state: &extractionState{players: []*common.Player{pl}}, frames: frames}
-	d, err := extract(context.Background(), strings.NewReader(""), fmt.Sprintf("%x", sha256.Sum256(nil)), ExampleTarget, 64, func(io.Reader) demoinfocs.Parser { return p })
+	d, err := extract(context.Background(), strings.NewReader(""), fmt.Sprintf("%x", sha256.Sum256(nil)), ExampleTarget, 64, func(io.Reader) (demoinfocs.Parser, error) { return p, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,12 +168,12 @@ func TestExtractRealDemoWithoutRoundStart(t *testing.T) {
 		if _, err := file.Seek(0, 0); err != nil {
 			t.Fatal(err)
 		}
-		d, err := extract(context.Background(), file, sha, target, 64, func(r io.Reader) demoinfocs.Parser {
+		d, err := extract(context.Background(), file, sha, target, 64, func(r io.Reader) (demoinfocs.Parser, error) {
 			p := demoinfocs.NewParser(r)
 			if missingStart {
-				return missingRoundStartParser{p}
+				return missingRoundStartParser{p}, nil
 			}
-			return p
+			return p, nil
 		})
 		if err != nil {
 			t.Fatal(err)

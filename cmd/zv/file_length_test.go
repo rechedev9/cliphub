@@ -52,15 +52,8 @@ func TestGoFileLength(t *testing.T) {
 	root := repoRoot(t)
 	seen := map[string]bool{}
 	var problems []string
-	// Ask git so ignored build output and nested worktrees never count; untracked new files still do.
-	list := exec.Command("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "*.go")
-	list.Dir = root
-	out, err := list.Output()
-	if err != nil {
-		t.Fatalf("git ls-files: %v", err)
-	}
-	for _, rel := range strings.Split(string(out), "\x00") {
-		if rel == "" || strings.HasPrefix(rel, "testdata/") || strings.Contains(rel, "/testdata/") {
+	for _, rel := range gitGoFiles(t, goFileListing{untracked: true}) {
+		if strings.HasPrefix(rel, "testdata/") || strings.Contains(rel, "/testdata/") {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
@@ -95,4 +88,32 @@ func TestGoFileLength(t *testing.T) {
 		sort.Strings(problems)
 		t.Fatalf("Go files must stay at or under %d lines:\n%s", maxGoFileLines, strings.Join(problems, "\n"))
 	}
+}
+
+// goFileListing picks the Go files gitGoFiles returns.
+type goFileListing struct {
+	// untracked adds files not committed yet, so a new oversized file fails before it lands.
+	untracked bool
+}
+
+// gitGoFiles lists the repo's Go files by slash path. Asking git keeps ignored build output and nested worktrees out.
+func gitGoFiles(t *testing.T, listing goFileListing) []string {
+	t.Helper()
+	args := []string{"ls-files", "-z", "--cached"}
+	if listing.untracked {
+		args = append(args, "--others", "--exclude-standard")
+	}
+	list := exec.Command("git", append(args, "--", "*.go")...)
+	list.Dir = repoRoot(t)
+	out, err := list.Output()
+	if err != nil {
+		t.Fatalf("git ls-files: %v", err)
+	}
+	var files []string
+	for _, rel := range strings.Split(string(out), "\x00") {
+		if rel != "" {
+			files = append(files, rel)
+		}
+	}
+	return files
 }

@@ -54,7 +54,13 @@ func TestValidateBatch(t *testing.T) {
 		{name: "client fingerprint", mutate: func(event *Event) { event.Fingerprint = strings.Repeat("a", 64) }, wantErr: "server generated"},
 		{name: "steam id label", mutate: func(event *Event) { event.Component = "76561198000000000" }, wantErr: "allowlisted"},
 		{name: "path label", mutate: func(event *Event) { event.Name = "C:/Users/Luis/demo.dem" }, wantErr: "allowlisted"},
-		{name: "prompt label", mutate: func(event *Event) { event.Class = "make_all_kills_viral" }, wantErr: "allowlisted"},
+		{name: "prompt label", mutate: func(event *Event) {
+			event.Component = "renderer"
+			event.Name = "route.error"
+			event.Stage = "renderer"
+			event.Class = "make_all_kills_viral"
+		}, wantErr: "allowlisted"},
+		{name: "unknown pipeline stage", mutate: func(event *Event) { event.Stage = "C:/Users/Luis" }, wantErr: "allowlisted"},
 		{name: "error outcome", mutate: func(event *Event) { event.Outcome = "ok" }, wantErr: "outcome must be empty"},
 		{name: "unstable release label", mutate: func(event *Event) { event.Release = "Luis-build" }, wantErr: "release"},
 	}
@@ -120,5 +126,48 @@ func TestValidateEventCodeFilesStreamPreviewMediaErrors(t *testing.T) {
 	preview.Class = "exception"
 	if err := validateEventCode(preview); err == nil {
 		t.Fatal("stream_preview.error accepted with the exception class")
+	}
+}
+
+func TestValidateBatchFilesANewPipelineClassAsUnknown(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
+	known := Event{
+		SchemaVersion: SchemaVersion,
+		ID:            "b838ff59-f6a1-49fc-b11d-7478550238d1",
+		OccurredAt:    now,
+		Kind:          KindError,
+		SupportCode:   "CH-ABCD-1234-5678-90AB-CDEF",
+		SessionID:     "a20a070d-c99f-4744-a613-5759d6ecc74c",
+		Release:       "2.4.35",
+		Component:     "orchestrator",
+		Name:          "pipeline.error",
+		Stage:         "tactical",
+		Class:         "demo_incompatible",
+		OS:            "win32",
+		Arch:          "x64",
+	}
+	newer := known
+	newer.ID = "8a46e7a4-d86a-4512-bc41-dc270a296461"
+	newer.Class = "class_from_a_newer_studio"
+	events, err := ValidateBatch(Batch{Events: []Event{known, newer}}, now)
+	if err != nil {
+		t.Fatalf("ValidateBatch dropped the batch: %v", err)
+	}
+	if events[0].Class != "demo_incompatible" {
+		t.Fatalf("known class = %q", events[0].Class)
+	}
+	if events[1].Class != "unknown" {
+		t.Fatalf("new class stored as %q, want unknown", events[1].Class)
+	}
+	filed := newer
+	filed.Class = "unknown"
+	if events[1].Fingerprint != canonicalFingerprint(filed) {
+		t.Fatal("the fingerprint still carries the raw class")
+	}
+	// Only the class is lenient: a name outside the contract still rejects the batch.
+	newer.Name = "pipeline.new_error"
+	if _, err := ValidateBatch(Batch{Events: []Event{known, newer}}, now); err == nil {
+		t.Fatal("an unknown orchestrator error name was accepted")
 	}
 }

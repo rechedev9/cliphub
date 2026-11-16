@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"strings"
 	"testing"
 
@@ -187,6 +190,22 @@ func TestTacticalWorkerJournalsOnlyTheTerminalFailure(t *testing.T) {
 	}
 }
 
+// A demo the parser rejects fails the same way on a retry, so the first attempt journals it and ends the task.
+func TestTacticalWorkerEndsAnIncompatibleDemoOnTheFirstAttempt(t *testing.T) {
+	id := uuid.New()
+	repo := newFakeJobRepo(job.Job{ID: id, Status: job.StatusParsed, DemoPath: "demos/incompatible.dem"})
+	store := newFakeStorage()
+	store.files["demos/incompatible.dem"] = incompatibleDemo()
+
+	err := NewTacticalWorker(repo, store).ProcessAnalyzeTactical(tasks.WithTaskAttempt(context.Background(), 0, 2), id, 0)
+	if !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("ProcessAnalyzeTactical error = %v, want it to wrap asynq.SkipRetry", err)
+	}
+	if events := journalEventsFor(t, obs.Default(), id.String(), tacticalClassDemoIncompatible); len(events) != 1 {
+		t.Fatalf("journal events = %#v, want the one terminal failure", events)
+	}
+}
+
 func TestTacticalFailureClass(t *testing.T) {
 	cases := []struct {
 		name string
@@ -196,12 +215,63 @@ func TestTacticalFailureClass(t *testing.T) {
 		{"wrapped class", fmt.Errorf("store: %w", newTacticalFailure(tacticalClassWriteArtifact, fmt.Errorf("disk full"))), tacticalClassWriteArtifact},
 		{"uncalibrated map", newTacticalFailure(tacticalClassMapUncalibrated, fmt.Errorf("no calibration")), tacticalClassMapUncalibrated},
 		{"invalid file type", fmt.Errorf("scan tactical: %w", demoinfocs.ErrInvalidFileType), tacticalClassDemoIncompatible},
+		{"wrapped parser error", fmt.Errorf("scan tactical: parsing demo: demo_incompatible: nextByte: insufficient buffer (701 of 701)"), tacticalClassDemoIncompatible},
+		{"wrapped truncated demo", fmt.Errorf("scan tactical: parsing demo: truncated_demo: cut before the first round"), obs.ClassTruncatedDemo},
+		{"positions encoder", fmt.Errorf("scan tactical: %w", relabelled{"blob refused", tactical.ErrEncodePositions}), tacticalClassInternal},
+		{"stored positions encoder message", errors.New("scan tactical: encode positions: slot 1 appears twice in the frame at tick 59020"), tacticalClassInternal},
 		{"anything else", fmt.Errorf("parsing demo: corrupt frame"), tacticalClassDemoUnreadable},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := tacticalFailureClass(tc.err); got != tc.want {
 				t.Fatalf("tacticalFailureClass = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// relabelled hides an error's text behind another message, so only errors.Is can find it.
+type relabelled struct {
+	msg string
+	err error
+}
+
+func (r relabelled) Error() string { return r.msg }
+
+func (r relabelled) Unwrap() error { return r.err }
+
+type failingReader struct{ err error }
+
+func (r failingReader) Read([]byte) (int, error) { return 0, r.err }
+
+// A read error from the OS may clear on the next attempt; a demo the parser rejects never does.
+func TestTacticalScanRetriesAReadErrorAndEndsAFormatError(t *testing.T) {
+	readErr := &fs.PathError{Op: "read", Path: "demo.dem", Err: errors.New("the process cannot access the file")}
+	for _, tc := range []struct {
+		name  string
+		demo  io.Reader
+		class string
+		final bool
+	}{
+		{"read error", io.MultiReader(bytes.NewReader(incompatibleDemo()[:16]), failingReader{readErr}), tacticalClassDemoUnreadable, false},
+		{"read error on the first read", failingReader{readErr}, tacticalClassDemoUnreadable, false},
+		{"empty demo", bytes.NewReader(nil), obs.ClassTruncatedDemo, true},
+		{"format error", bytes.NewReader(incompatibleDemo()), obs.ClassDemoIncompatible, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tactical.ScanReader(context.Background(), tc.demo, tactical.Options{})
+			if err == nil {
+				t.Fatal("ScanReader error = nil, want a failure")
+			}
+			class := tacticalFailureClass(fmt.Errorf("scan tactical: %w", err))
+			if class != tc.class {
+				t.Fatalf("class of %v = %q, want %q", err, class, tc.class)
+			}
+			if got := tacticalClassFinal(class); got != tc.final {
+				t.Fatalf("class %q of %v: final = %v, want %v", class, err, got, tc.final)
+			}
+			if !tc.final && !errors.Is(err, readErr) {
+				t.Fatalf("ScanReader error = %v, want the read error on the chain", err)
 			}
 		})
 	}
