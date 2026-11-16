@@ -490,6 +490,60 @@ its own death.
 - A crash from another worker during a scan also counts against the demo
   being scanned. To diagnose, read the non-empty files in `crashes/`.
 
+### Incident: a demo with a reconnected player failed as damaged (Studio 5.24.0, 2026-11-16)
+
+Two users could not turn a demo into a match or a Demo completa. Two causes
+followed each other on the same demo.
+
+- First cause: CS2 patch 14197 (the `fixed8` fields above). Studio 5.17.1 to
+  5.21.1 failed every new demo with `nextByte: insufficient buffer`.
+  demoinfocs v5.3.0 (#517, Studio 5.22.0) fixed it, but demos that had already
+  failed stayed failed.
+- Second cause, still in 5.24.0: after a reconnect, `Participants().All()`
+  lists a player twice, either as two `*Player` with the same SteamID64 or as
+  one pointer under two user IDs. Both entries took the same slot and the
+  positions encoder refused the frame (`slot 1 appears twice in the frame at
+  tick 59020`). The round economy also counted that player twice.
+  `playersBySlot` (`internal/tactical/participants.go`) now keeps one entry
+  per slot for frames and economy: connected with an entity, then with a pawn,
+  alive, a non-zero position, the slot's previous EntityID, the highest
+  EntityID, the highest UserID. `appendFrame` stays strict. Tests:
+  `TestDuplicateParticipantsLeaveOneSamplePerSlot`,
+  `TestEconomyCountsADuplicatedPlayerOnce`,
+  `TestPlayersBySlotKeepsThePreviousEntityOnATie`.
+- Both failures showed as "dañada": `tacticalFailureClass` only looked at
+  typed errors, so a wrapped `demo_incompatible:` became `demo_unreadable`.
+  It now keeps the `obs.ClassOf` class (`demo_incompatible`,
+  `truncated_demo`, `pov_demo`) and files an `encode positions:` error as
+  `tactical_internal`, a Studio bug with its own `DEMO_ERROR_LABEL`. A new
+  class goes into `internal/telemetry/types.go` and
+  `desktop/src/telemetry-journal.ts` together
+  (`TestDesktopJournalAllowlistsMatchTheCollector`). Test: `TestTacticalFailureClass`.
+  The collector rejects a whole batch with an unknown class, so deploy the
+  collector before the Studio release that sends it.
+- A failure every attempt repeats (`tacticalClassFinal`) ends the library and
+  tactical task on its first attempt with `asynq.SkipRetry` instead of parsing
+  the whole demo again. A failure that can clear (a missing file, the disk)
+  leaves the demo `parsing` until its last attempt. Tests:
+  `TestLibraryWorkerEndsADeterministicFailureOnTheFirstAttempt`,
+  `TestTacticalWorkerEndsAnIncompatibleDemoOnTheFirstAttempt`.
+- After an upgrade, `ResumeLibraryScans` scans a failed demo once more when
+  its class depends on the Studio build (`demo_incompatible`,
+  `tactical_internal`, `map_uncalibrated`, or an older `demo_unreadable`
+  whose message carries `demo_incompatible:`). `library/<id>/scan-failed-build`
+  holds the build that last failed or retried the demo, so each build retries it
+  at most once; a retry the queue refuses clears it. Damaged, truncated and POV
+  demos are never retried on their own. Tests:
+  `TestClaimLibraryRetryAfterUpgrade`,
+  `TestResumeLibraryScansRetriesAnIncompatibleDemoOncePerBuild`,
+  `TestResumeLibraryScansKeepsTheRetryOfARefusedFailedDemo`.
+- The `level=error` noise in the same reports was `wait_for_job` polling a
+  render variant before its state existed. That 404 (`render variant not
+  found`) now logs at info; a 404 for a missing job stays an error. Test:
+  `TestHTTPTraceLogsRenderVariantNotReadyPollBelowErrorLevel`.
+- The duplicate was rebuilt with synthetic players; the users' demo was not
+  available, so which of the two shapes it had is unknown.
+
 ## Match dates (`library.MatchDate`, 2026-11-13)
 
 ### Incident: FACEIT demos dated by their import day (Studio 5.21.1, 2026-11-13)

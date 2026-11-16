@@ -30,13 +30,16 @@ func (s *scanner) sampleEconomy() {
 	if r == nil || r.economySampled {
 		return
 	}
+	s.recordEconomy(s.tick(), s.p.GameState().Participants().All())
+}
+
+// recordEconomy reads every player's money and equipment once, one player per slot.
+func (s *scanner) recordEconomy(tick int, all []*common.Player) {
+	r := s.current
 	r.economySampled = true
-	r.economy.SampleTick = s.tick()
-	for _, pl := range s.p.GameState().Participants().All() {
-		slot, ok := s.slotFor(pl)
-		if !ok {
-			continue
-		}
+	r.economy.SampleTick = tick
+	for _, c := range s.playersBySlot(tick, all) {
+		pl, slot := c.player, c.slot
 		side := sideOf(pl.Team)
 		if side == "" {
 			continue

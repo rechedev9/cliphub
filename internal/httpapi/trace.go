@@ -50,6 +50,10 @@ func traceHTTP(next http.Handler) http.Handler {
 				outcome = ""
 			case status == http.StatusNotFound && optionalPictureRoutes[pattern]:
 				outcome = ""
+			case status == http.StatusNotFound && r.Method == http.MethodGet && pattern == renderVariantRoute &&
+				strings.Contains(capture.body.String(), `"render variant not found"`):
+				// Studio and wait_for_job poll a variant before its state exists; a missing job here stays an error.
+				outcome = ""
 			case status >= 400:
 				level, outcome = "error", "error"
 			}
@@ -70,6 +74,8 @@ func traceHTTP(next http.Handler) http.Handler {
 		next.ServeHTTP(ww, r)
 	})
 }
+
+const renderVariantRoute = "/api/jobs/{id}/renders/{variant}"
 
 type errorResponseCapture struct {
 	writer middleware.WrapResponseWriter

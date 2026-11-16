@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
+	"github.com/rechedev9/cliphub/internal/workers"
 )
 
 // libraryAnalysisStale reports whether a ready demo's stored analysis is
@@ -60,8 +62,8 @@ func leadingAnalysisVersion(dec *json.Decoder) (int, bool) {
 }
 
 // ResumeLibraryScans re-queues every demo a previous process left queued or
-// parsing, as the desktop queue lives in memory, and every ready demo whose
-// analysis an older scanner made.
+// parsing, as the desktop queue lives in memory, every ready demo whose
+// analysis an older scanner made, and every demo an older build could not read.
 func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 	if h.libraryRepo == nil {
 		return 0, nil
@@ -69,7 +71,7 @@ func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 	var pending []library.Demo
 	for offset := 0; ; offset += library.MaxListLimit {
 		page, err := h.libraryRepo.ListDemos(ctx, library.DemoFilter{
-			States: []library.ParseState{library.ParseQueued, library.ParseParsing, library.ParseReady},
+			States: []library.ParseState{library.ParseQueued, library.ParseParsing, library.ParseReady, library.ParseFailed},
 			Limit:  library.MaxListLimit, Offset: offset,
 		})
 		if err != nil {
@@ -80,7 +82,16 @@ func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 			if d.Source.WithoutDemo() {
 				continue
 			}
-			if d.State != library.ParseReady || h.libraryAnalysisStale(d.ID) {
+			switch d.State {
+			case library.ParseFailed:
+				if workers.ClaimLibraryRetryAfterUpgrade(h.storage, d) {
+					pending = append(pending, d)
+				}
+			case library.ParseReady:
+				if h.libraryAnalysisStale(d.ID) {
+					pending = append(pending, d)
+				}
+			default:
 				pending = append(pending, d)
 			}
 		}
@@ -88,8 +99,8 @@ func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 			break
 		}
 	}
-	// One demo the queue refuses (it is full) does not strand the rest; a ready
-	// demo it refused goes back to ready, keeping its older analysis usable.
+	// One demo the queue refuses (it is full) does not strand the rest; a ready or
+	// failed demo it refused goes back as it was, keeping its analysis or its reason.
 	resumed := 0
 	var firstErr error
 	for _, d := range pending {
@@ -99,9 +110,15 @@ func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 		}
 		if err := h.enqueueLibraryScan(ctx, d.ID); err != nil {
 			firstErr = cmp.Or(firstErr, err)
-			if d.State == library.ParseReady {
-				if err := h.libraryRepo.SetDemoState(ctx, d.ID, library.ParseReady, "", ""); err != nil {
-					log.Printf("httpapi: restore library demo %s to ready: %v", d.ID, err)
+			if d.State == library.ParseReady || d.State == library.ParseFailed {
+				if err := h.libraryRepo.SetDemoState(ctx, d.ID, d.State, d.ErrorCode, d.Error); err != nil {
+					log.Printf("httpapi: restore library demo %s to %s: %v", d.ID, d.State, err)
+				}
+			}
+			// The claim recorded this build; a refused retry clears it so the next start tries again.
+			if d.State == library.ParseFailed {
+				if err := h.storage.Put(artifacts.LibraryScanFailedBuildKey(d.ID), strings.NewReader("")); err != nil {
+					log.Printf("httpapi: release library demo %s retry: %v", d.ID, err)
 				}
 			}
 			continue

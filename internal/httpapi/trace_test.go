@@ -10,6 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/rules"
 )
 
 func TestHTTPTraceCapturesFailureWithoutChangingResponseOrLoggingRequestSecrets(t *testing.T) {
@@ -82,6 +84,40 @@ func TestHTTPTraceLogsNotReadyPollBelowErrorLevel(t *testing.T) {
 	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/jobs/"+uuid.NewString()+"/parse", nil))
 	if text := logs.String(); !strings.Contains(text, `"level":"error"`) {
 		t.Fatalf("refused mutation trace = %s, want error level", text)
+	}
+}
+
+// wait_for_job polls a render variant before its state exists; the real
+// handler's 404 must keep its body but log at info, while a missing job stays an error.
+func TestHTTPTraceLogsRenderVariantNotReadyPollBelowErrorLevel(t *testing.T) {
+	var logs bytes.Buffer
+	prior := log.Writer()
+	log.SetOutput(&logs)
+	defer log.SetOutput(prior)
+	repo := newFakeRepo()
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, newFakeStorage(), &fakeQueue{})
+	r := chi.NewRouter()
+	r.Use(traceHTTP)
+	r.Get(renderVariantRoute, h.GetRenderVariant)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean", nil))
+	if w.Code != http.StatusNotFound || !strings.Contains(w.Body.String(), "render variant not found") {
+		t.Fatalf("response changed: %d %s", w.Code, w.Body.String())
+	}
+	if text := logs.String(); !strings.Contains(text, `"level":"info"`) || strings.Contains(text, `"level":"error"`) || strings.Contains(text, `"outcome":"error"`) {
+		t.Fatalf("not-ready render poll trace = %s, want info level without an error outcome", text)
+	}
+	logs.Reset()
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/jobs/"+uuid.NewString()+"/renders/viral-60-clean", nil))
+	if w.Code != http.StatusNotFound || !strings.Contains(w.Body.String(), "job not found") {
+		t.Fatalf("missing job response = %d %s, want 404 job not found", w.Code, w.Body.String())
+	}
+	if text := logs.String(); !strings.Contains(text, `"level":"error"`) || !strings.Contains(text, `"outcome":"error"`) {
+		t.Fatalf("missing job trace = %s, want error level", text)
 	}
 }
 

@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
@@ -43,6 +45,73 @@ func TestResumeLibraryScansRescansAnalysesFromAnOlderScanner(t *testing.T) {
 		if d, _ := env.repo.GetDemo(ctx, tc.demo.ID); d.State != tc.want {
 			t.Errorf("demo %s state = %s, want %s", tc.demo.FileName, d.State, tc.want)
 		}
+	}
+}
+
+// A demo an older build could not read is scanned again once on the next
+// build; a damaged demo, or a second start of the same build, leaves it failed.
+func TestResumeLibraryScansRetriesAnIncompatibleDemoOncePerBuild(t *testing.T) {
+	env := newLibraryTestEnv(t)
+	ctx := context.Background()
+	incompatible := library.Demo{SHA256: "i", FileName: "i.dem"}
+	truncated := library.Demo{SHA256: "t", FileName: "t.dem"}
+	for _, d := range []*library.Demo{&incompatible, &truncated} {
+		if _, err := env.repo.CreateDemo(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	failIncompatible := func() {
+		t.Helper()
+		if err := env.repo.SetDemoState(ctx, incompatible.ID, library.ParseFailed, obs.ClassDemoIncompatible, "parsing demo: demo_incompatible: nextByte"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	failIncompatible()
+	if err := env.repo.SetDemoState(ctx, truncated.ID, library.ParseFailed, obs.ClassTruncatedDemo, "truncated_demo"); err != nil {
+		t.Fatal(err)
+	}
+
+	h := NewHandlers(newFakeRepo(), env.storage, env.queue, WithLibrary(env.repo))
+	if resumed, err := h.ResumeLibraryScans(ctx); err != nil || resumed != 1 || len(env.queue.enqueued) != 1 {
+		t.Fatalf("first start: ResumeLibraryScans = %d, %v, enqueued %d; want the incompatible demo only", resumed, err, len(env.queue.enqueued))
+	}
+	if d, _ := env.repo.GetDemo(ctx, incompatible.ID); d.State != library.ParseQueued {
+		t.Fatalf("incompatible demo state = %s, want queued", d.State)
+	}
+	if d, _ := env.repo.GetDemo(ctx, truncated.ID); d.State != library.ParseFailed {
+		t.Fatalf("truncated demo state = %s, want failed", d.State)
+	}
+
+	// The retry fails again on this build: the next start must not loop on it.
+	failIncompatible()
+	if resumed, err := h.ResumeLibraryScans(ctx); err != nil || resumed != 0 {
+		t.Fatalf("second start: ResumeLibraryScans = %d, %v; want nothing on the same build", resumed, err)
+	}
+}
+
+// A retry the queue refuses keeps the demo failed with its reason and does not spend this build's retry.
+func TestResumeLibraryScansKeepsTheRetryOfARefusedFailedDemo(t *testing.T) {
+	env := newLibraryTestEnv(t)
+	ctx := context.Background()
+	d := library.Demo{SHA256: "i", FileName: "i.dem"}
+	if _, err := env.repo.CreateDemo(ctx, &d); err != nil {
+		t.Fatal(err)
+	}
+	const reason = "parsing demo: demo_incompatible: nextByte"
+	if err := env.repo.SetDemoState(ctx, d.ID, library.ParseFailed, obs.ClassDemoIncompatible, reason); err != nil {
+		t.Fatal(err)
+	}
+
+	env.queue.err = errors.New("queue full")
+	if resumed, err := env.h.ResumeLibraryScans(ctx); err == nil || resumed != 0 {
+		t.Fatalf("refused start: ResumeLibraryScans = %d, %v; want the queue error", resumed, err)
+	}
+	if got, _ := env.repo.GetDemo(ctx, d.ID); got.State != library.ParseFailed || got.ErrorCode != obs.ClassDemoIncompatible || got.Error != reason {
+		t.Fatalf("refused demo = %+v, want it failed with its reason", got)
+	}
+	env.queue.err = nil
+	if resumed, err := env.h.ResumeLibraryScans(ctx); err != nil || resumed != 1 {
+		t.Fatalf("next start: ResumeLibraryScans = %d, %v; want the refused retry queued", resumed, err)
 	}
 }
 

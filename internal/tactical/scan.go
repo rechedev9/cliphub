@@ -169,6 +169,7 @@ type scanner struct {
 	maxTick     int
 
 	slots     map[uint64]uint8
+	picker    slotPicker
 	players   []*playerAcc
 	teams     map[string]*teamAcc
 	clanNames map[tacticalplan.Side]string
@@ -530,15 +531,17 @@ func (s *scanner) onFrame() {
 		}
 	}
 	s.lastEmittedTick = tick
+	s.sampleFrame(tick, s.p.GameState().Participants().All())
+	s.followDrop()
+	s.watchFires()
+}
 
-	gs := s.p.GameState()
+// sampleFrame records one position frame of the current round from the participant list.
+func (s *scanner) sampleFrame(tick int, all []*common.Player) {
 	frame := tacticalplan.Frame{Tick: tick}
 	var samples sampleSlots
-	for _, pl := range gs.Participants().All() {
-		slot, ok := s.slotFor(pl)
-		if !ok {
-			continue
-		}
+	for _, c := range s.playersBySlot(tick, all) {
+		pl, slot := c.player, c.slot
 		side := sideOf(pl.Team)
 		if side == "" {
 			continue
@@ -549,7 +552,7 @@ func (s *scanner) onFrame() {
 			continue
 		}
 		s.current.sides[slot] = side
-		samples.add(tacticalplan.Sample{
+		added := samples.add(tacticalplan.Sample{
 			Slot:   slot,
 			X:      pos.X,
 			Y:      pos.Y,
@@ -560,13 +563,15 @@ func (s *scanner) onFrame() {
 			Pitch:  float64(pl.ViewDirectionY()),
 			Gear:   sampleGear(pl),
 		})
+		if !added {
+			s.warn("slot %d was sampled twice at tick %d; the first sample was kept", slot, tick)
+			continue
+		}
 		if pl.IsAlive() {
 			s.current.markPlayed(slot)
 			s.occupancyAdd(pos.X, pos.Y, pos.Z, pl.LastPlaceName())
 		}
 	}
-	s.followDrop()
-	s.watchFires()
 	frame.Samples = samples.ordered()
 	if len(frame.Samples) > 0 {
 		s.current.frames = append(s.current.frames, frame)

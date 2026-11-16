@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math/bits"
-	"sort"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
@@ -48,25 +47,25 @@ func (r contextReader) Read(p []byte) (int, error) {
 	return r.source.Read(p)
 }
 
-// Slots are bounded by slotFor. Duplicates are retained on a cold fallback
-// path so malformed participant lists still reach the encoder's validation.
+// Slots are bounded by slotFor and playersBySlot leaves one player per slot,
+// so a rejected add means a caller bug the encoder would refuse.
 type sampleSlots struct {
-	values     [16]tacticalplan.Sample
-	present    uint16
-	duplicates []tacticalplan.Sample
+	values  [16]tacticalplan.Sample
+	present uint16
 }
 
-func (s *sampleSlots) add(sample tacticalplan.Sample) {
+// add keeps the first sample of a slot and reports false for a repeat.
+func (s *sampleSlots) add(sample tacticalplan.Sample) bool {
 	if sample.Slot >= 16 || s.present&(1<<sample.Slot) != 0 {
-		s.duplicates = append(s.duplicates, sample)
-		return
+		return false
 	}
 	s.values[sample.Slot] = sample
 	s.present |= 1 << sample.Slot
+	return true
 }
 
 func (s *sampleSlots) ordered() []tacticalplan.Sample {
-	count := bits.OnesCount16(s.present) + len(s.duplicates)
+	count := bits.OnesCount16(s.present)
 	if count == 0 {
 		return nil
 	}
@@ -75,10 +74,6 @@ func (s *sampleSlots) ordered() []tacticalplan.Sample {
 		if s.present&(1<<slot) != 0 {
 			samples = append(samples, s.values[slot])
 		}
-	}
-	if len(s.duplicates) > 0 {
-		samples = append(samples, s.duplicates...)
-		sort.SliceStable(samples, func(i, j int) bool { return samples[i].Slot < samples[j].Slot })
 	}
 	return samples
 }

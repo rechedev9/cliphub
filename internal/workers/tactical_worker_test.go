@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -187,6 +188,22 @@ func TestTacticalWorkerJournalsOnlyTheTerminalFailure(t *testing.T) {
 	}
 }
 
+// A demo the parser rejects fails the same way on a retry, so the first attempt journals it and ends the task.
+func TestTacticalWorkerEndsAnIncompatibleDemoOnTheFirstAttempt(t *testing.T) {
+	id := uuid.New()
+	repo := newFakeJobRepo(job.Job{ID: id, Status: job.StatusParsed, DemoPath: "demos/incompatible.dem"})
+	store := newFakeStorage()
+	store.files["demos/incompatible.dem"] = incompatibleDemo()
+
+	err := NewTacticalWorker(repo, store).ProcessAnalyzeTactical(tasks.WithTaskAttempt(context.Background(), 0, 2), id, 0)
+	if !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("ProcessAnalyzeTactical error = %v, want it to wrap asynq.SkipRetry", err)
+	}
+	if events := journalEventsFor(t, obs.Default(), id.String(), tacticalClassDemoIncompatible); len(events) != 1 {
+		t.Fatalf("journal events = %#v, want the one terminal failure", events)
+	}
+}
+
 func TestTacticalFailureClass(t *testing.T) {
 	cases := []struct {
 		name string
@@ -196,6 +213,9 @@ func TestTacticalFailureClass(t *testing.T) {
 		{"wrapped class", fmt.Errorf("store: %w", newTacticalFailure(tacticalClassWriteArtifact, fmt.Errorf("disk full"))), tacticalClassWriteArtifact},
 		{"uncalibrated map", newTacticalFailure(tacticalClassMapUncalibrated, fmt.Errorf("no calibration")), tacticalClassMapUncalibrated},
 		{"invalid file type", fmt.Errorf("scan tactical: %w", demoinfocs.ErrInvalidFileType), tacticalClassDemoIncompatible},
+		{"wrapped parser error", fmt.Errorf("scan tactical: parsing demo: demo_incompatible: nextByte: insufficient buffer (701 of 701)"), tacticalClassDemoIncompatible},
+		{"wrapped truncated demo", fmt.Errorf("scan tactical: parsing demo: truncated_demo: cut before the first round"), obs.ClassTruncatedDemo},
+		{"positions encoder", fmt.Errorf("scan tactical: encode positions: slot 1 appears twice in the frame at tick 59020"), tacticalClassInternal},
 		{"anything else", fmt.Errorf("parsing demo: corrupt frame"), tacticalClassDemoUnreadable},
 	}
 	for _, tc := range cases {
