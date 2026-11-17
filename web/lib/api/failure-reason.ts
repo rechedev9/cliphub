@@ -112,7 +112,8 @@ export const JOB_RECAPTURE_FAILURE_MESSAGE =
 /** Job-level Steam failure: CS2 could not reach Steam, so nothing was recorded. */
 export const JOB_STEAM_NOT_RUNNING_MESSAGE =
   'No se pudo grabar porque CS2 no pudo conectar con Steam; la demo está bien. ' +
-  'Abre Steam con tu sesión iniciada, borra esta partida y vuelve a subir la demo para grabarla de nuevo.';
+  'Abre Steam con tu sesión iniciada (si ya estaba abierto, reinícialo sin ejecutarlo como administrador), ' +
+  'borra esta partida y vuelve a subir la demo para grabarla de nuevo.';
 
 /** Job-level stall: the watchdog stopped a CS2 that made no capture progress. */
 export const JOB_CAPTURE_STALLED_MESSAGE =
@@ -153,7 +154,9 @@ const CAPTURE_STALLED_MESSAGE =
   'CS2 dejó de avanzar (no empezó a reproducir la demo o se quedó congelado) y ClipHub lo cerró. ' +
   'Comprueba que Steam está abierto y reintenta.';
 
-const STEAM_NOT_RUNNING_MESSAGE = 'Abre Steam con tu sesión iniciada y reintenta.';
+const STEAM_NOT_RUNNING_MESSAGE =
+  'CS2 no pudo conectar con Steam. Abre Steam con tu sesión iniciada y reintenta; ' +
+  'si ya estaba abierto, ciérralo del todo, vuelve a abrirlo y no ejecutes Steam ni ClipHub como administrador.';
 
 const RENDER_TIMEOUT_MESSAGE =
   'El vídeo tardó más de lo previsto en este equipo. Reintenta con Studio en primer plano y sin otros programas pesados.';

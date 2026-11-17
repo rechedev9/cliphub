@@ -781,6 +781,9 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 	if running {
 		return fmt.Errorf("cs2.exe is already running; close it before starting an HLAE capture")
 	}
+	if err := requireSteamClient(); err != nil {
+		return err
+	}
 	hook, err := locateHookDLL(hlaeExe)
 	if err != nil {
 		return err
@@ -1470,55 +1473,6 @@ const exitDemoIncompatible = 7
 // demo tick 0 (armed@0, no seek-landed, ResetBreakpadAppId). Keep in sync
 // with cmd/zv/obs_record.go shortStageClass.
 const exitUnplayableStart = 8
-
-// hookErrorWindowTitlePattern matches the native MessageBox titles
-// advancedfx's hook modules (AfxHookSource2, AfxHookSource, ...) use when a
-// memory signature scan fails to resolve an address in the current game
-// binary — almost always caused by a CS2 update landing after the installed
-// HLAE build was released.
-var hookErrorWindowTitlePattern = regexp.MustCompile(`^Error - Afx`)
-
-// isHookErrorWindowTitle reports whether title is a native HLAE hook crash
-// dialog, e.g. "Error - AfxHookSource2".
-func isHookErrorWindowTitle(title string) bool {
-	return hookErrorWindowTitlePattern.MatchString(title)
-}
-
-// hookIncompatibleError reports that HLAE's injected hook crashed with a
-// native error dialog instead of capturing. In practice this means the
-// installed HLAE/AfxHookSource2 build does not match the currently installed
-// CS2 version.
-type hookIncompatibleError struct {
-	windowTitle string
-}
-
-func (e *hookIncompatibleError) Error() string {
-	return fmt.Sprintf(
-		"HLAE hook crashed with a native error dialog (%q) instead of capturing: "+
-			"the installed HLAE/AfxHookSource2 build is likely incompatible with the current CS2 version "+
-			"(CS2 updates regularly break AfxHookSource2's signature scan until advancedfx ships a new build); "+
-			"check https://github.com/advancedfx/advancedfx/releases for a newer HLAE build",
-		e.windowTitle,
-	)
-}
-
-func processWindowTitle(image string) (running bool, title string, err error) {
-	running, titles, err := winproc.WindowTitles(image)
-	if err != nil {
-		return running, "", err
-	}
-	return running, judgedWindowTitle(titles), nil
-}
-
-// judgedWindowTitle returns the hook-crash dialog title when one is open.
-func judgedWindowTitle(titles []string) string {
-	for _, candidate := range titles {
-		if isHookErrorWindowTitle(candidate) {
-			return candidate
-		}
-	}
-	return ""
-}
 
 // finalizeFullDemoCaptureEvidence persists every evidence failure before the
 // deferred settings recovery can retry, even when that retry succeeds.

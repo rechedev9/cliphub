@@ -21,6 +21,13 @@ var (
 	enumState    map[uint32]bool
 	enumTitles   []string
 	enumCallback = windows.NewCallback(collectWindowTitle)
+
+	// DialogText's walk state, also guarded by enumMu.
+	dialogTitle    string
+	dialogWindows  []windows.HWND
+	dialogTexts    []string
+	dialogCallback = windows.NewCallback(collectDialogWindow)
+	childCallback  = windows.NewCallback(collectChildText)
 )
 
 // List returns every process on the system.
@@ -85,16 +92,62 @@ func pidsOf(image string) (map[uint32]bool, error) {
 	return pids, nil
 }
 
+// DialogText returns the text of the controls inside image's visible window titled title,
+// such as a MessageBox body, without its buttons.
+func DialogText(image, title string) (string, error) {
+	pids, err := pidsOf(image)
+	if err != nil || len(pids) == 0 {
+		return "", err
+	}
+	enumMu.Lock()
+	defer enumMu.Unlock()
+	enumState, dialogTitle, dialogWindows, dialogTexts = pids, title, nil, nil
+	defer func() { enumState, dialogTitle, dialogWindows, dialogTexts = nil, "", nil, nil }()
+	if err := windows.EnumWindows(dialogCallback, nil); err != nil {
+		return "", fmt.Errorf("list windows of %s: %w", image, err)
+	}
+	for _, hwnd := range dialogWindows {
+		windows.EnumChildWindows(hwnd, childCallback, nil)
+	}
+	return strings.Join(strings.Fields(strings.Join(dialogTexts, " ")), " "), nil
+}
+
 func collectWindowTitle(hwnd windows.HWND, _ uintptr) uintptr {
-	var pid uint32
-	if _, err := windows.GetWindowThreadProcessId(hwnd, &pid); err != nil || !enumState[pid] || !windows.IsWindowVisible(hwnd) {
+	if ownedVisibleWindow(hwnd) {
+		if text := windowText(hwnd); text != "" {
+			enumTitles = append(enumTitles, text)
+		}
+	}
+	return 1
+}
+
+func collectDialogWindow(hwnd windows.HWND, _ uintptr) uintptr {
+	if ownedVisibleWindow(hwnd) && windowText(hwnd) == dialogTitle {
+		dialogWindows = append(dialogWindows, hwnd)
+	}
+	return 1
+}
+
+func collectChildText(hwnd windows.HWND, _ uintptr) uintptr {
+	var class [64]uint16
+	if n, err := windows.GetClassName(hwnd, &class[0], int32(len(class))); err == nil && windows.UTF16ToString(class[:n]) == "Button" {
 		return 1
 	}
+	if text := windowText(hwnd); text != "" {
+		dialogTexts = append(dialogTexts, text)
+	}
+	return 1
+}
+
+func ownedVisibleWindow(hwnd windows.HWND) bool {
+	var pid uint32
+	_, err := windows.GetWindowThreadProcessId(hwnd, &pid)
+	return err == nil && enumState[pid] && windows.IsWindowVisible(hwnd)
+}
+
+func windowText(hwnd windows.HWND) string {
 	var buffer [512]uint16
 	// #nosec G103 -- GetWindowTextW writes at most len(buffer) UTF-16 units.
 	length, _, _ := getWindowTextW.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer)))
-	if length > 0 {
-		enumTitles = append(enumTitles, windows.UTF16ToString(buffer[:length]))
-	}
-	return 1
+	return windows.UTF16ToString(buffer[:length])
 }

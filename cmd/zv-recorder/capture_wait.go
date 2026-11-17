@@ -119,8 +119,8 @@ func waitForWindowsProcessRunAndExitWith(ctx context.Context, w captureWait) err
 				if err != nil {
 					return stopProcessAfterWaitFailure(image, err, shouldTerminateAfterStatusFailure(err, seen), terminate)
 				}
-				if isHookErrorWindowTitle(title) {
-					return stopProcessAfterWaitFailure(image, &hookIncompatibleError{windowTitle: title}, true, terminate)
+				if failure := dialogFailure(image, title); failure != nil {
+					return stopProcessAfterWaitFailure(image, failure, true, terminate)
 				}
 				if !running {
 					return fmt.Errorf("%s did not appear within %s", image, w.firstWait)
@@ -167,8 +167,8 @@ func waitForWindowsProcessRunAndExitWith(ctx context.Context, w captureWait) err
 			if err != nil {
 				return stopProcessAfterWaitFailure(image, err, shouldTerminateAfterStatusFailure(err, seen), terminate)
 			}
-			if isHookErrorWindowTitle(title) {
-				return stopProcessAfterWaitFailure(image, &hookIncompatibleError{windowTitle: title}, true, terminate)
+			if failure := dialogFailure(image, title); failure != nil {
+				return stopProcessAfterWaitFailure(image, failure, true, terminate)
 			}
 			if running {
 				armGraceIfVerified()

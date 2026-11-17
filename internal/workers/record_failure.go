@@ -27,6 +27,12 @@ const steamNotRunningPrefix = "steam_not_running:"
 // recorder forwards from the CS2 console tail.
 const steamNotRunningMarker = "Steam is probably not running"
 
+// steamUnreachable reports a CS2 that could not reach Steam: the console marker, or the
+// recorder's own prefix for a missing steam.exe or a Steamworks "Launcher Error" dialog.
+func steamUnreachable(text string) bool {
+	return strings.Contains(text, steamNotRunningMarker) || strings.Contains(text, steamNotRunningPrefix)
+}
+
 const resetBreakpadMarker = "ResetBreakpadAppId"
 
 // networkDisconnectMarker is the CS2 playback error substring that is stable
@@ -84,7 +90,7 @@ func retryableCaptureCrash(runErr error, result recording.RecordingResult) bool 
 		!strings.Contains(text, playbackEndedMarker) &&
 		!strings.Contains(text, unplayableStartPrefix) &&
 		!strings.Contains(text, captureStalledPrefix) &&
-		!strings.Contains(text, steamNotRunningMarker)
+		!steamUnreachable(text)
 }
 
 // tickZeroCopyCanHelp reports a CS2 crash in its opening rewind to demo tick 0
@@ -106,7 +112,7 @@ func tickZeroCopyCanHelp(runErr error, result recording.RecordingResult, demoPat
 func recordFailureReason(runErr error, result recording.RecordingResult, requested []string) string {
 	text := runErr.Error()
 	// Without Steam nothing else can work, so it outranks whatever CS2 did next.
-	if strings.Contains(text+"\n"+result.Error, steamNotRunningMarker) {
+	if steamUnreachable(text + "\n" + result.Error) {
 		return steamNotRunningPrefix + " CS2 could not reach the Steam client (Steam is not running or not signed in)"
 	}
 	if strings.Contains(text, networkDisconnectMarker) || strings.Contains(text, playbackEndedMarker) {

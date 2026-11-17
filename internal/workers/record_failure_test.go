@@ -27,6 +27,10 @@ const steamExitRecorderError = `zv-recorder.exe failed: exit status 1: cs2 conso
 cs2 exit: cs2.exe exit code 0x00000064 after 20.1s; no Windows crash report
 error: capture POV verification failed: CS2 exited without the completed POV verification marker (cs2.exe exit code 0x00000064 after 20.1s; no Windows crash report); check CS2 console log "..."`
 
+// launcherDialogRecorderError is the recorder closing CS2's "Launcher Error" dialog
+// after the Steamworks SDK could not reach the signed-in Steam client.
+const launcherDialogRecorderError = `zv-recorder.exe failed: exit status 1: error: steam_not_running: CS2 showed "Launcher Error" before starting the demo: FATAL ERROR: Failed to initialize the Steamworks SDK. ConnectToGlobalUser failed.`
+
 func TestRecordFailureReason(t *testing.T) {
 	segment := recording.RecordingArtifact{SegmentID: "seg-001", Role: "segment", Type: "video", Path: "segments/seg-001.mp4"}
 	requested16 := make([]string, 16)
@@ -83,6 +87,12 @@ func TestRecordFailureReason(t *testing.T) {
 			name:      "steam not running seen only in the structured result",
 			err:       errors.New("exit status 1"),
 			result:    recording.RecordingResult{Error: "SteamAPI_Init failed. Cannot create IPC pipe to Steam client process. Steam is probably not running."},
+			requested: []string{"seg-001"},
+			want:      "steam_not_running: CS2 could not reach the Steam client (Steam is not running or not signed in)",
+		},
+		{
+			name:      "the recorder's Steamworks launcher dialog is a missing Steam",
+			err:       errors.New(launcherDialogRecorderError),
 			requested: []string{"seg-001"},
 			want:      "steam_not_running: CS2 could not reach the Steam client (Steam is not running or not signed in)",
 		},
@@ -214,6 +224,10 @@ func TestRetryableCaptureCrash(t *testing.T) {
 			name:   "steam not running in the structured result",
 			runErr: errors.New("exit status 1"),
 			result: recording.RecordingResult{Error: missingCaptureAttestationMarker + "\ncs2 console: " + steamNotRunningMarker},
+		},
+		{
+			name:   "steam launcher dialog is not relaunched",
+			runErr: errors.New(launcherDialogRecorderError + "\n" + missingCaptureAttestationMarker),
 		},
 		{
 			name:   "stalled capture is not relaunched",
