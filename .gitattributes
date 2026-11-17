@@ -5,3 +5,4 @@ testdata/*.fixture -text
 
 # Shell entrypoints run under Git Bash on Windows and require Unix line endings.
 *.sh text eol=lf
+.githooks/* text eol=lf

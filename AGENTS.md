@@ -60,6 +60,7 @@ Each rule has a check or a longer page behind it. Follow the link before you wor
 - A store method lands in SQLite and memory with a shared contract test. [SQLite store](.claude/rules/store-sqlite.md).
 - No e2e suites, verification scripts, evidence folders or reports; the `internal/pipeline` golden test is the one exception. Unit tests are welcome where they test real logic. [Render and the editor](.claude/rules/render-editor.md).
 - No CI on pushes or pull requests. Run the checks for what you touched; the full Go suite before a PR and before a release. [Release](.claude/rules/release.md).
+- After a code change, invoke `/post-work-review` with the Skill tool before every commit and fix what it finds; do not swap it for a self-review. Before opening a PR, also run `/code-review high --fix`. `.githooks/pre-commit` refuses an agent's commit whose staged tree the review did not record; a `SessionStart` hook in `.claude/settings.json` sets `core.hooksPath`. [Post-work review](.claude/skills/post-work-review/SKILL.md).
 - Check a user-visible change by hand in a throwaway Studio profile, never the real `%APPDATA%\cliphub-studio` and never through the session's `cliphub-studio` MCP. Delete the profile when the check is done. [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md).
 - The repository is public: write `<user>` and `%APPDATA%`, never tokens, keys, support codes or `agent-session.json` contents.
 
@@ -84,6 +85,7 @@ Each rule has a check or a longer page behind it. Follow the link before you wor
 - [Update pipeline goldens](.claude/skills/update-golden/SKILL.md): `go test ./internal/pipeline` fails on a golden diff.
 - [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md): run Studio from source and check a change by hand.
 - [Diff review](.claude/skills/diff-review/SKILL.md): review a branch, diff or PR. Read-only.
+- [Post-work review](.claude/skills/post-work-review/SKILL.md): review and fix the staged change before each commit, then record it for `.githooks/pre-commit`.
 - [Release check](.claude/skills/release-check/SKILL.md): full checks and a dry-run release workflow before a tag. It does not publish.
 - [Shorts thumbnail](.claude/skills/shorts-thumbnail/SKILL.md): pixel-art Shorts thumbnail.
 

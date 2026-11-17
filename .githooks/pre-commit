@@ -1,0 +1,8 @@
+#!/bin/sh
+# An agent's commit must hold the tree that /post-work-review recorded (.claude/skills/post-work-review).
+[ -n "$CLAUDECODE" ] || exit 0
+reviewed=$(cat "$(git rev-parse --git-path post-work-review)" 2>/dev/null)
+staged=$(git write-tree) || exit 1
+[ "$reviewed" = "$staged" ] && exit 0
+echo "pre-commit: run /post-work-review on the staged change before committing (staged tree $staged, reviewed ${reviewed:-none})." >&2
+exit 1
