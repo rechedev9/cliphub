@@ -2,17 +2,15 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/winproc"
 )
 
-// hookErrorWindowTitlePattern matches the native MessageBox titles
-// advancedfx's hook modules (AfxHookSource2, AfxHookSource, ...) use when a
-// memory signature scan fails to resolve an address in the current game
-// binary — almost always caused by a CS2 update landing after the installed
-// HLAE build was released.
+// hookErrorWindowTitlePattern matches the MessageBox titles of advancedfx's hook modules when a signature
+// scan fails, almost always because a CS2 update landed after the installed HLAE build.
 var hookErrorWindowTitlePattern = regexp.MustCompile(`^Error - Afx`)
 
 // isHookErrorWindowTitle reports whether title is a native HLAE hook crash
@@ -21,10 +19,8 @@ func isHookErrorWindowTitle(title string) bool {
 	return hookErrorWindowTitlePattern.MatchString(title)
 }
 
-// hookIncompatibleError reports that HLAE's injected hook crashed with a
-// native error dialog instead of capturing. In practice this means the
-// installed HLAE/AfxHookSource2 build does not match the currently installed
-// CS2 version.
+// hookIncompatibleError reports that HLAE's injected hook crashed with a native error dialog,
+// which means the installed HLAE build does not match the installed CS2.
 type hookIncompatibleError struct {
 	windowTitle string
 }
@@ -50,11 +46,15 @@ func processWindowTitle(image string) (running bool, title string, err error) {
 // judgedWindowTitle returns the title of a hook-crash or launcher error dialog when one is open.
 func judgedWindowTitle(titles []string) string {
 	for _, candidate := range titles {
-		if isHookErrorWindowTitle(candidate) || candidate == launcherErrorWindowTitle {
+		if isErrorDialogTitle(candidate) {
 			return candidate
 		}
 	}
 	return ""
+}
+
+func isErrorDialogTitle(title string) bool {
+	return isHookErrorWindowTitle(title) || title == launcherErrorWindowTitle
 }
 
 // launcherErrorWindowTitle is the MessageBox CS2's launcher opens when it cannot start,
@@ -66,7 +66,10 @@ const steamNotRunningPrefix = "steam_not_running:"
 
 // readDialogText reads a dialog's body; tests replace it.
 var readDialogText = func(image, title string) string {
-	text, _ := winproc.DialogText(image, title)
+	text, err := winproc.DialogText(image, title)
+	if err != nil || text == "" {
+		log.Printf("read %q dialog of %s: text %q, err %v", title, image, text, err)
+	}
 	return text
 }
 
@@ -77,10 +80,17 @@ type launcherDialogError struct {
 
 func (e *launcherDialogError) Error() string {
 	detail := fmt.Sprintf("CS2 showed %q before starting the demo: %s", launcherErrorWindowTitle, e.text)
-	if strings.Contains(strings.ToLower(e.text), "steam") {
+	if namesSteamClient(e.text) {
 		return steamNotRunningPrefix + " " + detail
 	}
 	return "cs2_launcher_error: " + detail
+}
+
+// namesSteamClient matches the launcher's Steam messages, not a module path under Steam\steamapps.
+func namesSteamClient(text string) bool {
+	lower := strings.ToLower(text)
+	return strings.Contains(lower, "steamworks") || strings.Contains(lower, "steam client") ||
+		strings.Contains(lower, "steam must be running") || strings.Contains(lower, "connecttoglobaluser")
 }
 
 // dialogFailure turns an open error dialog of image into the capture's failure, or nil.

@@ -56,6 +56,7 @@ func TestWaitForWindowsProcessRunAndExitStopsCS2OnLauncherError(t *testing.T) {
 	}{
 		{"steamworks", "FATAL ERROR: Failed to initialize the Steamworks SDK. ConnectToGlobalUser failed.", "steam_not_running: "},
 		{"other launcher failure", "Failed to load the launcher DLL", "cs2_launcher_error: "},
+		{"module under the Steam folder", "Failed to load C:\\Program Files (x86)\\Steam\\steamapps\\common\\engine2.dll", "cs2_launcher_error: "},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

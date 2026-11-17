@@ -146,7 +146,7 @@ func ownedVisibleWindow(hwnd windows.HWND) bool {
 }
 
 func windowText(hwnd windows.HWND) string {
-	var buffer [512]uint16
+	var buffer [2048]uint16
 	// #nosec G103 -- GetWindowTextW writes at most len(buffer) UTF-16 units.
 	length, _, _ := getWindowTextW.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer)))
 	return windows.UTF16ToString(buffer[:length])
