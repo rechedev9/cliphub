@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Match, Video } from '../api/types.ts';
 import { HUB_ROW_STAGE, toOutput, type HubMatch, type HubRowStage } from '../clips/hub.ts';
-import { demoDeletePrompt, oneRowPerDemo } from './demo-rows.ts';
+import { demoDeleteLabel, demoDeletePrompt, oneRowPerDemo } from './demo-rows.ts';
 
 function row(id: string, stage: HubRowStage, demoSha256?: string, shortAt?: number): HubMatch {
   const match: Match = {
@@ -38,4 +38,11 @@ test('the delete prompt of a folded demo counts the videos of all its jobs', () 
   assert.ok(mirage !== undefined && anubis !== undefined);
   assert.equal(demoDeletePrompt(mirage), '¿Borrar con 2 vídeos?');
   assert.equal(demoDeletePrompt(anubis), undefined);
+});
+
+test('the bin label names the demo and how many videos go with it', () => {
+  const [mirage, anubis] = oneRowPerDemo([row('pov', HUB_ROW_STAGE.ready, 'sha-mirage', 2), row('short', HUB_ROW_STAGE.ready, 'sha-mirage', 1), row('anubis', HUB_ROW_STAGE.ready, 'sha-anubis')]);
+  assert.ok(mirage !== undefined && anubis !== undefined);
+  assert.equal(demoDeleteLabel(mirage, 'Mirage'), 'la demo de Mirage en Crear y sus 2 vídeos');
+  assert.equal(demoDeleteLabel(anubis, 'Anubis'), 'la demo de Anubis en Crear');
 });

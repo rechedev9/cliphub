@@ -13,7 +13,7 @@ export const NAV_SECTIONS = [
   { label: 'Clips de stream', href: '/streams', area: 'create' },
   { label: 'Jugadores FACEIT', href: '/jugadores/faceit', area: 'create' },
   { label: 'Mis vídeos', href: '/mis-videos', area: 'create' },
-  { label: 'Ideas', href: '/ideas', area: 'create' },
+  { label: 'Consejos', href: '/ideas', area: 'create' },
   { label: 'Partidas', href: '/partidas', area: 'analyze' },
   { label: 'Replay', href: '/replay', area: 'analyze' },
   { label: 'Equipos', href: '/equipos', area: 'analyze' },

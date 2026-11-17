@@ -31,8 +31,8 @@ export const FLOW_HREF = {
   [PRODUCE_FORMAT.full]: LONG_VIDEOS_HREF,
 } as const satisfies Record<ProduceFormat, string>;
 
-/** `?job=` resumes a `scanned` job's POV pick instead of uploading. */
-export const FLOW_QUERY = { job: 'job' } as const;
+/** `?job=` resumes a `scanned` job's POV pick instead of uploading; `?from=` is the parsed job the user came back from. */
+export const FLOW_QUERY = { job: 'job', from: 'from' } as const;
 
 const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -41,11 +41,12 @@ export function isJobIdParam(value: string | string[] | null | undefined): value
   return typeof value === 'string' && JOB_ID_RE.test(value);
 }
 
-/** Home of one flow; with `job` it resumes that demo's player pick. */
-export function flowHref(format: ProduceFormat, opts: { job?: string } = {}): string {
+/** Home of one flow; with `job` it resumes that demo's player pick, preselecting the player of the `from` job. */
+export function flowHref(format: ProduceFormat, opts: { job?: string; from?: string } = {}): string {
   const base = FLOW_HREF[format];
   if (opts.job === undefined) return base;
   const params = new URLSearchParams({ [FLOW_QUERY.job]: opts.job });
+  if (opts.from !== undefined && opts.from !== opts.job) params.set(FLOW_QUERY.from, opts.from);
   return `${base}?${params.toString()}`;
 }
 

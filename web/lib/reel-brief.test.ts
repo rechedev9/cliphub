@@ -5,6 +5,7 @@ import {
   canRerenderWithMusic,
   constrainEditConfig,
   isLandscapeRecap,
+  missingAffiliateCode,
   reelCreativeBrief,
   verticalHudAllowed,
   withPresetLimits,
@@ -57,16 +58,17 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Entrega', value: 'Compilado de jugadas' },
     { label: 'Comms', value: 'Sin comms' },
     { label: 'HUD / killfeed', value: 'Sin HUD, conserva killfeed' },
-    { label: 'Efecto de kill', value: 'Impacto / punch-in' },
-    { label: 'Transición', value: 'Destello' },
-    { label: 'Título / contador', value: 'Título automático · Contador activado' },
+    { label: 'Efecto de kill', value: 'Impacto (zoom rápido en cada baja)' },
+    { label: 'Transiciones', value: 'Destello' },
+    { label: 'Título / contador', value: 'Título automático · Contador de kills' },
     { label: 'Insignias / tarjeta', value: 'Sin insignias · Sin tarjeta' },
-    { label: 'Prob. de victoria', value: 'No' },
+    { label: 'Probabilidad de victoria', value: 'No' },
+    { label: 'Repetición', value: 'No' },
     { label: 'Sobre el juego', value: 'No' },
     { label: 'Radar', value: 'No' },
-    { label: 'Intro', value: 'Sí · «Entrada»' },
-    { label: 'Outro', value: 'No' },
-    { label: 'Afiliado', value: 'No' },
+    { label: 'Apertura', value: 'Sí · «Entrada»' },
+    { label: 'Cierre', value: 'No' },
+    { label: 'Banner afiliado', value: 'No' },
     { label: 'Música', value: 'Tema CC0 · música 35 % · juego 20 %' },
     { label: 'Portada', value: 'Automática (fotograma del vídeo)' },
   ]);
@@ -94,9 +96,9 @@ test('creative brief makes disabled options and missing preset explicit', () => 
   assert.equal(brief['Comms'], 'Sin comms');
   assert.equal(brief['HUD / killfeed'], 'Pendiente de estilo');
   assert.equal(brief['Título / contador'], 'Sin título automático · Sin contador');
-  assert.equal(brief['Intro'], 'No');
-  assert.equal(brief['Outro'], 'Sí · firma ClipHub');
-  assert.equal(brief['Afiliado'], 'No');
+  assert.equal(brief['Apertura'], 'No');
+  assert.equal(brief['Cierre'], 'Sí · firma ClipHub');
+  assert.equal(brief['Banner afiliado'], 'No');
   assert.equal(brief['Música'], 'Sin música');
   assert.equal(brief['Portada'], 'No generar portada');
 });
@@ -232,8 +234,36 @@ test('creative brief names Tigerr and Jcorko affiliate styles', () => {
       (item) => [item.label, item.value],
     ),
   );
-  assert.equal(tigerr.Afiliado, 'KeyDrop · Tigerr · TIGER · de 0,0 s a 4,0 s');
-  assert.equal(jcorko.Afiliado, 'KeyDrop · Jcorko · JCORKO · de 0,0 s a 4,0 s');
+  assert.equal(tigerr['Banner afiliado'], 'KeyDrop · Tigerr · TIGER · de 0,0 s a 4,0 s');
+  assert.equal(jcorko['Banner afiliado'], 'KeyDrop · Jcorko · JCORKO · de 0,0 s a 4,0 s');
+});
+
+test('an affiliate banner without the user code is not ready and never shows a sample code', () => {
+  const edit: EditConfig = {
+    format: 'short-9x16', killEffect: 'clean', transition: 'cut', hookText: false, killCounter: false,
+    matchRecap: false, voiceComms: false, nativeHud: false, coverStrategy: 'no-cover', intro: false, outro: false,
+    keyDropFamily: 'KEYDROP', keyDropStyle: 'operator', keyDropStartSeconds: 0, keyDropEndSeconds: 4,
+  };
+  const brief = Object.fromEntries(reelCreativeBrief(edit, PRESET, { status: 'none' }).map((item) => [item.label, item.value]));
+  assert.equal(brief['Banner afiliado'], 'KeyDrop · Operator · falta tu código · de 0,0 s a 4,0 s');
+  assert.equal(missingAffiliateCode(edit), true);
+  assert.equal(missingAffiliateCode({ ...edit, keyDropCode: '  ' }), true);
+  assert.equal(missingAffiliateCode({ ...edit, keyDropCode: 'mal código' }), true);
+  assert.equal(missingAffiliateCode({ ...edit, keyDropCode: 'MICODIGO' }), false);
+  assert.equal(missingAffiliateCode({ ...edit, keyDropStyle: '' }), false);
+});
+
+test('the brief names the victim replay and its speed', () => {
+  const edit: EditConfig = {
+    format: 'short-9x16', killEffect: 'clean', transition: 'cut', hookText: false, killCounter: false,
+    matchRecap: false, voiceComms: false, nativeHud: false, coverStrategy: 'no-cover', intro: false, outro: false,
+    victimReplay: true,
+  };
+  const replay = (config: EditConfig) =>
+    reelCreativeBrief(config, PRESET, { status: 'none' }).find((item) => item.label === 'Repetición')?.value;
+  assert.equal(replay(edit), 'Desde la víctima · 0,5x');
+  assert.equal(replay({ ...edit, victimReplaySpeed: 0.25 }), 'Desde la víctima · 0,25x');
+  assert.equal(replay({ ...edit, victimReplay: false }), 'No');
 });
 
 test('creative brief names CSGOSkins when that family is selected', () => {
@@ -261,7 +291,7 @@ test('creative brief names CSGOSkins when that family is selected', () => {
       { status: 'none' },
     ).map((item) => [item.label, item.value]),
   );
-  assert.equal(skins.Afiliado, 'CSGOSkins · Classic · SKINS99 · de 0,0 s a 4,0 s');
+  assert.equal(skins['Banner afiliado'], 'CSGOSkins · Classic · SKINS99 · de 0,0 s a 4,0 s');
   assert.equal(skins.KeyDrop, undefined);
 });
 

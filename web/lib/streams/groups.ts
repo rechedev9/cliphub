@@ -54,6 +54,13 @@ export function streamShortCount(plan: StreamEditPlan): number {
   return streamPlanShorts(plan).length;
 }
 
+/** "6 momentos", or "6 momentos · 5 Shorts" once joined moments make fewer videos than moments. */
+export function streamMomentsLabel(moments: number, shorts: number): string {
+  const word = moments === 1 ? '1 momento' : `${moments} momentos`;
+  if (shorts === moments) return word;
+  return `${word} · ${shorts === 1 ? '1 Short' : `${shorts} Shorts`}`;
+}
+
 /** Where the music already is when each moment starts: inside a group it runs on, as the export does. */
 export function streamMusicOffsets(shorts: readonly StreamShort[]): Map<string, number> {
   const offsets = new Map<string, number>();

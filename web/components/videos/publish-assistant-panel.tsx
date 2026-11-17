@@ -20,6 +20,7 @@ import {
   publishTagsText,
   recommendedPublishDraft,
 } from '@/lib/publish-actions';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,11 +44,7 @@ function localDayLabel(date: string, timeZone: string): string {
   return new Intl.DateTimeFormat('es-ES', { timeZone, weekday: 'short', day: 'numeric', month: 'short' }).format(instant);
 }
 
-function confidenceLabel(confidence: number): string {
-  return new Intl.NumberFormat('es-ES', { style: 'percent', maximumFractionDigits: 0 }).format(confidence);
-}
-
-function SchedulePanel({ assistant }: { assistant: PublishAssistant }): ReactElement {
+function SchedulePanel({ assistant, templateNotice }: { assistant: PublishAssistant; templateNotice: boolean }): ReactElement {
   const upcoming = upcomingPublishSlots(assistant.schedule);
   const sourceLinks = [...assistant.schedule.sources, ...assistant.trends.sources].filter(
     (source, index, links) => links.findIndex((candidate) => candidate.url === source.url) === index,
@@ -66,7 +63,7 @@ function SchedulePanel({ assistant }: { assistant: PublishAssistant }): ReactEle
         </div>
       </div>
     );
-  } else if (assistant.trends.reason) {
+  } else if (assistant.trends.reason && !templateNotice) {
     trendContent = <p className="text-meta leading-relaxed text-fg-3">{assistant.trends.reason}</p>;
   }
   return (
@@ -75,12 +72,11 @@ function SchedulePanel({ assistant }: { assistant: PublishAssistant }): ReactEle
         <Clock3 className="size-3.5 text-fg-2" aria-hidden /> Más franjas · {assistant.schedule.timeZone}
       </h3>
       {upcoming.length > 0 ? (
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-1.5">
           {upcoming.slice(0, 4).map(({ day, slot }) => (
-            <div key={day.date} className="border border-border bg-surface-1 px-2.5 py-2 text-meta">
-              <span className="block text-fg-3">{localDayLabel(day.date, assistant.schedule.timeZone)}</span>
-              <strong className="text-fg-1">{slot.localTime}</strong>
-              <span className="block text-fg-3">confianza {confidenceLabel(slot.confidence)}</span>
+            <div key={day.date} className="flex items-baseline justify-between gap-2 border border-border bg-surface-1 px-2.5 py-2 text-meta">
+              <span className="whitespace-nowrap text-fg-3">{localDayLabel(day.date, assistant.schedule.timeZone)}</span>
+              <strong className="text-fg-1 tabular-nums">{slot.localTime}</strong>
             </div>
           ))}
         </div>
@@ -139,7 +135,7 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
       if (version !== loadVersion.current) return;
       const draft = initialPublishDraft(next);
       setAssistant(next);
-      setSelectedRecommendation(undefined);
+      setSelectedRecommendation(next.recommendations.find((recommendation) => recommendation.title === draft.title));
       setTitle(draft.title);
       setDescription(draft.description);
       setTagsText(publishTagsText(draft.tags));
@@ -195,7 +191,7 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between text-meta">
-        <span className="text-fg-1">Publicar en YouTube</span>
+        <span className="text-fg-1">Preparar publicación en YouTube</span>
         <span className="text-fg-3">Asistente</span>
       </div>
 
@@ -229,28 +225,36 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
             </h3>
             {hasTemplates ? (
               <p className="text-meta leading-relaxed text-fg-3">
+                {assistant.trends.reason ? <strong className="block font-medium text-fg-2">{assistant.trends.reason}</strong> : null}
                 Elige un enfoque y ajusta el texto. Jugador, mapa y bajas salen del vídeo; FACEIT y COMMS se añaden solo con datos del render.
               </p>
             ) : null}
             <div className="grid gap-1.5">
-              {assistant.recommendations.map((recommendation) => (
-                <Button
-                  key={recommendation.title}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-auto justify-between gap-3 whitespace-normal px-3 py-2 text-left font-normal"
-                  onClick={() => applyRecommendation(recommendation)}
-                  aria-label={`Usar título recomendado: ${recommendation.title}`}
-                  aria-pressed={selectedRecommendation?.title === recommendation.title}
-                >
-                  <span className="min-w-0 break-words">
-                    {recommendation.template ? <span className="mb-1 block text-meta text-fg-2">{recommendation.template}</span> : null}
-                    {recommendation.title}
-                  </span>
-                  {!recommendation.template ? <span className="shrink-0 text-meta tabular-nums text-fg-3">{Math.round(recommendation.score)}/100</span> : null}
-                </Button>
-              ))}
+              {assistant.recommendations.map((recommendation) => {
+                const active = selectedRecommendation?.title === recommendation.title;
+                return (
+                  <Button
+                    key={recommendation.title}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      'h-auto justify-between gap-3 whitespace-normal px-3 py-2 text-left font-normal',
+                      active && 'border-primary bg-primary/8 hover:bg-primary/12',
+                    )}
+                    onClick={() => applyRecommendation(recommendation)}
+                    aria-label={`Usar título recomendado: ${recommendation.title}`}
+                    aria-pressed={active}
+                  >
+                    <span className="min-w-0 break-words">
+                      {recommendation.template ? <span className="mb-1 block text-meta text-fg-2">{recommendation.template}</span> : null}
+                      {recommendation.title}
+                    </span>
+                    {active ? <Check aria-hidden className="size-4 shrink-0 text-primary" /> : null}
+                    {!recommendation.template ? <span className="shrink-0 text-meta tabular-nums text-fg-3">{Math.round(recommendation.score)}/100</span> : null}
+                  </Button>
+                );
+              })}
             </div>
             {selectedRecommendation ? (
               <p className="border border-border bg-surface-1 p-2.5 text-meta text-fg-3" role="status">
@@ -331,7 +335,7 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
             </Button>
           </div>
 
-          <SchedulePanel assistant={assistant} />
+          <SchedulePanel assistant={assistant} templateNotice={hasTemplates === true} />
         </>
       ) : null}
 

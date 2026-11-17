@@ -6,7 +6,7 @@ import { MonitorPlay, Smartphone } from 'lucide-react';
 import type { LibraryDemo } from '@/lib/api/library';
 import { PRODUCE_FORMAT, flowHref, type ProduceFormat } from '@/lib/clips/routes';
 import { withoutDemo, withoutDemoReason } from '@/lib/library/partidas';
-import { crearJobFor } from '@/components/matches/open-in-crear-button';
+import { crearJobFor, toastCrearHandoffError } from '@/components/matches/open-in-crear-button';
 import { currentEdition } from '@/lib/edition';
 import { Button } from '@/components/ui/button';
 
@@ -14,15 +14,13 @@ import { Button } from '@/components/ui/button';
 export function CreateFromDemo({ demo }: { demo: LibraryDemo }): ReactNode {
   const router = useRouter();
   const [busy, setBusy] = useState<ProduceFormat | null>(null);
-  const [error, setError] = useState(false);
 
   async function open(format: ProduceFormat): Promise<void> {
     setBusy(format);
-    setError(false);
     try {
       router.push(flowHref(format, { job: await crearJobFor({ demo, format }) }));
-    } catch {
-      setError(true);
+    } catch (err) {
+      toastCrearHandoffError(err, demo);
       setBusy(null);
     }
   }
@@ -43,11 +41,6 @@ export function CreateFromDemo({ demo }: { demo: LibraryDemo }): ReactNode {
         <MonitorPlay aria-hidden />
         {busy === PRODUCE_FORMAT.full ? 'Preparando' : 'Demo completa'}
       </Button>
-      {error ? (
-        <span role="alert" className="text-meta text-destructive">
-          No se pudo pasar la demo a Crear.
-        </span>
-      ) : null}
     </>
   );
 }

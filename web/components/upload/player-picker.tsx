@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowRight, Users } from 'lucide-react';
+import { toast } from 'sonner';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import type { FaceitScoreboard } from '@/lib/api/faceit-scoreboard';
 import { prettyMapName } from '@/lib/format';
 import { MAX_POV_PLAYERS, MIN_POV_PLAYERS, togglePovPick } from '@/lib/produce/multi-pov';
+import { pickablePlayers } from '@/lib/produce/picker-roster';
 import { cn } from '@/lib/utils';
 import { FaceitRoster } from '@/components/upload/faceit-roster';
 import { RosterTeam, type PickerPlayer } from '@/components/upload/roster-team';
@@ -26,7 +28,7 @@ export type PlayerPickerProps = {
   seriesMapCount?: number;
   /** Full-demo selects a continuous POV, while highlights optimizes for clip-worthy rounds. */
   purpose?: 'highlights' | 'full-demo';
-  /** "Cancelar" hands the way back to the host; omitted when there is none. */
+  /** "Atrás" hands the way back to the previous step; omitted when there is none. */
   onCancel?: () => void;
   allowDestinationSwitch?: boolean;
   /** FACEIT room scoreboard of this demo; replaces the demo's own tables so the numbers match the room. */
@@ -35,6 +37,8 @@ export type PlayerPickerProps = {
   onPickMany?: (steamIds: string[]) => void;
   /** The flow colour of the selection and the CTA; defaults from `purpose`. */
   tone?: FormatTone;
+  /** Players picked before, anchor first, selected on open instead of the recommendation. */
+  initialPick?: readonly string[] | null;
 };
 
 type PickMode = 'one' | 'team';
@@ -42,7 +46,7 @@ const PICK_MODES = [{ value: 'one', label: 'Un jugador' }, { value: 'team', labe
 
 const MODE_HINT = {
   one: 'El vídeo sigue sus jugadas desde su vista.',
-  team: 'De 2 a 5 del mismo equipo, cada jugada desde su vista. Con todo el equipo, «Elegir automáticamente» decide a quién enseñar.',
+  team: 'De 2 a 5 del mismo equipo, cada jugada desde su vista. «Todo el equipo» los marca a todos de una vez.',
 } as const satisfies Record<PickMode, string>;
 
 /** Clip-worthiness weights higher multi-kill rounds most strongly. */
@@ -101,7 +105,7 @@ function MatchHeader({ match }: { match: RosterMatch }): ReactNode {
 
 // Highlights recommends multi-kill potential; Full Demo recommends the strongest match rating for a continuous POV.
 export function PlayerPicker({
-  players,
+  players: allPlayers,
   onPick,
   match,
   seriesMapCount,
@@ -111,11 +115,14 @@ export function PlayerPicker({
   faceit,
   onPickMany,
   tone = purpose === 'full-demo' ? 'full' : 'short',
+  initialPick = null,
 }: PlayerPickerProps): ReactNode {
+  const players = useMemo(() => pickablePlayers(allPlayers), [allPlayers]);
   const recommended = purpose === 'full-demo' ? pickPovRecommended(players) : pickRecommended(players);
-  const [selected, setSelected] = useState<string | null>(recommended?.steamId ?? players[0]?.steamId ?? null);
-  const [mode, setMode] = useState<PickMode>('one');
-  const [team, setTeam] = useState<PickerPlayer[]>([]);
+  const picked = (initialPick ?? []).flatMap((id) => players.find((p) => p.steamId === id) ?? []);
+  const [selected, setSelected] = useState<string | null>(picked[0]?.steamId ?? recommended?.steamId ?? players[0]?.steamId ?? null);
+  const [mode, setMode] = useState<PickMode>(picked.length > 1 && onPickMany !== undefined ? 'team' : 'one');
+  const [team, setTeam] = useState<PickerPlayer[]>(picked.length > 1 ? picked.slice(0, MAX_POV_PLAYERS) : []);
 
   useEffect(() => {
     setSelected((current) =>
@@ -134,10 +141,22 @@ export function PlayerPicker({
   if (multi) chosenIds = team.map((p) => p.steamId);
   else if (selected !== null) chosenIds = [selected];
   const chosen = new Set(chosenIds);
+  // Series stats are aggregated from the demos, so FACEIT only replaces a single map.
+  const faceitBoard = !isSeries && faceit ? faceit : null;
+  const faceitPlayers = faceitBoard?.teams.flatMap((t) => t.players) ?? [];
+  const nameOf = (p: PickerPlayer) => faceitPlayers.find((f) => f.steamId === p.steamId)?.nickname ?? p.name;
   const choose = (steamId: string) => {
     const player = byId.get(steamId);
     if (!multi) setSelected(steamId);
-    else if (player) setTeam((current) => togglePovPick(current, player));
+    if (!multi || !player) return;
+    const [first] = team;
+    const adding = !team.some((p) => p.steamId === steamId);
+    if (adding && first !== undefined && first.team !== player.team) {
+      toast('Solo se combinan jugadores del mismo equipo', { description: `Empiezas una selección nueva con ${nameOf(player)}.` });
+    } else if (adding && team.length >= MAX_POV_PLAYERS) {
+      toast(`Ya tienes ${MAX_POV_PLAYERS} jugadores`, { description: 'Quita uno para añadir otro.' });
+    }
+    setTeam((current) => togglePovPick(current, player));
   };
   const pickTeam = (steamIds: readonly string[]) =>
     setTeam(steamIds.flatMap((id) => byId.get(id) ?? []).slice(0, MAX_POV_PLAYERS));
@@ -145,9 +164,6 @@ export function PlayerPicker({
     if (next === 'team' && team.length === 0 && selectedPlayer) setTeam([selectedPlayer]);
     setMode(next);
   };
-  // Series stats are aggregated from the demos, so FACEIT only replaces a single map.
-  const faceitBoard = !isSeries && faceit ? faceit : null;
-  const faceitPlayers = faceitBoard?.teams.flatMap((t) => t.players) ?? [];
   const faceitSelected = faceitPlayers.find((p) => p.steamId === selected);
   const selectable = new Set(players.map((p) => p.steamId));
   const recommendedLabel = purpose === 'full-demo' ? 'Mejor rendimiento' : 'Recomendado';
@@ -157,7 +173,6 @@ export function PlayerPicker({
   let ctaLabel = purpose === 'full-demo' ? 'Continuar a la demo completa' : 'Continuar al Short';
   if (isSeries) ctaLabel = 'Continuar con la serie';
   if (multi) ctaLabel = team.length >= MIN_POV_PLAYERS ? `Analizar ${team.length} jugadores` : 'Analizar jugadores';
-  const nameOf = (p: PickerPlayer) => faceitPlayers.find((f) => f.steamId === p.steamId)?.nickname ?? p.name;
 
   let footLabel = 'Jugador elegido';
   let footName = 'Elige un jugador para continuar';
@@ -168,12 +183,15 @@ export function PlayerPicker({
     if (team.length === 1) footHint = 'Añade otro jugador de su equipo';
   } else if (selectedPlayer) {
     footName = faceitSelected?.nickname ?? selectedPlayer.name;
+    // The numbers below come from the table on screen; say so when that is FACEIT's.
+    if (faceitSelected !== undefined) footLabel = `${footLabel} · cifras de FACEIT`;
   }
+  const aces = faceitSelected?.rounds5k ?? selectedPlayer?.rounds5k ?? 0;
   const footStats = !multi && selectedPlayer ? (
     <div className="flex gap-7">
       <FootStat value={faceitSelected?.kills ?? selectedPlayer.kills} label="kills" className={FORMAT_TONE[tone].text} />
       <FootStat value={faceitSelected?.deaths ?? selectedPlayer.deaths} label="muertes" />
-      {selectedPlayer.rounds5k ? <FootStat value={selectedPlayer.rounds5k} label="ACE" /> : null}
+      {aces > 0 ? <FootStat value={aces} label="ACE" /> : null}
     </div>
   ) : null;
 
@@ -243,7 +261,7 @@ export function PlayerPicker({
         <div className="flex flex-wrap items-center gap-2">
           {onCancel !== undefined ? (
             <Button type="button" variant="ghost" onClick={onCancel}>
-              Cancelar
+              Atrás
             </Button>
           ) : null}
           {allowDestinationSwitch && purpose === 'highlights' && !isSeries && !multi ? (

@@ -17,14 +17,14 @@ type Action =
 
 /** The Players rail lists: the user's own follows, then one tab per seeded zone roster. */
 export const PLAYER_TABS = [
-  { id: 'custom', label: 'Custom' },
+  { id: 'custom', label: 'Seguidos' },
   { id: 'cis', label: 'CIS' },
   { id: 'latam', label: 'LATAM' },
 ] as const;
 
 export type PlayerTab = (typeof PLAYER_TABS)[number]['id'];
 
-/** A followed zone player shows in both Custom and their zone. */
+/** A followed zone player shows in both Seguidos and their zone. */
 export function inPlayerTab(player: FaceitFollowedPlayer, tab: PlayerTab): boolean {
   return tab === 'custom' ? player.seeded !== true : player.zone === tab;
 }

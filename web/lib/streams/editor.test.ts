@@ -9,7 +9,9 @@ import {
   streamEditorSteps,
   streamOutputSummary,
   streamPlanBlocker,
+  streamTimelineLabel,
 } from './editor.ts';
+import { joinStreamMoments, streamPlanShorts } from './groups.ts';
 
 test('the editor rail continues the landing workflow with the same names and numbers', () => {
   assert.deepEqual(STREAM_WORKFLOW_STEPS, CREATE_FLOW_STEPS.stream);
@@ -100,4 +102,14 @@ test('the summary shows output durations, including speed, and unsaved exports',
   assert.equal(streamOutputSummary(plan(), false), '01 · 0:17, 02 · 0:19');
   assert.match(streamOutputSummary(plan(), true), /Cambios sin exportar/);
   assert.match(streamOutputSummary(plan({ clips: [] }), false), /Marca el inicio y el final/);
+});
+
+test('the timeline heading follows the monitor mode and names the Short out of all of them', () => {
+  const shorts = streamPlanShorts(plan());
+  assert.equal(streamTimelineLabel({ mode: 'source', shorts, clipId: 'c2' }), 'Recorrer el vídeo original');
+  assert.equal(streamTimelineLabel({ mode: 'selected', shorts, clipId: 'c2' }), 'Short seleccionado · Short 2 de 2');
+  assert.equal(streamTimelineLabel({ mode: 'sequence', shorts, clipId: 'c1' }), 'Todos los Shorts · ahora el Short 1 de 2');
+  assert.equal(streamTimelineLabel({ mode: 'selected', shorts, clipId: null }), 'Recorrer el vídeo original');
+  const joined = streamPlanShorts(joinStreamMoments(plan(), ['c1', 'c2']));
+  assert.equal(streamTimelineLabel({ mode: 'selected', shorts: joined, clipId: 'c2' }), 'Short seleccionado · Short 1 de 1');
 });

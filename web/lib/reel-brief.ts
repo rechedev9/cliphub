@@ -1,4 +1,4 @@
-import { affiliateFamilyLabel, affiliateStyleLabel, type EditConfig, type Preset } from './api/types.ts';
+import { affiliateFamilyLabel, affiliateStyleLabel, DEFAULT_VICTIM_REPLAY_SPEED, KEYDROP_CODE_RE, type EditConfig, type Preset } from './api/types.ts';
 import { verticalHudTheme } from './custom-hud.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
 import { formatDecimal } from './format.ts';
@@ -27,6 +27,12 @@ export function canForgeReel({
   return !creating && hasPreset && selectionCount > 0;
 }
 
+/** An affiliate banner goes out only with the user's own code: Studio would draw a sample code instead. */
+export function missingAffiliateCode(edit: Pick<EditConfig, 'keyDropStyle' | 'keyDropCode'>): boolean {
+  if (!edit.keyDropStyle) return false;
+  return !KEYDROP_CODE_RE.test(edit.keyDropCode?.trim() ?? '');
+}
+
 /** Library music rerender: the capture already exists; only a changed mix may proceed. */
 export function canRerenderWithMusic({
   busy,
@@ -45,7 +51,7 @@ const FORMAT_LABEL: Record<EditConfig['format'], string> = {
 
 const EFFECT_LABEL: Record<EditConfig['killEffect'], string> = {
   clean: 'Limpio',
-  'punch-in': 'Impacto / punch-in',
+  'punch-in': 'Impacto (zoom rápido en cada baja)',
   velocity: 'Velocidad',
   'freeze-flash': 'Congelado con flash',
   shake: 'Terremoto',
@@ -143,6 +149,18 @@ function worldOverlayLabel(edit: EditConfig): string {
   return parts.length > 0 ? parts.join(' · ') : 'No';
 }
 
+function victimReplayLabel(edit: EditConfig): string {
+  if (!edit.victimReplay) return 'No';
+  return `Desde la víctima · ${String(edit.victimReplaySpeed ?? DEFAULT_VICTIM_REPLAY_SPEED).replace('.', ',')}x`;
+}
+
+function affiliateLabel(edit: EditConfig): string {
+  if (!edit.keyDropStyle) return 'No';
+  const code = edit.keyDropCode?.trim().toUpperCase() || 'falta tu código';
+  const until = edit.keyDropEndSeconds != null ? `${formatDecimal(edit.keyDropEndSeconds, 1)} s` : 'el final';
+  return `${affiliateFamilyLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${affiliateStyleLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${code} · de ${formatDecimal(edit.keyDropStartSeconds ?? 0, 1)} s a ${until}`;
+}
+
 /** The exact values used for capture and rendering. */
 export function reelCreativeBrief(
   raw: EditConfig,
@@ -172,20 +190,16 @@ export function reelCreativeBrief(
     },
     { label: 'HUD / killfeed', value: hud },
     { label: 'Efecto de kill', value: EFFECT_LABEL[edit.killEffect] },
-    { label: 'Transición', value: TRANSITION_LABEL[edit.transition] },
-    { label: 'Título / contador', value: `${edit.hookText ? 'Título automático' : 'Sin título automático'} · ${edit.killCounter ? 'Contador activado' : 'Sin contador'}` },
+    { label: 'Transiciones', value: TRANSITION_LABEL[edit.transition] },
+    { label: 'Título / contador', value: `${edit.hookText ? 'Título automático' : 'Sin título automático'} · ${edit.killCounter ? 'Contador de kills' : 'Sin contador'}` },
     { label: 'Insignias / tarjeta', value: `${edit.playBadges ? 'Insignias de jugada' : 'Sin insignias'} · ${edit.statsCard ? 'Tarjeta de estadísticas' : 'Sin tarjeta'}` },
-    { label: 'Prob. de victoria', value: edit.winProbability ? 'Tras el plantado' : 'No' },
+    { label: 'Probabilidad de victoria', value: edit.winProbability ? 'Tras el plantado' : 'No' },
+    { label: 'Repetición', value: victimReplayLabel(edit) },
     { label: 'Sobre el juego', value: worldOverlayLabel(edit) },
     { label: 'Radar', value: radarBriefLabel(edit) },
-    { label: 'Intro', value: bookendLabel(edit.intro, edit.introText, 'titular generado') },
-    { label: 'Outro', value: bookendLabel(edit.outro, edit.outroText, 'firma ClipHub') },
-    {
-      label: 'Afiliado',
-      value: edit.keyDropStyle
-        ? `${affiliateFamilyLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${affiliateStyleLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()} · de ${formatDecimal(edit.keyDropStartSeconds ?? 0, 1)} s a ${edit.keyDropEndSeconds != null ? `${formatDecimal(edit.keyDropEndSeconds, 1)} s` : 'el final'}`
-        : 'No',
-    },
+    { label: 'Apertura', value: bookendLabel(edit.intro, edit.introText, 'título generado') },
+    { label: 'Cierre', value: bookendLabel(edit.outro, edit.outroText, 'firma ClipHub') },
+    { label: 'Banner afiliado', value: affiliateLabel(edit) },
     { label: 'Música', value: musicBriefValue(music) },
     {
       label: 'Portada',

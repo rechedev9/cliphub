@@ -8,7 +8,7 @@ const RAIL = [
   ['create', 'Clips de stream', '/streams'],
   ['create', 'Jugadores FACEIT', '/jugadores/faceit'],
   ['create', 'Mis vídeos', '/mis-videos'],
-  ['create', 'Ideas', '/ideas'],
+  ['create', 'Consejos', '/ideas'],
   ['analyze', 'Partidas', '/partidas'],
   ['analyze', 'Replay', '/replay'],
   ['analyze', 'Equipos', '/equipos'],

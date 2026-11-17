@@ -192,14 +192,16 @@ func (h *Handlers) readStoredFullDemoFaceit(id uuid.UUID) (map[string]demooverla
 
 // fullDemoDefaultOptions seeds a job's first plan with the overlay origin the
 // job already proved: the source persisted by an earlier Full Demo capture,
-// or FACEIT when its roster snapshot is stored. A stored origin is evidence,
-// so a fresh plan keeps the FACEIT layout instead of silently downgrading to
-// demo-facts-only overlays.
-func (h *Handlers) fullDemoDefaultOptions(id uuid.UUID) recapplan.Options {
+// or FACEIT when its roster snapshot is stored or the demo file name carries a
+// FACEIT match id and FACEIT is configured. A stored origin is evidence, so a
+// fresh plan keeps the FACEIT layout instead of silently downgrading to
+// demo-facts-only overlays. The UI and plan_full_demo both read these defaults.
+func (h *Handlers) fullDemoDefaultOptions(j job.Job) recapplan.Options {
 	options := recapplan.DefaultOptions()
 	if h == nil || h.storage == nil {
 		return options
 	}
+	id := j.ID
 	if rc, err := h.storage.Open(artifacts.FullDemoSourceKey(id)); err == nil {
 		var doc struct {
 			Source string `json:"source"`
@@ -212,6 +214,10 @@ func (h *Handlers) fullDemoDefaultOptions(id uuid.UUID) recapplan.Options {
 		}
 	}
 	if _, found, err := h.readStoredFullDemoFaceit(id); err == nil && found {
+		options.SourceKind = demooverlay.SourceFACEIT
+		return options
+	}
+	if _, ok := faceit.MatchIDFromDemoFileName(j.DemoFileName); ok && h.faceit != nil {
 		options.SourceKind = demooverlay.SourceFACEIT
 	}
 	return options

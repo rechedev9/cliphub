@@ -313,7 +313,7 @@ func (h *Handlers) buildPublishAssistant(
 				Title: "YouTube: subir vídeos en YouTube Studio",
 				URL:   "https://support.google.com/youtube/answer/57407?hl=es",
 			}},
-			Caveat: "El horario es una referencia determinista en Europe/Madrid, no una predicción de rendimiento. Confirma audiencia, visibilidad y programación en YouTube Studio.",
+			Caveat: "Son horas de referencia fijas para cada día de la semana, en hora de Madrid. No predicen cuántas visitas tendrá el vídeo. Confirma audiencia, visibilidad y programación en YouTube Studio.",
 		},
 		Trends: trends,
 	}, trendErr != nil && !errors.Is(trendErr, youtubetrends.ErrNotConfigured), nil

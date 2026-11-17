@@ -53,7 +53,8 @@ export function AutoShortsDialog({ matchId, plays, disabled, creating, onCreate 
   return (
     <Dialog open={open} onOpenChange={(next) => !creating && setOpen(next)}>
       <DialogTrigger asChild>
-        <Button type="button" size="xs" variant="outline" disabled={disabled || plays.length === 0}>
+        <Button type="button" size="xs" variant="outline" disabled={disabled || plays.length === 0}
+          title="Hace un Short aparte de cada gran jugada, la mejor de cada ronda. Antes de crear eliges el nivel mínimo y cuántos Shorts.">
           <Layers aria-hidden />Auto-Shorts
         </Button>
       </DialogTrigger>

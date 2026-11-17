@@ -10,6 +10,8 @@ type ToneClasses = {
   readonly text: string;
   /** The bare colour for a bar, a dot or a track segment. */
   readonly bg: string;
+  /** The thumb and check of native sliders and checkboxes. */
+  readonly accent: string;
 };
 
 export const FORMAT_TONE: Readonly<Record<FormatTone, ToneClasses>> = {
@@ -19,6 +21,7 @@ export const FORMAT_TONE: Readonly<Record<FormatTone, ToneClasses>> = {
     border: 'border-border',
     text: 'text-format-short',
     bg: 'bg-format-short',
+    accent: 'accent-format-short',
   },
   full: {
     fill: 'bg-format-full text-format-full-foreground hover:bg-format-full/90',
@@ -26,6 +29,7 @@ export const FORMAT_TONE: Readonly<Record<FormatTone, ToneClasses>> = {
     border: 'border-border',
     text: 'text-format-full',
     bg: 'bg-format-full',
+    accent: 'accent-format-full',
   },
   stream: {
     fill: 'bg-format-stream text-format-stream-foreground hover:bg-format-stream/90',
@@ -33,6 +37,7 @@ export const FORMAT_TONE: Readonly<Record<FormatTone, ToneClasses>> = {
     border: 'border-border',
     text: 'text-format-stream',
     bg: 'bg-format-stream',
+    accent: 'accent-format-stream',
   },
   summary: {
     fill: 'bg-format-summary text-format-summary-foreground hover:bg-format-summary/90',
@@ -40,5 +45,6 @@ export const FORMAT_TONE: Readonly<Record<FormatTone, ToneClasses>> = {
     border: 'border-border',
     text: 'text-format-summary',
     bg: 'bg-format-summary',
+    accent: 'accent-format-summary',
   },
 };

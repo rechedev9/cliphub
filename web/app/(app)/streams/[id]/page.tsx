@@ -475,7 +475,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
                 Reintentar
               </Button>
               <Button asChild variant="outline">
-                <Link href={STREAMS_HREF}>Volver</Link>
+                <Link href={STREAMS_HREF}>Tus proyectos</Link>
               </Button>
             </>
           }
@@ -498,7 +498,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
         </p>
         <LongOperation {...acquireProgressView(job?.download_progress)} elapsedSec={acquiringElapsed} tone="stream" />
         <Button type="button" variant="outline" size="sm" onClick={goBack} className="self-start">
-          Mis proyectos
+          Tus proyectos
         </Button>
       </section>
     );
@@ -534,7 +534,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
                   Volver al editor
                 </Button>
                 <Button type="button" variant="outline" onClick={goBack}>
-                  Mis proyectos
+                  Tus proyectos
                 </Button>
               </>
             ) : (

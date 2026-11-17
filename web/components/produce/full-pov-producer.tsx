@@ -6,13 +6,13 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { parseFailureReason } from '@/lib/api/failure-reason';
 import type { Match, Play } from '@/lib/api/types';
-import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
+import { PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
-  approveFullDemo, bumperSummary, currentFullDemoOptions, FULL_DEMO_BUMPERS_LABEL, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan, withFullDemoRounds,
+  approveFullDemo, currentFullDemoOptions, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan, withFullDemoRounds,
   FULL_DEMO_CAPTURE_VARIANT, type FullDemoBumperOptions, type FullDemoDocument, type FullDemoOptions, type FullDemoProPlayer,
 } from '@/lib/full-demo-plan';
-import { proSettingsSummary } from '@/lib/produce/full-demo-pro-settings';
+import { fullDemoBriefItems } from '@/lib/produce/full-demo-brief';
 import { availableFullDemoBumpers, recallFullDemoBumpers, rememberFullDemoBumpers, withRememberedBumpers } from '@/lib/produce/full-demo-bumper-memory';
 import { fullDemoQueueToast } from '@/lib/produce/full-demo-queue-toast';
 import { FULL_DEMO_MISSING_FILES, hasMissingFullDemoFiles } from '@/lib/produce/full-demo-requirements';
@@ -30,7 +30,7 @@ import { FullDemoProSettings } from './full-demo-pro-settings';
 import { FullDemoHud, FullDemoHudPreview } from './full-demo-hud';
 import { FullDemoBrand } from './full-demo-brand';
 import { FullDemoActionBar, FullDemoSummary } from './full-demo-summary';
-import { customHudLabel } from '@/lib/custom-hud';
+import { useProduceBack } from './use-produce-back';
 import { roundListLabel } from '@/lib/library/analysis-video';
 
 /** Roster and scoreboard keep ClipHub's own palette whatever the HUD; the demo origin picks their layout. */
@@ -44,7 +44,7 @@ export type FullPovProducerProps = {
 
 export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy, seriesId, selectedRounds = null }: FullPovProducerProps): ReactNode {
   const router = useRouter();
-  const backHref = seriesId ? seriesHref(seriesId, PRODUCE_FORMAT.full) : flowHref(PRODUCE_FORMAT.full);
+  const { back } = useProduceBack({ jobId: matchId, format: PRODUCE_FORMAT.full, seriesId });
   const doneHref = seriesId ? seriesHref(seriesId, PRODUCE_FORMAT.full) : RESULTS_HREF;
   const [document, setDocument] = useState<FullDemoDocument | null>(null);
   const [options, setOptions] = useState<FullDemoOptions | null>(null);
@@ -166,13 +166,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
   const briefItems = options ? [
     { label: 'Jugador', value: match.player ?? document?.input.target_steamid64 ?? 'Pendiente' },
     { label: 'Rondas', value: chosenRounds.length > 0 ? roundListLabel(chosenRounds) : 'Todas' },
-    { label: 'HUD', value: customHudLabel(options.overlays.hud_theme) },
-    { label: 'POV', value: options.capture.trueview ? 'Original 1:1' : 'Estándar' },
-    { label: 'Configuración', value: proSettingsSummary(options.capture.pro_settings) },
-    { label: 'Voces', value: options.audio.voice.enabled ? 'Incluidas' : 'Sin voces' },
-    { label: 'Transiciones', value: options.transitions?.enabled ? 'Dinámico' : 'Corte limpio' },
-    { label: FULL_DEMO_BUMPERS_LABEL, value: bumperSummary(options) },
-    { label: 'Presentación', value: fullDemoOverlayLabel(fullDemoOverlaySource(options)) },
+    ...fullDemoBriefItems(options, document?.voice.availability ?? null),
   ] : [];
 
   const orderRounds = fullDemoOrderRounds({ chosen: chosenRounds, planned: document ? document.rounds.map((round) => round.source_round_number) : null, recap: recap.map((play) => play.round) });
@@ -225,7 +219,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
       {options ? <fieldset disabled={busy !== null} inert={busy !== null} className="flex min-w-0 flex-col gap-4">
         <FullDemoHudPreview options={options} map={match.map} />
         <FullDemoBumpers options={options} document={document} rounds={orderRounds} onChange={change} onAssetBusy={assetBusy} />
-        <FullDemoHud options={options} onChange={change} onAssetBusy={assetBusy} />
+        <FullDemoHud options={options} map={match.map} onChange={change} onAssetBusy={assetBusy} />
         <FullDemoBrand options={options} onChange={change} />
         <div className="grid min-w-0 items-start gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))]">
           <FullDemoAudio options={options} document={document} onChange={change} />
@@ -242,8 +236,8 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
       </fieldset> : <div className="min-w-0" />}
       <FullDemoSummary durationSeconds={durationSeconds} roundCount={orderRounds.length} briefItems={briefItems} planState={planState} status={status}
         blockers={blockers} warnings={dirty ? [] : document?.warnings ?? []} assetBusy={busy === 'asset'}
-        error={shownError} backHref={backHref} cta={cta} />
+        error={shownError} back={back} cta={cta} />
     </div>
-    <FullDemoActionBar planState={planState} status={status} error={shownError} backHref={backHref} cta={cta} />
+    <FullDemoActionBar planState={planState} status={status} error={shownError} back={back} cta={cta} />
   </>;
 }

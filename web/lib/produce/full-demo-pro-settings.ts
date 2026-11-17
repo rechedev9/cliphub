@@ -1,6 +1,9 @@
 import type { FullDemoOptions, FullDemoProPlayer, FullDemoProSettings } from '../full-demo-plan.ts';
 
 const ASPECTS = [[4, 3], [5, 4], [16, 10], [16, 9]] as const;
+/** The select of the Configuración de pro part, shared with the summary. */
+export const FULL_DEMO_PRO_SETTINGS_LABEL = 'Resolución y viewmodel';
+export const OWN_PRO_SETTINGS_LABEL = 'Tu configuración (1920x1080)';
 const SCALING_LABEL: Record<FullDemoProSettings['scaling'], string> = { stretched: 'estirado', 'black-bars': 'con bandas negras', native: 'nativo' };
 
 export function withProPlayer(options: FullDemoOptions, player: FullDemoProPlayer | null): FullDemoOptions {
@@ -25,5 +28,5 @@ export function proViewmodelLabel(settings: FullDemoProSettings): string {
 }
 
 export function proSettingsSummary(settings: FullDemoProSettings | undefined): string {
-  return settings ? `${settings.name} · ${proResolutionLabel(settings)}` : 'Los tuyos';
+  return settings ? `${settings.name} · ${proResolutionLabel(settings)}` : OWN_PRO_SETTINGS_LABEL;
 }

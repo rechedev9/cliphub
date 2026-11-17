@@ -76,7 +76,11 @@ export function PlayRow({ play, selected, reelPosition, ordinal, clashWith, note
           <span className="text-meta text-fg-3">A la vez que la jugada elegida de {clashWith}</span>
         ) : null}
         {note && selected ? <span className="text-meta text-fg-2">{note}</span> : null}
-        {playSourceRange(play) ? <span className="font-mono text-meta text-fg-3">Demo {playSourceRange(play)}</span> : null}
+        {playSourceRange(play) ? (
+          <span title="Minuto y segundo de la demo en que empieza y acaba la jugada" className="text-meta text-fg-3">
+            En la demo, de <span className="font-mono">{playSourceRange(play)}</span>
+          </span>
+        ) : null}
       </span>
 
       <span className="ml-auto flex shrink-0 flex-col items-end tabular-nums">

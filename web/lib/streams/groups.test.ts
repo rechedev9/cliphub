@@ -10,6 +10,7 @@ import {
   splitStreamGroup,
   streamMusicOffsets,
   streamPlanShorts,
+  streamMomentsLabel,
   streamShortCount,
 } from './groups.ts';
 
@@ -93,4 +94,11 @@ test('undoing a removed moment puts its group back', () => {
   assert.deepEqual(restored.groups, joined.groups);
   const elsewhere = joinStreamMoments({ ...removed, clips: joined.clips }, ['c1', 'c3']);
   assert.deepEqual(restoreStreamGroup(elsewhere, group).groups?.map((g) => g.clip_ids), [['c1', 'c3']]);
+});
+
+test('the moment count names the Shorts only when joined moments make fewer', () => {
+  assert.equal(streamMomentsLabel(6, 6), '6 momentos');
+  assert.equal(streamMomentsLabel(6, 5), '6 momentos · 5 Shorts');
+  assert.equal(streamMomentsLabel(2, 1), '2 momentos · 1 Short');
+  assert.equal(streamMomentsLabel(1, 1), '1 momento');
 });

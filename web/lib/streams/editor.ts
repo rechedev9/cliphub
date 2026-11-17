@@ -1,7 +1,8 @@
 import { STREAM_VARIANTS, type StreamEditPlan, type StreamRenderState } from '../api/streams.ts';
 import { CREATE_FLOW_STEPS } from '../produce/create-flow.ts';
 import { formatStreamClock } from './plan.ts';
-import { streamPlanShorts, streamShortCount } from './groups.ts';
+import { streamMomentsLabel, streamPlanShorts, streamShortCount, type StreamShort } from './groups.ts';
+import type { StreamPlaybackMode } from '../stream-playback.ts';
 
 export const STREAM_STEP = { cuts: 'cuts', layout: 'layout', review: 'review', results: 'results' } as const;
 export type StreamStep = (typeof STREAM_STEP)[keyof typeof STREAM_STEP];
@@ -62,7 +63,7 @@ export function streamEditorSteps({
     {
       key: 'cuts',
       ...workflowEntry('cuts'),
-      detail: shortsWord(streamShortCount(plan)),
+      detail: streamMomentsLabel(plan.clips.length, streamShortCount(plan)),
       done: plan.clips.length > 0,
       optional: false,
       disabled: false,
@@ -78,7 +79,7 @@ export function streamEditorSteps({
     {
       key: 'review',
       ...workflowEntry('review'),
-      detail: 'Un vídeo por momento',
+      detail: 'Un vídeo por Short',
       done: videoCount > 0 && !stale,
       optional: false,
       disabled: false,
@@ -145,4 +146,20 @@ export function streamCtaLabel({
   if (streamPlanBlocker(plan) === 'cuts') return 'Elegir momentos →';
   if (streamPlanBlocker(plan) === 'layout') return 'Ajustar cámara →';
   return `Exportar ${shortsWord(streamShortCount(plan))} →`;
+}
+
+/** The source timeline's heading: what the monitor plays and, for a Short, which one of how many. */
+export function streamTimelineLabel({
+  mode,
+  shorts,
+  clipId,
+}: {
+  mode: StreamPlaybackMode;
+  shorts: readonly StreamShort[];
+  clipId: string | null;
+}): string {
+  const index = shorts.findIndex((short) => short.clips.some((clip) => clip.id === clipId));
+  if (mode === 'source' || index < 0) return 'Recorrer el vídeo original';
+  const position = `Short ${index + 1} de ${shorts.length}`;
+  return mode === 'sequence' ? `Todos los Shorts · ahora el ${position}` : `Short seleccionado · ${position}`;
 }

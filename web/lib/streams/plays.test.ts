@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamPlay } from '../api/streams.ts';
-import { clipsWithPlays, isVoiceOnly, playMoment, rankPlays, sameIds, summaryPlayIds } from './plays.ts';
+import { clipsWithPlays, isVoiceOnly, orderPlays, playCoveringClips, playMoment, rankPlays, sameIds, summaryPlayIds } from './plays.ts';
 
 function play(id: string, start: number, end: number, score: number): StreamPlay {
   return { id, label: id, start_seconds: start, end_seconds: end, kill_seconds: [start + 6], score };
@@ -61,4 +61,20 @@ test('sameIds ignores order but not membership', () => {
   assert.equal(sameIds(['a', 'b'], ['b', 'a']), true);
   assert.equal(sameIds(['a', 'b'], ['a']), false);
   assert.equal(sameIds(['a'], ['b']), false);
+});
+
+test('orderPlays sorts by score or by when the play happens in the VOD', () => {
+  const plays = [play('a', 10, 20, 20), play('b', 50, 60, 65), play('c', 5, 9, 20)];
+  assert.deepEqual(orderPlays(plays, 'best').map((p) => p.id), ['b', 'c', 'a']);
+  assert.deepEqual(orderPlays(plays, 'time').map((p) => p.id), ['c', 'a', 'b']);
+});
+
+test('playCoveringClips finds only the moments that overlap the play', () => {
+  const clips = [
+    { id: 'm1', start_seconds: 0, end_seconds: 12 },
+    { id: 'm2', start_seconds: 20, end_seconds: 30 },
+    { id: 'm3', start_seconds: 15, end_seconds: 19 },
+  ];
+  assert.deepEqual(playCoveringClips(clips, play('a', 10, 20, 1)).map((c) => c.id), ['m1', 'm3']);
+  assert.deepEqual(playCoveringClips(clips, play('b', 40, 50, 1)), []);
 });

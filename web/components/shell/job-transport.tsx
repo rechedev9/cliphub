@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { captureProgressPercent } from '@/lib/capture-progress';
+import { sectionForPath } from '@/lib/nav';
 import { RESULTS_HREF } from '@/lib/clips/routes';
 import {
   serverShellActivitySnapshot,
@@ -54,7 +55,8 @@ export function JobTransport(): ReactElement | null {
   }, [open]);
 
   const [top] = activity.jobs;
-  if (top === undefined && pathname !== RESULTS_HREF) return null;
+  // The idle pill answers "is anything recording?" where videos are made and listed: the Crear area.
+  if (top === undefined && sectionForPath(pathname)?.area !== 'create') return null;
 
   const active = activity.jobs.filter((job) => job.stage !== 'queued').length;
   const queued = activity.jobs.length - active;

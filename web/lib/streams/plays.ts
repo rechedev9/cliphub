@@ -5,6 +5,19 @@ export function rankPlays(plays: readonly StreamPlay[]): StreamPlay[] {
   return [...plays].sort((a, b) => b.score - a.score || a.start_seconds - b.start_seconds);
 }
 
+export type PlayOrder = 'best' | 'time';
+
+/** The play list in the order the user picked: best first, or as they happen in the VOD. */
+export function orderPlays(plays: readonly StreamPlay[], order: PlayOrder): StreamPlay[] {
+  if (order === 'best') return rankPlays(plays);
+  return [...plays].sort((a, b) => playMoment(a) - playMoment(b) || a.start_seconds - b.start_seconds);
+}
+
+/** The moments that cover part of a play: what Quitar removes for an added play. */
+export function playCoveringClips(clips: readonly StreamClipRange[], play: StreamPlay): StreamClipRange[] {
+  return clips.filter((clip) => clip.start_seconds < play.end_seconds && play.start_seconds < clip.end_seconds);
+}
+
 /** The second a play is about: its first kill, else its first voice peak. */
 export function playMoment(play: StreamPlay): number {
   return play.kill_seconds[0] ?? play.voice_seconds?.[0] ?? play.start_seconds;
@@ -17,7 +30,7 @@ export function isVoiceOnly(play: StreamPlay): boolean {
 
 /** Whether a play already has a moment that covers part of it. */
 export function playIsCovered(clips: readonly StreamClipRange[], play: StreamPlay): boolean {
-  return clips.some((clip) => clip.start_seconds < play.end_seconds && play.start_seconds < clip.end_seconds);
+  return playCoveringClips(clips, play).length > 0;
 }
 
 /** Moments for the plays that do not overlap an existing moment, in source order. */

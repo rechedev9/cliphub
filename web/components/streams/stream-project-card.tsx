@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, Film } from 'lucide-react';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
-import { streamClipCount, streamCutMarks, streamJobTag, type StreamJobTagTone } from '@/lib/streams/list';
+import { streamClipCount, streamCutMarks, streamJobShortCount, streamJobTag, type StreamJobTagTone } from '@/lib/streams/list';
+import { streamMomentsLabel } from '@/lib/streams/groups';
 import { formatStreamClock, streamSourceLabel } from '@/lib/streams/plan';
 import { streamRenderProgressView } from '@/lib/streams/render-progress';
 import { streamTitle } from '@/lib/streams/title';
@@ -57,14 +58,13 @@ function useSeen<T extends Element>(): { ref: React.RefObject<T | null>; seen: b
 export function StreamProjectCard({ job, onOpen, onDeleted }: { job: StreamJob; onOpen: () => void; onDeleted: () => void }): ReactNode {
   const tag = streamJobTag(job);
   const acquiring = job.status === 'acquiring';
-  const cuts = streamClipCount(job);
   const marks = streamCutMarks(job);
   const duration = job.probe?.duration_seconds;
   // The source only loads for cards on screen: a long list must not range-fetch every MP4 at once.
   const { ref, seen } = useSeen<HTMLLIElement>();
   const title = streamTitle(job);
   const kind = job.source_kind === 'vod' ? 'VOD completo' : 'Clip';
-  const meta = `${kind} · ${streamSourceLabel(job.source_url) ?? 'Archivo local'} · ${cuts} ${cuts === 1 ? 'momento' : 'momentos'}`;
+  const meta = `${kind} · ${streamSourceLabel(job.source_url) ?? 'Archivo local'} · ${streamMomentsLabel(streamClipCount(job), streamJobShortCount(job))}`;
   const actionLabel = PROJECT_ACTION_LABELS[job.status];
   const renderPercent = job.status === 'rendering' ? streamRenderProgressView(job.render_progress)?.percent : undefined;
 

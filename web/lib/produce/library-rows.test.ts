@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { LibraryDemo, LibraryMatch } from '../api/library.ts';
 import type { Match } from '../api/types.ts';
 import { HUB_ROW_STAGE, type HubMatch } from '../clips/hub.ts';
-import { libraryOnlyRows, libraryRowTeams } from './library-rows.ts';
+import { demoSearchText, libraryOnlyRows, libraryRowTeams, linkedLibraryRows, matchesDemoQuery } from './library-rows.ts';
 
 function demo(id: string, patch: Partial<LibraryDemo> = {}): LibraryDemo {
   return {
@@ -47,4 +47,30 @@ test('a side the demo did not name reads by the side it started on', () => {
   const unnamed = match('a', '');
   const teams = unnamed.teams.map((team) => ({ ...team, clan_name: '', team_name: undefined }));
   assert.equal(libraryRowTeams({ ...unnamed, teams }).title, 'Equipo CT vs Equipo T');
+});
+
+test('a shared or pro match has no .dem to record, so Crear does not offer it', () => {
+  const demos = [demo('a', { source: 'shared' }), demo('b', { source: 'pro' }), demo('c')];
+  const matches = [match('a', '2026-11-01'), match('b', '2026-11-01'), match('c', '2026-11-01')];
+  assert.deepEqual(libraryOnlyRows({ demos, matches, rows: [] }).map((row) => row.demo.id), ['c']);
+});
+
+test('a job row finds its library demo by job id, else by checksum', () => {
+  const demos = [demo('a', { job_ids: ['job-a'] }), demo('b'), demo('c', { state: 'parsing' })];
+  const matches = [match('a', ''), match('b', ''), match('c', '')];
+  const linked = linkedLibraryRows({ demos, matches, rows: [jobRow('job-a'), jobRow('job-b', 'sha-b'), jobRow('job-c', 'sha-c'), jobRow('job-z')] });
+  assert.equal(linked.get('job-a')?.demo.id, 'a');
+  assert.equal(linked.get('job-b')?.demo.id, 'b');
+  assert.equal(linked.has('job-c'), false);
+  assert.equal(linked.has('job-z'), false);
+});
+
+test('the list filter matches map, team and player words, ignoring case and accents', () => {
+  const library = { ...match('a', ''), players: [{ steamid64: '1', name: 'Ángel', team_key: 'ct-start' as const, slot: 0, rounds: 18, kills: 10, deaths: 5, assists: 1, damage: 900 }] };
+  const text = demoSearchText({ map: 'de_cache', player: 'ropz', library });
+  assert.equal(matchesDemoQuery(text, 'CACHE'), true);
+  assert.equal(matchesDemoQuery(text, 'mokas angel'), true);
+  assert.equal(matchesDemoQuery(text, 'ropz'), true);
+  assert.equal(matchesDemoQuery(text, 'mirage'), false);
+  assert.equal(matchesDemoQuery(text, '  '), true);
 });

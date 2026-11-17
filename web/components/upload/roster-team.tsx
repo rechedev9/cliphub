@@ -58,14 +58,18 @@ function initials(name: string): string {
   return Array.from(name.trim()).slice(0, 2).join('').toUpperCase();
 }
 
-type HighlightChip = { key: string; label: string; className: string };
+type HighlightChip = { key: string; label: string; title: string; className: string };
+
+function roundsWith(count: number, what: string): string {
+  return `${count} ${count === 1 ? 'ronda' : 'rondas'} con ${what}`;
+}
 
 /** Nonzero multi-kill chips in ACE, 4K, 3K order; ACE wears the flow's colour. */
 function highlightChips(p: DemoPlayer, tone: FormatTone): HighlightChip[] {
   const chips: HighlightChip[] = [];
-  if (p.rounds5k) chips.push({ key: 'ace', label: `ACE ×${p.rounds5k}`, className: FORMAT_TONE[tone].fill });
-  if (p.rounds4k) chips.push({ key: '4k', label: `4K ×${p.rounds4k}`, className: cn(FORMAT_TONE[tone].tint, 'text-fg-1') });
-  if (p.rounds3k) chips.push({ key: '3k', label: `3K ×${p.rounds3k}`, className: 'bg-surface-4 text-fg-1' });
+  if (p.rounds5k) chips.push({ key: 'ace', label: `ACE ×${p.rounds5k}`, title: roundsWith(p.rounds5k, 'ACE (5 kills)'), className: FORMAT_TONE[tone].fill });
+  if (p.rounds4k) chips.push({ key: '4k', label: `4K ×${p.rounds4k}`, title: roundsWith(p.rounds4k, '4 kills'), className: cn(FORMAT_TONE[tone].tint, 'text-fg-1') });
+  if (p.rounds3k) chips.push({ key: '3k', label: `3K ×${p.rounds3k}`, title: roundsWith(p.rounds3k, '3 kills'), className: 'bg-surface-4 text-fg-1' });
   return chips;
 }
 
@@ -164,7 +168,9 @@ function PlayerCard({ player: p, team }: { player: PickerPlayer; team: RosterTea
           {stats.map((stat, index) => (
             <span key={stat.key}>
               {index > 0 ? ' · ' : null}
-              <span title={STAT_TOOLTIPS[stat.key]} className={cn('whitespace-nowrap', stat.className)}>{stat.text}</span>
+              <span title={STAT_TOOLTIPS[stat.key]} className={cn('whitespace-nowrap', stat.className)}>
+                {stat.key === 'pm' ? <><span aria-hidden>{stat.text}</span><span className="sr-only">{`${STAT_TOOLTIPS.pm}: ${stat.text}`}</span></> : stat.text}
+              </span>
             </span>
           ))}
         </span>
@@ -179,8 +185,9 @@ function PlayerCard({ player: p, team }: { player: PickerPlayer; team: RosterTea
       </span>
       <span className="flex max-w-24 flex-wrap justify-end gap-1">
         {chips.map((c) => (
-          <span key={c.key} className={cn('inline-flex h-5.5 items-center rounded-md px-1.75 text-[0.6875rem] font-extrabold tabular-nums', c.className)}>
-            {c.label}
+          <span key={c.key} title={c.title} className={cn('inline-flex h-5.5 items-center rounded-md px-1.75 text-[0.6875rem] font-extrabold tabular-nums', c.className)}>
+            <span aria-hidden>{c.label}</span>
+            <span className="sr-only">{c.title}</span>
           </span>
         ))}
       </span>

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Upload } from 'lucide-react';
 import {
   BRAND_CORNERS,
   BRAND_CORNER_LABELS,
@@ -135,14 +136,20 @@ function BrandKitEditor({ kit, onSaved, disabled = false }: { kit: BrandKit; onS
 function BrandImageField({ id, label, image, disabled, onFile, onRemove }: {
   id: string; label: string; image?: BrandImage; disabled: boolean; onFile: (file: File) => void; onRemove: () => void;
 }): ReactNode {
+  const input = useRef<HTMLInputElement>(null);
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <label htmlFor={id} className="text-meta text-fg-3">{label}</label>
+      <span id={id} className="text-meta text-fg-3">{label}</span>
       {image ? <img src={brandImageUrl(image)} alt={label} className="h-16 w-full rounded border border-border-subtle bg-surface-3 object-contain" /> : null}
-      <Input id={id} type="file" accept="image/png,image/jpeg" disabled={disabled}
+      <input ref={input} type="file" accept="image/png,image/jpeg" className="sr-only" tabIndex={-1} aria-labelledby={id} disabled={disabled}
         onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) onFile(file); }} />
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Button type="button" variant="secondary" aria-describedby={id} disabled={disabled} onClick={() => input.current?.click()}>
+          <Upload aria-hidden />{image ? 'Cambiar imagen' : 'Subir imagen'}
+        </Button>
+        {image ? <Button type="button" variant="ghost" disabled={disabled} onClick={onRemove}>Quitar</Button> : null}
+      </div>
       <p className="text-body-sm text-fg-3">PNG o JPG, hasta 10 MB. Un PNG sin fondo queda mejor.</p>
-      {image ? <Button type="button" variant="secondary" disabled={disabled} onClick={onRemove}>Quitar</Button> : null}
     </div>
   );
 }

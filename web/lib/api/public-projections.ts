@@ -14,6 +14,7 @@ const STREAM_JOB_PUBLIC_KEYS = [
   'probe',
   'edit_plan',
   'clip_count',
+  'short_count',
   'rendered_outputs',
   'rendered_outputs_unavailable',
   'render_progress',

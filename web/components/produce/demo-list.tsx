@@ -14,16 +14,20 @@ import { prettyMapName } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
 import { FLOW_PRODUCE_CTA } from '@/lib/produce/copy';
 import { oneRowPerDemo } from '@/lib/produce/demo-rows';
-import { libraryOnlyRows, type LibraryDemoRow } from '@/lib/produce/library-rows';
+import { demoSearchText, libraryOnlyRows, linkedLibraryRows, matchesDemoQuery, type LibraryDemoRow } from '@/lib/produce/library-rows';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
 import { DemoCard, madeCount } from '@/components/produce/demo-card';
 import { LibraryDemoCard } from '@/components/produce/library-demo-card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 const LIST_HINT = {
   short: 'Ya están analizadas en este PC: crea otro Short sin volver a cargarlas.',
   full: 'Ya están analizadas en este PC: prepara otro vídeo sin volver a cargarlas.',
 } as const satisfies Record<ProduceFormat, string>;
+
+/** Past this many demos the list offers a text filter. */
+const FILTER_MIN_DEMOS = 6;
 
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
@@ -32,7 +36,7 @@ type DemoListProps = {
   format: ProduceFormat;
   /** How many demo rows the list shows, once its first read settles; a failed first read counts as 0. */
   onCount?: (count: number) => void;
-  /** The last cell of the grid: the drop zone for one more demo. */
+  /** The first cell of the grid, so it shows without scrolling: the drop zone for one more demo. */
   addTile?: ReactNode;
 };
 
@@ -42,6 +46,8 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
   const [state, setState] = useState<HubModel | null>(null);
   const [offline, setOffline] = useState<boolean | null>(null);
   const [libraryRows, setLibraryRows] = useState<LibraryDemoRow[]>([]);
+  const [linked, setLinked] = useState<ReadonlyMap<string, LibraryDemoRow>>(new Map());
+  const [query, setQuery] = useState('');
   const stateRef = useRef<HubModel | null>(null);
 
   const refresh = useCallback(async (): Promise<HubModel | null> => {
@@ -52,6 +58,10 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
       setOffline(null);
       const extra = library === null ? null : libraryOnlyRows({ demos: library.demos, matches: library.matches, rows: next.rows });
       if (extra !== null) setLibraryRows((old) => (sameLibraryRows(old, extra) ? old : extra));
+      if (library !== null) {
+        const links = linkedLibraryRows({ demos: library.demos, matches: library.matches, rows: next.rows });
+        setLinked((old) => (sameLinks(old, links) ? old : links));
+      }
       const extraCount = extra?.length ?? 0;
       if (prev !== null && sameHubProps(prev, next)) {
         onCount?.(oneRowPerDemo(next.rows).length + extraCount);
@@ -106,13 +116,18 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
 
   const rows = oneRowPerDemo(state.rows);
   const anyMade = rows.some((row) => madeCount(row, format) > 0);
+  const total = rows.length + libraryRows.length;
+  const filtering = total > FILTER_MIN_DEMOS && query.trim() !== '';
+  const shownRows = filtering ? rows.filter((row) => matchesDemoQuery(demoSearchText({ map: row.match.map, player: row.match.player, library: linked.get(row.match.id)?.match }), query)) : rows;
+  const shownLibrary = filtering ? libraryRows.filter((row) => matchesDemoQuery(demoSearchText({ map: row.match.map, library: row.match }), query)) : libraryRows;
+  const noMatch = filtering && shownRows.length + shownLibrary.length === 0;
 
   return (
     <section aria-labelledby="demo-list-title" className="flex flex-col gap-3.5">
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-col gap-1">
           <h2 id="demo-list-title" className="font-display text-section font-bold text-fg-1">
-            Elige una demo <span className="text-body font-medium text-fg-3">{rows.length + libraryRows.length} en este PC</span>
+            Elige una demo <span className="text-body font-medium text-fg-3">{total} en este PC</span>
           </h2>
           <p className="text-body-sm text-fg-2">{LIST_HINT[format]}</p>
         </div>
@@ -126,14 +141,20 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
         ) : null}
       </header>
       {banner}
+      {total > FILTER_MIN_DEMOS ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <Input type="search" aria-label="Filtrar demos" placeholder="Filtrar por mapa, equipo o jugador" value={query} onChange={(event) => setQuery(event.target.value)} className="max-w-80" />
+          {filtering ? <span role="status" className="text-meta text-fg-3">{noMatch ? 'Ninguna demo coincide' : `${shownRows.length + shownLibrary.length} de ${total}`}</span> : null}
+        </div>
+      ) : null}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(17.5rem,1fr))] gap-4" aria-busy={offline !== null || undefined}>
-        {rows.map((row) => (
-          <DemoCard key={row.match.id} row={row} format={format} onChange={onChange} onDelete={() => deleteJobs(row.jobIds, onChange)} />
+        {addTile}
+        {shownRows.map((row) => (
+          <DemoCard key={row.match.id} row={row} format={format} library={linked.get(row.match.id)} onChange={onChange} onDelete={() => deleteJobs(row.jobIds, onChange)} />
         ))}
-        {libraryRows.map((row) => (
+        {shownLibrary.map((row) => (
           <LibraryDemoCard key={row.demo.id} row={row} format={format} />
         ))}
-        {addTile}
       </div>
     </section>
   );
@@ -154,6 +175,15 @@ function sameLibraryRows(a: readonly LibraryDemoRow[], b: readonly LibraryDemoRo
     const other = b[index];
     return other !== undefined && row.demo.id === other.demo.id && row.demo.updated_at === other.demo.updated_at && row.match.updated_at === other.match.updated_at;
   });
+}
+
+function sameLinks(a: ReadonlyMap<string, LibraryDemoRow>, b: ReadonlyMap<string, LibraryDemoRow>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [jobId, row] of b) {
+    const other = a.get(jobId);
+    if (other === undefined || other.demo.id !== row.demo.id || other.demo.updated_at !== row.demo.updated_at || other.match.updated_at !== row.match.updated_at) return false;
+  }
+  return true;
 }
 
 /** The row stands for every job of its demo, so deleting it deletes all of them. A busy job

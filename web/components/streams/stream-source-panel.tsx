@@ -23,7 +23,7 @@ const KIND_COPY: Record<StreamSourceKind, { placeholder: string; result: string 
   },
   vod: {
     placeholder: 'Pega el enlace del VOD de Twitch, YouTube o Kick',
-    result: 'Un directo entero: detectamos tus kills y sacas un resumen horizontal de las que elijas y Shorts verticales.',
+    result: 'Un directo entero: detectamos tus kills para sacar Shorts verticales y, si quieres, un resumen horizontal con las que elijas.',
   },
 };
 
@@ -91,7 +91,7 @@ export function StreamSourcePanel({
             De tu directo a Shorts
           </h1>
           <p className="measure-read text-body text-fg-2">
-            Pega el enlace de un VOD o de un clip, o sube tu grabación. Cada momento que elijas sale como un Short vertical.
+            Pega el enlace de un VOD o de un clip, o sube tu grabación. Cada momento que elijas sale como un Short vertical, y de un VOD completo también puedes sacar un resumen horizontal.
           </p>
         </div>
         <span id="stream-kind-label" className="sr-only">Qué vas a importar</span>

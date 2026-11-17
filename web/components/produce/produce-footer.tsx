@@ -2,11 +2,11 @@
 
 import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
-import Link from 'next/link';
 import { PRODUCE_READY_HINT } from '@/lib/produce/copy';
 import type { CreativeBriefItem } from '@/lib/reel-brief';
 import { CreativeBriefList } from '@/components/studio/creative-brief';
-import { Button } from '@/components/ui/button';
+import { ProduceBackButton } from '@/components/produce/produce-back-button';
+import type { ProduceBack } from '@/components/produce/use-produce-back';
 import type { FormatTone } from '@/components/studio/format-tone';
 import { cn } from '@/lib/utils';
 
@@ -35,7 +35,7 @@ export type ProduceFooterProps = {
   readyHint?: ReactNode;
   ready: boolean;
   busy: boolean;
-  backHref: string;
+  back: ProduceBack;
   error: string | null;
   cta: ReactNode;
 };
@@ -52,7 +52,7 @@ export function ProduceFooter({
   readyHint = PRODUCE_READY_HINT,
   ready,
   busy,
-  backHref,
+  back,
   error,
   cta,
 }: ProduceFooterProps): ReactNode {
@@ -109,9 +109,7 @@ export function ProduceFooter({
               )}
               {!busy && (summary !== null || ready) ? <p role="status" className={tone === 'full' || ready ? 'sr-only' : 'mt-0.5 text-body-sm text-fg-2'}>{nextStepContent}</p> : null}
             </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={backHref}>Volver</Link>
-            </Button>
+            <ProduceBackButton back={back} />
             <div className={cn('contents', CTA_FILL[tone])}>{cta}</div>
           </div>
         </div>

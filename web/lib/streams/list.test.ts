@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamEditPlan, StreamJob } from '../api/streams.ts';
-import { sortStreamJobs, streamClipCount, streamCutMarks, streamJobTag, streamListCadence } from './list.ts';
+import { sortStreamJobs, streamClipCount, streamCutMarks, streamJobShortCount, streamJobTag, streamListCadence } from './list.ts';
 
 function job(status: StreamJob['status'], created = '2026-09-01T10:00:00Z'): StreamJob {
   return { id: `job-${status}-${created}`, status, created_at: created };
@@ -44,6 +44,18 @@ test('streamClipCount prefers the list row count and falls back to the plan', ()
   assert.equal(streamClipCount({ clip_count: 0, edit_plan: { schema_version: '1', variant: 'streamer-fullframe-nocam', clips: [{ id: 'c1', start_seconds: 0, end_seconds: 5 }] } }), 0);
   assert.equal(streamClipCount({ edit_plan: { schema_version: '1', variant: 'streamer-fullframe-nocam', clips: [{ id: 'c1', start_seconds: 0, end_seconds: 5 }] } }), 1);
   assert.equal(streamClipCount({}), 0);
+});
+
+test('streamJobShortCount counts a joined group once and falls back to the moments', () => {
+  const clips = [
+    { id: 'c1', start_seconds: 0, end_seconds: 5 },
+    { id: 'c2', start_seconds: 7, end_seconds: 9 },
+    { id: 'c3', start_seconds: 12, end_seconds: 15 },
+  ];
+  const groups = [{ id: 'g1', clip_ids: ['c1', 'c2'] }];
+  assert.equal(streamJobShortCount({ clip_count: 6, short_count: 5 }), 5);
+  assert.equal(streamJobShortCount({ edit_plan: { schema_version: '1', variant: 'streamer-fullframe-nocam', clips, groups } }), 2);
+  assert.equal(streamJobShortCount({ clip_count: 3 }), 3);
 });
 
 test('streamCutMarks places each cut in the source and needs the plan and the length', () => {

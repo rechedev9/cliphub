@@ -2,13 +2,14 @@
 
 import { useState, type ComponentProps, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { createJobFromLibraryDemo, type LibraryDemo } from '@/lib/api/library';
 import { MATCH_STATUS_FAILED } from '@/lib/api/types';
 import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
 import { flowHref, type ProduceFormat } from '@/lib/clips/routes';
 import { currentEdition } from '@/lib/edition';
-import { cn } from '@/lib/utils';
+import { crearHandoffError } from '@/lib/produce/crear-handoff-error';
 import { Button } from '@/components/ui/button';
 
 /** A job in one of these has no player picked yet, so its flow opens on the player picker. */
@@ -33,6 +34,12 @@ export async function crearJobFor(request: CrearRequest): Promise<string> {
 
 type ButtonProps = ComponentProps<typeof Button>;
 
+/** A failed hand-off as a toast with its cause, so the cards around the button keep their place. */
+export function toastCrearHandoffError(err: unknown, demo: LibraryDemo): void {
+  const { title, description } = crearHandoffError(err, demo.source);
+  toast.error(title, { description });
+}
+
 /** Hands a library demo to a Crear flow: the flow resumes its job at the right step. */
 export function OpenInCrearButton({
   request,
@@ -44,21 +51,18 @@ export function OpenInCrearButton({
   request: CrearRequest;
   variant?: ButtonProps['variant'];
   size?: ButtonProps['size'];
-  /** Classes of the button itself; the wrapper grows with it in a flex row. */
   className?: string;
   children: ReactNode;
 }): ReactNode {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
 
   function open(): void {
     setBusy(true);
-    setFailed(false);
     crearJobFor(request)
       .then((job) => router.push(flowHref(request.format, { job })))
-      .catch(() => {
-        setFailed(true);
+      .catch((err: unknown) => {
+        toastCrearHandoffError(err, request.demo);
         setBusy(false);
       });
   }
@@ -67,15 +71,8 @@ export function OpenInCrearButton({
   if (currentEdition() === 'web') return null;
 
   return (
-    <span className={cn('inline-flex flex-wrap items-center gap-2', className === undefined ? undefined : 'min-w-0 flex-1')}>
-      <Button type="button" variant={variant} size={size} loading={busy} onClick={open} className={className}>
-        {children}
-      </Button>
-      {failed ? (
-        <span role="alert" className="text-meta text-destructive">
-          No se pudo pasar la demo a Crear.
-        </span>
-      ) : null}
-    </span>
+    <Button type="button" variant={variant} size={size} loading={busy} onClick={open} className={className}>
+      {children}
+    </Button>
   );
 }

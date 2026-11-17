@@ -25,11 +25,15 @@ export function PresetPreview({ preset, className }: { preset: Preset; className
           <rect x="5" y="149" width="22" height="4" fill="#cfe8f2" />
           <rect x="66" y="149" width="19" height="4" fill="#cfe8f2" />
         </> : null}
-        {hud === 'gameplay' || hud === 'deathnotices' ? <>
-          <rect x="48" y="9" width="38" height="5" fill="#16222d" />
-          <rect x="53" y="11" width="12" height="1" fill="#22d9ee" />
-          <rect x="72" y="11" width="10" height="1" fill="#f4b873" />
-        </> : null}
+        {/* The game's kill feed, two lines large enough to tell Kill Feed from Clean POV at thumbnail size. */}
+        {hud === 'gameplay' || hud === 'deathnotices' ? [8, 18].map((y) => (
+          <g key={y}>
+            <rect x="40" y={y} width="46" height="8" rx="1.5" fill="#0d1722" stroke="#e5484d" strokeWidth=".8" />
+            <rect x="43" y={y + 3} width="13" height="2" fill="#22d9ee" />
+            <path d={`M59 ${y + 2.5}H67L68 ${y + 4}H59Z`} fill="#e8eef2" />
+            <rect x="71" y={y + 3} width="12" height="2" fill="#f4b873" />
+          </g>
+        )) : null}
         {aggressive ? <path d="M0 88H90M0 91H90" stroke="#ff2d78" opacity=".35" /> : null}
       </svg>
     </div>

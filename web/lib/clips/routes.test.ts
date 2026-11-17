@@ -18,6 +18,7 @@ import {
 } from './routes.ts';
 
 const JOB_ID = '9a1c6e2f-4b3d-4a10-8f2e-1d6c7b9a0e55';
+const FROM_ID = '1b2c3d4e-5f60-4a71-8b92-a3b4c5d6e7f8';
 const SERIES_ID = 'series-1';
 
 test('flowHref keeps each format in its own flow', () => {
@@ -26,6 +27,8 @@ test('flowHref keeps each format in its own flow', () => {
     { name: 'long video home', href: flowHref(PRODUCE_FORMAT.full), want: LONG_VIDEOS_HREF },
     { name: 'a job id resumes that scan in the Short flow', href: flowHref(PRODUCE_FORMAT.short, { job: JOB_ID }), want: `${SHORTS_HREF}?job=${JOB_ID}` },
     { name: 'a job id resumes that scan in the long flow', href: flowHref(PRODUCE_FORMAT.full, { job: JOB_ID }), want: `${LONG_VIDEOS_HREF}?job=${JOB_ID}` },
+    { name: 'the job the user came back from rides along', href: flowHref(PRODUCE_FORMAT.short, { job: JOB_ID, from: FROM_ID }), want: `${SHORTS_HREF}?job=${JOB_ID}&from=${FROM_ID}` },
+    { name: 'a job never points back at itself', href: flowHref(PRODUCE_FORMAT.short, { job: JOB_ID, from: JOB_ID }), want: `${SHORTS_HREF}?job=${JOB_ID}` },
   ];
   for (const { name, href, want } of cases) {
     assert.equal(href, want, name);

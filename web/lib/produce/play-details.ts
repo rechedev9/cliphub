@@ -48,6 +48,6 @@ export function playHighlights(play: Play): string[] {
     if (play.reasons?.includes(reason)) out.push(label);
   }
   const swing = Math.round((play.winProbSwing ?? 0) * 100);
-  if (swing !== 0) out.push(`${swing > 0 ? '+' : ''}${swing} % prob. de ronda`);
+  if (swing !== 0) out.push(`${swing > 0 ? '+' : ''}${swing} % de opciones de ganar la ronda`);
   return out;
 }

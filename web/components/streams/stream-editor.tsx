@@ -53,6 +53,7 @@ import {
   streamOutputSummary,
   streamPlanBlocker,
   streamRenderQueued,
+  streamTimelineLabel,
   type StreamStep,
 } from '@/lib/streams/editor';
 import {
@@ -80,7 +81,7 @@ import { CreativeBriefList } from '@/components/studio/creative-brief';
 import { streamRangeIssue, streamRangeOverlapIssue, streamRangesIssue } from '@/lib/clip-edit';
 import { StreamSaveButton } from '@/components/streams/stream-save-button';
 import { StreamDetectedPlays } from '@/components/streams/detected-plays';
-import { clipsWithPlays } from '@/lib/streams/plays';
+import { clipsWithPlays, playCoveringClips } from '@/lib/streams/plays';
 import { StreamKillFeedControls } from '@/components/streams/kill-feed-controls';
 import { killFeedDefaultPosition } from '@/lib/streams/kill-feed';
 import {
@@ -399,9 +400,12 @@ export function StreamEditor({
     setPreviewPlaying(false);
     seek(seconds);
   };
-  const removeClip = (clip: StreamClipRange) => {
-    const group = plan.groups?.find((g) => g.clip_ids.includes(clip.id));
-    const next = plan.clips.filter((c) => c.id !== clip.id);
+  const removeClips = (removed: readonly StreamClipRange[]) => {
+    const [clip] = removed;
+    if (!clip) return;
+    const ids = new Set(removed.map((c) => c.id));
+    const groups = plan.groups?.filter((g) => g.clip_ids.some((id) => ids.has(id))) ?? [];
+    const next = plan.clips.filter((c) => !ids.has(c.id));
     setClips(next);
     if (next.length) selectClip(next[0]);
     else {
@@ -410,21 +414,24 @@ export function StreamEditor({
       setPlaybackMode('source');
       setPreviewPlaying(false);
     }
-    toast('Momento quitado', {
+    toast(removed.length === 1 ? 'Momento quitado' : `${removed.length} momentos quitados`, {
       position: 'top-right',
       action: {
         label: 'Deshacer',
         onClick: () => {
           const current = latestPlanRef.current;
-          if (!current.clips.some((c) => c.id === clip.id)) {
-            const restored = { ...current, clips: insertClipSorted(current.clips, clip) };
-            onPlanChange(group ? restoreStreamGroup(restored, group) : restored);
+          const missing = removed.filter((r) => !current.clips.some((c) => c.id === r.id));
+          if (missing.length) {
+            const restored: StreamEditPlan = { ...current, clips: missing.reduce(insertClipSorted, current.clips) };
+            onPlanChange(groups.reduce(restoreStreamGroup, restored));
           }
           selectClip(clip);
         },
       },
     });
   };
+  const removeClip = (clip: StreamClipRange) => removeClips([clip]);
+  const removePlay = (play: StreamPlay) => removeClips(playCoveringClips(plan.clips, play));
 
   const setMusicKey = (key: string) => onPlanChange({ ...plan, music: key ? { key, volume: plan.music?.volume } : {} });
   const setMusicVolume = (volume: number) => onPlanChange({ ...plan, music: { key: plan.music?.key, volume } });
@@ -543,7 +550,7 @@ export function StreamEditor({
           </div>
         </details>
         <details className="rounded-md border border-border-subtle p-3">
-          <DisclosureSummary className="font-semibold text-body-sm">Música y efectos · opcional</DisclosureSummary>
+          <DisclosureSummary className="font-semibold text-body-sm">Música y realce de color · opcional</DisclosureSummary>
           <div className="mt-3 flex flex-col gap-3">
             <StreamMusicCard
               songs={songs}
@@ -574,6 +581,7 @@ export function StreamEditor({
             clips={plan.clips}
             disabled={busy}
             onAdd={addPlays}
+            onRemove={removePlay}
             onSeek={seekSource}
           />
         ) : null}
@@ -715,7 +723,7 @@ export function StreamEditor({
         );
       }}
     >
-      <div className="-mx-(--shell-gutter) -my-10 flex flex-col @[48rem]/content:h-[calc(100dvh-var(--shell-strip-height))]">
+      <div className="-mx-(--shell-gutter) -my-4 flex flex-col @[48rem]/content:h-[calc(100dvh-var(--shell-strip-height))]">
         <StreamStepsRail
           steps={steps}
           activeStep={activeStep}
@@ -801,8 +809,13 @@ export function StreamEditor({
                 <div className="shrink-0 pb-3">
                   <StreamSourceTimeline
                     clips={plan.clips}
+                    label={streamTimelineLabel({
+                      mode: playbackMode,
+                      shorts,
+                      clipId: playbackMode === STREAM_PLAYBACK_MODE.sequence ? (playbackClipId ?? selectedClipId) : selectedClipId,
+                    })}
                     sourceDuration={sourceDuration}
-                    selectedClipId={selectedClipId}
+                    selectedClipIds={selectedShort?.clips.map((clip) => clip.id) ?? []}
                     playheadSeconds={previewSeconds}
                     disabled={busy}
                     onSeek={(seconds) => {
@@ -862,7 +875,7 @@ export function StreamEditor({
             }
             onCreate();
           }}
-          backLabel={activeStep === 'cuts' || activeStep === 'results' ? 'Mis proyectos' : 'Atrás'}
+          backLabel={activeStep === 'cuts' || activeStep === 'results' ? 'Tus proyectos' : 'Atrás'}
           onBack={() =>
             activeStep === 'cuts' || activeStep === 'results'
               ? onBack()

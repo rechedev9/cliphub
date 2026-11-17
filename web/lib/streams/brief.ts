@@ -6,7 +6,8 @@ import {
 import { affiliateFamilyLabel, affiliateStyleLabel } from '../api/types.ts';
 import { formatDecimal } from '../format.ts';
 import type { CreativeBriefItem } from '../reel-brief.ts';
-import { clipOutputDuration, formatStreamClock } from './plan.ts';
+import { formatStreamClock } from './plan.ts';
+import { streamPlanShorts } from './groups.ts';
 
 function variantLabel(variant: StreamVariant): string {
   return STREAM_VARIANTS.find((entry) => entry.value === variant)?.label ?? variant;
@@ -23,11 +24,13 @@ export function streamCreativeBrief(plan: StreamEditPlan, musicLabel?: string): 
       ? 'Sin música'
       : `${musicLabel?.trim() || musicKey}${typeof musicVolume === 'number' ? ` · ${Math.round(musicVolume * 100)} %` : ''}`;
   const nick = plan.streamer_banner?.nick?.trim() ?? '';
-  const totalOut = plan.clips.reduce((sum, clip) => sum + clipOutputDuration(clip), 0);
+  // Counts videos, not moments: a joined group exports one Short.
+  const shorts = streamPlanShorts(plan);
+  const totalOut = shorts.reduce((sum, short) => sum + short.durationSeconds, 0);
   const clipSummary =
-    plan.clips.length === 0
+    shorts.length === 0
       ? 'Sin momentos'
-      : `${plan.clips.length} Short${plan.clips.length === 1 ? '' : 's'} · ${formatStreamClock(totalOut)} en total`;
+      : `${shorts.length} Short${shorts.length === 1 ? '' : 's'} · ${formatStreamClock(totalOut)} en total`;
 
   let facecam = 'Sin cámara';
   if (needsFace) {

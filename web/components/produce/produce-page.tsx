@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, SearchX, Unplug, Users } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, SearchX, Unplug, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
@@ -39,6 +40,7 @@ import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { ShortProducer } from '@/components/produce/short-producer';
 import { FullPovProducer } from '@/components/produce/full-pov-producer';
+import { useProduceBack } from '@/components/produce/use-produce-back';
 
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
@@ -73,6 +75,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
 
   const activity = useSyncExternalStore(subscribeToShellActivity, shellActivitySnapshot, serverShellActivitySnapshot);
   const recBusy = activity.jobs.some((job) => job.stage === 'recording');
+  const { stepTargets } = useProduceBack({ jobId: id, format, seriesId });
 
   useEffect(() => {
     let active = true;
@@ -160,7 +163,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
           icon={empty.icon}
           title={empty.title}
           description={empty.description}
-          actions={<Button onClick={() => router.push(backHref)}>Volver</Button>}
+          actions={<ExitButton href={backHref}>{backLabel}</ExitButton>}
         />
       </div>
     );
@@ -180,9 +183,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         actions={
           <>
             <Button className={FORMAT_TONE[format].fill} onClick={() => router.push(flowHref(format, { job: id }))}>{PRODUCE_PICK_POV_CTA}</Button>
-            <Button variant="outline" onClick={() => router.push(backHref)}>
-              Volver
-            </Button>
+            <ExitButton href={backHref} variant="outline">{backLabel}</ExitButton>
           </>
         }
       />
@@ -196,9 +197,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         compact
         actions={
           <>
-            <Button variant="outline" onClick={() => router.push(backHref)}>
-              Volver
-            </Button>
+            <ExitButton href={backHref} variant="outline">{backLabel}</ExitButton>
             <Button variant="outline" onClick={() => router.push(DIAGNOSTICS_SETTINGS_HREF)}>
               Abrir Ajustes
             </Button>
@@ -220,9 +219,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         }
         compact
         actions={
-          <Button variant="outline" onClick={() => router.push(backHref)}>
-            Volver
-          </Button>
+          <ExitButton href={backHref} variant="outline">{backLabel}</ExitButton>
         }
       />
     );
@@ -237,7 +234,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
       <>
         {shortUnavailable ? (
           <StudioEmptyState icon={SearchX} title={MATCH_PLAYS_EMPTY_TITLE}
-            description={MATCH_PLAYS_EMPTY_DESCRIPTION} compact actions={<Button onClick={() => router.push(backHref)}>Volver</Button>} />
+            description={MATCH_PLAYS_EMPTY_DESCRIPTION} compact actions={<ExitButton href={backHref}>{backLabel}</ExitButton>} />
         ) : null}
         {/* Mounted through an empty poll so a blip never drops the user's selection. */}
         {shortPlanJobId === id ? (
@@ -258,7 +255,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
       <StudioBackLink href={backHref}>{backLabel}</StudioBackLink>
       {producible ? (
         <div className="mb-2">
-          <CreateFlowSteps flow={format} step={workflowStep(stage)} />
+          <CreateFlowSteps flow={format} step={workflowStep(stage)} targets={stepTargets} />
         </div>
       ) : null}
       <div className="flex flex-1 flex-col gap-3 pt-2">
@@ -274,6 +271,15 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         {body}
       </div>
     </div>
+  );
+}
+
+/** Leaves the producer for the flow's demo list or the series, named after where it goes. */
+function ExitButton({ href, variant, children }: { href: string; variant?: 'outline'; children: ReactNode }): ReactNode {
+  return (
+    <Button variant={variant} asChild>
+      <Link href={href}><ChevronLeft aria-hidden />{children}</Link>
+    </Button>
   );
 }
 

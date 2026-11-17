@@ -23,11 +23,11 @@ export function shortDraftKey(matchId: string): string {
 
 type DefaultShortOptions = { deathPlays?: Play[]; /** The auto pick fills this length; a Short is one minute. */ targetSeconds?: number };
 
-/** A player without kills but with deaths opens a death reel of every death. */
+/** A player without kills but with deaths opens a death reel of the deaths that fit the target. */
 export function defaultShortSettings(plays: Play[], { deathPlays = [], targetSeconds }: DefaultShortOptions = {}): ShortSettings {
   const deathReel = plays.length === 0 && deathPlays.length > 0;
   return {
-    selectedIds: deathReel ? deathPlays.map((play) => play.id) : [...autoPickBestPlays(plays, { targetSeconds })],
+    selectedIds: [...autoPickBestPlays(deathReel ? deathPlays : plays, { targetSeconds })],
     variant: null, songId: null, songTitle: null, musicDecided: false,
     musicVolume: MUSIC_VOLUME_DEFAULT_PERCENT, gameVolume: GAME_VOLUME_DEFAULT_PERCENT,
     editConfig: constrainEditConfig({ ...DEFAULT_EDIT_CONFIG, format: 'short-9x16', ...(deathReel ? { deathReel } : {}) }),

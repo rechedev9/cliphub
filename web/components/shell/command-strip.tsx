@@ -19,7 +19,7 @@ import { isToolPage, type NavSection } from '@/lib/nav';
 const TRAIL = {
   newShort: 'Nuevo Short',
   newFull: 'Nueva demo completa',
-  publish: 'Publicar',
+  publish: 'Preparar publicación',
   series: 'Serie',
 } as const;
 

@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 )
@@ -75,5 +76,37 @@ func TestFullDemoDefaultsInheritPersistedOverlayOrigin(t *testing.T) {
 	h.persistFullDemoSource(j.ID, "premier")
 	if got := get().SourceKind; got != "premier" {
 		t.Fatalf("persisted capture origin default source_kind = %q, want premier", got)
+	}
+}
+
+// The UI and plan_full_demo read the same defaults, so a FACEIT demo opens with FACEIT in both.
+func TestFullDemoDefaultsDetectFACEITDemoFileName(t *testing.T) {
+	h, j, _, _, _ := fullDemoAPIFixture(t)
+	client, err := faceit.New(faceit.Options{APIKey: "test-key", BaseURL: "http://127.0.0.1:1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	faceitName, otherName := "1-2009a7d4-6c68-46e1-aebc-46629bd92649-1-1.dem", "spirit-vs-furia-m2-cache.dem"
+	for _, tc := range []struct {
+		name   string
+		file   string
+		client *faceit.Client
+		want   string
+	}{
+		{name: "FACEIT file name with FACEIT configured", file: faceitName, client: client, want: "faceit"},
+		{name: "FACEIT file name without FACEIT", file: faceitName, want: "demo"},
+		{name: "other file name", file: otherName, client: client, want: "demo"},
+	} {
+		h.faceit = tc.client
+		j.DemoFileName = tc.file
+		if got := h.fullDemoDefaultOptions(j).SourceKind; got != tc.want {
+			t.Errorf("%s: source_kind = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+	h.faceit = client
+	h.persistFullDemoSource(j.ID, "premier")
+	j.DemoFileName = faceitName
+	if got := h.fullDemoDefaultOptions(j).SourceKind; got != "premier" {
+		t.Errorf("a persisted capture origin lost to the file name: %q", got)
 	}
 }

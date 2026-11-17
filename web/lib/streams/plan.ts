@@ -48,7 +48,7 @@ export const STREAM_LIST_FAIL_MESSAGE =
 export const STREAM_OFFLINE_MESSAGE =
   'ClipHub perdió la conexión interna. Cierra y vuelve a abrir la aplicación.';
 export const STREAM_INVALID_URL_MESSAGE =
-  'Esa URL no es un clip o VOD compatible. Usa un enlace HTTPS de Twitch, YouTube o Kick sin credenciales ni redirecciones.';
+  'Esa URL no lleva a un clip o VOD que podamos abrir. Copia el enlace del vídeo desde Twitch, YouTube o Kick, tal como sale en la barra del navegador, y pégalo aquí.';
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

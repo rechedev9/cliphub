@@ -4,8 +4,8 @@ import { parseMarkdown } from '@/lib/algorithms/markdown';
 import { MarkdownBlocks } from '@/components/markdown/markdown-blocks';
 import { StudioPageHeader } from '@/components/studio/page-header';
 
-const PAGE_TITLE = 'Ideas';
-const PAGE_DESCRIPTION = 'Qué hacer para que tus Shorts y demos completas lleguen a más gente en YouTube.';
+const PAGE_TITLE = 'Consejos para publicar';
+const PAGE_DESCRIPTION = 'Cómo montar, titular y subir tus Shorts y demos completas para que lleguen a más gente en YouTube.';
 
 const BLOCKS = parseMarkdown(guideSource);
 

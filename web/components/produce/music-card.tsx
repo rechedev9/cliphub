@@ -14,7 +14,7 @@ export const MUSIC_VOLUME = { min: 5, max: 100, step: 5, default: 100 } as const
 export const GAME_VOLUME_MIN = 0;
 
 const SLIDER_CLASS =
-  'h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary disabled:cursor-not-allowed disabled:opacity-50';
+  'h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong disabled:cursor-not-allowed disabled:opacity-50';
 
 export type MusicCardProps = {
   /** Card heading. */
@@ -62,14 +62,14 @@ function MusicDecision({
   if (decided && songTitle) {
     return (
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <div className="flex min-w-0 flex-[1_1_9rem] items-center gap-3">
             <span aria-hidden className={cn('grid size-10 shrink-0 place-items-center rounded-xl', FORMAT_TONE[tone].fill)}>
               <Music className="size-4" />
             </span>
-            <p className="truncate font-display text-body-sm font-semibold text-fg-1">{songTitle}</p>
+            <p title={songTitle} className="line-clamp-2 min-w-0 wrap-anywhere font-display text-body-sm font-semibold text-fg-1">{songTitle}</p>
           </div>
-          <div className="flex shrink-0 gap-1">
+          <div className="ml-auto flex shrink-0 gap-1">
             <Button variant="ghost" size="sm" disabled={busy} onClick={onOpenPicker}>
               Cambiar
             </Button>
@@ -97,7 +97,7 @@ function MusicDecision({
               value={musicVolume}
               disabled={busy}
               onChange={(e) => onVolumeChange(Number(e.target.value))}
-              className={SLIDER_CLASS}
+              className={cn(SLIDER_CLASS, FORMAT_TONE[tone].accent)}
             />
           </div>
           <div className="flex min-w-0 items-center gap-3">
@@ -113,7 +113,7 @@ function MusicDecision({
               value={gameVolume}
               disabled={busy}
               onChange={(e) => onGameVolumeChange(Number(e.target.value))}
-              className={SLIDER_CLASS}
+              className={cn(SLIDER_CLASS, FORMAT_TONE[tone].accent)}
             />
           </div>
         </div>

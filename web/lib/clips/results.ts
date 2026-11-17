@@ -1,5 +1,6 @@
 import type { StreamJob } from '../api/streams.ts';
 import type { Video } from '../api/types.ts';
+import { prettyMapName } from '../format.ts';
 import { streamRenderProgressView } from '../streams/render-progress.ts';
 import { streamTitle } from '../streams/title.ts';
 import { isHighlightsVideo, OUTPUT_STATE, OUTPUT_TYPE, type HubModel, type OutputState } from './hub.ts';
@@ -37,6 +38,16 @@ export const CREATE_AGAIN_LABEL = {
   summary: 'Crear otro resumen',
   stream: 'Crear otro clip',
 } as const satisfies Record<VideoKind, string>;
+
+const GENERIC_TITLES: ReadonlySet<string> = new Set(['Short', 'Demo completa', 'Resumen']);
+
+/** A video titled only by its format ("Demo completa") gets its map and player, so two of them read apart. */
+export function videoDisplayTitle(video: Pick<Video, 'title' | 'map'>, player: string | undefined): string {
+  const title = video.title.trim();
+  if (title !== '' && !GENERIC_TITLES.has(title)) return title;
+  const map = video.map.trim() === '' || video.map === 'Unknown' ? '' : prettyMapName(video.map);
+  return [title === '' ? 'Vídeo' : title, map, player?.trim() ?? ''].filter((part) => part !== '').join(' · ');
+}
 
 export function itemStage(state: OutputState): ItemStage {
   if (state === OUTPUT_STATE.ready) return 'ready';

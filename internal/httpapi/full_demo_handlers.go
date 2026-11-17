@@ -177,7 +177,7 @@ func (h *Handlers) GetFullDemoPlan(w http.ResponseWriter, r *http.Request) {
 		rejectFullDemo(w, err)
 		return
 	}
-	defaults := h.fullDemoDefaultOptions(j.ID)
+	defaults := h.fullDemoDefaultOptions(j)
 	defaults.Overlays.TeamNames = h.fullDemoTeamNames(r.Context(), j.ID)
 	response := map[string]any{"document": d, "defaults": defaults, "pro_players": fullDemoProPlayers, "compatibility": "editorial-v1"}
 	if !found {

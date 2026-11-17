@@ -50,7 +50,8 @@ Auto-Shorts (the Auto-Shorts button of the Short editor): generate_shorts_batch 
 without picking plays: the best play of each round whose list_moments score reaches min_score (default 0.6), at
 most limit (default 5, up to 10), in one capture, each rendered as its own Short of one variant (list_videos lists them).
 It takes the same look options as generate_short and needs the same approval; follow with wait_for_job and the variant.
-generate_short also takes the music and game volume, the opening and closing text and an affiliate banner.
+generate_short also takes the music and game volume, the opening and closing text and an affiliate banner,
+which needs the user's own banner_code (ask for it; without one the banner is refused, as in the UI).
 It also takes play_badges (a badge for each clutch, ace or multikill), stats_card (a closing 9:16 card with the
 player's K/D, ADR, HS% and ClipHub rating, never an HLTV rating, plus FACEIT level, win rate and best map when FACEIT
 has them) and victim_replay_speed (0.25, 0.5 or 1, with victim_replay).

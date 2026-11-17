@@ -18,13 +18,13 @@
 ## Títulos
 
 - Nombra jugador, equipo, mapa, evento y jugada: «Ace de X en Mirage, final de Y».
-- Comparte el vídeo en Discord, Reddit o X.
 
-## Cuándo publicar
+## Cuándo publicar y dónde moverlo
 
 - Pocas horas después de un partido de Major, un parche o un clutch viral. La hora del día da igual.
 - Pide a tu comunidad que haga Hype en los primeros 7 días.
 - No subas lotes de clips casi iguales.
+- Comparte el vídeo en Discord, Reddit o X.
 
 ## Evita
 

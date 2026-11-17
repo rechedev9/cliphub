@@ -145,7 +145,8 @@ export default function StreamsPage(): ReactNode {
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <CreateFlowSteps flow={CREATE_FLOW.stream} step={0} className="min-w-0 flex-1" />
+        {/* Five steps share the track here: the wider track and gap keep "2 · Momentos" off "3 · Aspecto". */}
+        <CreateFlowSteps flow={CREATE_FLOW.stream} step={0} className="min-w-0 flex-1 max-w-180 gap-x-4" />
       </div>
       <StreamSourcePanel
         sourceKind={sourceKind}
