@@ -6,6 +6,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   provisionRuntimeTools,
+  windowsPowerShellEnv,
   type RuntimeToolName,
   type RuntimeToolProvisioningOptions,
 } from './runtime-tools.ts';
@@ -757,3 +758,8 @@ function fixtureTreeDigest(entries: Record<string, string | Buffer>): string {
   }
   return tree.digest('hex');
 }
+
+test('Windows PowerShell children drop an inherited PSModulePath in any case and keep the rest', () => {
+  const env = windowsPowerShellEnv({ PSModulePath: 'C:\\Program Files\\PowerShell\\Modules', psmodulepath: 'x', Path: 'C:\\Windows', TEMP: 'C:\\t' });
+  assert.deepEqual(env, { Path: 'C:\\Windows', TEMP: 'C:\\t' });
+});

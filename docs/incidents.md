@@ -431,6 +431,20 @@ Nothing reaches the console log, so only the 5-minute watchdog ended it.
   the Studio copy says to restart Steam without administrator rights.
 - Tests: `cmd/zv-recorder/capture_wait_test.go`, `internal/workers/record_failure_test.go`.
 
+### Incident: HLAE and FFmpeg not installed when Studio started from PowerShell 7 (2026-11-17)
+
+A Studio started from a PowerShell 7 session inherits PS7's `PSModulePath`. The first
+boot extracts HLAE and FFmpeg with Windows PowerShell 5.1's `Expand-Archive`, which then
+loaded PS7's `Microsoft.PowerShell.Archive`, failed with a non-terminating error and
+exited 0 with an empty folder: "installation is missing required files", and neither tool
+was installed. A Studio started from Explorer was not affected.
+
+- `expandArchive` (`desktop/src/runtime-tools.ts`) starts `powershell.exe` without
+  `PSModulePath` (`windowsPowerShellEnv`), so 5.1 rebuilds its own, and with
+  `$ErrorActionPreference = 'Stop'`, so a failed extraction exits non-zero with its error.
+- `scripts/local-studio.ps1` hashes through .NET for the same reason.
+- Test: `desktop/src/runtime-tools.test.ts`.
+
 ## Full Demo render lab (`zv-editor lab`, 2026-09-26)
 
 A full render takes 20+ minutes, so check a render change one stage at a

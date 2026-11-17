@@ -620,19 +620,28 @@ function cleanupStagingInstall(installDir: string, logLine: (text: string) => vo
 }
 
 /** Uses the PowerShell archive implementation shipped with supported Windows versions. */
+/**
+ * The environment for a Windows PowerShell child without PSModulePath, which it then rebuilds.
+ * Studio started from PowerShell 7 inherits PS7's module paths, and its Expand-Archive fails under 5.1.
+ */
+export function windowsPowerShellEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => key.toLowerCase() !== 'psmodulepath'));
+}
+
 function expandArchive(archive: string, destination: string, signal: AbortSignal): Promise<void> {
   if (signal.aborted) return Promise.reject(new Error('archive extraction aborted'));
 
   return new Promise((resolve, reject) => {
+    // Stop turns Expand-Archive's non-terminating errors into a failed exit instead of an empty folder.
     const powershell = spawn(
       'powershell.exe',
       [
         '-NoProfile',
         '-NonInteractive',
         '-Command',
-        `Expand-Archive -LiteralPath ${psQuote(archive)} -DestinationPath ${psQuote(destination)} -Force`,
+        `$ErrorActionPreference = 'Stop'; Expand-Archive -LiteralPath ${psQuote(archive)} -DestinationPath ${psQuote(destination)} -Force`,
       ],
-      { windowsHide: true },
+      { windowsHide: true, env: windowsPowerShellEnv(process.env) },
     );
     let stderr = '';
     let aborted = false;
