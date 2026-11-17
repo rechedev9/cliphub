@@ -574,7 +574,6 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     if (!attempt.controller.signal.aborted) logLine(`[music] provision failed: ${String(err)}\n`);
   });
 
-  setLoadingStatus('Arrancando…');
   const security = createBootSecurityCapabilities();
   const { orchestrator: orchPort, web: webPort } = await allocateStableServicePorts({
     host: LOOPBACK_HOST,

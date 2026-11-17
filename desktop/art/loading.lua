@@ -1,6 +1,6 @@
 -- ClipHub Studio boot animation: 64x64 pixel art, 48 frames at 24 fps, one seamless loop.
--- Run: Aseprite.exe -b --script-param out=<folder> --script loading.lua (the Steam build needs Start-Process -Wait).
--- It writes loading.aseprite and loading-sheet.png; loading.html inlines the sheet as a base64 data URL.
+-- Aseprite.exe -b --script-param out=<folder> --script loading.lua (Steam build: Start-Process -Wait) writes
+-- loading.aseprite and loading-sheet.png, which loading.html inlines as a base64 data URL.
 local p = app.params
 local out = p.out or "."
 local S, N = 64, 48
