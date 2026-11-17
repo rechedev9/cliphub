@@ -104,6 +104,7 @@ export function DeleteMatchButton({
           size="icon-sm"
           onClick={arm}
           aria-label={`Borrar ${label}`}
+          title={`Borrar ${label}`}
           className="text-fg-3 hover:bg-destructive/10 hover:text-destructive"
         >
           <Trash2 aria-hidden />

@@ -5,16 +5,19 @@ import { clipTimelineGeometry, formatStreamClock } from '@/lib/streams/plan';
 import { cn } from '@/lib/utils';
 export function StreamSourceTimeline({
   clips,
+  label,
   sourceDuration,
-  selectedClipId,
+  selectedClipIds,
   playheadSeconds,
   disabled,
   onSeek,
   onSelect,
 }: {
   clips: StreamClipRange[];
+  label: string;
   sourceDuration: number;
-  selectedClipId: string | null;
+  /** Every moment of the selected Short: a joined one lights all its parts. */
+  selectedClipIds: readonly string[];
   playheadSeconds: number;
   disabled: boolean;
   onSeek: (seconds: number) => void;
@@ -23,7 +26,7 @@ export function StreamSourceTimeline({
   return (
     <section className="rounded-md border border-border-subtle bg-surface-1 p-3" aria-label="Línea de tiempo del vídeo original">
       <label className="flex flex-col gap-2 text-label text-fg-2">
-        Recorrer el vídeo original
+        {label}
         <input
           aria-label="Posición en el vídeo original"
           type="range"
@@ -40,18 +43,19 @@ export function StreamSourceTimeline({
         {clips.map((clip, index) => {
           const geometry = clipTimelineGeometry(clip, sourceDuration);
           if (!geometry) return null;
+          const selected = selectedClipIds.includes(clip.id);
           return (
             <button
               key={clip.id}
               type="button"
               disabled={disabled}
-              aria-pressed={clip.id === selectedClipId}
+              aria-pressed={selected}
               aria-label={`Seleccionar el momento ${index + 1}: ${formatStreamClock(clip.start_seconds)} a ${formatStreamClock(clip.end_seconds)}`}
               onClick={() => onSelect(clip)}
               style={{ left: `${geometry.startPercent}%`, width: `${geometry.widthPercent}%` }}
               className={cn(
                 'absolute inset-y-0 min-w-1 overflow-hidden rounded border text-label focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-ring',
-                clip.id === selectedClipId
+                selected
                   ? 'border-fg-1 bg-format-stream text-format-stream-foreground'
                   : 'border-format-stream bg-format-stream/60 text-format-stream-foreground',
               )}

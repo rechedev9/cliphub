@@ -115,7 +115,9 @@ func TestResolveEditRejectsBadBannerAndCardText(t *testing.T) {
 		"fields without a style":  {BannerCode: "ABC"},
 		"unknown style":           {BannerStyle: "tigerr", BannerFamily: "CSGOSKINS"},
 		"bad code":                {BannerStyle: "classic", BannerCode: "-bad"},
-		"window ends early":       {BannerStyle: "classic", BannerEnd: &end, BannerStart: &end},
+		"style without a code":    {BannerStyle: "classic"},
+		"blank code":              {BannerStyle: "classic", BannerCode: "   "},
+		"window ends early":       {BannerStyle: "classic", BannerCode: "ABC", BannerEnd: &end, BannerStart: &end},
 		"intro text without card": {IntroText: "Hola"},
 		"outro text too long":     {Outro: &on, OutroText: strings.Repeat("x", 81)},
 	} {

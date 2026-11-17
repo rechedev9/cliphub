@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, Download } from 'lucide-react';
 import { streamsApi, type StreamPlay, type StreamSummary } from '@/lib/api/streams';
 import { errorMessage, formatStreamClock } from '@/lib/streams/plan';
@@ -10,6 +10,34 @@ import { Progress } from '@/components/ui/progress';
 
 const POLL_MS = 2000;
 const FAIL_MESSAGE = 'No pudimos crear el resumen. Vuelve a intentarlo.';
+/** The summary fades in from black: its thumbnail is a frame past the fade. */
+const POSTER_SECONDS = 1.5;
+
+/** The rendered summary, showing a frame past the fade-in until the first play starts from 0:00. */
+function SummaryVideo({ src }: { src: string }): ReactNode {
+  const poster = useRef<number | null>(null);
+  return (
+    <video
+      src={src}
+      aria-label="Resumen horizontal"
+      controls
+      preload="metadata"
+      className="aspect-video w-full rounded bg-black"
+      onLoadedMetadata={(event) => {
+        const video = event.currentTarget;
+        if (video.currentTime !== 0 || !Number.isFinite(video.duration)) return;
+        poster.current = Math.min(POSTER_SECONDS, video.duration / 2);
+        video.currentTime = poster.current;
+      }}
+      onPlay={(event) => {
+        const video = event.currentTarget;
+        // Only the untouched poster frame rewinds; a position the user scrubbed to plays from there.
+        if (poster.current !== null && Math.abs(video.currentTime - poster.current) < 0.05) video.currentTime = 0;
+        poster.current = null;
+      }}
+    />
+  );
+}
 
 /** One landscape video with the plays the user picks, in source order. */
 export function StreamSummaryCard({
@@ -130,7 +158,7 @@ export function StreamSummaryCard({
 
       {done && videoUrl ? (
         <div className="flex flex-col gap-2">
-          <video src={videoUrl} controls preload="metadata" className="aspect-video w-full rounded bg-black" />
+          <SummaryVideo key={videoUrl} src={videoUrl} />
           <p className="text-body-sm text-fg-2 tabular-nums">
             {summary.play_count} jugadas · {formatStreamClock(summary.duration_seconds ?? 0)}
           </p>

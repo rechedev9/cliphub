@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, ChevronDown, FileVideo, Loader2, SearchX, Unplug, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, FileVideo, Loader2, SearchX, Unplug, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
@@ -32,6 +32,7 @@ import { startPollLoop } from '@/lib/poll-loop';
 import { ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from '@/lib/api/types';
 import { prettyMapName } from '@/lib/format';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
+import { getOriginPick, isSamePick } from '@/lib/produce/origin-pick';
 import { FLOW_HOME_DESCRIPTION, FLOW_HOME_TITLE, FLOW_TITLE, PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
 import { groupSeriesDemos } from '@/lib/series-grouping';
 import { seriesTitle } from '@/lib/series-status';
@@ -71,6 +72,8 @@ type SourceKind = (typeof SOURCE_KIND)[keyof typeof SOURCE_KIND];
 
 const IMPORT_POLL_MS = 1500;
 const IMPORT_RETRY_MS = 10000;
+/** How long the picker waits for the FACEIT scoreboard before it settles on the demo's own tables. */
+const FACEIT_WAIT_MS = 4000;
 
 const ZERO_PLAYERS_HINT = 'Sin jugadores. ¿Seguro que es una demo de CS2?';
 
@@ -79,6 +82,12 @@ const PICK_DESCRIPTION = {
   short: 'Un jugador, o de 2 a 5 del mismo equipo para mezclar sus jugadas. Después podrás revisar el contenido antes de crearlo.',
   full: 'Elige el jugador desde cuya vista se graba la partida, o de 2 a 5 del mismo equipo para un resumen con sus mejores jugadas.',
 } as const;
+
+/** Both flows open the same demo with the player picked here. */
+const PICK_SHARED_NOTE = {
+  short: 'El jugador que elijas también queda elegido para la demo completa de esta partida. Puedes cambiarlo desde la tarjeta de la demo.',
+  full: 'El jugador que elijas también queda elegido para los Shorts de esta partida. Puedes cambiarlo desde la tarjeta de la demo.',
+} as const satisfies Record<ProduceFormat, string>;
 
 const SERIES_NOTE = 'En una serie prepararás un vídeo por mapa después del análisis.';
 
@@ -104,6 +113,8 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   const homeHref = flowHref(format);
   const resuming = jobParam !== undefined;
   const resumeJobId = isJobIdParam(jobParam) ? jobParam : null;
+  const fromParam = query[FLOW_QUERY.from];
+  const originJobId = resuming && isJobIdParam(fromParam) ? fromParam : null;
 
   const [stage, setStage] = useState<Stage>(resuming ? 'scanning' : 'idle');
   const [resumeFailure, setResumeFailure] = useState<ResumeFailure>(resuming && resumeJobId === null ? 'missing' : null);
@@ -116,7 +127,13 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   const [players, setPlayers] = useState<DemoPlayer[]>([]);
   const [match, setMatch] = useState<RosterMatch | null>(null);
 
-  const [faceitBoard, setFaceitBoard] = useState<{ jobId: string; board: FaceitScoreboard } | null>(null);
+  // Settled once per job, so the picker paints one table and never swaps it under the cursor.
+  const [faceitBoard, setFaceitBoard] = useState<{ jobId: string; board: FaceitScoreboard | null } | null>(null);
+  const faceitSettled = useRef<string | null>(null);
+  // The parsed job the user came back from: its pick is preselected, and picking it again reopens that job.
+  const [originPick, setOriginPick] = useState<{ jobId: string; pick: string[] | null } | null>(null);
+  const originReady = originJobId === null || originPick?.jobId === originJobId;
+  const originShown = originPick !== null && originPick.jobId === originJobId ? originPick.pick : null;
 
   const [scanRows, setScanRows] = useState<ScanRow[]>([]);
   const [parseRows, setParseRows] = useState<ParseRow[]>([]);
@@ -168,6 +185,10 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   const onPickPlayers = useCallback(
     async ([steamId, ...teammates]: string[]) => {
       if (stage !== 'picking' || seriesMode || !jobId || !steamId) return;
+      if (originJobId !== null && originShown !== null && isSamePick(originShown, [steamId, ...teammates])) {
+        router.push(produceHref(originJobId, format));
+        return;
+      }
       setError(null);
       setStage('parsing');
       try {
@@ -179,7 +200,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
         setError(demoParseError(err));
       }
     },
-    [stage, seriesMode, jobId, router, format],
+    [stage, seriesMode, jobId, router, format, originJobId, originShown],
   );
 
   const runSeriesScan = useCallback(
@@ -291,15 +312,36 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
     [stage, runScan, runSeriesScan],
   );
 
-  // A FACEIT demo shows the room's scoreboard; any other demo, or any failure, keeps the demo's own.
+  // A FACEIT demo shows the room's scoreboard; any other demo, a failure or a slow answer keeps the demo's own.
   useEffect(() => {
-    if (stage !== 'picking' || seriesMode || jobId === null) return;
+    if (stage !== 'picking' || seriesMode || jobId === null || faceitSettled.current === jobId) return;
     const controller = new AbortController();
-    void getFaceitScoreboard(jobId, controller.signal).then((board) => {
-      if (!controller.signal.aborted && board !== null) setFaceitBoard({ jobId, board });
+    const settle = (board: FaceitScoreboard | null) => {
+      if (controller.signal.aborted || faceitSettled.current === jobId) return;
+      faceitSettled.current = jobId;
+      setFaceitBoard({ jobId, board });
+    };
+    const timer = setTimeout(() => {
+      settle(null);
+      controller.abort();
+    }, FACEIT_WAIT_MS);
+    void getFaceitScoreboard(jobId, controller.signal).then(settle);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [stage, seriesMode, jobId]);
+  const faceitReady = faceitBoard !== null && faceitBoard.jobId === jobId;
+  const faceitShown = faceitBoard !== null && faceitBoard.jobId === jobId ? faceitBoard.board : null;
+
+  useEffect(() => {
+    if (originJobId === null) return;
+    const controller = new AbortController();
+    void getOriginPick(originJobId, controller.signal).then((pick) => {
+      if (!controller.signal.aborted) setOriginPick({ jobId: originJobId, pick });
     });
     return () => controller.abort();
-  }, [stage, seriesMode, jobId]);
+  }, [originJobId]);
 
   // Imported jobs can still be queued; wait for a roster before offering the player picker.
   useEffect(() => {
@@ -399,7 +441,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
         title={empty.title}
         description={empty.description}
         compact
-        actions={<Button onClick={() => router.push(homeHref)}>Volver</Button>}
+        actions={<Button onClick={() => router.push(homeHref)}><ChevronLeft aria-hidden />{FLOW_TITLE[format]}</Button>}
       />
     );
   } else if (stage === 'idle') {
@@ -427,11 +469,13 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
     body = <SingleDemoProgress label={resuming ? 'Cargando jugadores…' : 'Buscando jugadores…'} fileName={fileName} upload={upload} />;
   } else if (stage === 'parsing') {
     body = <SingleDemoProgress label="Extrayendo las rondas y jugadas de la partida…" fileName={fileName} />;
+  } else if (!faceitReady || !originReady) {
+    body = <SingleDemoProgress label="Cargando la tabla de la partida…" fileName={fileName} />;
   } else {
     body = (
       <div className="flex flex-col gap-3">
         {error ? <ErrorBanner message={error} /> : null}
-        <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} tone={format} allowDestinationSwitch={false} onPick={(steamId) => onPickPlayers([steamId])} onPickMany={onPickPlayers} match={match ?? undefined} onCancel={leave} faceit={faceitBoard?.jobId === jobId ? faceitBoard.board : null} />
+        <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} tone={format} allowDestinationSwitch={false} onPick={(steamId) => onPickPlayers([steamId])} onPickMany={onPickPlayers} match={match ?? undefined} onCancel={leave} faceit={faceitShown} initialPick={originShown} />
       </div>
     );
   }
@@ -439,16 +483,22 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   const atHome = stage === 'idle' && !resuming;
   return (
     <div className="measure-work flex flex-col gap-6">
-      {atHome ? <FlowHomeHero format={format} /> : (
+      {atHome ? (
+        <div className="flex flex-col gap-3">
+          <CreateFlowSteps flow={format} step={0} />
+          <FlowHomeHero format={format} />
+        </div>
+      ) : (
         <>
-          <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>
-          <header className="flex flex-wrap items-end gap-x-8 gap-y-4">
-            <div className="flex min-w-0 flex-[1_1_26rem] flex-col gap-2.5">
-              <h1 className="text-balance font-display text-display font-extrabold leading-[1.05] tracking-[-0.025em] text-fg-1">{title}</h1>
-              <p className="text-body text-fg-2">{description}</p>
-              {stage === 'picking' && !seriesMode && resumeFailure === null ? <ScannedDemoLine fileName={fileName} match={match} withScore={faceitBoard?.jobId === jobId} /> : null}
-            </div>
-            <CreateFlowSteps flow={format} step={progressStep} className="w-120 max-w-full" />
+          <div className="flex flex-col">
+            <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>
+            <CreateFlowSteps flow={format} step={progressStep} targets={[{ onSelect: leave }]} />
+          </div>
+          <header className="flex min-w-0 flex-col gap-2.5">
+            <h1 className="text-balance font-display text-display font-extrabold leading-[1.05] tracking-[-0.025em] text-fg-1">{title}</h1>
+            <p className="text-body text-fg-2">{description}</p>
+            {stage === 'picking' && !seriesMode && resumeFailure === null ? <ScannedDemoLine fileName={fileName} match={match} withScore={faceitShown !== null} /> : null}
+            {stage === 'picking' && !seriesMode && resumeFailure === null ? <p className="text-body-sm text-fg-3">{PICK_SHARED_NOTE[format]}</p> : null}
           </header>
           {seriesMode ? <p className="text-body-sm text-fg-2">{SERIES_NOTE}</p> : null}
         </>

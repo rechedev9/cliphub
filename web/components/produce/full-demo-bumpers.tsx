@@ -10,6 +10,7 @@ import { uploadFullDemoBumper, type FullDemoBumperOptions, type FullDemoDocument
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { roundListLabel } from '@/lib/library/analysis-video';
 import { fullDemoOrder, type FullDemoBumperSlot } from '@/lib/produce/full-demo-order';
+import { FULL_DEMO_BUMPERS_TITLE } from '@/lib/produce/full-demo-brief';
 import { FullDemoMediaPreview } from './full-demo-media-preview';
 import styles from './full-demo-bumpers.module.css';
 
@@ -38,7 +39,7 @@ export function FullDemoBumpers({ options, document, onChange, onAssetBusy, roun
   return <section aria-labelledby={headingId} className="studio-panel flex min-w-0 flex-col gap-3.5 rounded-2xl p-4">
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id={headingId} className="font-display text-body-lg font-bold text-fg-1">Intro, sponsor y outro</h2>
+        <h2 id={headingId} className="font-display text-body-lg font-bold text-fg-1">{FULL_DEMO_BUMPERS_TITLE}</h2>
         <Badge variant="outline" className="text-fg-2">Opcional</Badge>
       </div>
       <p className="mt-1.5 text-body-sm text-fg-2">Tu marca al principio y al final, y tu sponsor tras la ronda 2. Se quedan guardados para tus próximas demos.</p>
@@ -48,7 +49,7 @@ export function FullDemoBumpers({ options, document, onChange, onAssetBusy, roun
         ? <SlotButton key={part.slot} slot={part.slot} loaded={loaded(part.slot) !== null} onOpen={() => inputs.current[part.slot]?.click()} />
         : <RoundBlocks key={`rounds-${index}`} rounds={part.rounds} placeholder={index === 1 && rounds.length === 0} />)}
     </div>
-    <p className="text-meta text-fg-3">Cada bloque es una ronda. Intro, sponsor y outro son MP4 tuyos y opcionales: pulsa uno para subirlo.</p>
+    <p className="text-meta text-fg-3">La línea es el orden del vídeo: cada marca es una ronda. Intro, sponsor y outro son MP4 tuyos y opcionales: pulsa uno para subirlo.</p>
     <div className={styles.body}>
       <div className={styles.slots}>
         {SLOTS.map((slot) => <BumperUpload key={slot} slot={slot} asset={loaded(slot)} inputRef={(element) => { inputs.current[slot] = element; }}
@@ -69,12 +70,17 @@ function SlotButton({ slot, loaded, onOpen }: { slot: Slot; loaded: boolean; onO
   </button>;
 }
 
-/** The round winners are not in the plan, so every block wears the Demo completa colour. */
+/** A thin timeline, not buttons: the round winners are not in the plan, so every mark wears the Demo completa colour. */
 function RoundBlocks({ rounds, placeholder }: { rounds: readonly number[]; placeholder: boolean }): ReactNode {
   if (placeholder) return <span className="flex min-w-0 flex-1 items-center justify-center rounded-sm bg-format-full/12 text-meta text-fg-2">Rondas</span>;
   if (rounds.length === 0) return null;
   return <span role="img" aria-label={`${rounds.length === 1 ? 'Ronda' : 'Rondas'} ${roundListLabel(rounds)}`} className="contents">
-    {rounds.map((round) => <span key={round} title={`Ronda ${round}`} className={`min-w-0 flex-1 rounded-sm ${FORMAT_TONE.full.bg}`} />)}
+    {rounds.map((round, index) => <span key={round} className="flex min-w-0 flex-1 cursor-default flex-col justify-center gap-1">
+      <span aria-hidden className={`h-1.5 rounded-full ${FORMAT_TONE.full.bg}`} />
+      <span aria-hidden className="h-3 overflow-hidden text-center font-mono text-meta leading-3 text-fg-3 tabular-nums">
+        {index === 0 || index === rounds.length - 1 || round % 5 === 0 ? round : null}
+      </span>
+    </span>)}
   </span>;
 }
 

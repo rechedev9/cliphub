@@ -194,7 +194,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
       {
         term: 'Asistente de YouTube',
-        text: '«Publicar» te propone título, descripción, etiquetas y buenas horas para subirlo. Lo copias y lo subes tú desde YouTube Studio: ClipHub no publica por ti.',
+        text: '«Preparar publicación» te propone título, descripción, etiquetas y buenas horas para subirlo. Lo copias y lo subes tú desde YouTube Studio: ClipHub no publica por ti.',
       },
       {
         term: 'Cambiar la música',
@@ -205,8 +205,8 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'ideas',
-    kicker: 'Ideas',
-    label: 'Ideas',
+    kicker: 'Consejos',
+    label: 'Consejos',
     title: 'Qué hacer para llegar a más gente en YouTube',
     lead: 'Instrucciones cortas para tus Shorts y demos completas de CS2.',
     points: [
@@ -219,7 +219,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         text: 'Música que bloquea un Short, clips ajenos y enlaces a apuestas de skins.',
       },
     ],
-    link: { href: '/ideas', label: 'Ir a Ideas' },
+    link: { href: '/ideas', label: 'Ir a Consejos' },
   },
   {
     id: 'matches',

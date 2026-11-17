@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { PlaySide } from '@/lib/api/types';
-import { formatClock, SHORT_TARGET_SECONDS, type SelectionCue } from '@/lib/produce/short-selection';
+import { formatClock, type SelectionCue } from '@/lib/produce/short-selection';
 import { FORMAT_TONE, type FormatTone } from '@/components/studio/format-tone';
 import { cn } from '@/lib/utils';
 
@@ -20,10 +20,12 @@ export type ShortHeroProps = {
   totalSeconds: number;
   /** The length the video should stay within; a Short is one minute. */
   targetSeconds: number;
+  /** Why the video runs past the target; null while it fits. */
+  overNotice: string | null;
 };
 
 /** The flow's band: title, the running total against the target, and the filmstrip of chosen plays. */
-export function ShortHero({ tone, title, meta, notices, cues, totalSeconds, targetSeconds }: ShortHeroProps): ReactNode {
+export function ShortHero({ tone, title, meta, notices, cues, totalSeconds, targetSeconds, overNotice }: ShortHeroProps): ReactNode {
   const over = totalSeconds > targetSeconds;
   return (
     <section aria-labelledby="short-hero-title" className={cn('flex min-w-0 flex-col gap-4 rounded-2xl border px-5 py-5 @[56rem]/content:px-6', FORMAT_TONE[tone].tint, FORMAT_TONE[tone].border)}>
@@ -36,22 +38,16 @@ export function ShortHero({ tone, title, meta, notices, cues, totalSeconds, targ
         <p className="flex items-baseline gap-2 tabular-nums">
           <span className={cn('font-mono text-display font-medium leading-none tracking-[-0.03em]', over ? 'text-warning' : 'text-fg-1')}>{formatClock(totalSeconds)}</span>
           {/* No tilde: beside the figures it reads as a minus sign ("-0:00"). */}
-          <span className="text-body text-fg-2">de {formatClock(targetSeconds)} aprox.</span>
+          <span className="text-body text-fg-2">aprox. · objetivo {formatClock(targetSeconds)}</span>
         </p>
       </div>
       <Filmstrip tone={tone} cues={cues} totalSeconds={totalSeconds} targetSeconds={targetSeconds} />
-      {over ? (
-        <p className="text-body-sm text-warning">
-          {targetSeconds === SHORT_TARGET_SECONDS
-            ? 'Pasa del minuto: quita una jugada o acepta un Short más largo.'
-            : `Pasa de ${formatClock(targetSeconds)}: quita una jugada o acepta un vídeo más largo.`}
-        </p>
-      ) : null}
+      {overNotice ? <p className="text-body-sm text-warning">{overNotice}</p> : null}
     </section>
   );
 }
 
-type FilmstripProps = Omit<ShortHeroProps, 'title' | 'meta' | 'notices'>;
+type FilmstripProps = Omit<ShortHeroProps, 'title' | 'meta' | 'notices' | 'overNotice'>;
 
 /** One block per chosen play, as wide as its length, then the room left before the target. */
 function Filmstrip({ tone, cues, totalSeconds, targetSeconds }: FilmstripProps): ReactNode {

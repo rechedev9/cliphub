@@ -40,23 +40,32 @@ export function StreamReviewList({
     setPick({ groups: plan.groups, ids: [] });
   };
 
+  const canJoin = shorts.length > 1;
   return (
     <div className="flex flex-col gap-2">
+      {canJoin ? (
+        <p className="text-label text-fg-3">
+          Marca «Juntar» en dos o más para unirlos en un solo Short. Se exportan todos, marcados o no.
+        </p>
+      ) : null}
       <ul className="flex flex-col gap-2">
         {shorts.map((short, index) => {
           const tooLong = short.groupId !== null && short.durationSeconds > SHORT_MAX_SECONDS;
           return (
             <li key={short.id} className="flex flex-col gap-1">
-              <div className="flex items-start gap-2">
-                {shorts.length > 1 ? (
-                  <input
-                    type="checkbox"
-                    className="mt-2 size-4 shrink-0 accent-stream"
-                    aria-label={`Elegir «${short.title}» para juntar`}
-                    checked={picked.includes(short.id)}
-                    disabled={disabled}
-                    onChange={() => toggle(short.id)}
-                  />
+              <div className="flex items-center gap-2">
+                {canJoin ? (
+                  <label className="flex min-h-11 shrink-0 cursor-pointer flex-col items-center justify-center gap-0.5 text-meta text-fg-3">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-stream"
+                      aria-label={`Juntar «${short.title}» con otros`}
+                      checked={picked.includes(short.id)}
+                      disabled={disabled}
+                      onChange={() => toggle(short.id)}
+                    />
+                    <span aria-hidden>Juntar</span>
+                  </label>
                 ) : null}
                 <Button
                   variant={selectedShortId === short.id ? 'secondary' : 'outline'}
@@ -84,9 +93,6 @@ export function StreamReviewList({
         <Button variant="stream" disabled={disabled} onClick={join}>
           Juntar {pickedClipIds.length} momentos en un Short
         </Button>
-      ) : null}
-      {pickedClipIds.length < 2 && shorts.length > 1 ? (
-        <p className="text-label text-fg-3">Marca dos o más para juntarlos en un mismo Short.</p>
       ) : null}
     </div>
   );

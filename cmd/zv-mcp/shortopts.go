@@ -165,7 +165,7 @@ type shortChoices struct {
 	OutroText        string   `json:"outro_text,omitempty" jsonschema:"closing card text such as the user handle, at most 80 bytes; needs outro; empty shows ClipHub"`
 	BannerFamily     string   `json:"banner_family,omitempty" jsonschema:"affiliate banner family from list_short_options; default KEYDROP when banner_style is set"`
 	BannerStyle      string   `json:"banner_style,omitempty" jsonschema:"affiliate banner style from list_short_options; empty means no banner"`
-	BannerCode       string   `json:"banner_code,omitempty" jsonschema:"affiliate code on the banner: letters, digits, _ or -, at most 16; empty uses Studio's default code"`
+	BannerCode       string   `json:"banner_code,omitempty" jsonschema:"the user's own affiliate code on the banner, required with banner_style: letters, digits, _ or -, at most 16"`
 	BannerStart      *float64 `json:"banner_start_seconds,omitempty" jsonschema:"second of the Short when the banner appears; default 0"`
 	BannerEnd        *float64 `json:"banner_end_seconds,omitempty" jsonschema:"second of the Short when the banner leaves; default 4"`
 
@@ -395,6 +395,10 @@ func resolveBanner(edit *tuiclient.ShortEdit, c shortChoices) error {
 		return err
 	}
 	code := keydropbanner.NormalizeCode(c.BannerCode)
+	// Without a code the render draws Studio's sample code, so the UI refuses the banner too.
+	if code == "" {
+		return errors.New("banner_code is required with banner_style: ask the user for their own affiliate code")
+	}
 	if err := keydropbanner.ValidateCode(code); err != nil {
 		return fmt.Errorf("banner_code: %w", err)
 	}

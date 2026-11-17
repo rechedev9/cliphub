@@ -319,18 +319,6 @@ export function fullDemoOverlaySource(options: FullDemoOptions): EditConfig['dem
   return options.overlays.source === 'faceit' ? 'faceit' : undefined;
 }
 
-export function fullDemoOverlayLabel(source: EditConfig['demoSource']): string {
-  switch (source) {
-    case 'faceit': return 'Formato FACEIT';
-    case 'premier': return 'Formato Premier';
-    case 'professional': return 'Formato profesional';
-    default: return 'Formato de la partida';
-  }
-}
-
-/** Brief label for the added intro, sponsor and outro clips, shared by the form and the review dialog. */
-export const FULL_DEMO_BUMPERS_LABEL = 'Vídeos añadidos';
-
 /** One-line brief for the intro, sponsor and outro clips, e.g. "Intro, sponsor y outro". */
 export function bumperSummary(options: Pick<FullDemoOptions, 'bumpers'>): string {
   const bumpers = options.bumpers;

@@ -11,6 +11,7 @@ import {
   librarySummary,
   outputStateCount,
   streamActivity,
+  videoDisplayTitle,
   videoKind,
   type LibraryItem,
   type LibrarySummaryCounts,
@@ -83,4 +84,11 @@ test('stream activity lists downloads and exports with their progress', () => {
     { jobId: 'l', title: 'Directo', stage: 'download', percent: null, clipLabel: null },
     { jobId: 'e', title: 'Clip', stage: 'export', percent: 37, clipLabel: 'Short 2 de 4' },
   ]);
+});
+
+test('videoDisplayTitle names a format-only title by map and player and keeps an own title', () => {
+  assert.equal(videoDisplayTitle({ title: 'Demo completa', map: 'de_mirage' }, 'YEKINDAR'), 'Demo completa · Mirage · YEKINDAR');
+  assert.equal(videoDisplayTitle({ title: 'Resumen', map: 'Unknown' }, undefined), 'Resumen');
+  assert.equal(videoDisplayTitle({ title: '', map: 'de_nuke' }, ''), 'Vídeo · Nuke');
+  assert.equal(videoDisplayTitle({ title: '22 rondas - HUD Arena', map: 'de_mirage' }, 'YEKINDAR'), '22 rondas - HUD Arena');
 });

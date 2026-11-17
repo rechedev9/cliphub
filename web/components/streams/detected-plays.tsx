@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { streamsApi, type StreamClipRange, type StreamPlay, type StreamPlayScan, type StreamVoiceSettings } from '@/lib/api/streams';
 import { errorMessage, formatStreamClock } from '@/lib/streams/plan';
-import { isVoiceOnly, playIsCovered, playMoment, rankPlays } from '@/lib/streams/plays';
+import { isVoiceOnly, orderPlays, playIsCovered, playMoment, rankPlays, type PlayOrder } from '@/lib/streams/plays';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Segmented } from '@/components/ui/segmented';
@@ -16,6 +16,10 @@ const PRESETS = [
   { value: '1', label: 'Baja' },
   { value: '3', label: 'Media' },
   { value: '5', label: 'Alta' },
+];
+const ORDER_OPTIONS: readonly { value: PlayOrder; label: string }[] = [
+  { value: 'best', label: 'Mejores primero' },
+  { value: 'time', label: 'Por tiempo' },
 ];
 
 /** The presets, plus the level itself when the assistant set a 2 or a 4. */
@@ -82,12 +86,14 @@ function PlayRow({
   covered,
   disabled,
   onAdd,
+  onRemove,
   onSeek,
 }: {
   play: StreamPlay;
   covered: boolean;
   disabled: boolean;
   onAdd: (plays: StreamPlay[]) => void;
+  onRemove: (play: StreamPlay) => void;
   onSeek: (seconds: number) => void;
 }): ReactNode {
   return (
@@ -99,7 +105,12 @@ function PlayRow({
         {!isVoiceOnly(play) && play.voice_seconds?.length ? <span className="text-fg-3"> · con voz alzada</span> : null}
       </button>
       {covered ? (
-        <span className="text-meta text-fg-3">Añadida</span>
+        <span className="flex shrink-0 items-center gap-1">
+          <span className="text-meta text-fg-3">Añadida</span>
+          <Button variant="ghost" size="sm" disabled={disabled} aria-label={`Quitar «${play.label}» de tus momentos`} onClick={() => onRemove(play)}>
+            Quitar
+          </Button>
+        </span>
       ) : (
         <Button variant="ghost" size="sm" disabled={disabled} onClick={() => onAdd([play])}>
           Añadir
@@ -121,6 +132,7 @@ export function StreamDetectedPlays({
   clips,
   disabled,
   onAdd,
+  onRemove,
   onSeek,
 }: {
   jobId: string;
@@ -128,11 +140,14 @@ export function StreamDetectedPlays({
   clips: readonly StreamClipRange[];
   disabled: boolean;
   onAdd: (plays: StreamPlay[]) => void;
+  /** Removes the moments that cover an added play. */
+  onRemove: (play: StreamPlay) => void;
   onSeek: (seconds: number) => void;
 }): ReactNode {
   const [scan, setScan] = useState<StreamPlayScan | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [voice, setVoice] = useState<StreamVoiceSettings>(DEFAULT_VOICE);
+  const [order, setOrder] = useState<PlayOrder>('best');
   const voiceSynced = useRef(false);
   const running = scan?.status === 'running';
   const autoStarted = useRef(false);
@@ -176,10 +191,10 @@ export function StreamDetectedPlays({
     void start();
   });
 
-  const ranked = rankPlays(scan?.plays ?? []);
+  const ranked = orderPlays(scan?.plays ?? [], order);
   const killPlays = ranked.filter((play) => !isVoiceOnly(play));
   const voicePlays = ranked.filter(isVoiceOnly);
-  const open = killPlays.filter((play) => !playIsCovered(clips, play));
+  const open = rankPlays(killPlays).filter((play) => !playIsCovered(clips, play));
   const scanned = scan?.voice;
   // A scan saved before voice peaks has no settings, so it can always be redone with them.
   const voiceChanged = scanned === undefined || scanned.enabled !== voice.enabled || (voice.enabled && scanned.sensitivity !== voice.sensitivity);
@@ -241,10 +256,17 @@ export function StreamDetectedPlays({
         <StreamSummaryCard jobId={jobId} plays={scan.plays} disabled={disabled} />
       ) : null}
 
+      {scan?.status === 'done' && ranked.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-body-sm text-fg-3">Orden</span>
+          <Segmented label="Orden de las jugadas" value={order} options={ORDER_OPTIONS} onChange={setOrder} />
+        </div>
+      ) : null}
+
       {scan?.status === 'done' && killPlays.length > 0 ? (
         <ul className="flex flex-col divide-y divide-border-subtle">
           {killPlays.map((play) => (
-            <PlayRow key={play.id} play={play} covered={playIsCovered(clips, play)} disabled={disabled} onAdd={onAdd} onSeek={onSeek} />
+            <PlayRow key={play.id} play={play} covered={playIsCovered(clips, play)} disabled={disabled} onAdd={onAdd} onRemove={onRemove} onSeek={onSeek} />
           ))}
         </ul>
       ) : null}
@@ -255,7 +277,7 @@ export function StreamDetectedPlays({
           <p className="text-body-sm text-fg-3">Momentos en que subiste la voz sin una kill cerca. No entran en Añadir todas.</p>
           <ul className="flex flex-col divide-y divide-border-subtle">
             {voicePlays.map((play) => (
-              <PlayRow key={play.id} play={play} covered={playIsCovered(clips, play)} disabled={disabled} onAdd={onAdd} onSeek={onSeek} />
+              <PlayRow key={play.id} play={play} covered={playIsCovered(clips, play)} disabled={disabled} onAdd={onAdd} onRemove={onRemove} onSeek={onSeek} />
             ))}
           </ul>
         </div>

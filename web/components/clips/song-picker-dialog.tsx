@@ -144,7 +144,9 @@ export function SongPickerDialog({ open, onOpenChange, onChoose, selectedSongId 
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="font-[family-name:var(--font-display)] tracking-tight">Elige un tema</DialogTitle>
-          <DialogDescription>Cortamos la acción al ritmo del beat. Pulsa play para escucharlo.</DialogDescription>
+          <DialogDescription>
+            Cortamos la acción al ritmo del beat. Pulsa play para escucharlo. Si el Short dura más que el tema, el tema vuelve a empezar desde el principio hasta que acaba el vídeo.
+          </DialogDescription>
         </DialogHeader>
         <SongCatalog
           active={open}

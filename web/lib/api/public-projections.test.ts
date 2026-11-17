@@ -15,6 +15,7 @@ test('stream job projection drops local filesystem facts and keeps the Studio co
     probe: { width: 1920, height: 1080, duration_seconds: 30 },
     edit_plan: { schema_version: '1.0' },
     clip_count: 1,
+    short_count: 1,
     rendered_outputs: [{
       artifact_revision: '123e4567-e89b-42d3-a456-426614174000',
       variant: 'streamer-fullframe-nocam',

@@ -1,5 +1,6 @@
 import type { StreamJob } from '../api/streams.ts';
 import type { PollCadence } from '../poll-loop.ts';
+import { streamPlanShorts } from './groups.ts';
 
 export type StreamJobTagTone = 'neutral' | 'success' | 'stream' | 'danger';
 
@@ -41,6 +42,13 @@ export function sortStreamJobs(jobs: readonly StreamJob[]): StreamJob[] {
 export function streamClipCount(job: Pick<StreamJob, 'clip_count' | 'edit_plan'>): number {
   if (typeof job.clip_count === 'number') return job.clip_count;
   return job.edit_plan?.clips.length ?? 0;
+}
+
+/** Videos a listed job exports: the row's `short_count`, else the plan's Shorts, else one per moment. */
+export function streamJobShortCount(job: Pick<StreamJob, 'clip_count' | 'short_count' | 'edit_plan'>): number {
+  if (typeof job.short_count === 'number') return job.short_count;
+  if (job.edit_plan) return streamPlanShorts(job.edit_plan).length;
+  return streamClipCount(job);
 }
 
 /** One cut of a project, as percents of the source so a poster bar can place it. */

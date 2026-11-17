@@ -1,10 +1,10 @@
 'use client';
 
 import { useId, type ReactNode } from 'react';
-import Link from 'next/link';
 import type { CreativeBriefItem } from '@/lib/reel-brief';
 import { formatVideoDuration } from '@/lib/produce/full-demo-order';
-import { Button } from '@/components/ui/button';
+import { ProduceBackButton } from '@/components/produce/produce-back-button';
+import type { ProduceBack } from '@/components/produce/use-produce-back';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 
 type Notice = { code: string; message: string; round_id?: string };
@@ -15,7 +15,7 @@ type ActionProps = {
   /** What creating does next, read out as a status line under the button. */
   status: string;
   error: string | null;
-  backHref: string;
+  back: ProduceBack;
   /** The create button, built by the producer so its action and loading state stay there. */
   cta: ReactNode;
 };
@@ -35,7 +35,7 @@ function ErrorNotice({ error, className = '' }: { error: string | null; classNam
 }
 
 /** The sticky recap beside the settings: what will be recorded and the button that records it. */
-export function FullDemoSummary({ durationSeconds, roundCount, briefItems, planState, status, blockers, warnings, assetBusy, error, backHref, cta }: FullDemoSummaryProps): ReactNode {
+export function FullDemoSummary({ durationSeconds, roundCount, briefItems, planState, status, blockers, warnings, assetBusy, error, back, cta }: FullDemoSummaryProps): ReactNode {
   const headingId = useId();
   return <aside aria-labelledby={headingId}
     className={`flex min-w-0 flex-col gap-4 rounded-2xl border p-5 @[64rem]/content:sticky @[64rem]/content:top-4 ${FORMAT_TONE.full.border} ${FORMAT_TONE.full.tint}`}>
@@ -46,7 +46,7 @@ export function FullDemoSummary({ durationSeconds, roundCount, briefItems, planS
       </span>
     </div>
     <h2 id={headingId} className="text-body font-extrabold text-fg-1">Lo que se va a grabar</h2>
-    <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-body-sm">
+    <dl className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-body-sm">
       {briefItems.map((item) => <div key={item.label} className="contents">
         <dt className="text-fg-3">{item.label}</dt>
         <dd className="min-w-0 font-semibold break-words text-fg-1">{item.value}</dd>
@@ -62,14 +62,14 @@ export function FullDemoSummary({ durationSeconds, roundCount, briefItems, planS
     <div className="hidden flex-col gap-2 @[64rem]/content:flex">
       {planState ? <p className="text-body-sm font-semibold text-fg-1">{planState}</p> : null}
       {cta}
-      <Button variant="outline" size="sm" asChild><Link href={backHref}>Volver</Link></Button>
+      <ProduceBackButton back={back} />
       <p role="status" className="text-meta text-fg-2">{status}</p>
     </div>
   </aside>;
 }
 
 /** Below 64rem: the create button stays at the bottom of the window while the settings scroll. */
-export function FullDemoActionBar({ planState, status, error, backHref, cta }: ActionProps): ReactNode {
+export function FullDemoActionBar({ planState, status, error, back, cta }: ActionProps): ReactNode {
   return <div data-slot="produce-actions"
     className={`sticky bottom-0 z-20 mt-4 flex flex-col gap-3 rounded-2xl border bg-surface-1 px-4 py-3 shadow-[var(--elev-4)] @[64rem]/content:hidden ${FORMAT_TONE.full.border}`}>
     <ErrorNotice error={error} />
@@ -78,7 +78,7 @@ export function FullDemoActionBar({ planState, status, error, backHref, cta }: A
         {planState ? <p className="break-words text-body-sm font-semibold text-fg-1">{planState}</p> : null}
         <p role="status" className="break-words text-meta text-fg-2">{status}</p>
       </div>
-      <Button variant="outline" size="sm" asChild><Link href={backHref}>Volver</Link></Button>
+      <ProduceBackButton back={back} />
       <div className="shrink-0">{cta}</div>
     </div>
   </div>;

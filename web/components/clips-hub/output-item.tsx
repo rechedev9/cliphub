@@ -19,7 +19,7 @@ import {
 } from '@/lib/clips/hub';
 import { publishHref, produceHref, PRODUCE_FORMAT } from '@/lib/clips/routes';
 import { prettyMapName, timeAgo } from '@/lib/format';
-import { downloadPublishMP4 } from '@/lib/publish-actions';
+import { downloadPublishMP4, PUBLISH_PREP_HINT, PUBLISH_PREP_LABEL } from '@/lib/publish-actions';
 import { cn } from '@/lib/utils';
 import { ReelCover } from '@/components/brand/reel-cover';
 import { CoverImage } from '@/components/studio/cover-image';
@@ -164,7 +164,7 @@ export function downloadVideoMP4(video: Video): void {
 }
 
 /**
- * Ready: MP4 + Publicar + delete. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only.
+ * Ready: MP4 + Preparar publicación + delete. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only.
  * Compact is the card: its thumbnail already plays, and delete sits at the far end of one row.
  */
 export function OutputActions({ output, matchId, onChange, onPlay, className, compact = false }: OutputActionsProps): ReactNode {
@@ -199,7 +199,7 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
         </Button>
         {video.publishable === false ? null : (
           <Button asChild size="xs" variant="outline">
-            <Link href={publishHref(matchId, video.id)}>Publicar</Link>
+            <Link href={publishHref(matchId, video.id)} title={PUBLISH_PREP_HINT}>{PUBLISH_PREP_LABEL}</Link>
           </Button>
         )}
         {remove}

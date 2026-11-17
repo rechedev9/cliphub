@@ -8,10 +8,12 @@ import { fullChipLabel, HUB_ROW_STAGE, matchMetaParts, OUTPUT_TONE, shortsChipTo
 import { flowHref, PRODUCE_FORMAT, produceHref, type ProduceFormat } from '@/lib/clips/routes';
 import { matchDateLabel, prettyMapName } from '@/lib/format';
 import { FLOW_PRODUCE_CTA } from '@/lib/produce/copy';
-import { demoDeletePrompt, type DemoRowGroup } from '@/lib/produce/demo-rows';
+import { demoDeleteLabel, demoDeletePrompt, type DemoRowGroup } from '@/lib/produce/demo-rows';
+import { libraryRowTeams, type LibraryDemoRow } from '@/lib/produce/library-rows';
 import { cn } from '@/lib/utils';
 import { MapCover } from '@/components/brand/map-cover';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
+import { OpenInCrearButton } from '@/components/matches/open-in-crear-button';
 import { parseScore } from '@/components/matches/match-score';
 import { CoverImage } from '@/components/studio/cover-image';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
@@ -44,26 +46,36 @@ export function madeCount(row: HubMatch, format: ProduceFormat): number {
 type DemoCardProps = {
   row: DemoRowGroup;
   format: ProduceFormat;
+  /** The analysed library demo behind the row: its teams and score, and a new job to change the player. */
+  library?: LibraryDemoRow | undefined;
   onChange: () => void;
   onDelete: () => Promise<void>;
 };
 
 /** One loaded demo as a card: the map cover (or the demo's thumbnail) under the map tint, then this flow's next step. */
-export function DemoCard({ row, format, onChange, onDelete }: DemoCardProps): ReactNode {
+export function DemoCard({ row, format, library, onChange, onDelete }: DemoCardProps): ReactNode {
   const { match, stage } = row;
   const mapName = prettyMapName(match.map);
   const parsing = stage === HUB_ROW_STAGE.parsing;
   const ready = stage === HUB_ROW_STAGE.ready;
   const made = madeCount(row, format);
   const meta = matchMetaParts(match, '').filter((part) => part !== '');
+  const teams = library === undefined ? null : libraryRowTeams(library.match);
+  const score = match.score === '' ? (teams?.score ?? '') : match.score;
 
   return (
     <DemoCardFrame>
-      <DemoCover map={match.map} thumbnailUrl={match.thumbnailUrl} striped={parsing} badge={<ResultBadge row={row} />} dateLabel={matchDateLabel(match)} score={match.score} />
+      <DemoCover map={match.map} thumbnailUrl={match.thumbnailUrl} striped={parsing} badge={<ResultBadge row={row} />} dateLabel={matchDateLabel(match)} score={score} />
 
       <div className="flex flex-1 flex-col gap-2.5 px-4 pt-3.5 pb-4">
+        {teams !== null && teams.title !== '' ? <p className="text-body-sm wrap-anywhere text-fg-2">{teams.title}</p> : null}
         {meta.length > 0 ? <p className="text-body-sm wrap-anywhere text-fg-2">{meta.join(' · ')}</p> : null}
         <StateLine row={row} format={format} />
+        {ready && library !== undefined ? (
+          <OpenInCrearButton request={{ demo: library.demo, format, pickPlayers: true }} variant="ghost" size="xs" className="-ml-2 self-start text-fg-2">
+            Cambiar jugador
+          </OpenInCrearButton>
+        ) : null}
         <div className="mt-auto flex flex-wrap items-center gap-2">
           {ready ? (
             <Button asChild size="sm" className={cn('min-w-0 flex-1 shrink font-bold', FORMAT_TONE[format].fill)}>
@@ -77,7 +89,7 @@ export function DemoCard({ row, format, onChange, onDelete }: DemoCardProps): Re
           ) : null}
           {parsing ? <span className="flex-1 text-body-sm text-fg-3">Podrás crear al terminar</span> : null}
           {stage === HUB_ROW_STAGE.failed ? <span className="flex-1" /> : null}
-          <DeleteMatchButton label={mapName} confirmText={demoDeletePrompt(row)} onConfirm={onDelete} onDeleted={onChange} messageBelow />
+          <DeleteMatchButton label={demoDeleteLabel(row, mapName)} confirmText={demoDeletePrompt(row)} onConfirm={onDelete} onDeleted={onChange} messageBelow />
         </div>
       </div>
     </DemoCardFrame>

@@ -82,7 +82,7 @@ const COLUMNS: Column[] = [
   { key: 'kd', label: 'K/D', tier: 1, width: '3rem', value: (p) => formatDecimal(p.kd, 2) },
   { key: 'kr', label: 'K/R', title: 'Kills por ronda', tier: 1, width: '3rem', value: (p) => formatDecimal(p.kr, 2) },
   { key: 'hs', label: 'HS', title: 'Kills por headshot', tier: 2, width: '2.5rem', value: (p) => `${p.headshots}` },
-  { key: 'hsp', label: 'HS %', tier: 1, width: '3.5rem', value: (p) => `${formatDecimal(p.hsPct, 1)} %` },
+  { key: 'hsp', label: 'HS %', title: '% de kills por headshot', tier: 1, width: '4rem', value: (p) => `${formatDecimal(p.hsPct, 1)} %` },
   { key: '5k', label: '5K', tier: 2, width: '2.25rem', value: (p) => `${p.rounds5k}`, tone: (p) => dimZero(p.rounds5k) },
   { key: '4k', label: '4K', tier: 2, width: '2.25rem', value: (p) => `${p.rounds4k}`, tone: (p) => dimZero(p.rounds4k) },
   { key: '3k', label: '3K', tier: 2, width: '2.25rem', value: (p) => `${p.rounds3k}`, tone: (p) => dimZero(p.rounds3k) },
@@ -213,7 +213,7 @@ function TeamTable({
           <span className="px-3 py-2">Jugador</span>
           <span className="px-2 py-2">Rango</span>
           {COLUMNS.map((c) => (
-            <span key={c.key} title={c.title} className={cn('px-2 py-2 text-left', HEAD_TIER[c.tier])}>
+            <span key={c.key} title={c.title} className={cn('whitespace-nowrap px-2 py-2 text-left', HEAD_TIER[c.tier])}>
               {c.label}
             </span>
           ))}
@@ -260,7 +260,7 @@ function TeamTable({
                 <span
                   key={c.key}
                   className={cn(
-                    'items-center px-2 text-body-sm tabular-nums',
+                    'items-center whitespace-nowrap px-2 text-body-sm tabular-nums',
                     CELL_TIER[c.tier],
                     c.tone?.(p) ?? 'text-fg-1',
                   )}

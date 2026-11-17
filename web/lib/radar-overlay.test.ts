@@ -51,7 +51,7 @@ test('radarEditFields keeps the chosen options and drops the defaults', () => {
 test('the brief names the corner the format picks when none is chosen', () => {
   assert.equal(radarAutoPosition('short-9x16'), 'bottom-left');
   assert.equal(radarAutoPosition('landscape-16x9'), 'top-left');
-  assert.equal(radarBriefLabel({ ...SHORT, radar: true }), 'Abajo a la izquierda · Mediano · 90 %');
+  assert.equal(radarBriefLabel({ ...SHORT, radar: true }), 'Automática, abajo a la izquierda · Mediano · 90 %');
   assert.equal(radarBriefLabel({ ...SHORT, radar: true, radarPosition: 'top-right', radarSize: 'large', radarOpacity: 0.65 }), 'Arriba a la derecha · Grande · 65 %');
   assert.equal(radarBriefLabel(SHORT), 'No');
 });

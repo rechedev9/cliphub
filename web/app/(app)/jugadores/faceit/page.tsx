@@ -173,7 +173,7 @@ export default function FaceitPlayersPage(): ReactNode {
 
   return (
     <div className="measure-work flex min-w-0 flex-col gap-8">
-      <StudioPageHeader title="Jugadores FACEIT" description="Sigue jugadores de FACEIT y convierte sus partidas en clips."
+      <StudioPageHeader title="Jugadores FACEIT" description="Sigue jugadores de FACEIT, revisa sus partidas y sube la demo de la que quieras convertir en clips."
         actions={<FollowPlayerForm query={query} onQueryChange={setQuery} onSubmit={(event) => void onFollow(event)}
           disabled={state !== 'ready'} busy={busy} />} />
       {/* The empty state already says offline with its own Reintentar; a second red line above it is noise. */}

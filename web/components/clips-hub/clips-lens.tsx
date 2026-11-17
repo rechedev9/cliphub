@@ -12,6 +12,7 @@ import {
   libraryChipCounts,
   matchesFormat,
   streamActivity,
+  videoDisplayTitle,
   videoKind,
   type LibraryFilter,
   type LibraryItem,
@@ -35,7 +36,7 @@ const FILTER_LABEL = {
 } as const satisfies Record<LibraryFilter, string>;
 
 const STAGE_LABEL = {
-  all: 'Todo',
+  all: 'Cualquier estado',
   ready: 'Listos',
   working: 'En marcha',
 } as const satisfies Record<LibraryStage, string>;
@@ -115,7 +116,10 @@ export function ClipsLens({ clips, streams, onChange }: ClipsLensProps): ReactNo
   const visible = showReady ? byState(OUTPUT_STATE.ready) : [];
   const visibleStreams = showReady && matchesFormat('stream', format) ? streamItems : [];
   const playable = [
-    ...visible.map((clip) => demoPlaybackItem(clip.video)).filter((item): item is MediaPlaybackItem => item !== null),
+    ...visible.flatMap((clip): MediaPlaybackItem[] => {
+      const item = demoPlaybackItem(clip.video);
+      return item === null ? [] : [{ ...item, title: videoDisplayTitle(clip.video, clip.match?.player ?? clip.video.targetName) }];
+    }),
     ...visibleStreams,
   ];
   const play = (id: string, button: HTMLElement): void => {

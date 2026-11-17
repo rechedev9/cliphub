@@ -228,7 +228,8 @@ function NavRow({ entry, href, active }: { entry: SidebarEntry; href: string; ac
           {/* sr-only, not hidden: the icon rail keeps the link's name for screen readers. */}
           <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:sr-only">{entry.label}</span>
           {meta.dot === undefined ? null : (
-            <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full group-data-[collapsible=icon]:hidden', meta.dot)} />
+            <span aria-hidden title={`Color de ${entry.label}: lo llevan sus botones, pasos y vídeos`}
+              className={cn('size-1.5 shrink-0 rounded-full group-data-[collapsible=icon]:hidden', meta.dot)} />
           )}
           <NavPending />
         </Link>

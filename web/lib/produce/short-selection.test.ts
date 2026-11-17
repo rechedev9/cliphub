@@ -7,10 +7,30 @@ import {
   estimatedSelectionSeconds,
   VICTIM_REPLAY_SECONDS,
   formatClock,
+  overTargetNotice,
   roundsSummary,
   selectionTimeline,
   SHORT_TARGET_SECONDS,
+  switchReelSelection,
 } from './short-selection.ts';
+
+test('the over-target notice names the victim replay when it is what pushes the Short past the minute', () => {
+  const base = { targetSeconds: SHORT_TARGET_SECONDS, short: true };
+  assert.equal(overTargetNotice({ ...base, totalSeconds: 60, replaySeconds: 20 }), null);
+  assert.equal(overTargetNotice({ ...base, totalSeconds: 75, replaySeconds: 0 }), 'Pasa del minuto: quita una jugada o acepta un Short más largo.');
+  assert.match(overTargetNotice({ ...base, totalSeconds: 88, replaySeconds: 35 }) ?? '', /^Pasa del minuto por la repetición desde la víctima \(\+35 s\)/);
+  assert.match(overTargetNotice({ ...base, totalSeconds: 120, replaySeconds: 35 }) ?? '', /la repetición desde la víctima suma 35 s/);
+  assert.equal(overTargetNotice({ targetSeconds: 180, short: false, totalSeconds: 200, replaySeconds: 0 }), 'Pasa de 3:00: quita una jugada o acepta un vídeo más largo.');
+});
+
+test('kills and deaths each keep their own selection across a switch', () => {
+  const toDeaths = switchReelSelection({ kills: null, deaths: null }, { current: ['k1', 'k3'], toDeaths: true, fallback: () => ['d1'] });
+  assert.deepEqual(toDeaths.selectedIds, ['d1']);
+  const back = switchReelSelection(toDeaths.saved, { current: ['d1', 'd2'], toDeaths: false, fallback: () => ['k9'] });
+  assert.deepEqual(back.selectedIds, ['k1', 'k3']);
+  const again = switchReelSelection(back.saved, { current: ['k1'], toDeaths: true, fallback: () => ['d9'] });
+  assert.deepEqual(again.selectedIds, ['d1', 'd2']);
+});
 
 function play(id: string, round: number, kills: number): Play {
   return { id, matchId: 'm', label: `R${round}`, kind: kills >= 3 ? 'highlight' : 'clean', round, kills };

@@ -77,7 +77,7 @@ test('a saved death-reel draft keeps its mode', () => {
   assert.deepEqual(restored?.selectedIds, ['death-001']);
 });
 
-test('a player without kills opens a death reel of every death', () => {
+test('a player without kills opens a death reel of the deaths that fit the minute', () => {
   const deaths = [
     { id: 'death-001', matchId: 'm', kind: 'clean' as const, round: 2, kills: 0, label: 'Muerte · Ronda 2' },
     { id: 'death-002', matchId: 'm', kind: 'clean' as const, round: 5, kills: 0, label: 'Muerte · Ronda 5' },
@@ -86,4 +86,6 @@ test('a player without kills opens a death reel of every death', () => {
   assert.deepEqual(settings.selectedIds, ['death-001', 'death-002']);
   assert.equal(settings.editConfig.deathReel, true);
   assert.equal(settings.editConfig.killCounter, false);
+  const many = Array.from({ length: 15 }, (_, i) => ({ ...deaths[0], id: `death-${i}`, round: i + 1, startSeconds: i * 100, endSeconds: i * 100 + 12 }));
+  assert.equal(defaultShortSettings([], { deathPlays: many }).selectedIds.length, 5, 'five 12 s deaths fill the minute');
 });

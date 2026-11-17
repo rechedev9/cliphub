@@ -15,6 +15,14 @@ export function demoDeletePrompt(group: DemoRowGroup): string | undefined {
   return videos === 1 ? '¿Borrar con 1 vídeo?' : `¿Borrar con ${videos} vídeos?`;
 }
 
+/** What the card's bin deletes, for its label: "Borrar " plus this. The partida stays in Partidas. */
+export function demoDeleteLabel(group: DemoRowGroup, mapName: string): string {
+  const videos = group.shorts.length + group.fulls.length;
+  const base = `la demo de ${mapName} en Crear`;
+  if (videos === 0) return base;
+  return videos === 1 ? `${base} y su vídeo` : `${base} y sus ${videos} vídeos`;
+}
+
 /** Folds the jobs of one demo (another POV, a job from Analizar) into one row that opens the
  * newest ready job, else the newest, with the videos of all of them. `rows` are newest first. */
 export function oneRowPerDemo(rows: readonly HubMatch[]): DemoRowGroup[] {

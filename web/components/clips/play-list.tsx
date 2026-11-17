@@ -80,6 +80,7 @@ export function PlayList({
             variant="ghost"
             size="xs"
             disabled={allSelected || rows.length === 0}
+            title="Añade todas las jugadas de la lista, aunque el vídeo pase del objetivo. Con un filtro activo, solo las que se ven."
             onClick={onSelectAll}
           >
             Seleccionar todo

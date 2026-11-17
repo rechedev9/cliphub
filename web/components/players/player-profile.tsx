@@ -15,7 +15,7 @@ export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow }: {
   player: FaceitFollowedPlayer;
   onUnfollow: () => void;
   unfollowing: boolean;
-  /** Present for a seeded zone row: adds the player to the Custom list. */
+  /** Present for a seeded zone row: adds the player to the Seguidos list. */
   onFollow?: () => void;
 }): ReactNode {
   async function copySteamID(): Promise<void> {
@@ -55,14 +55,17 @@ export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow }: {
         <Button asChild variant="outline" size="sm" className="flex-1 sm:flex-none"><a href={player.profile_url} target="_blank" rel="noreferrer">
           Ver perfil FACEIT <ExternalLink aria-hidden className="size-3.5" />
         </a></Button>
-        <Button asChild size="sm" className="flex-1 shadow-none sm:flex-none"><Link href={SHORTS_HREF}><UploadCloud aria-hidden className="size-4" /> Subir demo</Link></Button>
+        <Button asChild size="sm" className="flex-1 shadow-none sm:flex-none"><Link href={SHORTS_HREF}
+          title="Sube el archivo .dem de una partida de la tabla: descárgalo antes desde su sala de FACEIT.">
+          <UploadCloud aria-hidden className="size-4" /> Subir demo descargada
+        </Link></Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="outline" size="icon-sm" aria-label={`Opciones de ${player.nickname}`} disabled={unfollowing}>
             <MoreHorizontal aria-hidden className="size-4" />
           </Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {onFollow ? <DropdownMenuItem onSelect={onFollow}>
-              <UserPlus aria-hidden className="size-4" /> Añadir {player.nickname} a Custom
+              <UserPlus aria-hidden className="size-4" /> Añadir {player.nickname} a Seguidos
             </DropdownMenuItem> : null}
             <DropdownMenuItem variant="destructive" onSelect={onUnfollow}>
               <UserMinus aria-hidden className="size-4" />

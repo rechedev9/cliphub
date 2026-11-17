@@ -8,14 +8,15 @@ import { api } from '@/lib/api';
 import type { Match, Video } from '@/lib/api/types';
 import { demoPlaybackItem } from '@/lib/api/playback';
 import { ORPHAN_MATCH_SEGMENT, RESULTS_HREF } from '@/lib/clips/routes';
-import { isHighlightsVideo, OUTPUT_STATE, OUTPUT_TYPE, outputState, outputType, type OutputState } from '@/lib/clips/hub';
-import { timeAgo } from '@/lib/format';
+import { OUTPUT_STATE, OUTPUT_TYPE, outputState, outputType, type OutputState } from '@/lib/clips/hub';
+import { videoDisplayTitle } from '@/lib/clips/results';
+import { prettyMapName, timeAgo } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
 import { downloadPublishMP4 } from '@/lib/publish-actions';
+import { publishSummary } from '@/lib/publish-summary';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ReelCover } from '@/components/brand/reel-cover';
-import { CoverImage } from '@/components/studio/cover-image';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { MediaPlayer } from '@/components/studio/media-player';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
@@ -24,6 +25,7 @@ import { PublishAssistantPanel } from '@/components/videos/publish-assistant-pan
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
 import { FullDemoEvidence } from '@/components/videos/full-demo-evidence';
 import { AutoShortsList } from '@/components/videos/auto-shorts-list';
+import { VideoPoster } from '@/components/videos/video-poster';
 
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
@@ -116,16 +118,9 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   const score = (video.score || match?.score || '').trim();
   const player = video.targetName ?? match?.player ?? '';
   const dims = isShort ? '1080×1920' : '1920×1080';
-  const meta = [`${dims} · 60 fps`, map, score, timeAgo(video.createdAt)].filter((part) => part !== '').join(' · ');
-  const where = `${player ? `${player} en ` : ''}${map}${score ? ` (${score})` : ''}`;
-  let description = isShort
-    ? `Highlights de ${where}.`
-    : `Partida completa de ${where}, POV con HUD nativo y comms.`;
-  if (isHighlightsVideo(video)) description = `Mejores jugadas de ${where}, POV con HUD nativo y comms.`;
-  if (video.editConfig?.fullDemo) {
-    const voice = video.editConfig.fullDemo.document.voice.availability === 'available' && video.editConfig.voiceComms && (video.editConfig.voiceVolume ?? 0) > 0;
-    description = `Rondas de ${where}, POV con HUD nativo${voice ? ' y voces del equipo' : ''}.`;
-  }
+  const mapName = map === '' ? '' : prettyMapName(map);
+  const meta = [`${dims} · 60 fps`, mapName, score, timeAgo(video.createdAt)].filter((part) => part !== '').join(' · ');
+  const description = publishSummary(video, { map, player, score });
   const playback = demoPlaybackItem(video);
 
   function download(): void {
@@ -136,66 +131,67 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
 
   return (
     <div className="measure-work grid items-start gap-6 @[80rem]/content:grid-cols-[minmax(0,1fr)_380px]">
-      <section className="flex min-w-0 flex-col gap-3.5">
-        <div className="flex flex-col gap-1.5">
-          {ready ? (
-            <p className="flex items-center gap-1.5 text-meta font-medium text-success">
-              <Check className="size-3.5" aria-hidden /> Listo
-            </p>
-          ) : (
-            <StatusTag tone={STATE_TAG[state].tone} dot className="w-fit">
-              {STATE_TAG[state].label}
-            </StatusTag>
-          )}
-          <h1 className="font-display text-display-sm font-bold text-fg-1">{video.title}</h1>
-        </div>
+      {/* The render details stack under the clip, so the left column does not sit empty beside the tall assistant. */}
+      <div className="flex min-w-0 flex-col gap-6">
+        <section className="flex min-w-0 flex-col gap-3.5">
+          <div className="flex flex-col gap-1.5">
+            {ready ? (
+              <p className="flex items-center gap-1.5 text-meta font-medium text-success">
+                <Check className="size-3.5" aria-hidden /> Listo
+              </p>
+            ) : (
+              <StatusTag tone={STATE_TAG[state].tone} dot className="w-fit">
+                {STATE_TAG[state].label}
+              </StatusTag>
+            )}
+            <h1 className="font-display text-display-sm font-bold text-fg-1">{videoDisplayTitle({ title: video.title, map }, player)}</h1>
+          </div>
 
-        <div className="studio-panel studio-panel-raised flex flex-wrap gap-4 p-4">
-          <MediaFrame
-            aspect={isShort ? '9:16' : '16:9'}
-            className={isShort ? 'w-[120px] shrink-0 border border-primary' : 'w-[240px] shrink-0 border border-primary'}
-            media={video.thumbnailUrl ? <CoverImage src={video.thumbnailUrl} loading="eager" /> : undefined}
-            fallback={<ReelCover seed={video.id} label={map} />}
-          />
-          <div className="flex min-w-0 flex-1 basis-56 flex-col gap-2.5">
-            <p className="text-meta text-fg-3">{meta}</p>
-            <p className="text-body-sm text-fg-2">{description}</p>
-            <div className="mt-auto flex flex-wrap gap-2 pt-1">
-              {playback ? (
-                <Button
-                  variant="outline-primary"
-                  size="sm"
-                  onClick={(event) => {
-                    setReturnFocus(event.currentTarget);
-                    setPlayerOpen(true);
-                  }}
-                >
-                  <Play className="size-4" aria-hidden /> Reproducir
+          <div className="studio-panel studio-panel-raised flex flex-wrap gap-4 p-4">
+            <MediaFrame
+              aspect={isShort ? '9:16' : '16:9'}
+              className={isShort ? 'w-[120px] shrink-0 border border-primary' : 'w-[240px] shrink-0 border border-primary'}
+              media={<VideoPoster posterUrl={video.thumbnailUrl} videoUrl={playback?.playbackUrl} loading="eager" fallback={<ReelCover seed={video.id} label={mapName} />} />}
+            />
+            <div className="flex min-w-0 flex-1 basis-56 flex-col gap-2.5">
+              <p className="text-meta text-fg-3">{meta}</p>
+              <p className="text-body-sm text-fg-2">{description}</p>
+              <div className="mt-auto flex flex-wrap gap-2 pt-1">
+                {playback ? (
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
+                    onClick={(event) => {
+                      setReturnFocus(event.currentTarget);
+                      setPlayerOpen(true);
+                    }}
+                  >
+                    <Play className="size-4" aria-hidden /> Reproducir
+                  </Button>
+                ) : null}
+                <Button variant="hero" size="sm" disabled={!video.downloadUrl} onClick={download}>
+                  <Download className="size-4" /> Descargar MP4
                 </Button>
-              ) : null}
-              <Button variant="hero" size="sm" disabled={!video.downloadUrl} onClick={download}>
-                <Download className="size-4" /> Descargar MP4
-              </Button>
-              {canAddMusic ? (
-                <Button variant="outline" size="sm" onClick={() => setMusicOpen(true)}>
-                  <Music className="size-4 text-stream" aria-hidden />
-                  {video.songId ? 'Cambiar música' : 'Añadir música'}
+                {canAddMusic ? (
+                  <Button variant="outline" size="sm" onClick={() => setMusicOpen(true)}>
+                    <Music className="size-4 text-stream" aria-hidden />
+                    {video.songId ? 'Cambiar música' : 'Añadir música'}
+                  </Button>
+                ) : null}
+                <Button variant="outline" size="sm" onClick={() => router.push(backHref)}>
+                  {orphan ? 'Volver a clips' : 'Volver a la partida'}
                 </Button>
-              ) : null}
-              <Button variant="outline" size="sm" onClick={() => router.push(backHref)}>
-                {orphan ? 'Volver a clips' : 'Volver a la partida'}
-              </Button>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+        <FullDemoEvidence video={video} />
+        <AutoShortsList video={video} />
+      </div>
 
       <aside className="studio-panel p-4">
         <PublishAssistantPanel video={video} />
       </aside>
-
-      <FullDemoEvidence video={video} />
-      <AutoShortsList video={video} />
 
       {canAddMusic ? (
         <LibraryMusicDialog

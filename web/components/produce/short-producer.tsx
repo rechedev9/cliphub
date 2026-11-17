@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { parseFailureReason } from '@/lib/api/failure-reason';
 import type { EditConfig, Match, Play, Preset, RenderFormat } from '@/lib/api/types';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
-import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
+import { PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
 import { FORGE_HINT_LOADING_PRESETS, forgeHint } from '@/lib/forge-hint';
 import { shortCreateErrorMessage } from '@/lib/produce/short-create-error';
 import { PRODUCE_SHORT_CTA, PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE, PRODUCE_SUMMARY_CTA, PRODUCE_SUMMARY_TITLE } from '@/lib/produce/copy';
@@ -21,12 +21,15 @@ import {
   autoPickBestPlays,
   estimatedSelectionSeconds,
   formatClock,
+  overTargetNotice,
   roundsSummary,
   selectionTimeline,
   SHORT_TARGET_SECONDS,
+  switchReelSelection,
   victimReplaySeconds,
+  type ReelSelections,
 } from '@/lib/produce/short-selection';
-import { canForgeReel, constrainEditConfig, reelCreativeBrief, verticalHudAllowed, withPresetLimits, type MusicBrief } from '@/lib/reel-brief';
+import { canForgeReel, constrainEditConfig, missingAffiliateCode, reelCreativeBrief, verticalHudAllowed, withPresetLimits, type MusicBrief } from '@/lib/reel-brief';
 import { radarAllowed } from '@/lib/radar-overlay';
 import { selectShortsFormat, selectShortsPreset, shortsPresetsForFormat } from '@/lib/reel-format';
 import { cn } from '@/lib/utils';
@@ -39,6 +42,7 @@ import { PlayList } from '@/components/clips/play-list';
 import { SongPickerDialog } from '@/components/clips/song-picker-dialog';
 import { MusicCard, MUSIC_VOLUME } from './music-card';
 import { ProduceFooter } from './produce-footer';
+import { useProduceBack } from './use-produce-back';
 import { ShortStoryboard } from './short-storyboard';
 import { ShortHero } from './short-hero';
 import { FORMAT_TONE, type FormatTone } from '@/components/studio/format-tone';
@@ -78,6 +82,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const landscape = format === 'landscape-16x9';
   const tone: FormatTone = landscape ? 'summary' : 'short';
   const multiPov = (match.povPlayers?.length ?? 0) > 1;
+  const { back } = useProduceBack({ jobId: matchId, format: landscape ? PRODUCE_FORMAT.full : PRODUCE_FORMAT.short, seriesId });
   // A multi-POV video mixes plays only: the death list is the anchor's alone.
   const deathPlays = multiPov ? [] : allDeathPlays;
   const targetSeconds = landscape ? BEST_MOMENTS_TARGET_SECONDS : SHORT_TARGET_SECONDS;
@@ -103,6 +108,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const [autoPov, setAutoPov] = useState<{ ids: string[]; summary: string | null; notes: Map<string, string> } | null>(null);
   const [directing, setDirecting] = useState(false);
   const busy = creating || !loaded;
+  const [reelSelections, setReelSelections] = useState<ReelSelections>({ kills: null, deaths: null });
   const [playFilter, setPlayFilter] = useState<PlayFilter>(NO_PLAY_FILTER);
   const filterOptions = useMemo(() => playFilterOptions(plays), [plays]);
   const visiblePlays = useMemo(() => filterPlays(plays, playFilter), [plays, playFilter]);
@@ -131,6 +137,14 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const cues = selectionTimeline(plays, { selectedIds, ...replay });
   const estimatedSeconds = estimatedSelectionSeconds(selectedPlays, replay);
   const overTarget = estimatedSeconds > targetSeconds;
+  const overNotice = overTargetNotice({
+    totalSeconds: estimatedSeconds,
+    targetSeconds,
+    replaySeconds: estimatedSeconds - estimatedSelectionSeconds(selectedPlays),
+    short: !landscape,
+  });
+  const hiddenSelected = selectedPlays.filter((play) => !visibleIds.has(play.id)).length;
+  const codeMissing = missingAffiliateCode(editConfig);
   const visiblePresets = presets === null ? null : shortsPresetsForFormat(presets, format);
   // Multi-POV: a play overlapping a chosen play of another player cannot be filmed with it.
   const clashes = useMemo(() => {
@@ -148,7 +162,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   // A Full HUD style keeps the draft's vertical HUD but never sends it.
   const hudAllowed = verticalHudAllowed(selectedPreset);
   const briefItems = reelCreativeBrief(editConfig, selectedPreset, musicBriefFor(songTitle, musicVolume, gameVolume));
-  const ready = canForgeReel({
+  const ready = !codeMissing && canForgeReel({
     creating: busy,
     hasPreset: selectedPreset !== null,
     selectionCount: selectedPlays.length,
@@ -193,12 +207,14 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
 
   function chooseDeathReel(next: boolean): void {
     if (busy || next === deathReel) return;
-    // A reel is either kills or deaths, so the selection starts over: every death, or the best kills.
+    // Each tab keeps its own selection; a first visit picks what fits the target, like "Ajustar".
+    const fallback = (): string[] => [...(next
+      ? autoPickBestPlays(deathPlays, { targetSeconds })
+      : autoPickBestPlays(killPlays, { ...replay, targetSeconds }))];
+    const switched = switchReelSelection(reelSelections, { current: settings.selectedIds, toDeaths: next, fallback });
+    setReelSelections(switched.saved);
     setPlayFilter(NO_PLAY_FILTER);
-    updateSettings((cur) => ({
-      editConfig: shape(cur.editConfig, next),
-      selectedIds: next ? deathPlays.map((play) => play.id) : [...autoPickBestPlays(killPlays)],
-    }));
+    updateSettings((cur) => ({ editConfig: shape(cur.editConfig, next), selectedIds: switched.selectedIds }));
   }
 
   function chooseVariant(nextVariant: string): void {
@@ -222,6 +238,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   function startOver(): void {
     if (busy) return;
     resetSettings({ ...defaultShortSettings(killPlays, { deathPlays, targetSeconds }), variant: selectShortsFormat(format, null, presets ?? []).variant });
+    setReelSelections({ kills: null, deaths: null });
     setCreateError(null);
     setSongOpen(false);
   }
@@ -233,7 +250,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
 
   // Auto-Shorts: one capture of these plays, each rendered as its own Short.
   async function onCreateAutoShorts(playIds: string[]): Promise<void> {
-    if (busy || playIds.length === 0 || selectedPreset === null) return;
+    if (busy || playIds.length === 0 || selectedPreset === null || codeMissing) return;
     await startReel(playIds, { ...withPresetLimits(shape(editConfig, false), selectedPreset), separateShorts: true });
   }
 
@@ -270,7 +287,6 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   // A created Short lands in Mis vídeos; from a series map card it returns to the series.
   const flow = landscape ? PRODUCE_FORMAT.full : PRODUCE_FORMAT.short;
   const doneHref = seriesId ? seriesHref(seriesId, flow) : RESULTS_HREF;
-  const backHref = seriesId ? seriesHref(seriesId, flow) : flowHref(flow);
   const summary = selectedPlays.length > 0 ? (
     <>
       {selectedPlays.length} {selectedPlays.length === 1 ? 'jugada' : 'jugadas'}
@@ -280,8 +296,15 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
       <span className="text-fg-1">{presetLabel ?? (presets === null ? 'Cargando estilo' : 'Estilo pendiente')}</span>
       <span className="text-fg-3"> · </span>
       {musicSummary}
+      {overNotice ? <span className="mt-0.5 block text-warning">{overNotice}</span> : null}
     </>
   ) : null;
+  let footerHint = PRODUCE_SHORT_EMPTY_HINT;
+  if (selectedPlays.length > 0) {
+    footerHint = codeMissing
+      ? 'Escribe tu código de afiliado en Textos y gráficos, o quita el banner afiliado.'
+      : forgeHint(roundsSummary(selectedPlays), { label: presetLabel, loading: presets === null });
+  }
 
   return (
     <Dialog open={stylesOpen} onOpenChange={setStylesOpen}>
@@ -293,6 +316,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
           cues={cues}
           totalSeconds={estimatedSeconds}
           targetSeconds={targetSeconds}
+          overNotice={overNotice}
           notices={<>
             {focusRounds && focusRounds.length > 0 ? (
               <p role="status" className="text-body-sm text-fg-2">
@@ -328,20 +352,26 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             tone={tone}
             toolbar={<div className="flex flex-wrap gap-2">
               <Button type="button" size="xs" variant="outline" disabled={busy || visiblePlays.length === 0}
+                title={deathReel
+                  ? `Deja elegidas las muertes que caben en ${targetMinutes} min. Cambia la selección actual.`
+                  : `Cambia la selección por las mejores jugadas que caben en ${targetMinutes} min, contando la repetición si está activa.`}
                 onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true, victimReplaySpeed: editConfig.victimReplaySpeed, targetSeconds })] })}><Zap aria-hidden />{deathReel ? `Ajustar a ${targetMinutes} min` : `Elegir las mejores (${targetMinutes} min)`}</Button>
               {multiPov && !deathReel ? (
                 <Button type="button" size="xs" variant="outline" disabled={busy || killPlays.length === 0} loading={directing} loadingText="Eligiendo…"
                   title="Elige jugadores y jugadas como un observador: clutches, duelos, la bomba y las rachas, sin dos vistas a la vez."
                   onClick={() => void chooseAutomatically()}><Clapperboard aria-hidden />Elegir automáticamente</Button>
               ) : null}
-              {!landscape && !deathReel ? <AutoShortsDialog matchId={matchId} plays={killPlays} disabled={busy || selectedPreset === null} creating={creating} onCreate={(ids) => void onCreateAutoShorts(ids)} /> : null}
+              {!landscape && !deathReel ? <AutoShortsDialog matchId={matchId} plays={killPlays} disabled={busy || selectedPreset === null || codeMissing} creating={creating} onCreate={(ids) => void onCreateAutoShorts(ids)} /> : null}
             </div>}
             filters={<PlayFilters options={filterOptions} value={playFilter} disabled={busy} onChange={setPlayFilter} />}
             visibleIds={visibleIds}
             emptyFiltered={
               <p className="rounded-xl bg-surface-2 p-4 text-body-sm text-fg-2">Ninguna jugada cumple estos filtros. Las elegidas siguen en el vídeo.</p>
             }
-            counter={<span className="tabular-nums">{selectedPlays.length} de {plays.length}</span>}
+            counter={<span className="tabular-nums">
+              {selectedPlays.length} de {plays.length}
+              {hiddenSelected > 0 ? ` · ${hiddenSelected} ${hiddenSelected === 1 ? 'elegida oculta' : 'elegidas ocultas'} por el filtro` : null}
+            </span>}
             clashes={multiPov ? clashes : undefined}
             notes={autoPov?.notes}
             onToggle={toggleSelect}
@@ -359,7 +389,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
               <div className={cn('w-full rounded-[1.25rem] bg-surface-2', landscape ? 'aspect-video' : 'aspect-[9/16]')} />
             )}
           </div>
-          <p className="text-center text-meta text-fg-3">{previewCaption(presetLabel, presets === null)}</p>
+          <p className={cn('text-center text-meta text-fg-3', landscape ? 'max-w-md' : 'max-w-60')}>{previewCaption(presetLabel, presets === null)}</p>
           <ShortStoryboard cues={cues} ordinals={roundOrdinals(plays)} {...(landscape ? { title: 'Guion del resumen', videoLabel: 'Resumen' } : {})} />
         </section>
 
@@ -440,13 +470,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
         tone={tone}
         eyebrow={landscape ? 'Resumen 16:9' : 'Short'}
         summary={summary}
-        hint={
-          selectedPlays.length === 0
-            ? PRODUCE_SHORT_EMPTY_HINT
-            : forgeHint(roundsSummary(selectedPlays), { label: presetLabel, loading: presets === null })
-        }
+        hint={footerHint}
         briefItems={briefItems}
-        backHref={backHref}
+        back={back}
         error={createError}
         cta={
           <Button
@@ -467,7 +493,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
       <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Compara los estilos</DialogTitle>
-          <DialogDescription>Ejemplos orientativos del HUD y el color. El vídeo final utiliza tus jugadas.</DialogDescription>
+          <DialogDescription>
+            Dibujos de ejemplo del HUD y el color de cada estilo: arriba a la derecha, la kill feed del juego si el estilo la conserva. El vídeo final usa tus jugadas, y el radar, los textos y los efectos no salen aquí.
+          </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,180px),1fr))] gap-3">
           {(visiblePresets ?? []).map((preset) => (
@@ -532,7 +560,7 @@ function overlaysSummary(edit: EditConfig): string {
   if ((edit.centeredKillfeed || edit.verticalHud) && edit.format === 'short-9x16' && !edit.deathReel) parts.push('Kill feed centrada');
   if (edit.radar) parts.push('Radar');
   if (edit.hookText) parts.push('Título');
-  if (edit.intro || edit.outro) parts.push('Intro / outro');
+  if (edit.intro || edit.outro) parts.push('Apertura / cierre');
   if (edit.playBadges) parts.push('Insignias');
   if (edit.winProbability) parts.push('Prob. de victoria');
   if (edit.playerLabels) parts.push('Nombres y vida');
@@ -546,6 +574,6 @@ function overlaysSummary(edit: EditConfig): string {
 }
 
 function previewCaption(presetLabel: string | null, loading: boolean): string {
-  if (presetLabel) return `${presetLabel} · ejemplo orientativo`;
+  if (presetLabel) return `${presetLabel}: dibujo de ejemplo del HUD y el color del estilo. No muestra tus jugadas, el radar, los textos ni los efectos.`;
   return loading ? FORGE_HINT_LOADING_PRESETS : 'Elige un estilo para verlo aquí';
 }

@@ -26,6 +26,7 @@ import { browserWindowActivity } from '@/lib/window-activity';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatRate } from '@/lib/format';
 
 const SEEK_SECONDS = 5;
@@ -42,6 +43,10 @@ export type MediaPlayerProps = {
   onOpenChange: (open: boolean) => void;
   returnFocus?: HTMLElement | null;
 };
+
+function nextPlaybackRate(rate: number): number {
+  return PLAYBACK_RATES[(PLAYBACK_RATES.findIndex((candidate) => candidate === rate) + 1) % PLAYBACK_RATES.length];
+}
 
 function clock(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -290,7 +295,7 @@ export function MediaPlayer({
       onOpenChange(next);
     }}>
       <DialogContent
-        className="max-h-[calc(100dvh-1rem)] max-w-[min(92rem,calc(100%-1rem))] overflow-auto p-3 sm:p-4"
+        className="max-h-[calc(100dvh-1rem)] max-w-[min(92rem,calc(100%-1rem))] overflow-auto p-3 sm:max-w-[min(92rem,calc(100%-2rem))] sm:p-4"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           playButtonRef.current?.focus({ preventScroll: true });
@@ -438,16 +443,25 @@ export function MediaPlayer({
               <Button variant={loop ? 'outline-primary' : 'ghost'} size="icon-sm" onClick={() => setLoop((value) => !value)} aria-pressed={loop} aria-label="Repetir vídeo">
                 <Repeat2 aria-hidden />
               </Button>
-              <label className="flex h-10 items-center gap-1.5 text-meta text-fg-3">
-                Velocidad
-                <select
-                  value={playbackRate}
-                  onChange={(event) => setPlaybackRate(Number(event.currentTarget.value))}
-                  className="h-10 border border-border-strong bg-surface-2 px-2 text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                >
-                  {PLAYBACK_RATES.map((rate) => <option key={rate} value={rate}>{formatRate(rate)}</option>)}
-                </select>
-              </label>
+              <span className="flex h-10 items-center gap-1.5 text-meta text-fg-3">
+                <span id="media-player-rate-label">Velocidad</span>
+                {fullscreen ? (
+                  // The list opens in a portal outside the fullscreen element, so fullscreen steps through the rates instead.
+                  <Button variant="outline" size="sm" className="h-10 min-w-16 tabular-nums" aria-describedby="media-player-rate-label"
+                    onClick={() => setPlaybackRate(nextPlaybackRate(playbackRate))}>
+                    {formatRate(playbackRate)}
+                  </Button>
+                ) : (
+                  <Select value={String(playbackRate)} onValueChange={(value) => setPlaybackRate(Number(value))}>
+                    <SelectTrigger aria-labelledby="media-player-rate-label" className="h-10 w-20 tabular-nums">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PLAYBACK_RATES.map((rate) => <SelectItem key={rate} value={String(rate)}>{formatRate(rate)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+              </span>
               <span className="ml-auto flex items-center gap-1.5">
                 <Button variant="ghost" size="icon-sm" disabled={onActiveChange === undefined || activeIndex <= 0} onClick={() => move(-1)} aria-label="Vídeo anterior">
                   <ChevronLeft aria-hidden />
@@ -500,6 +514,8 @@ function shouldHandleMediaPlayerShortcut(event: KeyboardEvent): boolean {
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
   const target = event.target;
   if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return false;
+  // The speed picker's open list owns its keys: arrows move the choice, letters jump to one.
+  if (target instanceof HTMLElement && target.closest('[role="listbox"]') !== null) return false;
   if (target instanceof HTMLElement && target.isContentEditable) return false;
   if (target instanceof HTMLButtonElement && (event.key === ' ' || event.key === 'Enter')) return false;
   return true;

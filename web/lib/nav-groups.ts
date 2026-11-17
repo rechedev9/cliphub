@@ -46,7 +46,7 @@ export const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
       { id: 'clips-de-stream', label: 'Clips de stream', href: '/streams' },
       { id: 'jugadores-faceit', label: 'Jugadores FACEIT', href: '/jugadores/faceit' },
       { id: 'mis-videos', label: 'Mis vídeos', href: '/mis-videos' },
-      { id: 'ideas', label: 'Ideas', href: '/ideas' },
+      { id: 'ideas', label: 'Consejos', href: '/ideas' },
     ],
   },
   {

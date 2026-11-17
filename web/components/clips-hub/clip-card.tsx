@@ -3,17 +3,20 @@
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Download, Ellipsis, FolderOpen, Music, Play, UploadCloud } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { prettifyMap } from '@/lib/api/map';
 import { PLAYBACK_REVIEW, demoPlaybackItem, type MediaPlaybackItem, type PlaybackFormat } from '@/lib/api/playback';
 import { streamsApi } from '@/lib/api/streams';
 import { CLIP_SIZE, OUTPUT_TYPE, type ClipSize, type HubModel } from '@/lib/clips/hub';
-import { CREATE_AGAIN_LABEL, videoKind, type VideoKind } from '@/lib/clips/results';
+import { CREATE_AGAIN_LABEL, videoDisplayTitle, videoKind, type VideoKind } from '@/lib/clips/results';
 import { ORPHAN_MATCH_SEGMENT, PRODUCE_FORMAT, matchHref, produceHref, publishHref } from '@/lib/clips/routes';
+import { renderVideoFile } from '@/lib/clips/video-file';
 import { timeAgo } from '@/lib/format';
+import { PUBLISH_PREP_HINT, PUBLISH_PREP_LABEL } from '@/lib/publish-actions';
 import { cn } from '@/lib/utils';
+import { MapCover } from '@/components/brand/map-cover';
 import { ReelCover } from '@/components/brand/reel-cover';
-import { CoverImage } from '@/components/studio/cover-image';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { StatusTag } from '@/components/studio/status-tag';
@@ -27,6 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { DeleteVideoDialog } from '@/components/videos/delete-video-button';
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
+import { VideoPoster } from '@/components/videos/video-poster';
 import { downloadMP4, downloadVideoMP4 } from '@/components/clips-hub/output-item';
 
 type HubClip = HubModel['clips'][number];
@@ -65,7 +69,11 @@ type CardStageProps = {
   kind: VideoKind;
   format: PlaybackFormat;
   seed: string;
+  /** The demo's map: its plate stands in until a cover or a frame of the MP4 loads. */
+  map?: string;
   posterUrl: string | undefined;
+  /** The MP4 whose frame stands in for a missing cover. */
+  videoUrl?: string;
   durationSeconds?: number;
   badge?: ReactNode;
   playLabel: string;
@@ -73,9 +81,11 @@ type CardStageProps = {
 };
 
 /** The tinted media area: the real poster in its own frame, the format pill and the length. */
-function CardStage({ size, kind, format, seed, posterUrl, durationSeconds, badge, playLabel, onPlay }: CardStageProps): ReactNode {
+function CardStage({ size, kind, format, seed, map, posterUrl, videoUrl, durationSeconds, badge, playLabel, onPlay }: CardStageProps): ReactNode {
   const tall = format === '9:16';
   const small = size === CLIP_SIZE.s;
+  const knownMap = map !== undefined && map.trim() !== '' && map !== 'Unknown';
+  const fallback = knownMap ? <MapCover map={map} /> : <ReelCover seed={seed} plain />;
   return (
     <div className={cn('relative flex items-center justify-center', STAGE_CLASS[size].stage, FORMAT_TONE[kind].tint)}>
       <button
@@ -89,8 +99,7 @@ function CardStage({ size, kind, format, seed, posterUrl, durationSeconds, badge
           aspect={format}
           badge={badge}
           className="rounded-lg"
-          fallback={<ReelCover seed={seed} plain />}
-          media={posterUrl === undefined ? undefined : <CoverImage src={posterUrl} />}
+          media={<VideoPoster posterUrl={posterUrl} videoUrl={videoUrl} fallback={fallback} />}
         />
       </button>
       <span
@@ -132,6 +141,21 @@ function actionRowClass(size: ClipSize): string {
   return cn('flex flex-wrap items-center gap-1.5', size === CLIP_SIZE.s ? 'px-3 pt-2.5 pb-3' : 'px-4 pt-3 pb-4');
 }
 
+/** Opens File Explorer on the render's MP4, found in the Almacenamiento list that the reveal route accepts. */
+async function revealVideoFile(item: MediaPlaybackItem): Promise<void> {
+  try {
+    const files = await api.listStorageFiles();
+    const file = renderVideoFile(files.videos, item);
+    if (file === undefined) {
+      toast.error('No se encontró el MP4 en este PC.');
+      return;
+    }
+    await api.revealStorageFile(file.path);
+  } catch {
+    toast.error('No se pudo abrir la carpeta del vídeo.');
+  }
+}
+
 export type ClipCardProps = {
   clip: HubClip;
   size: ClipSize;
@@ -151,6 +175,9 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
   const iconOnly = size === CLIP_SIZE.s;
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
+  const player = clip.match?.player ?? video.targetName;
+  const title = videoDisplayTitle(video, player);
+  const canReveal = playback !== null && video.jobId !== undefined;
 
   return (
     <article className={CARD_CLASS}>
@@ -159,25 +186,27 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
         kind={kind}
         format={isShort ? '9:16' : '16:9'}
         seed={video.id}
+        map={video.map}
         posterUrl={video.thumbnailUrl}
-        playLabel={playback === null ? clip.title : `Reproducir ${clip.title}`}
+        videoUrl={playback?.playbackUrl}
+        playLabel={playback === null ? title : `Reproducir ${title}`}
         onPlay={playback === null ? null : (button) => onPlay(playback, button)}
       />
       <CardText
         size={size}
-        title={clip.title}
-        meta={[prettifyMap(video.map), clip.match?.player ?? video.targetName, timeAgo(video.createdAt)].filter(Boolean).join(' · ')}
+        title={title}
+        meta={[prettifyMap(video.map), player, timeAgo(video.createdAt)].filter(Boolean).join(' · ')}
       />
       <span className={actionRowClass(size)}>
         {video.publishable === false ? null : (
           <Button asChild size={iconOnly ? 'icon-sm' : 'sm'}>
             <Link
               href={publishHref(matchId ?? ORPHAN_MATCH_SEGMENT, video.id)}
-              aria-label={iconOnly ? 'Publicar' : undefined}
-              title={iconOnly ? 'Publicar' : undefined}
+              aria-label={iconOnly ? PUBLISH_PREP_LABEL : undefined}
+              title={PUBLISH_PREP_HINT}
             >
               <UploadCloud aria-hidden />
-              {iconOnly ? null : 'Publicar'}
+              {iconOnly ? null : PUBLISH_PREP_LABEL}
             </Link>
           </Button>
         )}
@@ -195,11 +224,17 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" size="icon-sm" variant="ghost" className="ml-auto" aria-label={`Más acciones de ${clip.title}`}>
+            <Button type="button" size="icon-sm" variant="ghost" className="ml-auto" aria-label={`Más acciones de ${title}`}>
               <Ellipsis aria-hidden />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {playback === null || !canReveal ? null : (
+              <DropdownMenuItem onSelect={() => void revealVideoFile(playback)}>
+                <FolderOpen aria-hidden />
+                Abrir carpeta
+              </DropdownMenuItem>
+            )}
             {canChangeMusic ? (
               <DropdownMenuItem onSelect={() => setMusicOpen(true)}>
                 <Music aria-hidden />
@@ -220,7 +255,7 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
                 </DropdownMenuItem>
               </>
             )}
-            {canChangeMusic || matchId !== null ? <DropdownMenuSeparator /> : null}
+            {canReveal || canChangeMusic || matchId !== null ? <DropdownMenuSeparator /> : null}
             <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
               Borrar
             </DropdownMenuItem>
@@ -228,7 +263,7 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
         </DropdownMenu>
       </span>
       <DeleteVideoDialog
-        title={clip.title}
+        title={title}
         onConfirm={() => api.deleteVideo(video.id)}
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

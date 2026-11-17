@@ -8,6 +8,10 @@ import { writeClipboardText } from './clipboard-write.ts';
 
 export type PublishAssistantAvailability = 'ready' | 'waiting' | 'failed';
 
+/** ClipHub does not upload: the action prepares the texts and the user uploads the MP4 in YouTube Studio. */
+export const PUBLISH_PREP_LABEL = 'Preparar publicación';
+export const PUBLISH_PREP_HINT = 'Prepara título, descripción y etiquetas; el MP4 lo subes tú en YouTube Studio.';
+
 export const PUBLISH_ASSISTANT_WAITING_COPY =
   'La preparación para YouTube estará disponible cuando el vídeo esté listo.';
 export const PUBLISH_ASSISTANT_FAILED_COPY =

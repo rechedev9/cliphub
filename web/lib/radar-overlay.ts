@@ -59,11 +59,13 @@ export function radarEditFields(edit: EditConfig): Pick<EditConfig, 'radar' | 'r
   return fields;
 }
 
-/** "Abajo a la izquierda · Mediano · 90 %" for the creative brief; "No" without the radar. */
+/** "Automática, abajo a la izquierda · Mediano · 90 %" for the creative brief; "No" without the radar. */
 export function radarBriefLabel(edit: EditConfig): string {
   const fields = radarEditFields(edit);
   if (!fields.radar) return 'No';
-  const position = fields.radarPosition ?? radarAutoPosition(edit.format);
+  const position = fields.radarPosition
+    ? RADAR_POSITION_LABEL[fields.radarPosition]
+    : `Automática, ${RADAR_POSITION_LABEL[radarAutoPosition(edit.format)].toLowerCase()}`;
   const opacity = Math.round((fields.radarOpacity ?? RADAR_DEFAULT_OPACITY) * 100);
-  return `${RADAR_POSITION_LABEL[position]} · ${RADAR_SIZE_LABEL[fields.radarSize ?? 'medium']} · ${opacity} %`;
+  return `${position} · ${RADAR_SIZE_LABEL[fields.radarSize ?? 'medium']} · ${opacity} %`;
 }

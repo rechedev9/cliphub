@@ -77,6 +77,33 @@ export function autoPickBestPlays(
   return picked;
 }
 
+type OverTargetInput = { totalSeconds: number; targetSeconds: number; /** What the victim replay adds to the total. */ replaySeconds: number; short: boolean };
+
+/** Why the video runs past its target and what to do; names the victim replay when it is the cause. */
+export function overTargetNotice({ totalSeconds, targetSeconds, replaySeconds, short }: OverTargetInput): string | null {
+  if (totalSeconds <= targetSeconds) return null;
+  const over = targetSeconds === SHORT_TARGET_SECONDS ? 'Pasa del minuto' : `Pasa de ${formatClock(targetSeconds)}`;
+  const video = short ? 'un Short' : 'un vídeo';
+  const replay = Math.round(replaySeconds);
+  if (replay <= 0) return `${over}: quita una jugada o acepta ${video} más largo.`;
+  if (totalSeconds - replaySeconds <= targetSeconds) {
+    return `${over} por la repetición desde la víctima (+${replay} s): quítala, súbele la velocidad o quita una jugada.`;
+  }
+  return `${over}: la repetición desde la víctima suma ${replay} s. Quita una jugada o la repetición, o acepta ${video} más largo.`;
+}
+
+/** Kills and deaths keep their own selection: switching back restores the one left there. */
+export type ReelSelections = { kills: readonly string[] | null; deaths: readonly string[] | null };
+
+export function switchReelSelection(
+  saved: ReelSelections,
+  change: { current: readonly string[]; toDeaths: boolean; fallback: () => readonly string[] },
+): { saved: ReelSelections; selectedIds: string[] } {
+  const next: ReelSelections = change.toDeaths ? { ...saved, kills: change.current } : { ...saved, deaths: change.current };
+  const restored = change.toDeaths ? saved.deaths : saved.kills;
+  return { saved: next, selectedIds: [...(restored ?? change.fallback())] };
+}
+
 /** `R7 · R12 ×2 · R19` in plan order; a round with several highlights shows its count. */
 export function roundsSummary(plays: ReadonlyArray<Pick<Play, 'round'>>): string {
   const counts = new Map<number, number>();

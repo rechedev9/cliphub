@@ -107,3 +107,18 @@ test('the clip summary reads as a clock, never a unit glued to digits', () => {
   assert.equal(byLabel.Shorts, '1 Short · 0:10 en total');
   assert.doesNotMatch(byLabel.Shorts, /\ds en total/);
 });
+
+test('the brief counts a joined group as one Short and sums every moment it plays', () => {
+  const items = streamCreativeBrief(
+    plan({
+      clips: [
+        { id: 'c1', start_seconds: 0, end_seconds: 10 },
+        { id: 'c2', start_seconds: 20, end_seconds: 35 },
+        { id: 'c3', start_seconds: 40, end_seconds: 60 },
+      ],
+      groups: [{ id: 'g1', clip_ids: ['c1', 'c3'] }],
+    }),
+  );
+  const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
+  assert.equal(byLabel.Shorts, '2 Shorts · 0:45 en total');
+});

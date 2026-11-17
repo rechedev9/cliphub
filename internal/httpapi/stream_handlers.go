@@ -328,6 +328,7 @@ type streamJobListItem struct {
 	streamclips.Job
 	EditPlan        json.RawMessage        `json:"edit_plan,omitempty"`
 	ClipCount       int                    `json:"clip_count"`
+	ShortCount      int                    `json:"short_count"`
 	RenderedOutputs []streamRenderedOutput `json:"rendered_outputs"`
 	// RenderedOutputsUnavailable distinguishes an unreadable render catalog
 	// from a project which has never published an output. List enrichment is
@@ -340,9 +341,11 @@ func (h *Handlers) streamJobListItems(jobs []streamclips.Job) []streamJobListIte
 	items := make([]streamJobListItem, 0, len(jobs))
 	for _, j := range jobs {
 		outputs, unavailable := h.streamJobRenderedOutputs(j, false)
+		clips, shorts := streamPlanCounts(j.EditPlan)
 		item := streamJobListItem{
 			Job:                        j,
-			ClipCount:                  streamClipCount(j.EditPlan),
+			ClipCount:                  clips,
+			ShortCount:                 shorts,
 			RenderedOutputs:            outputs,
 			RenderedOutputsUnavailable: unavailable,
 			RenderProgress:             h.liveStreamRenderProgress(j, ""),
@@ -351,21 +354,6 @@ func (h *Handlers) streamJobListItems(jobs []streamclips.Job) []streamJobListIte
 		items = append(items, item)
 	}
 	return items
-}
-
-// streamClipCount counts the plan's clips without decoding the whole plan;
-// a missing or malformed plan counts as zero, which is what an empty draft is.
-func streamClipCount(plan json.RawMessage) int {
-	if len(plan) == 0 {
-		return 0
-	}
-	var doc struct {
-		Clips []json.RawMessage `json:"clips"`
-	}
-	if err := json.Unmarshal(plan, &doc); err != nil {
-		return 0
-	}
-	return len(doc.Clips)
 }
 
 // streamJobRenderedOutputs isolates catalog failures so a damaged status.json

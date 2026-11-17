@@ -204,7 +204,7 @@ func describeShortChoices(o shortOptionsOut) string {
 	list("Victim replay speed, with victim_replay", "victim_replay_speed", o.ReplaySpeed)
 	b.WriteString("\nWith music: music_volume 5 to 100 (default 100), game_volume 0 to 100 (default 70).\n")
 	b.WriteString("With intro or outro: intro_text, outro_text (empty keeps the generated text).\n")
-	b.WriteString("\nAffiliate banner (banner_family and banner_style; none by default; banner_code, banner_start_seconds 0, banner_end_seconds 4):\n")
+	b.WriteString("\nAffiliate banner (banner_family and banner_style; none by default; banner_code, the user's own code, is required; banner_start_seconds 0, banner_end_seconds 4):\n")
 	for _, f := range o.Banners {
 		for _, st := range f.Styles {
 			fmt.Fprintf(&b, "- %s %s (%s %s): %s\n", f.ID, st.ID, f.Label, st.Label, st.Description)
