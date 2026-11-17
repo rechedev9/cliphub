@@ -38,7 +38,7 @@ function ErrorNotice({ error, className = '' }: { error: string | null; classNam
 export function FullDemoSummary({ durationSeconds, roundCount, briefItems, planState, status, blockers, warnings, assetBusy, error, back, cta }: FullDemoSummaryProps): ReactNode {
   const headingId = useId();
   return <aside aria-labelledby={headingId}
-    className={`flex min-w-0 flex-col gap-4 rounded-2xl border p-5 @[64rem]/content:sticky @[64rem]/content:top-4 ${FORMAT_TONE.full.border} ${FORMAT_TONE.full.tint}`}>
+    className={`flex min-w-0 flex-col gap-4 rounded-2xl border p-5 ${FORMAT_TONE.full.border} ${FORMAT_TONE.full.tint}`}>
     <div className="flex flex-col gap-0.5">
       <span className="text-meta text-fg-2">Rondas del vídeo</span>
       <span className="font-display text-[3.25rem] leading-none font-black tracking-tight text-fg-1 tabular-nums">

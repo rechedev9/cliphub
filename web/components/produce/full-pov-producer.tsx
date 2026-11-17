@@ -27,7 +27,7 @@ import { FullDemoBumpers } from './full-demo-bumpers';
 import { FullDemoOverlays } from './full-demo-overlays';
 import { FullDemoTransitions } from './full-demo-transitions';
 import { FullDemoProSettings } from './full-demo-pro-settings';
-import { FullDemoHud, FullDemoHudPreview } from './full-demo-hud';
+import { FullDemoComposition, FullDemoHud, FullDemoHudPreview } from './full-demo-hud';
 import { FullDemoBrand } from './full-demo-brand';
 import { FullDemoActionBar, FullDemoSummary } from './full-demo-summary';
 import { useProduceBack } from './use-produce-back';
@@ -217,9 +217,9 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
     {options === null && busy === null && error ? <Button variant="secondary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Reintentar conexión</Button> : null}
     <div className="grid min-w-0 items-start gap-6 @[64rem]/content:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
       {options ? <fieldset disabled={busy !== null} inert={busy !== null} className="flex min-w-0 flex-col gap-4">
-        <FullDemoHudPreview options={options} map={match.map} />
+        <FullDemoHudPreview options={options} />
         <FullDemoBumpers options={options} document={document} rounds={orderRounds} onChange={change} onAssetBusy={assetBusy} />
-        <FullDemoHud options={options} map={match.map} onChange={change} onAssetBusy={assetBusy} />
+        <FullDemoHud options={options} onChange={change} onAssetBusy={assetBusy} />
         <FullDemoBrand options={options} onChange={change} />
         <div className="grid min-w-0 items-start gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))]">
           <FullDemoAudio options={options} document={document} onChange={change} />
@@ -234,9 +234,12 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
           </FullDemoGroup>
         </div>
       </fieldset> : <div className="min-w-0" />}
-      <FullDemoSummary durationSeconds={durationSeconds} roundCount={orderRounds.length} briefItems={briefItems} planState={planState} status={status}
-        blockers={blockers} warnings={dirty ? [] : document?.warnings ?? []} assetBusy={busy === 'asset'}
-        error={shownError} back={back} cta={cta} />
+      <div className="flex min-w-0 flex-col gap-4 @[64rem]/content:sticky @[64rem]/content:top-4 @[64rem]/content:max-h-[calc(100dvh-6rem)] @[64rem]/content:overflow-y-auto">
+        {options ? <FullDemoComposition options={options} disabled={busy !== null} onChange={change} /> : null}
+        <FullDemoSummary durationSeconds={durationSeconds} roundCount={orderRounds.length} briefItems={briefItems} planState={planState} status={status}
+          blockers={blockers} warnings={dirty ? [] : document?.warnings ?? []} assetBusy={busy === 'asset'}
+          error={shownError} back={back} cta={cta} />
+      </div>
     </div>
     <FullDemoActionBar planState={planState} status={status} error={shownError} back={back} cta={cta} />
   </>;

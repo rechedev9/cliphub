@@ -16,8 +16,8 @@ export function FullDemoGroup({ title, note, children }: { title: string; note?:
 }
 
 /** A titled part inside a panel, for settings that share one step. */
-export function FullDemoPart({ title, note, children }: { title: string; note?: string; children: ReactNode }): ReactNode {
-  return <div className="min-w-0 space-y-2 border-t border-border-subtle pt-3.5 first:border-t-0 first:pt-0">
+export function FullDemoPart({ title, note, className = '', children }: { title: string; note?: string; className?: string; children: ReactNode }): ReactNode {
+  return <div className={`min-w-0 space-y-2 border-t border-border-subtle pt-3.5 first:border-t-0 first:pt-0 ${className}`}>
     <div><h3 className="text-body-sm font-semibold text-fg-1">{title}</h3>
       {note ? <p className="mt-1 text-body-sm text-fg-2">{note}</p> : null}</div>
     {children}

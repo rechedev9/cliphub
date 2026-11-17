@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
+import { engineMapName, mapShotUrl } from '@/lib/api/game-assets';
 import { MATCH_ROW_UNPICKED_CTA, MATCH_ROW_UNPICKED_HINT } from '@/lib/clips/copy';
 import { fullChipLabel, HUB_ROW_STAGE, matchMetaParts, OUTPUT_TONE, shortsChipTone, type HubMatch } from '@/lib/clips/hub';
 import { flowHref, PRODUCE_FORMAT, produceHref, type ProduceFormat } from '@/lib/clips/routes';
@@ -113,19 +114,24 @@ type DemoCoverProps = {
   score: string;
 };
 
-/** The card's top: the map cover (or the demo's thumbnail) under the map tint, with the map, date and score. */
+/** The card's top: the demo's thumbnail, else the map's picture, else its tinted plate, with the map, date and score. */
 export function DemoCover({ map, thumbnailUrl, striped = false, badge, dateLabel, score }: DemoCoverProps): ReactNode {
   const mapName = prettyMapName(map);
   const hue = mapHue(map);
+  const engine = engineMapName(map);
+  const shotUrl = engine ? mapShotUrl(engine) : undefined;
   return (
     <div className="relative flex h-33 flex-col justify-between overflow-hidden bg-surface-3 px-4 py-3.5">
       <span aria-hidden className="absolute inset-0">
         <MapCover map={map} />
+        <span className={cn('absolute inset-0', hue.tint)} />
+        <span className="absolute inset-0">
+          <CoverImage src={shotUrl} className="brightness-[0.85]" />
+        </span>
         <span className="absolute inset-0">
           <CoverImage src={thumbnailUrl} />
         </span>
       </span>
-      <span aria-hidden className={cn('absolute inset-0', hue.tint)} />
       <span aria-hidden className="absolute inset-0 bg-linear-to-t from-surface-2/90 via-surface-2/30 to-surface-2/60" />
       {striped ? <span aria-hidden className="absolute inset-0 bg-[repeating-linear-gradient(-45deg,transparent_0_8px,var(--surface-5)_8px_16px)] opacity-40" /> : null}
       <span aria-hidden className={cn('pointer-events-none absolute -right-2 -bottom-9 select-none font-display text-[150px] font-black leading-none tracking-[-0.06em] opacity-15', hue.text)}>

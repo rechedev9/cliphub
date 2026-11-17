@@ -5,23 +5,27 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_THEMES, NATIVE_HUD_CAPTURE_PROFILE, customHudTheme, type CustomHudTheme } from '@/lib/custom-hud';
 import { uploadFullDemoPortrait, type FullDemoOptions, type FullDemoAssetRef } from '@/lib/full-demo-plan';
 import { hudPreviewUrl, needsDrawnPreview, type HudOptions, type HudStyle, type HudTeamNames } from '@/lib/hud-themes';
+import { mapShotUrl } from '@/lib/api/game-assets';
 import { Button } from '@/components/ui/button';
 import { MapCover } from '@/components/brand/map-cover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { CoverImage } from '@/components/studio/cover-image';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { FULL_DEMO_TRUEVIEW_LABEL } from '@/lib/produce/full-demo-brief';
 import { FullDemoGroup } from './full-demo-fields';
-import { HudLookControls, HudThemePicker } from './full-demo-hud-look';
+import { HudCompositionSwitches, HudTeamNameFields, HudThemePicker } from './full-demo-hud-look';
 import { NativeHudArt } from './full-demo-native-hud';
 
 type HudKind = 'custom' | 'native';
+/** The preview is illustrative, so it always sits on the same map whatever the demo's. */
+const PREVIEW_MAP = 'de_dust2';
 const HUD_KINDS: readonly { value: HudKind; label: string; detail: string }[] = [
   { value: 'custom', label: 'Diseño de retransmisión', detail: `${CUSTOM_HUD_THEMES.length} diseños con los datos de la demo` },
   { value: 'native', label: 'Original de CS2', detail: 'El HUD nativo del juego' },
 ];
 
-export function FullDemoHud({ options, map, onChange, onAssetBusy }: {
-  options: FullDemoOptions; map: string; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void;
+export function FullDemoHud({ options, onChange, onAssetBusy }: {
+  options: FullDemoOptions; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void;
 }): ReactNode {
   const theme = customHudTheme(options.overlays.hud_theme);
   // The design (and Focus portrait) set aside for the CS2 HUD, restored when switching back.
@@ -117,7 +121,7 @@ export function FullDemoHud({ options, map, onChange, onAssetBusy }: {
           <HudThemePicker base={selected.id} style={options.overlays.hud_custom} onSelect={(id, style) => choose(id, portrait, style)} />
           {/* The large preview sits above the editor; this copy keeps the chosen design in sight beside the select. */}
           <div aria-hidden className="hidden overflow-hidden rounded-lg ring-1 ring-border-subtle @min-[28rem]/hud:block">
-            <HudPreview theme={theme} map={map} portrait={portrait} overlays={options.overlays} />
+            <HudPreview theme={theme} portrait={portrait} overlays={options.overlays} />
           </div>
         </div>
         <p className="text-body-sm text-fg-2">{selected.description}</p>
@@ -136,8 +140,10 @@ export function FullDemoHud({ options, map, onChange, onAssetBusy }: {
           <p className="text-body-sm text-fg-3">PNG o JPG, hasta 10 MB. Un PNG sin fondo encaja como en una retransmisión.</p>
           {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
         </div> : null}
-        <HudLookControls options={options.overlays.hud_options} names={options.overlays.team_names}
-          onOptions={(hud_options) => onChange({ ...options, overlays: { ...options.overlays, hud_options } })}
+        {/* From 64rem the switches sit in the right column, beside the large preview. */}
+        <HudCompositionSwitches options={options.overlays.hud_options} className="@[64rem]/content:hidden"
+          onOptions={(hud_options) => onChange({ ...options, overlays: { ...options.overlays, hud_options } })} />
+        <HudTeamNameFields names={options.overlays.team_names}
           onNames={(team_names) => onChange({ ...options, overlays: { ...options.overlays, team_names } })} />
       </div> : <p className="text-body-sm text-fg-2">Vida, munición, radar, killfeed y la mira del jugador. Arriba queda la barra de equipos de CS2, con el dinero y la utilidad de ambos equipos.</p>}
       <fieldset className="min-w-0 border-t border-border-subtle pt-3.5">
@@ -156,7 +162,7 @@ export function FullDemoHud({ options, map, onChange, onAssetBusy }: {
 }
 
 /** The large preview at the top of the editor; it opens enlarged in a dialog. */
-export function FullDemoHudPreview({ options, map }: { options: FullDemoOptions; map: string }): ReactNode {
+export function FullDemoHudPreview({ options }: { options: FullDemoOptions }): ReactNode {
   const theme = customHudTheme(options.overlays.hud_theme);
   const portrait = options.overlays.hud_portrait;
   const previewName = theme ? `HUD ${options.overlays.hud_custom?.name ?? theme.name}` : 'HUD original de CS2';
@@ -164,15 +170,24 @@ export function FullDemoHudPreview({ options, map }: { options: FullDemoOptions;
     <Dialog>
       <DialogTrigger asChild><button type="button" aria-label={`Ampliar ${previewName}`}
         className="relative block w-full min-w-0 overflow-hidden rounded-2xl text-left ring-2 ring-format-full/70 shadow-[var(--elev-2)] transition-shadow hover:ring-format-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
-        <HudPreview theme={theme} map={map} portrait={portrait} overlays={options.overlays} />
+        <HudPreview theme={theme} portrait={portrait} overlays={options.overlays} />
       </button></DialogTrigger>
       <DialogContent className="max-h-[92dvh] gap-4 overflow-y-auto p-4 sm:max-w-[min(1540px,calc(100%-3rem))]">
         <DialogHeader><DialogTitle>{previewName}</DialogTitle></DialogHeader>
-        <div className="min-w-0 overflow-hidden rounded border border-border-subtle"><HudPreview theme={theme} map={map} portrait={portrait} overlays={options.overlays} /></div>
+        <div className="min-w-0 overflow-hidden rounded border border-border-subtle"><HudPreview theme={theme} portrait={portrait} overlays={options.overlays} /></div>
       </DialogContent>
     </Dialog>
     <p className="flex items-center gap-1.5 text-body-sm text-fg-3"><Expand className="size-3.5 shrink-0" aria-hidden />Ejemplo con datos ilustrativos. Pulsa la imagen para ampliarla.</p>
   </div>;
+}
+
+/** The composition switches beside the large preview, so each toggle shows its effect at once; only custom designs have them. */
+export function FullDemoComposition({ options, disabled, onChange }: { options: FullDemoOptions; disabled: boolean; onChange: (options: FullDemoOptions) => void }): ReactNode {
+  if (!customHudTheme(options.overlays.hud_theme)) return null;
+  return <fieldset disabled={disabled} inert={disabled} className="studio-panel hidden min-w-0 rounded-2xl p-4 @[64rem]/content:block">
+    <HudCompositionSwitches options={options.overlays.hud_options}
+      onOptions={(hud_options) => onChange({ ...options, overlays: { ...options.overlays, hud_options } })} />
+  </fieldset>;
 }
 
 /** A HUD radio card with a small drawing of its layout; the native radio keeps keyboard and screen reader behaviour. */
@@ -194,8 +209,8 @@ function HudKindCard({ name, kind, checked, title, detail, onChange }: {
   </label>;
 }
 
-function HudPreview({ theme, map, portrait, overlays }: {
-  theme?: CustomHudTheme; map: string; portrait?: FullDemoAssetRef | null; overlays: FullDemoOptions['overlays'];
+function HudPreview({ theme, portrait, overlays }: {
+  theme?: CustomHudTheme; portrait?: FullDemoAssetRef | null; overlays: FullDemoOptions['overlays'];
 }): ReactNode {
   const hasPortrait = theme?.id === 'focus' && Boolean(portrait);
   // The drawn preview is the video's own renderer; it has no portrait, so Focus with one keeps the catalog picture.
@@ -203,7 +218,8 @@ function HudPreview({ theme, map, portrait, overlays }: {
     ? hudPreviewUrl({ base: theme.id, style: overlays.hud_custom, options: overlays.hud_options, names: overlays.team_names }) : null;
   const name = overlays.hud_custom?.name ?? theme?.name;
   return <div className="relative isolate aspect-video w-full overflow-hidden bg-surface-0">
-    <MapCover map={map} className="absolute inset-0 opacity-70" />
+    <MapCover map={PREVIEW_MAP} className="absolute inset-0 opacity-70" />
+    <span className="absolute inset-0"><CoverImage src={mapShotUrl(PREVIEW_MAP)} className="brightness-[0.8]" /></span>
     {theme ? <img src={drawn ?? `/hud/${theme.id}${hasPortrait ? '-portrait' : ''}.webp`} alt={`Vista previa del HUD ${name}`} className="absolute inset-0 size-full object-contain" width={1920} height={1080} /> : <NativeHudArt />}
     {hasPortrait && portrait ? <img src={`/api/full-demo/overlay-images/${portrait.id}`} alt="Retrato del jugador" className="absolute object-contain object-bottom" style={{ left: `${654 / 1920 * 100}%`, top: `${898 / 1080 * 100}%`, width: `${116 / 1920 * 100}%`, height: `${116 / 1080 * 100}%` }} /> : null}
   </div>;

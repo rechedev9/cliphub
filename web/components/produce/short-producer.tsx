@@ -49,6 +49,7 @@ import { FORMAT_TONE, type FormatTone } from '@/components/studio/format-tone';
 import { roundOrdinals } from '@/lib/produce/round-ordinals';
 import { playsInRounds, roundListLabel } from '@/lib/library/analysis-video';
 import { PresetPreview } from './preset-preview';
+import { ShortPreview } from './short-preview';
 import { PlayFilters } from './play-filters';
 import { AutoShortsDialog } from './auto-shorts-dialog';
 
@@ -381,14 +382,14 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
         </div>
 
         <section aria-label="Vista previa" className="flex min-w-0 flex-col items-center gap-3 @[85rem]/content:sticky @[85rem]/content:top-4">
-          {/* Illustrative: the selected style's HUD and colour, the same art the style comparison shows. */}
-          <div aria-hidden className={cn('rounded-[1.625rem] bg-surface-0 p-1.5 ring-2', FRAME_RING[tone], landscape ? 'w-full max-w-md' : 'w-60')}>
-            {selectedPreset ? (
-              <PresetPreview preset={selectedPreset} className={cn('w-full rounded-[1.25rem] border-0', landscape && 'aspect-video')} />
-            ) : (
+          {selectedPreset ? (
+            <ShortPreview preset={selectedPreset} edit={withPresetLimits(editConfig, selectedPreset)} map={match.map} player={match.player ?? 'Jugador'}
+              frameClassName={cn('rounded-[1.625rem] bg-surface-0 p-1.5 ring-2', FRAME_RING[tone])} className={landscape ? 'w-full max-w-md' : 'w-60'} />
+          ) : (
+            <div aria-hidden className={cn('rounded-[1.625rem] bg-surface-0 p-1.5 ring-2', FRAME_RING[tone], landscape ? 'w-full max-w-md' : 'w-60')}>
               <div className={cn('w-full rounded-[1.25rem] bg-surface-2', landscape ? 'aspect-video' : 'aspect-[9/16]')} />
-            )}
-          </div>
+            </div>
+          )}
           <p className={cn('text-center text-meta text-fg-3', landscape ? 'max-w-md' : 'max-w-60')}>{previewCaption(presetLabel, presets === null)}</p>
           <ShortStoryboard cues={cues} ordinals={roundOrdinals(plays)} {...(landscape ? { title: 'Guion del resumen', videoLabel: 'Resumen' } : {})} />
         </section>
@@ -574,6 +575,6 @@ function overlaysSummary(edit: EditConfig): string {
 }
 
 function previewCaption(presetLabel: string | null, loading: boolean): string {
-  if (presetLabel) return `${presetLabel}: dibujo de ejemplo del HUD y el color del estilo. No muestra tus jugadas, el radar, los textos ni los efectos.`;
+  if (presetLabel) return `${presetLabel} con datos de ejemplo: el efecto de kill, la transición y los textos y gráficos que elijas, donde los pone el vídeo. Tus jugadas se ven al grabar.`;
   return loading ? FORGE_HINT_LOADING_PRESETS : 'Elige un estilo para verlo aquí';
 }

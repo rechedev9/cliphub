@@ -145,27 +145,29 @@ const SWITCHES: readonly { key: keyof HudOptions; label: string; detail: string 
   { key: 'win_probability', label: 'Probabilidad de victoria', detail: 'Tras el plantado, el % de victoria de cada equipo bajo el marcador, con 5 s o más de bomba y 2 o más vivos por bando.' },
 ];
 
-/** The composition switches of overlays.hud_options and the team names of the scoreboard. */
-export function HudLookControls({ options, names, onOptions, onNames }: {
-  options?: HudOptions; names?: HudTeamNames; onOptions: (options: HudOptions) => void; onNames: (names: HudTeamNames) => void;
+/** The composition switches of overlays.hud_options. */
+export function HudCompositionSwitches({ options, className, onOptions }: {
+  options?: HudOptions; className?: string; onOptions: (options: HudOptions) => void;
 }): ReactNode {
   const id = useId();
-  return <>
-    <FullDemoPart title="Composición" note="Solo cambian el dibujo del HUD, sin volver a grabar.">
+  return <FullDemoPart title="Composición" note="Solo cambian el dibujo del HUD, sin volver a grabar." className={className}>
       {SWITCHES.map((entry) => <label key={entry.key} className="flex min-w-0 cursor-pointer items-start gap-3 text-body-sm">
         <input type="checkbox" checked={options?.[entry.key] === true} aria-describedby={`${id}-${entry.key}`} className="mt-0.5 size-4 shrink-0 accent-format-full"
           onChange={(event) => onOptions({ ...options, [entry.key]: event.target.checked })} />
         <span className="min-w-0"><span className="block font-semibold text-fg-1">{entry.label}</span>
           <span id={`${id}-${entry.key}`} className="mt-0.5 block text-fg-2">{entry.detail}</span></span>
       </label>)}
-    </FullDemoPart>
-    <FullDemoPart title="Equipos en el marcador" note="Vienen de la biblioteca cuando la partida tiene equipos. Vacío, el marcador usa el nombre de la demo o CT y T.">
+  </FullDemoPart>;
+}
+
+/** The team names of the scoreboard. */
+export function HudTeamNameFields({ names, onNames }: { names?: HudTeamNames; onNames: (names: HudTeamNames) => void }): ReactNode {
+  return <FullDemoPart title="Equipos en el marcador" note="Vienen de la biblioteca cuando la partida tiene equipos. Vacío, el marcador usa el nombre de la demo o CT y T.">
       <div className="grid min-w-0 gap-2 @min-[22rem]/hud:grid-cols-2">
         <TeamNameField label="Empieza de CT" value={names?.ct_start ?? ''} onChange={(ct_start) => onNames({ ...names, ct_start })} />
         <TeamNameField label="Empieza de T" value={names?.t_start ?? ''} onChange={(t_start) => onNames({ ...names, t_start })} />
       </div>
-    </FullDemoPart>
-  </>;
+  </FullDemoPart>;
 }
 
 /** Typing keeps inner spaces; the plan gets the trimmed name, as Go validates it. */
