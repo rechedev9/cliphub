@@ -574,7 +574,6 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     if (!attempt.controller.signal.aborted) logLine(`[music] provision failed: ${String(err)}\n`);
   });
 
-  setLoadingStatus('Eligiendo puertos libres…');
   const security = createBootSecurityCapabilities();
   const { orchestrator: orchPort, web: webPort } = await allocateStableServicePorts({
     host: LOOPBACK_HOST,
@@ -618,7 +617,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   );
   assertBootAttemptActive(attempt);
 
-  setLoadingStatus('Iniciando el orquestador…');
+  setLoadingStatus('Arrancando los servicios locales…');
   const orch = attempt.processes.launch(
     'orchestrator',
     orchestratorExe,
@@ -676,7 +675,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   watchPostBoot(orch);
   watchPostBoot(web);
 
-  setLoadingStatus('Abriendo la interfaz…');
+  setLoadingStatus('Casi listo…');
   allowedInternalUrls.clear();
   await loadStudio(webPort, security.proxyMutationCapability);
   assertBootAttemptActive(attempt);
