@@ -95,7 +95,7 @@ test('a stalled capture, a missing Steam and a slow render each get their own re
     {
       reason: 'steam_not_running: CS2 could not reach the Steam client (Steam is not running or not signed in)',
       kind: 'steam-not-running',
-      message: /^Abre Steam con tu sesión iniciada y reintenta\.$/,
+      message: /^CS2 no pudo conectar con Steam\. Abre Steam con tu sesión iniciada y reintenta; si ya estaba abierto, ciérralo del todo, vuelve a abrirlo y no ejecutes Steam ni ClipHub como administrador\.$/,
       fullDemo: false,
     },
     {

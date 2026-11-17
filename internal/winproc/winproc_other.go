@@ -7,3 +7,6 @@ func Running(string) (bool, error) { return false, nil }
 
 // WindowTitles always answers no off Windows.
 func WindowTitles(string) (bool, []string, error) { return false, nil, nil }
+
+// DialogText always answers empty off Windows.
+func DialogText(string, string) (string, error) { return "", nil }

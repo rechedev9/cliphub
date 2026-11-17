@@ -414,6 +414,23 @@ that as a transient crash and relaunched CS2 for nothing.
   job-level copy on the failed partida row, which has no retry button.
 - Tests: `cmd/zv-recorder/capture_wait_test.go`, `internal/workers/record_failure_test.go`.
 
+### Incident: CS2 stopped on a Steamworks "Launcher Error" dialog (2026-11-17)
+
+A user's CS2 opened a native `Launcher Error` MessageBox (`FATAL ERROR: Failed to
+initialize the Steamworks SDK. ConnectToGlobalUser failed.`) instead of the game.
+Nothing reaches the console log, so only the 5-minute watchdog ended it.
+
+- The recorder refuses to launch CS2 while `steam.exe` is not running, and the
+  capture wait treats a `Launcher Error` window of `cs2.exe` like the HLAE hook
+  dialog: it reads the dialog body (`winproc.DialogText`), stops that `cs2.exe`
+  and fails at once (`cmd/zv-recorder/cs2_dialogs.go`).
+- Both carry the `steam_not_running:` prefix when the text names Steam; another
+  launcher error is `cs2_launcher_error:` with the dialog text for telemetry.
+- `ConnectToGlobalUser failed` with Steam open usually means Steam is signed
+  out or runs with other rights than CS2 (one of them as administrator), so
+  the Studio copy says to restart Steam without administrator rights.
+- Tests: `cmd/zv-recorder/capture_wait_test.go`, `internal/workers/record_failure_test.go`.
+
 ## Full Demo render lab (`zv-editor lab`, 2026-09-26)
 
 A full render takes 20+ minutes, so check a render change one stage at a

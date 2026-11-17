@@ -50,6 +50,41 @@ func TestWaitForWindowsProcessRunAndExitStopsCS2OnHookError(t *testing.T) {
 	}
 }
 
+func TestWaitForWindowsProcessRunAndExitStopsCS2OnLauncherError(t *testing.T) {
+	tests := []struct {
+		name, text, wantPrefix string
+	}{
+		{"steamworks", "FATAL ERROR: Failed to initialize the Steamworks SDK. ConnectToGlobalUser failed.", "steam_not_running: "},
+		{"other launcher failure", "Failed to load the launcher DLL", "cs2_launcher_error: "},
+		{"module under the Steam folder", "Failed to load C:\\Program Files (x86)\\Steam\\steamapps\\common\\engine2.dll", "cs2_launcher_error: "},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			previous := readDialogText
+			readDialogText = func(string, string) string { return tt.text }
+			t.Cleanup(func() { readDialogText = previous })
+			var stopped string
+			err := waitForWindowsProcessRunAndExitWith(context.Background(), captureWait{
+				image:        "cs2.exe",
+				firstWait:    time.Second,
+				pollInterval: time.Millisecond,
+				closeGrace:   time.Hour,
+				status:       func(string) (bool, string, error) { return true, launcherErrorWindowTitle, nil },
+				terminate: func(image string) error {
+					stopped = image
+					return nil
+				},
+			})
+			if err == nil || !strings.HasPrefix(err.Error(), tt.wantPrefix) || !strings.Contains(err.Error(), tt.text) {
+				t.Fatalf("error = %v, want %q with the dialog text", err, tt.wantPrefix)
+			}
+			if stopped != "cs2.exe" {
+				t.Fatalf("terminated image = %q, want cs2.exe", stopped)
+			}
+		})
+	}
+}
+
 func TestWaitForWindowsProcessRunAndExitReportsCleanupFailure(t *testing.T) {
 	err := waitForWindowsProcessRunAndExitWith(context.Background(), captureWait{
 		image:        "cs2.exe",
