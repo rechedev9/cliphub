@@ -8,6 +8,7 @@ export type MapPlateId =
   | 'overpass'
   | 'vertigo'
   | 'train'
+  | 'cache'
   | 'office'
   | 'italy'
   | 'agency'
@@ -33,6 +34,7 @@ const ALIAS: Record<string, MapPlateId> = {
   overpass: 'overpass',
   vertigo: 'vertigo',
   train: 'train',
+  cache: 'cache',
   office: 'office',
   italy: 'italy',
   agency: 'agency',
@@ -101,6 +103,13 @@ const PLATES: Record<Exclude<MapPlateId, 'unknown'>, Omit<MapPlate, 'id'>> = {
     ground: '#322824',
     accent: '#c06040',
     rim: '#c48868',
+  },
+  cache: {
+    sky: '#1a2020',
+    mid: '#3c4640',
+    ground: '#2e3430',
+    accent: '#d8b440',
+    rim: '#9aa890',
   },
   office: {
     sky: '#1c2428',

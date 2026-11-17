@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
 import {
   EQUIPMENT_ICON_NAMES,
   equipmentIconForWeapon,
@@ -52,4 +53,13 @@ test('engineMapName takes engine and display names and drops what the map routes
   assert.equal(engineMapName('Office'), 'cs_office');
   assert.equal(engineMapName(''), undefined);
   assert.equal(engineMapName('Unknown'), undefined);
+});
+
+test('every map Studio bundles a picture for resolves from the name a match shows', () => {
+  const shots = readdirSync(new URL('../../../data/maps/shots/', import.meta.url)).map((file) => file.replace(/\.webp$/, ''));
+  assert.ok(shots.length > 0);
+  for (const engine of shots) {
+    const shown = engine.replace(/^(de|cs)_/, '').replace(/^./, (c) => c.toUpperCase());
+    assert.equal(engineMapName(shown), engine, shown);
+  }
 });
