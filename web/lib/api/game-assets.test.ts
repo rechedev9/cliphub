@@ -6,6 +6,7 @@ import {
   equipmentIconUrl,
   isEquipmentIconName,
   isRadarLayer,
+  engineMapName,
   radarImageUrl,
 } from './game-assets.ts';
 
@@ -42,4 +43,13 @@ test('equipmentIconForWeapon maps tactical event weapons to icons', () => {
     [undefined, null],
   ];
   for (const [weapon, want] of cases) assert.equal(equipmentIconForWeapon(weapon), want, String(weapon));
+});
+
+test('engineMapName takes engine and display names and drops what the map routes refuse', () => {
+  assert.equal(engineMapName('de_mirage'), 'de_mirage');
+  assert.equal(engineMapName('Mirage'), 'de_mirage');
+  assert.equal(engineMapName('Dust 2'), 'de_dust2');
+  assert.equal(engineMapName('Office'), 'cs_office');
+  assert.equal(engineMapName(''), undefined);
+  assert.equal(engineMapName('Unknown'), undefined);
 });

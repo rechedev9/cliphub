@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Upload } from 'lucide-react';
 import {
   BRAND_CORNERS,
@@ -14,22 +14,18 @@ import {
   type BrandImage,
   type BrandKit,
 } from '@/lib/brand-kit';
+import { createBrandKitStore, type BrandKitState } from '@/lib/brand-kit-store';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-/** The saved brand kit, read once; a save hands the new kit back through setKit. */
-export function useBrandKit(): { kit: BrandKit | null; error: string | null; setKit: (kit: BrandKit) => void } {
-  const [kit, setKit] = useState<BrandKit | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    const controller = new AbortController();
-    getBrandKit(controller.signal).then(setKit).catch((failure: unknown) => {
-      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'No se pudo leer el kit de marca.');
-    });
-    return () => controller.abort();
-  }, []);
-  return { kit, error, setKit };
+const brandKitStore = createBrandKitStore(getBrandKit);
+const NO_KIT: BrandKitState = { kit: null, error: null };
+
+/** The saved brand kit, shared by every caller on screen, so a save shows in the preview at once. */
+export function useBrandKit(): BrandKitState & { setKit: (kit: BrandKit) => void } {
+  const state = useSyncExternalStore(brandKitStore.subscribe, brandKitStore.snapshot, () => NO_KIT);
+  return { ...state, setKit: brandKitStore.setKit };
 }
 
 /** The kit editor once the kit is read, or why it is not there yet. */

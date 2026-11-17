@@ -8,6 +8,8 @@
  * Icons are white silhouettes on a transparent background, drawn for dark surfaces.
  */
 
+import { resolveMapPlateId, type MapPlateId } from '../map-plate.ts';
+
 /** `upper` is the main overview; `lower` the bottom floor of a two-level map. */
 export type RadarLayer = 'upper' | 'lower';
 
@@ -128,6 +130,16 @@ export function radarImageUrl(map: string, layer: RadarLayer = 'upper'): string 
 /** URL of the map's loading-screen picture, served by `GET /api/maps/{map}/shot`. */
 export function mapShotUrl(map: string): string {
   return `/api/maps/${encodeURIComponent(map)}/shot`;
+}
+
+const CS_PREFIX_MAPS: ReadonlySet<MapPlateId> = new Set(['office', 'italy', 'agency']);
+
+/** The engine name the map routes take, from itself or from the display name a job's match carries ("Mirage"); undefined when unknown. */
+export function engineMapName(map: string): string | undefined {
+  if (RADAR_MAP_NAME_RE.test(map)) return map;
+  const id = resolveMapPlateId(map);
+  if (id === 'unknown') return undefined;
+  return `${CS_PREFIX_MAPS.has(id) ? 'cs' : 'de'}_${id}`;
 }
 
 /** The longest team name the logo route accepts. */
