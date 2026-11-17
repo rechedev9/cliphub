@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
 import {
   EQUIPMENT_ICON_NAMES,
   equipmentIconForWeapon,
@@ -9,6 +10,7 @@ import {
   engineMapName,
   radarImageUrl,
 } from './game-assets.ts';
+import { prettyMapName } from '../format.ts';
 
 test('radarImageUrl and equipmentIconUrl point at the Studio routes', () => {
   assert.equal(radarImageUrl('de_nuke'), '/api/maps/de_nuke/radar?layer=upper');
@@ -50,6 +52,16 @@ test('engineMapName takes engine and display names and drops what the map routes
   assert.equal(engineMapName('Mirage'), 'de_mirage');
   assert.equal(engineMapName('Dust 2'), 'de_dust2');
   assert.equal(engineMapName('Office'), 'cs_office');
+  assert.equal(engineMapName('Thera'), 'de_thera');
   assert.equal(engineMapName(''), undefined);
   assert.equal(engineMapName('Unknown'), undefined);
+});
+
+test('every map Studio bundles a picture for resolves from the name a match shows', () => {
+  const shots = readdirSync(new URL('../../../data/maps/shots/', import.meta.url)).filter((file) => file.endsWith('.webp')).map((file) => file.replace(/\.webp$/, ''));
+  assert.ok(shots.length > 0);
+  for (const engine of shots) {
+    const shown = prettyMapName(engine);
+    assert.equal(engineMapName(shown), engine, shown);
+  }
 });

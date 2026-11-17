@@ -8,7 +8,7 @@
  * Icons are white silhouettes on a transparent background, drawn for dark surfaces.
  */
 
-import { resolveMapPlateId, type MapPlateId } from '../map-plate.ts';
+import { mapPlateKey } from '../map-plate.ts';
 
 /** `upper` is the main overview; `lower` the bottom floor of a two-level map. */
 export type RadarLayer = 'upper' | 'lower';
@@ -132,14 +132,15 @@ export function mapShotUrl(map: string): string {
   return `/api/maps/${encodeURIComponent(map)}/shot`;
 }
 
-const CS_PREFIX_MAPS: ReadonlySet<MapPlateId> = new Set(['office', 'italy', 'agency']);
+const CS_PREFIX_MAPS: ReadonlySet<string> = new Set(['office', 'italy', 'agency']);
 
-/** The engine name the map routes take, from itself or from the display name a job's match carries ("Mirage"); undefined when unknown. */
+/** The engine name the map routes take, from itself or from the display name a job's match carries ("Mirage"); a map nothing serves answers 404 and the UI falls back. */
 export function engineMapName(map: string): string | undefined {
   if (RADAR_MAP_NAME_RE.test(map)) return map;
-  const id = resolveMapPlateId(map);
-  if (id === 'unknown') return undefined;
-  return `${CS_PREFIX_MAPS.has(id) ? 'cs' : 'de'}_${id}`;
+  const key = mapPlateKey(map);
+  if (key === 'unknown') return undefined;
+  const name = `${CS_PREFIX_MAPS.has(key) ? 'cs' : 'de'}_${key}`;
+  return RADAR_MAP_NAME_RE.test(name) ? name : undefined;
 }
 
 /** The longest team name the logo route accepts. */

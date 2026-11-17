@@ -28,6 +28,8 @@ test('known active-duty maps resolve to a named plate, not the generic fallback'
     'de_overpass',
     'Vertigo',
     'de_train',
+    'de_cache',
+    'Cache',
     'cs_office',
     'cs_italy',
     'cs_agency',
