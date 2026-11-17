@@ -15,6 +15,7 @@ import { renderVideoFile } from '@/lib/clips/video-file';
 import { timeAgo } from '@/lib/format';
 import { PUBLISH_PREP_HINT, PUBLISH_PREP_LABEL } from '@/lib/publish-actions';
 import { cn } from '@/lib/utils';
+import { MapCover } from '@/components/brand/map-cover';
 import { ReelCover } from '@/components/brand/reel-cover';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { MediaFrame } from '@/components/studio/media-frame';
@@ -68,6 +69,8 @@ type CardStageProps = {
   kind: VideoKind;
   format: PlaybackFormat;
   seed: string;
+  /** The demo's map: its plate stands in until a cover or a frame of the MP4 loads. */
+  map?: string;
   posterUrl: string | undefined;
   /** The MP4 whose frame stands in for a missing cover. */
   videoUrl?: string;
@@ -78,9 +81,11 @@ type CardStageProps = {
 };
 
 /** The tinted media area: the real poster in its own frame, the format pill and the length. */
-function CardStage({ size, kind, format, seed, posterUrl, videoUrl, durationSeconds, badge, playLabel, onPlay }: CardStageProps): ReactNode {
+function CardStage({ size, kind, format, seed, map, posterUrl, videoUrl, durationSeconds, badge, playLabel, onPlay }: CardStageProps): ReactNode {
   const tall = format === '9:16';
   const small = size === CLIP_SIZE.s;
+  const knownMap = map !== undefined && map.trim() !== '' && map !== 'Unknown';
+  const fallback = knownMap ? <MapCover map={map} /> : <ReelCover seed={seed} plain />;
   return (
     <div className={cn('relative flex items-center justify-center', STAGE_CLASS[size].stage, FORMAT_TONE[kind].tint)}>
       <button
@@ -94,7 +99,7 @@ function CardStage({ size, kind, format, seed, posterUrl, videoUrl, durationSeco
           aspect={format}
           badge={badge}
           className="rounded-lg"
-          media={<VideoPoster posterUrl={posterUrl} videoUrl={videoUrl} fallback={<ReelCover seed={seed} plain />} />}
+          media={<VideoPoster posterUrl={posterUrl} videoUrl={videoUrl} fallback={fallback} />}
         />
       </button>
       <span
@@ -181,6 +186,7 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
         kind={kind}
         format={isShort ? '9:16' : '16:9'}
         seed={video.id}
+        map={video.map}
         posterUrl={video.thumbnailUrl}
         videoUrl={playback?.playbackUrl}
         playLabel={playback === null ? title : `Reproducir ${title}`}
