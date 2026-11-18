@@ -161,11 +161,11 @@ const STRATBOOK_FILE_BYTES = 8 * 1024 * 1024;
 
 export const LIBRARY_DEMO_KEYS = [
   'id', 'sha256', 'file_name', 'path', 'size_bytes', 'source', 'source_manual', 'cs2_build', 'patch_version',
-  'state', 'error_code', 'error', 'tags', 'job_ids', 'match_id', 'played_at', 'imported_at', 'updated_at',
+  'state', 'error_code', 'error', 'tags', 'title', 'job_ids', 'match_id', 'played_at', 'imported_at', 'updated_at',
 ];
 const MATCH_KEYS = [
   'id', 'demo_id', 'series_id', 'map', 'played_at', 'source', 'tickrate', 'duration_ticks', 'round_count',
-  'teams', 'players', 'created_at', 'updated_at',
+  'teams', 'players', 'demo_title', 'created_at', 'updated_at',
 ];
 const SCOUT_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup'];
 const TEAM_KEYS = ['id', 'name', 'aliases', 'match_count', 'roster', 'own', 'hltv_rank', 'created_at', 'updated_at'];
@@ -196,7 +196,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   // The web edition's import: the browser parsed the demo and sends its analysis, never the demo.
   { method: 'POST', segments: ['uploads'], body: { kind: 'multipart', maxBytes: 200 * 1024 * 1024 }, response: json(['created', 'demo', 'match']) },
   { method: 'GET', segments: ['demos', UUID], response: json(LIBRARY_DEMO_KEYS) },
-  { method: 'PATCH', segments: ['demos', UUID], body: fields(['source', 'tags']), response: json(LIBRARY_DEMO_KEYS) },
+  { method: 'PATCH', segments: ['demos', UUID], body: fields(['source', 'tags', 'title']), response: json(LIBRARY_DEMO_KEYS) },
   { method: 'DELETE', segments: ['demos', UUID], response: { kind: 'empty' } },
   { method: 'POST', segments: ['demos', UUID, 'analyze'], response: json(LIBRARY_DEMO_KEYS) },
   { method: 'POST', segments: ['demos', UUID, 'jobs'], body: fields(['target_steamid']), response: json(['job_id', 'status', 'reused']) },
