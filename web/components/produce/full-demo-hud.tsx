@@ -117,13 +117,7 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
         </div>
       </fieldset>
       {kind === 'custom' && selected ? <div className="grid min-w-0 gap-2">
-        <div className="grid min-w-0 items-start gap-3 @min-[28rem]/hud:grid-cols-[minmax(0,1fr)_11rem]">
-          <HudThemePicker base={selected.id} style={options.overlays.hud_custom} onSelect={(id, style) => choose(id, portrait, style)} />
-          {/* The large preview sits above the editor; this copy keeps the chosen design in sight beside the select. */}
-          <div aria-hidden className="hidden overflow-hidden rounded-lg ring-1 ring-border-subtle @min-[28rem]/hud:block">
-            <HudPreview theme={theme} portrait={portrait} overlays={options.overlays} />
-          </div>
-        </div>
+        <HudThemePicker base={selected.id} style={options.overlays.hud_custom} backdrop={<PreviewBackdrop />} onSelect={(id, style) => choose(id, portrait, style)} />
         <p className="text-body-sm text-fg-2">{selected.description}</p>
         <p className="text-body-sm text-fg-3">Todos los diseños añaden bajo el marcador los jugadores vivos de cada bando, la racha de 4 o más rondas, el 3K, 4K o ACE de la ronda, la barra de desactivación con o sin kit y el MVP al cerrar cada ronda.</p>
         {selected.id === 'focus' ? <div className="min-w-0 space-y-2">
@@ -218,11 +212,18 @@ function HudPreview({ theme, portrait, overlays }: {
     ? hudPreviewUrl({ base: theme.id, style: overlays.hud_custom, options: overlays.hud_options, names: overlays.team_names }) : null;
   const name = overlays.hud_custom?.name ?? theme?.name;
   return <div className="relative isolate aspect-video w-full overflow-hidden bg-surface-0">
-    <MapCover map={PREVIEW_MAP} className="absolute inset-0 opacity-70" />
-    <span className="absolute inset-0"><CoverImage src={mapShotUrl(PREVIEW_MAP)} className="brightness-[0.8]" /></span>
+    <PreviewBackdrop />
     {theme ? <img src={drawn ?? `/hud/${theme.id}${hasPortrait ? '-portrait' : ''}.webp`} alt={`Vista previa del HUD ${name}`} className="absolute inset-0 size-full object-contain" width={1920} height={1080} /> : <NativeHudArt />}
     {hasPortrait && portrait ? <img src={`/api/full-demo/overlay-images/${portrait.id}`} alt="Retrato del jugador" className="absolute object-contain object-bottom" style={{ left: `${654 / 1920 * 100}%`, top: `${898 / 1080 * 100}%`, width: `${116 / 1920 * 100}%`, height: `${116 / 1080 * 100}%` }} /> : null}
   </div>;
+}
+
+/** The map the HUD pictures sit on, in the large preview and behind each design of the gallery. */
+function PreviewBackdrop(): ReactNode {
+  return <>
+    <MapCover map={PREVIEW_MAP} className="absolute inset-0 opacity-70" />
+    <span className="absolute inset-0"><CoverImage src={mapShotUrl(PREVIEW_MAP)} className="brightness-[0.8]" /></span>
+  </>;
 }
 
 /** The element that scrolls the page around `element`: the app shell's main pane, else the document. */
