@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/hibiken/asynq"
 
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 // captureCheckFunc stands in for the record worker's reuse check.
@@ -62,6 +64,9 @@ func TestGenerateThatForbidsACaptureNeverRecords(t *testing.T) {
 			if len(queue.enqueued) != 1 || (tc.checked && checked != queue.enqueued[0]) {
 				t.Fatalf("%s: enqueued %d tasks, want the checked record task", tc.name, len(queue.enqueued))
 			}
+			if intent, _, err := tasks.GenerateIntentFromTask(queue.enqueued[0]); err != nil || intent.NoCapture != tc.checked {
+				t.Fatalf("%s: queued task may capture = %v (%v), want %v", tc.name, !intent.NoCapture, err, !tc.checked)
+			}
 			continue
 		}
 		var body struct {
@@ -76,5 +81,19 @@ func TestGenerateThatForbidsACaptureNeverRecords(t *testing.T) {
 		if got := h.repo.(*fakeRepo).jobs[j.ID].Status; got != job.StatusDone {
 			t.Fatalf("%s: job status = %s, want done", tc.name, got)
 		}
+	}
+}
+
+// A click must record, so it never joins a queued task that may not capture: it waits for it instead.
+func TestAClickNeverJoinsAQueuedTaskThatMayNotCapture(t *testing.T) {
+	h, j := horizontalFixture(t)
+	h.queue = &uniqueScopeQueue{}
+	WithCaptureCheck(captureCheckFunc(func(context.Context, *asynq.Task) (bool, error) { return false, nil }))(h)
+	const body = `{"preset":"clean-pov-60","segment_ids":["seg-001"],"edit":{"format":"short-9x16"}`
+	if rw := postGenerate(t, h, j.ID, body+`,"allow_capture":false}`); rw.Code != http.StatusAccepted {
+		t.Fatalf("page load = %d %s, want 202", rw.Code, rw.Body.String())
+	}
+	if rw := postGenerate(t, h, j.ID, body+`}`); rw.Code != http.StatusConflict || !strings.Contains(rw.Body.String(), generateWorkActive) {
+		t.Fatalf("click = %d %s, want 409 %s", rw.Code, rw.Body.String(), generateWorkActive)
 	}
 }

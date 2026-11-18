@@ -27,6 +27,8 @@ const RECORDING_NOT_REUSABLE_PREFIX = 'recording_not_reusable:' as const;
 
 /** Prefix of the web proxy's own refusals (`lib/api/local-request-guard.ts`): the orchestrator never saw the request. */
 const LOCAL_API_REFUSAL_PREFIX = 'local API ' as const;
+/** A record task a page load sent, refused because its clips went missing: the same card as a refused generate. */
+const CAPTURE_REQUIRED_PREFIX = 'capture_required:' as const;
 
 const STUDIO_SESSION_MESSAGE =
   'Studio no aceptó la orden desde esta ventana. Cierra Studio, vuelve a abrirlo y pulsa Reintentar; ' +
@@ -272,6 +274,9 @@ function classifyFailureReason(reason: string | undefined, context: FailureConte
   // Client-minted and already user-facing Spanish: surface it verbatim.
   if (reason === MISMATCH_REDRIVE_FAILURE_REASON || reason === CHANGE_NOT_APPLIED_REASON) {
     return { kind: 'render-mismatch', message: reason, retryCanHelp: true };
+  }
+  if (reason.startsWith(CAPTURE_REQUIRED_PREFIX)) {
+    return { kind: 'render-mismatch', message: CHANGE_NOT_APPLIED_REASON, retryCanHelp: true };
   }
 
   if (reason.startsWith(DEMO_INCOMPATIBLE_PREFIX)) {

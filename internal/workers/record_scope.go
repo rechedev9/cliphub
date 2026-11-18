@@ -3,6 +3,7 @@ package workers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/hibiken/asynq"
@@ -25,7 +26,11 @@ type recordRequest struct {
 	victimReplay         bool
 	approval             *recapplan.Snapshot
 	preRollSeconds       int
+	noCapture            bool
 }
+
+// errCaptureRequired fails a task that may not capture when its clips are gone; the web shows Reintentar.
+var errCaptureRequired = errors.New("capture_required: applying this change needs a CS2 capture, which only an explicit request starts")
 
 func recordRequestFor(payload tasks.RecordDemoPayload, intent renderplan.GenerateIntent) recordRequest {
 	source := planSourceKills
@@ -42,6 +47,7 @@ func recordRequestFor(payload tasks.RecordDemoPayload, intent renderplan.Generat
 		victimReplay:         intent.Edit.VictimReplay,
 		approval:             intent.Edit.FullDemo,
 		preRollSeconds:       payload.PreRollSeconds,
+		noCapture:            intent.NoCapture,
 	}
 }
 
@@ -101,6 +107,18 @@ func (w *RecordWorker) resolveSource(ctx context.Context, s *recordScope) error 
 	}
 	adapted := snapshot.Document.KillPlan(*j.KillPlan)
 	s.sourcePlan, s.fullDemo, s.requested = &adapted, &snapshot.Document, req.segmentIDs
+	return nil
+}
+
+// admitCapture resolves which segments s lacks and refuses to capture them when its request forbids it:
+// a page load's task whose clips went missing after the orchestrator checked them.
+func (w *RecordWorker) admitCapture(ctx context.Context, s *recordScope) error {
+	if err := w.resolveMissing(ctx, s); err != nil {
+		return err
+	}
+	if s.req.noCapture && len(s.missing) > 0 {
+		return errCaptureRequired
+	}
 	return nil
 }
 

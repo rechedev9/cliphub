@@ -56,6 +56,10 @@ func (h *Handlers) validatePlaySelection(w http.ResponseWriter, j job.Job, ids [
 // sameCapture reports whether two intents would enqueue the same record task. Music and post-capture
 // edit choices never change the capture, so a re-drive that differs only there is the queue's duplicate.
 func sameCapture(a, b renderplan.GenerateIntent) bool {
+	// A click must be able to record, so it never joins a queued task that may not.
+	if a.NoCapture != b.NoCapture {
+		return false
+	}
 	// Admission deduplicates the complete approved intent. A music-only change
 	// may reuse capture later, but it must not silently adopt an older render.
 	if a.Edit.FullDemo != nil || b.Edit.FullDemo != nil {

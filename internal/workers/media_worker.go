@@ -659,7 +659,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, req recordRequest)
 	// non-deduped task with different segment ids) must not launch the recorder
 	// concurrently or race on the job-level recording result.
 	defer w.lockJob(j.ID)()
-	if err := w.resolveMissing(ctx, &scope); err != nil {
+	if err := w.admitCapture(ctx, &scope); err != nil {
 		return err
 	}
 	sourcePlan, fullDemo, requested, missing, reuse := scope.sourcePlan, scope.fullDemo, scope.requested, scope.missing, scope.reuse

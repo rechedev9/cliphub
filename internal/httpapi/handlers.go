@@ -1199,13 +1199,13 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	portraitSafeKillfeed := capturePortraitSafeKillfeed(preset.KillfeedSource, intent.Edit)
-	recordTask, err := tasks.NewGenerateRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, intent)
+	intent.NoCapture = req.AllowCapture != nil && !*req.AllowCapture
+	recordTask, err := tasks.NewGenerateRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, capturePortraitSafeKillfeed(preset.KillfeedSource, intent.Edit), useRecapPlan, intent)
 	if err != nil {
 		internalError(w, "build record task", err)
 		return
 	}
-	if req.AllowCapture != nil && !*req.AllowCapture && h.captureNeeded(r.Context(), recordTask) {
+	if intent.NoCapture && h.captureNeeded(r.Context(), recordTask) {
 		writeCodedError(w, http.StatusConflict, captureRequired, "applying this change needs a CS2 capture, which only an explicit request starts")
 		return
 	}

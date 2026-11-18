@@ -30,6 +30,13 @@ test('parseFailureReason classifies each reason into its kind and retry hint', (
       message: /no coincide con las jugadas/,
     },
     {
+      name: 'a record task a page load sent, refused because applying the change needs CS2, offers Reintentar',
+      reason: 'capture_required: applying this change needs a CS2 capture, which only an explicit request starts',
+      kind: 'render-mismatch',
+      retryCanHelp: true,
+      message: /aún no tiene tu último cambio/,
+    },
+    {
       name: 'a mismatch-looking raw string that is not the latched reason stays generic',
       reason: 'render does not match the intent',
       kind: 'generic',
