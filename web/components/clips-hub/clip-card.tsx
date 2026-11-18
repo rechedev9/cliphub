@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Download, Ellipsis, FolderOpen, History, Music, Pencil, Play, RectangleHorizontal, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { CHANGE_NOT_APPLIED_REASON } from '@/lib/api/failure-reason';
 import { prettifyMap } from '@/lib/api/map';
 import { PLAYBACK_REVIEW, demoPlaybackItem, type MediaPlaybackItem, type PlaybackFormat } from '@/lib/api/playback';
 import { streamsApi } from '@/lib/api/streams';
@@ -33,7 +34,7 @@ import { DeleteVideoDialog } from '@/components/videos/delete-video-button';
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
 import { VideoPoster } from '@/components/videos/video-poster';
 import { VideoVersionsDialog } from '@/components/videos/video-versions-dialog';
-import { downloadMP4, downloadVideoMP4 } from '@/components/clips-hub/output-item';
+import { RetryButton, downloadMP4, downloadVideoMP4 } from '@/components/clips-hub/output-item';
 
 type HubClip = HubModel['clips'][number];
 
@@ -205,6 +206,12 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
         title={title}
         meta={[prettifyMap(video.map), player, timeAgo(video.createdAt)].filter(Boolean).join(' · ')}
       />
+      {video.changePending ? (
+        <span className={cn('flex flex-col items-start gap-2', size === CLIP_SIZE.s ? 'px-3 pt-2.5' : 'px-4 pt-3')}>
+          <span className="text-meta text-warning">{CHANGE_NOT_APPLIED_REASON}</span>
+          <RetryButton video={video} onChange={onChange} />
+        </span>
+      ) : null}
       <span className={actionRowClass(size)}>
         {video.publishable === false ? null : (
           <Button asChild size={iconOnly ? 'icon-sm' : 'sm'}>

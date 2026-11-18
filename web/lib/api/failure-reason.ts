@@ -43,6 +43,11 @@ export const MISMATCH_REDRIVE_FAILURE_REASON =
 export const CHANGE_NOT_APPLIED_REASON =
   'Este vídeo aún no tiene tu último cambio y aplicarlo necesita grabar con CS2. Pulsa Reintentar para grabarlo y montarlo.';
 
+/** A page load's record task the worker refused rather than open CS2. */
+export function isCaptureRequired(reason: string | undefined): boolean {
+  return reason?.startsWith(CAPTURE_REQUIRED_PREFIX) === true;
+}
+
 /** True when compose/render must re-record; re-rendering the stored capture cannot recover. */
 export function requiresRecapture(reason: string | undefined): boolean {
   if (reason === undefined || reason.trim() === '') return false;
@@ -275,7 +280,7 @@ function classifyFailureReason(reason: string | undefined, context: FailureConte
   if (reason === MISMATCH_REDRIVE_FAILURE_REASON || reason === CHANGE_NOT_APPLIED_REASON) {
     return { kind: 'render-mismatch', message: reason, retryCanHelp: true };
   }
-  if (reason.startsWith(CAPTURE_REQUIRED_PREFIX)) {
+  if (isCaptureRequired(reason)) {
     return { kind: 'render-mismatch', message: CHANGE_NOT_APPLIED_REASON, retryCanHelp: true };
   }
 

@@ -13,7 +13,7 @@ import { readMomentScores, withMomentScores } from './moment-scores.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
 import { reelStyleLabel } from './reel-style-label.ts';
-import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
+import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForLatch, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, videoFromIntent, withAdmissionFailure, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type AdmissionFailure, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
 import { autoShortsTitle, reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict } from './reel-identity.ts';
@@ -902,24 +902,7 @@ export class RealApiClient implements ApiClient {
       return;
     }
     this.jobGoneTicks.delete(intent.videoId);
-    // Job/render state would re-derive `record` every tick; the latch holds until an explicit action.
-    const latched = this.driveLatch.get(intent.videoId);
-    if (latched !== undefined) {
-      this.applyView(intent, { status: 'failed', action: 'none', failureReason: latched.failureReason });
-      return;
-    }
-    const render: {
-      status: RenderStatus;
-      failureReason?: string;
-      warnings?: string[];
-      videoName?: string;
-      coverName?: string;
-      coverNames?: string[];
-      artifactPrefix?: string;
-      segmentIds?: string[];
-      editConfig?: EditConfig;
-      effectiveMusic?: EffectiveRenderMusic;
-    } = await this.renderForReconcile(intent, job.status, prefetched);
+    const render = await this.renderForReconcile(intent, job.status, prefetched);
     // Use the editor's real artifact names instead of guessing from segment ids.
     if (render.videoName) {
       const names: { video: string; cover?: string; covers?: string[]; revision?: string } = { video: render.videoName };
@@ -932,6 +915,12 @@ export class RealApiClient implements ApiClient {
         names.covers = [render.coverName];
       }
       this.artifactNames.set(intent.videoId, names);
+    }
+    // Job/render state would re-derive `record` every tick; the latch holds until an explicit action.
+    const latched = this.driveLatch.get(intent.videoId);
+    if (latched !== undefined) {
+      this.applyView(intent, viewForLatch(latched, render));
+      return;
     }
     // A ready render whose MP4 never shows up would otherwise stay on the poll forever.
     if (render.status === 'ready' && !render.videoName && !this.artifactNames.has(intent.videoId)) {
@@ -986,6 +975,8 @@ export class RealApiClient implements ApiClient {
     if (decision.view.action === 'none') return;
     const redriveFrom = decision.mismatchRedrive === 'drive' ? { artifactPrefix: render.artifactPrefix } : undefined;
     await this.drive(intent, decision.view.action, redriveFrom);
+    const refused = this.driveLatch.get(intent.videoId);
+    if (refused !== undefined) this.applyView(intent, viewForLatch(refused, render));
   }
 
   /** Writes a reel's derived view onto its live Video, wiring URLs once ready. */
@@ -1000,6 +991,7 @@ export class RealApiClient implements ApiClient {
       warnings: view.warnings,
       reviewArtifactPrefix: view.reviewArtifactPrefix,
       captureProgress: view.captureProgress,
+      changePending: view.changePending,
     }, intent);
     if (intent.targetName) next.targetName = intent.targetName;
     // Latch stays set: a later plain-failed view must not clear it.
