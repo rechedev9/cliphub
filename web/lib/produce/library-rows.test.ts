@@ -74,3 +74,8 @@ test('the list filter matches map, team and player words, ignoring case and acce
   assert.equal(matchesDemoQuery(text, 'mirage'), false);
   assert.equal(matchesDemoQuery(text, '  '), true);
 });
+
+test('the list filter also finds a demo by the title a person gave it', () => {
+  const text = demoSearchText({ map: 'de_cache', title: 'Final del Clásico', library: match('a', '') });
+  assert.equal(matchesDemoQuery(text, 'clasico final'), true);
+});

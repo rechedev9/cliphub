@@ -180,7 +180,14 @@ func (h *Handlers) GetFullDemoPlan(w http.ResponseWriter, r *http.Request) {
 	defaults := h.fullDemoDefaultOptions(j)
 	defaults.Overlays.TeamNames = h.fullDemoTeamNames(r.Context(), j.ID)
 	response := map[string]any{"document": d, "defaults": defaults, "pro_players": fullDemoProPlayers, "compatibility": "editorial-v1"}
-	if !found {
+	if found {
+		capture, err := h.fullDemoCaptureFor(j.ID, d)
+		if err != nil {
+			rejectFullDemo(w, err)
+			return
+		}
+		response["capture"] = capture
+	} else {
 		response["document"], response["compatibility"] = nil, "legacy-until-planned-and-approved"
 		response["defaults"] = h.withDetectedProSettings(r.Context(), j.ID, defaults)
 	}

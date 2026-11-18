@@ -1,20 +1,20 @@
 'use client';
 
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { CUSTOM_HUD_THEMES, customHudTheme } from '@/lib/custom-hud';
+import { customHudTheme } from '@/lib/custom-hud';
+import { OWN_HUD_PREFIX, fullDemoHudGallery } from '@/lib/hud-gallery';
 import {
   MAX_HUD_RADIUS, MAX_HUD_TEAM_NAME, MAX_HUD_THEME_NAME, createHudTheme, deleteHudTheme, duplicateStyle, hudColor, hudStyleOf, listHudThemes, sameHudStyle, updateHudTheme,
   type HudOptions, type HudStyle, type HudTeamNames, type UserHudTheme,
 } from '@/lib/hud-themes';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { FullDemoChoice, FullDemoPart } from './full-demo-fields';
+import { DesignGallery } from '@/components/studio/design-gallery';
+import { FullDemoPart } from './full-demo-fields';
 
-const USER = 'user:';
-
-/** The design select with the user's own themes, and the editor of the chosen one. */
-export function HudThemePicker({ base, style, onSelect }: {
-  base: string; style?: HudStyle; onSelect: (base: string, style?: HudStyle) => void;
+/** The design gallery with the user's own themes, and the editor of the chosen one. */
+export function HudThemePicker({ base, style, backdrop, onSelect }: {
+  base: string; style?: HudStyle; backdrop: ReactNode; onSelect: (base: string, style?: HudStyle) => void;
 }): ReactNode {
   const [themes, setThemes] = useState<UserHudTheme[]>([]);
   const [max, setMax] = useState(10);
@@ -31,18 +31,12 @@ export function HudThemePicker({ base, style, onSelect }: {
     return () => controller.abort();
   }, []);
 
-  const matched = style ? themes.find((theme) => theme.base === base && sameHudStyle(hudStyleOf(theme), style)) : undefined;
-  const editing = themes.find((theme) => theme.id === (editingId ?? matched?.id));
-  const value = editing && style ? `${USER}${editing.id}` : base;
+  const { items, editing } = fullDemoHudGallery({ base, style, themes, editingId });
   const dirty = editing !== undefined && style !== undefined && !sameHudStyle(hudStyleOf(editing), style);
-  const options = [
-    ...CUSTOM_HUD_THEMES.map((theme) => ({ value: theme.id, label: theme.name })),
-    ...themes.map((theme) => ({ value: `${USER}${theme.id}`, label: `${theme.name} (tema propio)` })),
-  ];
 
   function choose(next: string): void {
     setConfirmDelete(false); setMessage(null);
-    const theme = themes.find((entry) => `${USER}${entry.id}` === next);
+    const theme = themes.find((entry) => `${OWN_HUD_PREFIX}${entry.id}` === next);
     setEditingId(theme?.id ?? null);
     if (theme) onSelect(theme.base, hudStyleOf(theme));
     else onSelect(next);
@@ -80,7 +74,7 @@ export function HudThemePicker({ base, style, onSelect }: {
   const full = themes.length >= max;
   const baseName = customHudTheme(base)?.name ?? base;
   return <div className="grid min-w-0 gap-2">
-    <FullDemoChoice label="Diseño" value={value} options={options} onChange={choose} />
+    <DesignGallery label="Diseño" items={items} shape="video" tone="full" backdrop={backdrop} onSelect={choose} />
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <Button type="button" variant="secondary" disabled={busy || full} onClick={() => void duplicate()}>Duplicar y editar</Button>
       <span className="text-body-sm text-fg-3">{full ? `Tienes ${max} temas, el máximo. Borra uno para crear otro.` : `Tus temas: ${themes.length} de ${max}.`}</span>

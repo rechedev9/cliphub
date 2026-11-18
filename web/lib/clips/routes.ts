@@ -16,6 +16,7 @@ export const TEAMS_HREF = '/equipos' as const;
 const PLAYERS_HREF = '/jugadores' as const;
 export const REPORTS_HREF = '/informes' as const;
 export const LIBRETA_HREF = '/libreta' as const;
+export const STORAGE_HREF = '/almacenamiento' as const;
 /** Jugadores FACEIT, the follow list in the Crear area of the rail. */
 export const FACEIT_PLAYERS_HREF = '/jugadores/faceit' as const;
 
@@ -52,9 +53,28 @@ export function flowHref(format: ProduceFormat, opts: { job?: string; from?: str
 
 /**
  * `?series=` returns to the bo3/bo5 series after producing. `?rondas=` comes
- * from the analysis area: the video covers only those source rounds. `?video=` is the long video's kind.
+ * from the analysis area: the video covers only those source rounds.
+ * `?editar=<variant>&version=<revision>` is Editar in Mis vídeos. `?video=` is the long video's kind.
  */
-export const PRODUCE_QUERY = { series: 'series', rounds: 'rondas', video: 'video' } as const;
+export const PRODUCE_QUERY = { series: 'series', rounds: 'rondas', edit: 'editar', version: 'version', video: 'video' } as const;
+
+const VARIANT_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+/** A finished version of a video that the producer reopens; null revision is the newest one. */
+export type VideoEdit = { variant: string; revision: string | null };
+
+export function editVideoHref({ matchId, format, variant, revision }: { matchId: string; format: ProduceFormat; variant: string; revision?: string }): string {
+  const params = new URLSearchParams({ [PRODUCE_QUERY.edit]: variant });
+  if (revision !== undefined) params.set(PRODUCE_QUERY.version, revision);
+  return `${FLOW_HREF[format]}/${encodeURIComponent(matchId)}?${params.toString()}`;
+}
+
+export function parseVideoEditParam(query: Readonly<Record<string, string | string[] | undefined>>): VideoEdit | null {
+  const variant = query[PRODUCE_QUERY.edit];
+  if (typeof variant !== 'string' || !VARIANT_RE.test(variant)) return null;
+  const revision = query[PRODUCE_QUERY.version];
+  return { variant, revision: isJobIdParam(revision) ? revision : null };
+}
 
 /** The most rounds a selection carries (`recapplan.MaxSelectedRounds`). */
 export const MAX_SELECTED_ROUNDS = 60;

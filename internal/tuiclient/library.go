@@ -18,6 +18,7 @@ type LibraryDemo struct {
 	// SourceManual is true once a person picked the source; re-analysis keeps it.
 	SourceManual bool      `json:"source_manual"`
 	Tags         []string  `json:"tags"`
+	Title        string    `json:"title,omitempty"`
 	ErrorCode    string    `json:"error_code,omitempty"`
 	Error        string    `json:"error,omitempty"`
 	MatchID      *string   `json:"match_id,omitempty"`
@@ -46,6 +47,7 @@ type LibraryMatch struct {
 	RoundCount int                  `json:"round_count"`
 	Teams      []LibraryMatchTeam   `json:"teams"`
 	Players    []LibraryMatchPlayer `json:"players,omitempty"`
+	DemoTitle  string               `json:"demo_title,omitempty"`
 }
 
 type LibraryMatchTeam struct {
@@ -215,9 +217,11 @@ func (c *Client) ImportLibraryDemo(ctx context.Context, demoPath string, tags []
 type LibraryDemoPatch struct {
 	Source *string   `json:"source,omitempty"`
 	Tags   *[]string `json:"tags,omitempty"`
+	// Title is sent when set, so a pointer to "" clears the title.
+	Title *string `json:"title,omitempty"`
 }
 
-// UpdateLibraryDemo sets a demo's source by hand or replaces its whole tag set.
+// UpdateLibraryDemo sets a demo's source by hand, replaces its whole tag set or changes its title.
 func (c *Client) UpdateLibraryDemo(ctx context.Context, id string, patch LibraryDemoPatch) (LibraryDemo, error) {
 	var out LibraryDemo
 	err := c.doJSON(ctx, http.MethodPatch, "/api/library/demos/"+url.PathEscape(id), patch, &out)

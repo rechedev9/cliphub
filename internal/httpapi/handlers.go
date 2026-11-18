@@ -123,8 +123,8 @@ type Handlers struct {
 	streamRepo          StreamJobRepository
 	editorAssets        EditorAssetRepository
 	editorProjects      EditorProjectRepository
-	streamPlanMu        sync.Mutex
-	editorPlanMu        sync.Mutex
+	streamPlanMu, editorPlanMu sync.Mutex
+	captures                   captureSettings
 	renderStateMu       sync.Mutex
 	rosterCache         rosterSummaryCache
 	jobsListJSON        cachedJSON

@@ -40,9 +40,9 @@ var oversizedGoFiles = map[string]int{
 	"internal/httpapi/stream_handlers.go":                  1088,
 	"internal/httpapi/workbench_htmx.go":                   1154,
 	"internal/reconcile/sweep_test.go":                     1136,
-	"internal/store/sqlite_library_repo.go":                1167,
+	"internal/store/sqlite_library_repo.go":                1138,
 	"internal/tacticalplan/scout.go":                       1251,
-	"internal/workers/media_worker.go":                     4110,
+	"internal/workers/media_worker.go":                     4103,
 	"internal/workers/media_worker_segment_select_test.go": 1174,
 	"internal/workers/media_worker_test.go":                3140,
 }

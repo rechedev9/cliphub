@@ -13,7 +13,14 @@ test('projectStorageUsage camelCases the orchestrator body and drops unknown fie
   assert.deepEqual(projectStorageUsage(body), {
     jobs: [{ jobId: JOB, captureBytes: 10, renderBytes: 5, freeable: true }],
     totalBytes: 20,
+    captureRetention: null,
   });
+});
+
+test('projectStorageUsage reads how many long videos keep their captures', () => {
+  assert.deepEqual(projectStorageUsage({ jobs: [], total_bytes: 0, capture_retention: { keep: 3, max: 20 } }).captureRetention, { keep: 3, max: 20, keepsAll: false });
+  assert.deepEqual(projectStorageUsage({ capture_retention: { keep: 0, max: 20, keeps_all: true } }).captureRetention, { keep: 0, max: 20, keepsAll: true });
+  assert.equal(projectStorageUsage({ capture_retention: { keep: 30, max: 20 } }).captureRetention, null);
 });
 
 test('projectStorageUsage drops rows without an id and zeroes bad byte counts', () => {
@@ -21,8 +28,9 @@ test('projectStorageUsage drops rows without an id and zeroes bad byte counts', 
   assert.deepEqual(projectStorageUsage(body), {
     jobs: [{ jobId: JOB, captureBytes: 0, renderBytes: 0, freeable: false }],
     totalBytes: 0,
+    captureRetention: null,
   });
-  assert.deepEqual(projectStorageUsage(null), { jobs: [], totalBytes: 0 });
+  assert.deepEqual(projectStorageUsage(null), { jobs: [], totalBytes: 0, captureRetention: null });
 });
 
 test('projectFreedBytes reads freed_bytes, else 0', () => {

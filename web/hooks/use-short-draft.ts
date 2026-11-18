@@ -13,17 +13,21 @@ type ShortDraftOptions = {
   focusIds?: readonly string[];
   /** The length the first auto pick fills. */
   targetSeconds?: number;
+  /** Editar in Mis vídeos: the version's settings, over any saved draft. */
+  seed?: ShortSettings | null;
   /** A one-player 16:9 summary: every play selected, in a draft of its own. */
   summary?: boolean;
 };
 
 /** The producer is keyed by matchId. Polls must not reinitialize the user's choices. */
-export function useShortDraft({ matchId: jobId, plays, deathPlays = [], focusIds = [], targetSeconds, summary = false }: ShortDraftOptions) {
+export function useShortDraft({ matchId: jobId, plays, deathPlays = [], focusIds = [], targetSeconds, seed = null, summary = false }: ShortDraftOptions) {
   const matchId = summary ? summaryDraftId(jobId) : jobId;
   const [initial] = useState(() => {
+    const validIds = new Set([...plays, ...deathPlays].map((play) => play.id));
+    if (seed) return { settings: seed, validIds, focus: null, seeded: true };
     const base = defaultShortSettings(plays, { deathPlays, targetSeconds, summary });
     const focus = focusIds.length > 0 ? [...focusIds] : null;
-    return { settings: focus ? { ...base, selectedIds: focus } : base, validIds: new Set([...plays, ...deathPlays].map((play) => play.id)), focus };
+    return { settings: focus ? { ...base, selectedIds: focus } : base, validIds, focus, seeded: false };
   });
   const [settings, setSettings] = useState(initial.settings);
   const current = useRef(initial.settings);
@@ -33,7 +37,7 @@ export function useShortDraft({ matchId: jobId, plays, deathPlays = [], focusIds
   const [restored, setRestored] = useState(false);
 
   useEffect(() => {
-    const loaded = loadShortDraft(matchId, initial.validIds);
+    const loaded = initial.seeded ? null : loadShortDraft(matchId, initial.validIds);
     const saved = loaded && initial.focus ? { ...loaded, selectedIds: initial.focus } : loaded;
     current.current = saved ?? initial.settings;
     edited.current = saved !== null;

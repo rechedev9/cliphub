@@ -3,18 +3,21 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import type { CaptureRetention } from '@/lib/api/storage';
+import { setCaptureRetention } from '@/lib/api/video-edit';
 import { deleteCapturesErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
-import { formatBytes, freeableJobs, storageLoadErrorMessage, type FreeableJob } from '@/lib/storage';
+import { captureRetentionNote, formatBytes, freeableJobs, storageLoadErrorMessage, type FreeableJob } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const CAPTURES_DELETE_WARNING =
-  'Se borran las grabaciones de CS2 de esta demo completa. El vídeo final se queda. Para editarlo y montarlo de nuevo habrá que volver a capturar.';
+  'Se borran las grabaciones de CS2 de esta demo completa. El vídeo final y sus versiones se quedan. Para editarlo habrá que volver a grabar sus rondas.';
 
 type StorageState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; totalBytes: number; jobs: FreeableJob[] };
+  | { kind: 'ready'; totalBytes: number; jobs: FreeableJob[]; retention: CaptureRetention | null };
 
 /** Disk used by Studio jobs, and the Full Demo captures that can be freed per long video. */
 export function CaptureStorage(): ReactNode {
@@ -26,7 +29,7 @@ export function CaptureStorage(): ReactNode {
     let active = true;
     void Promise.all([api.getStorage(), api.listMatches().catch(() => [])])
       .then(([usage, matches]) => {
-        if (active) setState({ kind: 'ready', totalBytes: usage.totalBytes, jobs: freeableJobs(usage, matches) });
+        if (active) setState({ kind: 'ready', totalBytes: usage.totalBytes, jobs: freeableJobs(usage, matches), retention: usage.captureRetention });
       })
       .catch((err: unknown) => {
         if (active) setState({ kind: 'error', message: storageLoadErrorMessage(err) });
@@ -43,15 +46,23 @@ export function CaptureStorage(): ReactNode {
     setFreed(`${job.label}: se han liberado ${formatBytes(bytes)}.`);
     setState((current) =>
       current.kind === 'ready'
-        ? { kind: 'ready', totalBytes: Math.max(0, current.totalBytes - bytes), jobs: current.jobs.filter((row) => row.jobId !== job.jobId) }
+        ? { ...current, totalBytes: Math.max(0, current.totalBytes - bytes), jobs: current.jobs.filter((row) => row.jobId !== job.jobId) }
         : current,
     );
+  };
+
+  const onRetentionSaved = (keep: number, bytes: number): void => {
+    const which = keep === 1 ? 'del vídeo largo más reciente' : `de los ${keep} vídeos largos más recientes`;
+    const kept = keep === 0 ? 'Studio ya no guarda capturas' : `Se guardan las capturas ${which}`;
+    setFreed(bytes > 0 ? `${kept}. Se han liberado ${formatBytes(bytes)}.` : `${kept}.`);
+    setReloadKey((key) => key + 1);
   };
 
   let body: ReactNode;
   if (state.kind === 'ready') {
     body = (
       <div className="flex flex-col gap-3">
+        {state.retention ? <RetentionControl key={state.retention.keep} retention={state.retention} onSaved={onRetentionSaved} /> : null}
         {freed ? <p role="status" className="text-body-sm text-success">{freed}</p> : null}
         {state.jobs.length > 0 ? (
           <ul className="flex flex-col gap-2" aria-label="Demos completas con capturas">
@@ -94,11 +105,54 @@ export function CaptureStorage(): ReactNode {
           ) : null}
         </div>
         <p className="measure-read text-body-sm text-fg-2">
-          Las grabaciones de CS2 de cada demo completa. Studio las borra solo cuando su render final está listo.
+          {captureRetentionNote(state.kind === 'ready' ? state.retention : null)}
         </p>
       </div>
       {body}
     </section>
+  );
+}
+
+/** Capturas guardadas: how many of the newest long videos keep their captures; lowering it frees the rest now. */
+function RetentionControl({ retention, onSaved }: { retention: CaptureRetention; onSaved: (keep: number, freedBytes: number) => void }): ReactNode {
+  const [value, setValue] = useState(String(retention.keep));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const keep = /^[0-9]{1,2}$/.test(value) ? Number(value) : Number.NaN;
+  const valid = Number.isInteger(keep) && keep <= retention.max;
+  const lowering = valid && keep < retention.keep && !retention.keepsAll;
+
+  const save = async (): Promise<void> => {
+    if (!valid || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      onSaved(keep, await setCaptureRetention(keep));
+    } catch {
+      setError('No se pudo guardar. Comprueba que Studio sigue abierto e inténtalo de nuevo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2 border border-border bg-surface-1 px-3.5 py-2.5">
+      <div className="flex flex-wrap items-end gap-3">
+        <label htmlFor="capture-retention" className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="text-body-sm font-semibold text-fg-1">Capturas guardadas</span>
+          <span className="text-meta text-fg-2">Cuántos de los vídeos largos más recientes conservan sus capturas, de 0 a {retention.max}.</span>
+        </label>
+        <Input id="capture-retention" type="number" inputMode="numeric" min={0} max={retention.max} step={1} value={value}
+          disabled={saving} aria-invalid={!valid} onChange={(event) => setValue(event.target.value)} className="w-20 tabular-nums" />
+        <Button type="button" variant="outline" size="sm" disabled={!valid || keep === retention.keep} loading={saving} loadingText="Guardando…" onClick={() => void save()}>
+          Guardar
+        </Button>
+      </div>
+      {lowering ? (
+        <p className="text-body-sm text-warning">Al guardar se borran ahora las capturas de los vídeos largos que quedan fuera. Editarlos volverá a grabar sus rondas.</p>
+      ) : null}
+      {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
+    </div>
   );
 }
 

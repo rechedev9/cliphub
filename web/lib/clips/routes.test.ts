@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  editVideoHref,
   flowHref,
   isJobIdParam,
   LONG_VIDEOS_HREF,
   matchHref,
   matchesHref,
   parseRoundsParam,
+  parseVideoEditParam,
   playerHref,
   PRODUCE_FORMAT,
   produceHref,
@@ -89,4 +91,17 @@ test('a round selection travels as ?rondas= and only clean round lists are read 
   for (const bad of ['', '0', '3,x', '1000', '-1', undefined]) assert.equal(parseRoundsParam(bad), null);
   assert.equal(parseRoundsParam(['3']), null);
   assert.equal(parseRoundsParam(Array.from({ length: 61 }, (_, i) => i + 1).join(',')), null);
+});
+
+test('Editar opens the producer on one version of a video, the newest without a revision', () => {
+  const job = '11111111-1111-4111-8111-111111111111';
+  const revision = '22222222-2222-4222-8222-222222222222';
+  const href = editVideoHref({ matchId: job, format: PRODUCE_FORMAT.short, variant: 'viral-60-clean', revision });
+  assert.equal(href, `${SHORTS_HREF}/${job}?editar=viral-60-clean&version=${revision}`);
+  const query = Object.fromEntries(new URL(href, 'http://studio').searchParams);
+  assert.deepEqual(parseVideoEditParam(query), { variant: 'viral-60-clean', revision });
+  assert.deepEqual(parseVideoEditParam({ editar: 'gameplay-pov-60' }), { variant: 'gameplay-pov-60', revision: null });
+  assert.equal(parseVideoEditParam({ editar: '../x' }), null);
+  assert.deepEqual(parseVideoEditParam({ editar: 'gameplay-pov-60', version: 'nope' }), { variant: 'gameplay-pov-60', revision: null });
+  assert.equal(parseVideoEditParam({}), null);
 });
