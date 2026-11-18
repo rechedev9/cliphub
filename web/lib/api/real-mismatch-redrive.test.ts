@@ -5,7 +5,7 @@ import test from 'node:test';
 import { RealApiClient } from './real.ts';
 import { buildEditRequest } from './edit-request.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON } from './failure-reason.ts';
-import { DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, FULL_DEMO_REEL_SUFFIX, type ReelIntent } from './reel-store.ts';
+import { DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, FULL_DEMO_REEL_SUFFIX, coerceIntents, type ReelIntent } from './reel-store.ts';
 import type { EditConfig, Video } from './types.ts';
 
 const RECORDING_UNCONFIGURED_ERROR =
@@ -217,6 +217,49 @@ test('a matching ready render is ready without any POST', async () => {
       await tick(client);
       assert.equal(fake.calls.filter((c) => c.method === 'POST').length, 0, `${tc.name}: no POST`);
       assert.equal((await client.getVideo(videoId))?.status, 'ready', `${tc.name}: ready`);
+    } finally {
+      fake.restore();
+    }
+  }
+});
+
+test('a reel read back after a reload still matches its ready render, so CS2 does not record it again', async () => {
+  const cases: Array<{ name: string; edit: EditConfig }> = [
+    {
+      name: 'Crear horizontal of a Kill Feed Short',
+      edit: {
+        ...DEFAULT_EDIT_CONFIG, format: 'landscape-16x9', killEffect: 'clean', transition: 'cut', captureHud: 'deathnotices',
+        portraitSafeKillfeed: true, voiceComms: true, voiceVolume: 0.6, subtitles: true, subtitlesEnglish: true, subtitlesHidden: ['line-b', 'line-a'],
+      },
+    },
+    {
+      name: 'one-player Short with player cards, subtitles and a pre-roll',
+      edit: {
+        ...DEFAULT_EDIT_CONFIG, preRollSeconds: 8, centeredKillfeed: true, voiceComms: true, subtitles: true,
+        openingCard: 'neon', endCard: 'neon', coverCard: 'neon',
+      },
+    },
+    { name: '16:9 one-player summary in the clean style', edit: { ...DEFAULT_EDIT_CONFIG, format: 'landscape-16x9', captureHud: 'clean', preRollSeconds: 5 } },
+  ];
+  for (const tc of cases) {
+    const state: Orchestrator = {
+      jobStatus: 'done',
+      render: readyRender('rev-1', ['seg-001'], tc.edit),
+      generate: () => json({}, 202),
+      renderPost: () => json({ accepted: true }, 202),
+    };
+    const fake = fakeOrchestrator('job-7', state);
+    try {
+      const client = new RealApiClient();
+      const seeded = seedReel(client, 'job-7');
+      // The intent as Mis vídeos reads it back from localStorage after a reload.
+      const [reloaded] = coerceIntents(JSON.parse(JSON.stringify([{ ...seeded, editConfig: tc.edit }])));
+      assert.ok(reloaded, tc.name);
+      (client as unknown as Seedable).intents.set(reloaded.videoId, reloaded);
+      await tick(client);
+      await tick(client);
+      assert.equal(fake.calls.filter((c) => c.method === 'POST').length, 0, `${tc.name}: no POST`);
+      assert.equal((await client.getVideo(reloaded.videoId))?.status, 'ready', `${tc.name}: ready`);
     } finally {
       fake.restore();
     }
