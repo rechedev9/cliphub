@@ -12,7 +12,7 @@ export const FLOW_TITLE = { short: 'Short', full: 'Demo completa' } as const;
 export const FLOW_HOME_TITLE = { short: 'Tu mejor minuto, en vertical', full: 'La partida entera, con su vista' } as const;
 export const FLOW_HOME_DESCRIPTION = {
   short: 'Elige una demo y un jugador. ClipHub encuentra sus jugadas y las monta en un Short de 9:16.',
-  full: 'Todas las rondas desde la vista de un jugador, o las mejores jugadas de varios del equipo, en 16:9.',
+  full: 'La partida entera o un resumen con las kills de un jugador, o las mejores jugadas de varios del equipo, en 16:9.',
 } as const;
 export const FLOW_PRODUCE_CTA = {
   short: { first: 'Crear Short', again: 'Crear otro Short' },
@@ -28,9 +28,16 @@ export const PRODUCE_SHORT_DRAFT_RESTORED = 'Configuración recuperada de tu úl
 export const PRODUCE_SHORT_DRAFT_RESET = PRODUCE_DRAFT_RESET;
 export const PRODUCE_SHORT_CTA = 'Crear Short';
 
-/** The 16:9 best moments of several teammates (multi-POV from the long-video flow). */
+/** The 16:9 summary: every kill of one player, or the best moments of several teammates. */
 export const PRODUCE_SUMMARY_TITLE = 'Prepara tu resumen';
 export const PRODUCE_SUMMARY_CTA = 'Crear resumen';
+
+/** The two long videos of one player, by their `?video=` value. */
+export const LONG_VIDEO_KIND_LABEL = { partida: 'Partida entera', resumen: 'Resumen' } as const;
+export const PRODUCE_SUMMARY_NO_KILLS = {
+  title: 'Sin kills para el resumen',
+  description: 'Este jugador no hace ninguna kill en la partida, así que el resumen no tendría jugadas. Prepara la partida entera o elige a otro jugador.',
+} as const;
 
 /** Footer line once a producer can create: where it records and where the result lands. */
 export const PRODUCE_READY_HINT = 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el vídeo en Mis vídeos.';

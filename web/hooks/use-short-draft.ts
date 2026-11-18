@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Play } from '@/lib/api/types';
-import { clearShortDraft, defaultShortSettings, loadShortDraft, saveShortDraft, type ShortSettings } from '@/lib/produce/short-draft';
+import { clearShortDraft, defaultShortSettings, loadShortDraft, saveShortDraft, summaryDraftId, type ShortSettings } from '@/lib/produce/short-draft';
 
 type ShortDraftOptions = {
   matchId: string;
@@ -15,14 +15,17 @@ type ShortDraftOptions = {
   targetSeconds?: number;
   /** Editar in Mis vídeos: the version's settings, over any saved draft. */
   seed?: ShortSettings | null;
+  /** A one-player 16:9 summary: every play selected, in a draft of its own. */
+  summary?: boolean;
 };
 
 /** The producer is keyed by matchId. Polls must not reinitialize the user's choices. */
-export function useShortDraft({ matchId, plays, deathPlays = [], focusIds = [], targetSeconds, seed = null }: ShortDraftOptions) {
+export function useShortDraft({ matchId: jobId, plays, deathPlays = [], focusIds = [], targetSeconds, seed = null, summary = false }: ShortDraftOptions) {
+  const matchId = summary ? summaryDraftId(jobId) : jobId;
   const [initial] = useState(() => {
     const validIds = new Set([...plays, ...deathPlays].map((play) => play.id));
     if (seed) return { settings: seed, validIds, focus: null, seeded: true };
-    const base = defaultShortSettings(plays, { deathPlays, targetSeconds });
+    const base = defaultShortSettings(plays, { deathPlays, targetSeconds, summary });
     const focus = focusIds.length > 0 ? [...focusIds] : null;
     return { settings: focus ? { ...base, selectedIds: focus } : base, validIds, focus, seeded: false };
   });

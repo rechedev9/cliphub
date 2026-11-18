@@ -34,7 +34,7 @@ export type PlayListProps = {
 
 /**
  * One selectable card per highlight (PlayRow) under a heading with the
- * selection counter plus Seleccionar todo / Limpiar; no horizontal scroll.
+ * selection counter plus Seleccionar todas / Limpiar; no horizontal scroll.
  * The list owns `@container/reel` because PlayRow keys its breakpoints to the
  * list's width, not the viewport's.
  */
@@ -83,7 +83,7 @@ export function PlayList({
             title="Añade todas las jugadas de la lista, aunque el vídeo pase del objetivo. Con un filtro activo, solo las que se ven."
             onClick={onSelectAll}
           >
-            Seleccionar todo
+            Seleccionar todas
           </Button>
           <Button
             type="button"

@@ -4,10 +4,13 @@ import { isBrandBanner, isBrandWatermark } from '../brand-kit.ts';
 import { isCustomHudTheme } from '../custom-hud.ts';
 import { coerceRadarOpacity, isRadarPosition, isRadarSize } from '../radar-overlay.ts';
 import {
+  DEFAULT_PRE_ROLL_SECONDS,
   isAffiliateStyle,
+  isCaptureHud,
   isDemoSource,
   isKeyDropStyle,
   isOverlayTheme,
+  isPreRollSeconds,
   isVictimReplaySpeed,
   normalizeAffiliateFamily,
   type EditConfig,
@@ -69,6 +72,8 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   if (edit.separate_shorts === true) parsed.separateShorts = true;
   if (edit.victim_replay === true) parsed.victimReplay = true;
   if (parsed.victimReplay && isVictimReplaySpeed(edit.victim_replay_speed)) parsed.victimReplaySpeed = edit.victim_replay_speed;
+  if (isPreRollSeconds(edit.pre_roll_seconds) && edit.pre_roll_seconds !== DEFAULT_PRE_ROLL_SECONDS) parsed.preRollSeconds = edit.pre_roll_seconds;
+  if (isCaptureHud(edit.capture_hud)) parsed.captureHud = edit.capture_hud;
   if (edit.play_badges === true) parsed.playBadges = true;
   if (edit.win_probability === true) parsed.winProbability = true;
   if (edit.player_labels === true) parsed.playerLabels = true;

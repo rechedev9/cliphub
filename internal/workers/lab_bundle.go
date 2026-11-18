@@ -34,9 +34,18 @@ func (w *RenderWorker) resolveRenderRequest(ctx context.Context, cfg RenderWorke
 	if err != nil {
 		return resolvedRenderRequest{}, err
 	}
+	segmentIDs, plays, err := preRollRender(w.storage, j, *edit, segmentIDs)
+	if err != nil {
+		return resolvedRenderRequest{}, err
+	}
 	recordingResult, err = selectRenderSegments(recordingResult, segmentIDs)
 	if err != nil {
 		return resolvedRenderRequest{}, err
+	}
+	if plays {
+		if err := requirePlayWindows(recordingResult, *j.KillPlan); err != nil {
+			return resolvedRenderRequest{}, err
+		}
 	}
 	if isFullDemoNativeMix(loadout.Preset, *edit) {
 		musicKey = ""

@@ -5,12 +5,12 @@ export const runtime = 'nodejs';
 
 const NUMBER_RE = /^\d+(?:\.\d+)?$/;
 
-/** GET /api/demos/{jobId}/auto-pov: the Auto-POV pick of a multi-POV summary; only numeric target_seconds and extra_seconds travel. */
+/** GET /api/demos/{jobId}/auto-pov: the Auto-POV pick of a summary; only numeric target_seconds, extra_seconds and pre_roll_seconds travel. */
 export async function GET(request: Request, { params }: { params: Promise<{ jobId: string }> }): Promise<Response> {
   const { jobId } = await params;
   const incoming = new URL(request.url).searchParams;
   const query = new URLSearchParams();
-  for (const key of ['target_seconds', 'extra_seconds']) {
+  for (const key of ['target_seconds', 'extra_seconds', 'pre_roll_seconds']) {
     const value = incoming.get(key);
     if (value === null) continue;
     if (!NUMBER_RE.test(value)) return NextResponse.json({ error: `invalid ${key}` }, { status: 400 });

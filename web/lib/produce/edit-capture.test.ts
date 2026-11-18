@@ -49,6 +49,10 @@ test('a Short edit records again only for what its capture lacks', () => {
   assert.equal(shortEditNeedsCapture(recorded, { ...recorded, edit: edit({ victimReplay: true }) }), true, 'a victim replay');
   assert.equal(shortEditNeedsCapture({ ...recorded, edit: edit({ victimReplay: true }) }, recorded), false, 'dropping the replay');
   assert.equal(shortEditNeedsCapture(recorded, { ...recorded, edit: edit({ format: 'landscape-16x9' }) }), true, 'another framing');
+  assert.equal(shortEditNeedsCapture(recorded, { ...recorded, edit: edit({ preRollSeconds: 8 }) }), true, 'another pre-roll');
+  assert.equal(shortEditNeedsCapture(recorded, { ...recorded, edit: edit({ preRollSeconds: 3 }) }), false, '3 s is the analysis cut');
+  const summary: ShortCaptureChoice = { playIds: ['a'], hudMode: 'gameplay', edit: edit({ format: 'landscape-16x9', nativeHud: true }) };
+  assert.equal(shortEditNeedsCapture(summary, { ...summary, edit: { ...summary.edit, nativeHud: false, captureHud: 'clean' } }), true, 'another capture style');
 });
 
 test('editing a Short version preloads its plays, options and music', () => {

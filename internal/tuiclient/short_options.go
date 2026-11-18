@@ -70,6 +70,10 @@ type ShortEdit struct {
 	BrandBanner    bool `json:"brand_banner,omitempty"`
 	// SeparateShorts renders each segment as its own Short from one capture (Auto-Shorts).
 	SeparateShorts bool `json:"separate_shorts,omitempty"`
+	// PreRollSeconds starts each play 5 or 8 s before its first kill; 0 keeps the 3 s of the analysis.
+	PreRollSeconds int `json:"pre_roll_seconds,omitempty"`
+	// CaptureHUD records a 16:9 video in a Short capture profile (gameplay, deathnotices, clean); empty keeps the preset's.
+	CaptureHUD string `json:"capture_hud,omitempty"`
 }
 
 // ShortMusic is the "music" object of a Short: a track id from ListSongs and its mix.

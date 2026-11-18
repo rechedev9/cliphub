@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clearShortDraft, defaultShortSettings, loadShortDraft, parseShortDraft, saveShortDraft, shortDraftKey } from './short-draft.ts';
+import { clearShortDraft, defaultShortSettings, loadShortDraft, parseShortDraft, saveShortDraft, shortDraftKey, summaryDraftId } from './short-draft.ts';
 
 const defaults = defaultShortSettings([]);
 const draft = { ...defaults, version: 1, selectedIds: ['r1', 'r2'], musicDecided: true };
@@ -88,4 +88,42 @@ test('a player without kills opens a death reel of the deaths that fit the minut
   assert.equal(settings.editConfig.killCounter, false);
   const many = Array.from({ length: 15 }, (_, i) => ({ ...deaths[0], id: `death-${i}`, round: i + 1, startSeconds: i * 100, endSeconds: i * 100 + 12 }));
   assert.equal(defaultShortSettings([], { deathPlays: many }).selectedIds.length, 5, 'five 12 s deaths fill the minute');
+});
+
+test('a one-player summary opens with every kill in match order and five seconds before each kill', () => {
+  const kills = Array.from({ length: 30 }, (_, i) => ({
+    id: `seg-${String(i + 1).padStart(3, '0')}`, matchId: 'm', kind: 'highlight' as const, round: i + 1, kills: 1 + (i % 3),
+    label: `Ronda ${i + 1}`, startSeconds: i * 100, endSeconds: i * 100 + 20, score: ((i * 7) % 10) / 10,
+  }));
+  const summary = defaultShortSettings(kills, { summary: true, targetSeconds: 180 });
+  assert.deepEqual(summary.selectedIds, kills.map((play) => play.id));
+  assert.equal(summary.editConfig.preRollSeconds, 5);
+  const short = defaultShortSettings(kills);
+  assert.equal(short.editConfig.preRollSeconds, undefined, 'a Short keeps the 3 s of the analysis');
+  assert.equal(short.selectedIds.length, 3, 'a Short still opens with the best minute');
+});
+
+test('a summary draft keeps its pre-roll and capture style, apart from the Short draft of the same match', (t) => {
+  const values = new Map<string, string>();
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { sessionStorage: {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+  } } });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, 'window', previous);
+    else Reflect.deleteProperty(globalThis, 'window');
+  });
+  const ids = new Set(['r1', 'r2']);
+  saveShortDraft(summaryDraftId('match'), { ...defaults, selectedIds: ['r1', 'r2'], editConfig: { ...defaults.editConfig, preRollSeconds: 8, captureHud: 'clean' } });
+  saveShortDraft('match', { ...defaults, selectedIds: ['r2'] });
+  const summary = loadShortDraft(summaryDraftId('match'), ids);
+  assert.deepEqual(summary?.selectedIds, ['r1', 'r2']);
+  assert.equal(summary?.editConfig.preRollSeconds, 8);
+  assert.equal(summary?.editConfig.captureHud, 'clean');
+  assert.deepEqual(loadShortDraft('match', ids)?.selectedIds, ['r2']);
+  const odd = parseShortDraft({ ...draft, editConfig: { preRollSeconds: 4, captureHud: 'radar' } }, validIds);
+  assert.equal(odd?.editConfig.preRollSeconds, undefined);
+  assert.equal(odd?.editConfig.captureHud, undefined);
 });

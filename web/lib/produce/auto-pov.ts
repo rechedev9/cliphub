@@ -1,4 +1,6 @@
-// Auto-POV: the players and plays of a multi-POV summary, picked by the orchestrator (GET /api/jobs/{id}/auto-pov).
+// Auto-POV: the players and plays of a summary, picked by the orchestrator (GET /api/jobs/{id}/auto-pov).
+
+import { DEFAULT_PRE_ROLL_SECONDS, type PreRollSeconds } from '../api/types.ts';
 
 /** Mirrors internal/moments: the longest edit time one play may add, such as a victim replay. */
 export const AUTO_POV_MAX_EXTRA_SECONDS = 15;
@@ -57,11 +59,13 @@ export function parseAutoPov(raw: unknown): AutoPovDirection | null {
   return { segmentIds, cues, players };
 }
 
-export type AutoPovOptions = { targetSeconds: number; extraSeconds: number };
+/** A one-player summary passes its pre-roll, so plays are measured and joined as the video cuts them. */
+export type AutoPovOptions = { targetSeconds: number; extraSeconds: number; preRollSeconds?: PreRollSeconds };
 
 export function autoPovUrl(jobId: string, options: AutoPovOptions): string {
   const extra = Math.min(AUTO_POV_MAX_EXTRA_SECONDS, Math.max(0, Math.round(options.extraSeconds * 10) / 10));
   const query = new URLSearchParams({ target_seconds: String(Math.round(options.targetSeconds)), extra_seconds: String(extra) });
+  if (options.preRollSeconds !== undefined && options.preRollSeconds !== DEFAULT_PRE_ROLL_SECONDS) query.set('pre_roll_seconds', String(options.preRollSeconds));
   return `/api/demos/${encodeURIComponent(jobId)}/auto-pov?${query.toString()}`;
 }
 

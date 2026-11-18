@@ -140,6 +140,7 @@ type AnalyzeLibraryDemoPayload struct {
 // UseRecapPlan swaps the Shorts kill-burst plan for the recap-plan sidecar
 // so capture windows are full live rounds, not 8-second bursts.
 // UseDeathPlan records the death-plan sidecar: one clip per death of the target.
+// PreRollSeconds recuts the kill plan's plays to start that long before their first kill (0 keeps them).
 type RecordDemoPayload struct {
 	JobID                uuid.UUID `json:"job_id"`
 	HUDMode              string    `json:"hud_mode,omitempty"`
@@ -148,6 +149,7 @@ type RecordDemoPayload struct {
 	UseRecapPlan         bool      `json:"use_recap_plan,omitempty"`
 	UseDeathPlan         bool      `json:"use_death_plan,omitempty"`
 	DemoSource           string    `json:"demo_source,omitempty"`
+	PreRollSeconds       int       `json:"pre_roll_seconds,omitempty"`
 }
 
 // ComposeFinalPayload carries the job id for the composition worker.
@@ -263,7 +265,7 @@ func NewGenerateRecordDemoTaskWithRecap(id uuid.UUID, hudMode string, segmentIDs
 		return nil, err
 	}
 	payload := RecordDemoPayload{JobID: id, HUDMode: hudMode, SegmentIDs: segmentIDs, PortraitSafeKillfeed: portraitSafeKillfeed,
-		UseRecapPlan: useRecapPlan, UseDeathPlan: !useRecapPlan && intent.Edit.DeathReel}
+		UseRecapPlan: useRecapPlan, UseDeathPlan: !useRecapPlan && intent.Edit.DeathReel, PreRollSeconds: intent.Edit.PreRollSeconds}
 	return newRecordDemoTask(payload, map[string]string{
 		generateIntentHeader: string(b),
 	})
@@ -277,6 +279,12 @@ func newRecordDemoTask(p RecordDemoPayload, headers map[string]string) (*asynq.T
 	}
 	if p.UseRecapPlan && p.UseDeathPlan {
 		return nil, fmt.Errorf("a capture records the recap plan or the death plan, not both")
+	}
+	if err := renderplan.ValidatePreRoll(p.PreRollSeconds); err != nil {
+		return nil, err
+	}
+	if p.PreRollSeconds != 0 && (p.UseRecapPlan || p.UseDeathPlan) {
+		return nil, fmt.Errorf("the pre-roll recuts kill plays only")
 	}
 	p.DemoSource = strings.ToLower(strings.TrimSpace(p.DemoSource))
 	payload, err := json.Marshal(p)
