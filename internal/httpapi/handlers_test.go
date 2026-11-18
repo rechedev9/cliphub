@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -1018,7 +1019,7 @@ func TestWorkbenchRenderFormEnqueuesEditOptions(t *testing.T) {
 		Outro:         true,
 		CoverStrategy: renderplan.CoverStrategyGenerated,
 	}
-	if payload.Edit != wantEdit {
+	if !reflect.DeepEqual(payload.Edit, wantEdit) {
 		t.Fatalf("edit = %#v, want %#v", payload.Edit, wantEdit)
 	}
 	if !strings.Contains(rw.Body.String(), `Queued for render`) {

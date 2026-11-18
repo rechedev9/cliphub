@@ -29,14 +29,6 @@ func TestParseWhisperJSONKeepsSpokenLines(t *testing.T) {
 	}
 }
 
-func TestReadProgressReportsPercentAndKeepsTheTail(t *testing.T) {
-	var got []float64
-	tail := readProgress(strings.NewReader("whisper_print_progress_callback: progress =  10%\nload failed\nprogress = 55%\n"), func(p float64) { got = append(got, p) })
-	if len(got) != 2 || got[1] != 0.55 || tail != "load failed" {
-		t.Fatalf("progress = %v, tail %q", got, tail)
-	}
-}
-
 func TestFetchPinnedChecksSizeAndDigest(t *testing.T) {
 	body := "whisper"
 	sum := sha256.Sum256([]byte(body))

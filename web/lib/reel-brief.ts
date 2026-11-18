@@ -113,7 +113,8 @@ export function constrainEditConfig(edit: EditConfig): EditConfig {
     delete next.verticalHudTheme;
     return next;
   }
-  if (!edit.matchRecap && !edit.voiceComms && !edit.nativeHud && !edit.demoSource && !edit.overlayTheme) return edit;
+  // A Short keeps its own team comms, which its subtitles write; recap leftovers take theirs along.
+  if (!edit.matchRecap && !edit.nativeHud && !edit.demoSource && !edit.overlayTheme) return edit;
   const next: EditConfig = { ...edit, matchRecap: false, voiceComms: false, nativeHud: false };
   delete next.demoSource;
   delete next.overlayTheme;

@@ -30,8 +30,8 @@ type shortDataInput struct {
 	workDir string
 }
 
-// shortDataArgs writes the stats card, the world track, the vertical HUD track and the radar track a
-// Short draws and returns their editor flags.
+// shortDataArgs writes the stats card, the world track, the vertical HUD track, the subtitles and the
+// radar track a Short draws and returns their editor flags.
 func (w *RenderWorker) shortDataArgs(ctx context.Context, in shortDataInput) []string {
 	args := w.writeShortPlayerCards(ctx, in.job, in.workDir, in.edit)
 	if cardPath := w.writeShortStatsCard(in.job, in.workDir, in.edit); cardPath != "" {
@@ -48,6 +48,9 @@ func (w *RenderWorker) shortDataArgs(ctx context.Context, in shortDataInput) []s
 	}
 	if trackPath := w.writeShortVerticalHUD(ctx, in); trackPath != "" {
 		args = append(args, "--vertical-hud-track", trackPath)
+	}
+	if trackPath := w.writeShortSubtitles(ctx, in); trackPath != "" {
+		args = append(args, "--subtitles", trackPath)
 	}
 	return append(args, w.writeShortRadar(ctx, in)...)
 }

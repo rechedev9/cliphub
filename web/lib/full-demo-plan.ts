@@ -128,7 +128,9 @@ const optionsShape = object({
   bumpers: bumperOptions,
   // Mirrors recapplan.Options.Rounds: Go omits it when every round is in the video.
   rounds: array(integerRange(1, 999), 60),
-}, ['transitions', 'bumpers', 'sponsor', 'rounds']);
+  // Mirrors recapplan.SubtitleOptions: render only, and Go omits it when off.
+  subtitles: object({ enabled: boolean, english: boolean, hidden: array(string, 2000) }, ['english', 'hidden']),
+}, ['transitions', 'bumpers', 'sponsor', 'rounds', 'subtitles']);
 export type FullDemoOptions = Guarded<typeof optionsShape>;
 
 /** Old drafts stay readable, but cannot restore voice-driven or adjustable freezes. */
@@ -144,7 +146,7 @@ export function fixedFullDemoFreeze(options: FullDemoOptions): FullDemoOptions {
  * finely tuned transition after the corresponding controls disappeared.
  */
 export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOptions {
-  const { sponsor: legacySponsor, ...fixed } = fixedFullDemoFreeze(options);
+  const { sponsor: legacySponsor, subtitles, ...fixed } = fixedFullDemoFreeze(options);
   // Mirrors Go's CanonicalNewOptions: a native capture without a theme keeps
   // the player's own CS2 HUD; any other missing theme gets the default one.
   const nativeHud = !fixed.overlays.hud_theme && (fixed.capture.hud_profile === NATIVE_HUD_CAPTURE_PROFILE || fixed.capture.hud_profile === 'native');
@@ -198,7 +200,15 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
     transitions: { ...fullDemoTransitionPreset(), enabled: fixed.transitions?.enabled ?? true },
     outputs: { ...fixed.outputs, cover_policy: 'no-cover', metadata_policy: 'factual-v1' },
     ...legacySponsorBumper(fixed.bumpers, legacySponsor),
+    ...subtitleOptions(subtitles),
   };
+}
+
+/** Mirrors Go's canonicalSubtitles: off is omitted and the hidden ids are sorted, so one choice has one plan hash. */
+function subtitleOptions(subtitles: FullDemoOptions['subtitles']): Pick<FullDemoOptions, 'subtitles'> {
+  if (!subtitles?.enabled) return {};
+  const hidden = [...new Set((subtitles.hidden ?? []).map((id) => id.toLowerCase()))].sort();
+  return { subtitles: { enabled: true, ...(subtitles.english ? { english: true } : {}), ...(hidden.length > 0 ? { hidden } : {}) } };
 }
 
 /** Go's omitzero drops false switches and empty names, so the draft does the same and an approved plan stays clean. */

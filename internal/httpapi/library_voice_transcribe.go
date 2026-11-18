@@ -1,13 +1,11 @@
 package httpapi
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"io"
 	"log"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/library"
@@ -30,7 +28,11 @@ func (h *Handlers) StartVoice(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case job := <-h.voice.queue:
-				h.transcribeMatch(ctx, job)
+				if job.demo {
+					h.transcribeDemo(ctx, job.matchID)
+				} else {
+					h.transcribeMatch(ctx, job)
+				}
 			}
 		}
 	}()
@@ -40,12 +42,9 @@ func (h *Handlers) StartVoice(ctx context.Context) {
 		return
 	}
 	for _, id := range pending {
-		v, err := h.libraryRepo.GetMatchVoice(ctx, id)
-		if err != nil {
-			continue
-		}
-		h.enqueueTranscript(voiceJob{matchID: id, language: v.Transcript.Language})
+		h.enqueueTranscript(voiceJob{matchID: id})
 	}
+	h.requeueDemoTranscripts(ctx)
 }
 
 // enqueueTranscript queues a match without blocking; a full queue leaves it queued for the next start.
@@ -58,6 +57,7 @@ func (h *Handlers) enqueueTranscript(job voiceJob) bool {
 	}
 }
 
+// voiceTranscribeRequest keeps language for older callers; Parakeet detects it.
 type voiceTranscribeRequest struct {
 	Language string `json:"language"`
 }
@@ -70,12 +70,7 @@ func (h *Handlers) TranscribeLibraryMatchVoice(w http.ResponseWriter, r *http.Re
 	}
 	var req voiceTranscribeRequest
 	if err := decodeSingleJSONBody(w, r, &req, true); err != nil && !errors.Is(err, io.EOF) {
-		writeError(w, http.StatusBadRequest, "body must be a JSON object with language")
-		return
-	}
-	req.Language = cmp.Or(req.Language, "es")
-	if !slices.Contains(teamvoice.Languages, req.Language) {
-		writeError(w, http.StatusBadRequest, "language must be es, en, pt, fr, de or auto")
+		writeError(w, http.StatusBadRequest, "body must be a JSON object")
 		return
 	}
 	if t := h.voice.deps.Transcriber; t == nil || t.Status().State != teamvoice.TranscriberInstalled {
@@ -96,11 +91,11 @@ func (h *Handlers) TranscribeLibraryMatchVoice(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if err := h.libraryRepo.SetVoiceTranscript(r.Context(), library.VoiceTranscriptUpdate{MatchID: m.ID,
-		Transcript: library.VoiceTranscript{State: library.TranscriptQueued, Language: req.Language, Model: v.Transcript.Model}}); err != nil {
+		Transcript: library.VoiceTranscript{State: library.TranscriptQueued, Model: v.Transcript.Model}}); err != nil {
 		internalError(w, "queue transcript", err)
 		return
 	}
-	if !h.enqueueTranscript(voiceJob{matchID: m.ID, language: req.Language}) {
+	if !h.enqueueTranscript(voiceJob{matchID: m.ID}) {
 		if err := h.libraryRepo.SetVoiceTranscript(r.Context(), library.VoiceTranscriptUpdate{MatchID: m.ID, Transcript: v.Transcript}); err != nil {
 			log.Printf("httpapi: restore transcript state of match %s: %v", m.ID, err)
 		}
@@ -117,7 +112,7 @@ func (h *Handlers) transcribeMatch(ctx context.Context, job voiceJob) {
 		return
 	}
 	model := teamvoice.Pinned.ModelName
-	state := library.VoiceTranscript{State: library.TranscriptRunning, Language: job.language, Model: model}
+	state := library.VoiceTranscript{State: library.TranscriptRunning, Model: model}
 	if err := h.libraryRepo.SetVoiceTranscript(ctx, library.VoiceTranscriptUpdate{MatchID: job.matchID, Transcript: state}); err != nil {
 		log.Printf("httpapi: start transcript of match %s: %v", job.matchID, err)
 		return
@@ -131,7 +126,7 @@ func (h *Handlers) transcribeMatch(ctx context.Context, job voiceJob) {
 		if err == nil {
 			var got []teamvoice.Line
 			share := 1 / float64(len(v.Tracks))
-			got, err = h.voice.deps.Transcriber.Transcribe(ctx, teamvoice.TranscribeJob{Audio: path, Language: job.language, Speech: t.Speech,
+			got, err = h.voice.deps.Transcriber.Transcribe(ctx, teamvoice.TranscribeJob{Audio: path, Speech: t.Speech,
 				Progress: func(p float64) { h.voice.setProgress(job.matchID, (float64(i)+p)*share) }})
 			for _, l := range got {
 				lines = append(lines, library.VoiceLine{MatchID: job.matchID, Track: t.Track, StartMS: l.StartMS, EndMS: l.EndMS, Text: l.Text})
@@ -170,7 +165,7 @@ func (h *Handlers) transcriberStatus() teamvoice.TranscriberStatus {
 }
 
 // InstallVoiceTranscriber handles POST /api/library/voice/transcriber/install: fetches the pinned
-// whisper.cpp build and model in the background, about 200 MB.
+// NeMo-Speech.cpp build and Parakeet model in the background, about 700 MB.
 func (h *Handlers) InstallVoiceTranscriber(w http.ResponseWriter, _ *http.Request) {
 	if h.voice == nil || h.voice.deps.Transcriber == nil {
 		writeCodedError(w, http.StatusServiceUnavailable, codeVoiceUnavailable, "local transcription is not available in this Studio")

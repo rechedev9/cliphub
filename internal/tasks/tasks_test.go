@@ -367,7 +367,7 @@ func TestNewRenderVariantTaskRoundtrip(t *testing.T) {
 	if payload.MusicKey != "concrete-teeth" || payload.MusicVolume != 0.35 {
 		t.Errorf("music = %q/%v, want concrete-teeth/0.35", payload.MusicKey, payload.MusicVolume)
 	}
-	if payload.Edit != edit {
+	if !reflect.DeepEqual(payload.Edit, edit) {
 		t.Errorf("Edit = %#v, want %#v", payload.Edit, edit)
 	}
 	if len(payload.SegmentIDs) != 2 || payload.SegmentIDs[0] != "seg-002" || payload.SegmentIDs[1] != "seg-001" {

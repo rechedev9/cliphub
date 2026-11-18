@@ -158,21 +158,26 @@ func (h *Handlers) ExtractLibraryMatchDemoVoice(w http.ResponseWriter, r *http.R
 		writeJSON(w, http.StatusOK, status)
 		return
 	}
-	demoPath, ok := h.matchDemoPath(r.Context(), m)
-	if !ok || h.voice.deps.DemoVoice == nil || len(m.Players) == 0 {
+	if !h.startDemoVoice(r.Context(), m) {
 		writeCodedError(w, http.StatusConflict, codeNoDemoFile, "the demo file of this match is not on this PC")
 		return
 	}
-	h.voice.mu.Lock()
-	if h.voice.demoJobs[m.DemoID] == demoVoiceExtracting {
-		h.voice.mu.Unlock()
-		writeJSON(w, http.StatusAccepted, h.demoVoiceStatusOf(r.Context(), m))
-		return
-	}
-	h.voice.demoJobs[m.DemoID] = demoVoiceExtracting
-	h.voice.mu.Unlock()
-	go h.extractDemoVoice(h.voice.lifetime(), demoVoiceSource{match: m, path: demoPath})
 	writeJSON(w, http.StatusAccepted, h.demoVoiceStatusOf(r.Context(), m))
+}
+
+// startDemoVoice extracts the demo's voices in the background unless that already runs; false is no demo file.
+func (h *Handlers) startDemoVoice(ctx context.Context, m library.Match) bool {
+	demoPath, ok := h.matchDemoPath(ctx, m)
+	if !ok || h.voice.deps.DemoVoice == nil || len(m.Players) == 0 {
+		return false
+	}
+	h.voice.mu.Lock()
+	defer h.voice.mu.Unlock()
+	if h.voice.demoJobs[m.DemoID] != demoVoiceExtracting {
+		h.voice.demoJobs[m.DemoID] = demoVoiceExtracting
+		go h.extractDemoVoice(h.voice.lifetimeLocked(), demoVoiceSource{match: m, path: demoPath})
+	}
+	return true
 }
 
 type demoVoiceSource struct {

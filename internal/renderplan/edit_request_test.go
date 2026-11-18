@@ -2,6 +2,7 @@ package renderplan
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -67,7 +68,7 @@ func TestNormalizeEditRequestDefaultsUnsetFields(t *testing.T) {
 		Intro:         true,
 		CoverStrategy: CoverStrategyGenerated,
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("edit request = %#v, want %#v", got, want)
 	}
 }

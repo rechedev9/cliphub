@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,8 +22,7 @@ const (
 )
 
 type transcribeVoiceIn struct {
-	MatchID  string `json:"match_id" jsonschema:"library match id"`
-	Language string `json:"language,omitempty" jsonschema:"spoken language: es (default), en, pt, fr, de or auto"`
+	MatchID string `json:"match_id" jsonschema:"library match id"`
 }
 
 type roundCommsIn struct {
@@ -40,21 +38,6 @@ type searchCommsIn struct {
 	To      string `json:"to,omitempty" jsonschema:"only matches played on or before this date, YYYY-MM-DD"`
 	Period  string `json:"period,omitempty" jsonschema:"only phrases said in this round phase: freezetime, midround, post_plant, dead or after_round"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"at most this many hits, 1 to 200; default 50"`
-}
-
-type installTranscriberIn struct {
-	Approve string `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
-}
-
-type transcriberOut struct {
-	pendingOut
-	State         string `json:"state" jsonschema:"not_installed, installing, installed, failed or unsupported"`
-	Version       string `json:"version"`
-	Model         string `json:"model"`
-	DownloadBytes int64  `json:"download_bytes"`
-	DoneBytes     int64  `json:"done_bytes,omitempty"`
-	ErrorCode     string `json:"error_code,omitempty" jsonschema:"runtime_missing (install the Visual C++ runtime), start_failed or download_failed"`
-	Error         string `json:"error,omitempty"`
 }
 
 type speakerTalkOut struct {
@@ -111,10 +94,6 @@ type searchCommsOut struct {
 	Truncated bool          `json:"truncated,omitempty"`
 }
 
-func transcriberOutOf(t tuiclient.VoiceTranscriber) transcriberOut {
-	return transcriberOut{State: t.State, Version: t.Version, Model: t.Model, DownloadBytes: t.DownloadBytes, DoneBytes: t.DoneBytes, ErrorCode: t.ErrorCode, Error: cleanText(t.Error, maxErrorRunes)}
-}
-
 func speakersOf(talk []tuiclient.VoiceSpeakerTalk) []speakerTalkOut {
 	out := make([]speakerTalkOut, 0, len(talk))
 	for _, t := range talk {
@@ -133,40 +112,17 @@ func commsLineOf(matchID string, l tuiclient.VoiceLine) commsLineOut {
 func registerVoiceCommsTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 
-	mcp.AddTool(server, &mcp.Tool{Name: "install_transcriber", Annotations: &mcp.ToolAnnotations{},
-		Description: "Install local transcription (whisper.cpp with its small multilingual model, about 200 MB, fetched once into Studio's folder) as Instalar transcripción does. " +
-			"It downloads about 200 MB, so the user must approve it. " + deleteApprovalHint + " It runs in the background: read voice_status or this tool's state until installed. Nothing leaves the PC when it transcribes."},
-		func(ctx context.Context, req *mcp.CallToolRequest, in installTranscriberIn) (*mcp.CallToolResult, transcriberOut, error) {
-			c, err := s.client(ctx)
-			if err != nil {
-				return nil, transcriberOut{}, toolError(err)
-			}
-			now, err := c.VoiceTranscriberStatus(ctx)
-			if err != nil {
-				return nil, transcriberOut{}, toolError(err)
-			}
-			if now.State == "installed" || now.State == "installing" || now.State == "unsupported" {
-				return nil, transcriberOutOf(now), nil
-			}
-			summary := fmt.Sprintf("Descargar la transcripción local (whisper.cpp %s, unos %d MB) en la carpeta de Studio.", now.Version, max(1, now.DownloadBytes>>20))
-			ask, pending, err := gate(req, approvalSpec{Tool: "install_transcriber", JobID: now.Version, Request: now.Model, Summary: summary, Given: in.Approve, Question: "¿Descargar ahora?"})
-			if err != nil || ask != nil {
-				return ask, transcriberOut{}, err
-			}
-			if pending != nil {
-				out := transcriberOutOf(now)
-				out.pendingOut = *pending
-				return nil, out, nil
-			}
-			t, err := c.InstallVoiceTranscriber(ctx)
-			if err != nil {
-				return nil, transcriberOut{}, toolError(err)
-			}
-			return nil, transcriberOutOf(t), nil
-		})
+	registerInstallTool(server, s, installTool{Name: "install_transcriber", Label: "Instalar transcripción",
+		What:   "la transcripción local (Parakeet TDT 0.6b v3 sobre NeMo-Speech.cpp %s, unos %d MB)",
+		About:  "local transcription (NVIDIA Parakeet TDT 0.6b v3 on NeMo-Speech.cpp, about 700 MB, fetched once into Studio's folder; it detects the language)",
+		Status: (*tuiclient.Client).VoiceTranscriberStatus, Install: (*tuiclient.Client).InstallVoiceTranscriber})
+	registerInstallTool(server, s, installTool{Name: "install_translator", Label: "Instalar traducción",
+		What:   "la traducción al inglés (Whisper medium sobre whisper.cpp %s, unos %d MB)",
+		About:  "the English translation of the demo voices (Whisper medium on whisper.cpp, about 500 MB, fetched once into Studio's folder) that subtitles_english needs",
+		Status: (*tuiclient.Client).VoiceTranslatorStatus, Install: (*tuiclient.Client).InstallVoiceTranslator})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "transcribe_voice",
-		Description: "Transcribe a match's team voice on this PC, as Transcribir does in the Replay. Needs install_transcriber first. It runs in the background; voice_status shows the progress until the transcript is ready."},
+		Description: "Transcribe a match's imported TeamSpeak voice on this PC; the language is detected. Needs install_transcriber first. It runs in the background; voice_status shows the progress until the transcript is ready. For the voices a demo recorded, use transcribe_demo_voice."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in transcribeVoiceIn) (*mcp.CallToolResult, voiceOut, error) {
 			if err := checkUUID("match_id", in.MatchID); err != nil {
 				return nil, voiceOut{}, err
@@ -175,7 +131,7 @@ func registerVoiceCommsTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, voiceOut{}, toolError(err)
 			}
-			v, err := c.TranscribeMatchVoice(ctx, in.MatchID, strings.ToLower(strings.TrimSpace(in.Language)))
+			v, err := c.TranscribeMatchVoice(ctx, in.MatchID)
 			if err != nil {
 				return nil, voiceOut{}, toolError(err)
 			}

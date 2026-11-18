@@ -41,7 +41,7 @@ type VoiceTranscript struct {
 	Progress  float64   `json:"progress,omitempty"`
 }
 
-// VoiceTranscriber is the local whisper.cpp install.
+// VoiceTranscriber is a local speech install: the transcriber or the English translator.
 type VoiceTranscriber struct {
 	State         string `json:"state"`
 	Version       string `json:"version"`
@@ -209,10 +209,10 @@ func (c *Client) DeleteMatchVoice(ctx context.Context, matchID string) error {
 	return c.doJSON(ctx, http.MethodDelete, voicePath(matchID), nil, nil)
 }
 
-// TranscribeMatchVoice queues a local transcription in a language such as es or en.
-func (c *Client) TranscribeMatchVoice(ctx context.Context, matchID, language string) (MatchVoice, error) {
+// TranscribeMatchVoice queues a local transcription; the language is detected.
+func (c *Client) TranscribeMatchVoice(ctx context.Context, matchID string) (MatchVoice, error) {
 	var out MatchVoice
-	err := c.doJSON(ctx, http.MethodPost, voicePath(matchID)+"/transcribe", map[string]string{"language": language}, &out)
+	err := c.doJSON(ctx, http.MethodPost, voicePath(matchID)+"/transcribe", struct{}{}, &out)
 	return out, err
 }
 
@@ -253,7 +253,7 @@ func (c *Client) VoiceTranscriberStatus(ctx context.Context) (VoiceTranscriber, 
 	return out, err
 }
 
-// InstallVoiceTranscriber starts the whisper.cpp download in Studio.
+// InstallVoiceTranscriber starts the download of the local transcription in Studio.
 func (c *Client) InstallVoiceTranscriber(ctx context.Context) (VoiceTranscriber, error) {
 	var out VoiceTranscriber
 	err := c.doJSON(ctx, http.MethodPost, "/api/library/voice/transcriber/install", nil, &out)

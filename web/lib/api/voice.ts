@@ -43,7 +43,7 @@ export type VoiceTranscriber = {
   model: string;
   download_bytes: number;
   done_bytes?: number;
-  /** runtime_missing or start_failed: whisper-cli cannot start; download_failed: the fetch failed. */
+  /** runtime_missing or start_failed: the program cannot start; download_failed: the fetch failed. */
   error_code?: string;
   error?: string;
 };
@@ -112,6 +112,7 @@ export const VOICE_KEYS = [
 export const VOICE_IMPORT_KEYS = [...VOICE_KEYS, 'files'] as const;
 export const VOICE_SYNC_FIELDS = ['offset_ms', 'auto'] as const;
 export const VOICE_TRACK_FIELDS = ['label', 'steamid64'] as const;
+/** The orchestrator accepts a language and ignores it: the transcriber detects it. */
 export const VOICE_TRANSCRIBE_FIELDS = ['language'] as const;
 export const VOICE_COMMS_KEYS = [
   'match_id', 'sync', 'transcript', 'tracks', 'rounds', 'totals', 'lines',
@@ -123,6 +124,15 @@ export const TRANSCRIBER_KEYS = [
   'state', 'version', 'model', 'download_bytes', 'done_bytes', 'error_code', 'error',
 ] as const satisfies readonly (keyof VoiceTranscriber)[];
 export const DEMO_VOICE_KEYS = ['match_id', 'state', 'tracks'] as const satisfies readonly (keyof DemoVoice)[];
+/** The demo transcript: `demoTranscript` in Go, which the producer's Subtítulos panel reads through its job. */
+export const DEMO_TRANSCRIPT_KEYS = [
+  'match_id', 'state', 'model', 'error', 'english', 'english_error', 'updated_at', 'progress', 'voice', 'lines', 'transcriber', 'translator',
+] as const;
+export const DEMO_TRANSCRIBE_FIELDS = ['force', 'english'] as const;
+export const DEMO_LINE_FIELDS = ['text', 'english'] as const;
+export const DEMO_LINE_KEYS = [
+  'id', 'match_id', 'steamid64', 'name', 'team_key', 'start_ms', 'end_ms', 'tick', 'round', 'text', 'corrected', 'english',
+] as const;
 /** One import request: 2 GiB of audio plus 1 MiB of multipart framing, as the orchestrator reads. */
 export const VOICE_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024 + 1024 * 1024;
 
@@ -162,8 +172,8 @@ export function deleteMatchVoice(matchId: string): Promise<void> {
   return request<void>(voicePath(matchId), { method: 'DELETE' });
 }
 
-export function transcribeMatchVoice(matchId: string, language: string): Promise<MatchVoice> {
-  return request<MatchVoice>(`${voicePath(matchId)}/transcribe`, jsonInit('POST', { language }));
+export function transcribeMatchVoice(matchId: string): Promise<MatchVoice> {
+  return request<MatchVoice>(`${voicePath(matchId)}/transcribe`, jsonInit('POST', {}));
 }
 
 export function getVoiceComms(matchId: string): Promise<VoiceComms> {
@@ -172,6 +182,21 @@ export function getVoiceComms(matchId: string): Promise<VoiceComms> {
 
 export function installTranscriber(): Promise<VoiceTranscriber> {
   return request<VoiceTranscriber>('/voice/transcriber/install', { method: 'POST' });
+}
+
+/** Downloads the English translation of the demo voices (about 500 MB) once. */
+export function installTranslator(): Promise<VoiceTranscriber> {
+  return request<VoiceTranscriber>('/voice/translator/install', { method: 'POST' });
+}
+
+/** Queues the transcript of a demo's voices, and their English with english; a done one is reused. */
+export function transcribeDemoVoice(matchId: string, options: { english: boolean }): Promise<unknown> {
+  return request<unknown>(`${voicePath(matchId)}/demo/transcript`, jsonInit('POST', { english: options.english }));
+}
+
+/** Corrects a phrase, or its English, for every later video of the demo. */
+export function correctDemoVoiceLine(target: { matchId: string; lineId: string }, patch: { text?: string; english?: string }): Promise<unknown> {
+  return request<unknown>(`${voicePath(target.matchId)}/demo/transcript/lines/${encodeURIComponent(target.lineId)}`, jsonInit('PATCH', patch));
 }
 
 /** Where the Replay reads one player's in-game voice, with ranges. */

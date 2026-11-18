@@ -4,6 +4,7 @@ import { buildEditRequest } from './edit-request.ts';
 import { constrainEditConfig } from '../reel-brief.ts';
 import type { EditConfig } from './types.ts';
 import { FULL_DEMO_EDIT } from '../full-demo.ts';
+import { parseEffectiveEditConfig } from './render-hydration.ts';
 
 function edit(overrides: Partial<EditConfig> = {}): EditConfig {
   return {
@@ -152,4 +153,18 @@ test('a horizontal asks for the kill feed framing of its Short only in 16:9 with
   assert.equal(framed({ format: 'landscape-16x9', nativeHud: true }), true, 'HUD completo keeps the kill feed');
   assert.equal(framed({ format: 'landscape-16x9', captureHud: 'clean' }), undefined, 'POV limpio has no kill feed');
   assert.equal(framed({}), undefined, 'a Short frames it from its preset');
+});
+
+test('a Short keeps its own comms, sends its subtitles only with them, and reads them back for Editar', () => {
+  const short = constrainEditConfig(edit({ voiceComms: true, subtitles: true, subtitlesEnglish: true, subtitlesHidden: ['b', 'a'] }));
+  const body = buildEditRequest(short);
+  assert.equal(body.voice_comms, true);
+  assert.equal(body.subtitles, true);
+  assert.equal(body.subtitles_english, true);
+  assert.deepEqual(body.subtitles_hidden, ['a', 'b']);
+  assert.equal(buildEditRequest(edit({ subtitles: true })).subtitles, undefined);
+  const back = parseEffectiveEditConfig(JSON.parse(JSON.stringify(body)));
+  assert.equal(back?.subtitles, true);
+  assert.equal(back?.subtitlesEnglish, true);
+  assert.deepEqual(back?.subtitlesHidden, ['a', 'b']);
 });

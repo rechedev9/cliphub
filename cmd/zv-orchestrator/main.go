@@ -232,8 +232,9 @@ func run() error {
 		log.Printf("worker: compose enabled")
 	}
 	var labBundles httpapi.LabBundlePreparer
+	var renderWorker *workers.RenderWorker
 	if cfg.renderWorkerEnabled() {
-		renderWorker := workers.NewRenderWorker(repo, files, workers.RenderWorkerConfig{
+		renderWorker = workers.NewRenderWorker(repo, files, workers.RenderWorkerConfig{
 			WorkDir:     cfg.MediaWorkDir,
 			EditorPath:  cfg.EditorPath,
 			FFmpegPath:  cfg.FFmpegPath,
@@ -385,6 +386,9 @@ func run() error {
 	handlers.StartFaceitRosterRefresh()
 	handlers.StartCommunity(ctx)
 	handlers.StartVoice(ctx)
+	if renderWorker != nil {
+		renderWorker.UseSubtitles(handlers)
+	}
 	handlers.StartPatternDetection(ctx)
 	handlers.StartReplayVideoSweep(ctx)
 	srv := newOrchestratorHTTPServer(cfg.HTTPAddr, httpapi.Routes(handlers))

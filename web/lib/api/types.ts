@@ -293,6 +293,12 @@ export type EditConfig = {
   separateShorts?: boolean;
   voiceComms: boolean;
   voiceVolume?: number;
+  /** What the team voices say, burned with the speaker's name; it needs voiceComms. */
+  subtitles?: boolean;
+  /** The subtitles only in English. */
+  subtitlesEnglish?: boolean;
+  /** Phrase ids of the demo transcript this video leaves out. */
+  subtitlesHidden?: string[];
   nativeHud: boolean;
   /** Shorts only: replay each play's last kill from the victim, at victimReplaySpeed. */
   victimReplay?: boolean;

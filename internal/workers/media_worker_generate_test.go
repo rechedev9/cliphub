@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -373,7 +374,7 @@ func TestRecordWorkerChainsRenderFromGenerateIntent(t *testing.T) {
 	if err := json.Unmarshal(enq.tasks[0].Payload(), &payload); err != nil {
 		t.Fatalf("unmarshal render payload: %v", err)
 	}
-	if payload.Variant != editor.PresetCleanPOV60 || payload.MusicKey != "phonk-01" || payload.MusicVolume != 0.35 || payload.GameVolume == nil || *payload.GameVolume != gameVolume || payload.Edit != edit {
+	if payload.Variant != editor.PresetCleanPOV60 || payload.MusicKey != "phonk-01" || payload.MusicVolume != 0.35 || payload.GameVolume == nil || *payload.GameVolume != gameVolume || !reflect.DeepEqual(payload.Edit, edit) {
 		t.Fatalf("render payload = %#v, want variant=%s music=phonk-01 edit=%#v", payload, editor.PresetCleanPOV60, edit)
 	}
 

@@ -115,6 +115,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		radarImage          = fs.String("radar-image", "", "optional map art PNG under the radar")
 		radarImageLower     = fs.String("radar-image-lower", "", "optional lower level map art PNG of a two-level map")
 		statsCard           = fs.String("stats-card", "", "optional stats card JSON drawn at the end of a 9:16 short")
+		subtitlesPath       = fs.String("subtitles", "", "optional team comms transcript JSON drawn as subtitles")
 		playerCards         = fs.String("player-cards", "", "optional player cards JSON: the cards that open, close and cover a one-player 9:16 short")
 		watermarkImage      = fs.String("watermark-image", "", "optional PNG or JPG logo drawn as a watermark for the whole short")
 		watermarkCorner     = fs.String("watermark-corner", "top-right", "watermark corner: top-left, top-right, bottom-left or bottom-right")
@@ -253,6 +254,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		RadarImagePath:        *radarImage,
 		RadarLowerImagePath:   *radarImageLower,
 		StatsCardPath:         *statsCard,
+		SubtitlesPath:         *subtitlesPath,
 		PlayerCardsPath:       *playerCards,
 		Watermark:             brandWatermarkFlag(*watermarkImage, *watermarkCorner, *watermarkOpacity),
 		SponsorBanner:         sponsorBannerFlag(*sponsorImage, *sponsorStart, *sponsorEnd),

@@ -35,6 +35,7 @@ type MemoryLibraryRepository struct {
 	libreta      memoryLibreta
 	pro          memoryPro
 	voices       map[uuid.UUID]memoryVoice
+	demoVoices   map[uuid.UUID]memoryDemoVoice
 	recordings   memoryRecordings
 }
 
@@ -88,6 +89,7 @@ func NewMemoryLibraryRepository() *MemoryLibraryRepository {
 		plays:        map[uuid.UUID]library.Play{},
 		playlists:    map[uuid.UUID]library.Playlist{},
 		voices:       map[uuid.UUID]memoryVoice{},
+		demoVoices:   map[uuid.UUID]memoryDemoVoice{},
 	}
 }
 
@@ -317,6 +319,7 @@ func (r *MemoryLibraryRepository) DeleteDemo(ctx context.Context, id uuid.UUID) 
 		delete(r.matchPlayers, matchID)
 		r.dropMatchAnnotations(matchID)
 		delete(r.voices, matchID)
+		delete(r.demoVoices, matchID)
 		r.recordings.unlinkMatch(matchID)
 		r.refreshNicks(steamIDs)
 	}

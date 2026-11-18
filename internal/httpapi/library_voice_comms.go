@@ -63,6 +63,10 @@ func (h *Handlers) GetLibraryMatchVoiceComms(w http.ResponseWriter, r *http.Requ
 		round = n
 	}
 	v, err := h.libraryRepo.GetMatchVoice(r.Context(), m.ID)
+	var demoLines []library.VoiceLine
+	if errors.Is(err, library.ErrNotFound) {
+		v, demoLines, err = h.demoCommsVoice(r.Context(), m.ID)
+	}
 	if errors.Is(err, library.ErrNotFound) {
 		writeCodedError(w, http.StatusNotFound, codeNoVoice, "this match has no team voice")
 		return
@@ -87,7 +91,10 @@ func (h *Handlers) GetLibraryMatchVoiceComms(w http.ResponseWriter, r *http.Requ
 	for _, t := range v.Tracks {
 		out.Tracks = append(out.Tracks, voiceTrackSpeech{Track: t.Track, Label: t.Label, SteamID64: t.SteamID64, Speech: t.Speech})
 	}
-	lines, err := h.libraryRepo.ListVoiceLines(r.Context(), library.VoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}, Limit: library.MaxVoiceLineList})
+	lines := demoLines
+	if lines == nil {
+		lines, err = h.libraryRepo.ListVoiceLines(r.Context(), library.VoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}, Limit: library.MaxVoiceLineList})
+	}
 	if err != nil {
 		internalError(w, "list voice lines", err)
 		return
@@ -136,7 +143,7 @@ const (
 	maxVoiceQueryRunes = 120
 )
 
-// SearchLibraryVoice handles GET /api/library/voice/search: q in every transcript, narrowed by
+// SearchLibraryVoice handles GET /api/library/voice/search: q in every TeamSpeak and demo transcript, narrowed by
 // match_id, team_id, the from/to dates of the matches and the round phase.
 func (h *Handlers) SearchLibraryVoice(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
@@ -204,6 +211,14 @@ func (h *Handlers) SearchLibraryVoice(w http.ResponseWriter, r *http.Request) {
 		if phase == "" || hit.Phase == phase {
 			out.Hits = append(out.Hits, hit)
 		}
+	}
+	if !out.Truncated && len(out.Hits) < limit {
+		demo, truncated, err := h.demoVoiceHits(r, demoVoiceSearch{query: query, matchIDs: matchIDs, phase: phase, limit: limit - len(out.Hits)})
+		if err != nil {
+			internalError(w, "search demo voice lines", err)
+			return
+		}
+		out.Hits, out.Truncated = append(out.Hits, demo...), truncated
 	}
 	writeJSON(w, http.StatusOK, out)
 }

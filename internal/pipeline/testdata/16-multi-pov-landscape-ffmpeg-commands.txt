@@ -11,11 +11,13 @@
   $WORK/render-16-multi-pov-landscape/concat-list.txt
   -filter_complex
     [0:v]setsar=1
+    ass=filename=\'$WORK/render-16-multi-pov-landscape/short-001-demo-compilation.mp4.subtitles.ass\':fontsdir=\'$WORK/cache/ClipHub/fonts/hud-barlow-dc2940e-v1\'
     format=yuv420p[vgeom]
     [vgeom]drawtext=text=\'TEAMMATE\':expansion=none:fontfile=\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\,((t-0.100)/0.120))\,((2.200-t)/0.300))':enable='between(t\,0.100\,2.200)'
     drawtext=text=\'TEAMMATE\':expansion=none:fontfile=\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\,((t-24.038)/0.120))\,((26.137-t)/0.300))':enable='between(t\,24.038\,26.137)'
     drawtext=text=\'TARGET\':expansion=none:fontfile=\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\,((t-41.725)/0.120))\,((43.825-t)/0.300))':enable='between(t\,41.725\,43.825)'
     drawtext=text=\'TARGET\':expansion=none:fontfile=\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\,((t-55.834)/0.120))\,((57.934-t)/0.300))':enable='between(t\,55.834\,57.934)'
+    ass=filename=\'$WORK/render-16-multi-pov-landscape/short-001-demo-compilation.mp4.subtitles.ass\':fontsdir=\'$WORK/cache/ClipHub/fonts/hud-barlow-dc2940e-v1\'
     fade=t=in:st=0:d=1.000
     format=yuv420p[v]
     [0:a]aformat=channel_layouts=stereo

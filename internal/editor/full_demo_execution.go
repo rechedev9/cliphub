@@ -17,6 +17,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/subtitles"
 )
 
 // FullDemoExecution is an attempt-local materialization of a durable approval.
@@ -27,6 +28,8 @@ type FullDemoExecution struct {
 	Approved      recapplan.Snapshot   `json:"approved"`
 	Assets        []FullDemoLocalMedia `json:"assets"`
 	VoiceTracks   []FullDemoLocalVoice `json:"voice_tracks"`
+	// Subtitles is the team comms transcript the approved plan burns, on the demo's tick clock.
+	Subtitles *subtitles.Track `json:"subtitles,omitempty"`
 }
 
 type FullDemoLocalHUD struct {
@@ -119,6 +122,9 @@ func readFullDemoExecution(ctx context.Context, path, outDir, publishDir string)
 	}
 	if err := execution.Approved.Validate(); err != nil {
 		return nil, err
+	}
+	if s := execution.Approved.Document.Options.Subtitles; execution.Subtitles != nil && (s == nil || !s.Enabled) {
+		return nil, fmt.Errorf("full demo subtitles differ from approval")
 	}
 	refs := execution.Approved.Document.Options.AssetReferences()
 	if len(execution.Assets) != len(refs) || len(execution.VoiceTracks) > 64 {

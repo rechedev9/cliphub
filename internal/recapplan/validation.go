@@ -233,6 +233,9 @@ func requireFields(data []byte, typ reflect.Type, field string, depth int) error
 }
 
 func (o Options) Validate() error {
+	if err := o.validateSubtitles(); err != nil {
+		return err
+	}
 	if o.Transitions != nil {
 		if err := o.Transitions.Validate(); err != nil {
 			return err

@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/editor"
@@ -17,6 +19,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/playercard"
 	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/subtitles"
 )
 
 const rendererFlag = "--cliphub-render-overlay"
@@ -125,6 +128,56 @@ func TestPlayerCardShortPipelineGolden(t *testing.T) {
 	}
 	assertGolden(t, "20-player-cards-manifest.json", manifestGolden)
 	assertGolden(t, "20-player-cards-ffmpeg-commands.txt", formatCommands(normalized)+formatCoverCommands(normalized))
+
+	// The opening card covers the frame, so a phrase said under it shows once the card is gone.
+	var phrases []subtitles.Phrase
+	for i, segment := range recPlan.Segments {
+		start := recording.EffectiveRecordStartTick(segment, recPlan.Tickrate)
+		phrases = append(phrases, subtitles.Phrase{ID: strconv.Itoa(i), Speaker: fixture.Target.NameInDemo, Text: "vamos", StartTick: start, EndTick: start + 3*recPlan.Tickrate})
+	}
+	phrasesPath := filepath.Join(work, "subtitles.json")
+	writeJSON(t, phrasesPath, subtitles.Track{Phrases: phrases})
+	plainDir := filepath.Join(work, "render-subtitles")
+	if _, err := editor.Run(context.Background(), editor.Config{
+		RecordingResultPath: writeRecordingResult(t, recPlan), KillPlanPath: selectedPath, OutputDir: plainDir, PublishDir: filepath.Join(work, "publish"),
+		FFmpegPath: "ffmpeg", FFprobePath: "ffprobe", OutputFormat: editor.OutputFormatShort9x16, CompileSegments: true, SegmentIDs: ids,
+		PlayerCardsPath: cardsPath, SubtitlesPath: phrasesPath, DryRun: true,
+	}); err != nil {
+		t.Fatalf("editor dry run with subtitles: %v", err)
+	}
+	var withSubtitles editor.Manifest
+	readJSON(t, filepath.Join(plainDir, "edit-manifest.json"), &withSubtitles)
+	short := withSubtitles.Shorts[0]
+	card := slices.IndexFunc(short.Effects, func(e editor.Effect) bool { return e.Source == "player-card-opening" })
+	if card < 0 || short.SubtitlesASS == "" {
+		t.Fatalf("the Short lacks its opening card (%d) or its subtitles (%q)", card, short.SubtitlesASS)
+	}
+	if first := firstCueSeconds(t, short.SubtitlesASS); first < short.Effects[card].EndSeconds {
+		t.Fatalf("a subtitle starts at %.2f s, under the opening card that ends at %.2f s", first, short.Effects[card].EndSeconds)
+	}
+}
+
+// firstCueSeconds reads when the first Dialogue line of an ASS script starts.
+func firstCueSeconds(t *testing.T, path string) float64 {
+	t.Helper()
+	script, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for line := range strings.Lines(string(script)) {
+		fields := strings.Split(strings.TrimPrefix(line, "Dialogue: "), ",")
+		if !strings.HasPrefix(line, "Dialogue: ") || len(fields) < 2 {
+			continue
+		}
+		var h, m int
+		var s float64
+		if _, err := fmt.Sscanf(fields[1], "%d:%d:%f", &h, &m, &s); err != nil {
+			t.Fatalf("read cue start %q: %v", fields[1], err)
+		}
+		return float64(h*3600+m*60) + s
+	}
+	t.Fatal("the subtitles have no cue")
+	return 0
 }
 
 // formatCoverCommands prints each cover command the way formatCommands prints the render.

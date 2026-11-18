@@ -35,6 +35,7 @@ import {
   victimReplaySeconds,
   type ReelSelections,
 } from '@/lib/produce/short-selection';
+import { editSubtitles, playScope, subtitlesSummary, withSubtitles } from '@/lib/produce/subtitles';
 import { canForgeReel, constrainEditConfig, missingAffiliateCode, reelCreativeBrief, verticalHudAllowed, withPresetLimits, type MusicBrief } from '@/lib/reel-brief';
 import { radarAllowed } from '@/lib/radar-overlay';
 import { MULTI_PLAYER_CARD_REASON } from '@/lib/player-cards';
@@ -60,6 +61,7 @@ import { ShortPreview } from './short-preview';
 import { PlayFilters } from './play-filters';
 import { AutoShortsDialog } from './auto-shorts-dialog';
 import { PreRollPicker, SummaryStylePicker } from './summary-options';
+import { SubtitlesPanel } from './subtitles-panel';
 
 const PANEL_CLASS = 'flex min-w-0 flex-col gap-3 rounded-2xl bg-surface-2 p-4';
 const PANEL_TITLE_CLASS = 'font-display text-body font-bold text-fg-1';
@@ -550,6 +552,21 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
                 verticalHud={hudAllowed}
                 radar={radarAllowed(selectedPreset)}
               />
+            </div>
+          </details>
+
+          <details className={cn('group/subtitles', PANEL_CLASS)}>
+            <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center justify-between gap-2 rounded-sm focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+              <span className={PANEL_TITLE_CLASS}>Subtítulos</span>
+              <span className="flex items-center gap-1.5 text-body-sm text-fg-2">
+                {subtitlesSummary(editSubtitles(editConfig), editConfig.voiceComms)}
+                <ChevronRight aria-hidden className="size-4 text-fg-2 transition-transform duration-(--dur-fast) group-open/subtitles:rotate-90" />
+              </span>
+            </summary>
+            <div className="border-t border-border-subtle pt-3">
+              <SubtitlesPanel jobId={matchId} scope={playScope(selectedPlays)} voices={editConfig.voiceComms} voicesLabel="Comms del equipo"
+                value={editSubtitles(editConfig)} onChange={(next) => changeEditConfig(withSubtitles(editConfig, next))}
+                onVoicesChange={landscape ? undefined : (voiceComms) => changeEditConfig({ ...editConfig, voiceComms })} disabled={busy} />
             </div>
           </details>
         </aside>
