@@ -128,7 +128,7 @@ To edit a Short, call generate_short with a version's segment_ids and the change
 reused, and only new plays, another style HUD or framing, the death reel or a new victim replay open CS2 again.
 Crear horizontal (the 16:9 version of a finished Short): horizontal_draft with the Short's job_id and variant returns the
 generate_short arguments of the summary of the same plays in the same order, with the Short's capture style (capture_hud
-or native_hud, and portrait_safe_killfeed), pre-roll, music and levels, effects, transitions and texts; dropped names the
+or native_hud, and portrait_safe_killfeed), pre-roll, music and levels, team comms, effects, transitions and texts; dropped names the
 9:16 options it leaves out, which the user should hear. needs_capture says whether generate_short opens CS2: the Short's
 recorded plays are reused, and only missing_segment_ids, another capture_hud or new plays record again. The horizontal is
 a new video of the same job and the Short does not change; a death reel or Auto-Shorts has none.

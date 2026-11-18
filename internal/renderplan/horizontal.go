@@ -21,7 +21,7 @@ const (
 const captureHUDGameplay = "gameplay"
 
 // HorizontalEdit is the 16:9 summary of a Short's plays (Crear horizontal): the Short's capture, pre-roll,
-// effects, transitions and texts, the summary's team comms, and the names of the 9:16 options it drops.
+// effects, transitions, texts and team comms, and the names of the 9:16 options it drops.
 func HorizontalEdit(short EditRequest, capture ShortCapture) (EditRequest, []string) {
 	short = NormalizeEditRequest(short)
 	var dropped []string
@@ -52,7 +52,6 @@ func HorizontalEdit(short EditRequest, capture ShortCapture) (EditRequest, []str
 		next.CaptureHUD = capture.HUDMode
 	}
 	next.PortraitSafeKillfeed = capture.PortraitSafeKillfeed
-	next.VoiceComms = true
 	return NormalizeEditRequest(next), dropped
 }
 
