@@ -2044,7 +2044,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	}
 	args, outDir, publishDir := invocation.args, invocation.outDir, invocation.publishDir
 
-	runCtx, cancel := context.WithTimeout(ctx, cfg.renderTimeout(edit.FullDemo))
+	runCtx, cancel := context.WithTimeout(ctx, cfg.renderTimeout(edit.FullDemo, recordingResult.Plan))
 	defer cancel()
 
 	progressPath := filepath.Join(workDir, "editor-progress.json")
