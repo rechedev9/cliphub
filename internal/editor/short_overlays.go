@@ -34,6 +34,8 @@ type ShortOverlays struct {
 	Banner    *SponsorBanner  `json:"sponsor_banner,omitempty"`
 	// Radar is ClipHub's radar in a corner of the frame.
 	Radar *RadarOverlay `json:"radar,omitempty"`
+	// PlayerCards open, close and cover a one-player 9:16 Short; the end card replaces the stats card.
+	PlayerCards *PlayerCards `json:"player_cards,omitempty"`
 }
 
 // StatsCard is the player's line for the closing card. A nil field is unknown and is not drawn.
@@ -158,10 +160,11 @@ func generatedPlayBadgeEffects(short ShortEdit) []Effect {
 	return effects
 }
 
-// statsCardWindow is the closing span of the card: after the last kill (and its badge) when the Short allows it.
+// statsCardWindow is the closing span of the stats card or the end player card: after the last kill (and its
+// badge) when the Short allows it.
 func statsCardWindow(short ShortEdit) (float64, float64, bool) {
 	end := short.DurationSeconds
-	if short.Overlays.StatsCard == nil || short.OutputFormat != OutputFormatShort9x16 || short.MultiPOV() || end < statsCardMinSeconds {
+	if (short.Overlays.StatsCard == nil && endPlayerCard(short) == "") || short.OutputFormat != OutputFormatShort9x16 || short.MultiPOV() || end < statsCardMinSeconds {
 		return 0, 0, false
 	}
 	afterKill := statsCardAfterKill
@@ -219,7 +222,7 @@ func statsCardLines(card StatsCard) []string {
 // generatedStatsCardEffects dims the closing seconds of a 9:16 Short and draws the player's card over them.
 func generatedStatsCardEffects(short ShortEdit) []Effect {
 	start, end, ok := statsCardWindow(short)
-	if !ok {
+	if !ok || short.Overlays.StatsCard == nil || endPlayerCard(short) != "" {
 		return nil
 	}
 	card := short.Overlays.StatsCard

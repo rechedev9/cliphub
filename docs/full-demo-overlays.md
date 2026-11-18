@@ -43,7 +43,8 @@ process without starting the normal Studio services or acquiring the main
 application's single-instance lock. The page is sandboxed, uses embedded local
 resources, and has no network access or Canvas elements. Rendering waits for
 fonts, image decoding and a completed compositor paint before exporting a
-transparent 1920x1080 PNG. A temporary DOM marker synchronizes the compositor;
+transparent 1920x1080 PNG; the player cards of a 9:16 Short (`internal/playercard`) use
+the same entry point at 1080x1920, the only other size it accepts. A temporary DOM marker synchronizes the compositor;
 the exported frame contains no marker. FFmpeg composites those images during
 the intro and outro windows. In every design, the introduction occupies only
 0:00-0:05, including its slide animations; the scoreboard uses the final eight

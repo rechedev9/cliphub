@@ -1,0 +1,28 @@
+{{define "page"}}<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'none'"/>
+<title>Carta de jugador</title>
+<style>
+{{range .Fonts}}@font-face{font-family:'{{.Family}}';src:url('{{.URL}}') format('truetype');font-weight:{{.Weight}};font-display:block}
+{{end}}*{box-sizing:border-box}html,body{width:1080px;height:1920px;margin:0;overflow:hidden;background:transparent}
+body{font-family:'Card Sans',Arial,sans-serif;color:#F5F7FB;-webkit-font-smoothing:antialiased}
+.card{position:absolute;left:110px;top:290px;width:820px;padding:56px 60px 60px;border-radius:40px;background:linear-gradient(165deg,#18213A 0%,#0C111E 72%);border:2px solid #FFFFFF14;box-shadow:0 36px 90px #000000B3;overflow:hidden}
+.card::before{content:'';position:absolute;left:0;top:0;right:0;height:10px;background:linear-gradient(90deg,#FFC83D,#FF8A3D)}
+.photo,.initials{display:block;object-fit:cover;background:#26304A}
+.initials{display:flex;align-items:center;justify-content:center;font-family:'Card Display',Arial,sans-serif;font-weight:800;color:#FFC83D}
+.name{font-family:'Card Display',Arial,sans-serif;font-weight:800;font-size:74px;line-height:1.05;overflow-wrap:anywhere;margin-top:28px}
+.team{font-size:36px;font-weight:600;color:#A9BACD;margin-top:8px;text-transform:uppercase;letter-spacing:2px}
+.role{display:inline-block;padding:10px 22px;border-radius:999px;background:#FFC83D;color:#10131C;font-weight:700;font-size:30px;letter-spacing:3px}
+.faceit{display:flex;gap:14px;margin-top:20px}
+.faceit span{padding:8px 18px;border-radius:12px;background:#FF550022;border:2px solid #FF5500;color:#FFB08A;font-weight:700;font-size:28px;letter-spacing:1px}
+.label{display:block;font-size:26px;font-weight:600;letter-spacing:3px;color:#A9BACD}
+.value{display:block;font-family:'Card Display',Arial,sans-serif;font-weight:800}
+{{template "style" .}}
+</style>
+</head>
+<body>{{template "card" .}}</body>
+</html>{{end}}
+{{define "portrait"}}{{if .Image}}<img class="photo" src="{{.Image}}" alt=""/>{{else}}<div class="initials">{{.Initials}}</div>{{end}}{{end}}
+{{define "faceit"}}{{if or .Level .ELO}}<div class="faceit">{{if .Level}}<span>NIVEL {{.Level}}</span>{{end}}{{if .ELO}}<span>{{.ELO}} ELO</span>{{end}}</div>{{end}}{{end}}

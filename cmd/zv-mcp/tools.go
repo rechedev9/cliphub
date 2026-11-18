@@ -185,6 +185,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerShortsBatchTool(server, s)
 	registerSeriesTools(server, s)
 	registerMultiPOVTools(server, s)
+	registerPlayerCardTools(server, s)
 	registerFindMomentsTool(server, s)
 	registerAnalysisTools(server, s)
 	registerTeamTools(server, s)
@@ -453,6 +454,9 @@ func registerTools(server *mcp.Server, s *studio) {
 				return nil, generateOut{}, toolError(err)
 			}
 			if body.Preset, err = look.catalogPreset(ctx, c); err != nil {
+				return nil, generateOut{}, err
+			}
+			if err := checkPlayerCardJob(ctx, c, in.JobID, body.Edit); err != nil {
 				return nil, generateOut{}, err
 			}
 			list, what := c.GetMoments, plural(len(in.SegmentIDs), "jugada", "jugadas")

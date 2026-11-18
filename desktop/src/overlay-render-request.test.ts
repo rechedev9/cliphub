@@ -10,3 +10,11 @@ test('offline overlay request requires absolute files and exact delivery dimensi
     assert.throws(() => parseOverlayRenderRequest(invalid));
   }
 });
+
+test('offline overlay request admits the 9:16 Short frame and no other size', () => {
+  const portrait = { html_path: path.resolve('card.html'), output_path: path.resolve('card.png'), width: 1080, height: 1920 };
+  assert.deepEqual(parseOverlayRenderRequest(portrait), portrait);
+  for (const size of [{ width: 1080, height: 1080 }, { width: 1920, height: 1920 }, { width: 720, height: 1280 }, { width: '1080', height: '1920' }]) {
+    assert.throws(() => parseOverlayRenderRequest({ ...portrait, ...size }));
+  }
+});

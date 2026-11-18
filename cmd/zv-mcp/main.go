@@ -74,6 +74,13 @@ hidden; it skips victim replays and is not for Full Demo or a match recap.
 The brand kit (get_brand_kit, save_brand_kit) keeps the channel logo, drawn as a watermark in a corner with an
 opacity, and an own sponsor banner with a time window. generate_short and plan_full_demo take brand_watermark and
 brand_banner to apply it; the render copies the kit, and brand_banner does not go with the affiliate banner.
+Player cards (one-player 9:16 Shorts only): generate_short opening_card, end_card and cover_card each take a
+template from list_short_options player_cards (default none). The opening card covers the first seconds instead
+of the intro text card, the end card closes the Short in place of stats_card, and the cover card lies over the
+cover frame. A card shows that match's ClipHub rating, K/D, ADR, KAST, HS%, entries and utility damage, the
+library role and the FACEIT level and ELO when known, and changes only the render. get_player_card says whether a
+job can carry them and which picture they show; set_player_card_image sets the player's own PNG or JPG, kept per
+SteamID for later cards, or none to remove it, falling back to the FACEIT avatar or the initials.
 A Full Demo (the whole match): choose_hud or list_hud_themes, plan_full_demo, then render_full_demo.
 Every custom HUD design also draws round facts from the demo: players alive per side, a win streak of 4 or more,
 3K/4K/ACE, the defuse bar with or without kit and the round MVP (list_hud_themes shows).

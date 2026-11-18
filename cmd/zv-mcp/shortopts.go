@@ -143,6 +143,7 @@ type shortOptionsOut struct {
 	RadarSizes        []shortOption `json:"radar_sizes" jsonschema:"values for radar_size, used only with radar"`
 	PreRoll           []shortOption `json:"pre_roll" jsonschema:"values for pre_roll_seconds: how long before its first kill each play starts"`
 	CaptureHUD        []shortOption `json:"capture_hud" jsonschema:"values for capture_hud, the capture style of a landscape-16x9 video"`
+	PlayerCards       []shortOption `json:"player_cards" jsonschema:"player card templates for opening_card, end_card and cover_card (one-player short-9x16 only); get_player_card tells whether a job can carry them"`
 }
 
 // shortChoices are the optional edit fields of generate_short. Unset fields keep the product defaults.
@@ -188,6 +189,7 @@ type shortChoices struct {
 	RadarOpacity      *int     `json:"radar_opacity,omitempty" jsonschema:"radar opacity in percent, 40 to 100; needs radar; default 90"`
 	PreRollSeconds    *int     `json:"pre_roll_seconds,omitempty" jsonschema:"seconds each play starts before its first kill: 3, 5 or 8 (list_short_options pre_roll); two plays of one round that then overlap become one, named by the first id; one player only, not for death reels; default 3, the Short; the 16:9 summary of one player uses 5"`
 	CaptureHUD        string   `json:"capture_hud,omitempty" jsonschema:"capture style of a landscape-16x9 video (list_short_options capture_hud): gameplay (HUD completo), deathnotices (Killfeed) or clean (POV limpio); not with native_hud; default the HUD of the preset"`
+	playerCardChoices
 }
 
 type songIn struct {
@@ -209,7 +211,7 @@ func registerShortOptions(server *mcp.Server, s *studio) {
 			}
 			return nil, shortOptionsOut{Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions,
 				Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies, VerticalHUDThemes: verticalHUDThemes(),
-				RadarPositions: radarPositionOptions, RadarSizes: radarSizeOptions, PreRoll: preRollOptions, CaptureHUD: captureHUDOptions}, nil
+				RadarPositions: radarPositionOptions, RadarSizes: radarSizeOptions, PreRoll: preRollOptions, CaptureHUD: captureHUDOptions, PlayerCards: playerCardOptions()}, nil
 		})
 
 	// Only the Short picker app plays previews; MCP Apps hosts hide app-only tools from the model.
@@ -337,6 +339,9 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 		edit.CoverStrategy = coverGenerated
 	}
 	if err := resolveBookendText(&edit, c); err != nil {
+		return edit, err
+	}
+	if err := resolvePlayerCards(&edit, c); err != nil {
 		return edit, err
 	}
 	edit.BrandWatermark, edit.BrandBanner = orDefault(c.BrandWatermark, false), orDefault(c.BrandBanner, false)
@@ -489,7 +494,7 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	if e.VerticalHUD && e.VerticalHUDTheme != "" {
 		out += ", diseño del HUD vertical " + e.VerticalHUDTheme
 	}
-	out += describeRadar(e) + describeSummaryChoices(e)
+	out += describeRadar(e) + describeSummaryChoices(e) + describePlayerCards(e)
 	if e.IntroText != "" {
 		out += fmt.Sprintf(", apertura «%s»", e.IntroText)
 	}

@@ -60,6 +60,10 @@ type ShortEdit struct {
 	VictimReplaySpeed float64 `json:"victim_replay_speed,omitempty"`
 	PlayBadges        bool    `json:"play_badges,omitempty"`
 	StatsCard         bool    `json:"stats_card,omitempty"`
+	// OpeningCard, EndCard and CoverCard are player card template ids (PlayerCard); empty is no card.
+	OpeningCard string `json:"opening_card,omitempty"`
+	EndCard     string `json:"end_card,omitempty"`
+	CoverCard   string `json:"cover_card,omitempty"`
 	// WinProbability shows each side's post-plant round-win chance.
 	WinProbability bool `json:"win_probability,omitempty"`
 	// PlayerLabels and GrenadeTrails draw names, health and team grenade paths over the gameplay.
