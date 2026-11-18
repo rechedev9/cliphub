@@ -19,7 +19,7 @@ type KillPlanSegment = {
   round: number;
   tick_start?: number;
   tick_end?: number;
-  kills?: { weapon?: string; headshot?: boolean; clutch_vs?: number; killer?: { team_at_kill?: string }; victim?: { steamid64?: string } }[];
+  kills?: { tick?: number; weapon?: string; headshot?: boolean; clutch_vs?: number; killer?: { team_at_kill?: string }; victim?: { steamid64?: string } }[];
   utility?: { thrower?: { team_at_kill?: string } }[];
   /** Multi-POV plans only: the player the segment films. */
   pov?: { steamid64?: string; name_in_demo?: string };
@@ -171,6 +171,7 @@ function segmentToPlay(jobId: string, segment: KillPlanSegment, plan: KillPlan):
     weapons: segmentWeapons(segment),
     label: `${kills}K · Ronda ${segment.round}`,
     ...(timed ? { startSeconds: start / tickrate, endSeconds: end / tickrate } : {}),
+    ...(timed ? withFirstKill(segment.kills?.[0]?.tick, tickrate) : {}),
     ...(segment.kills?.every((kill) => typeof kill.headshot === 'boolean') ? { headshots: segment.kills.filter((kill) => kill.headshot).length } : {}),
     ...withSide(segmentSide(segment)),
     ...withClutch(Math.max(0, ...(segment.kills ?? []).map((kill) => kill.clutch_vs ?? 0))),
@@ -185,6 +186,10 @@ function withPlayer(segment: KillPlanSegment, plan: KillPlan): Pick<Play, 'playe
   const steamId = segment.pov?.steamid64 ?? plan.target?.steamid64;
   const player = players.find((p) => p.steamId === steamId);
   return player ? { player } : {};
+}
+
+function withFirstKill(tick: number | undefined, tickrate: number): Pick<Play, 'firstKillSeconds'> {
+  return tick !== undefined && Number.isFinite(tick) && tick >= 0 ? { firstKillSeconds: tick / tickrate } : {};
 }
 
 function withSide(side: PlaySide | undefined): Pick<Play, 'side'> {

@@ -42,6 +42,9 @@ test('bestMomentsEdit gives the 16:9 look with comms and no single-player counte
   assert.equal(edit.voiceComms, true);
   assert.equal(edit.killCounter, false);
   assert.equal(edit.centeredKillfeed, undefined);
+  const killfeed = bestMomentsEdit({ ...DEFAULT_EDIT_CONFIG, captureHud: 'deathnotices' });
+  assert.equal(killfeed.nativeHud, false, 'another capture style records without the full HUD');
+  assert.equal(killfeed.captureHud, 'deathnotices');
 });
 
 test('povPlayersLabel names two players and counts the rest', () => {

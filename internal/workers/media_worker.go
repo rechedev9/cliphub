@@ -26,7 +26,6 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/composition"
-	"github.com/rechedev9/cliphub/internal/deathplan"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/faceit"
@@ -379,6 +378,7 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 		source:               source,
 		victimReplay:         generateIntent.Edit.VictimReplay,
 		approval:             generateIntent.Edit.FullDemo,
+		preRollSeconds:       payload.PreRollSeconds,
 	}); err != nil {
 		return err
 	}
@@ -672,6 +672,7 @@ type recordRequest struct {
 	source               planSource
 	victimReplay         bool
 	approval             *recapplan.Snapshot
+	preRollSeconds       int
 }
 
 func (w *RecordWorker) record(ctx context.Context, j job.Job, req recordRequest) (retErr error) {
@@ -688,7 +689,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, req recordRequest)
 		adapted := fullDemo.KillPlan(*j.KillPlan)
 		sourcePlan = &adapted
 	} else {
-		sourcePlan, err = recordSourcePlan(w.storage, j, source)
+		sourcePlan, segmentIDs, err = recordSourcePlan(w.storage, j, req)
 		if err != nil {
 			return err
 		}
@@ -3218,7 +3219,7 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 		}
 	}
 	doc := demooverlay.BuildForSource(demooverlay.FromRosterScan(roster, target), edit.DemoSource, enrichment)
-	doc.Theme = demooverlay.NormalizeTheme(edit.OverlayTheme)
+	doc.Theme, doc.Palette = demooverlay.NormalizeTheme(edit.OverlayTheme), fullDemoOverlayPalette(edit)
 	if !screenshots && !demooverlay.UsesFACEITEnrichment(edit.DemoSource) {
 		demooverlay.ApplyAvatarURLs(&doc, storedLocalOverlayAvatarURLs(w, j.ID))
 	}
@@ -3391,45 +3392,6 @@ func putCaptureSelection(store storage.Storage, id uuid.UUID, segmentIDs []strin
 		return err
 	}
 	return store.Put(artifacts.CaptureSelectionKey(id), bytes.NewReader(b))
-}
-
-// planSource is the plan a capture records from.
-type planSource int
-
-const (
-	planSourceKills planSource = iota
-	planSourceRecap
-	planSourceDeaths
-)
-
-func recordSourcePlan(store storage.Storage, j job.Job, source planSource) (*killplan.Plan, error) {
-	switch source {
-	case planSourceKills:
-		if j.KillPlan == nil {
-			return nil, fmt.Errorf("job %s has no kill plan", j.ID)
-		}
-		return j.KillPlan, nil
-	case planSourceDeaths:
-		deaths, ok, err := deathplan.Load(store, j.ID)
-		if err != nil {
-			return nil, err
-		}
-		if !ok || len(deaths.Segments) == 0 {
-			return nil, fmt.Errorf("job %s has no death clips", j.ID)
-		}
-		return &deaths, nil
-	}
-	recap, ok, err := recapplan.Load(store, j.ID)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, fmt.Errorf("job %s has no recap plan", j.ID)
-	}
-	if len(recap.Segments) == 0 {
-		return nil, fmt.Errorf("job %s recap plan has no rounds", j.ID)
-	}
-	return &recap, nil
 }
 
 // killPlanSegmentIDs lists every segment id in the plan, in plan order.

@@ -40,9 +40,10 @@ export function povPlayersLabel(names: readonly string[]): string {
 /** A 16:9 best-moments video runs longer than a Short: about three minutes. */
 export const BEST_MOMENTS_TARGET_SECONDS = 180;
 
-/** The 16:9 best-moments look: the game's own HUD and team comms, no recap overlays or 9:16 garnish. */
+/** The 16:9 best-moments look: the game's own HUD unless a capture style replaces it, team comms, no recap overlays or 9:16 garnish. */
 export function bestMomentsEdit(edit: EditConfig): EditConfig {
-  const next: EditConfig = { ...edit, format: 'landscape-16x9', matchRecap: false, nativeHud: true, voiceComms: true, voiceVolume: edit.voiceVolume ?? FULL_DEMO_VOICE_VOLUME, deathReel: false, killCounter: false };
+  const nativeHud = edit.captureHud === undefined || edit.captureHud === 'gameplay';
+  const next: EditConfig = { ...edit, format: 'landscape-16x9', matchRecap: false, nativeHud, voiceComms: true, voiceVolume: edit.voiceVolume ?? FULL_DEMO_VOICE_VOLUME, deathReel: false, killCounter: false };
   delete next.centeredKillfeed;
   delete next.verticalHud;
   delete next.verticalHudTheme;

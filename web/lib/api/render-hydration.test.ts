@@ -231,6 +231,12 @@ test('a fully populated edit survives the wire round trip through buildEditReque
     overlayTheme: 'neon-violet',
   };
   assert.deepEqual(parseEffectiveEditConfig(buildEditRequest(full)), full);
+  const summary: EditConfig = {
+    format: 'landscape-16x9', killEffect: 'clean', transition: 'cut', coverStrategy: 'generated-gameplay',
+    intro: false, outro: false, hookText: false, killCounter: false, matchRecap: false,
+    voiceComms: true, voiceVolume: 0.85, nativeHud: false, preRollSeconds: 8, captureHud: 'deathnotices',
+  };
+  assert.deepEqual(parseEffectiveEditConfig(buildEditRequest(summary)), summary);
 });
 
 test('effective render music replaces stale cross-tab intent fields', () => {

@@ -1,6 +1,6 @@
 import { persistAffiliateFamily } from '../affiliate-banner.ts';
 import { radarEditFields } from '../radar-overlay.ts';
-import { DEFAULT_VICTIM_REPLAY_SPEED, type EditConfig } from './types.ts';
+import { DEFAULT_PRE_ROLL_SECONDS, DEFAULT_VICTIM_REPLAY_SPEED, type EditConfig } from './types.ts';
 
 export type EditRequestBody = {
   full_demo?: EditConfig['fullDemo'];
@@ -26,6 +26,8 @@ export type EditRequestBody = {
   native_hud: boolean;
   victim_replay?: boolean;
   victim_replay_speed?: number;
+  pre_roll_seconds?: number;
+  capture_hud?: EditConfig['captureHud'];
   play_badges?: boolean;
   win_probability?: boolean;
   player_labels?: boolean;
@@ -68,6 +70,8 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     if (edit.victimReplaySpeed !== undefined && edit.victimReplaySpeed !== DEFAULT_VICTIM_REPLAY_SPEED) body.victim_replay_speed = edit.victimReplaySpeed;
   }
   if (!edit.fullDemo && !edit.matchRecap) {
+    if (!edit.deathReel && edit.preRollSeconds !== undefined && edit.preRollSeconds !== DEFAULT_PRE_ROLL_SECONDS) body.pre_roll_seconds = edit.preRollSeconds;
+    if (edit.captureHud && edit.format === 'landscape-16x9' && !edit.nativeHud) body.capture_hud = edit.captureHud;
     if (edit.playBadges && !edit.deathReel) body.play_badges = true;
     if (edit.winProbability && !edit.deathReel) body.win_probability = true;
     if (edit.playerLabels) body.player_labels = true;

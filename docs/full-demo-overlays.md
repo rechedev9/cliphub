@@ -1,38 +1,51 @@
 # Full Demo overlays
 
-The Full Demo producer offers two modes under **Cómo crear los overlays**:
+A Full Demo opens with a player introduction (who plays with whom) and closes
+with the final scoreboard. Both are generated from the demo. The **Diseño**
+gallery under **Presentación y marcador** in the producer picks their look:
 
-- **Generar automáticamente** builds the enabled roster and scoreboard from the
-  current demo, optionally enriched with FACEIT profiles. It offers the existing
-  orange theme and a rebuilt violet neon theme.
-- **Subir capturas** accepts two images for the introduction, one per team, and
-  one image for the final scoreboard. Only images needed by enabled overlays
-  are required. Switching modes preserves the uploaded selections.
+- **Neón**, the default: the violet neon panels.
+- **A juego con el HUD**: the same pages in the colours of the plan's HUD design
+  or own theme (CT, T, background and corner radius). Over the original CS2 HUD
+  it uses a fixed neutral palette. Text that an own background would make
+  unreadable switches to a neutral light or dark pair.
 
-The upload controls accept PNG and JPEG, up to 10 MiB each, 8192 pixels per side
-and 32 megapixels. Studio decodes the entire image before accepting it, keeps
-the original bytes, and shows a preview in the same proportions used by the
-renderer. Team images occupy opposite sides of the introduction; the final
-scoreboard is centered. Both use `object-fit: contain` so names and statistics
-are not cropped or stretched. The screenshot mode does not require FACEIT.
+A design changes the look, never the content: both designs share one page body
+(`intro-body.html`, `scoreboard-body.html`), so they show two panels of five
+cards with the selected POV first and a scoreboard with the same columns and the
+POV row highlighted. The demo origin (**Origen de la demo**) decides the data:
+FACEIT demos show FACEIT profile statistics, the others the statistics of that
+match.
+
+The plan stores the design in `overlays.theme` (`neon-violet` or `hud`). It
+is render only and never enters the capture hash, so a finished video can change
+design without recording again. Saved plans keep `neon-violet` and their hash.
+The legacy orange theme and the uploaded screenshots (`overlays.mode`
+`screenshots`) are retired: new plans cannot choose them, and documents
+approved with them stay readable.
+
+Each card of the gallery shows `GET /api/full-demo/overlay-designs/preview`:
+the example match drawn with the renderer's own page, wrapped as an SVG image
+with the fallback font. Assistants choose the design with `plan_full_demo`
+`intro_design`.
 
 ## Rendering
 
-The violet neon introduction uses HTML, CSS perspective, glow, embedded Roboto
-fonts and SVG decorations. It has two panels with five player cards each and
-places the selected POV player first within their team. The final scoreboard
-uses the same visual theme and highlights the POV row. The legacy orange
-renderer remains available.
+The neon introduction uses HTML, CSS perspective, glow, embedded Roboto fonts
+and SVG decorations. It has two panels with five player cards each and places
+the selected POV player first within their team. The final scoreboard uses the
+same visual theme and highlights the POV row. The HUD design draws the same
+pages with flat panels in the HUD colours.
 
-Studio renders the neon and screenshot templates with its bundled Chromium
-runtime. The `--cliphub-render-overlay` entry point creates a separate hidden
+Studio renders both designs, and the screenshot template of old plans, with its
+bundled Chromium runtime. The `--cliphub-render-overlay` entry point creates a separate hidden
 process without starting the normal Studio services or acquiring the main
 application's single-instance lock. The page is sandboxed, uses embedded local
 resources, and has no network access or Canvas elements. Rendering waits for
 fonts, image decoding and a completed compositor paint before exporting a
 transparent 1920x1080 PNG. A temporary DOM marker synchronizes the compositor;
 the exported frame contains no marker. FFmpeg composites those images during
-the intro and outro windows. In both modes, the introduction occupies only
+the intro and outro windows. In every design, the introduction occupies only
 0:00-0:05, including its slide animations; the scoreboard uses the final eight
 seconds. Short videos clamp these windows without overlap. Overlay timing is
 included in render reuse identity, so an earlier introduction is regenerated
@@ -45,7 +58,8 @@ The complete match export documented below predates this timing adjustment.
 The Go worker invokes the renderer through `ZV_OVERLAY_RENDERER_PATH`. Studio
 sets it to its own executable. Development also supplies
 `ZV_OVERLAY_RENDERER_APP` with the desktop application path. Standalone workers
-using neon or screenshots must supply the equivalent renderer configuration.
+using an HTML design or screenshots must supply the equivalent renderer
+configuration.
 The implementation reuses Studio's Chromium; it does not add a Python runtime
 or change the validated Go/FFmpeg video and audio pipeline.
 
@@ -60,8 +74,8 @@ ELO as current profile ELO. It does not invent historical ELO changes or metrics
 that the available data does not provide. Consequently, automatic values can
 differ from a previously taken FACEIT screenshot.
 
-Screenshot assets use the dedicated immutable `overlay-images/<uuid>` storage
-namespace. The API returns an ID and SHA-256; the plan includes those references
+Plans approved with the retired screenshot mode keep their assets in the
+dedicated immutable `overlay-images/<uuid>` storage namespace. The API returns an ID and SHA-256; the plan includes those references
 and verified image evidence. Planning, admission and rendering recheck the
 approved bytes. Missing, changed or invalid images block generation. Existing
 music and sponsor media keep their provenance checks. New optional plan fields
@@ -71,6 +85,8 @@ Font and flag provenance and licenses are in
 [`internal/demooverlay/assets/README.md`](../internal/demooverlay/assets/README.md).
 
 ## Validation
+
+The checks below date from the screenshot mode and the first neon render.
 
 Regression coverage includes original upload bytes and hashes, invalid and
 oversized images, enabled image requirements, tampering after approval, legacy

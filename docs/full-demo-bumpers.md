@@ -33,7 +33,7 @@ A bumper item plays its own clip scaled and padded onto 1920x1080 at 60 fps,
 with no HUD and no game or voice audio. Its audio is the clip's embedded track
 when the plan evidence says it has one, otherwise synthesized silence, so a
 silent clip is valid. Every cut between gameplay and a bumper gets the
-dynamic transition, even when round effects are off. The neon intro and outro
+dynamic transition, even when round effects are off. The intro and outro
 overlays are measured over the gameplay span between the leading and trailing
 bumpers and shifted onto the program clock. The cover frame and cover sheet
 skip bumper frames, and the silent-approved delivery gate requires bumpers

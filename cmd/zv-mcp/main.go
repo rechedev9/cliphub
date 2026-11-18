@@ -81,6 +81,8 @@ The user's own HUD themes (list_hud_themes custom) copy a catalog design with ot
 save_hud_theme creates or edits one (up to 10), delete_hud_theme removes one, and its id goes in plan_full_demo hud.
 plan_full_demo also takes compact_header, hide_inventory, round_win_banner, win_probability and the team names team_ct_start and
 team_t_start for the custom HUD scoreboard; they change only the render, never the capture.
+plan_full_demo intro_design picks the look of the player intro and final scoreboard: neon (default) or hud,
+in the colours of the chosen HUD or own theme and neutral over the native CS2 HUD. It only changes the render.
 plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for the focus HUD and intro,
 sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo
@@ -96,6 +98,14 @@ broadcast observer: the play score plus a clutch, the round's opening duel or ch
 momentum (a big win-chance swing, a comeback after 3 or more lost rounds, a run of 3 or more), across players within
 target_seconds (default 180; 60 for a Short) and never two players at once. Create the job with the whole team so it
 chooses who appears, then pass its segment_ids to generate_short unchanged.
+The 16:9 summary of one player (Resumen in Vídeos largos, offered beside Partida entera once one player is picked):
+on that player's job, list_moments with limit at its total, then generate_short with every kill play in match order
+(segment_ids by tick, not by score; the user may drop some), format landscape-16x9, preset gameplay-pov-60,
+voice_comms, pre_roll_seconds 5 and the capture style: native_hud for HUD completo (the default), or capture_hud
+deathnotices (Killfeed) or clean (POV limpio). pre_roll_seconds (3, 5 or 8; a Short keeps 3 unless asked) starts each
+play that long before its first kill, never before its round starts, and two plays of one round that then overlap
+become one capture named by the first id; it needs no new analysis. There is no cap on the plays or the length.
+auto_pov_summary on that job with the same pre_roll_seconds is Elegir automáticamente: the best plays within about 180 s.
 list_moments ranks plays by score (kills, clutch size and whether it was won, fast multi-kills, noscopes,
 kills through smoke or while blind, entry (opening kill), retake, eco_win, flick, and win_prob_swing, the round-win chance the play gave); kinds filters by
 those reason codes, as Elegir las mejores and the play filters in Studio do. Format landscape-16x9 with preset gameplay-pov-60 gives the horizontal best-moments video.

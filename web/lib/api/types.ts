@@ -41,6 +41,8 @@ export type Play = {
   weapon?: string; thumbnailUrl?: string;
   /** Source-demo clock, only present when its tick rate and range are known. */
   startSeconds?: number; endSeconds?: number; headshots?: number;
+  /** Source-demo second of the first kill, where a pre-roll is measured from. */
+  firstKillSeconds?: number;
   /** Engine ids of every kill's weapon ("awp"), the side the player was on, and the enemies of a clutch. */
   weapons?: string[]; side?: PlaySide; clutchVs?: number;
   /** Death clips only: how the player died at the end of the clip. */
@@ -62,6 +64,19 @@ export type VictimReplaySpeed = (typeof VICTIM_REPLAY_SPEEDS)[number];
 export const DEFAULT_VICTIM_REPLAY_SPEED: VictimReplaySpeed = 0.5;
 export function isVictimReplaySpeed(value: unknown): value is VictimReplaySpeed {
   return VICTIM_REPLAY_SPEEDS.some((speed) => speed === value);
+}
+/** Seconds of play before each play's first kill (renderplan.PreRollChoices); 3 is the analysis cut. */
+export const PRE_ROLL_CHOICES = [3, 5, 8] as const;
+export type PreRollSeconds = (typeof PRE_ROLL_CHOICES)[number];
+export const DEFAULT_PRE_ROLL_SECONDS: PreRollSeconds = 3;
+export function isPreRollSeconds(value: unknown): value is PreRollSeconds {
+  return PRE_ROLL_CHOICES.some((seconds) => seconds === value);
+}
+/** The HUD a 16:9 summary records (renderplan.CaptureHUDs); unset keeps the preset's. */
+const CAPTURE_HUDS = ['gameplay', 'deathnotices', 'clean'] as const;
+export type CaptureHud = (typeof CAPTURE_HUDS)[number];
+export function isCaptureHud(value: unknown): value is CaptureHud {
+  return CAPTURE_HUDS.some((hud) => hud === value);
 }
 type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash' | 'shake' | 'glitch';
 type TransitionStyle = 'cut' | 'flash' | 'whip' | 'dip' | 'glitch' | 'zoom-whip';
@@ -242,11 +257,13 @@ export function isDemoSource(value: unknown): value is DemoSource {
 export const OVERLAY_THEME = {
   faceitOrange: 'faceit-orange',
   neonViolet: 'neon-violet',
+  /** Full Demo only: the intro and scoreboard in the colours of the plan's HUD. */
+  hud: 'hud',
 } as const;
 export type OverlayTheme = (typeof OVERLAY_THEME)[keyof typeof OVERLAY_THEME];
 
 export function isOverlayTheme(value: unknown): value is OverlayTheme {
-  return value === OVERLAY_THEME.faceitOrange || value === OVERLAY_THEME.neonViolet;
+  return value === OVERLAY_THEME.faceitOrange || value === OVERLAY_THEME.neonViolet || value === OVERLAY_THEME.hud;
 }
 
 export type EditConfig = {
@@ -281,6 +298,10 @@ export type EditConfig = {
   victimReplay?: boolean;
   /** Unset plays the replay at DEFAULT_VICTIM_REPLAY_SPEED. */
   victimReplaySpeed?: VictimReplaySpeed;
+  /** One player only: unset is DEFAULT_PRE_ROLL_SECONDS. */
+  preRollSeconds?: PreRollSeconds;
+  /** 16:9 without the native HUD: the capture profile of the summary's style. */
+  captureHud?: CaptureHud;
   /** A badge naming each play's clutch, ace or multikill. */
   playBadges?: boolean;
   /** Each team's round-win chance after the plant, from the kill plan. */

@@ -931,33 +931,6 @@ func (h *Handlers) GetDeaths(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, moments.BuildDeaths(j.ID, plan))
 }
 
-func applyCaptureOverrides(hudMode string, edit renderplan.EditRequest) (string, bool) {
-	if edit.NativeHUD {
-		hudMode = "gameplay"
-	}
-	return hudMode, edit.MatchRecap
-}
-
-func (h *Handlers) requireRecapPlan(w http.ResponseWriter, j job.Job) bool {
-	if rejectMultiPOVFullDemo(w, j) {
-		return false
-	}
-	plan, found, err := recapplan.Load(h.storage, j.ID)
-	if err != nil {
-		internalError(w, "load recap plan", err)
-		return false
-	}
-	if !found {
-		writeError(w, http.StatusConflict, "recap plan not ready")
-		return false
-	}
-	if len(plan.Segments) == 0 {
-		writeError(w, http.StatusConflict, "recap plan has no rounds")
-		return false
-	}
-	return true
-}
-
 // StartRecording handles POST /api/jobs/{id}/record.
 func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 	j, ok := h.loadJob(w, r)
@@ -1031,6 +1004,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 	var useRecapPlan bool
 	var useDeathPlan bool
 	var demoSource string
+	var preRollSeconds int
 	if r.Body == nil && h.retryApprovedFullDemo(w, r, j, nil) {
 		return
 	}
@@ -1069,11 +1043,12 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 				segmentIDs = nil
 				demoSource = edit.DemoSource
 			} else {
-				if !h.validateSegmentSelection(w, j, req.SegmentIDs, edit.DeathReel) {
+				if !h.validatePlaySelection(w, j, req.SegmentIDs, edit) {
 					return
 				}
 				segmentIDs = req.SegmentIDs
 				useDeathPlan = edit.DeathReel
+				preRollSeconds = edit.PreRollSeconds
 			}
 		default:
 			writeError(w, http.StatusBadRequest, "invalid record request JSON")
@@ -1087,7 +1062,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	task, err := tasks.NewRecordDemoTask(tasks.RecordDemoPayload{JobID: j.ID, HUDMode: hudMode, SegmentIDs: segmentIDs,
-		PortraitSafeKillfeed: portraitSafeKillfeed, UseRecapPlan: useRecapPlan, UseDeathPlan: useDeathPlan})
+		PortraitSafeKillfeed: portraitSafeKillfeed, UseRecapPlan: useRecapPlan, UseDeathPlan: useDeathPlan, PreRollSeconds: preRollSeconds})
 	if err != nil {
 		internalError(w, "build record task", err)
 		return
@@ -1211,7 +1186,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 			h.rejectFullDemoFaceit(w, j, err)
 			return
 		}
-	} else if !h.validateSegmentSelection(w, j, segmentIDs, intent.Edit.DeathReel) {
+	} else if !h.validatePlaySelection(w, j, segmentIDs, intent.Edit) {
 		return
 	}
 	intent.SegmentIDs = segmentIDs
@@ -1302,49 +1277,6 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 // i.e. the same HUD mode, segment selection, killfeed framing and recap flag.
 // Music and post-capture edit choices never change the capture, so a re-drive
 // that only differs there is still the duplicate the queue says it is.
-func sameCapture(a, b renderplan.GenerateIntent) bool {
-	// Admission deduplicates the complete approved intent. A music-only change
-	// may reuse capture later, but it must not silently adopt an older render.
-	if a.Edit.FullDemo != nil || b.Edit.FullDemo != nil {
-		return a.Edit.FullDemo != nil && b.Edit.FullDemo != nil && a.Edit.FullDemo.Document.PlanHash == b.Edit.FullDemo.Document.PlanHash && a.Variant == b.Variant
-	}
-	ca, okA := captureRequestFor(a)
-	cb, okB := captureRequestFor(b)
-	return okA && okB && ca.hudMode == cb.hudMode && ca.useRecapPlan == cb.useRecapPlan && ca.useDeathPlan == cb.useDeathPlan &&
-		ca.portraitSafeKillfeed == cb.portraitSafeKillfeed && ca.victimReplay == cb.victimReplay && slices.Equal(ca.segmentIDs, cb.segmentIDs)
-}
-
-type captureRequest struct {
-	hudMode              string
-	segmentIDs           []string
-	portraitSafeKillfeed bool
-	useRecapPlan         bool
-	useDeathPlan         bool
-	victimReplay         bool
-}
-
-// captureRequestFor derives the capture-time choices of an intent the same way
-// StartGenerate does when it builds the record task.
-func captureRequestFor(intent renderplan.GenerateIntent) (captureRequest, bool) {
-	preset, ok := editor.PresetByName(intent.Variant)
-	if !ok {
-		return captureRequest{}, false
-	}
-	hudMode, useRecapPlan := applyCaptureOverrides(preset.HUDMode, intent.Edit)
-	segmentIDs := intent.SegmentIDs
-	if useRecapPlan || len(segmentIDs) == 0 {
-		segmentIDs = nil
-	}
-	return captureRequest{
-		hudMode:              hudMode,
-		segmentIDs:           segmentIDs,
-		portraitSafeKillfeed: capturePortraitSafeKillfeed(preset.KillfeedSource, intent.Edit),
-		useRecapPlan:         useRecapPlan,
-		useDeathPlan:         !useRecapPlan && intent.Edit.DeathReel,
-		victimReplay:         intent.Edit.VictimReplay && !useRecapPlan,
-	}, true
-}
-
 // capturePortraitSafeKillfeed brings CS2's notices into the 9:16 crop, unless the
 // editor draws a centered killfeed and the native ones must stay outside it.
 func capturePortraitSafeKillfeed(killfeedSource bool, edit renderplan.EditRequest) bool {

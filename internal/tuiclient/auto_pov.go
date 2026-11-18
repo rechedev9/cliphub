@@ -8,14 +8,15 @@ import (
 	"github.com/rechedev9/cliphub/internal/moments"
 )
 
-// AutoPOVQuery asks for the Auto-POV pick of a multi-POV job; zero fields keep the server defaults.
+// AutoPOVQuery asks for the Auto-POV pick of a job; zero fields keep the server defaults.
 type AutoPOVQuery struct {
-	JobID         string
-	TargetSeconds float64
-	ExtraSeconds  float64
+	JobID          string
+	TargetSeconds  float64
+	ExtraSeconds   float64
+	PreRollSeconds int
 }
 
-// GetAutoPOV reads GET /api/jobs/{id}/auto-pov: the plays and players the summary shows, in match order.
+// GetAutoPOV reads GET /api/jobs/{id}/auto-pov: the plays (and players) the summary shows, in match order.
 func (c *Client) GetAutoPOV(ctx context.Context, q AutoPOVQuery) (moments.Direction, error) {
 	values := url.Values{}
 	if q.TargetSeconds > 0 {
@@ -23,6 +24,9 @@ func (c *Client) GetAutoPOV(ctx context.Context, q AutoPOVQuery) (moments.Direct
 	}
 	if q.ExtraSeconds > 0 {
 		values.Set("extra_seconds", strconv.FormatFloat(q.ExtraSeconds, 'f', -1, 64))
+	}
+	if q.PreRollSeconds > 0 {
+		values.Set("pre_roll_seconds", strconv.Itoa(q.PreRollSeconds))
 	}
 	path := jobPath(q.JobID) + "/auto-pov"
 	if len(values) > 0 {

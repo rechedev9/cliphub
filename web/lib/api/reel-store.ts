@@ -2,10 +2,13 @@ import { isCustomHudTheme } from '../custom-hud.ts';
 import { coerceRadarOpacity, isRadarPosition, isRadarSize } from '../radar-overlay.ts';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import {
+  DEFAULT_PRE_ROLL_SECONDS,
   isAffiliateStyle,
+  isCaptureHud,
   isDemoSource,
   isKeyDropStyle,
   isOverlayTheme,
+  isPreRollSeconds,
   isVictimReplaySpeed,
   normalizeAffiliateFamily,
   type EditConfig,
@@ -231,6 +234,8 @@ export function coerceEditConfig(value: unknown): EditConfig {
   if (voiceVolume !== undefined) cfg.voiceVolume = voiceVolume;
   if (raw.victimReplay === true) cfg.victimReplay = true;
   if (cfg.victimReplay && isVictimReplaySpeed(raw.victimReplaySpeed)) cfg.victimReplaySpeed = raw.victimReplaySpeed;
+  if (isPreRollSeconds(raw.preRollSeconds) && raw.preRollSeconds !== DEFAULT_PRE_ROLL_SECONDS) cfg.preRollSeconds = raw.preRollSeconds;
+  if (isCaptureHud(raw.captureHud)) cfg.captureHud = raw.captureHud;
   if (raw.playBadges === true) cfg.playBadges = true;
   if (raw.winProbability === true) cfg.winProbability = true;
   if (raw.playerLabels === true) cfg.playerLabels = true;

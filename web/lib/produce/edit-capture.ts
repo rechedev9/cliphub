@@ -3,6 +3,7 @@ import { GAME_VOLUME_DEFAULT_PERCENT, MUSIC_VOLUME_DEFAULT_PERCENT } from '../ap
 import { parseEffectiveEditConfig, parseEffectiveRenderMusic } from '../api/render-hydration.ts';
 import type { EditConfig, Play } from '../api/types.ts';
 import { constrainEditConfig } from '../reel-brief.ts';
+import { preRollOf } from './pre-roll.ts';
 import { formatBytes } from '../storage.ts';
 import type { ShortSettings } from './short-draft.ts';
 import type { VideoVersion } from '../api/video-edit.ts';
@@ -54,7 +55,9 @@ export function recapSeconds(recap: readonly Pick<Play, 'round' | 'startSeconds'
 export type ShortCaptureChoice = { playIds: readonly string[]; hudMode: string | undefined; edit: EditConfig };
 
 function captureHud(choice: ShortCaptureChoice): string {
-  return choice.edit.nativeHud ? 'gameplay' : choice.hudMode ?? '';
+  if (choice.edit.nativeHud) return 'gameplay';
+  // Only a 16:9 video sends its capture style (buildEditRequest).
+  return (choice.edit.format === 'landscape-16x9' ? choice.edit.captureHud : undefined) ?? choice.hudMode ?? '';
 }
 
 function portraitFraming(edit: EditConfig): boolean {
@@ -65,6 +68,7 @@ function portraitFraming(edit: EditConfig): boolean {
 export function shortEditNeedsCapture(recorded: ShortCaptureChoice, next: ShortCaptureChoice): boolean {
   if (captureHud(recorded) !== captureHud(next) || portraitFraming(recorded.edit) !== portraitFraming(next.edit)) return true;
   if ((recorded.edit.deathReel === true) !== (next.edit.deathReel === true)) return true;
+  if (next.edit.deathReel !== true && preRollOf(recorded.edit) !== preRollOf(next.edit)) return true;
   if (next.edit.victimReplay === true && recorded.edit.victimReplay !== true) return true;
   const have = new Set(recorded.playIds);
   return next.playIds.some((id) => !have.has(id));

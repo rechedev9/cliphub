@@ -49,6 +49,8 @@ type renderEditRequest struct {
 	KeyDropEndSeconds   *float64            `json:"keydrop_end_seconds"`
 	DemoSource          *string             `json:"demo_source"`
 	OverlayTheme        *string             `json:"overlay_theme"`
+	PreRollSeconds      *int                `json:"pre_roll_seconds"`
+	CaptureHUD          *string             `json:"capture_hud"`
 	// BrandWatermark and BrandBanner turn the saved brand kit on or off; applyBrandKit resolves them.
 	BrandWatermark *brandChoice[brandkit.Watermark] `json:"brand_watermark"`
 	BrandBanner    *brandChoice[brandkit.Banner]    `json:"brand_banner"`
@@ -178,6 +180,12 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.OverlayTheme != nil {
 		base.OverlayTheme = *r.OverlayTheme
+	}
+	if r.PreRollSeconds != nil {
+		base.PreRollSeconds = *r.PreRollSeconds
+	}
+	if r.CaptureHUD != nil {
+		base.CaptureHUD = *r.CaptureHUD
 	}
 	return renderplan.NormalizeEditRequest(base)
 }

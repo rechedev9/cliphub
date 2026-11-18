@@ -76,7 +76,7 @@ func TestWriteFullDemoOverlayUsesLocalSteamSnapshotWithoutFACEITFacts(t *testing
 	if len(downloads) != 1 || downloads[0] != public.AvatarURL {
 		t.Fatalf("avatar downloads = %#v", downloads)
 	}
-	html, err := demooverlay.NeonIntroHTML(doc, true)
+	html, err := demooverlay.DesignHTML(doc, demooverlay.DesignView{PreviewGrey: true})
 	if err != nil {
 		t.Fatal(err)
 	}

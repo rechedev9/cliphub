@@ -58,3 +58,8 @@ test('the request carries the budget and the victim replay each play adds, cappe
   assert.equal(autoPovUrl(JOB, { targetSeconds: 180, extraSeconds: extra }), `/api/demos/${JOB}/auto-pov?target_seconds=180&extra_seconds=14`);
   assert.equal(autoPovUrl(JOB, { targetSeconds: 60, extraSeconds: 40 }), `/api/demos/${JOB}/auto-pov?target_seconds=60&extra_seconds=15`);
 });
+
+test('a one-player summary asks for the plays as its pre-roll cuts them', () => {
+  assert.equal(autoPovUrl(JOB, { targetSeconds: 180, extraSeconds: 0, preRollSeconds: 5 }), `/api/demos/${JOB}/auto-pov?target_seconds=180&extra_seconds=0&pre_roll_seconds=5`);
+  assert.equal(autoPovUrl(JOB, { targetSeconds: 180, extraSeconds: 0, preRollSeconds: 3 }), `/api/demos/${JOB}/auto-pov?target_seconds=180&extra_seconds=0`);
+});

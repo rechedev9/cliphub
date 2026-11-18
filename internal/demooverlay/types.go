@@ -13,6 +13,7 @@ const (
 
 	ThemeFaceitOrange = "faceit-orange"
 	ThemeNeonViolet   = "neon-violet"
+	ThemeHUD          = recapplan.OverlayThemeHUD
 
 	// The roster occupies only the first five compiled seconds, including
 	// its slide animations. This does not change the parser's freeze prefix.
@@ -72,6 +73,7 @@ type Document struct {
 	SchemaVersion   string       `json:"schema_version"`
 	Source          string       `json:"source,omitempty"`
 	Theme           string       `json:"theme,omitempty"`
+	Palette         *Palette     `json:"palette,omitempty"`
 	TargetSteamID64 string       `json:"target_steamid64"`
 	TargetName      string       `json:"target_name"`
 	TargetKills     int          `json:"target_kills"`

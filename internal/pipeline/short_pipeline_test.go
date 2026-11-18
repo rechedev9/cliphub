@@ -347,6 +347,63 @@ func TestMultiPOVShortPipelineGolden(t *testing.T) {
 	}
 }
 
+// TestSummaryPipelineGolden walks the 16:9 summary of one player: every play of the match in match order, each
+// starting 5 s before its first kill, so the two round 5 plays that then overlap are captured and cut as one.
+func TestSummaryPipelineGolden(t *testing.T) {
+	work := t.TempDir()
+	fixture := readFixture(t)
+	analysed := buildKillPlan(t, fixture)
+	plan := parser.WithPreRoll(analysed, 5, fixture.RoundStarts)
+	if len(plan.Segments) != len(analysed.Segments)-1 {
+		t.Fatalf("summary has %d plays from %d; the fixture should merge one pair", len(plan.Segments), len(analysed.Segments))
+	}
+	ids := make([]string, 0, len(plan.Segments))
+	for _, s := range plan.Segments {
+		ids = append(ids, s.ID)
+	}
+	planPath := filepath.Join(work, "summary-plan.json")
+	writeJSON(t, planPath, plan)
+
+	// HUD completo: the capture keeps CS2's own HUD.
+	recPlan, err := recording.NewPlanFromKillPlan(plan, filepath.Join(work, "match.dem"), filepath.Join(work, "recording"), recording.DefaultStreamConfig())
+	if err != nil {
+		t.Fatalf("recording plan: %v", err)
+	}
+	script, err := recording.GenerateHLAEJavaScript(recPlan)
+	if err != nil {
+		t.Fatalf("HLAE script: %v", err)
+	}
+	assertGolden(t, "17-summary-recording-plan.json", normalizedJSON(t, work, recPlan))
+	capture := simulateCapture(t, work, script, fixture.Target.SteamID64, recPlan)
+	assertGolden(t, "18-summary-capture.json", normalizedJSON(t, work, capture))
+
+	outDir := filepath.Join(work, "render")
+	if _, err := editor.Run(context.Background(), editor.Config{
+		RecordingResultPath: writeRecordingResult(t, recPlan),
+		KillPlanPath:        planPath,
+		OutputDir:           outDir,
+		PublishDir:          filepath.Join(work, "publish"),
+		FFmpegPath:          "ffmpeg",
+		FFprobePath:         "ffprobe",
+		Preset:              editor.PresetGameplayPOV60,
+		OutputFormat:        editor.OutputFormatLandscape16x9,
+		CompileSegments:     true,
+		SegmentIDs:          ids,
+		DryRun:              true,
+	}); err != nil {
+		t.Fatalf("editor dry run: %v", err)
+	}
+	var manifest editor.Manifest
+	readJSON(t, filepath.Join(outDir, "edit-manifest.json"), &manifest)
+	manifestGolden := normalizedJSON(t, work, manifest)
+	var normalized editor.Manifest
+	if err := json.Unmarshal([]byte(manifestGolden), &normalized); err != nil {
+		t.Fatalf("decode normalized manifest: %v", err)
+	}
+	assertGolden(t, "19-summary-manifest.json", manifestGolden)
+	assertGolden(t, "19-summary-ffmpeg-commands.txt", formatCommands(normalized))
+}
+
 // clashFreePick takes the best moments that one capture can film, the way the
 // Studio auto pick does: a play that clashes with an earlier pick is skipped.
 func clashFreePick(plan killplan.Plan, ranked []moments.Moment, limit int) []string {
