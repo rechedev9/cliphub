@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { RealApiClient } from './real.ts';
 import { DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
-import type { Video } from './types.ts';
+import type { EditConfig, Video } from './types.ts';
 
 const JOB = '11111111-2222-4333-8444-555555555555';
 const STATUS_URL = `/api/demos/${JOB}/status`;
@@ -529,6 +529,26 @@ test('Crear horizontal adds its own reel and the Short of the same plays stays i
     assert.equal((await client.getVideo(horizontal.id))?.editConfig?.format, 'landscape-16x9');
   } finally {
     fake.restore();
+  }
+});
+
+test('a 16:9 video of chosen plays is titled with the capture style it really records with', async () => {
+  const styles: Array<{ edit: Partial<EditConfig>; want: string }> = [
+    { edit: { captureHud: 'deathnotices', portraitSafeKillfeed: true }, want: 'Killfeed' },
+    { edit: { captureHud: 'clean' }, want: 'POV limpio' },
+    { edit: { nativeHud: true }, want: 'HUD completo' },
+  ];
+  for (const style of styles) {
+    const fake = createVideoFetch();
+    try {
+      const video = await new RealApiClient().createVideo({
+        matchId: JOB, playIds: ['seg-1', 'seg-2'], mode: 'clean', variant: 'gameplay-pov-60',
+        editConfig: { ...DEFAULT_EDIT_CONFIG, format: 'landscape-16x9', ...style.edit },
+      });
+      assert.ok(video.title.endsWith(` - ${style.want}`), `${style.want}: ${video.title}`);
+    } finally {
+      fake.restore();
+    }
   }
 });
 

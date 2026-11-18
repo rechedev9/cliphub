@@ -441,6 +441,7 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
     },
   ];
   for (const tc of cases) {
+    // Right after the user's click: a page load alone never records (real-mismatch-redrive.test.ts).
     const got = decideReelReconcile({
       jobStatus: tc.jobStatus,
       renderStatus: tc.renderStatus,
@@ -450,6 +451,7 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
       renderSegmentIds: tc.renderSegmentIds,
       intentMusic: tc.intentMusic,
       renderMusic: tc.renderMusic,
+      userAsked: true,
     });
     assert.equal(got.view.action, tc.wantAction, `${tc.name} action`);
     assert.equal(got.view.status, tc.wantStatus, `${tc.name} status`);
@@ -499,6 +501,7 @@ test('ready Shorts are adopted only for the same ordered segment selection', () 
       renderEdit: shortsEdit,
       intentSegmentIds: tc.intentSegmentIds,
       renderSegmentIds: tc.renderSegmentIds,
+      userAsked: true,
     });
     assert.equal(got.view.action, tc.wantAction, `${tc.name} action`);
     assert.equal(got.adoptEffective, tc.wantAdopt, `${tc.name} adopt`);

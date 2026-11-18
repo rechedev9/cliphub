@@ -366,21 +366,7 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 		return fmt.Errorf("job %s has no kill plan", j.ID)
 	}
 
-	source := planSourceKills
-	if payload.UseRecapPlan {
-		source = planSourceRecap
-	} else if payload.UseDeathPlan {
-		source = planSourceDeaths
-	}
-	if err := w.record(ctx, j, recordRequest{
-		hudMode:              payload.HUDMode,
-		segmentIDs:           payload.SegmentIDs,
-		portraitSafeKillfeed: payload.PortraitSafeKillfeed,
-		source:               source,
-		victimReplay:         generateIntent.Edit.VictimReplay,
-		approval:             generateIntent.Edit.FullDemo,
-		preRollSeconds:       payload.PreRollSeconds,
-	}); err != nil {
+	if err := w.record(ctx, j, recordRequestFor(payload, generateIntent)); err != nil {
 		return err
 	}
 	if err := w.repo.UpdateStatus(ctx, j.ID, job.StatusRecorded, ""); err != nil {
@@ -664,84 +650,20 @@ func (w *RecordWorker) invalidateReadyRender(id uuid.UUID, variant string) error
 	return nil
 }
 
-// recordRequest is the capture a record task asks for. victimReplay comes from
-// the generate intent; approval is the Full Demo snapshot, if any.
-type recordRequest struct {
-	hudMode              string
-	segmentIDs           []string
-	portraitSafeKillfeed bool
-	source               planSource
-	victimReplay         bool
-	approval             *recapplan.Snapshot
-	preRollSeconds       int
-}
-
 func (w *RecordWorker) record(ctx context.Context, j job.Job, req recordRequest) (retErr error) {
-	hudMode, segmentIDs, portraitSafeKillfeed, source := req.hudMode, req.segmentIDs, req.portraitSafeKillfeed, req.source
-	var fullDemo *recapplan.Document
-	var sourcePlan *killplan.Plan
-	var err error
-	if req.approval != nil {
-		snapshot, err := recapplan.ResolveApproval(ctx, w.storage, j.ID, j.DemoPath, j.TargetSteamID, recording.FindFFmpeg(), *req.approval)
-		if err != nil {
-			return err
-		}
-		fullDemo = &snapshot.Document
-		adapted := fullDemo.KillPlan(*j.KillPlan)
-		sourcePlan = &adapted
-	} else {
-		sourcePlan, segmentIDs, err = recordSourcePlan(w.storage, j, req)
-		if err != nil {
-			return err
-		}
+	scope := recordScope{job: j, req: req}
+	if err := w.resolveSource(ctx, &scope); err != nil {
+		return err
 	}
 	// Serialize recording per job: two reels for the same job (each a distinct,
 	// non-deduped task with different segment ids) must not launch the recorder
 	// concurrently or race on the job-level recording result.
 	defer w.lockJob(j.ID)()
-
-	// A reel records only its selected segment(s); an empty selection means the
-	// whole source plan (the CLI all-kills default, or every recap round).
-	// Resolve to concrete ids so readiness, plan filtering, and accumulation
-	// all agree on the same set.
-	requested := segmentIDs
-	if len(requested) == 0 {
-		requested = killPlanSegmentIDs(sourcePlan)
-	}
-	// requestedPlan scopes only the identity/profile computation below; the
-	// plan actually handed to the recorder is narrowed further to the missing
-	// subset once readiness is known.
-	requestedPlan, err := filterKillPlanSegments(sourcePlan, requested)
-	if err != nil {
+	if err := w.admitCapture(ctx, &scope); err != nil {
 		return err
 	}
-
-	cfg := w.cfg.withDefaults()
-	// A per-job preset HUD (e.g. "Clean POV") overrides the worker default.
-	if hudMode != "" {
-		cfg.HUDMode = hudMode
-	}
-	// The encoder is part of the recording identity: it must reach both the
-	// recorder argv and the expected plan, or attempt validation rejects the
-	// recorder's echoed plan after a successful capture.
-	captureEncoder := studioCaptureEncoder(cfg.HLAEPath, cfg.FFmpegPath)
-	expectedStream, err := normalizedRecordingStream(requestedPlan, recording.StreamConfig{
-		HUDMode:              recording.HUDMode(cfg.HUDMode),
-		PortraitSafeKillfeed: portraitSafeKillfeed,
-		Encoder:              captureEncoder,
-		VictimReplay:         req.victimReplay && fullDemo == nil && source == planSourceKills,
-	})
-	if err != nil {
-		return fmt.Errorf("build recording profile: %w", err)
-	}
-	expectedProfile, err := recording.NewPlanFromKillPlan(*requestedPlan, "profile.dem", "profile", expectedStream, fullDemo)
-	if err != nil {
-		return fmt.Errorf("build expected recording identity: %w", err)
-	}
-	missing, reuse, err := recordingOutputsReady(ctx, w.storage, j.ID, requested, expectedProfile)
-	if err != nil {
-		return err
-	}
+	sourcePlan, fullDemo, requested, missing, reuse := scope.sourcePlan, scope.fullDemo, scope.requested, scope.missing, scope.reuse
+	cfg, captureEncoder, expectedStream, portraitSafeKillfeed := scope.cfg, scope.captureEncoder, scope.expectedStream, req.portraitSafeKillfeed
 	if len(missing) == 0 {
 		logWorkerSkip(j.ID, tasks.TypeRecordDemo, reuse.keys)
 		return nil

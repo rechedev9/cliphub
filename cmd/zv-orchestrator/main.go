@@ -348,6 +348,9 @@ func run() error {
 		httpapi.WithVoice(voiceDeps(cfg)),
 		httpapi.WithReplayVideo(replayVideoDeps(cfg)),
 	}
+	if recordWorker != nil {
+		handlerOpts = append(handlerOpts, httpapi.WithCaptureCheck(recordWorker))
+	}
 	if repos.DB() != nil {
 		handlerOpts = append(handlerOpts, httpapi.WithSyncLog(store.NewSyncLog(repos.DB())))
 		device, _ := os.Hostname()

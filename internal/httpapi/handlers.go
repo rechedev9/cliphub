@@ -166,6 +166,7 @@ type Handlers struct {
 	steamSessionCache   steamresolve.Session
 	labBundles          LabBundlePreparer
 	labBundleRoot       string
+	captureCheck        CaptureCheck
 	importedVideos      ImportedVideos
 	libraryRepo         LibraryRepository
 	hudThemes           HUDThemeRepository
@@ -1127,10 +1128,11 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Preset     string                 `json:"preset"`
-		Music      renderMusicRequest     `json:"music"`
-		Edit       renderplan.EditRequest `json:"edit"`
-		SegmentIDs []string               `json:"segment_ids"`
+		Preset       string                 `json:"preset"`
+		Music        renderMusicRequest     `json:"music"`
+		Edit         renderplan.EditRequest `json:"edit"`
+		SegmentIDs   []string               `json:"segment_ids"`
+		AllowCapture *bool                  `json:"allow_capture"` // false: a page load, which must never open CS2
 	}
 	if r.Body != nil {
 		switch err := decodeRenderJSONBody(w, r, &req, false); {
@@ -1197,10 +1199,14 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	portraitSafeKillfeed := capturePortraitSafeKillfeed(preset.KillfeedSource, intent.Edit)
-	recordTask, err := tasks.NewGenerateRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, intent)
+	intent.NoCapture = req.AllowCapture != nil && !*req.AllowCapture
+	recordTask, err := tasks.NewGenerateRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, capturePortraitSafeKillfeed(preset.KillfeedSource, intent.Edit), useRecapPlan, intent)
 	if err != nil {
 		internalError(w, "build record task", err)
+		return
+	}
+	if intent.NoCapture && h.captureNeeded(r.Context(), recordTask) {
+		writeCodedError(w, http.StatusConflict, captureRequired, "applying this change needs a CS2 capture, which only an explicit request starts")
 		return
 	}
 	// The task header is the worker's immutable source of truth. The job-scoped
@@ -1269,16 +1275,6 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 	h.queueSubtitles(r.Context(), j.ID, intent.Edit)
 	writeJSON(w, http.StatusAccepted, map[string]any{"id": j.ID, "task": tasks.TypeRecordDemo, "variant": intent.Variant})
-}
-
-// sameCapture reports whether two intents would enqueue the same record task,
-// i.e. the same HUD mode, segment selection, killfeed framing and recap flag.
-// Music and post-capture edit choices never change the capture, so a re-drive
-// that only differs there is still the duplicate the queue says it is.
-// capturePortraitSafeKillfeed brings CS2's notices into the 9:16 crop, unless the editor draws a centered
-// killfeed and the native ones must stay outside it; a 16:9 video made from a Short keeps the Short's framing.
-func capturePortraitSafeKillfeed(killfeedSource bool, edit renderplan.EditRequest) bool {
-	return edit.PortraitSafeKillfeed || killfeedSource && edit.Format == renderplan.FormatShort9x16 && !edit.CenteredKillfeed
 }
 
 func canGenerateFromStatus(status job.Status) bool {

@@ -27,6 +27,8 @@ const RECORDING_NOT_REUSABLE_PREFIX = 'recording_not_reusable:' as const;
 
 /** Prefix of the web proxy's own refusals (`lib/api/local-request-guard.ts`): the orchestrator never saw the request. */
 const LOCAL_API_REFUSAL_PREFIX = 'local API ' as const;
+/** A record task a page load sent, refused because its clips went missing: the same card as a refused generate. */
+const CAPTURE_REQUIRED_PREFIX = 'capture_required:' as const;
 
 const STUDIO_SESSION_MESSAGE =
   'Studio no aceptó la orden desde esta ventana. Cierra Studio, vuelve a abrirlo y pulsa Reintentar; ' +
@@ -36,6 +38,10 @@ const STUDIO_SESSION_MESSAGE =
 export const MISMATCH_REDRIVE_FAILURE_REASON =
   'El vídeo creado no coincide con las jugadas o los ajustes elegidos para este clip. ' +
   'Reintenta; si vuelve a fallar, elimina el clip y créalo de nuevo.';
+
+/** Shown instead of a capture the reconcile loop would start by itself to apply a stored change; Reintentar starts it. */
+export const CHANGE_NOT_APPLIED_REASON =
+  'Este vídeo aún no tiene tu último cambio y aplicarlo necesita grabar con CS2. Pulsa Reintentar para grabarlo y montarlo.';
 
 /** True when compose/render must re-record; re-rendering the stored capture cannot recover. */
 export function requiresRecapture(reason: string | undefined): boolean {
@@ -266,8 +272,11 @@ function classifyFailureReason(reason: string | undefined, context: FailureConte
   }
 
   // Client-minted and already user-facing Spanish: surface it verbatim.
-  if (reason === MISMATCH_REDRIVE_FAILURE_REASON) {
-    return { kind: 'render-mismatch', message: MISMATCH_REDRIVE_FAILURE_REASON, retryCanHelp: true };
+  if (reason === MISMATCH_REDRIVE_FAILURE_REASON || reason === CHANGE_NOT_APPLIED_REASON) {
+    return { kind: 'render-mismatch', message: reason, retryCanHelp: true };
+  }
+  if (reason.startsWith(CAPTURE_REQUIRED_PREFIX)) {
+    return { kind: 'render-mismatch', message: CHANGE_NOT_APPLIED_REASON, retryCanHelp: true };
   }
 
   if (reason.startsWith(DEMO_INCOMPATIBLE_PREFIX)) {

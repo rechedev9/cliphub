@@ -1,12 +1,14 @@
 // RealApiClient regression: a ready render that disagrees with the intent, or a
 // durable POST rejection, must never make the reconcile tick re-POST forever.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { RealApiClient } from './real.ts';
 import { buildEditRequest } from './edit-request.ts';
-import { MISMATCH_REDRIVE_FAILURE_REASON } from './failure-reason.ts';
-import { DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, FULL_DEMO_REEL_SUFFIX, coerceIntents, type ReelIntent } from './reel-store.ts';
+import { CHANGE_NOT_APPLIED_REASON, MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
+import { DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, FULL_DEMO_REEL_SUFFIX, coerceIntents, videoFromIntent, type ReelIntent } from './reel-store.ts';
 import type { EditConfig, Video } from './types.ts';
+import { FULL_DEMO_CAPTURE_VARIANT, currentFullDemoOptions, fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 
 const RECORDING_UNCONFIGURED_ERROR =
   'recording is not configured on this machine; set ZV_RECORDER_PATH, ZV_HLAE_PATH and ZV_CS2_PATH and restart the orchestrator';
@@ -17,6 +19,8 @@ type Call = { url: string; method: string; body?: Record<string, unknown> };
 
 /** Mutable orchestrator truth for one job; tests move it between ticks. */
 type Orchestrator = {
+  /** The render variant the reel reads; unset is DEFAULT_VARIANT. */
+  variant?: string;
   jobStatus: string;
   /** GET /renders/{variant} body, or null for 404 (nothing rendered yet). */
   render: Record<string, unknown> | null;
@@ -45,11 +49,12 @@ function fakeOrchestrator(jobId: string, state: Orchestrator): { calls: Call[]; 
     if (typeof init?.body === 'string') call.body = JSON.parse(init.body) as Record<string, unknown>;
     calls.push(call);
     if (url === `${base}/status`) return json({ status: state.jobStatus });
-    if (url === `${base}/renders/${DEFAULT_VARIANT}` && method === 'GET') {
+    const renders = `${base}/renders/${state.variant ?? DEFAULT_VARIANT}`;
+    if (url === renders && method === 'GET') {
       return state.render ? json(state.render) : json({ error: 'render variant not found' }, 404);
     }
     if (url === `${base}/generate` && method === 'POST') return state.generate();
-    if (url === `${base}/renders/${DEFAULT_VARIANT}` && method === 'POST') return state.renderPost();
+    if (url === renders && method === 'POST') return state.renderPost();
     throw new Error(`unexpected fetch: ${method} ${url}`);
   }) as typeof globalThis.fetch;
   return {
@@ -309,13 +314,118 @@ test('a failed render whose `error` says the capture is not reusable recaptures 
     const client = new RealApiClient();
     const { videoId } = seedReel(client, 'job-6');
     await tick(client);
-    // The reconcile tick reads the hint and re-drives capture on its own; a
-    // plain ffmpeg failure would have parked the reel on FALLO instead.
+    // The reconcile tick reads the hint and asks /generate, which records only if the
+    // orchestrator allows it; a plain ffmpeg failure would have parked the reel on FALLO.
     assert.equal(fake.posts('/generate').length, 1, 'recapture goes through /generate');
+    assert.equal(fake.posts('/generate')[0]?.body?.allow_capture, false, 'a page load forbids the capture');
     assert.equal(fake.posts(`/renders/${DEFAULT_VARIANT}`).length, 0, 'no render-only POST for a dead capture');
     const reel = (await client.listVideos()).find((v) => v.id === videoId);
     assert.equal(reel?.status, 'recording');
   } finally {
     fake.restore();
+  }
+});
+
+/** The approved Full Demo of the planner fixture; TrueView changes its plan and so its hash. */
+function fullDemoEdit(trueview: boolean): EditConfig {
+  const value: unknown = JSON.parse(readFileSync(new URL('../full-demo-plan.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoSnapshot(value));
+  value.document.options = currentFullDemoOptions(value.document.options);
+  if (trueview) {
+    value.document.options.capture.trueview = true;
+    value.document.plan_hash = 'b'.repeat(64);
+    value.approval.approved_plan_hash = value.document.plan_hash;
+  }
+  return fullDemoPlanEdit(value);
+}
+
+test('a reload never records with CS2 to apply a stored change: the card says so and Reintentar applies it', async () => {
+  const killfeed: EditConfig = { ...DEFAULT_EDIT_CONFIG, format: 'landscape-16x9', captureHud: 'deathnotices', portraitSafeKillfeed: true };
+  const cases: Array<{ name: string; rendered: EditConfig; wanted: EditConfig; wantedIds?: string[] }> = [
+    { name: 'capture style', rendered: killfeed, wanted: { ...killfeed, captureHud: 'clean' } },
+    { name: 'kill feed framing', rendered: killfeed, wanted: { ...killfeed, portraitSafeKillfeed: false } },
+    { name: 'pre-roll', rendered: DEFAULT_EDIT_CONFIG, wanted: { ...DEFAULT_EDIT_CONFIG, preRollSeconds: 8 } },
+    { name: 'victim replay', rendered: DEFAULT_EDIT_CONFIG, wanted: { ...DEFAULT_EDIT_CONFIG, victimReplay: true } },
+    { name: 'a play the capture lacks', rendered: DEFAULT_EDIT_CONFIG, wanted: DEFAULT_EDIT_CONFIG, wantedIds: ['seg-001', 'seg-002'] },
+    { name: 'Full Demo with TrueView', rendered: fullDemoEdit(false), wanted: fullDemoEdit(true) },
+  ];
+  for (const tc of cases) {
+    const full = tc.wanted.fullDemo !== undefined;
+    const variant = tc.wanted.format === 'landscape-16x9' ? FULL_DEMO_CAPTURE_VARIANT : DEFAULT_VARIANT;
+    const state: Orchestrator = {
+      variant,
+      jobStatus: 'done',
+      render: readyRender('rev-1', full ? EVERY_SEGMENT : ['seg-001'], tc.rendered),
+      generate: () => json({ id: 'job-8', task: 'record' }, 202),
+      renderPost: () => json({ accepted: true }, 202),
+    };
+    const fake = fakeOrchestrator('job-8', state);
+    try {
+      const client = new RealApiClient();
+      const segmentIds = tc.wantedIds ?? (full ? [] : ['seg-001']);
+      const stored = {
+        videoId: `job-8__${full ? FULL_DEMO_REEL_SUFFIX : segmentIds.join('_')}`, jobId: 'job-8', segmentIds, mode: 'clean', variant,
+        editConfig: tc.wanted, title: 'Test reel', map: 'de_dust2', score: '13-7', targetName: 'zack', createdAt: 1,
+      };
+      // The intent as Mis vídeos reads it back from localStorage after a reload.
+      const [reloaded] = coerceIntents(JSON.parse(JSON.stringify([stored])));
+      assert.ok(reloaded, tc.name);
+      const seedable = client as unknown as Seedable;
+      seedable.intents.set(reloaded.videoId, reloaded);
+      seedable.reels.set(reloaded.videoId, videoFromIntent(reloaded));
+      await tick(client);
+      await tick(client);
+      assert.equal(fake.calls.filter((c) => c.method === 'POST').length, 0, `${tc.name}: a page load sends nothing that can record`);
+      const card = await client.getVideo(reloaded.videoId);
+      assert.equal(card?.status, 'failed', `${tc.name}: the card says the change is not applied`);
+      const failure = parseFailureReason(card?.failureReason, { fullDemo: full });
+      assert.match(failure.message, /CS2/, `${tc.name}: it says applying the change records with CS2`);
+      assert.equal(failure.retryCanHelp, true, `${tc.name}: Reintentar is offered`);
+
+      await client.retryVideo(reloaded.videoId);
+      assert.equal(fake.posts('/generate').length, 1, `${tc.name}: Reintentar applies the change`);
+    } finally {
+      fake.restore();
+    }
+  }
+});
+
+test('a page load never lets /generate record: capture_required shows the card and Reintentar records', async () => {
+  const cases: Array<{ name: string; jobStatus: string; render: Record<string, unknown> | null; edit?: EditConfig }> = [
+    { name: 'a render-only change over freed clips', jobStatus: 'done', render: readyRender('rev-1', ['seg-001']), edit: { ...DEFAULT_EDIT_CONFIG, intro: true } },
+    { name: 'a capture no longer reusable', jobStatus: 'done', render: { status: 'failed', error: 'recording_not_reusable: capture fingerprint predates observer-steamid-input-v2' } },
+    { name: 'no render of the variant yet', jobStatus: 'parsed', render: null },
+  ];
+  for (const tc of cases) {
+    const state: Orchestrator = {
+      jobStatus: tc.jobStatus,
+      render: tc.render,
+      generate: () => json({ code: 'capture_required', error: 'applying this change needs a CS2 capture' }, 409),
+      renderPost: () => json({ accepted: true }, 202),
+    };
+    const fake = fakeOrchestrator('job-9', state);
+    try {
+      const client = new RealApiClient();
+      const intent = seedReel(client, 'job-9');
+      if (tc.edit) intent.editConfig = tc.edit;
+      await tick(client);
+      await tick(client);
+      const asked = fake.posts('/generate');
+      assert.equal(asked.length, 1, `${tc.name}: one ask, then the card waits`);
+      assert.equal(asked[0]?.body?.allow_capture, false, `${tc.name}: a page load forbids a capture`);
+      assert.equal(fake.posts(`/renders/${DEFAULT_VARIANT}`).length, 0, `${tc.name}: no render-only POST either`);
+      const card = await client.getVideo(intent.videoId);
+      assert.equal(card?.status, 'failed', tc.name);
+      assert.equal(card?.failureReason, CHANGE_NOT_APPLIED_REASON, `${tc.name}: the card says the change is not applied`);
+      assert.equal(parseFailureReason(card?.failureReason).retryCanHelp, true, `${tc.name}: Reintentar is offered`);
+
+      state.generate = () => json({ id: 'job-9', task: 'record' }, 202);
+      await client.retryVideo(intent.videoId);
+      const sent = fake.posts('/generate');
+      assert.equal(sent.length, 2, `${tc.name}: Reintentar asks again`);
+      assert.equal(sent[1]?.body !== undefined && 'allow_capture' in sent[1].body, false, `${tc.name}: a click may record`);
+    } finally {
+      fake.restore();
+    }
   }
 });

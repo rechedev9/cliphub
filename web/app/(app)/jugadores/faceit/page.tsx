@@ -13,7 +13,7 @@ import {
   EMPTY_RANKING_LIST, RANKING_CHOICE_KEY, RANKING_PAGE, initialRankingChoice, parseRankingChoice, rankingChoiceLabel,
   rankingListReducer, rankingOptions, sameRankingChoice, spanishCountryName, type RankingChoice,
 } from '@/lib/faceit-ranking';
-import { defaultPlayerTab, followedPlayersReducer, type PlayerTab } from '@/lib/followed-players';
+import { defaultPlayerTab, followedPlayersReducer, headerFollowFailure, profileFollowFailure, type FollowFailure, type PlayerTab } from '@/lib/followed-players';
 import { FollowPlayerForm } from '@/components/players/follow-player-form';
 import { PlayerMatches } from '@/components/players/player-matches';
 import { PlayerProfile } from '@/components/players/player-profile';
@@ -58,6 +58,7 @@ export default function FaceitPlayersPage(): ReactNode {
   const [busy, setBusy] = useState(false);
   const [unfollowingID, setUnfollowingID] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [followFailure, setFollowFailure] = useState<FollowFailure | null>(null);
   const [chosenTab, setChosenTab] = useState<PlayerTab | null>(null);
   const [rosterRefreshing, setRosterRefreshing] = useState(false);
   const [countries, setCountries] = useState<string[]>([]);
@@ -185,11 +186,12 @@ export default function FaceitPlayersPage(): ReactNode {
     void loadRankingPage(ranking.choice, ranking.players.length);
   }
 
-  async function follow(nickname: string): Promise<boolean> {
+  async function follow(nickname: string, profileID?: string): Promise<boolean> {
     // The first follow or the last unfollow would otherwise move the default tab under the user.
     setChosenTab(tab);
     setBusy(true);
     setError(null);
+    setFollowFailure(null);
     try {
       const followed = await followFaceitPlayer(nickname);
       followGeneration.current += 1;
@@ -197,7 +199,7 @@ export default function FaceitPlayersPage(): ReactNode {
       setState('ready');
       return true;
     } catch (err) {
-      setError(followErrorMessage(err));
+      setFollowFailure({ message: followErrorMessage(err), profileID });
       return false;
     } finally {
       setBusy(false);
@@ -219,6 +221,7 @@ export default function FaceitPlayersPage(): ReactNode {
     setChosenTab(tab);
     setUnfollowingID(playerID);
     setError(null);
+    setFollowFailure(null);
     try {
       await unfollowFaceitPlayer(playerID);
       followGeneration.current += 1;
@@ -261,20 +264,22 @@ export default function FaceitPlayersPage(): ReactNode {
       {shown ? <section aria-label={`Perfil de ${shown.nickname}`} className="studio-panel min-w-0 overflow-hidden">
         <PlayerProfile player={shown} unfollowing={unfollowingID !== null} place={place}
           onUnfollow={followedShown ? () => void onUnfollow(shown.id) : undefined}
-          onFollow={followedShown ? undefined : () => { if (!busy) void follow(shown.nickname); }} />
+          onFollow={followedShown ? undefined : () => { if (!busy) void follow(shown.nickname, shown.id); }}
+          followError={profileFollowFailure(followFailure, shown.id)} />
         <PlayerMatches key={shown.id} playerID={shown.id} enabled={state === 'ready'} />
       </section> : null}
     </div>;
   }
 
+  const headerError = error ?? headerFollowFailure(followFailure);
   return (
     <div className="measure-work flex min-w-0 flex-col gap-8">
       <StudioPageHeader title="Jugadores FACEIT" description="Sigue jugadores de FACEIT, mira el ranking de un país, una región o una zona, revisa sus partidas y sube la demo de la que quieras convertir en clips."
         actions={<FollowPlayerForm query={query} onQueryChange={setQuery} onSubmit={(event) => void onFollow(event)}
           disabled={state !== 'ready'} busy={busy} />} />
       {/* The empty state already says offline with its own Reintentar; a second red line above it is noise. */}
-      {error && !(state === 'offline' && players.length === 0) ? <div role="alert" className="flex flex-wrap items-center gap-3 text-body-sm text-destructive">
-        <p>{error}</p>
+      {headerError && !(state === 'offline' && players.length === 0) ? <div role="alert" className="flex flex-wrap items-center gap-3 text-body-sm text-destructive">
+        <p>{headerError}</p>
         {state === 'offline' && players.length > 0 ? <Button variant="outline" size="sm" onClick={() => void refresh()}>Reconectar</Button> : null}
       </div> : null}
       {body}

@@ -6,6 +6,7 @@ import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.t
 import { dataPlane } from './dataplane.ts';
 import { autoShortsTitle, reelPlaysSuffix } from './reel-identity.ts';
 import { isLandscapeHighlights } from '../reel-brief.ts';
+import { reelStyleLabel } from './reel-style-label.ts';
 
 /**
  * Finished renders the orchestrator still holds but no local reel intent points
@@ -25,13 +26,6 @@ export const RECOVERY_VARIANTS: readonly string[] = [
   'clean-pov-60',
   'full-hud-60',
 ];
-
-const VARIANT_LABELS: Record<string, string> = {
-  [RECOVERY_FULL_DEMO_VARIANT]: 'POV nativo',
-  'viral-60-clean': 'Kill Feed',
-  'clean-pov-60': 'Clean POV',
-  'full-hud-60': 'Full HUD',
-};
 
 /** The render half of a status read, as RealApiClient parses it. */
 export type RecoveryRender = {
@@ -95,7 +89,7 @@ export function recoveredVideo(
     : { ...DEFAULT_EDIT_CONFIG, ...render.editConfig, format: highlights ? 'landscape-16x9' : 'short-9x16', matchRecap: false };
   const plays = segmentIds.length;
   const selection = batch ? autoShortsTitle(plays) : `${plays} ${plays === 1 ? 'jugada' : 'jugadas'}`;
-  const title = full ? 'Demo completa' : `${selection} - ${VARIANT_LABELS[variant] ?? variant}`;
+  const title = full ? 'Demo completa' : `${selection} - ${reelStyleLabel(variant, editConfig)}`;
 
   const dp = dataPlane();
   const revision = long ? renderRevisionFromPrefix(render.artifactPrefix, job.jobId, variant) : undefined;

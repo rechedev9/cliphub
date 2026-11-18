@@ -1,7 +1,8 @@
-import { GENERATE_WORK_ACTIVE_CODE, PLAN_READY_STATUSES, SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
-import { MISMATCH_REDRIVE_FAILURE_REASON, requiresRecapture } from './failure-reason.ts';
+import { CAPTURE_REQUIRED_CODE, GENERATE_WORK_ACTIVE_CODE, PLAN_READY_STATUSES, SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
+import { CHANGE_NOT_APPLIED_REASON, MISMATCH_REDRIVE_FAILURE_REASON, requiresRecapture } from './failure-reason.ts';
 import { editConfigsEqual } from './edit-request.ts';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
+import { shortEditNeedsCapture } from '../produce/edit-capture.ts';
 
 export { requiresRecapture } from './failure-reason.ts';
 
@@ -112,6 +113,7 @@ function viewForAdmission(httpStatus: number, body: AdmissionBody, fallbackReaso
   if (httpStatus === 202 || httpStatus === 200) return null;
   if (httpStatus === 503 || body.code === SERVICE_UNAVAILABLE_CODE) return null;
   if (httpStatus === 409 && body.code === GENERATE_WORK_ACTIVE_CODE) return null;
+  if (httpStatus === 409 && body.code === CAPTURE_REQUIRED_CODE) return failed(CHANGE_NOT_APPLIED_REASON);
   if (httpStatus === 404) return unrecoverableJobGoneView();
   return failed(body.error || fallbackReason);
 }
@@ -225,11 +227,26 @@ export type DecideReelReconcileInput = ReconcileInput & {
   renderMusic?: MusicChoice;
   /** Revision this reel already re-drove from since the last explicit user action. */
   redrivenRevision?: RedrivenRevision;
+  /** An explicit user action since the page loaded asked for this reel; a page load alone never sets it. */
+  userAsked?: boolean;
 };
+
+/** Whether matching the intent records with CS2, as the record worker's reuse decides; a Full Demo or recap plan counts as yes. */
+function mismatchNeedsCapture(input: DecideReelReconcileInput): boolean {
+  const { intentEdit, renderEdit } = input;
+  if (!renderEdit || intentEdit.fullDemo || renderEdit.fullDemo || intentEdit.matchRecap || renderEdit.matchRecap) return true;
+  // Both sides are renders of one variant, so its preset HUD cancels out.
+  return shortEditNeedsCapture(
+    { playIds: input.renderSegmentIds ?? [], hudMode: undefined, edit: renderEdit },
+    { playIds: input.intentSegmentIds ?? [], hudMode: undefined, edit: intentEdit },
+  );
+}
 
 function mismatchDecision(input: DecideReelReconcileInput): ReelReconcileDecision {
   const previous = input.redrivenRevision;
   if (previous === undefined) {
+    // A page load is no user action: it never opens CS2 to apply a stored change.
+    if (!input.userAsked && mismatchNeedsCapture(input)) return { view: failed(CHANGE_NOT_APPLIED_REASON), adoptEffective: false };
     return { view: { status: 'queued', action: 'record' }, adoptEffective: false, mismatchRedrive: 'drive' };
   }
   if (previous.artifactPrefix === input.renderArtifactPrefix) {
