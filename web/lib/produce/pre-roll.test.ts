@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planToPlays, type KillPlan } from '../api/map.ts';
-import { preRolledSelection } from './pre-roll.ts';
-import { estimatedSelectionSeconds } from './short-selection.ts';
+import { preRolledPlays, preRolledSelection } from './pre-roll.ts';
+import { estimatedPlaySeconds, estimatedSelectionSeconds } from './short-selection.ts';
 
 const TICKRATE = 64;
 const at = (seconds: number): number => seconds * TICKRATE;
@@ -34,4 +34,12 @@ test('plays the longer lead-in joins are recorded once, under the earlier play',
   assert.deepEqual(preRolledSelection(plays, { selectedIds: all, preRollSeconds: 3 }).map((play) => play.id), ['seg-001', 'seg-002', 'seg-003']);
   assert.equal(estimate(5, new Set(['seg-002'])), 24, 'the later play alone still records the joined window');
   assert.equal(estimate(3, new Set(['seg-002'])), 8);
+});
+
+test('each play row shows the window the video records for it at the chosen pre-roll', () => {
+  const rows = (preRollSeconds: 3 | 5 | 8): number[] => preRolledPlays(plays, preRollSeconds).map((play) => estimatedPlaySeconds(play));
+  assert.deepEqual(rows(3), [13, 8, 8]);
+  assert.deepEqual(rows(5), [24, 24, 10], 'either row of round 2 records the joined 24 s play');
+  assert.deepEqual(rows(8), [27, 27, 13]);
+  assert.deepEqual(preRolledPlays(plays, 8).map((play) => play.id), ['seg-001', 'seg-002', 'seg-003'], 'every play keeps its row');
 });
