@@ -25,6 +25,9 @@ func subtitleCues(short ShortEdit) []subtitles.Cue {
 	if short.Intro {
 		floor = transitionEnd(short, winProbHookSeconds)
 	}
+	if end, ok := openingCardWindow(short); ok && openingPlayerCard(short) != "" {
+		floor = max(floor, end)
+	}
 	if cardStart, _, ok := statsCardWindow(short); ok {
 		ceiling = cardStart
 	}

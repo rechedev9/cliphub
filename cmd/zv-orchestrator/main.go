@@ -242,6 +242,7 @@ func run() error {
 			Timeout:     cfg.RenderTimeout,
 			MusicDir:    cfg.MusicDir,
 			Faceit:      faceitClient,
+			Library:     repos.Library,
 
 			KeepFullDemoCaptures: cfg.KeepDemoCaptures,
 		})

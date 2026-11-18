@@ -2,6 +2,7 @@ import type { ReelIntent } from './reel-store';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import { isBrandBanner, isBrandWatermark } from '../brand-kit.ts';
 import { isCustomHudTheme } from '../custom-hud.ts';
+import { isPlayerCardId } from '../player-cards.ts';
 import { coerceRadarOpacity, isRadarPosition, isRadarSize } from '../radar-overlay.ts';
 import {
   DEFAULT_PRE_ROLL_SECONDS,
@@ -86,6 +87,9 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   if (edit.player_labels === true) parsed.playerLabels = true;
   if (edit.grenade_trails === true) parsed.grenadeTrails = true;
   if (edit.stats_card === true) parsed.statsCard = true;
+  if (isPlayerCardId(edit.opening_card)) parsed.openingCard = edit.opening_card;
+  if (isPlayerCardId(edit.end_card)) parsed.endCard = edit.end_card;
+  if (isPlayerCardId(edit.cover_card)) parsed.coverCard = edit.cover_card;
   // The effective edit holds the kit copy the render used; true is a request that has not been rendered yet.
   if (edit.brand_watermark === true || isBrandWatermark(edit.brand_watermark)) parsed.brandWatermark = true;
   if (edit.brand_banner === true || isBrandBanner(edit.brand_banner)) parsed.brandBanner = true;

@@ -320,6 +320,10 @@ export type EditConfig = {
   grenadeTrails?: boolean;
   /** 9:16 only: a closing card with the player's match stats and FACEIT data when known. */
   statsCard?: boolean;
+  /** One-player 9:16 Shorts only: a player card template id per slot; the end card replaces statsCard. */
+  openingCard?: string;
+  endCard?: string;
+  coverCard?: string;
   /** Shorts only: the brand kit's logo as a watermark; the render copies the saved kit. */
   brandWatermark?: boolean;
   /** Shorts only: the brand kit's own sponsor banner; it replaces the affiliate banner. */

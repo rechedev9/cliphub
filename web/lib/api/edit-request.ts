@@ -37,6 +37,9 @@ export type EditRequestBody = {
   player_labels?: boolean;
   grenade_trails?: boolean;
   stats_card?: boolean;
+  opening_card?: string;
+  end_card?: string;
+  cover_card?: string;
   brand_watermark?: boolean;
   brand_banner?: boolean;
   cover_strategy: EditConfig['coverStrategy'];
@@ -81,7 +84,12 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     if (edit.winProbability && !edit.deathReel) body.win_probability = true;
     if (edit.playerLabels) body.player_labels = true;
     if (edit.grenadeTrails) body.grenade_trails = true;
-    if (edit.statsCard && edit.format === 'short-9x16') body.stats_card = true;
+    if (edit.statsCard && edit.format === 'short-9x16' && !edit.endCard) body.stats_card = true;
+    if (edit.format === 'short-9x16') {
+      if (edit.openingCard) body.opening_card = edit.openingCard;
+      if (edit.endCard) body.end_card = edit.endCard;
+      if (edit.coverCard && edit.coverStrategy !== 'no-cover') body.cover_card = edit.coverCard;
+    }
     if (edit.brandWatermark) body.brand_watermark = true;
     if (edit.brandBanner && !edit.keyDropStyle?.trim()) body.brand_banner = true;
   }

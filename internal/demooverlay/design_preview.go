@@ -1,11 +1,8 @@
 package demooverlay
 
 import (
-	"fmt"
-	"regexp"
-	"strings"
-
 	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/htmlstill"
 )
 
 // PreviewDocument is the example match of the design previews: the players of
@@ -22,24 +19,8 @@ func PreviewDocument() Document {
 	return BuildForSource(roster, "", nil)
 }
 
-// The embedded fonts would make each thumbnail about 2 MB, so previews draw with the fallback font.
-var pageFontFaces = regexp.MustCompile(`@font-face\{[^}]*\}`)
-
 // PreviewSVG wraps a design page as a scalable SVG image, so an <img> shows the
 // renderer's own page. The page body must be well-formed XHTML.
 func PreviewSVG(page []byte) ([]byte, error) {
-	html := pageFontFaces.ReplaceAllString(string(page), "")
-	styleStart, styleEnd := strings.Index(html, "<style>"), strings.Index(html, "</style>")
-	bodyStart, bodyEnd := strings.Index(html, "<body"), strings.LastIndex(html, "</body>")
-	if styleStart < 0 || styleEnd < styleStart || bodyStart < styleEnd || bodyEnd < bodyStart {
-		return nil, fmt.Errorf("overlay page has no style and body to preview")
-	}
-	var out strings.Builder
-	fmt.Fprintf(&out, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d"><foreignObject width="%d" height="%d"><html xmlns="http://www.w3.org/1999/xhtml"><head>`,
-		FrameWidth, FrameHeight, FrameWidth, FrameHeight, FrameWidth, FrameHeight)
-	out.WriteString(html[styleStart : styleEnd+len("</style>")])
-	out.WriteString("</head>")
-	out.WriteString(html[bodyStart : bodyEnd+len("</body>")])
-	out.WriteString("</html></foreignObject></svg>")
-	return []byte(out.String()), nil
+	return htmlstill.PreviewSVG(page, htmlstill.Landscape)
 }

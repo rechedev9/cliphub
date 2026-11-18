@@ -224,7 +224,7 @@ func generatedEditEffects(short ShortEdit) []Effect {
 	effects = append(effects, generatedKillfeedEffects(short)...)
 	effects = append(append(append(effects, generatedBookendEffects(short)...), generatedStatsCardEffects(short)...), generatedWinProbEffects(short)...)
 	effects = append(append(effects, generatedKeyDropEffect(short)...), generatedBrandEffects(short)...)
-	effects = append(effects, generatedFullDemoOverlayEffects(short)...)
+	effects = append(append(effects, generatedFullDemoOverlayEffects(short)...), generatedPlayerCardEffects(short)...)
 	return effects
 }
 
@@ -677,7 +677,7 @@ func generatedTransitionEffects(short ShortEdit) []Effect {
 func generatedBookendEffects(short ShortEdit) []Effect {
 	var effects []Effect
 	width, height := outputDimensions(short)
-	if short.Intro {
+	if short.Intro && openingPlayerCard(short) == "" {
 		text := introText(short)
 		effects = append(effects, Effect{
 			Type:           EffectText,

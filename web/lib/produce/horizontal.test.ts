@@ -43,6 +43,10 @@ test('Crear horizontal opens the summary with the Short plays in their order, it
   assert.deepEqual(dropped, ['HUD vertical', 'tarjeta de estadísticas', 'radar de ClipHub']);
 });
 
+test('the horizontal names the player cards the Short had', () => {
+  assert.deepEqual(draftOf({ dropped: ['player_cards'] }).dropped, ['cartas de jugador']);
+});
+
 test('a draft without plays or a 16:9 edit is refused', () => {
   assert.equal(projectHorizontalDraft({ ...BODY, segment_ids: [] }), null);
   assert.equal(projectHorizontalDraft({ ...BODY, edit: { ...BODY.edit, format: 'short-9x16' } }), null);

@@ -48,14 +48,14 @@ test('proxy rejects cross-origin and DNS-rebound reads', async () => {
 test('proxy preserves the API matcher and streaming-route exclusions', () => {
   assert.deepEqual(config, {
     matcher: [
-      '/api/((?!demos/scan/?$|library/demos/?$|library/uploads/?$|library/import-package/?$|library/matches/[^/]+/voice/?$|library/matches/[^/]+/replay-video/?$|streams/?$|editor/assets/?$|full-demo/overlay-images/?$|session/bootstrap/?$|voice-plugin/gamestate/?$).*)',
+      '/api/((?!demos/scan/?$|library/demos/?$|library/uploads/?$|library/import-package/?$|library/matches/[^/]+/voice/?$|library/matches/[^/]+/replay-video/?$|streams/?$|editor/assets/?$|full-demo/overlay-images/?$|demos/[^/]+/player-card/image/?$|session/bootstrap/?$|voice-plugin/gamestate/?$).*)',
       '/((?!api|_next/|favicon|icon\\.svg|.*\\..*).*)',
     ],
   });
 });
 
 test('proxy: excluded API routes keep their own in-handler guard', async () => {
-  for (const path of ['/api/streams', '/api/editor/assets', '/api/library/demos', '/api/library/uploads', '/api/session/bootstrap']) {
+  for (const path of ['/api/streams', '/api/editor/assets', '/api/library/demos', '/api/library/uploads', '/api/session/bootstrap', '/api/demos/0d2c7f3e-5b1a-4c8e-9f00-1a2b3c4d5e6f/player-card/image']) {
     const response = await proxy(new NextRequest(`http://127.0.0.1:3000${path}`, {
       headers: { host: 'attacker.example:3000' },
     }));

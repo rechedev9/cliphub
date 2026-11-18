@@ -23,6 +23,7 @@ const DROPPED_LABEL: Readonly<Record<string, string>> = {
   stats_card: 'tarjeta de estadísticas',
   radar: 'radar de ClipHub',
   kill_counter: 'contador de kills',
+  player_cards: 'cartas de jugador',
 };
 
 function field(body: unknown, key: string): unknown {
