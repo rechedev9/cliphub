@@ -110,7 +110,9 @@ type Demo struct {
 	ErrorCode    string     `json:"error_code,omitempty"`
 	Error        string     `json:"error,omitempty"`
 	Tags         []string   `json:"tags"`
-	MatchID      *uuid.UUID `json:"match_id,omitempty"`
+	// Title is a person's name for the demo; the file on disk and the videos keep their own names.
+	Title   string     `json:"title,omitempty"`
+	MatchID *uuid.UUID `json:"match_id,omitempty"`
 	// JobIDs are the Crear jobs made from this demo, oldest link first, so a
 	// match can list the videos made from it.
 	JobIDs []uuid.UUID `json:"job_ids"`
@@ -141,6 +143,8 @@ type DemoFile struct {
 type DemoPatch struct {
 	Source *Source
 	Tags   *[]string
+	// Title replaces the title; an empty one clears it.
+	Title *string
 }
 
 // Match is one map played, as read from one demo.
@@ -156,6 +160,7 @@ type Match struct {
 	RoundCount    int           `json:"round_count"`
 	Teams         []MatchTeam   `json:"teams"`
 	Players       []MatchPlayer `json:"players,omitempty"`
+	DemoTitle     string        `json:"demo_title,omitempty"`
 	CreatedAt     time.Time     `json:"created_at"`
 	UpdatedAt     time.Time     `json:"updated_at"`
 }

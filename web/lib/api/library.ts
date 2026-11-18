@@ -54,6 +54,8 @@ export type LibraryDemo = {
   error_code?: string;
   error?: string;
   tags: string[];
+  /** The person's own name for the demo; absent when it has none. */
+  title?: string;
   /** Crear jobs made from this demo, oldest first: the match's videos hang off them. */
   job_ids: string[];
   match_id?: string;
@@ -97,6 +99,8 @@ export type LibraryMatch = {
   round_count: number;
   teams: LibraryMatchTeam[];
   players?: LibraryMatchPlayer[];
+  /** The title of the match's demo, when it has one. */
+  demo_title?: string;
   created_at: string;
   updated_at: string;
 };
@@ -257,7 +261,8 @@ export function getLibraryDemo(demoId: string): Promise<LibraryDemo> {
   return request<LibraryDemo>(`/demos/${id(demoId)}`);
 }
 
-export function patchLibraryDemo(demoId: string, patch: { source?: LibrarySource; tags?: string[] }): Promise<LibraryDemo> {
+/** An empty title clears it; the server trims it and refuses a line break or more than 80 characters. */
+export function patchLibraryDemo(demoId: string, patch: { source?: LibrarySource; tags?: string[]; title?: string }): Promise<LibraryDemo> {
   return request<LibraryDemo>(`/demos/${id(demoId)}`, jsonInit('PATCH', patch));
 }
 

@@ -26,7 +26,7 @@ func listMatchesStudio(t *testing.T) *mcp.ClientSession {
 			return
 		}
 		_, _ = w.Write([]byte(`{"matches":[
-			{"id":"` + listMatchA + `","demo_id":"` + listDemoA + `","series_id":"` + testSeriesID + `","source":"faceit","map":"de_mirage","played_at":"2026-11-05T20:00:00Z","round_count":24,"teams":[]},
+			{"id":"` + listMatchA + `","demo_id":"` + listDemoA + `","series_id":"` + testSeriesID + `","source":"faceit","demo_title":"Final IEM","map":"de_mirage","played_at":"2026-11-05T20:00:00Z","round_count":24,"teams":[]},
 			{"id":"` + listMatchB + `","demo_id":"` + listDemoB + `","source":"scrim","map":"de_nuke","played_at":"2026-11-01T20:00:00Z","round_count":26,"teams":[{"key":"ct-start","team_id":"` + testTeamID + `"},{"key":"t-start","team_id":"` + testRivalID + `"}]}]}`))
 	})
 	mux.HandleFunc("GET /api/library/demos", func(w http.ResponseWriter, _ *http.Request) {
@@ -69,7 +69,7 @@ func TestListMatchesShowsKindSeriesAndVeto(t *testing.T) {
 		t.Fatalf("ids = %v, want %v", listedIDs(out), want)
 	}
 	a := out.Matches[0]
-	if a.Kind != "oficial" || a.Series == nil || a.Series.Format != "bo3" || a.Series.MapRole != "pick" || a.Series.PickedBy != "Vitality" || len(a.Series.Vetoes) != 2 || len(a.Tags) != 1 {
+	if a.Kind != "oficial" || a.Series == nil || a.Series.Format != "bo3" || a.Series.MapRole != "pick" || a.Series.PickedBy != "Vitality" || len(a.Series.Vetoes) != 2 || len(a.Tags) != 1 || a.Title != "Final IEM" {
 		t.Errorf("first match = %+v series %+v", a, a.Series)
 	}
 	if b := out.Matches[1]; b.Kind != "scrim" || b.Series != nil || b.HasPOV {

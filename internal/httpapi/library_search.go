@@ -202,7 +202,7 @@ func (h *Handlers) searchPlayers(ctx context.Context, q library.SearchQuery, lim
 	return out, nil
 }
 
-// searchMatches reads the newest matches, of the query's map when it names one.
+// searchMatches reads the newest matches, of the query's map when it names one; a titled demo's match goes by its title.
 func (h *Handlers) searchMatches(ctx context.Context, q library.SearchQuery, limit int) ([]searchResult, error) {
 	if q.Grenade != "" {
 		return nil, nil
@@ -220,8 +220,8 @@ func (h *Handlers) searchMatches(ctx context.Context, q library.SearchQuery, lim
 		for _, t := range m.Teams {
 			names = append(names, t.ClanName, t.TeamName)
 		}
-		if q.Holds(append(names, m.Map)...) {
-			out = append(out, searchResult{Kind: searchMatch, ID: m.ID.String(), Title: matchTitle(m), Map: m.Map,
+		if q.Holds(append(names, m.Map, m.DemoTitle)...) {
+			out = append(out, searchResult{Kind: searchMatch, ID: m.ID.String(), Title: cmp.Or(m.DemoTitle, matchTitle(m)), Map: m.Map,
 				Detail: m.PlayedAt.UTC().Format("2006-01-02")})
 		}
 	}

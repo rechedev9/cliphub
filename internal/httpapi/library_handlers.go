@@ -452,10 +452,11 @@ func (h *Handlers) GetLibraryDemo(w http.ResponseWriter, r *http.Request) {
 type patchLibraryDemoRequest struct {
 	Source *library.Source `json:"source"`
 	Tags   *[]string       `json:"tags"`
+	Title  *string         `json:"title"`
 }
 
 // PatchLibraryDemo handles PATCH /api/library/demos/{id}: a manual source
-// (it then survives every re-analysis) and the full tag set.
+// (it then survives every re-analysis), the full tag set and the title.
 func (h *Handlers) PatchLibraryDemo(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
 		return
@@ -473,10 +474,14 @@ func (h *Handlers) PatchLibraryDemo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "source must be valve, faceit, hltv, scrim or unknown")
 		return
 	}
+	if err := req.cleanTitle(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if req.Source != nil && h.sharedDemo(w, r.Context(), id) {
 		return
 	}
-	d, err := h.libraryRepo.UpdateDemo(r.Context(), id, library.DemoPatch{Source: req.Source, Tags: req.Tags})
+	d, err := h.libraryRepo.UpdateDemo(r.Context(), id, library.DemoPatch{Source: req.Source, Tags: req.Tags, Title: req.Title})
 	if err != nil {
 		writeLibraryError(w, "update demo", err)
 		return

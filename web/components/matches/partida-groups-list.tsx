@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { EllipsisVertical, FileText, RefreshCw, Trash2, TriangleAlert, Video } from 'lucide-react';
-import type { LibrarySource } from '@/lib/api/library';
+import { EllipsisVertical, FileText, Pencil, RefreshCw, Trash2, TriangleAlert, Video } from 'lucide-react';
+import type { LibraryDemo, LibrarySource } from '@/lib/api/library';
 import type { LibrarySeries } from '@/lib/api/veto';
 import { matchHref, matchReplayHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
@@ -15,6 +15,7 @@ import { deleteErrorMessage } from '@/lib/delete-error';
 import { OUTCOME_LABEL, matchTitle, partidaDate, withoutDemo, type Outcome, type PartidaRow } from '@/lib/library/partidas';
 import { DayHeading, MapCell, SeriesStrip, TwoDCell, TwoDLink, mapTag, type MapEdge, type MapTag } from '@/components/matches/series-block';
 import { DemoStatus, OutcomeBadge, RowActions, ScoreStack, removeDemo, type RowHandlers } from '@/components/matches/partida-cells';
+import { DemoTitleEditor } from '@/components/matches/demo-title-editor';
 import { PartidaSource } from '@/components/matches/partida-source';
 import { PartidaTags } from '@/components/matches/partida-tags';
 import { PartidaVoice } from '@/components/matches/partida-voice';
@@ -42,6 +43,7 @@ export type GroupListContext = {
   onToggle: (demoId: string) => void;
   onTagsChanged: (demoId: string, tags: string[]) => void;
   onSourceChange: (demoId: string, source: LibrarySource) => void;
+  onTitleSaved: (saved: LibraryDemo) => void;
 };
 
 function markTagOf(mark: VetoMark): MapTag {
@@ -51,11 +53,15 @@ function markTagOf(mark: VetoMark): MapTag {
 
 const EDGE_OF_OUTCOME: Record<Outcome, MapEdge> = { win: 'win', loss: 'loss', draw: 'none' };
 
-/** The row kebab: the record of the partida, a new analysis and the removal, which the row no longer shows. */
-function RowMenu({ row, name, handlers }: { row: PartidaRow; name: string; handlers: RowHandlers }): ReactNode {
+type RowMenuProps = { row: PartidaRow; name: string; handlers: RowHandlers; onRename: () => void };
+
+/** The row kebab: the record of the partida, its title, a new analysis and the removal, which the row no longer shows. */
+function RowMenu({ row, name, handlers, onRename }: RowMenuProps): ReactNode {
   const { demo, match } = row;
   const [armed, setArmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Renombrar hands focus to the title field, so the closing menu must not take it back to the kebab.
+  const renamingRef = useRef(false);
   // A failed row already shows Reintentar and its delete inline.
   if (match === null || demo.state === 'failed') return null;
   // A shared or pro match has no .dem on this PC to analyse again.
@@ -78,12 +84,28 @@ function RowMenu({ row, name, handlers }: { row: PartidaRow; name: string; handl
             <EllipsisVertical aria-hidden />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent
+          align="end"
+          onCloseAutoFocus={(event) => {
+            if (!renamingRef.current) return;
+            renamingRef.current = false;
+            event.preventDefault();
+          }}
+        >
           <DropdownMenuItem asChild>
             <Link href={matchHref(match.id)}>
               <FileText aria-hidden />
               Detalles de la demo
             </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              renamingRef.current = true;
+              onRename();
+            }}
+          >
+            <Pencil aria-hidden />
+            Renombrar
           </DropdownMenuItem>
           {reanalyze === undefined ? null : (
             <DropdownMenuItem onSelect={() => reanalyze(demo.id)}>
@@ -113,9 +135,23 @@ function RowMenu({ row, name, handlers }: { row: PartidaRow; name: string; handl
   );
 }
 
+type RowTitleProps = { demo: LibraryDemo; renaming: boolean; onSaved: (saved: LibraryDemo) => void; onClose: () => void };
+
+/** The demo's title at the head of the row's details, or its field while Renombrar is open. */
+function RowTitle({ demo, renaming, onSaved, onClose }: RowTitleProps): ReactNode {
+  if (renaming) return <DemoTitleEditor demo={demo} onSaved={onSaved} onClose={onClose} className="w-full max-w-80" />;
+  if (demo.title === undefined || demo.title === '') return null;
+  return (
+    <span className="max-w-64 truncate text-body-sm font-semibold text-fg-1" title={demo.title}>
+      {demo.title}
+    </span>
+  );
+}
+
 /** One map of the library: result edge, name with its veto tag, scores, POV, voice, source, tags and the 2D cell. */
 function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; context: GroupListContext }): ReactNode {
   const { demo, match } = row;
+  const [renaming, setRenaming] = useState(false);
   const outcome = ownOutcome(row, context.ownTeam);
   const pov = hasPov(row, context.povJobs);
   const voice = match ? context.voices.get(match.id) : undefined;
@@ -165,6 +201,7 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
         className="@max-[40rem]/content:grow"
       />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2 @max-[40rem]/content:basis-full">
+        <RowTitle demo={demo} renaming={renaming} onSaved={context.onTitleSaved} onClose={() => setRenaming(false)} />
         {match && demo.state !== 'failed' ? (
           <span className="flex items-center gap-3">
             <ScoreStack match={match} ownTeam={context.ownTeam} />
@@ -195,7 +232,7 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
       ) : null}
       <div className="flex shrink-0 items-center gap-1 px-2 @max-[40rem]/content:pb-2 @max-[40rem]/content:empty:hidden">
         <RowActions row={row} handlers={context.handlers} />
-        <RowMenu row={row} name={name} handlers={context.handlers} />
+        <RowMenu row={row} name={name} handlers={context.handlers} onRename={() => setRenaming(true)} />
       </div>
     </li>
   );

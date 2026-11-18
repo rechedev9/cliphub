@@ -29,7 +29,7 @@ func (f *fakeLibrary) connect(t *testing.T) *mcp.ClientSession {
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
-	demo := `{"id":"` + testDemoID + `","file_name":"final.dem","state":"ready","source":"faceit","tags":["ESL"],"imported_at":"2026-11-01T10:00:00Z"}`
+	demo := `{"id":"` + testDemoID + `","file_name":"final.dem","title":"Final ESL","state":"ready","source":"faceit","tags":["ESL"],"imported_at":"2026-11-01T10:00:00Z"}`
 	demo2 := `{"id":"` + testDemoID2 + `","file_name":"semi.dem","state":"ready","source":"faceit","tags":[],"imported_at":"2026-11-02T10:00:00Z"}`
 	mux.HandleFunc("GET /api/library/demos/"+testDemoID, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(demo)) })
 	mux.HandleFunc("GET /api/library/demos/"+testDemoID2, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(demo2)) })
@@ -97,6 +97,21 @@ func TestUpdateDemoAddsAndRemovesSingleTags(t *testing.T) {
 	}
 	toolFails(t, cs, "update_demo", map[string]any{"id": testDemoID, "tags": []string{"a"}, "add_tags": []string{"b"}}, "not both")
 	toolFails(t, cs, "update_demo", map[string]any{"id": testDemoID, "add_tags": []string{"a,b"}}, "comma")
+}
+
+// An empty title reaches the server as a clear; the reply carries the title the server kept.
+func TestUpdateDemoSetsAndClearsTheTitle(t *testing.T) {
+	f := &fakeLibrary{}
+	cs := f.connect(t)
+	var out demoOut
+	callTool(t, cs, "update_demo", map[string]any{"id": testDemoID, "title": "Final ESL"}, &out)
+	if out.Title != "Final ESL" {
+		t.Fatalf("title = %q, want the demo's title", out.Title)
+	}
+	callTool(t, cs, "update_demo", map[string]any{"id": testDemoID, "title": ""}, &out)
+	if want := []string{`{"title":"Final ESL"}`, `{"title":""}`}; !slices.Equal(f.patches, want) {
+		t.Fatalf("patches = %q, want %q", f.patches, want)
+	}
 }
 
 func TestDeleteDemoNeedsTheApprovalCode(t *testing.T) {

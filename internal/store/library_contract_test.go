@@ -495,6 +495,39 @@ func TestLibraryRepositoryContract(t *testing.T) {
 			},
 		},
 		{
+			name: "a demo title is read back on demos and matches, survives other edits and a re-analysis, and clears when empty",
+			run: func(t *testing.T, f libraryFixture) {
+				d := f.demo("titled", 0, "ESL")
+				m := f.analyze(d, "de_mirage", side{"A", 13, nil}, side{"B", 7, nil})
+				title := "Final ESL contra NAVI"
+				updated, err := f.repo.UpdateDemo(f.ctx, d.ID, library.DemoPatch{Title: &title})
+				if err != nil || updated.Title != title || len(updated.Tags) != 1 || updated.Source != m.Source {
+					t.Fatalf("UpdateDemo(title) = %+v, %v; want the title and the tags and source kept", updated, err)
+				}
+				scrim := library.SourceScrim
+				if kept, err := f.repo.UpdateDemo(f.ctx, d.ID, library.DemoPatch{Source: &scrim}); err != nil || kept.Title != title {
+					t.Fatalf("UpdateDemo(source) = %+v, %v; want the title kept", kept, err)
+				}
+				f.analyze(d, "de_mirage", side{"A", 13, nil}, side{"B", 8, nil})
+				if listed, err := f.repo.ListDemos(f.ctx, library.DemoFilter{}); err != nil || len(listed) != 1 || listed[0].Title != title {
+					t.Fatalf("ListDemos after a re-analysis = %+v, %v; want the title", listed, err)
+				}
+				if got, err := f.repo.GetMatch(f.ctx, m.ID); err != nil || got.DemoTitle != title {
+					t.Fatalf("GetMatch = %+v, %v; want the demo title", got, err)
+				}
+				if all, err := f.repo.ListMatches(f.ctx, library.MatchFilter{}); err != nil || len(all) != 1 || all[0].DemoTitle != title {
+					t.Fatalf("ListMatches = %+v, %v; want the demo title", all, err)
+				}
+				empty := ""
+				if cleared, err := f.repo.UpdateDemo(f.ctx, d.ID, library.DemoPatch{Title: &empty}); err != nil || cleared.Title != "" {
+					t.Fatalf("UpdateDemo(empty title) = %+v, %v; want no title", cleared, err)
+				}
+				if got, _ := f.repo.GetMatch(f.ctx, m.ID); got.DemoTitle != "" {
+					t.Fatalf("match after clearing = %q, want no demo title", got.DemoTitle)
+				}
+			},
+		},
+		{
 			name: "missing records report ErrNotFound and DeleteDemo is idempotent",
 			run: func(t *testing.T, f libraryFixture) {
 				missing := uuid.New()
