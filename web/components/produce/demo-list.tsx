@@ -110,6 +110,14 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
     void refresh();
   }, [refresh]);
 
+  // The saved demo replaces its copy at once; the refresh then reads every other change.
+  const onTitleSaved = useCallback((saved: LibraryDemo) => {
+    const swap = (row: LibraryDemoRow): LibraryDemoRow => (row.demo.id === saved.id ? { ...row, demo: saved } : row);
+    setLibraryRows((rows) => rows.map(swap));
+    setLinked((links) => new Map([...links].map(([jobId, row]) => [jobId, swap(row)])));
+    void refresh();
+  }, [refresh]);
+
   const banner = offline === null ? null : <HubBanner offline={offline} onRetry={onChange} />;
   // The upload below is the empty state: an empty list adds nothing to it.
   if (state === null || state.rows.length + libraryRows.length === 0) return banner;
@@ -118,8 +126,12 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
   const anyMade = rows.some((row) => madeCount(row, format) > 0);
   const total = rows.length + libraryRows.length;
   const filtering = total > FILTER_MIN_DEMOS && query.trim() !== '';
-  const shownRows = filtering ? rows.filter((row) => matchesDemoQuery(demoSearchText({ map: row.match.map, player: row.match.player, library: linked.get(row.match.id)?.match }), query)) : rows;
-  const shownLibrary = filtering ? libraryRows.filter((row) => matchesDemoQuery(demoSearchText({ map: row.match.map, library: row.match }), query)) : libraryRows;
+  const cardText = (row: (typeof rows)[number]): string => {
+    const library = linked.get(row.match.id);
+    return demoSearchText({ map: row.match.map, player: row.match.player, title: library?.demo.title, library: library?.match });
+  };
+  const shownRows = filtering ? rows.filter((row) => matchesDemoQuery(cardText(row), query)) : rows;
+  const shownLibrary = filtering ? libraryRows.filter((row) => matchesDemoQuery(demoSearchText({ map: row.match.map, title: row.demo.title, library: row.match }), query)) : libraryRows;
   const noMatch = filtering && shownRows.length + shownLibrary.length === 0;
 
   return (
@@ -143,17 +155,17 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
       {banner}
       {total > FILTER_MIN_DEMOS ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <Input type="search" aria-label="Filtrar demos" placeholder="Filtrar por mapa, equipo o jugador" value={query} onChange={(event) => setQuery(event.target.value)} className="max-w-80" />
+          <Input type="search" aria-label="Filtrar demos" placeholder="Filtrar por título, mapa, equipo o jugador" value={query} onChange={(event) => setQuery(event.target.value)} className="max-w-80" />
           {filtering ? <span role="status" className="text-meta text-fg-3">{noMatch ? 'Ninguna demo coincide' : `${shownRows.length + shownLibrary.length} de ${total}`}</span> : null}
         </div>
       ) : null}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(17.5rem,1fr))] gap-4" aria-busy={offline !== null || undefined}>
         {addTile}
         {shownRows.map((row) => (
-          <DemoCard key={row.match.id} row={row} format={format} library={linked.get(row.match.id)} onChange={onChange} onDelete={() => deleteJobs(row.jobIds, onChange)} />
+          <DemoCard key={row.match.id} row={row} format={format} library={linked.get(row.match.id)} onChange={onChange} onTitleSaved={onTitleSaved} onDelete={() => deleteJobs(row.jobIds, onChange)} />
         ))}
         {shownLibrary.map((row) => (
-          <LibraryDemoCard key={row.demo.id} row={row} format={format} />
+          <LibraryDemoCard key={row.demo.id} row={row} format={format} onTitleSaved={onTitleSaved} />
         ))}
       </div>
     </section>

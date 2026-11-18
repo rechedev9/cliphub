@@ -227,6 +227,7 @@ func TestMigrateV10AddsStreamSourceKindToAnOlderDatabase(t *testing.T) {
 			source_path TEXT NOT NULL, source_sha256 TEXT NOT NULL, source_url TEXT, public_source_url TEXT, title TEXT,
 			probe TEXT NOT NULL, edit_plan TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
 		// A real version 9 database has the stratbook and report tables that later steps alter.
+		`CREATE TABLE library_demos (id TEXT PRIMARY KEY)`,
 		`CREATE TABLE library_plays (id TEXT PRIMARY KEY)`,
 		`CREATE TABLE library_reports (id TEXT PRIMARY KEY)`,
 		`CREATE TABLE library_series (id TEXT PRIMARY KEY)`,

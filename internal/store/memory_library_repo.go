@@ -262,6 +262,9 @@ func (r *MemoryLibraryRepository) UpdateDemo(ctx context.Context, id uuid.UUID, 
 	if patch.Tags != nil {
 		d.Tags = library.NormalizeTags(*patch.Tags)
 	}
+	if patch.Title != nil {
+		d.Title = *patch.Title
+	}
 	d.UpdatedAt = libraryNow()
 	r.demos[id] = d
 	return r.demoCopy(d), nil
@@ -452,7 +455,7 @@ func (r *MemoryLibraryRepository) matchView(m memoryLibraryMatch) library.Match 
 		ID: m.id, DemoID: m.demoID, Map: m.mapName, PlayedAt: m.playedAt,
 		Source: r.demos[m.demoID].Source, Tickrate: m.tickrate, DurationTicks: m.durationTicks,
 		RoundCount: m.roundCount, CreatedAt: m.createdAt, UpdatedAt: m.updatedAt,
-		Teams: []library.MatchTeam{},
+		Teams: []library.MatchTeam{}, DemoTitle: r.demos[m.demoID].Title,
 	}
 	if m.seriesID != nil {
 		out.SeriesID = uuidPtr(*m.seriesID)

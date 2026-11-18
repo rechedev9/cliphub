@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// A Studio from before the demo title (migration 30) has another contract, so the hub answers it 409.
 func TestSyncContractMatchesSameSchemaAndChangesWithASyncedColumn(t *testing.T) {
 	ctx := context.Background()
 	_, a := newTestSyncLog(t)
@@ -13,7 +14,7 @@ func TestSyncContractMatchesSameSchemaAndChangesWithASyncedColumn(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbB.Exec(`ALTER TABLE library_calls ADD COLUMN extra TEXT`); err != nil {
+	if _, err := dbB.Exec(`ALTER TABLE library_demos DROP COLUMN title`); err != nil {
 		t.Fatal(err)
 	}
 	cb, err := b.Contract(ctx)
@@ -24,7 +25,7 @@ func TestSyncContractMatchesSameSchemaAndChangesWithASyncedColumn(t *testing.T) 
 		t.Fatalf("contract = %+v", ca)
 	}
 	if ca.Hash == cb.Hash {
-		t.Fatal("a new synced column kept the same contract")
+		t.Fatal("a database without the demo title kept the same contract")
 	}
 	_, c := newTestSyncLog(t)
 	if cc, _ := c.Contract(ctx); cc != ca {

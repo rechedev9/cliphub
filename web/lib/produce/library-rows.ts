@@ -54,9 +54,11 @@ export function libraryRowTeams(match: LibraryMatch): { title: string; score: st
   return { title: matchTitle(match), score: `${ct.score}-${t.score}` };
 }
 
-/** The words a demo card answers to in the list filter: map, teams and every player name. */
-export function demoSearchText({ map, player, library }: { map: string; player?: string | undefined; library?: LibraryMatch | undefined }): string {
-  const parts = [map, prettyMapName(map), player ?? ''];
+type DemoSearchInput = { map: string; player?: string | undefined; title?: string | undefined; library?: LibraryMatch | undefined };
+
+/** The words a demo card answers to in the list filter: its title, map, teams and every player name. */
+export function demoSearchText({ map, player, title, library }: DemoSearchInput): string {
+  const parts = [title ?? '', map, prettyMapName(map), player ?? ''];
   if (library !== undefined) {
     parts.push(libraryRowTeams(library).title);
     for (const p of library.players ?? []) parts.push(p.name);

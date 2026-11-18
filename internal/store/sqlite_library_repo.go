@@ -76,7 +76,7 @@ func (r *SQLiteLibraryRepository) inTx(ctx context.Context, fn func(tx *sql.Tx) 
 }
 
 const libraryDemoColumns = `SELECT d.id, d.sha256, d.file_name, d.path, d.size_bytes, d.source, d.source_manual,
-	d.cs2_build, d.patch_version, d.state, d.error_code, d.error, d.played_at, d.imported_at, d.updated_at, m.id
+	d.cs2_build, d.patch_version, d.state, d.error_code, d.error, d.played_at, d.imported_at, d.updated_at, m.id, d.title
 	FROM library_demos d LEFT JOIN library_matches m ON m.demo_id = d.id`
 
 func scanLibraryDemo(row sqlScanner) (library.Demo, error) {
@@ -89,7 +89,7 @@ func scanLibraryDemo(row sqlScanner) (library.Demo, error) {
 		matchID           sql.NullString
 	)
 	if err := row.Scan(&id, &d.SHA256, &d.FileName, &d.Path, &d.SizeBytes, &source, &manual, &d.CS2Build, &d.PatchVersion,
-		&state, &d.ErrorCode, &d.Error, &playedAt, &imported, &updated, &matchID); err != nil {
+		&state, &d.ErrorCode, &d.Error, &playedAt, &imported, &updated, &matchID, &d.Title); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return library.Demo{}, library.ErrNotFound
 		}
@@ -298,33 +298,6 @@ func (r *SQLiteLibraryRepository) ListDemos(ctx context.Context, filter library.
 		return nil, err
 	}
 	return demos, nil
-}
-
-func (r *SQLiteLibraryRepository) UpdateDemo(ctx context.Context, id uuid.UUID, patch library.DemoPatch) (library.Demo, error) {
-	err := r.inTx(ctx, func(tx *sql.Tx) error {
-		if _, err := r.getDemo(ctx, tx, `d.id = ?`, id.String()); err != nil {
-			return err
-		}
-		if patch.Source != nil {
-			if _, err := tx.ExecContext(ctx, `UPDATE library_demos SET source = ?, source_manual = 1 WHERE id = ?`, string(*patch.Source), id.String()); err != nil {
-				return fmt.Errorf("update demo source: %w", err)
-			}
-		}
-		if patch.Tags != nil {
-			if _, err := tx.ExecContext(ctx, `DELETE FROM library_demo_tags WHERE demo_id = ?`, id.String()); err != nil {
-				return fmt.Errorf("clear demo tags: %w", err)
-			}
-			if err := insertDemoTags(ctx, tx, id, library.NormalizeTags(*patch.Tags)); err != nil {
-				return err
-			}
-		}
-		_, err := tx.ExecContext(ctx, `UPDATE library_demos SET updated_at = ? WHERE id = ?`, millis(libraryNow()), id.String())
-		return err
-	})
-	if err != nil {
-		return library.Demo{}, err
-	}
-	return r.GetDemo(ctx, id)
 }
 
 func (r *SQLiteLibraryRepository) SetDemoState(ctx context.Context, id uuid.UUID, state library.ParseState, errorCode, message string) error {
@@ -583,7 +556,7 @@ func (r *SQLiteLibraryRepository) matchTeamRows(ctx context.Context, q libraryQu
 }
 
 const libraryMatchColumns = `SELECT m.id, m.demo_id, m.series_id, m.map, m.played_at, d.source, m.tickrate, m.duration_ticks,
-	m.round_count, m.created_at, m.updated_at FROM library_matches m JOIN library_demos d ON d.id = m.demo_id`
+	m.round_count, m.created_at, m.updated_at, d.title FROM library_matches m JOIN library_demos d ON d.id = m.demo_id`
 
 func scanLibraryMatch(row sqlScanner) (library.Match, error) {
 	var (
@@ -593,7 +566,7 @@ func scanLibraryMatch(row sqlScanner) (library.Match, error) {
 		playedAt, created, updated int64
 	)
 	if err := row.Scan(&id, &demoID, &seriesID, &m.Map, &playedAt, &source, &m.Tickrate, &m.DurationTicks,
-		&m.RoundCount, &created, &updated); err != nil {
+		&m.RoundCount, &created, &updated, &m.DemoTitle); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return library.Match{}, library.ErrNotFound
 		}
