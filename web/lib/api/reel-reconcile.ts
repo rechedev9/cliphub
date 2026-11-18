@@ -1,5 +1,5 @@
 import { CAPTURE_REQUIRED_CODE, GENERATE_WORK_ACTIVE_CODE, PLAN_READY_STATUSES, SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
-import { CHANGE_NOT_APPLIED_REASON, MISMATCH_REDRIVE_FAILURE_REASON, requiresRecapture } from './failure-reason.ts';
+import { CHANGE_NOT_APPLIED_REASON, MISMATCH_REDRIVE_FAILURE_REASON, isCaptureRequired, requiresRecapture } from './failure-reason.ts';
 import { editConfigsEqual } from './edit-request.ts';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
 import { shortEditNeedsCapture } from '../produce/edit-capture.ts';
@@ -30,14 +30,13 @@ export function canHaveRenderState(status: string): boolean {
 }
 
 /**
- * Failed reels stay on the poll so a successful retry is not stuck on FALLO.
- * A ready reel leaves the poll only once its MP4 URL is wired: the render GET
- * can report `ready` one tick before the artifact names, and nothing else
- * would ever fetch them.
+ * Failed reels stay on the poll so a retry is not stuck on FALLO, and so does a ready reel waiting on a change,
+ * so its notice drops once the change lands. Any other ready reel leaves once its MP4 URL is wired: the render
+ * GET can report `ready` a tick before the artifact names, and nothing else would ever fetch them.
  */
-export function shouldReconcileVideoStatus(video: { status: VideoStatus; downloadUrl?: string } | undefined): boolean {
+export function shouldReconcileVideoStatus(video: { status: VideoStatus; downloadUrl?: string; changePending?: true } | undefined): boolean {
   if (video === undefined) return true;
-  return video.status !== 'ready' || !video.downloadUrl;
+  return video.status !== 'ready' || !video.downloadUrl || video.changePending === true;
 }
 
 export type ReconcileInput = {
@@ -69,6 +68,8 @@ export type ReelView = {
   captureProgress?: CaptureProgress;
   /** Job is gone; Retry cannot re-drive it. */
   unrecoverable?: true;
+  /** The last render, on show while a stored change waits for the click that may record it. */
+  changePending?: true;
 };
 
 /** Status-poll 404: the orchestrator no longer has this job. */
@@ -97,6 +98,31 @@ export const READY_WITHOUT_VIDEO_REASON = 'render reported ready but no MP4 exis
 export function viewForReadyWithoutVideo(consecutiveTicks: number): ReelView | null {
   if (consecutiveTicks < READY_WITHOUT_VIDEO_LATCH_TICKS) return null;
   return { ...failed(READY_WITHOUT_VIDEO_REASON), unrecoverable: true };
+}
+
+type RenderFacts = Pick<ReconcileInput, 'renderWarnings' | 'renderArtifactPrefix'>;
+
+function readyView(render: RenderFacts): ReelView {
+  return {
+    status: 'ready',
+    action: 'none',
+    ...(render.renderWarnings?.length ? { warnings: render.renderWarnings } : {}),
+    ...(render.renderArtifactPrefix ? { reviewArtifactPrefix: render.renderArtifactPrefix } : {}),
+  };
+}
+
+function changePending(render: RenderFacts): ReelView {
+  return { ...readyView(render), changePending: true };
+}
+
+/** A latched reel: a page load's refused capture keeps a ready last render on show; any other latch is the failure. */
+export function viewForLatch(
+  latch: { failureReason: string },
+  render: { status: RenderStatus; warnings?: string[]; artifactPrefix?: string },
+): ReelView {
+  const ready = render.status === 'ready' || render.status === 'review_required';
+  if (!ready || latch.failureReason !== CHANGE_NOT_APPLIED_REASON) return failed(latch.failureReason);
+  return changePending({ renderWarnings: render.warnings, renderArtifactPrefix: render.artifactPrefix });
 }
 
 function failed(reason?: string, code?: string): ReelView {
@@ -246,13 +272,19 @@ function mismatchDecision(input: DecideReelReconcileInput): ReelReconcileDecisio
   const previous = input.redrivenRevision;
   if (previous === undefined) {
     // A page load is no user action: it never opens CS2 to apply a stored change.
-    if (!input.userAsked && mismatchNeedsCapture(input)) return { view: failed(CHANGE_NOT_APPLIED_REASON), adoptEffective: false };
+    if (!input.userAsked && mismatchNeedsCapture(input)) return { view: changePending(input), adoptEffective: false };
     return { view: { status: 'queued', action: 'record' }, adoptEffective: false, mismatchRedrive: 'drive' };
   }
   if (previous.artifactPrefix === input.renderArtifactPrefix) {
     return { view: { status: 'queued', action: 'none' }, adoptEffective: false, mismatchRedrive: 'wait' };
   }
   return { view: failed(MISMATCH_REDRIVE_FAILURE_REASON), adoptEffective: false, mismatchRedrive: 'fail' };
+}
+
+/** The job moved on from this render; a page load's task refused for a capture keeps the render on show. */
+function jobOverRender(input: DecideReelReconcileInput): ReelReconcileDecision {
+  const refused = input.jobStatus === 'failed' && !input.userAsked && isCaptureRequired(input.jobFailureReason);
+  return { view: refused ? changePending(input) : deriveReelView({ ...input, renderStatus: 'none' }), adoptEffective: false };
 }
 
 /** Reconcile a local reel intent with the durable variant and capture facts. */
@@ -262,9 +294,7 @@ export function decideReelReconcile(input: DecideReelReconcileInput): ReelReconc
     selectionMatches(input.intentEdit, input.intentSegmentIds, input.renderSegmentIds);
   const readyOrReview = input.renderStatus === 'ready' || input.renderStatus === 'review_required';
   if (!ours && readyOrReview) {
-    if (input.jobStatus === 'recording' || input.jobStatus === 'failed') {
-      return { view: deriveReelView({ ...input, renderStatus: 'none' }), adoptEffective: false };
-    }
+    if (input.jobStatus === 'recording' || input.jobStatus === 'failed') return jobOverRender(input);
     return mismatchDecision(input);
   }
   const delivery = renderDeliveryMatches(
@@ -274,9 +304,7 @@ export function decideReelReconcile(input: DecideReelReconcileInput): ReelReconc
     input.renderMusic,
   );
   if (ours && readyOrReview && !delivery) {
-    if (input.jobStatus === 'recording' || input.jobStatus === 'failed') {
-      return { view: deriveReelView({ ...input, renderStatus: 'none' }), adoptEffective: false };
-    }
+    if (input.jobStatus === 'recording' || input.jobStatus === 'failed') return jobOverRender(input);
     // The single current recording may belong to another variant. Generate
     // validates it server-side and either reuses it or recaptures from the DEM.
     return mismatchDecision(input);
@@ -288,28 +316,11 @@ export function decideReelReconcile(input: DecideReelReconcileInput): ReelReconc
 }
 
 export function deriveReelView(input: ReconcileInput): ReelView {
-  const {
-    jobStatus,
-    jobFailureReason,
-    jobFailureCode,
-    renderStatus,
-    renderFailureReason,
-    renderWarnings,
-    renderArtifactPrefix,
-    captureProgress,
-    recordAdmitted,
-  } = input;
+  const { jobStatus, jobFailureReason, jobFailureCode, renderStatus, renderFailureReason, captureProgress, recordAdmitted } = input;
 
   // A finished render is terminal even if the job later fails. QA warnings
   // are informational: they ride along but never hold the reel back.
-  if (renderStatus === 'ready' || renderStatus === 'review_required') {
-    return {
-      status: 'ready',
-      action: 'none',
-      ...(renderWarnings?.length ? { warnings: renderWarnings } : {}),
-      ...(renderArtifactPrefix ? { reviewArtifactPrefix: renderArtifactPrefix } : {}),
-    };
-  }
+  if (renderStatus === 'ready' || renderStatus === 'review_required') return readyView(input);
   // The caller drops recordAdmitted once the job moved on or the grace ran out.
   if (recordAdmitted && renderStatus !== 'queued' && renderStatus !== 'rendering') {
     return { status: 'recording', action: 'none' };

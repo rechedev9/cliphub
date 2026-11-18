@@ -408,6 +408,8 @@ export type Video = {
   selectedCoverName?: string;
   /** Set only on a failed reel whose orchestrator job is gone: retry can never succeed, so the card offers delete/re-forge instead. */
   unrecoverable?: true;
+  /** Ready with its last render while a stored change waits for Reintentar: applying it records with CS2, which a page load never starts. */
+  changePending?: true;
 };
 export type Slots = { used: number; total: number };
 export type FeedItem = { id: string; author: string; authorAvatarUrl: string; title: string; map: string; thumbnailUrl: string; likes: number; createdAt: number; videoUrl: string };

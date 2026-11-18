@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Layers, MonitorPlay, Smartphone, Swords, Users, type LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import { parseFailureReason } from '@/lib/api/failure-reason';
+import { CHANGE_NOT_APPLIED_REASON, parseFailureReason } from '@/lib/api/failure-reason';
 import type { LibraryDemo } from '@/lib/api/library';
 import { demoPlaybackItem } from '@/lib/api/playback';
 import type { Match, Video } from '@/lib/api/types';
@@ -357,6 +357,7 @@ function VideoRow({ video, matchId, onChange }: { video: Video; matchId: string;
           fullDemoPlannerVersion: video.editConfig?.fullDemo?.document.planner_version,
         }).message
       : null;
+  const notice = failure ?? (video.changePending ? CHANGE_NOT_APPLIED_REASON : null);
 
   return (
     <li className="relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 px-4 py-3 hover:bg-surface-3 @[44rem]/content:grid-cols-[auto_minmax(0,1fr)_auto]">
@@ -399,7 +400,7 @@ function VideoRow({ video, matchId, onChange }: { video: Video; matchId: string;
             {output.percent === null ? null : <span className="text-meta whitespace-nowrap text-fg-2">{output.percent} %</span>}
           </div>
         ) : null}
-        {failure === null ? null : <p className="text-body-sm text-fg-2">{failure}</p>}
+        {notice === null ? null : <p className="text-body-sm text-fg-2">{notice}</p>}
       </div>
       <OutputActions
         output={output}
