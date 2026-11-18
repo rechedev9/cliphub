@@ -4,7 +4,9 @@ import {
   FACEIT_CODES,
   FaceitServiceError,
   followFaceitPlayer,
+  getFaceitRanking,
   isFaceitPlayerID,
+  listFaceitCountries,
   listFaceitMatches,
   listFollowedFaceitPlayers,
   lookupFaceitPlayer,
@@ -64,16 +66,7 @@ test('lookup encodes the nickname and parses the player', async () => {
 test('followed list and follow/unfollow map the proxy surface', async () => {
   const stub = stubFetch((call) => {
     if (call.url === '/api/faceit/followed' && call.init?.method === undefined) {
-      return json({
-        enabled: true,
-        refreshing: true,
-        updated_at: '2026-09-25T14:43:55Z',
-        players: [
-          player,
-          { ...player, id: 'seed-1', nickname: 'donk666', seeded: true, zone: 'cis', region: 'EU', position: 1 },
-          { ...player, id: 'seed-2', nickname: 'odd', seeded: true, zone: 'eu' },
-        ],
-      });
+      return json({ enabled: true, refreshing: true, players: [player] });
     }
     if (call.url === '/api/faceit/followed' && call.init?.method === 'POST') {
       return json({ player: { ...player, followed_at: '2026-08-17T12:00:00Z' } });
@@ -87,16 +80,50 @@ test('followed list and follow/unfollow map the proxy surface', async () => {
     const listed = await listFollowedFaceitPlayers();
     assert.equal(listed.enabled, true);
     assert.equal(listed.refreshing, true);
-    assert.equal(listed.updatedAt, Date.UTC(2026, 8, 25, 14, 43, 55));
-    assert.equal(listed.players[0]?.id, 'player-1');
-    assert.equal(listed.players[1]?.seeded, true);
-    assert.equal(listed.players[1]?.zone, 'cis');
-    assert.equal(listed.players[2]?.zone, undefined);
-    assert.equal(listed.players[1]?.region, 'EU');
-    assert.equal(listed.players[1]?.position, 1);
+    assert.deepEqual(listed.players.map((entry) => entry.id), ['player-1']);
     const followed = await followFaceitPlayer('m0NESY');
     assert.equal(followed.followed_at, '2026-08-17T12:00:00Z');
     await unfollowFaceitPlayer('player-1');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('a ranking page keeps each place, the read date and why a stored copy answered', async () => {
+  const stub = stubFetch(() => json({
+    kind: 'country', code: 'es', total: 100, fetched_at: '2026-11-18T12:00:00Z', stale: true, stale_code: FACEIT_CODES.rateLimited,
+    players: [{ rank: 21, id: 'es-21', nickname: 'mopoz', country: 'es', region: 'EU', position: 3, elo: 3900, skill_level: 10,
+      profile_url: 'https://www.faceit.com/en/players/mopoz' }],
+  }));
+  try {
+    const got = await getFaceitRanking({ kind: 'country', code: 'es', offset: 20, limit: 20 });
+    assert.equal(stub.calls[0]?.url, '/api/faceit/rankings?kind=country&code=es&offset=20&limit=20');
+    assert.deepEqual(got, {
+      kind: 'country', code: 'es', total: 100, fetchedAt: Date.UTC(2026, 10, 18, 12), stale: true, staleCode: FACEIT_CODES.rateLimited,
+      players: [{ rank: 21, id: 'es-21', nickname: 'mopoz', country: 'es', region: 'EU', elo: 3900, skill_level: 10,
+        profile_url: 'https://www.faceit.com/en/players/mopoz' }],
+    });
+  } finally {
+    stub.restore();
+  }
+});
+
+test('a ranking row without a place is an invalid response', async () => {
+  const stub = stubFetch(() => json({ kind: 'region', code: 'EU', total: 1, fetched_at: '2026-11-18T12:00:00Z', stale: false,
+    players: [{ id: 'eu-1', nickname: 'x', profile_url: 'https://www.faceit.com/en/players/x' }] }));
+  try {
+    await assert.rejects(getFaceitRanking({ kind: 'region', code: 'EU', offset: 0, limit: 20 }),
+      (err: unknown) => err instanceof FaceitServiceError && err.code === FACEIT_CODES.invalidResponse);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('the selector countries are the lowercase ISO codes the service lists', async () => {
+  const stub = stubFetch(() => json({ countries: ['ad', 'es', 'ESP', 7] }));
+  try {
+    assert.deepEqual(await listFaceitCountries(), ['ad', 'es']);
+    assert.equal(stub.calls[0]?.url, '/api/faceit/countries');
   } finally {
     stub.restore();
   }

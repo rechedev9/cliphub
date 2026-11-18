@@ -34,6 +34,9 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/faceit/followed", h.ListFollowedFaceitPlayers)
 	r.Post("/api/faceit/followed", h.FollowFaceitPlayer)
 	r.Delete("/api/faceit/followed/{playerID}", h.UnfollowFaceitPlayer)
+	r.Get("/api/faceit/rankings", h.GetFaceitRanking)
+	r.Get("/api/faceit/countries", h.ListFaceitCountries)
+	r.Get("/api/faceit/flags/{code}", h.GetFaceitFlag)
 	r.Get("/api/loadouts", h.ListLoadouts)
 	r.Get("/api/presets", h.ListPresets)
 	if h.syncLog != nil {
@@ -157,6 +160,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Put("/api/brand-kit", h.SaveBrandKit)
 	r.Post("/api/full-demo/hud-themes", h.CreateHUDTheme)
 	r.Get("/api/full-demo/hud-themes/preview", h.GetHUDThemePreview)
+	r.Get("/api/full-demo/overlay-designs/preview", h.GetOverlayDesignPreview)
 	r.Put("/api/full-demo/hud-themes/{id}", h.UpdateHUDTheme)
 	r.Delete("/api/full-demo/hud-themes/{id}", h.DeleteHUDTheme)
 	r.Get("/api/editor/assets", h.ListEditorAssets)

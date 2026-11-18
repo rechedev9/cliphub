@@ -8,7 +8,7 @@ export async function GET(): Promise<Response> {
   const res = await callOrchestrator(`${orchestratorUrl()}/api/faceit/followed`);
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
-  const data = (await res.json()) as { enabled?: unknown; players?: unknown; refreshing?: unknown; updated_at?: unknown };
+  const data = (await res.json()) as { enabled?: unknown; players?: unknown; refreshing?: unknown };
   const players = Array.isArray(data.players)
     ? data.players
       .map((item) => whitelistFaceitPlayer(item as UpstreamFaceitPlayer))
@@ -19,7 +19,6 @@ export async function GET(): Promise<Response> {
       enabled: data.enabled === true,
       players,
       refreshing: data.refreshing === true,
-      ...(typeof data.updated_at === 'string' ? { updated_at: data.updated_at } : {}),
     },
     { headers: { 'cache-control': 'no-store' } },
   );

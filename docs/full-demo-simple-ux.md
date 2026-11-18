@@ -7,7 +7,8 @@ overlay data source, team voices with separate game and voice levels (0–200 %)
 between-round effects, and optional intro, sponsor and outro clips (the sponsor
 plays after round 2; see `full-demo-bumpers.md`). Calibration, team policy, and
 the voice fallback stay automatic; only the two levels are the user's mix.
-Roster and scoreboard overlays are always generated with the neon-violet theme.
+Roster and scoreboard overlays are always generated, in the neon design or the one
+that matches the HUD (see `full-demo-overlays.md`).
 The player's observed crosshair is used throughout. Background music is unavailable
 for long videos; the separate Short music workflow remains available.
 

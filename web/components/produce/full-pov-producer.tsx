@@ -16,6 +16,7 @@ import {
 } from '@/lib/full-demo-plan';
 import { captureNote, editCtaLabel, pickVersion, recapSeconds, spaceWarning, versionDateLabel, type CaptureCheck, type SpaceCheck } from '@/lib/produce/edit-capture';
 import { fullDemoBriefItems } from '@/lib/produce/full-demo-brief';
+import { INTRO_DESIGN_LABEL } from '@/lib/overlay-design-gallery';
 import { availableFullDemoBumpers, recallFullDemoBumpers, rememberFullDemoBumpers, withRememberedBumpers } from '@/lib/produce/full-demo-bumper-memory';
 import { fullDemoQueueToast } from '@/lib/produce/full-demo-queue-toast';
 import { FULL_DEMO_MISSING_FILES, hasMissingFullDemoFiles } from '@/lib/produce/full-demo-requirements';
@@ -36,8 +37,8 @@ import { FullDemoActionBar, FullDemoSummary } from './full-demo-summary';
 import { useProduceBack } from './use-produce-back';
 import { roundListLabel } from '@/lib/library/analysis-video';
 
-/** Roster and scoreboard keep ClipHub's own palette whatever the HUD; the demo origin picks their layout. */
-const OVERLAYS_NOTE = 'Pantalla de jugadores al empezar y marcador final, con el diseño de ClipHub. El origen de la demo decide qué datos salen: con FACEIT, nivel y ELO.';
+/** The design picks how roster and scoreboard look; the demo origin picks their data. */
+const OVERLAYS_NOTE = 'Pantalla de jugadores al empezar y marcador final. El diseño solo cambia el aspecto y no obliga a volver a grabar. El origen de la demo decide qué datos salen: con FACEIT, nivel y ELO.';
 /** The capture check plans on the server (it hashes the demo), so it waits for the user to stop changing options. */
 const CAPTURE_CHECK_DELAY_MS = 1200;
 const LINK_CLASS = 'text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 focus-visible:outline-2 focus-visible:outline-ring';
@@ -291,7 +292,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
           <FullDemoGroup title="Grabación">
             <div className="flex flex-col gap-3.5">
               <FullDemoProSettings options={options} players={proPlayers} onChange={change} />
-              <FullDemoPart title="Presentación y marcador" note={OVERLAYS_NOTE}>
+              <FullDemoPart title={INTRO_DESIGN_LABEL} note={OVERLAYS_NOTE}>
                 <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={assetBusy} />
               </FullDemoPart>
               <FullDemoTransitions options={options} onChange={change} />

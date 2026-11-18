@@ -81,6 +81,8 @@ The user's own HUD themes (list_hud_themes custom) copy a catalog design with ot
 save_hud_theme creates or edits one (up to 10), delete_hud_theme removes one, and its id goes in plan_full_demo hud.
 plan_full_demo also takes compact_header, hide_inventory, round_win_banner, win_probability and the team names team_ct_start and
 team_t_start for the custom HUD scoreboard; they change only the render, never the capture.
+plan_full_demo intro_design picks the look of the player intro and final scoreboard: neon (default) or hud,
+in the colours of the chosen HUD or own theme and neutral over the native CS2 HUD. It only changes the render.
 plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for the focus HUD and intro,
 sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo
@@ -225,8 +227,10 @@ Series of the library (BO1, BO2, BO3, BO5 with teams and veto; a BO2 does not pl
 update_library_series, delete_library_series and set_match_series. The maps of one FACEIT match
 (files 1-<match id>-<map>-1.dem) join one series on their own once two are analysed. team_maps reads a team's map record
 over every match (sides_unread: older ones past 200 analyses count in the results, not the sides) and, with the scope keys of the bar, the matches per map (scope_matches); simulate_veto recommends a veto against a rival.
-FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows,
-follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account).
+FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows (Seguidos, at most 20),
+follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account). faceit_ranking is the ranking
+selector of Jugadores FACEIT: the top 100 of a country (ISO code), a region (EU, NA, SA, OCE, SEA) or a zone (cis, latam), by pages;
+rank is the place in that list, stale says FACEIT failed and the stored copy of fetched_at answered.
 Lineups pro are grenades pros repeat in pro matches, served by the ClipHub community server:
 list_pro_lineup_maps, find_pro_lineups (kind, side, landing and throw callouts, insta, video for lineups with a recorded clip), get_pro_lineup
 (setpos, teams, partners, examples, and clip_url: the recorded throw with the thrower's keys, once one is

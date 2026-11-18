@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -142,23 +141,12 @@ func (h *Handlers) GetHUDThemePreview(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "base must be a HUD design id from the catalog")
 		return
 	}
-	if q.Has("ct") || q.Has("t") || q.Has("background") {
-		style := hudthemes.Style{Name: "Vista previa", CT: q.Get("ct"), T: q.Get("t"), Background: q.Get("background")}
-		if raw := q.Get("radius"); raw != "" {
-			radius, err := strconv.Atoi(raw)
-			if err != nil {
-				writeError(w, http.StatusBadRequest, "radius must be a number")
-				return
-			}
-			style.Radius = &radius
-		}
-		clean, err := style.Clean()
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		o.HUDCustom = &clean
+	style, err := hudPreviewStyle(q)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	o.HUDCustom = style
 	o.HUDOptions = customhud.Options{CompactHeader: q.Get("compact_header") == "1", HideLoadout: q.Get("hide_loadout") == "1", RoundWinBanner: q.Get("round_win_banner") == "1", WinProbability: q.Get("win_probability") == "1"}
 	o.TeamNames = customhud.Teams{CTStart: strings.TrimSpace(q.Get("ct_name")), TStart: strings.TrimSpace(q.Get("t_name"))}
 	renderer, err := o.HUDRenderer()

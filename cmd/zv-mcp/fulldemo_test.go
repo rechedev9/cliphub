@@ -89,6 +89,26 @@ func TestApplyFullDemoChoicesRejects(t *testing.T) {
 	}
 }
 
+func TestApplyFullDemoChoicesIntroDesign(t *testing.T) {
+	for _, tc := range []struct{ choice, want string }{{"", "neon-violet"}, {"neon", "neon-violet"}, {" HUD ", "hud"}} {
+		got, err := applyFullDemoChoices(recapplan.DefaultOptions(), planFullDemoIn{IntroDesign: tc.choice})
+		if err != nil || got.Overlays.Theme != tc.want {
+			t.Errorf("intro_design %q = %q %v, want %q", tc.choice, got.Overlays.Theme, err, tc.want)
+		}
+	}
+	if _, err := applyFullDemoChoices(recapplan.DefaultOptions(), planFullDemoIn{IntroDesign: "orange"}); err == nil || !strings.Contains(err.Error(), "neon or hud") {
+		t.Errorf("an unknown intro design was accepted: %v", err)
+	}
+	doc := recapplan.Document{Options: recapplan.DefaultOptions(), Clock: recapplan.Clock{FPS: 60}}
+	if out := describeFullDemoPlan("job-1", doc); out.IntroDesign != "neon" {
+		t.Errorf("default intro design = %q, want neon", out.IntroDesign)
+	}
+	doc.Options.Overlays.Theme = recapplan.OverlayThemeHUD
+	if out := describeFullDemoPlan("job-1", doc); out.IntroDesign != "hud" || !strings.Contains(out.Summary, "a juego con el HUD") {
+		t.Errorf("HUD intro design plan = %q %q", out.IntroDesign, out.Summary)
+	}
+}
+
 func TestDescribeFullDemoPlan(t *testing.T) {
 	opts := recapplan.DefaultOptions()
 	doc := recapplan.Document{

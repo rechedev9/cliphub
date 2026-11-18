@@ -1,0 +1,6 @@
+{{define "scoreboard-body"}}<body{{if .PreviewGrey}} class="preview"{{end}}><main class="board">
+<header class="heading"><span>Match results</span><span class="map">{{.Map}}</span></header>
+{{range .Teams}}<section class="team{{if .Winner}} winner{{end}}" data-side="{{.Side}}"><div class="team-heading"><span class="score">{{.Score}}</span><span class="team-name">{{.Name}}</span>{{if $.FACEIT}}<span class="average">Current team ELO <strong>{{.AverageELO}}</strong></span>{{end}}</div>
+<div class="row header"><div>Player</div><div>{{if $.FACEIT}}Current ELO{{else}}Level{{end}}</div><div>K</div><div>D</div><div>A</div><div>ADR</div><div>K/D</div><div>K/R</div><div>HS</div><div>HS %</div><div>5K</div><div>4K</div><div>3K</div><div>2K</div><div>MVPs</div></div>
+{{range .Players}}<div class="row{{if .POV}} pov{{end}}" data-steamid="{{.SteamID}}"><div class="identity">{{if .Avatar}}<img class="avatar" src="{{.Avatar}}" alt=""/>{{else}}<span class="avatar"></span>{{end}}<span class="name">{{.Name}}</span>{{if .POV}}<span class="pov-tag">POV</span>{{end}}</div><div class="rank">{{if .Level}}<span class="level">{{.Level}}</span>{{end}}<span>{{.ELO}}</span></div>{{range .Stats}}<div>{{.}}</div>{{end}}</div>{{end}}</section>{{end}}
+<div class="footer">Match statistics from the demo{{if .FACEIT}} · Profile ELO from FACEIT{{end}}</div></main></body>{{end}}

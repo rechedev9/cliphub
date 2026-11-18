@@ -254,7 +254,7 @@ func (o Options) Validate() error {
 		{"music.reference_level", o.Audio.Music.ReferenceLevel, []string{"track-lufs-minus-16-v1"}},
 		{"music.loop_policy", o.Audio.Music.LoopPolicy, []string{"ordered-loop", "once-pad-silence"}},
 		{"loudness.policy_version", o.Audio.Loudness.PolicyVersion, []string{"program-aac-v1"}},
-		{"overlays.theme", o.Overlays.Theme, []string{"faceit-orange", "neon-violet"}},
+		{"overlays.theme", o.Overlays.Theme, []string{"faceit-orange", OverlayThemeNeon, OverlayThemeHUD}},
 		{"overlays.source", o.Overlays.Source, []string{"demo", "faceit"}},
 		{"overlays.mode", o.Overlays.Mode, []string{"", "generated", "screenshots"}},
 		{"outputs.media_profile", o.Outputs.MediaProfile, []string{"h264-1080p60-aac48-stereo"}},

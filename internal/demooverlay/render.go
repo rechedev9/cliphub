@@ -90,8 +90,8 @@ func RenderPNGs(ffmpegPath, fontPath string, doc Document, introPath, outroPath 
 }
 
 func renderIntroStill(ffmpegPath, fontPath string, doc Document, outPath, platePath string, previewGrey bool) error {
-	if NormalizeTheme(doc.Theme) == ThemeNeonViolet {
-		return renderNeonIntroStill(doc, outPath, previewGrey)
+	if UsesDesignHTML(doc) {
+		return renderDesignStill(doc, designStill{path: outPath, DesignView: DesignView{PreviewGrey: previewGrey}})
 	}
 	l := DefaultLayout()
 	if NormalizeSource(doc.Source) == SourceFACEIT {
@@ -131,12 +131,8 @@ func renderIntroStill(ffmpegPath, fontPath string, doc Document, outPath, plateP
 }
 
 func renderOutroStill(ffmpegPath, fontPath string, doc Document, outPath, platePath string, previewGrey bool) error {
-	if NormalizeTheme(doc.Theme) == ThemeNeonViolet {
-		html, err := NeonOutroHTML(doc, previewGrey)
-		if err != nil {
-			return err
-		}
-		return renderHTMLStill(html, outPath)
+	if UsesDesignHTML(doc) {
+		return renderDesignStill(doc, designStill{path: outPath, DesignView: DesignView{Outro: true, PreviewGrey: previewGrey}})
 	}
 	l := DefaultLayout()
 	hasPlate := platePath != ""
