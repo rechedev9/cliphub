@@ -12,7 +12,7 @@ import { deathMomentsToPlays, planToMatch, planToPlays, type DeathMoments, type 
 import { readMomentScores, withMomentScores } from './moment-scores.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
-import { customHudTheme } from '../custom-hud.ts';
+import { reelStyleLabel } from './reel-style-label.ts';
 import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, videoFromIntent, withAdmissionFailure, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type AdmissionFailure, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
@@ -107,20 +107,6 @@ const REEL_VARIANT = DEFAULT_VARIANT;
 /** The render variant for a reel: the user's chosen preset, else the default. */
 function variantOf(intent: Pick<ReelIntent, 'variant'>): string {
   return intent.variant ?? REEL_VARIANT;
-}
-
-/** Display-only labels for the known presets (server is the source of truth). */
-const VARIANT_LABELS: Record<string, string> = {
-  'viral-60-clean': 'Killfeed',
-  'clean-pov-60': 'POV limpio',
-  'full-hud-60': 'HUD completo',
-  'gameplay-pov-60': 'POV nativo',
-};
-
-function variantLabel(variant: string, editConfig?: EditConfig): string {
-  const hud = customHudTheme(editConfig?.fullDemo?.document.options.overlays.hud_theme);
-  if (hud) return `HUD ${hud.name}`;
-  return VARIANT_LABELS[variant] ?? variant;
 }
 
 function isJobId(id: string): boolean {
@@ -499,7 +485,7 @@ export class RealApiClient implements ApiClient {
       ? plays
       : request.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
     const variant = request.variant ?? REEL_VARIANT;
-    const suffix = request.songId ? `${variantLabel(variant, editConfig)} + Music` : variantLabel(variant, editConfig);
+    const suffix = request.songId ? `${reelStyleLabel(variant, editConfig)} + Music` : reelStyleLabel(variant, editConfig);
     let selectionTitle = editConfig.separateShorts ? autoShortsTitle(pickedPlays.length) : (playsSelectionLabel(pickedPlays) ?? 'Highlight');
     if (recap) selectionTitle = `${pickedPlays.length} ${pickedPlays.length === 1 ? 'ronda' : 'rondas'}`;
     else if (editConfig.deathReel) selectionTitle = `${pickedPlays.length} ${pickedPlays.length === 1 ? 'muerte' : 'muertes'}`;
@@ -708,7 +694,7 @@ export class RealApiClient implements ApiClient {
       applyMusicChoice(nextIntent, nextChoice);
       nextIntent.title = titleWithMusicSuffix(
         intent.title,
-        variantLabel(variantOf(intent), intent.editConfig),
+        reelStyleLabel(variantOf(intent), intent.editConfig),
         Boolean(nextIntent.songId),
       );
       const accepted = await readJson<{ accepted?: boolean; duplicate?: boolean }>(

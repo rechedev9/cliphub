@@ -44,7 +44,7 @@ test('a recovered Short keeps its segment identity and a vertical format', () =>
   assert.ok(found);
   assert.equal(found.video.id, `${JOB}__seg-001_seg-004`);
   assert.equal(found.video.editConfig?.format, 'short-9x16');
-  assert.equal(found.video.title, '2 jugadas - Kill Feed');
+  assert.equal(found.video.title, '2 jugadas - Killfeed');
   assert.equal(recoveredVideoId(JOB, 'viral-60-clean', []), null);
 });
 
@@ -61,7 +61,7 @@ test('a delivered Crear horizontal is recovered under its own reel, never as Dem
   assert.equal(found.video.id, id);
   assert.equal(found.video.editConfig?.format, 'landscape-16x9');
   assert.equal(found.video.editConfig?.matchRecap, false);
-  assert.equal(found.video.title, '2 jugadas - POV nativo');
+  assert.equal(found.video.title, '2 jugadas - Killfeed', 'it names the Short capture it reuses');
   assert.equal(found.video.downloadUrl, `/api/demos/${JOB}/renders/gameplay-pov-60/videos/summary.mp4?revision=${REVISION}`);
 });
 
