@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/captureretention"
 	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
@@ -124,23 +124,24 @@ func (w *RenderWorker) verifyFullDemoCaptureContent(ctx context.Context, id uuid
 	return firstErr
 }
 
-// discardFullDemoCaptures deletes the round clips of every capture attempt of a
-// ready Full Demo, most of a job's disk. The recording result stays, so a new edit recaptures.
-func (w *RenderWorker) discardFullDemoCaptures(id uuid.UUID) {
-	resolver, ok := w.storage.(storagePathResolver)
-	if !ok || w.cfg.KeepFullDemoCaptures {
+// releaseFullDemoCaptures frees the clips of the Full Demos outside the retention;
+// rendered, whose render just finished, does not count as busy.
+func (w *RenderWorker) releaseFullDemoCaptures(ctx context.Context, rendered uuid.UUID) {
+	if w.cfg.KeepFullDemoCaptures {
 		return
 	}
-	dir, err := resolver.ResolvePath(artifacts.FullDemoCaptureRevisionsPrefix(id))
-	var clips []recording.CaptureClip
+	keep, err := captureretention.Load(w.storage)
 	if err == nil {
-		clips, err = recording.FullDemoCaptureClips(dir)
-	}
-	if err == nil {
-		_, err = recording.DeleteCaptureClips(clips)
+		_, err = captureretention.Apply(captureretention.ApplyOptions{Store: w.storage, Keep: keep, Busy: func(id uuid.UUID) bool {
+			if id == rendered {
+				return false
+			}
+			j, err := w.repo.GetMeta(ctx, id)
+			return err != nil || captureretention.InFlight(j.Status)
+		}})
 	}
 	if err != nil {
-		logWorkerError(id, "discard full demo captures", err)
+		logWorkerError(rendered, "release full demo captures", err)
 	}
 }
 

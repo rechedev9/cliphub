@@ -554,7 +554,7 @@ export class MockApiClient implements ApiClient {
   async getStorage(): Promise<StorageUsage> {
     await delay();
     const jobs = mockStorage.map((job) => ({ ...job }));
-    return { jobs, totalBytes: jobs.reduce((sum, job) => sum + job.captureBytes + job.renderBytes, 0) };
+    return { jobs, totalBytes: jobs.reduce((sum, job) => sum + job.captureBytes + job.renderBytes, 0), captureRetention: { keep: 3, max: 20, keepsAll: false } };
   }
 
   async deleteJobCaptures(jobId: string): Promise<number> {

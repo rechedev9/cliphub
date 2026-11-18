@@ -137,7 +137,7 @@ func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "change_video_music", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Add, change or remove the music of a finished Short, or its volume, as Cambiar música does in Mis vídeos. The capture is not repeated; " +
-			"the Short is rendered again and the new MP4 replaces the current one. It also retries a failed music change. " +
+			"the Short is rendered again as a new version that Mis vídeos shows; the old one stays in list_video_versions. It also retries a failed music change. " +
 			"Rendering takes minutes, so the user must approve it. " + deleteApprovalHint},
 		func(ctx context.Context, req *mcp.CallToolRequest, in changeMusicIn) (*mcp.CallToolResult, generateOut, error) {
 			music, err := resolveMusic(shortChoices{Music: in.Music, MusicVolume: in.MusicVolume, GameVolume: in.GameVolume})
@@ -166,7 +166,7 @@ func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 				return nil, generateOut{}, errors.New("this is the current mix: choose another track or volume")
 			}
 			body := tuiclient.RenderRequest{Music: music, SegmentIDs: state.SegmentIDs, Edit: state.Edit}
-			summary := fmt.Sprintf("Volver a renderizar el Short con %s. La captura no se repite y el vídeo nuevo sustituye al actual.",
+			summary := fmt.Sprintf("Volver a renderizar el Short con %s. La captura no se repite y la versión anterior se guarda.",
 				describeMix(music))
 			return approveAndRender(req, approvalSpec{Tool: "change_video_music", JobID: in.JobID, Request: [3]any{in.Variant, state.UpdatedAt, music}, Summary: summary, Given: in.Approve},
 				func() (tuiclient.EnqueueResponse, error) { return c.Rerender(ctx, in.JobID, in.Variant, body) }, in.Variant)

@@ -12,11 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/cliphub/internal/artifacts"
-	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/captureretention"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/recording"
-	"github.com/rechedev9/cliphub/internal/renderplan"
 )
 
 type storagePathResolver interface {
@@ -64,7 +62,7 @@ func (h *Handlers) GetStorage(w http.ResponseWriter, r *http.Request) {
 		}
 		usage.ID = id
 		if usage.CaptureBytes > 0 {
-			if usage.Freeable, err = h.fullDemoRenderCovers(id, usage.newestClip); err != nil {
+			if usage.Freeable, err = captureretention.Covers(h.storage, id, usage.newestClip); err != nil {
 				internalError(w, "read render state", err)
 				return
 			}
@@ -72,7 +70,12 @@ func (h *Handlers) GetStorage(w http.ResponseWriter, r *http.Request) {
 		total += usage.totalBytes
 		jobs = append(jobs, usage)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"jobs": jobs, "total_bytes": total})
+	retention, err := h.captureRetention()
+	if err != nil {
+		internalError(w, "read capture retention", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"jobs": jobs, "total_bytes": total, "capture_retention": retention})
 }
 
 // DeleteJobCaptures handles DELETE /api/jobs/{id}/captures: it frees the Full Demo
@@ -86,8 +89,7 @@ func (h *Handlers) DeleteJobCaptures(w http.ResponseWriter, r *http.Request) {
 		writeCodedError(w, http.StatusConflict, jobBusyCode, fmt.Sprintf("job is %s; wait for it to settle before deleting captures", j.Status))
 		return
 	}
-	resolver, ok := h.storage.(storagePathResolver)
-	if !ok {
+	if _, ok := h.storage.(storagePathResolver); !ok {
 		writeError(w, http.StatusNotImplemented, "storage backend does not support delete")
 		return
 	}
@@ -96,32 +98,14 @@ func (h *Handlers) DeleteJobCaptures(w http.ResponseWriter, r *http.Request) {
 		if err := h.requireGenerateRenderIdle(j.ID); err != nil {
 			return err
 		}
-		revisions, err := resolver.ResolvePath(artifacts.FullDemoCaptureRevisionsPrefix(j.ID))
-		if err != nil {
-			return err
-		}
-		clips, err := recording.FullDemoCaptureClips(revisions)
-		if err != nil {
-			return err
-		}
-		var newest time.Time
-		for _, clip := range clips {
-			if clip.ModTime.After(newest) {
-				newest = clip.ModTime
-			}
-		}
-		if covered, err := h.fullDemoRenderCovers(j.ID, newest); err != nil {
-			return err
-		} else if !covered {
-			return errNoFullDemoRender
-		}
-		freed, err = recording.DeleteCaptureClips(clips)
+		var err error
+		freed, err = captureretention.Free(h.storage, j.ID)
 		return err
 	})
 	switch {
 	case err == nil:
 		writeJSON(w, http.StatusOK, map[string]any{"freed_bytes": freed})
-	case errors.Is(err, errNoFullDemoRender):
+	case errors.Is(err, captureretention.ErrNotCovered):
 		writeCodedError(w, http.StatusConflict, noFullDemoRenderCode, "the long video has no finished render; its captures are still needed")
 	case errors.Is(err, generateintent.ErrActiveRun), errors.Is(err, errGenerateRenderActive):
 		writeCodedError(w, http.StatusConflict, generateWorkActive, "job has an active render or generate run; wait for it to settle before deleting captures")
@@ -130,51 +114,10 @@ func (h *Handlers) DeleteJobCaptures(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var errNoFullDemoRender = errors.New("no ready Full Demo render")
-
 const (
 	jobBusyCode          = "job_busy"
 	noFullDemoRenderCode = "no_full_demo_render"
 )
-
-// fullDemoRenderCovers reports whether the Full Demo render is ready and newer than
-// every round clip; a later capture whose render never ran still needs its clips.
-func (h *Handlers) fullDemoRenderCovers(jobID uuid.UUID, newestClip time.Time) (bool, error) {
-	state, exists, err := h.readRenderVariantState(jobID, editor.PresetGameplayPOV60)
-	if err != nil || !exists {
-		return false, err
-	}
-	if state.Status != renderplan.RenderVariantStatusReady || newestClip.After(state.UpdatedAt) {
-		return false, nil
-	}
-	return h.renderVideoOnDisk(state.ArtifactPrefix)
-}
-
-// renderVideoOnDisk reports whether a render run still has its MP4: Almacenamiento
-// can delete it while status.json keeps saying ready.
-func (h *Handlers) renderVideoOnDisk(artifactPrefix string) (bool, error) {
-	resolver, ok := h.storage.(storagePathResolver)
-	if !ok || artifactPrefix == "" {
-		return false, nil
-	}
-	dir, err := resolver.ResolvePath(artifactPrefix + "/videos")
-	if err != nil {
-		return false, err
-	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.EqualFold(filepath.Ext(entry.Name()), ".mp4") {
-			return true, nil
-		}
-	}
-	return false, nil
-}
 
 // measureJobTree sums a job dir; its capture bytes are exactly what DeleteJobCaptures frees.
 func measureJobTree(dir string) (jobStorageUsage, error) {

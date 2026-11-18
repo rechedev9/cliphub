@@ -328,6 +328,7 @@ func run() error {
 		httpapi.WithMusicDir(cfg.MusicDir),
 		httpapi.WithLabBundles(labBundles, filepath.Join(cfg.DataDir, "lab")),
 		httpapi.WithCapabilities(cfg.captureCapabilities(captureSource)),
+		httpapi.WithKeepFullDemoCaptures(cfg.KeepDemoCaptures),
 		httpapi.WithGenerateIntentStore(generateIntents),
 		httpapi.WithPublishAssistantTrends(youtubeTrends),
 		httpapi.WithFaceit(faceitClient, faceitFollows),

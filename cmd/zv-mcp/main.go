@@ -102,6 +102,13 @@ those reason codes, as Elegir las mejores and the play filters in Studio do. For
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
 list_all_videos lists the videos of every recent job and stream (Mis vídeos); retry_video renders a failed Short
 again from its last finished version and change_video_music changes a Short's music, both without a new capture.
+Editing a finished video keeps every version: list_video_versions lists them with their options and MP4, and
+delete_video_version deletes an older one. To edit a Full Demo, call plan_full_demo with the changed options:
+needs_capture says whether render_full_demo opens CS2 (only missing_rounds are recorded) or only renders again; HUD
+design, style, names, portrait, brand kit, transitions, overlays, sound and clips never need a capture. Studio keeps the
+captures of the newest rendered Full Demos (storage_usage capture_retention, set_capture_retention, default 3).
+To edit a Short, call generate_short with a version's segment_ids and the changed options: its recorded plays are
+reused, and only new plays, another style HUD or framing, the death reel or a new victim replay open CS2 again.
 delete_video deletes a demo video and delete_stream_video one stream video, as Borrar on its card.
 In hosts with MCP Apps, import_demo, wait_for_demo, wait_for_job, generate_short, render_full_demo,
 retry_video, change_video_music and the stream renders show the user a live progress bar that
@@ -298,10 +305,11 @@ analyses it again (a match still dated by its import day takes the demo's or the
 Steam: steam_matches lists recent matches (sync_steam_matches looks for new ones); import_share_code
 downloads one by share code and makes a job: wait_for_job, and on "scanned" job_players then
 pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_storage_files,
-rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
+rescan_storage_files, reveal_storage_file, delete_storage_file, delete_captures for Full Demo captures and
+set_capture_retention for how many keep theirs.
 generate_short, generate_shorts_batch, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
-delete_stream_video, delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
-delete_report, delete_team_document, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
+delete_stream_video, delete_demo, merge_teams, delete_storage_file, delete_captures, set_capture_retention, retry_video,
+change_video_music, delete_video_version, delete_report, delete_team_document, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
 install_transcriber, launch_practice, launch_bot_replay need the user's approval.
 ClipMind (the web edition of ClipHub): clipmind_status says whether Studio is signed in to a ClipMind account, with its workspace and
 the changes waiting; clipmind_sync is Sincronizar ahora and clipmind_disconnect is Desconectar (the library on this PC stays).

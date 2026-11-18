@@ -138,8 +138,9 @@ func TestDeleteJobCapturesRejectsACaptureInFlight(t *testing.T) {
 }
 
 type storageUsageResponse struct {
-	Jobs       []jobStorageUsage `json:"jobs"`
-	TotalBytes int64             `json:"total_bytes"`
+	Jobs             []jobStorageUsage `json:"jobs"`
+	TotalBytes       int64             `json:"total_bytes"`
+	CaptureRetention captureRetention  `json:"capture_retention"`
 }
 
 func readStorageUsage(t *testing.T, r http.Handler) storageUsageResponse {

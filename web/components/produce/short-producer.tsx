@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, Clapperboard, RefreshCw, Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,13 +9,15 @@ import { api } from '@/lib/api';
 import { parseFailureReason } from '@/lib/api/failure-reason';
 import type { EditConfig, Match, Play, Preset, RenderFormat } from '@/lib/api/types';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
-import { PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
+import { fetchStorageSpace } from '@/lib/api/video-edit';
+import { PRODUCE_FORMAT, RESULTS_HREF, STORAGE_HREF, seriesHref } from '@/lib/clips/routes';
 import { FORGE_HINT_LOADING_PRESETS, forgeHint } from '@/lib/forge-hint';
 import { shortCreateErrorMessage } from '@/lib/produce/short-create-error';
 import { PRODUCE_SHORT_CTA, PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE, PRODUCE_SUMMARY_CTA, PRODUCE_SUMMARY_TITLE } from '@/lib/produce/copy';
 import { addWithoutClashes, BEST_MOMENTS_TARGET_SECONDS, bestMomentsEdit, clashingPlay } from '@/lib/produce/multi-pov';
 import { autoPovNotes, autoPovSummary, fetchAutoPov } from '@/lib/produce/auto-pov';
 import { defaultShortSettings } from '@/lib/produce/short-draft';
+import { editCtaLabel, shortEditNeedsCapture, spaceWarning, type ShortEditSeed, type SpaceCheck } from '@/lib/produce/edit-capture';
 import { filterPlays, NO_PLAY_FILTER, playFilterOptions, type PlayFilter } from '@/lib/produce/play-filter';
 import { useShortDraft } from '@/hooks/use-short-draft';
 import {
@@ -55,6 +58,8 @@ import { AutoShortsDialog } from './auto-shorts-dialog';
 
 const PANEL_CLASS = 'flex min-w-0 flex-col gap-3 rounded-2xl bg-surface-2 p-4';
 const PANEL_TITLE_CLASS = 'font-display text-body font-bold text-fg-1';
+/** The space check waits for the selection to settle. */
+const SPACE_CHECK_DELAY_MS = 800;
 /** The preview frame's ring; FORMAT_TONE has no ring class. */
 const FRAME_RING: Readonly<Record<FormatTone, string>> = {
   short: 'ring-format-short',
@@ -75,10 +80,12 @@ export type ShortProducerProps = {
   focusRounds?: readonly number[] | null;
   /** 16:9 makes the best-moments video of a multi-POV match; a Short is 9:16. */
   format?: RenderFormat;
+  /** Editar in Mis vídeos: the version this edit starts from. */
+  editSeed?: ShortEditSeed | null;
 };
 
 /** The Short constructor: the best minute is preselected, then preset, music and overlays, render. */
-export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: allDeathPlays = [], seriesId, focusRounds = null, format = 'short-9x16' }: ShortProducerProps): ReactNode {
+export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: allDeathPlays = [], seriesId, focusRounds = null, format = 'short-9x16', editSeed = null }: ShortProducerProps): ReactNode {
   const router = useRouter();
   const landscape = format === 'landscape-16x9';
   const tone: FormatTone = landscape ? 'summary' : 'short';
@@ -94,7 +101,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const [presets, setPresets] = useState<Preset[] | null>(null);
   const [presetAttempt, setPresetAttempt] = useState(0);
   const focusIds = focusRounds ? playsInRounds(killPlays, focusRounds) : [];
-  const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft({ matchId, plays: killPlays, deathPlays, focusIds, targetSeconds });
+  const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft({ matchId, plays: killPlays, deathPlays, focusIds, targetSeconds, seed: editSeed?.settings ?? null });
   const { variant, songId, songTitle, musicVolume, gameVolume } = settings;
   // A player without kills can still make a reel of their deaths.
   const deathReel = deathPlays.length > 0 && (settings.editConfig.deathReel === true || killPlays.length === 0);
@@ -168,6 +175,28 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
     hasPreset: selectedPreset !== null,
     selectionCount: selectedPlays.length,
   });
+  // Editar reuses the version's capture unless a change needs CS2 again; the record worker still decides.
+  const recordedPreset = editSeed ? presets?.find((preset) => preset.name === editSeed.settings.variant) : undefined;
+  const needsCapture = editSeed !== null && presets !== null && selectedPreset !== null
+    ? shortEditNeedsCapture(
+      { playIds: editSeed.settings.selectedIds, hudMode: recordedPreset?.hudMode, edit: editSeed.settings.editConfig },
+      { playIds: selectedPlays.map((play) => play.id), hudMode: selectedPreset.hudMode, edit: withPresetLimits(shape(editConfig, deathReel), selectedPreset) },
+    )
+    : null;
+  const [space, setSpace] = useState<SpaceCheck | null>(null);
+  const renderSeconds = Math.round(estimatedSeconds);
+  const captureSeconds = needsCapture === false ? 0 : renderSeconds;
+  useEffect(() => {
+    if (renderSeconds === 0) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void fetchStorageSpace({ captureSeconds, renderSeconds, signal: controller.signal }).catch(() => null).then((next) => {
+        if (!controller.signal.aborted) setSpace(next);
+      });
+    }, SPACE_CHECK_DELAY_MS);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [captureSeconds, renderSeconds]);
+  const lowSpace = renderSeconds > 0 ? spaceWarning(space) : null;
 
   function toggleSelect(playId: string): void {
     if (busy) return;
@@ -275,6 +304,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
       // A start Studio refused lands as a failed card in Mis vídeos; the toast says so instead of "en preparación".
       if (video.status === 'failed') toast.error(failedStartTitle(landscape, batch), { description: parseFailureReason(video.failureReason).message });
       else if (batch) toast('Auto-Shorts en preparación', { description: `CS2 graba ${playIds.length} ${playIds.length === 1 ? 'jugada' : 'jugadas'} y cada una sale como un Short en Mis vídeos.` });
+      else if (editSeed !== null && needsCapture === false) toast('Montaje en cola', { description: 'Studio vuelve a montar el vídeo con las jugadas ya grabadas: CS2 no se abre. La versión que ya tienes se queda en Versiones.' });
       else toast(landscape ? 'Resumen en preparación' : 'Short en preparación', { description: 'Sigue la grabación y el montaje en Mis vídeos.' });
       router.push(doneHref);
     } catch (err) {
@@ -328,6 +358,19 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             ) : null}
             {autoPovNote ? (
               <p role="status" className="text-body-sm text-fg-2">{autoPovNote}</p>
+            ) : null}
+            {editSeed ? (
+              <p role="status" className="text-body-sm text-fg-2">
+                Editas la versión del {editSeed.date}. La que ya tienes se queda en Versiones.
+                {needsCapture === false ? ' Las jugadas ya están grabadas: solo se vuelve a montar.' : null}
+                {needsCapture === true ? ' Estos cambios necesitan grabar otra vez con CS2.' : null}
+              </p>
+            ) : null}
+            {lowSpace ? (
+              <p role="status" className="text-body-sm text-warning">
+                {lowSpace}{' '}
+                <Link href={STORAGE_HREF} className="text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 focus-visible:outline-2 focus-visible:outline-ring">Liberar espacio en Almacenamiento</Link>
+              </p>
             ) : null}
             {restored ? (
               <p role="status" className="text-body-sm text-fg-2">
@@ -485,7 +528,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             onClick={() => void onCreate()}
             className="shrink-0"
           >
-            {landscape ? PRODUCE_SUMMARY_CTA : PRODUCE_SHORT_CTA}
+            {editCtaLabel({ capture: needsCapture === null ? null : { needed: needsCapture, missingRounds: [] }, editing: editSeed !== null, fallback: landscape ? PRODUCE_SUMMARY_CTA : PRODUCE_SHORT_CTA })}
           </Button>
         }
       />
