@@ -242,11 +242,13 @@ export function isDemoSource(value: unknown): value is DemoSource {
 export const OVERLAY_THEME = {
   faceitOrange: 'faceit-orange',
   neonViolet: 'neon-violet',
+  /** Full Demo only: the intro and scoreboard in the colours of the plan's HUD. */
+  hud: 'hud',
 } as const;
 export type OverlayTheme = (typeof OVERLAY_THEME)[keyof typeof OVERLAY_THEME];
 
 export function isOverlayTheme(value: unknown): value is OverlayTheme {
-  return value === OVERLAY_THEME.faceitOrange || value === OVERLAY_THEME.neonViolet;
+  return value === OVERLAY_THEME.faceitOrange || value === OVERLAY_THEME.neonViolet || value === OVERLAY_THEME.hud;
 }
 
 export type EditConfig = {

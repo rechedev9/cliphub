@@ -485,7 +485,7 @@ Every mode then runs on it and marks its evidence `synthetic`.
 - A synthetic bundle proves timing, commands, overlays and loudness
   mechanics, not how CS2 footage or real voice looks or sounds. Use a real
   bundle when the change depends on the footage.
-- The mandatory neon overlays need Studio's Chromium renderer: `synth`
+- The mandatory intro and scoreboard overlays need Studio's Chromium renderer: `synth`
   records `ZV_OVERLAY_RENDERER_PATH` when it is set, and without a renderer
   every mode stops at "neon overlay requires the Studio Chromium renderer".
 - `synth` writes the Full Demo editor arguments itself;

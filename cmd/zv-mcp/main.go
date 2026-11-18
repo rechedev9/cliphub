@@ -81,6 +81,8 @@ The user's own HUD themes (list_hud_themes custom) copy a catalog design with ot
 save_hud_theme creates or edits one (up to 10), delete_hud_theme removes one, and its id goes in plan_full_demo hud.
 plan_full_demo also takes compact_header, hide_inventory, round_win_banner, win_probability and the team names team_ct_start and
 team_t_start for the custom HUD scoreboard; they change only the render, never the capture.
+plan_full_demo intro_design picks the look of the player intro and final scoreboard: neon (default) or hud,
+in the colours of the chosen HUD or own theme and neutral over the native CS2 HUD. It only changes the render.
 plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for the focus HUD and intro,
 sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo

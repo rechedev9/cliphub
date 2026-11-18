@@ -39,6 +39,18 @@ test('old drafts normalize removed choices into the automatic Full Demo contract
   assert.equal(fullDemoApprovalKey(raw.document, normalized), null);
 });
 
+test('the intro design reaches the plan and the render: the HUD design stays, anything else is neon', () => {
+  const snapshot = fixture();
+  const options = snapshot.document.options;
+  const hud = currentFullDemoOptions({ ...options, overlays: { ...options.overlays, theme: 'hud' } });
+  assert.equal(hud.overlays.theme, 'hud');
+  assert.ok(isFullDemoOptions(hud));
+  snapshot.document.options = hud;
+  assert.equal(buildEditRequest(fullDemoPlanEdit(snapshot)).overlay_theme, 'hud');
+  const orange = currentFullDemoOptions({ ...options, overlays: { ...options.overlays, theme: 'faceit-orange' } });
+  assert.equal(orange.overlays.theme, 'neon-violet');
+});
+
 test('an approved Go document that omits retired overlay assets stays current', () => {
   const snapshot = fixture();
   const { team1_image: _team1, team2_image: _team2, scoreboard_image: _scoreboard, ...overlays } = snapshot.document.options.overlays;

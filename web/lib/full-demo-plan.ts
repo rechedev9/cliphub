@@ -114,7 +114,7 @@ const optionsShape = object({
   }),
   sponsor: legacy,
   overlays: object({
-    roster: boolean, scoreboard: boolean, theme: oneOf('faceit-orange', 'neon-violet'), source: oneOf('demo', 'faceit'),
+    roster: boolean, scoreboard: boolean, theme: oneOf('faceit-orange', 'neon-violet', 'hud'), source: oneOf('demo', 'faceit'),
     mode: oneOf('generated', 'screenshots'), team1_image: nullable(assetRef), team2_image: nullable(assetRef), scoreboard_image: nullable(assetRef),
     hud_theme: (value): value is string | undefined => value === undefined || isCustomHudTheme(value),
     hud_portrait: nullable(assetRef),
@@ -186,7 +186,8 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
       ...overlays,
       roster: true,
       scoreboard: true,
-      theme: 'neon-violet',
+      // Mirrors Go's canonicalOverlayTheme: the HUD design or neon; the retired orange theme becomes neon.
+      theme: fixed.overlays.theme === 'hud' ? 'hud' : 'neon-violet',
       source: 'demo',
       mode: 'generated',
       ...(hudTheme ? { hud_theme: hudTheme } : {}),

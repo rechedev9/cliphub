@@ -218,8 +218,8 @@ function HudPreview({ theme, portrait, overlays }: {
   </div>;
 }
 
-/** The map the HUD pictures sit on, in the large preview and behind each design of the gallery. */
-function PreviewBackdrop(): ReactNode {
+/** The map the HUD and intro pictures sit on, in the large preview and behind each design of a gallery. */
+export function PreviewBackdrop(): ReactNode {
   return <>
     <MapCover map={PREVIEW_MAP} className="absolute inset-0 opacity-70" />
     <span className="absolute inset-0"><CoverImage src={mapShotUrl(PREVIEW_MAP)} className="brightness-[0.8]" /></span>

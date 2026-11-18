@@ -26,8 +26,8 @@ func TestNeonHTMLUsesRealScopesAndEscapedDOM(t *testing.T) {
 	if got := neonCardView(card, true); got.HS != "—" {
 		t.Fatal("demo headshots leaked into recent FACEIT stats")
 	}
-	doc := Document{Source: SourceFACEIT, TargetSteamID64: "target", Intro: Intro{Left: []PlayerCard{{Name: "Teammate", SteamID64: "other"}, card}}}
-	html, err := NeonIntroHTML(doc, false)
+	doc := Document{Source: SourceFACEIT, Theme: ThemeNeonViolet, TargetSteamID64: "target", Intro: Intro{Left: []PlayerCard{{Name: "Teammate", SteamID64: "other"}, card}}}
+	html, err := DesignHTML(doc, DesignView{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestChromiumHTMLOverlaysPreserveDimensionsAlphaAndImageAspect(t *testing.T)
 	}
 	doc := Document{Theme: ThemeNeonViolet, Intro: Intro{Left: []PlayerCard{{Name: "Actual player", SteamID64: "1"}}}}
 	out := filepath.Join(t.TempDir(), "neon.png")
-	if err := renderNeonIntroStill(doc, out, false); err != nil {
+	if err := renderDesignStill(doc, designStill{path: out}); err != nil {
 		t.Fatal(err)
 	}
 	f, err := os.Open(out)
@@ -181,9 +181,9 @@ func TestChromiumRendersLocalAndFACEITNeonTruthModels(t *testing.T) {
 				var html []byte
 				var err error
 				if item.outro {
-					html, err = NeonOutroHTML(tc.doc, true)
+					html, err = DesignHTML(tc.doc, DesignView{Outro: true, PreviewGrey: true})
 				} else {
-					html, err = NeonIntroHTML(tc.doc, true)
+					html, err = DesignHTML(tc.doc, DesignView{PreviewGrey: true})
 				}
 				if err != nil {
 					t.Fatal(err)
