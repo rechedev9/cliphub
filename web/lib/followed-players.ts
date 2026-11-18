@@ -1,74 +1,46 @@
 import type { FaceitFollowedPlayer, FaceitPlayer } from './api/faceit.ts';
 
-/** A rail row; liveAt is when its profile was last read live from FACEIT (epoch ms), client-side only. */
-export type FollowedPlayerRow = FaceitFollowedPlayer & { liveAt?: number };
-
 export type FollowedPlayersState = {
-  players: FollowedPlayerRow[];
+  players: FaceitFollowedPlayer[];
   selectedID: string | null;
 };
 
 type Action =
-  | { type: 'listed'; players: FaceitFollowedPlayer[]; updatedAt: number }
+  | { type: 'listed'; players: FaceitFollowedPlayer[] }
   | { type: 'selected'; id: string }
   | { type: 'followed'; player: FaceitFollowedPlayer }
   | { type: 'unfollowed'; id: string }
-  | { type: 'profile'; player: FaceitPlayer; at: number };
+  | { type: 'profile'; player: FaceitPlayer };
 
-/** The Players rail lists: the user's own follows, then one tab per seeded zone roster. */
+/** The rail of Jugadores FACEIT: the user's own follows, and the ranking of the chosen country, region or zone. */
 export const PLAYER_TABS = [
-  { id: 'custom', label: 'Seguidos' },
-  { id: 'cis', label: 'CIS' },
-  { id: 'latam', label: 'LATAM' },
+  { id: 'seguidos', label: 'Seguidos' },
+  { id: 'ranking', label: 'Ranking' },
 ] as const;
 
 export type PlayerTab = (typeof PLAYER_TABS)[number]['id'];
 
-/** A followed zone player shows in both Seguidos and their zone. */
-export function inPlayerTab(player: FaceitFollowedPlayer, tab: PlayerTab): boolean {
-  return tab === 'custom' ? player.seeded !== true : player.zone === tab;
-}
-
-/** Open on the user's own list when they follow anyone, otherwise on the first zone with players. */
-export function defaultPlayerTab(players: FaceitFollowedPlayer[]): PlayerTab {
-  return PLAYER_TABS.find((tab) => players.some((player) => inPlayerTab(player, tab.id)))?.id ?? 'custom';
+/** Open on the user's own list when they follow anyone, otherwise on the ranking. */
+export function defaultPlayerTab(players: readonly FaceitFollowedPlayer[]): PlayerTab {
+  return players.length > 0 ? 'seguidos' : 'ranking';
 }
 
 export function followedPlayersReducer(state: FollowedPlayersState, action: Action): FollowedPlayersState {
   switch (action.type) {
-    case 'listed': {
-      // The list is polled; a live profile read after the zone roster was fetched is the newer ELO. updatedAt dates
-      // only the zone roster: an own follow's row is the profile the service stored when it was re-followed or
-      // refreshed, so the listed row is already the newest one.
-      const players = action.players.map((player): FollowedPlayerRow => {
-        if (player.seeded !== true) return player;
-        const live = state.players.find((row) => row.id === player.id);
-        if (live?.liveAt === undefined || live.liveAt <= action.updatedAt) return player;
-        return { ...player, elo: live.elo, skill_level: live.skill_level, liveAt: live.liveAt };
-      });
-      return { players, selectedID: players.some((player) => player.id === state.selectedID)
-        ? state.selectedID : players[0]?.id ?? null };
-    }
+    case 'listed':
+      // An own follow's listed row is the profile the service stored last, so it always wins.
+      return { players: action.players, selectedID: action.players.some((player) => player.id === state.selectedID)
+        ? state.selectedID : action.players[0]?.id ?? null };
     case 'selected':
       return state.players.some((player) => player.id === action.id) ? { ...state, selectedID: action.id } : state;
-    case 'followed': {
-      // The follow response carries no zone; keep the seeded row's so the player stays in that tab too.
-      const zone = state.players.find((player) => player.id === action.player.id)?.zone;
-      const followed = zone === undefined ? action.player : { ...action.player, zone };
-      return { players: [followed, ...state.players.filter((player) => player.id !== action.player.id)], selectedID: followed.id };
-    }
+    case 'followed':
+      return { players: [action.player, ...state.players.filter((player) => player.id !== action.player.id)], selectedID: action.player.id };
     case 'unfollowed': {
-      // An unfollowed zone player goes back to being a seeded row of that zone, as the service lists them.
-      const current = state.players.find((player) => player.id === action.id);
-      if (current?.zone !== undefined && current.seeded !== true) {
-        return { ...state, players: state.players.map((player) => player.id === action.id ? { ...player, seeded: true } : player) };
-      }
       const players = state.players.filter((player) => player.id !== action.id);
       return { players, selectedID: state.selectedID === action.id ? players[0]?.id ?? null : state.selectedID };
     }
     case 'profile':
-      // A live profile knows nothing about the roster, so it must not clear the row's list membership.
       return { ...state, players: state.players.map((player) => player.id === action.player.id
-        ? { ...player, ...action.player, seeded: player.seeded, zone: player.zone, liveAt: action.at } : player) };
+        ? { ...player, ...action.player } : player) };
   }
 }

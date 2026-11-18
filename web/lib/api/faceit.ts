@@ -31,15 +31,28 @@ export type FaceitPlayer = {
   elo?: number;
 };
 
-/** Seeded roster a player belongs to, as the local service tags it. */
-export type FaceitZone = 'cis' | 'latam';
-
 export type FaceitFollowedPlayer = FaceitPlayer & {
   followed_at?: string;
-  seeded?: boolean;
-  zone?: FaceitZone;
+};
+
+export type FaceitRankingKind = 'country' | 'region' | 'zone';
+
+/** One place of a ranking; rank is the place in the chosen country, region or zone. */
+export type FaceitRankedPlayer = Omit<FaceitPlayer, 'avatar' | 'steam_id64'> & {
+  rank: number;
   region?: string;
-  position?: number;
+};
+
+export type FaceitRanking = {
+  kind: FaceitRankingKind;
+  code: string;
+  total: number;
+  /** When the local service read the ranking from FACEIT, epoch ms. */
+  fetchedAt: number;
+  /** FACEIT failed: this is the copy stored at fetchedAt, and staleCode says why. */
+  stale: boolean;
+  staleCode?: string;
+  players: FaceitRankedPlayer[];
 };
 
 type FaceitMatchScore = {
@@ -73,10 +86,8 @@ export type FaceitMatch = {
 export type FaceitFollowedList = {
   enabled: boolean;
   players: FaceitFollowedPlayer[];
-  /** The local service is running its startup refresh of the zone rosters and followed profiles. */
+  /** The local service is running its startup refresh of the followed profiles. */
   refreshing: boolean;
-  /** When the listed ELOs were read from FACEIT, in epoch milliseconds; 0 when unknown. */
-  updatedAt: number;
 };
 
 const PLAYER_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
@@ -124,6 +135,30 @@ export async function unfollowFaceitPlayer(playerID: string): Promise<void> {
   }
   const res = await request(`/api/faceit/followed/${encodeURIComponent(playerID)}`, { method: 'DELETE' });
   if (!res.ok) throw await serviceError(res);
+}
+
+export async function getFaceitRanking({ kind, code, offset, limit }: {
+  kind: FaceitRankingKind;
+  code: string;
+  offset: number;
+  limit: number;
+}): Promise<FaceitRanking> {
+  const params = new URLSearchParams({ kind, code, offset: String(offset), limit: String(limit) });
+  const res = await request(`/api/faceit/rankings?${params.toString()}`);
+  if (!res.ok) throw await serviceError(res);
+  const body: unknown = await res.json();
+  return parseRanking(body);
+}
+
+export async function listFaceitCountries(): Promise<string[]> {
+  const res = await request('/api/faceit/countries');
+  if (!res.ok) throw await serviceError(res);
+  const body: unknown = await res.json();
+  const countries = asRecord(body)?.countries;
+  if (!Array.isArray(countries)) {
+    throw new FaceitServiceError('FACEIT country list is invalid', FACEIT_CODES.invalidResponse, 502);
+  }
+  return countries.filter((code): code is string => typeof code === 'string' && /^[a-z]{2}$/.test(code));
 }
 
 async function request(url: string, init?: RequestInit): Promise<Response> {
@@ -180,10 +215,6 @@ function parsePlayer(raw: unknown, key: string): FaceitFollowedPlayer {
     skill_level: optionalNumber(player.skill_level),
     elo: optionalNumber(player.elo),
     followed_at: optionalString(player.followed_at),
-    seeded: player.seeded === true ? true : undefined,
-    zone: player.zone === 'cis' || player.zone === 'latam' ? player.zone : undefined,
-    region: optionalString(player.region),
-    position: optionalNumber(player.position),
   };
 }
 
@@ -193,12 +224,50 @@ function parseFollowedList(raw: unknown): FaceitFollowedList {
   if (root === null || !Array.isArray(playersRaw)) {
     throw new FaceitServiceError('FACEIT follow list is invalid', FACEIT_CODES.invalidResponse, 502);
   }
-  const updatedAt = typeof root.updated_at === 'string' ? Date.parse(root.updated_at) : Number.NaN;
   return {
     enabled: root.enabled === true,
     players: playersRaw.map((item) => parsePlayer({ player: item }, 'player')),
     refreshing: root.refreshing === true,
-    updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0,
+  };
+}
+
+function parseRankedPlayer(raw: unknown): FaceitRankedPlayer {
+  const row = asRecord(raw);
+  const rank = optionalNumber(row?.rank);
+  const id = optionalString(row?.id);
+  const nickname = optionalString(row?.nickname);
+  const profileURL = optionalString(row?.profile_url);
+  if (row === null || rank === undefined || id === undefined || nickname === undefined || profileURL === undefined) {
+    throw new FaceitServiceError('FACEIT ranking row is invalid', FACEIT_CODES.invalidResponse, 502);
+  }
+  return {
+    rank,
+    id,
+    nickname,
+    country: optionalString(row.country),
+    region: optionalString(row.region),
+    elo: optionalNumber(row.elo),
+    skill_level: optionalNumber(row.skill_level),
+    profile_url: profileURL,
+  };
+}
+
+function parseRanking(raw: unknown): FaceitRanking {
+  const root = asRecord(raw);
+  const kind = root?.kind;
+  const code = optionalString(root?.code);
+  const fetchedAt = typeof root?.fetched_at === 'string' ? Date.parse(root.fetched_at) : Number.NaN;
+  if (root === null || (kind !== 'country' && kind !== 'region' && kind !== 'zone') || code === undefined || !Array.isArray(root.players)) {
+    throw new FaceitServiceError('FACEIT ranking is invalid', FACEIT_CODES.invalidResponse, 502);
+  }
+  return {
+    kind,
+    code,
+    total: optionalNumber(root.total) ?? root.players.length,
+    fetchedAt: Number.isFinite(fetchedAt) ? fetchedAt : 0,
+    stale: root.stale === true,
+    staleCode: root.stale === true ? optionalString(root.stale_code) : undefined,
+    players: root.players.map(parseRankedPlayer),
   };
 }
 

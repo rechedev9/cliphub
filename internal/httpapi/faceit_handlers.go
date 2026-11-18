@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,14 +26,6 @@ func WithFaceit(client *faceit.Client, follows *faceit.FollowStore) Option {
 	return func(h *Handlers) {
 		h.faceit = client
 		h.faceitFollows = follows
-	}
-}
-
-// WithFaceitSeeds supplies the refreshable default roster. A nil store still
-// projects the embedded zone rosters: SeedStore.Document degrades to DefaultSeed.
-func WithFaceitSeeds(seeds *faceit.SeedStore) Option {
-	return func(h *Handlers) {
-		h.faceitSeeds = seeds
 	}
 }
 
@@ -124,14 +115,10 @@ func (h *Handlers) ListFollowedFaceitPlayers(w http.ResponseWriter, r *http.Requ
 		writeCodedError(w, http.StatusServiceUnavailable, faceitNotConfigured, "FACEIT follow list is not configured")
 		return
 	}
-	seed := h.faceitSeeds.Document()
-	players, err := h.faceitFollows.Roster(seed)
+	players, err := h.faceitFollows.List()
 	if err != nil {
 		internalError(w, "list followed FACEIT players", err)
 		return
-	}
-	if players == nil {
-		players = []faceit.RosterPlayer{}
 	}
 	for _, player := range players {
 		if player.Avatar != "" {
@@ -142,7 +129,6 @@ func (h *Handlers) ListFollowedFaceitPlayers(w http.ResponseWriter, r *http.Requ
 		"enabled":    h.faceitEnabled(),
 		"players":    players,
 		"refreshing": h.faceitRosterRefreshing(),
-		"updated_at": seed.UpdatedAt(),
 	})
 }
 
@@ -194,21 +180,7 @@ func (h *Handlers) UnfollowFaceitPlayer(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "FACEIT player id is invalid")
 		return
 	}
-	followed, err := h.faceitFollows.List()
-	if err != nil {
-		writeFaceitError(w, err)
-		return
-	}
-	// Unfollowing a player the user chose puts them back in their zone list, if
-	// any. Removing a seeded row has to be a dismissal: it was never in
-	// followed.json, so Unfollow alone would no-op and the player would
-	// reappear on the next Roster read.
-	if slices.ContainsFunc(followed, func(player faceit.FollowedPlayer) bool { return player.ID == playerID }) {
-		err = h.faceitFollows.Unfollow(playerID)
-	} else {
-		err = h.faceitFollows.DismissSeed(playerID)
-	}
-	if err != nil {
+	if err := h.faceitFollows.Unfollow(playerID); err != nil {
 		writeFaceitError(w, err)
 		return
 	}

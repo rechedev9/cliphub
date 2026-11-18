@@ -168,8 +168,8 @@ func TestFaceitStudioSidebarE2E(t *testing.T) {
 			t.Fatalf("followed after unfollow still includes %s: %s", lookup.Player.ID, after)
 		}
 	}
-	if len(remaining.Players) == 0 {
-		t.Fatalf("followed after unfollow = %s, want the seeded default roster", after)
+	if len(remaining.Players) != 0 {
+		t.Fatalf("followed after unfollow = %s, want nobody", after)
 	}
 }
 

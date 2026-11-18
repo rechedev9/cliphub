@@ -11,6 +11,8 @@ export type StudioAppInfo = {
   build: string;
   electronVersion: string;
   chromiumVersion: string;
+  /** The two-letter country of the Windows region setting; absent from an older desktop process. */
+  localeCountry?: string;
 };
 
 export type StudioTelemetryStatus = {

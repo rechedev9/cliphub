@@ -14,6 +14,9 @@ func communityStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	mux := http.NewServeMux()
 	rec.handle(mux, "GET /api/faceit/players/{id}/matches", `{"matches":[{"id":"1-abc","finished_at":"2026-11-02T20:00:00Z",
 		"score":{"for":13,"against":9},"stats":{"map":"de_ancient","result":"win","kills":21,"deaths":14,"assists":4,"adr":88.2,"headshots_percent":51}}]}`)
+	rec.handle(mux, "GET /api/faceit/rankings", `{"kind":"country","code":"es","total":100,"fetched_at":"2026-11-18T12:00:00Z","stale":true,
+		"stale_code":"faceit_rate_limited","players":[{"rank":21,"id":"es-21","nickname":"mopoz","country":"es","region":"EU","position":3,
+		"elo":3900,"skill_level":10,"profile_url":"https://www.faceit.com/en/players/mopoz"}]}`)
 	rec.handle(mux, "POST /api/practice/launch", `{"launched":true,"next_key":"F6","spots":[{"label":"Ventana","key":"F7"}]}`)
 	cs := serveTools(t, mux, func(server *mcp.Server, s *studio) { registerCommunityTools(server, s) })
 	return cs, rec
@@ -56,4 +59,23 @@ func TestLaunchPracticeAsksThenSendsPitchYaw(t *testing.T) {
 	toolFails(t, cs, "launch_practice", map[string]any{"map": "mirage", "spots": args["spots"]}, "map")
 	toolFails(t, cs, "launch_practice", map[string]any{"map": "de_mirage", "spots": []map[string]any{{"label": "x", "origin": []float64{0, 0, 0}, "view": []float64{0, 120}}}}, "yaw and pitch")
 	toolFails(t, cs, "launch_practice", map[string]any{"map": "de_mirage", "spots": []map[string]any{{"label": "x", "origin": []float64{0, 0, 0}, "view": []float64{0, 0}, "kind": "c4"}}}, "kind must be")
+}
+
+func TestFaceitRankingPagesAPlaceRangeAndRefusesBadEntries(t *testing.T) {
+	cs, rec := communityStudio(t)
+	var out faceitRankingOut
+	callTool(t, cs, "faceit_ranking", map[string]any{"kind": "country", "code": "ES", "offset": 20, "limit": 10}, &out)
+	if got := rec.get("GET /api/faceit/rankings"); !strings.Contains(got, "?code=ES&kind=country&limit=10&offset=20") {
+		t.Errorf("request = %s", got)
+	}
+	if out.Total != 100 || !out.Stale || out.StaleReason != "faceit_rate_limited" || out.FetchedAt != "2026-11-18T12:00:00Z" || len(out.Players) != 1 {
+		t.Fatalf("out = %+v", out)
+	}
+	if p := out.Players[0]; p.Rank != 21 || p.ID != "es-21" || p.Nickname != "mopoz" || p.ELO != 3900 || p.Level != 10 || p.Country != "es" {
+		t.Errorf("player = %+v", p)
+	}
+	toolFails(t, cs, "faceit_ranking", map[string]any{"kind": "team", "code": "es"}, "kind")
+	toolFails(t, cs, "faceit_ranking", map[string]any{"kind": "region", "code": ""}, "code")
+	toolFails(t, cs, "faceit_ranking", map[string]any{"kind": "zone", "code": "cis", "limit": 101}, "limit")
+	toolFails(t, cs, "faceit_ranking", map[string]any{"kind": "zone", "code": "cis", "offset": 100}, "offset")
 }

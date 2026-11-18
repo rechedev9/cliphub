@@ -44,7 +44,6 @@ type faceitPlayerOut struct {
 	Level      int    `json:"level,omitempty"`
 	ELO        int    `json:"elo,omitempty"`
 	ProfileURL string `json:"profile_url,omitempty"`
-	Seeded     bool   `json:"seeded,omitempty" jsonschema:"a top player Studio lists by itself, not one the user followed"`
 }
 
 type faceitMatchesIn struct {
@@ -111,6 +110,7 @@ type practiceOut struct {
 
 func registerCommunityTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
+	registerFaceitRankingTool(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "faceit_player", Annotations: readOnly,
 		Description: "Find a FACEIT CS2 account by nickname or profile URL: id, level, ELO, country and SteamID64."},
@@ -155,7 +155,7 @@ func registerCommunityTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_faceit_follows", Annotations: readOnly,
-		Description: "List the FACEIT players of Seguimiento FACEIT: the ones the user follows and the top players Studio lists by itself."},
+		Description: "List the FACEIT players the user follows: the Seguidos list of Jugadores FACEIT, at most 20."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, faceitFollowsOut, error) {
 			c, err := s.client(ctx)
 			if err != nil {
@@ -173,7 +173,7 @@ func registerCommunityTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "follow_faceit_player", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Follow a FACEIT player by nickname or profile URL, as Seguir does in Seguimiento FACEIT."},
+		Description: "Follow a FACEIT player by nickname or profile URL, as Seguir jugador does in Jugadores FACEIT. At most 20 players are followed."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in faceitLookupIn) (*mcp.CallToolResult, faceitPlayerOut, error) {
 			nick, err := checkFaceitNickname(in.Nickname)
 			if err != nil {
@@ -191,7 +191,7 @@ func registerCommunityTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "unfollow_faceit_player", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Remove a player from the Jugadores list: a followed player is unfollowed, a listed top player is hidden."},
+		Description: "Unfollow a FACEIT player: Dejar de seguir in Jugadores FACEIT."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in faceitIDIn) (*mcp.CallToolResult, empty, error) {
 			if !faceitIDPattern.MatchString(in.PlayerID) {
 				return nil, empty{}, errors.New("player_id must be a FACEIT player id from list_faceit_follows")
@@ -298,7 +298,7 @@ func (in practiceIn) spots() ([]tuiclient.PracticeSpot, error) {
 
 func faceitPlayerOf(p tuiclient.FaceitPlayer) faceitPlayerOut {
 	return faceitPlayerOut{ID: cleanName(p.ID), Nickname: cleanName(p.Nickname), SteamID64: cleanName(p.SteamID64), Country: cleanName(p.Country),
-		Level: p.SkillLevel, ELO: p.ELO, ProfileURL: cleanText(p.ProfileURL, maxErrorRunes), Seeded: p.Seeded}
+		Level: p.SkillLevel, ELO: p.ELO, ProfileURL: cleanText(p.ProfileURL, maxErrorRunes)}
 }
 
 func faceitMatchOf(m tuiclient.FaceitMatch) faceitMatchOut {

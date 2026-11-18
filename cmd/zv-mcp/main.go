@@ -221,8 +221,10 @@ Series of the library (BO1, BO2, BO3, BO5 with teams and veto; a BO2 does not pl
 update_library_series, delete_library_series and set_match_series. The maps of one FACEIT match
 (files 1-<match id>-<map>-1.dem) join one series on their own once two are analysed. team_maps reads a team's map record
 over every match (sides_unread: older ones past 200 analyses count in the results, not the sides) and, with the scope keys of the bar, the matches per map (scope_matches); simulate_veto recommends a veto against a rival.
-FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows,
-follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account).
+FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows (Seguidos, at most 20),
+follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account). faceit_ranking is the ranking
+selector of Jugadores FACEIT: the top 100 of a country (ISO code), a region (EU, NA, SA, OCE, SEA) or a zone (cis, latam), by pages;
+rank is the place in that list, stale says FACEIT failed and the stored copy of fetched_at answered.
 Lineups pro are grenades pros repeat in pro matches, served by the ClipHub community server:
 list_pro_lineup_maps, find_pro_lineups (kind, side, landing and throw callouts, insta, video for lineups with a recorded clip), get_pro_lineup
 (setpos, teams, partners, examples, and clip_url: the recorded throw with the thrower's keys, once one is
