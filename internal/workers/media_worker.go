@@ -3,7 +3,6 @@ package workers
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1967,6 +1966,10 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	musicKey, gameVolume = resolved.musicKey, resolved.gameVolume
 	effectiveMusic, effectiveMusicVolume := resolved.music, resolved.musicVolume
 	inputFingerprint, err := renderInputFingerprint(recordingResult, j.KillPlan, variant, musicKey, musicPath, effectiveMusicVolume, gameVolume, edit)
+	extras := w.readRenderExtras(ctx, j, edit)
+	if err == nil {
+		inputFingerprint, err = extras.fingerprint(inputFingerprint)
+	}
 	if err != nil {
 		if recording.IsNotReusableMessage(err.Error()) {
 			return err
@@ -2038,6 +2041,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		musicPath:       musicPath,
 		musicVolume:     effectiveMusicVolume,
 		gameVolume:      gameVolume,
+		extras:          extras,
 	}, workDir)
 	if err != nil {
 		return err
@@ -2470,6 +2474,7 @@ type editorInputs struct {
 	musicPath       string
 	musicVolume     float64
 	gameVolume      *float64
+	extras          renderExtras
 }
 
 // editorInvocation is the zv-editor argument list plus the directories it
@@ -2525,7 +2530,7 @@ func (w *RenderWorker) writeEditorInputs(ctx context.Context, cfg RenderWorkerCo
 		if ffmpeg == "" {
 			ffmpeg = recording.FindFFmpeg()
 		}
-		path, executionErr := w.materializeFullDemoExecution(ctx, j, *edit.FullDemo, workDir, ffmpeg)
+		path, executionErr := w.materializeFullDemoExecution(ctx, fullDemoExecutionInput{job: j, snapshot: *edit.FullDemo, dir: workDir, ffmpeg: ffmpeg, subtitles: in.extras.Subtitles})
 		if executionErr != nil {
 			return editorInvocation{}, executionErr
 		}
@@ -2544,7 +2549,7 @@ func (w *RenderWorker) writeEditorInputs(ctx context.Context, cfg RenderWorkerCo
 		return editorInvocation{}, err
 	}
 	args = append(append(append(args, bookendTextArgs(edit)...), keyDropArgs(edit)...), brandArgs...)
-	args = append(args, w.shortDataArgs(ctx, shortDataInput{job: j, edit: edit, result: in.recordingResult, workDir: workDir})...)
+	args = append(args, w.shortDataArgs(ctx, shortDataInput{job: j, edit: edit, result: in.recordingResult, workDir: workDir, extras: in.extras})...)
 	if cfg.FFmpegPath != "" {
 		args = append(args, "--ffmpeg", cfg.FFmpegPath)
 	}
@@ -3824,61 +3829,6 @@ func compositionOutputsReady(store storage.Storage, id uuid.UUID) (bool, []strin
 		keys = append(keys, key)
 	}
 	return true, keys, nil
-}
-
-type renderMusicInput struct {
-	Key        string   `json:"key,omitempty"`
-	Available  bool     `json:"available"`
-	Volume     float64  `json:"volume,omitempty"`
-	GameVolume *float64 `json:"game_volume,omitempty"`
-	SHA256     string   `json:"sha256,omitempty"`
-}
-
-type renderFingerprintInput struct {
-	SchemaVersion string                    `json:"schema_version"`
-	Variant       string                    `json:"variant"`
-	Edit          renderplan.EditRequest    `json:"edit"`
-	Music         renderMusicInput          `json:"music"`
-	Recording     recording.RecordingResult `json:"recording"`
-	KillPlan      killplan.Plan             `json:"kill_plan"`
-}
-
-func renderInputFingerprint(result recording.RecordingResult, plan *killplan.Plan, variant, musicKey, musicPath string, effectiveMusicVolume float64, gameVolume *float64, edit renderplan.EditRequest) (string, error) {
-	if edit.FullDemo != nil {
-		return fullDemoRenderFingerprint(result, variant, *edit.FullDemo)
-	}
-	music := renderMusicInput{Key: musicKey, Available: musicPath != "", Volume: effectiveMusicVolume, GameVolume: gameVolume}
-	if musicPath != "" {
-		// #nosec G304 -- musicPath is the worker-local materialization of a validated durable music artifact.
-		f, err := os.Open(musicPath)
-		if err != nil {
-			return "", fmt.Errorf("open music: %w", err)
-		}
-		h := sha256.New()
-		_, copyErr := io.Copy(h, f)
-		closeErr := f.Close()
-		if copyErr != nil {
-			return "", fmt.Errorf("hash music: %w", copyErr)
-		}
-		if closeErr != nil {
-			return "", fmt.Errorf("close music: %w", closeErr)
-		}
-		music.SHA256 = fmt.Sprintf("%x", h.Sum(nil))
-	}
-	doc := renderFingerprintInput{
-		SchemaVersion: "1.0",
-		Variant:       variant,
-		Edit:          edit,
-		Music:         music,
-		Recording:     result,
-		KillPlan:      *plan,
-	}
-	b, err := json.Marshal(doc)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(b)
-	return fmt.Sprintf("%x", sum), nil
 }
 
 func renderVariantOutputsReadyContext(ctx context.Context, store storage.Storage, id uuid.UUID, variant, expectedFingerprint string, states ...*renderplan.RenderVariantState) (bool, []string, []string, error) {

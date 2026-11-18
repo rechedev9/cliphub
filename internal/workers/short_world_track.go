@@ -22,18 +22,20 @@ const (
 	worldTrackTailSeconds = 1
 )
 
-// shortDataInput is what a Short's data files need: the job, its edit, its capture and the stage folder.
+// shortDataInput is what a Short's data files need: the job, its edit, its capture, the stage folder and
+// the subtitles and player card the render read.
 type shortDataInput struct {
 	job     job.Job
 	edit    renderplan.EditRequest
 	result  recording.RecordingResult
 	workDir string
+	extras  renderExtras
 }
 
 // shortDataArgs writes the stats card, the world track, the vertical HUD track, the subtitles and the
 // radar track a Short draws and returns their editor flags.
 func (w *RenderWorker) shortDataArgs(ctx context.Context, in shortDataInput) []string {
-	args := w.writeShortPlayerCards(ctx, in.job, in.workDir, in.edit)
+	args := writeShortPlayerCards(in)
 	if cardPath := w.writeShortStatsCard(in.job, in.workDir, in.edit); cardPath != "" {
 		args = append(args, "--stats-card", cardPath)
 	}
@@ -49,7 +51,7 @@ func (w *RenderWorker) shortDataArgs(ctx context.Context, in shortDataInput) []s
 	if trackPath := w.writeShortVerticalHUD(ctx, in); trackPath != "" {
 		args = append(args, "--vertical-hud-track", trackPath)
 	}
-	if trackPath := w.writeShortSubtitles(ctx, in); trackPath != "" {
+	if trackPath := writeShortSubtitles(in); trackPath != "" {
 		args = append(args, "--subtitles", trackPath)
 	}
 	return append(args, w.writeShortRadar(ctx, in)...)

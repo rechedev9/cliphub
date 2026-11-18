@@ -152,6 +152,7 @@ func (w *RenderWorker) PrepareLabBundle(ctx context.Context, id uuid.UUID, varia
 		musicPath:       resolved.musicPath,
 		musicVolume:     resolved.musicVolume,
 		gameVolume:      resolved.gameVolume,
+		extras:          w.readRenderExtras(ctx, j, edit),
 	}, dir)
 	if err != nil {
 		return LabBundle{}, err
