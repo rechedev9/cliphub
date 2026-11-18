@@ -61,16 +61,16 @@ func fakeOverlayRender(requestPath string) error {
 	return os.WriteFile(req.OutputPath, body.Bytes(), 0o600)
 }
 
-// TestPlayerCardShortPipelineGolden walks a one-player 9:16 Short that opens and
-// closes on a player card and takes a third one as its cover.
-func TestPlayerCardShortPipelineGolden(t *testing.T) {
-	work := t.TempDir()
-	self, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("ZV_OVERLAY_RENDERER_PATH", self)
-	t.Setenv("ZV_OVERLAY_RENDERER_APP", "")
+// cardShort is the top moments of the fixture as a one-player 9:16 Short that opens and closes on a
+// player card and takes a third one as its cover: the editor config without its output folder.
+type cardShort struct {
+	cfg     editor.Config
+	recPlan recording.RecordingPlan
+	name    string
+}
+
+func newCardShort(t *testing.T, work string) cardShort {
+	t.Helper()
 	t.Setenv("LocalAppData", filepath.Join(work, "cache"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(work, "cache"))
 	fixture := readFixture(t)
@@ -96,22 +96,29 @@ func TestPlayerCardShortPipelineGolden(t *testing.T) {
 		SteamID64: fixture.Target.SteamID64, Name: fixture.Target.NameInDemo, Map: fixture.Map,
 		Result: &playercard.Result{Own: 13, Rival: 9}, Rounds: 22, Kills: 21, Deaths: 14, Rating: &rating, ADR: &adr,
 	}})
+	return cardShort{recPlan: recPlan, name: fixture.Target.NameInDemo, cfg: editor.Config{
+		KillPlanPath: selectedPath, PublishDir: filepath.Join(work, "publish"), FFmpegPath: "ffmpeg", FFprobePath: "ffprobe",
+		OutputFormat: editor.OutputFormatShort9x16, CompileSegments: true, SegmentIDs: ids, PlayerCardsPath: cardsPath, DryRun: true,
+	}}
+}
+
+// TestPlayerCardShortPipelineGolden walks a one-player 9:16 Short that opens and
+// closes on a player card and takes a third one as its cover.
+func TestPlayerCardShortPipelineGolden(t *testing.T) {
+	work := t.TempDir()
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ZV_OVERLAY_RENDERER_PATH", self)
+	t.Setenv("ZV_OVERLAY_RENDERER_APP", "")
+	short := newCardShort(t, work)
+	recPlan := short.recPlan
 
 	outDir := filepath.Join(work, "render")
-	if _, err := editor.Run(context.Background(), editor.Config{
-		RecordingResultPath: writeRecordingResult(t, recPlan),
-		KillPlanPath:        selectedPath,
-		OutputDir:           outDir,
-		PublishDir:          filepath.Join(work, "publish"),
-		FFmpegPath:          "ffmpeg",
-		FFprobePath:         "ffprobe",
-		OutputFormat:        editor.OutputFormatShort9x16,
-		CompileSegments:     true,
-		SegmentIDs:          ids,
-		Intro:               true,
-		PlayerCardsPath:     cardsPath,
-		DryRun:              true,
-	}); err != nil {
+	cfg := short.cfg
+	cfg.RecordingResultPath, cfg.OutputDir, cfg.Intro = writeRecordingResult(t, recPlan), outDir, true
+	if _, err := editor.Run(context.Background(), cfg); err != nil {
 		t.Fatalf("editor dry run: %v", err)
 	}
 	for _, card := range []string{"carta", "mvp", "ficha"} {
@@ -133,27 +140,49 @@ func TestPlayerCardShortPipelineGolden(t *testing.T) {
 	var phrases []subtitles.Phrase
 	for i, segment := range recPlan.Segments {
 		start := recording.EffectiveRecordStartTick(segment, recPlan.Tickrate)
-		phrases = append(phrases, subtitles.Phrase{ID: strconv.Itoa(i), Speaker: fixture.Target.NameInDemo, Text: "vamos", StartTick: start, EndTick: start + 3*recPlan.Tickrate})
+		phrases = append(phrases, subtitles.Phrase{ID: strconv.Itoa(i), Speaker: short.name, Text: "vamos", StartTick: start, EndTick: start + 3*recPlan.Tickrate})
 	}
 	phrasesPath := filepath.Join(work, "subtitles.json")
 	writeJSON(t, phrasesPath, subtitles.Track{Phrases: phrases})
 	plainDir := filepath.Join(work, "render-subtitles")
-	if _, err := editor.Run(context.Background(), editor.Config{
-		RecordingResultPath: writeRecordingResult(t, recPlan), KillPlanPath: selectedPath, OutputDir: plainDir, PublishDir: filepath.Join(work, "publish"),
-		FFmpegPath: "ffmpeg", FFprobePath: "ffprobe", OutputFormat: editor.OutputFormatShort9x16, CompileSegments: true, SegmentIDs: ids,
-		PlayerCardsPath: cardsPath, SubtitlesPath: phrasesPath, DryRun: true,
-	}); err != nil {
+	cfg = short.cfg
+	cfg.RecordingResultPath, cfg.OutputDir, cfg.SubtitlesPath = writeRecordingResult(t, recPlan), plainDir, phrasesPath
+	if _, err := editor.Run(context.Background(), cfg); err != nil {
 		t.Fatalf("editor dry run with subtitles: %v", err)
 	}
 	var withSubtitles editor.Manifest
 	readJSON(t, filepath.Join(plainDir, "edit-manifest.json"), &withSubtitles)
-	short := withSubtitles.Shorts[0]
-	card := slices.IndexFunc(short.Effects, func(e editor.Effect) bool { return e.Source == "player-card-opening" })
-	if card < 0 || short.SubtitlesASS == "" {
-		t.Fatalf("the Short lacks its opening card (%d) or its subtitles (%q)", card, short.SubtitlesASS)
+	edited := withSubtitles.Shorts[0]
+	card := slices.IndexFunc(edited.Effects, func(e editor.Effect) bool { return e.Source == "player-card-opening" })
+	if card < 0 || edited.SubtitlesASS == "" {
+		t.Fatalf("the Short lacks its opening card (%d) or its subtitles (%q)", card, edited.SubtitlesASS)
 	}
-	if first := firstCueSeconds(t, short.SubtitlesASS); first < short.Effects[card].EndSeconds {
-		t.Fatalf("a subtitle starts at %.2f s, under the opening card that ends at %.2f s", first, short.Effects[card].EndSeconds)
+	if first := firstCueSeconds(t, edited.SubtitlesASS); first < edited.Effects[card].EndSeconds {
+		t.Fatalf("a subtitle starts at %.2f s, under the opening card that ends at %.2f s", first, edited.Effects[card].EndSeconds)
+	}
+}
+
+// A card the overlay renderer cannot draw leaves the Short without its cards, with a warning, instead of
+// failing it.
+func TestAPlayerCardThatCannotBeDrawnLeavesTheShortWithoutIt(t *testing.T) {
+	work := t.TempDir()
+	t.Setenv("ZV_OVERLAY_RENDERER_PATH", "")
+	short := newCardShort(t, work)
+	cfg := short.cfg
+	cfg.RecordingResultPath, cfg.OutputDir = writeRecordingResult(t, short.recPlan), filepath.Join(work, "render")
+	result, err := editor.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("the Short failed on its player card: %v", err)
+	}
+	if !slices.ContainsFunc(result.Warnings, func(w string) bool { return strings.Contains(w, "player card") }) {
+		t.Fatalf("warnings = %q, want the card that was left out", result.Warnings)
+	}
+	var manifest editor.Manifest
+	readJSON(t, filepath.Join(cfg.OutputDir, "edit-manifest.json"), &manifest)
+	for _, s := range manifest.Shorts {
+		if slices.ContainsFunc(s.Effects, func(e editor.Effect) bool { return strings.HasPrefix(e.Source, "player-card") }) {
+			t.Fatalf("Short %s still shows a card it could not draw", s.SegmentID)
+		}
 	}
 }
 
