@@ -20,7 +20,7 @@ import { defaultShortSettings } from '@/lib/produce/short-draft';
 import { preRollOf, preRolledSelection, withPreRoll } from '@/lib/produce/pre-roll';
 import { summaryStyle, withoutOnePlayerOptions, withSummaryStyle } from '@/lib/produce/summary-style';
 import { editCtaLabel, shortEditNeedsCapture, spaceWarning, type ShortCaptureChoice, type ShortEditSeed, type SpaceCheck } from '@/lib/produce/edit-capture';
-import { horizontalCtaLabel, horizontalGonePlays, horizontalNeedsCapture, horizontalNotice, withShortFraming, type HorizontalDraft } from '@/lib/produce/horizontal';
+import { horizontalCtaLabel, horizontalGonePlays, horizontalNeedsCapture, horizontalNotice, withShortComms, withShortFraming, type HorizontalDraft } from '@/lib/produce/horizontal';
 import { filterPlays, NO_PLAY_FILTER, playFilterOptions, type PlayFilter } from '@/lib/produce/play-filter';
 import { useShortDraft } from '@/hooks/use-short-draft';
 import {
@@ -113,7 +113,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
     let own = edit;
     if (multiPov) own = horizontal ? withPreRoll(edit, DEFAULT_PRE_ROLL_SECONDS) : withoutOnePlayerOptions(edit);
     return landscape
-      ? withShortFraming(bestMomentsEdit(constrainEditConfig({ ...own, format })), framing)
+      ? withShortFraming(withShortComms(bestMomentsEdit(constrainEditConfig({ ...own, format })), horizontal === null ? null : own), framing)
       : constrainEditConfig({ ...own, format, deathReel: deaths, ...(multiPov ? { killCounter: false, statsCard: false } : {}) });
   };
   const [presets, setPresets] = useState<Preset[] | null>(null);

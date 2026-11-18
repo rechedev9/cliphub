@@ -7,37 +7,29 @@ import (
 	"path/filepath"
 
 	"github.com/rechedev9/cliphub/internal/faceit"
-	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/playercard"
-	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 // writeShortPlayerCards writes the cards a one-player 9:16 Short opens, closes and is covered with and
-// returns their editor flags. A failed read renders the Short without them instead of failing it.
-func (w *RenderWorker) writeShortPlayerCards(ctx context.Context, j job.Job, workDir string, edit renderplan.EditRequest) []string {
-	if edit.OpeningCard == "" && edit.EndCard == "" && edit.CoverCard == "" {
-		return nil
-	}
-	if edit.Format != renderplan.FormatShort9x16 || edit.FullDemo != nil || edit.MatchRecap || playercard.Unavailable(j) != "" {
+// returns their editor flags. A failed write renders the Short without them instead of failing it.
+func writeShortPlayerCards(in shortDataInput) []string {
+	facts, edit := in.extras.Card, in.edit
+	if facts == nil {
 		return nil
 	}
 	fail := func(err error) []string {
-		logWorkerError(j.ID, tasks.TypeRenderVariant, fmt.Errorf("player cards left out: %w", err))
+		logWorkerError(in.job.ID, tasks.TypeRenderVariant, fmt.Errorf("player cards left out: %w", err))
 		return nil
-	}
-	facts, err := playercard.Gather(ctx, w.playerCardSources(), j.ID, playercard.Target(j))
-	if err != nil {
-		return fail(err)
 	}
 	req := playercard.Request{Opening: edit.OpeningCard, End: edit.EndCard, Cover: edit.CoverCard, Card: facts.Card}
 	if len(facts.Image) > 0 {
-		req.ImagePath = filepath.Join(workDir, "player-card-image")
+		req.ImagePath = filepath.Join(in.workDir, "player-card-image")
 		if err := os.WriteFile(req.ImagePath, facts.Image, 0o600); err != nil {
 			return fail(err)
 		}
 	}
-	path := filepath.Join(workDir, "player-cards.json")
+	path := filepath.Join(in.workDir, "player-cards.json")
 	if err := writeJSONFile(path, req); err != nil {
 		return fail(err)
 	}

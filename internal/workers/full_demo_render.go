@@ -17,6 +17,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/overlayassets"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/subtitles"
 	"github.com/rechedev9/cliphub/internal/voicecomms"
 )
 
@@ -28,7 +29,17 @@ func fullDemoExecutionArgs(path string) []string {
 	return []string{"--full-demo-execution", path, "--tail-trim=0", "--compile-segments"}
 }
 
-func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, j job.Job, snapshot recapplan.Snapshot, dir, ffmpeg string) (string, error) {
+// fullDemoExecutionInput is the approved Full Demo a render plays, its stage folder and the subtitles it read.
+type fullDemoExecutionInput struct {
+	job       job.Job
+	snapshot  recapplan.Snapshot
+	dir       string
+	ffmpeg    string
+	subtitles *subtitles.Track
+}
+
+func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, in fullDemoExecutionInput) (string, error) {
+	j, snapshot, dir, ffmpeg := in.job, in.snapshot, in.dir, in.ffmpeg
 	execution := editor.FullDemoExecution{SchemaVersion: "1.0", Approved: snapshot, Assets: []editor.FullDemoLocalMedia{}, VoiceTracks: []editor.FullDemoLocalVoice{}}
 	if snapshot.Document.Options.Overlays.HUDTheme != "" {
 		telemetry, err := w.materializeFullDemoHUD(ctx, j, snapshot.Document, dir)
@@ -68,7 +79,7 @@ func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, j job.J
 			execution.VoiceTracks = append(execution.VoiceTracks, editor.FullDemoLocalVoice{SteamID64: track.SteamID64, StorageKey: track.Path, SHA256: extraction.TrackHashes[track.Path], Path: path})
 		}
 	}
-	execution.Subtitles = w.fullDemoSubtitles(ctx, j, snapshot.Document.Options.Subtitles)
+	execution.Subtitles = in.subtitles
 	path := filepath.Join(dir, "full-demo-execution.json")
 	return path, writeJSONFile(path, execution)
 }

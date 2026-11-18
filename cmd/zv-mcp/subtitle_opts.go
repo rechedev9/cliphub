@@ -11,7 +11,7 @@ import (
 
 // subtitleChoices are the subtitles of a Short, a summary or a Full Demo.
 type subtitleChoices struct {
-	Subtitles        *bool    `json:"subtitles,omitempty" jsonschema:"burn what the team voices say, with the speaker's name in front; needs the team voices in the video (voice_comms, or team_voices in plan_full_demo) and a demo that recorded them; the render transcribes the demo first when it was not (install_transcriber); default false"`
+	Subtitles        *bool    `json:"subtitles,omitempty" jsonschema:"burn what the team voices say, with the speaker's name in front; needs the team voices in the video (voice_comms, or team_voices in plan_full_demo) and a demo that recorded them; creating the video queues the transcription when the demo has none (install_transcriber), and a video rendered before it is ready goes without subtitles; default false"`
 	SubtitlesEnglish *bool    `json:"subtitles_english,omitempty" jsonschema:"show the subtitles only in English; needs subtitles and install_translator; default false"`
 	SubtitlesHidden  []string `json:"subtitles_hidden,omitempty" jsonschema:"phrase ids from demo_transcript to leave out of this video only; needs subtitles"`
 }

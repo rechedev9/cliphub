@@ -72,6 +72,15 @@ export function withShortFraming(edit: EditConfig, from: { settings: Pick<ShortS
   return next;
 }
 
+/** A horizontal is its Short in 16:9: it keeps the Short's team comms and their level, which bestMomentsEdit turns on for other summaries. */
+export function withShortComms(edit: EditConfig, short: Pick<EditConfig, 'voiceComms' | 'voiceVolume'> | null): EditConfig {
+  if (short === null) return edit;
+  const next: EditConfig = { ...edit, voiceComms: short.voiceComms };
+  if (short.voiceVolume === undefined) delete next.voiceVolume;
+  else next.voiceVolume = short.voiceVolume;
+  return next;
+}
+
 /** The draft records nothing; plays whose clips are gone, new plays or another capture do. */
 export function horizontalNeedsCapture(draft: HorizontalDraft, next: ShortCaptureChoice): boolean {
   return shortEditNeedsCapture({ playIds: draft.recordedIds, hudMode: next.hudMode, edit: draft.settings.editConfig }, next);

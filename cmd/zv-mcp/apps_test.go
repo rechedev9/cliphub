@@ -5,11 +5,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/rechedev9/cliphub/internal/playercard"
 )
 
 var networkLoad = regexp.MustCompile(`(?i)(src|href)\s*=\s*["']?(https?:)?//|url\(\s*["']?(https?:)?//|@import|fetch\(|new WebSocket|XMLHttpRequest`)
@@ -167,7 +170,7 @@ func TestChooseShortOptionsListsChoicesAsText(t *testing.T) {
 		t.Fatalf("error result: %+v", res.Content)
 	}
 	text := res.Content[0].(*mcp.TextContent).Text
-	for _, want := range []string{"short-9x16*", "punch-in*", "flash*", "s1: Night Drive, Neon", "cover*", "generate_short"} {
+	for _, want := range []string{"short-9x16*", "punch-in*", "flash*", "s1: Night Drive, Neon", "cover*", "generate_short", "opening_card, end_card, cover_card", "carta (Carta)"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("text lacks %q:\n%s", want, text)
 		}
@@ -175,6 +178,9 @@ func TestChooseShortOptionsListsChoicesAsText(t *testing.T) {
 	out, _ := res.StructuredContent.(map[string]any)
 	if out["job_id"] != "6f1c2a9e-3b7d-4c8a-9e21-5d4b3a2f1e0c" || len(out["segment_ids"].([]any)) != 2 {
 		t.Errorf("structured = %v", res.StructuredContent)
+	}
+	if cards, _ := out["player_cards"].([]any); len(cards) != len(playercard.Templates) {
+		t.Errorf("the picker gets %d player cards, want the catalog's %d", len(cards), len(playercard.Templates))
 	}
 
 	bad, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "choose_short_options", Arguments: map[string]any{"job_id": "6f1c2a9e-3b7d-4c8a-9e21-5d4b3a2f1e0c", "segment_ids": []string{}}})
@@ -191,5 +197,22 @@ func TestChooseShortOptionsReportsClosedStudio(t *testing.T) {
 	}
 	if !res.IsError || !strings.Contains(res.Content[0].(*mcp.TextContent).Text, "not running") {
 		t.Errorf("result = %+v", res)
+	}
+}
+
+// The picker sends every player card slot generate_short takes.
+func TestShortOptionsPickerOffersThePlayerCardSlots(t *testing.T) {
+	cs := connectApps(t, closedStudio(t))
+	read, err := cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: shortOptionsAppURI})
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := read.Contents[0].Text
+	slots := reflect.TypeFor[playerCardChoices]()
+	for i := range slots.NumField() {
+		name, _, _ := strings.Cut(slots.Field(i).Tag.Get("json"), ",")
+		if !strings.Contains(html, `"`+name+`"`) {
+			t.Errorf("the picker has no %s", name)
+		}
 	}
 }

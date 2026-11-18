@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -105,5 +106,39 @@ func storeFullDemoCapture(t *testing.T, store *fakeStorage, id uuid.UUID, d reca
 	}
 	if err := store.Put(recording.ResultArtifactKey(id), bytes.NewReader(b)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// existsFails is storage whose Exists of one key fails, as a disk error would.
+type existsFails struct {
+	*fakeStorage
+	key string
+}
+
+func (s existsFails) Exists(key string) (bool, error) {
+	if key == s.key {
+		return false, errors.New("disk read failed")
+	}
+	return s.fakeStorage.Exists(key)
+}
+
+// The capture hint is advisory: a plan whose capture check fails still opens, without the hint.
+func TestFullDemoPlanLoadsWhenItsCaptureCheckFails(t *testing.T) {
+	h, j, store, _, o := fullDemoAPIFixture(t)
+	planned := fullDemoAPIPlan(t, h, j, o)
+	h.storage = existsFails{fakeStorage: store, key: recording.ResultArtifactKey(j.ID)}
+	router := chi.NewRouter()
+	router.Get("/api/jobs/{id}/full-demo/plan", h.GetFullDemoPlan)
+	rw := httptest.NewRecorder()
+	router.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/full-demo/plan", nil))
+	var got struct {
+		Document *recapplan.Document `json:"document"`
+		Capture  *fullDemoCapture    `json:"capture"`
+	}
+	if err := json.Unmarshal(rw.Body.Bytes(), &got); rw.Code != http.StatusOK || err != nil {
+		t.Fatalf("plan = %d %s, want the saved plan", rw.Code, rw.Body.String())
+	}
+	if got.Document == nil || got.Document.PlanID != planned.Document.PlanID || got.Capture != nil {
+		t.Fatalf("plan = %+v, capture %+v; want the saved plan without a capture hint", got.Document, got.Capture)
 	}
 }

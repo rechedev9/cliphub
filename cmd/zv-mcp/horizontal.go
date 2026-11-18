@@ -36,7 +36,7 @@ type draftEdit struct {
 func registerHorizontalTool(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "horizontal_draft", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Prepare the horizontal 16:9 version of a finished Short, as Crear horizontal does in Mis vídeos: the summary of the same plays in the same order, " +
-			"with the Short's capture style, kill feed framing and pre-roll, its music and levels, and its effects, transitions and texts. It creates nothing: " +
+			"with the Short's capture style, kill feed framing and pre-roll, its music and levels, its team comms, and its effects, transitions and texts. It creates nothing: " +
 			"pass generate_short to generate_short, which needs the user's approval. needs_capture says whether that opens CS2; with the Short's style and plays " +
 			"it renders from the Short's recorded plays. dropped lists the 9:16 options it leaves out. Changing capture_hud or adding plays records again. The Short stays as it is."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in videoVersionsIn) (*mcp.CallToolResult, horizontalDraftOut, error) {

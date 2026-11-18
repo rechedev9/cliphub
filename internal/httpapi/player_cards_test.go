@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -162,5 +163,39 @@ func TestPlayerCardsAreOffForAMultiPlayerShort(t *testing.T) {
 	body, contentType := imageForm(t, []byte("x"))
 	if rw := cardRequest(t, router, http.MethodPost, "/api/jobs/"+j.ID.String()+"/player-card/image", body, contentType); rw.Code != http.StatusConflict {
 		t.Fatalf("multi-player upload = %d, want 409", rw.Code)
+	}
+}
+
+// Opening the card panel asks for the card info and the three previews at once; the player is gathered
+// once for all of them, and a new image shows on the next read.
+func TestPlayerCardPanelGathersThePlayerOnce(t *testing.T) {
+	repo, files := newFakeRepo(), newFakeStorage()
+	router := Routes(NewHandlers(repo, files, &fakeQueue{}))
+	j := playerCardJob(t, repo, files, false)
+	base := "/api/jobs/" + j.ID.String() + "/player-card"
+	var wg sync.WaitGroup
+	for _, path := range []string{base, base + "/preview?template=carta", base + "/preview?template=ficha", base + "/preview?template=mvp"} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if rw := cardRequest(t, router, http.MethodGet, path, nil, ""); rw.Code != http.StatusOK {
+				t.Errorf("%s = %d %s", path, rw.Code, rw.Body)
+			}
+		}()
+	}
+	wg.Wait()
+	if got := files.openCount(artifacts.RosterKey(j.ID)); got != 1 {
+		t.Fatalf("the panel read the roster %d times, want once", got)
+	}
+	var portrait bytes.Buffer
+	if err := png.Encode(&portrait, image.NewNRGBA(image.Rect(0, 0, 40, 40))); err != nil {
+		t.Fatal(err)
+	}
+	body, contentType := imageForm(t, portrait.Bytes())
+	if rw := cardRequest(t, router, http.MethodPost, base+"/image", body, contentType); rw.Code != http.StatusOK {
+		t.Fatalf("upload = %d %s", rw.Code, rw.Body)
+	}
+	if got := readCardInfo(t, router, j).Player.Image; got != "upload" {
+		t.Fatalf("image after an upload = %q, want the upload", got)
 	}
 }

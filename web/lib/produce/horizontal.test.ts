@@ -2,11 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { withPreRoll } from './pre-roll.ts';
 import { withSummaryStyle } from './summary-style.ts';
+import { bestMomentsEdit } from './multi-pov.ts';
 import {
   horizontalCtaLabel,
   horizontalNeedsCapture,
   horizontalNotice,
   projectHorizontalDraft,
+  withShortComms,
   withShortFraming,
   type HorizontalDraft,
 } from './horizontal.ts';
@@ -41,6 +43,15 @@ test('Crear horizontal opens the summary with the Short plays in their order, it
   assert.deepEqual([edit.format, edit.captureHud, edit.portraitSafeKillfeed, edit.preRollSeconds], ['landscape-16x9', 'deathnotices', true, 5]);
   assert.deepEqual([edit.killEffect, edit.transition, edit.intro, edit.introText, edit.playBadges], ['glitch', 'whip', true, 'ACE en Mirage', true]);
   assert.deepEqual(dropped, ['HUD vertical', 'tarjeta de estadísticas', 'radar de ClipHub']);
+});
+
+test('the horizontal keeps the team comms of its Short and their level', () => {
+  const quiet = draftOf({ edit: { ...BODY.edit, voice_comms: false } }).settings.editConfig;
+  assert.equal(withShortComms(bestMomentsEdit(quiet), quiet).voiceComms, false, 'a Short without comms');
+  const loud = draftOf({ edit: { ...BODY.edit, voice_volume: 0.4 } }).settings.editConfig;
+  const kept = withShortComms(bestMomentsEdit(loud), loud);
+  assert.deepEqual([kept.voiceComms, kept.voiceVolume], [true, 0.4], 'a Short with comms at 40 %');
+  assert.equal(withShortComms(bestMomentsEdit(quiet), null).voiceComms, true, 'another summary carries comms');
 });
 
 test('the horizontal names the player cards the Short had', () => {

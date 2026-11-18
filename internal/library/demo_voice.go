@@ -53,8 +53,10 @@ type DemoVoiceLinePatch struct {
 }
 
 // DemoVoiceLineFilter reads phrases; empty MatchIDs means every match, Query matches the text as a phrase.
+// All reads past MaxVoiceLineList, for a match's whole transcript.
 type DemoVoiceLineFilter struct {
 	MatchIDs []uuid.UUID
 	Query    string
 	Limit    int
+	All      bool
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
+	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 )
 
@@ -45,10 +46,34 @@ func TestRenderTimeoutGrowsWithAFullDemo(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := (RenderWorkerConfig{Timeout: tc.configured}).renderTimeout(tc.fullDemo); got != tc.want {
+			if got := (RenderWorkerConfig{Timeout: tc.configured}).renderTimeout(tc.fullDemo, recording.RecordingPlan{}); got != tc.want {
 				t.Fatalf("renderTimeout(%q) = %s, want %s", tc.configured, got, tc.want)
 			}
 		})
+	}
+}
+
+// playsOf is a capture of plays that each last d at 64 ticks a second.
+func playsOf(d ...time.Duration) recording.RecordingPlan {
+	plan := recording.RecordingPlan{Tickrate: 64}
+	start := 1000
+	for _, length := range d {
+		ticks := int(length / time.Second * 64)
+		plan.Segments = append(plan.Segments, recording.RecordingSegment{ID: "seg", TickStart: start, TickEnd: start + ticks})
+		start += ticks + 6400
+	}
+	return plan
+}
+
+// A summary has no length cap (#554), so its deadline grows with its plays like a Full Demo's.
+func TestRenderTimeoutGrowsWithALongSummary(t *testing.T) {
+	cfg := RenderWorkerConfig{Timeout: "20m"}
+	if got := cfg.renderTimeout(nil, playsOf(20*time.Second, 25*time.Second)); got != 20*time.Minute {
+		t.Fatalf("a Short of 45 s gets %s, want the configured 20m", got)
+	}
+	got := cfg.renderTimeout(nil, playsOf(4*time.Minute, 3*time.Minute, 3*time.Minute))
+	if got < 4*10*time.Minute+renderTimeoutSlack-time.Minute {
+		t.Fatalf("a summary of 10 minutes of plays gets %s, want about four times its length plus %s", got, renderTimeoutSlack)
 	}
 }
 
@@ -95,7 +120,7 @@ func TestRenderWorkerHandsAFullDemoTheScaledDeadline(t *testing.T) {
 	if !errors.Is(err, stop) {
 		t.Fatalf("render error = %v, want the editor stop sentinel", err)
 	}
-	want := w.cfg.renderTimeout(&snapshot)
+	want := w.cfg.renderTimeout(&snapshot, result.Plan)
 	if want <= time.Second {
 		t.Fatalf("fixture deadline %s did not scale past the configured 1s", want)
 	}

@@ -145,3 +145,26 @@ func TestDemoVoiceTranscriptTranscribesOnceCorrectsAndTranslates(t *testing.T) {
 		t.Fatalf("search of the demo voices = %+v", found.Hits)
 	}
 }
+
+// A video hides phrases by id, so transcribing the demo again keeps the id of each phrase it hears again.
+func TestDemoVoiceTranscriptKeepsPhraseIDsAcrossTranscriptions(t *testing.T) {
+	env := newDemoTranscriptEnv(t)
+	env.transcriber.state = teamvoice.TranscriberInstalled
+	env.json(http.MethodPost, env.base, nil, http.StatusAccepted, nil)
+	first := env.await(func(d demoTranscript) bool { return d.State == library.TranscriptReady })
+	env.json(http.MethodPost, env.base, map[string]bool{"force": true}, http.StatusAccepted, nil)
+	again := env.await(func(d demoTranscript) bool {
+		return d.State == library.TranscriptReady && env.transcriber.calls.Load() == 4
+	})
+	if len(first.Lines) != 2 || len(again.Lines) != 2 {
+		t.Fatalf("lines = %d then %d, want one phrase per player each time", len(first.Lines), len(again.Lines))
+	}
+	for i := range first.Lines {
+		if again.Lines[i].ID != first.Lines[i].ID {
+			t.Fatalf("phrase %d changed id from %s to %s", i, first.Lines[i].ID, again.Lines[i].ID)
+		}
+	}
+	if first.Lines[0].ID == first.Lines[1].ID {
+		t.Fatal("the same words of two players share an id")
+	}
+}

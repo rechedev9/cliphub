@@ -72,6 +72,9 @@ func (r *MemoryLibraryRepository) ListDemoVoiceLines(ctx context.Context, filter
 		}
 	}
 	slices.SortFunc(out, demoVoiceLineCompare)
+	if filter.All {
+		return out, nil
+	}
 	return out[:min(len(out), clampVoiceLineLimit(filter.Limit))], nil
 }
 

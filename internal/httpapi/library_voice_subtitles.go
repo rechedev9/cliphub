@@ -4,39 +4,34 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math"
-	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/subtitles"
 )
 
-// subtitleWait bounds how long a render waits for its demo's transcription.
-const subtitleWait = 30 * time.Minute
-
-// Subtitles gives a render of req.JobID the phrases of the target's team. It queues the
-// transcription when none is stored and waits for it; an error renders the video without them.
+// Subtitles gives a render of req.JobID the phrases of the target's team. It never holds the render
+// for a transcription: without a finished one it queues it and the video renders without subtitles.
 func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subtitles.Track, error) {
-	if h.voice == nil || h.libraryRepo == nil {
-		return nil, errors.New("team voice is not available in this Studio")
-	}
-	demo, err := h.libraryRepo.DemoForJob(ctx, req.JobID)
-	if err != nil || demo.MatchID == nil {
-		return nil, fmt.Errorf("the job's demo is not an analysed library demo: %w", err)
-	}
-	m, err := h.libraryRepo.GetMatch(ctx, *demo.MatchID)
+	m, err := h.subtitleMatch(ctx, req.JobID)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := h.queueDemoTranscript(ctx, m, demoTranscribeRequest{English: req.English}); err != nil {
+	t, err := h.demoVoiceState(ctx, m.ID)
+	if err != nil {
 		return nil, err
 	}
-	if err := h.awaitDemoTranscript(ctx, m.ID, req.English); err != nil {
-		return nil, err
+	if t.State != library.TranscriptReady || (req.English && t.English != library.TranscriptReady) {
+		if _, err := h.queueDemoTranscript(ctx, m, demoTranscribeRequest{English: req.English}); err != nil {
+			return nil, fmt.Errorf("the transcript is not ready and cannot be queued: %w", err)
+		}
+		return nil, errors.New("the transcript is not ready yet")
 	}
-	lines, err := h.libraryRepo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}})
+	lines, err := h.libraryRepo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}, All: true})
 	if err != nil {
 		return nil, err
 	}
@@ -60,26 +55,37 @@ func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subti
 	return track, nil
 }
 
-// awaitDemoTranscript waits until the transcript, and its English when asked, is done.
-func (h *Handlers) awaitDemoTranscript(ctx context.Context, matchID uuid.UUID, english bool) error {
-	ctx, cancel := context.WithTimeout(ctx, subtitleWait)
-	defer cancel()
-	for {
-		t, err := h.demoVoiceState(ctx, matchID)
-		switch {
-		case err != nil:
-			return err
-		case t.State == library.TranscriptFailed:
-			return errors.New("the transcription failed")
-		case english && t.English == library.TranscriptFailed:
-			return errors.New("the translation failed")
-		case t.State == library.TranscriptReady && (!english || t.English == library.TranscriptReady):
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("the transcription did not finish: %w", ctx.Err())
-		case <-time.After(time.Second):
-		}
+// subtitleMatch is the analysed library match of the job's demo, whose transcript the subtitles read.
+func (h *Handlers) subtitleMatch(ctx context.Context, jobID uuid.UUID) (library.Match, error) {
+	if h.voice == nil || h.libraryRepo == nil {
+		return library.Match{}, errors.New("team voice is not available in this Studio")
+	}
+	demo, err := h.libraryRepo.DemoForJob(ctx, jobID)
+	if err != nil {
+		return library.Match{}, fmt.Errorf("the job's demo is not an analysed library demo: %w", err)
+	}
+	if demo.MatchID == nil {
+		return library.Match{}, errors.New("the job's demo is not an analysed library demo")
+	}
+	return h.libraryRepo.GetMatch(ctx, *demo.MatchID)
+}
+
+// queueSubtitles starts the transcription a new video's subtitles read, so it runs while CS2 records.
+// It is best effort: a render whose transcript is not ready goes without subtitles.
+func (h *Handlers) queueSubtitles(ctx context.Context, jobID uuid.UUID, edit renderplan.EditRequest) {
+	on, english := edit.Subtitles, edit.SubtitlesEnglish
+	if edit.FullDemo != nil {
+		o := edit.FullDemo.Document.Options.Subtitles
+		on, english = o != nil && o.Enabled, o != nil && o.English
+	}
+	if !on {
+		return
+	}
+	m, err := h.subtitleMatch(ctx, jobID)
+	if err == nil {
+		_, err = h.queueDemoTranscript(ctx, m, demoTranscribeRequest{English: english})
+	}
+	if err != nil {
+		log.Printf("httpapi: queue the transcript for the subtitles of job %s: %v", jobID, err)
 	}
 }

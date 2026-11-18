@@ -3,10 +3,12 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -112,4 +114,61 @@ func commitRenderRevision(t *testing.T, h *Handlers, id uuid.UUID, variant strin
 		t.Fatal(err)
 	}
 	return revision
+}
+
+// closeCounter is local storage that counts the readers it opened and that were closed.
+type closeCounter struct {
+	*storage.Local
+	opened, closed atomic.Int32
+}
+
+type countedReader struct {
+	io.ReadCloser
+	closed *atomic.Int32
+}
+
+func (r countedReader) Close() error {
+	r.closed.Add(1)
+	return r.ReadCloser.Close()
+}
+
+func (s *closeCounter) Open(key string) (io.ReadCloser, error) {
+	rc, err := s.Local.Open(key)
+	if err != nil {
+		return nil, err
+	}
+	s.opened.Add(1)
+	return countedReader{ReadCloser: rc, closed: &s.closed}, nil
+}
+
+// A revision whose MP4 is gone is no version, and listing it leaves no handle open that would block deleting it on Windows.
+func TestListingVersionsClosesTheEditOfARevisionWithoutVideo(t *testing.T) {
+	repo := newFakeRepo()
+	local, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &closeCounter{Local: local}
+	j := job.Job{ID: uuid.New(), Status: job.StatusDone, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, &fakeQueue{})
+	variant := editor.DefaultPreset().Name
+	gone := commitRenderRevision(t, h, j.ID, variant, renderplan.EditRequest{Format: "short-9x16", KillEffect: "clean"}, time.Now().Add(-time.Hour))
+	kept := commitRenderRevision(t, h, j.ID, variant, renderplan.EditRequest{Format: "short-9x16", KillEffect: "glitch"}, time.Now())
+	prefix, err := renderplan.RenderVariantRevisionPrefix(j.ID, variant, gone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Delete(path.Join(prefix, "videos", "seg-001.mp4")); err != nil {
+		t.Fatal(err)
+	}
+	r := chi.NewRouter()
+	r.Get("/api/jobs/{id}/renders/{variant}/versions", h.ListRenderVersions)
+	versions := listRenderVersions(t, r, "/api/jobs/"+j.ID.String()+"/renders/"+variant+"/versions")
+	if len(versions) != 1 || versions[0].Revision != kept {
+		t.Fatalf("versions = %+v, want only the revision that still has its video", versions)
+	}
+	if opened, closed := store.opened.Load(), store.closed.Load(); opened != closed {
+		t.Fatalf("listing opened %d files and closed %d", opened, closed)
+	}
 }

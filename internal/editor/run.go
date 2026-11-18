@@ -275,10 +275,14 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 			return runInputs{}, err
 		}
 	}
+	var cardWarnings []string
 	if path := strings.TrimSpace(cfg.PlayerCardsPath); path != "" {
-		if overlays.PlayerCards, err = preparePlayerCards(path, outDir); err != nil {
-			return runInputs{}, err
+		// Cards never fail a Short: one the renderer cannot draw leaves the Short without its cards.
+		cards, cardErr := preparePlayerCards(path, outDir)
+		if cardErr != nil {
+			cardWarnings = []string{fmt.Sprintf("player cards left out: %v", cardErr)}
 		}
+		overlays.PlayerCards = cards
 	}
 
 	manifest, err := buildManifest(recordingResult, ManifestOptions{
@@ -344,7 +348,7 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 	if err != nil {
 		return runInputs{}, err
 	}
-	manifest.Warnings = append(append(append(append(metadataWarnings, worldWarnings...), hudWarnings...), radarWarnings...), manifest.Warnings...)
+	manifest.Warnings = append(append(append(append(append(metadataWarnings, worldWarnings...), hudWarnings...), radarWarnings...), cardWarnings...), manifest.Warnings...)
 	return runInputs{
 		manifest:          manifest,
 		recordingResult:   recordingResult,

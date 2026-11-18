@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/recapplan"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 // A slow PC renders a Full Demo at about 2.5 times its length, so four times
@@ -19,20 +20,35 @@ const (
 // renderTimeoutPrefix is the stable reason the web UI matches when zv-editor ran out of time.
 const renderTimeoutPrefix = "render_timeout:"
 
-// renderTimeout is the editor's deadline: the configured one, raised for a Full
-// Demo whose approved program needs more time than it allows.
-func (c RenderWorkerConfig) renderTimeout(fullDemo *recapplan.Snapshot) time.Duration {
+// renderTimeout is the editor's deadline: the configured one, raised for a program that needs
+// more time than it allows: a Full Demo's approved timeline, else the captured plays.
+func (c RenderWorkerConfig) renderTimeout(fullDemo *recapplan.Snapshot, plays recording.RecordingPlan) time.Duration {
 	base, err := time.ParseDuration(c.Timeout)
-	if err != nil || fullDemo == nil || len(fullDemo.Document.Timeline) == 0 {
+	if err != nil {
 		return c.timeoutDuration()
 	}
-	timeline := fullDemo.Document.Timeline
-	program := time.Duration(timeline[len(timeline)-1].EndFrame) * time.Second / recapplan.OutputFPS
+	program := playsLength(plays)
+	if fullDemo != nil && len(fullDemo.Document.Timeline) > 0 {
+		timeline := fullDemo.Document.Timeline
+		program = time.Duration(timeline[len(timeline)-1].EndFrame) * time.Second / recapplan.OutputFPS
+	}
 	need := renderTimeoutFactor*program + renderTimeoutSlack
 	if need <= base {
 		return base
 	}
 	return need.Round(time.Second)
+}
+
+// playsLength is how long the captured plays run, which a summary with every kill makes long.
+func playsLength(plan recording.RecordingPlan) time.Duration {
+	if plan.Tickrate <= 0 {
+		return 0
+	}
+	ticks := 0
+	for _, s := range plan.Segments {
+		ticks += max(recording.EffectiveRecordEndTick(s, plan)-recording.EffectiveRecordStartTick(s, plan.Tickrate), 0)
+	}
+	return time.Duration(ticks) * time.Second / time.Duration(plan.Tickrate)
 }
 
 // renderTimeoutError is a zv-editor run its deadline cut, keeping the runner's error.

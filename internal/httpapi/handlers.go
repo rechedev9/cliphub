@@ -127,6 +127,7 @@ type Handlers struct {
 	captures                   captureSettings
 	renderStateMu       sync.Mutex
 	rosterCache         rosterSummaryCache
+	playerCards         playerCardCache
 	jobsListJSON        cachedJSON
 	streamListJSON      cachedJSON
 	streamJobLocks      *streamclips.JobLocks
@@ -1266,11 +1267,8 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "enqueue record task", err)
 		return
 	}
-	writeJSON(w, http.StatusAccepted, map[string]any{
-		"id":      j.ID,
-		"task":    tasks.TypeRecordDemo,
-		"variant": intent.Variant,
-	})
+	h.queueSubtitles(r.Context(), j.ID, intent.Edit)
+	writeJSON(w, http.StatusAccepted, map[string]any{"id": j.ID, "task": tasks.TypeRecordDemo, "variant": intent.Variant})
 }
 
 // sameCapture reports whether two intents would enqueue the same record task,

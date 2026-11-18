@@ -98,7 +98,7 @@ func seedRenderedLongVideo(t *testing.T, h *Handlers, repo *fakeRepo, renderedAt
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{JobID: j.ID, Loadout: loadout, Status: renderplan.RenderVariantStatusReady, RevisionID: uuid.New(), Now: renderedAt})
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{JobID: j.ID, Loadout: loadout, Status: renderplan.RenderVariantStatusReady, RevisionID: uuid.New(), Now: renderedAt, FullDemo: approvedFullDemo(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
