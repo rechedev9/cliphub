@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { RealApiClient } from './real.ts';
 import { buildEditRequest } from './edit-request.ts';
-import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
+import { CHANGE_NOT_APPLIED_REASON, MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, FULL_DEMO_REEL_SUFFIX, coerceIntents, videoFromIntent, type ReelIntent } from './reel-store.ts';
 import type { EditConfig, Video } from './types.ts';
 import { FULL_DEMO_CAPTURE_VARIANT, currentFullDemoOptions, fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
@@ -314,9 +314,10 @@ test('a failed render whose `error` says the capture is not reusable recaptures 
     const client = new RealApiClient();
     const { videoId } = seedReel(client, 'job-6');
     await tick(client);
-    // The reconcile tick reads the hint and re-drives capture on its own; a
-    // plain ffmpeg failure would have parked the reel on FALLO instead.
+    // The reconcile tick reads the hint and asks /generate, which records only if the
+    // orchestrator allows it; a plain ffmpeg failure would have parked the reel on FALLO.
     assert.equal(fake.posts('/generate').length, 1, 'recapture goes through /generate');
+    assert.equal(fake.posts('/generate')[0]?.body?.allow_capture, false, 'a page load forbids the capture');
     assert.equal(fake.posts(`/renders/${DEFAULT_VARIANT}`).length, 0, 'no render-only POST for a dead capture');
     const reel = (await client.listVideos()).find((v) => v.id === videoId);
     assert.equal(reel?.status, 'recording');
@@ -383,6 +384,46 @@ test('a reload never records with CS2 to apply a stored change: the card says so
 
       await client.retryVideo(reloaded.videoId);
       assert.equal(fake.posts('/generate').length, 1, `${tc.name}: Reintentar applies the change`);
+    } finally {
+      fake.restore();
+    }
+  }
+});
+
+test('a page load never lets /generate record: capture_required shows the card and Reintentar records', async () => {
+  const cases: Array<{ name: string; jobStatus: string; render: Record<string, unknown> | null; edit?: EditConfig }> = [
+    { name: 'a render-only change over freed clips', jobStatus: 'done', render: readyRender('rev-1', ['seg-001']), edit: { ...DEFAULT_EDIT_CONFIG, intro: true } },
+    { name: 'a capture no longer reusable', jobStatus: 'done', render: { status: 'failed', error: 'recording_not_reusable: capture fingerprint predates observer-steamid-input-v2' } },
+    { name: 'no render of the variant yet', jobStatus: 'parsed', render: null },
+  ];
+  for (const tc of cases) {
+    const state: Orchestrator = {
+      jobStatus: tc.jobStatus,
+      render: tc.render,
+      generate: () => json({ code: 'capture_required', error: 'applying this change needs a CS2 capture' }, 409),
+      renderPost: () => json({ accepted: true }, 202),
+    };
+    const fake = fakeOrchestrator('job-9', state);
+    try {
+      const client = new RealApiClient();
+      const intent = seedReel(client, 'job-9');
+      if (tc.edit) intent.editConfig = tc.edit;
+      await tick(client);
+      await tick(client);
+      const asked = fake.posts('/generate');
+      assert.equal(asked.length, 1, `${tc.name}: one ask, then the card waits`);
+      assert.equal(asked[0]?.body?.allow_capture, false, `${tc.name}: a page load forbids a capture`);
+      assert.equal(fake.posts(`/renders/${DEFAULT_VARIANT}`).length, 0, `${tc.name}: no render-only POST either`);
+      const card = await client.getVideo(intent.videoId);
+      assert.equal(card?.status, 'failed', tc.name);
+      assert.equal(card?.failureReason, CHANGE_NOT_APPLIED_REASON, `${tc.name}: the card says the change is not applied`);
+      assert.equal(parseFailureReason(card?.failureReason).retryCanHelp, true, `${tc.name}: Reintentar is offered`);
+
+      state.generate = () => json({ id: 'job-9', task: 'record' }, 202);
+      await client.retryVideo(intent.videoId);
+      const sent = fake.posts('/generate');
+      assert.equal(sent.length, 2, `${tc.name}: Reintentar asks again`);
+      assert.equal(sent[1]?.body !== undefined && 'allow_capture' in sent[1].body, false, `${tc.name}: a click may record`);
     } finally {
       fake.restore();
     }

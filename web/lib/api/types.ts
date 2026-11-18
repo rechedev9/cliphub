@@ -468,6 +468,8 @@ export const JOB_WAIT_TIMEOUT_CODE = 'job_wait_timeout';
 /** Orchestrator 503 for a feature that is not set up; never the proxy's own code. */
 export const NOT_CONFIGURED_CODE = 'not_configured';
 export const GENERATE_WORK_ACTIVE_CODE = 'generate_work_active';
+/** 409 to a generate sent with allow_capture false whose record task would open CS2. */
+export const CAPTURE_REQUIRED_CODE = 'capture_required';
 export const FACEIT_NOT_CONFIGURED_CODE = 'faceit_not_configured';
 export const STEAM_CODES = {
   credentialsRequired: 'steam_credentials_required',

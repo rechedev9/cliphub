@@ -192,7 +192,7 @@ export class RealApiClient implements ApiClient {
   private readonly redrivenRevisions = new Map<string, RedrivenRevision>();
   /** Why automatic driving stopped (durable POST rejection or repeated mismatch); explicit actions clear it. */
   private readonly driveLatch = new Map<string, { failureReason: string; retryAction: ReelAction }>();
-  /** Reels an explicit action asked for since the page loaded; only they may re-drive a capture by themselves. */
+  /** Reels an explicit action asked for since the page loaded; only their generates may open CS2. */
   private readonly asked = new Set<string>();
   /** GETs the constructor beat still has open, so its three reads share them (see sharedRead). */
   private readonly beatReads = new Map<string, Promise<unknown>>();
@@ -658,11 +658,7 @@ export class RealApiClient implements ApiClient {
     });
     // A latched reel reads healthy server-side; re-issue the POST the latch stopped.
     const retryAction = derived === 'none' && latched ? latched.retryAction : derived;
-    if (retryAction === 'record') {
-      await this.drive(intent, retryAction, { artifactPrefix: render.artifactPrefix });
-    } else if (retryAction === 'render') {
-      await this.drive(intent, retryAction);
-    }
+    if (retryAction !== 'none') await this.drive(intent, retryAction, retryAction === 'record' ? { artifactPrefix: render.artifactPrefix } : undefined);
     await this.reconcile();
     return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
   }
@@ -1070,6 +1066,7 @@ export class RealApiClient implements ApiClient {
                   music: buildMusicRequest(intent),
                   segment_ids: intent.segmentIds,
                   edit: buildEditRequest(intent.editConfig),
+                  ...(this.asked.has(intent.videoId) ? {} : { allow_capture: false }),
                 }),
               },
             }))

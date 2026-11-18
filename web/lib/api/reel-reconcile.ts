@@ -1,4 +1,4 @@
-import { GENERATE_WORK_ACTIVE_CODE, PLAN_READY_STATUSES, SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
+import { CAPTURE_REQUIRED_CODE, GENERATE_WORK_ACTIVE_CODE, PLAN_READY_STATUSES, SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
 import { CHANGE_NOT_APPLIED_REASON, MISMATCH_REDRIVE_FAILURE_REASON, requiresRecapture } from './failure-reason.ts';
 import { editConfigsEqual } from './edit-request.ts';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
@@ -113,6 +113,7 @@ function viewForAdmission(httpStatus: number, body: AdmissionBody, fallbackReaso
   if (httpStatus === 202 || httpStatus === 200) return null;
   if (httpStatus === 503 || body.code === SERVICE_UNAVAILABLE_CODE) return null;
   if (httpStatus === 409 && body.code === GENERATE_WORK_ACTIVE_CODE) return null;
+  if (httpStatus === 409 && body.code === CAPTURE_REQUIRED_CODE) return failed(CHANGE_NOT_APPLIED_REASON);
   if (httpStatus === 404) return unrecoverableJobGoneView();
   return failed(body.error || fallbackReason);
 }

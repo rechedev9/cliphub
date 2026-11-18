@@ -53,6 +53,8 @@ func (h *Handlers) validatePlaySelection(w http.ResponseWriter, j job.Job, ids [
 	return h.validateSegmentSelection(w, j, ids, edit.DeathReel)
 }
 
+// sameCapture reports whether two intents would enqueue the same record task. Music and post-capture
+// edit choices never change the capture, so a re-drive that differs only there is the queue's duplicate.
 func sameCapture(a, b renderplan.GenerateIntent) bool {
 	// Admission deduplicates the complete approved intent. A music-only change
 	// may reuse capture later, but it must not silently adopt an older render.
@@ -97,4 +99,10 @@ func captureRequestFor(intent renderplan.GenerateIntent) (captureRequest, bool) 
 		victimReplay:         intent.Edit.VictimReplay && !useRecapPlan,
 		preRollSeconds:       intent.Edit.PreRollSeconds,
 	}, true
+}
+
+// capturePortraitSafeKillfeed brings CS2's notices into the 9:16 crop, unless the editor draws a centered
+// killfeed and the native ones must stay outside it; a 16:9 video made from a Short keeps the Short's framing.
+func capturePortraitSafeKillfeed(killfeedSource bool, edit renderplan.EditRequest) bool {
+	return edit.PortraitSafeKillfeed || killfeedSource && edit.Format == renderplan.FormatShort9x16 && !edit.CenteredKillfeed
 }
