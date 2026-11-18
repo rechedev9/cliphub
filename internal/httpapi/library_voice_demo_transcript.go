@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -303,6 +304,7 @@ func (h *Handlers) transcribeDemoTracks(ctx context.Context, in demoTracks) (lib
 		timeline = teamvoice.TimelineOf(doc)
 	}
 	lines := []library.DemoVoiceLine{}
+	ids := demoLineIDs{match: m.ID, seen: map[uuid.UUID]int{}}
 	share := 1 / float64(max(1, len(in.index.Tracks)))
 	for i, t := range in.index.Tracks {
 		path, err := h.demoTrackPath(m.DemoID, t)
@@ -316,7 +318,7 @@ func (h *Handlers) transcribeDemoTracks(ctx context.Context, in demoTracks) (lib
 		}
 		for _, l := range got {
 			at := teamvoice.Locate(teamvoice.LocateInput{Timeline: timeline, AudioMS: l.StartMS, SteamID64: t.SteamID64})
-			lines = append(lines, library.DemoVoiceLine{ID: uuid.New(), SteamID64: t.SteamID64, Name: t.Name, TeamKey: t.TeamKey,
+			lines = append(lines, library.DemoVoiceLine{ID: ids.next(fmt.Sprintf("%s|%d|%s", t.SteamID64, l.StartMS, l.Text)), SteamID64: t.SteamID64, Name: t.Name, TeamKey: t.TeamKey,
 				StartMS: l.StartMS, EndMS: l.EndMS, Tick: at.Tick, Round: at.Round, Text: l.Text})
 		}
 	}
@@ -326,6 +328,24 @@ func (h *Handlers) transcribeDemoTracks(ctx context.Context, in demoTracks) (lib
 	}
 	log.Printf("httpapi: transcribed the demo voices of match %s: %d phrases from %d players in %s", m.ID, len(lines), len(in.index.Tracks), time.Since(started).Round(time.Second))
 	return state, nil
+}
+
+// demoLineIDs names the phrases of one transcription of a match the same way every time, from the
+// player, the start and the words, so the phrases a video hides stay hidden.
+type demoLineIDs struct {
+	match uuid.UUID
+	seen  map[uuid.UUID]int
+}
+
+func (g demoLineIDs) next(phrase string) uuid.UUID {
+	id := uuid.NewSHA1(g.match, []byte(phrase))
+	n := g.seen[id]
+	g.seen[id]++
+	if n == 0 {
+		return id
+	}
+	// The same phrase heard twice at once still needs its own primary key.
+	return uuid.NewSHA1(g.match, []byte(fmt.Sprintf("%s#%d", phrase, n)))
 }
 
 // translateDemoTracks translates each player's phrases by their own stretch of audio.
