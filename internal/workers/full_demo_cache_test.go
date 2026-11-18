@@ -245,7 +245,7 @@ func TestFullDemoDiscardedCapturesAskForARecapture(t *testing.T) {
 	if err := store.Put(superseded, strings.NewReader("older attempt")); err != nil {
 		t.Fatal(err)
 	}
-	writeReadyFullDemoRender(t, store, id, time.Now().Add(time.Hour))
+	writeReadyRender(t, store, id, time.Now().Add(time.Hour), approvedFullDemo(t))
 	setCaptureRetention(t, store, 0)
 	NewRenderWorker(newFakeRepo(), store, RenderWorkerConfig{KeepFullDemoCaptures: true}).releaseFullDemoCaptures(context.Background(), id)
 	if exists, err := store.Exists(key); err != nil || !exists {

@@ -178,7 +178,8 @@ func Covers(store storage.Storage, id uuid.UUID, newestClip time.Time) (bool, er
 	return !newestClip.After(at), nil
 }
 
-// renderedAt is when the job's long video became ready, ok only while its MP4 is on disk.
+// renderedAt is when the job's Full Demo became ready, ok only while its MP4 is on disk; a 16:9
+// summary renders to the same variant but has no captures to keep.
 func renderedAt(store storage.Storage, id uuid.UUID) (time.Time, bool, error) {
 	key, err := renderplan.RenderVariantStateKey(id, editor.PresetGameplayPOV60)
 	if err != nil {
@@ -199,7 +200,7 @@ func renderedAt(store storage.Storage, id uuid.UUID) (time.Time, bool, error) {
 	if state.JobID != id || state.Variant != editor.PresetGameplayPOV60 {
 		return time.Time{}, false, fmt.Errorf("render state identity does not match its job")
 	}
-	if state.Status != renderplan.RenderVariantStatusReady {
+	if state.Status != renderplan.RenderVariantStatusReady || state.FullDemo == nil {
 		return time.Time{}, false, nil
 	}
 	onDisk, err := videoOnDisk(store, state.ArtifactPrefix)
