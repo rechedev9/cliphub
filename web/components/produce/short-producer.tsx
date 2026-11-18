@@ -17,7 +17,7 @@ import { PRODUCE_SHORT_CTA, PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTO
 import { addWithoutClashes, BEST_MOMENTS_TARGET_SECONDS, bestMomentsEdit, clashingPlay } from '@/lib/produce/multi-pov';
 import { autoPovNotes, autoPovSummary, fetchAutoPov } from '@/lib/produce/auto-pov';
 import { defaultShortSettings } from '@/lib/produce/short-draft';
-import { preRollOf, preRolledSelection, withPreRoll } from '@/lib/produce/pre-roll';
+import { preRollOf, preRolledPlays, preRolledSelection, withPreRoll } from '@/lib/produce/pre-roll';
 import { summaryStyle, withoutOnePlayerOptions, withSummaryStyle } from '@/lib/produce/summary-style';
 import { editCtaLabel, shortEditNeedsCapture, spaceWarning, type ShortCaptureChoice, type ShortEditSeed, type SpaceCheck } from '@/lib/produce/edit-capture';
 import { horizontalCtaLabel, horizontalGonePlays, horizontalNeedsCapture, horizontalNotice, withShortComms, withShortFraming, type HorizontalDraft } from '@/lib/produce/horizontal';
@@ -163,6 +163,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const preRoll = preRollOf(editConfig);
   // What the capture records: the pre-roll lengthens each play and can join close plays of one round.
   const recorded = preRolledSelection(plays, { selectedIds, preRollSeconds: preRoll });
+  const rowPlays = preRolledPlays(plays, preRoll);
   const cues = selectionTimeline(recorded, { selectedIds: new Set(recorded.map((play) => play.id)), ...replay });
   const estimatedSeconds = estimatedSelectionSeconds(recorded, replay);
   // A one-player summary keeps every kill the user leaves in: it has no length to stay within.
@@ -425,7 +426,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             <ReelSourceSwitch deathReel={deathReel} disabled={busy} tone={tone} onChange={chooseDeathReel} />
           ) : null}
           <PlayList
-            plays={plays}
+            plays={rowPlays}
             selectedIds={selectedIds}
             title={deathReel ? 'Muertes' : 'Jugadas'}
             tone={tone}

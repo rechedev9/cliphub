@@ -237,6 +237,7 @@ export function coerceEditConfig(value: unknown): EditConfig {
   if (cfg.victimReplay && isVictimReplaySpeed(raw.victimReplaySpeed)) cfg.victimReplaySpeed = raw.victimReplaySpeed;
   if (isPreRollSeconds(raw.preRollSeconds) && raw.preRollSeconds !== DEFAULT_PRE_ROLL_SECONDS) cfg.preRollSeconds = raw.preRollSeconds;
   if (isCaptureHud(raw.captureHud)) cfg.captureHud = raw.captureHud;
+  if (raw.portraitSafeKillfeed === true) cfg.portraitSafeKillfeed = true;
   if (raw.playBadges === true) cfg.playBadges = true;
   if (raw.winProbability === true) cfg.winProbability = true;
   if (raw.playerLabels === true) cfg.playerLabels = true;

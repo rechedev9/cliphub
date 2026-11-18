@@ -2,6 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { recoveredVideo, recoveredVideoId, recoveryProbes, RECOVERY_FULL_DEMO_VARIANT, RECOVERY_VARIANTS } from './recovered-renders.ts';
 import type { IndexedJob } from './jobs-index.ts';
+import { reelIdentity } from './reel-identity.ts';
+import { DEFAULT_EDIT_CONFIG } from './reel-store.ts';
+import type { EditConfig } from './types.ts';
 
 const JOB = '29b58ffc-4722-4c77-86c2-d5febb3f9960';
 const REVISION = 'ca6e4530-835a-45fc-86da-b3c210a74dec';
@@ -43,6 +46,23 @@ test('a recovered Short keeps its segment identity and a vertical format', () =>
   assert.equal(found.video.editConfig?.format, 'short-9x16');
   assert.equal(found.video.title, '2 jugadas - Kill Feed');
   assert.equal(recoveredVideoId(JOB, 'viral-60-clean', []), null);
+});
+
+test('a delivered Crear horizontal is recovered under its own reel, never as Demo completa', () => {
+  const edit: EditConfig = { ...DEFAULT_EDIT_CONFIG, format: 'landscape-16x9', captureHud: 'deathnotices', portraitSafeKillfeed: true };
+  const render = {
+    status: 'ready', videoName: 'summary.mp4', segmentIds: ['seg-002', 'seg-003'], editConfig: edit,
+    artifactPrefix: `jobs/${JOB}/renders/gameplay-pov-60/revisions/${REVISION}`,
+  };
+  const id = reelIdentity({ matchId: JOB, playIds: ['seg-002', 'seg-003'], editConfig: edit });
+  assert.equal(recoveredVideo(job, RECOVERY_FULL_DEMO_VARIANT, render, new Set([id])), null, 'its own reel still owns it');
+  const found = recoveredVideo(job, RECOVERY_FULL_DEMO_VARIANT, render, new Set());
+  assert.ok(found);
+  assert.equal(found.video.id, id);
+  assert.equal(found.video.editConfig?.format, 'landscape-16x9');
+  assert.equal(found.video.editConfig?.matchRecap, false);
+  assert.equal(found.video.title, '2 jugadas - POV nativo');
+  assert.equal(found.video.downloadUrl, `/api/demos/${JOB}/renders/gameplay-pov-60/videos/summary.mp4?revision=${REVISION}`);
 });
 
 test('jobs are probed once per status and only when they can hold render state', () => {

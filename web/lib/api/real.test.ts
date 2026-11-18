@@ -512,6 +512,26 @@ test('createVideo returns a start Studio refused as failed, with the reason', as
   }
 });
 
+test('Crear horizontal adds its own reel and the Short of the same plays stays in Mis vídeos', async () => {
+  const fake = createVideoFetch();
+  try {
+    const client = new RealApiClient();
+    const short = await client.createVideo({ matchId: JOB, playIds: ['seg-1', 'seg-2'], mode: 'clean' });
+    const horizontal = await client.createVideo({
+      matchId: JOB,
+      playIds: ['seg-1', 'seg-2'],
+      mode: 'clean',
+      variant: 'gameplay-pov-60',
+      editConfig: { ...DEFAULT_EDIT_CONFIG, format: 'landscape-16x9', captureHud: 'deathnotices', portraitSafeKillfeed: true },
+    });
+    assert.notEqual(horizontal.id, short.id);
+    assert.equal((await client.getVideo(short.id))?.editConfig?.format, 'short-9x16', 'the Short keeps its reel');
+    assert.equal((await client.getVideo(horizontal.id))?.editConfig?.format, 'landscape-16x9');
+  } finally {
+    fake.restore();
+  }
+});
+
 test('createVideo returns an accepted start as recording', async () => {
   const fake = createVideoFetch();
   try {

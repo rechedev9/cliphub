@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
-import { localAPIRequestError } from '@/lib/api/local-request-guard';
-import { parseControlJSONObject, prepareLocalUploadBody, readBoundedText } from '@/lib/api/bounded-request-body';
+// Node-resolvable specifiers (explicit extension, no "@/" alias) so route.test.ts can load this handler.
+import { NextResponse } from 'next/server.js';
+import { localAPIRequestError } from '../../../../lib/api/local-request-guard.ts';
+import { parseControlJSONObject, prepareLocalUploadBody, readBoundedText } from '../../../../lib/api/bounded-request-body.ts';
 import {
   UPLOAD_BODY_LIMIT_EXCEEDED,
   callOrchestrator,
@@ -9,9 +10,9 @@ import {
   orchestratorUrl,
   proxyStream,
   serviceUnavailable,
-} from '../../demos/_lib';
-import { isLiteralDocumentPath, libraryUpstreamQuery, matchLibraryRoute, pickLibraryKeys, type LibraryRoute } from '../_routes';
-import { TEAM_DOCUMENT_POLICY } from '@/lib/api/team-documents';
+} from '../../demos/_lib.ts';
+import { isLiteralDocumentPath, libraryUpstreamQuery, matchLibraryRoute, pickLibraryKeys, type LibraryRoute } from '../_routes.ts';
+import { TEAM_DOCUMENT_POLICY } from '../../../../lib/api/team-documents.ts';
 
 export const runtime = 'nodejs';
 
