@@ -112,12 +112,15 @@ func (h *Handlers) readRenderVersion(id uuid.UUID, variant string, revision uuid
 			version.Videos = append(version.Videos, name)
 		}
 	}
+	if len(version.Videos) == 0 {
+		return renderVersion{}, false, nil
+	}
 	ref, err := renderplan.NewRenderVariantRevisionArtifactRef(id, variant, revision, renderplan.RenderVariantArtifactEditDocument, "")
 	if err != nil {
 		return renderVersion{}, false, err
 	}
 	rc, err := h.storage.Open(ref.Key)
-	if storage.IsNotExist(err) || len(version.Videos) == 0 {
+	if storage.IsNotExist(err) {
 		return renderVersion{}, false, nil
 	}
 	if err != nil {
