@@ -11,7 +11,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
-// SubtitleSource gives a render the transcript of its demo's team voices, waiting for one that runs.
+// SubtitleSource gives a render the transcript of its demo's team voices; it never waits for a transcription.
 type SubtitleSource interface {
 	Subtitles(ctx context.Context, req subtitles.Request) (*subtitles.Track, error)
 }

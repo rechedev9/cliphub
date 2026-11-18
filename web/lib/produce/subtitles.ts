@@ -125,19 +125,19 @@ export function subtitleNote(subs: JobSubtitles, english: boolean): string | nul
   if (english && subs.translator.state !== 'installed') return 'Instala la traducción para los subtítulos en inglés. Sin ella, el vídeo sale sin subtítulos.';
   switch (subs.state) {
     case 'none':
-      return 'Las voces aún no están transcritas: se transcriben al montar el vídeo.';
+      return 'Las voces aún no están transcritas: se transcriben al crear el vídeo. Si no terminan antes del montaje, el vídeo sale sin subtítulos.';
     case 'queued':
     case 'running':
-      return `Transcribiendo las voces… ${percent(subs.progress)}`;
+      return `Transcribiendo las voces… ${percent(subs.progress)}. Si no termina antes del montaje, el vídeo sale sin subtítulos.`;
     case 'failed':
       return 'La transcripción falló, así que el vídeo saldrá sin subtítulos. Prueba a transcribir de nuevo.';
     case 'ready':
       break;
   }
   if (!english || subs.english === 'ready') return null;
-  if (subs.english === 'queued' || subs.english === 'running') return `Traduciendo al inglés… ${percent(subs.progress)}`;
+  if (subs.english === 'queued' || subs.english === 'running') return `Traduciendo al inglés… ${percent(subs.progress)}. Si no termina antes del montaje, el vídeo sale sin subtítulos.`;
   if (subs.english === 'failed') return 'La traducción falló, así que el vídeo saldrá sin subtítulos. Prueba a traducir de nuevo.';
-  return 'Las frases aún no están en inglés: se traducen al montar el vídeo.';
+  return 'Las frases aún no están en inglés: se traducen al crear el vídeo. Si no terminan antes del montaje, el vídeo sale sin subtítulos.';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

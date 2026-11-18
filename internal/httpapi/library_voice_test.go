@@ -54,6 +54,8 @@ func (fakeVoiceMedia) Speech(context.Context, string) ([]library.VoiceSpan, int6
 type fakeTranscriber struct {
 	state string
 	calls atomic.Int32
+	// gate, when set, holds every transcription until it closes.
+	gate chan struct{}
 }
 
 func (f *fakeTranscriber) Status() teamvoice.TranscriberStatus {
@@ -66,6 +68,9 @@ func (f *fakeTranscriber) Install(context.Context) error {
 }
 
 func (f *fakeTranscriber) Transcribe(context.Context, teamvoice.TranscribeJob) ([]teamvoice.Line, error) {
+	if f.gate != nil {
+		<-f.gate
+	}
 	f.calls.Add(1)
 	return []teamvoice.Line{{StartMS: 1000, EndMS: 2000, Text: "Rotamos a B ya"}}, nil
 }

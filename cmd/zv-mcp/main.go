@@ -303,9 +303,9 @@ voice_status reads tracks, sync and transcript; set_voice_track names a track or
 install_transcriber (about 700 MB, local Parakeet; it detects the language) then transcribe_voice; voice_status follows it.
 demo_voice reads the demo's own in-game voice (extract true, then call again until ready), which the Replay plays as Voz de la demo.
 Subtitles of the team voices a demo recorded: generate_short (Short or 16:9 summary, with voice_comms) and plan_full_demo
-(with team_voices) take subtitles, subtitles_english and subtitles_hidden; they change only the render. The render
-transcribes the demo once when it was not (transcribe_demo_voice does it ahead), and renders without subtitles when it
-cannot. demo_transcript lists the phrases with their ids; correct_demo_phrase fixes one for every later video, and
+(with team_voices) take subtitles, subtitles_english and subtitles_hidden; they change only the render. Creating the
+video queues the demo's one transcription when it has none (transcribe_demo_voice does it ahead); the render never waits
+for it, so a video rendered before it is ready goes without subtitles. demo_transcript lists the phrases with their ids; correct_demo_phrase fixes one for every later video, and
 subtitles_hidden leaves one out of that video only. subtitles_english needs install_translator (about 500 MB); the video then shows only English.
 get_round_comms gives one round's talk time by phase and phrases, match_talk_time every round's talk time, and
 search_comms finds a phrase by team, dates and period (round phase); each phrase has a studio_path to its moment.
