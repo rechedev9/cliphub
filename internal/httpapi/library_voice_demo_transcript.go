@@ -44,7 +44,7 @@ func (h *Handlers) demoTranscriptOf(ctx context.Context, m library.Match) (demoT
 	if err != nil {
 		return demoTranscript{}, err
 	}
-	lines, err := h.libraryRepo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}})
+	lines, err := h.libraryRepo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}, All: true})
 	if err != nil {
 		return demoTranscript{}, err
 	}
@@ -338,7 +338,7 @@ func (h *Handlers) translateDemoTracks(ctx context.Context, in demoTracks) (libr
 	if err := h.libraryRepo.SetDemoVoice(ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: state}); err != nil {
 		return state, err
 	}
-	lines, err := h.libraryRepo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}})
+	lines, err := h.libraryRepo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}, All: true})
 	if err != nil {
 		return state, err
 	}

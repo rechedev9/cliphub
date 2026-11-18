@@ -79,3 +79,28 @@ func TestDemoVoiceRepositoryContract(t *testing.T) {
 		})
 	}
 }
+
+// TestDemoVoiceTranscriptIsReadWhole: a long match holds more phrases than one page, and All reads them all.
+func TestDemoVoiceTranscriptIsReadWhole(t *testing.T) {
+	for name, repo := range libraryRepositoriesUnderTest(t) {
+		t.Run(name, func(t *testing.T) {
+			f := libraryFixture{t: t, ctx: context.Background(), repo: repo}
+			m := f.analyze(f.demo("demo-voice-long", 0), "de_mirage", side{clan: "FUT", score: 13}, side{clan: "OG", score: 8})
+			lines := make([]library.DemoVoiceLine, library.MaxVoiceLineList+1)
+			for i := range lines {
+				lines[i] = library.DemoVoiceLine{ID: uuid.New(), SteamID64: "76561198000000001", Name: "ropz", TeamKey: "ct-start", StartMS: int64(i) * 1000, EndMS: int64(i)*1000 + 500, Tick: 64 + i*64, Round: 1, Text: "go"}
+			}
+			ready := library.DemoVoiceTranscript{State: library.TranscriptReady, English: library.TranscriptNone}
+			if err := repo.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: ready, Lines: &lines}); err != nil {
+				t.Fatal(err)
+			}
+			got, err := repo.ListDemoVoiceLines(f.ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}, All: true})
+			if err != nil || len(got) != len(lines) || got[len(got)-1].ID != lines[len(lines)-1].ID {
+				t.Fatalf("whole transcript = %d phrases, %v; want all %d in time order", len(got), err, len(lines))
+			}
+			if page, err := repo.ListDemoVoiceLines(f.ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}}); err != nil || len(page) != library.MaxVoiceLineList {
+				t.Fatalf("one page = %d phrases, %v; want %d", len(page), err, library.MaxVoiceLineList)
+			}
+		})
+	}
+}

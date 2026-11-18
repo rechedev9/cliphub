@@ -36,7 +36,7 @@ func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subti
 	if err := h.awaitDemoTranscript(ctx, m.ID, req.English); err != nil {
 		return nil, err
 	}
-	lines, err := h.libraryRepo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}})
+	lines, err := h.libraryRepo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}, All: true})
 	if err != nil {
 		return nil, err
 	}

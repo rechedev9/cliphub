@@ -108,8 +108,12 @@ func (r *SQLiteLibraryRepository) ListDemoVoiceLines(ctx context.Context, filter
 	if key := voiceLineKey(filter.Query); key != "" {
 		where, args = append(where, `instr(text_key, ?) > 0`), append(args, key)
 	}
+	limit := clampVoiceLineLimit(filter.Limit)
+	if filter.All {
+		limit = -1 // SQLite reads a negative LIMIT as none
+	}
 	rows, err := r.db.QueryContext(ctx, demoVoiceLineColumns+` WHERE `+strings.Join(where, " AND ")+
-		` ORDER BY match_id, start_ms, steamid64 LIMIT ?`, append(args, clampVoiceLineLimit(filter.Limit))...)
+		` ORDER BY match_id, start_ms, steamid64 LIMIT ?`, append(args, limit)...)
 	if err != nil {
 		return nil, fmt.Errorf("list demo voice lines: %w", err)
 	}
