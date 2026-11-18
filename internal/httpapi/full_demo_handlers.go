@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"os/exec"
 
@@ -181,12 +182,12 @@ func (h *Handlers) GetFullDemoPlan(w http.ResponseWriter, r *http.Request) {
 	defaults.Overlays.TeamNames = h.fullDemoTeamNames(r.Context(), j.ID)
 	response := map[string]any{"document": d, "defaults": defaults, "pro_players": fullDemoProPlayers, "compatibility": "editorial-v1"}
 	if found {
-		capture, err := h.fullDemoCaptureFor(j.ID, d)
-		if err != nil {
-			rejectFullDemo(w, err)
-			return
+		// The capture hint is advisory; the plan opens without it.
+		if capture, err := h.fullDemoCaptureFor(j.ID, d); err != nil {
+			log.Printf("httpapi: capture check of the full demo plan of job %s: %v", j.ID, err)
+		} else {
+			response["capture"] = capture
 		}
-		response["capture"] = capture
 	} else {
 		response["document"], response["compatibility"] = nil, "legacy-until-planned-and-approved"
 		response["defaults"] = h.withDetectedProSettings(r.Context(), j.ID, defaults)
