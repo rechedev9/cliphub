@@ -145,3 +145,11 @@ test('buildEditRequest sends the capture style only for a 16:9 video without the
   assert.equal(buildEditRequest(edit({ format: 'landscape-16x9', captureHud: 'clean', nativeHud: true })).capture_hud, undefined);
   assert.equal(buildEditRequest(edit({ captureHud: 'clean' })).capture_hud, undefined, 'a 9:16 Short keeps its preset HUD');
 });
+
+test('a horizontal asks for the kill feed framing of its Short only in 16:9 with a kill feed', () => {
+  const framed = (patch: Partial<EditConfig>) => buildEditRequest(edit({ portraitSafeKillfeed: true, ...patch })).portrait_safe_killfeed;
+  assert.equal(framed({ format: 'landscape-16x9', captureHud: 'deathnotices' }), true);
+  assert.equal(framed({ format: 'landscape-16x9', nativeHud: true }), true, 'HUD completo keeps the kill feed');
+  assert.equal(framed({ format: 'landscape-16x9', captureHud: 'clean' }), undefined, 'POV limpio has no kill feed');
+  assert.equal(framed({}), undefined, 'a Short frames it from its preset');
+});

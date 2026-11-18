@@ -61,6 +61,7 @@ function captureHud(choice: ShortCaptureChoice): string {
 }
 
 function portraitFraming(edit: EditConfig): boolean {
+  if (edit.format === 'landscape-16x9') return edit.portraitSafeKillfeed === true;
   return edit.format === 'short-9x16' && edit.centeredKillfeed !== true;
 }
 

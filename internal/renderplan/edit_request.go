@@ -108,6 +108,8 @@ type EditRequest struct {
 	PreRollSeconds int `json:"pre_roll_seconds,omitempty"`
 	// CaptureHUD records a 16:9 video of plays in one of CaptureHUDs instead of its preset's HUD; empty keeps the preset's.
 	CaptureHUD string `json:"capture_hud,omitempty"`
+	// PortraitSafeKillfeed records a 16:9 video's kill feed where the 9:16 crop of the Short it comes from keeps it, so the Short's clips are reused.
+	PortraitSafeKillfeed bool `json:"portrait_safe_killfeed,omitempty"`
 	// BrandWatermark and BrandBanner are copied whole from the brand kit, so a later kit edit never changes this render.
 	BrandWatermark *brandkit.Watermark `json:"brand_watermark,omitempty"`
 	BrandBanner    *brandkit.Banner    `json:"brand_banner,omitempty"`
@@ -186,7 +188,7 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	if !req.VictimReplay || req.VictimReplaySpeed == DefaultVictimReplaySpeed {
 		req.VictimReplaySpeed = 0
 	}
-	return normalizeRadar(normalizeCaptureHUD(normalizePreRoll(req)))
+	return normalizePortraitSafeKillfeed(normalizeRadar(normalizeCaptureHUD(normalizePreRoll(req))))
 }
 
 func (r EditRequest) Validate() error {
@@ -258,6 +260,9 @@ func (r EditRequest) validateFields() error {
 		return err
 	}
 	if err := r.validateCaptureHUD(); err != nil {
+		return err
+	}
+	if err := r.validatePortraitSafeKillfeed(); err != nil {
 		return err
 	}
 	if r.VictimReplaySpeed != 0 && !slices.Contains(VictimReplaySpeeds, r.VictimReplaySpeed) {

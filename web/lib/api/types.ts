@@ -300,6 +300,8 @@ export type EditConfig = {
   preRollSeconds?: PreRollSeconds;
   /** 16:9 without the native HUD: the capture profile of the summary's style. */
   captureHud?: CaptureHud;
+  /** 16:9 made from a Short (Crear horizontal): CS2's kill feed where the Short's crop keeps it, so its clips are reused. */
+  portraitSafeKillfeed?: boolean;
   /** A badge naming each play's clutch, ace or multikill. */
   playBadges?: boolean;
   /** Each team's round-win chance after the plant, from the kill plan. */

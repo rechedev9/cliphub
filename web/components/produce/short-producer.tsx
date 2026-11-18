@@ -7,7 +7,7 @@ import { ChevronRight, Clapperboard, RefreshCw, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { parseFailureReason } from '@/lib/api/failure-reason';
-import type { EditConfig, Match, Play, Preset, RenderFormat } from '@/lib/api/types';
+import { DEFAULT_PRE_ROLL_SECONDS, type EditConfig, type Match, type Play, type Preset, type RenderFormat } from '@/lib/api/types';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
 import { fetchStorageSpace } from '@/lib/api/video-edit';
 import { PRODUCE_FORMAT, RESULTS_HREF, STORAGE_HREF, seriesHref } from '@/lib/clips/routes';
@@ -19,7 +19,8 @@ import { autoPovNotes, autoPovSummary, fetchAutoPov } from '@/lib/produce/auto-p
 import { defaultShortSettings } from '@/lib/produce/short-draft';
 import { preRollOf, preRolledSelection, withPreRoll } from '@/lib/produce/pre-roll';
 import { summaryStyle, withoutOnePlayerOptions, withSummaryStyle } from '@/lib/produce/summary-style';
-import { editCtaLabel, shortEditNeedsCapture, spaceWarning, type ShortEditSeed, type SpaceCheck } from '@/lib/produce/edit-capture';
+import { editCtaLabel, shortEditNeedsCapture, spaceWarning, type ShortCaptureChoice, type ShortEditSeed, type SpaceCheck } from '@/lib/produce/edit-capture';
+import { horizontalCtaLabel, horizontalGonePlays, horizontalNeedsCapture, horizontalNotice, withShortFraming, type HorizontalDraft } from '@/lib/produce/horizontal';
 import { filterPlays, NO_PLAY_FILTER, playFilterOptions, type PlayFilter } from '@/lib/produce/play-filter';
 import { useShortDraft } from '@/hooks/use-short-draft';
 import {
@@ -85,31 +86,37 @@ export type ShortProducerProps = {
   format?: RenderFormat;
   /** Editar in Mis vídeos: the version this edit starts from. */
   editSeed?: ShortEditSeed | null;
+  /** Crear horizontal in Mis vídeos: the Short this 16:9 summary is made from. */
+  horizontal?: HorizontalDraft | null;
 };
 
 /** The Short constructor: the best minute is preselected, then preset, music and overlays, render. */
-export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: allDeathPlays = [], seriesId, focusRounds = null, format = 'short-9x16', editSeed = null }: ShortProducerProps): ReactNode {
+export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: allDeathPlays = [], seriesId, focusRounds = null, format = 'short-9x16', editSeed = null, horizontal = null }: ShortProducerProps): ReactNode {
   const router = useRouter();
   const landscape = format === 'landscape-16x9';
   const tone: FormatTone = landscape ? 'summary' : 'short';
   const multiPov = (match.povPlayers?.length ?? 0) > 1;
   // One player in 16:9: the summary of every kill, with its own pre-roll and capture style.
   const onePlayerSummary = landscape && !multiPov;
+  // A horizontal keeps its Short's capture style, even with several players, so it reuses the Short's clips.
+  const ownStyle = onePlayerSummary || (landscape && horizontal !== null);
+  const framing = horizontal ?? editSeed;
   const { back } = useProduceBack({ jobId: matchId, format: landscape ? PRODUCE_FORMAT.full : PRODUCE_FORMAT.short, seriesId });
   // A multi-POV video mixes plays only: the death list is the anchor's alone.
   const deathPlays = multiPov ? [] : allDeathPlays;
   const targetSeconds = landscape ? BEST_MOMENTS_TARGET_SECONDS : SHORT_TARGET_SECONDS;
   const targetMinutes = Math.round(targetSeconds / 60);
   const shape = (edit: EditConfig, deaths: boolean): EditConfig => {
-    const own = multiPov ? withoutOnePlayerOptions(edit) : edit;
+    let own = edit;
+    if (multiPov) own = horizontal ? withPreRoll(edit, DEFAULT_PRE_ROLL_SECONDS) : withoutOnePlayerOptions(edit);
     return landscape
-      ? bestMomentsEdit(constrainEditConfig({ ...own, format }))
+      ? withShortFraming(bestMomentsEdit(constrainEditConfig({ ...own, format })), framing)
       : constrainEditConfig({ ...own, format, deathReel: deaths, ...(multiPov ? { killCounter: false, statsCard: false } : {}) });
   };
   const [presets, setPresets] = useState<Preset[] | null>(null);
   const [presetAttempt, setPresetAttempt] = useState(0);
   const focusIds = focusRounds ? playsInRounds(killPlays, focusRounds) : [];
-  const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft({ matchId, plays: killPlays, deathPlays, focusIds, targetSeconds, seed: editSeed?.settings ?? null, summary: onePlayerSummary });
+  const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft({ matchId, plays: killPlays, deathPlays, focusIds, targetSeconds, seed: editSeed?.settings ?? horizontal?.settings ?? null, summary: onePlayerSummary });
   const { variant, songId, songTitle, musicVolume, gameVolume } = settings;
   // A player without kills can still make a reel of their deaths.
   const deathReel = deathPlays.length > 0 && (settings.editConfig.deathReel === true || killPlays.length === 0);
@@ -182,8 +189,8 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const selectedPreset = visiblePresets?.find((preset) => preset.name === variant) ?? null;
   const style = summaryStyle(editConfig);
   // The summary's capture style replaces the preset's HUD in the preview and the brief.
-  const shownPreset = onePlayerSummary && selectedPreset ? { ...selectedPreset, hudMode: style.hud } : selectedPreset;
-  const presetLabel = onePlayerSummary ? style.label : selectedPreset?.label ?? null;
+  const shownPreset = ownStyle && selectedPreset ? { ...selectedPreset, hudMode: style.hud } : selectedPreset;
+  const presetLabel = ownStyle ? style.label : selectedPreset?.label ?? null;
   // A Full HUD style keeps the draft's vertical HUD but never sends it.
   const hudAllowed = verticalHudAllowed(selectedPreset);
   const briefItems = reelCreativeBrief(editConfig, shownPreset, musicBriefFor(songTitle, musicVolume, gameVolume));
@@ -194,12 +201,14 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   });
   // Editar reuses the version's capture unless a change needs CS2 again; the record worker still decides.
   const recordedPreset = editSeed ? presets?.find((preset) => preset.name === editSeed.settings.variant) : undefined;
-  const needsCapture = editSeed !== null && presets !== null && selectedPreset !== null
-    ? shortEditNeedsCapture(
-      { playIds: editSeed.settings.selectedIds, hudMode: recordedPreset?.hudMode, edit: editSeed.settings.editConfig },
-      { playIds: selectedPlays.map((play) => play.id), hudMode: selectedPreset.hudMode, edit: withPresetLimits(shape(editConfig, deathReel), selectedPreset) },
-    )
-    : null;
+  const selectedIdList = selectedPlays.map((play) => play.id);
+  const nextCapture: ShortCaptureChoice | null = selectedPreset === null ? null
+    : { playIds: selectedIdList, hudMode: selectedPreset.hudMode, edit: withPresetLimits(shape(editConfig, deathReel), selectedPreset) };
+  let needsCapture: boolean | null = null;
+  if (nextCapture !== null && horizontal !== null) needsCapture = horizontalNeedsCapture(horizontal, nextCapture);
+  else if (nextCapture !== null && editSeed !== null) {
+    needsCapture = shortEditNeedsCapture({ playIds: editSeed.settings.selectedIds, hudMode: recordedPreset?.hudMode, edit: editSeed.settings.editConfig }, nextCapture);
+  }
   const [space, setSpace] = useState<SpaceCheck | null>(null);
   const renderSeconds = Math.round(estimatedSeconds);
   const captureSeconds = needsCapture === false ? 0 : renderSeconds;
@@ -321,6 +330,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
       // A start Studio refused lands as a failed card in Mis vídeos; the toast says so instead of "en preparación".
       if (video.status === 'failed') toast.error(failedStartTitle(landscape, batch), { description: parseFailureReason(video.failureReason).message });
       else if (batch) toast('Auto-Shorts en preparación', { description: `CS2 graba ${playIds.length} ${playIds.length === 1 ? 'jugada' : 'jugadas'} y cada una sale como un Short en Mis vídeos.` });
+      else if (horizontal !== null && needsCapture === false) toast('Montaje en cola', { description: 'Studio monta el horizontal con las jugadas ya grabadas del Short: CS2 no se abre. El Short no cambia.' });
       else if (editSeed !== null && needsCapture === false) toast('Montaje en cola', { description: 'Studio vuelve a montar el vídeo con las jugadas ya grabadas: CS2 no se abre. La versión que ya tienes se queda en Versiones.' });
       else toast(landscape ? 'Resumen en preparación' : 'Short en preparación', { description: 'Sigue la grabación y el montaje en Mis vídeos.' });
       router.push(doneHref);
@@ -381,6 +391,11 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
                 Editas la versión del {editSeed.date}. La que ya tienes se queda en Versiones.
                 {needsCapture === false ? ' Las jugadas ya están grabadas: solo se vuelve a montar.' : null}
                 {needsCapture === true ? ' Estos cambios necesitan grabar otra vez con CS2.' : null}
+              </p>
+            ) : null}
+            {horizontal ? (
+              <p role="status" className={cn('text-body-sm', horizontalGonePlays({ draft: horizontal, playIds: selectedIdList }) > 0 ? 'text-warning' : 'text-fg-2')}>
+                {horizontalNotice({ draft: horizontal, needsCapture, playIds: selectedIdList })}
               </p>
             ) : null}
             {lowSpace ? (
@@ -460,7 +475,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
           <section aria-labelledby="short-preset-title" className={PANEL_CLASS}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label id="short-preset-title" htmlFor="short-preset" className={PANEL_TITLE_CLASS}>Estilo</label>
-              {selectedPreset && !onePlayerSummary ? (
+              {selectedPreset && !ownStyle ? (
                 <DialogTrigger asChild>
                   <Button type="button" variant="link" size="xs" disabled={busy}>Comparar estilos</Button>
                 </DialogTrigger>
@@ -475,10 +490,10 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
                 </Button>
               </div>
             ) : null}
-            {!presetsFailed && onePlayerSummary ? (
+            {!presetsFailed && ownStyle ? (
               <SummaryStylePicker value={style.hud} disabled={busy} onChange={(hud) => changeEditConfig(withSummaryStyle(editConfig, hud))} />
             ) : null}
-            {!presetsFailed && !onePlayerSummary ? (
+            {!presetsFailed && !ownStyle ? (
               <Select value={variant ?? ''} onValueChange={chooseVariant} disabled={busy || visiblePresets === null}>
                 <SelectTrigger id="short-preset" className="h-10 font-display font-semibold">
                   <SelectValue placeholder="Cargando estilos…" />
@@ -558,7 +573,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             onClick={() => void onCreate()}
             className="shrink-0"
           >
-            {editCtaLabel({ capture: needsCapture === null ? null : { needed: needsCapture, missingRounds: [] }, editing: editSeed !== null, fallback: landscape ? PRODUCE_SUMMARY_CTA : PRODUCE_SHORT_CTA })}
+            {horizontal
+              ? horizontalCtaLabel(needsCapture)
+              : editCtaLabel({ capture: needsCapture === null ? null : { needed: needsCapture, missingRounds: [] }, editing: editSeed !== null, fallback: landscape ? PRODUCE_SUMMARY_CTA : PRODUCE_SHORT_CTA })}
           </Button>
         }
       />

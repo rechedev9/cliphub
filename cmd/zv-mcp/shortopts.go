@@ -188,6 +188,8 @@ type shortChoices struct {
 	RadarOpacity      *int     `json:"radar_opacity,omitempty" jsonschema:"radar opacity in percent, 40 to 100; needs radar; default 90"`
 	PreRollSeconds    *int     `json:"pre_roll_seconds,omitempty" jsonschema:"seconds each play starts before its first kill: 3, 5 or 8 (list_short_options pre_roll); two plays of one round that then overlap become one, named by the first id; one player only, not for death reels; default 3, the Short; the 16:9 summary of one player uses 5"`
 	CaptureHUD        string   `json:"capture_hud,omitempty" jsonschema:"capture style of a landscape-16x9 video (list_short_options capture_hud): gameplay (HUD completo), deathnotices (Killfeed) or clean (POV limpio); not with native_hud; default the HUD of the preset"`
+	// PortraitSafeKillfeed is copied from horizontal_draft; it describes the Short, not a style to pick.
+	PortraitSafeKillfeed *bool `json:"portrait_safe_killfeed,omitempty" jsonschema:"landscape-16x9 made from a Short (horizontal_draft): record CS2's kill feed where the Short's 9:16 crop kept it, so the Short's recorded plays are reused; not with capture_hud clean; default false"`
 }
 
 type songIn struct {

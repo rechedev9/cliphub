@@ -51,6 +51,8 @@ type renderEditRequest struct {
 	OverlayTheme        *string             `json:"overlay_theme"`
 	PreRollSeconds      *int                `json:"pre_roll_seconds"`
 	CaptureHUD          *string             `json:"capture_hud"`
+	// PortraitSafeKillfeed is the kill feed framing of the Short a 16:9 video was made from.
+	PortraitSafeKillfeed *bool `json:"portrait_safe_killfeed"`
 	// BrandWatermark and BrandBanner turn the saved brand kit on or off; applyBrandKit resolves them.
 	BrandWatermark *brandChoice[brandkit.Watermark] `json:"brand_watermark"`
 	BrandBanner    *brandChoice[brandkit.Banner]    `json:"brand_banner"`
@@ -186,6 +188,9 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.CaptureHUD != nil {
 		base.CaptureHUD = *r.CaptureHUD
+	}
+	if r.PortraitSafeKillfeed != nil {
+		base.PortraitSafeKillfeed = *r.PortraitSafeKillfeed
 	}
 	return renderplan.NormalizeEditRequest(base)
 }

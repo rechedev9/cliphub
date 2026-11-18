@@ -1,5 +1,6 @@
 import { currentFullDemoOptions, responseJSON, type FullDemoOptions } from '../full-demo-plan.ts';
 import type { CaptureCheck, SpaceCheck } from '../produce/edit-capture.ts';
+import { projectHorizontalDraft, type HorizontalDraft } from '../produce/horizontal.ts';
 
 /** One finished render of a video (Versiones in Mis vídeos); `videos` are MP4 names without the extension. */
 export type VideoVersion = {
@@ -83,6 +84,12 @@ type VersionRef = { jobId: string; variant: string };
 
 export async function listVideoVersions({ jobId, variant, signal }: VersionRef & { signal?: AbortSignal }): Promise<VideoVersion[]> {
   return projectVideoVersions(await responseJSON(await fetch(versionsUrl(jobId, variant), { cache: 'no-store', signal })));
+}
+
+/** Crear horizontal: the 16:9 summary of a Short's current version; it saves nothing. */
+export async function fetchHorizontalDraft({ jobId, variant, signal }: VersionRef & { signal?: AbortSignal }): Promise<HorizontalDraft | null> {
+  if (!UUID.test(jobId) || !VARIANT.test(variant)) throw new Error('Vídeo desconocido.');
+  return projectHorizontalDraft(await responseJSON(await fetch(`/api/demos/${jobId}/renders/${variant}/horizontal`, { cache: 'no-store', signal })));
 }
 
 /** The current version cannot be deleted alone: the server answers 409 `version_current`. */

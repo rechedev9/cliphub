@@ -28,6 +28,7 @@ export type EditRequestBody = {
   victim_replay_speed?: number;
   pre_roll_seconds?: number;
   capture_hud?: EditConfig['captureHud'];
+  portrait_safe_killfeed?: boolean;
   play_badges?: boolean;
   win_probability?: boolean;
   player_labels?: boolean;
@@ -72,6 +73,7 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
   if (!edit.fullDemo && !edit.matchRecap) {
     if (!edit.deathReel && edit.preRollSeconds !== undefined && edit.preRollSeconds !== DEFAULT_PRE_ROLL_SECONDS) body.pre_roll_seconds = edit.preRollSeconds;
     if (edit.captureHud && edit.format === 'landscape-16x9' && !edit.nativeHud) body.capture_hud = edit.captureHud;
+    if (edit.portraitSafeKillfeed && edit.format === 'landscape-16x9' && !edit.deathReel && (edit.nativeHud || edit.captureHud !== 'clean')) body.portrait_safe_killfeed = true;
     if (edit.playBadges && !edit.deathReel) body.play_badges = true;
     if (edit.winProbability && !edit.deathReel) body.win_probability = true;
     if (edit.playerLabels) body.player_labels = true;

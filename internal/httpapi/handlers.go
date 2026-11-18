@@ -1277,10 +1277,10 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 // i.e. the same HUD mode, segment selection, killfeed framing and recap flag.
 // Music and post-capture edit choices never change the capture, so a re-drive
 // that only differs there is still the duplicate the queue says it is.
-// capturePortraitSafeKillfeed brings CS2's notices into the 9:16 crop, unless the
-// editor draws a centered killfeed and the native ones must stay outside it.
+// capturePortraitSafeKillfeed brings CS2's notices into the 9:16 crop, unless the editor draws a centered
+// killfeed and the native ones must stay outside it; a 16:9 video made from a Short keeps the Short's framing.
 func capturePortraitSafeKillfeed(killfeedSource bool, edit renderplan.EditRequest) bool {
-	return killfeedSource && edit.Format == renderplan.FormatShort9x16 && !edit.CenteredKillfeed
+	return edit.PortraitSafeKillfeed || killfeedSource && edit.Format == renderplan.FormatShort9x16 && !edit.CenteredKillfeed
 }
 
 func canGenerateFromStatus(status job.Status) bool {
