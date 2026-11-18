@@ -40,6 +40,14 @@ func (h *Handlers) playerCardSources() playercard.Sources {
 	return src
 }
 
+// playerCardFacts gathers the job's player once for the card info and the previews of its panel.
+func (h *Handlers) playerCardFacts(ctx context.Context, j job.Job) (playercard.Facts, error) {
+	key := playerCardKey{job: j.ID, steamID: playercard.Target(j)}
+	return h.playerCards.facts(ctx, key, func(ctx context.Context) (playercard.Facts, error) {
+		return playercard.Gather(ctx, h.playerCardSources(), key.job, key.steamID)
+	})
+}
+
 // GetPlayerCard handles GET /api/jobs/{id}/player-card: the card catalog and the player a
 // one-player Short of the job shows, or why its Shorts cannot carry a card.
 func (h *Handlers) GetPlayerCard(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +57,7 @@ func (h *Handlers) GetPlayerCard(w http.ResponseWriter, r *http.Request) {
 	}
 	info := playerCardInfo{Templates: playercard.Templates, Reason: playercard.Unavailable(j)}
 	if info.Reason == "" {
-		facts, err := playercard.Gather(r.Context(), h.playerCardSources(), j.ID, playercard.Target(j))
+		facts, err := h.playerCardFacts(r.Context(), j)
 		if err != nil {
 			log.Printf("httpapi: player card of job %s: %v", j.ID, err)
 			info.Reason = playerCardMissingStats
@@ -73,7 +81,7 @@ func (h *Handlers) GetPlayerCardPreview(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	facts, err := playercard.Gather(r.Context(), h.playerCardSources(), j.ID, playercard.Target(j))
+	facts, err := h.playerCardFacts(r.Context(), j)
 	if err != nil {
 		log.Printf("httpapi: player card preview of job %s: %v", j.ID, err)
 		writeError(w, http.StatusConflict, playerCardMissingStats)
@@ -110,6 +118,7 @@ func (h *Handlers) SetPlayerCardImage(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "save player image", err)
 		return
 	}
+	h.playerCards.forget(playercard.Target(j))
 	writeJSON(w, http.StatusOK, map[string]string{"image": playercard.ImageUpload})
 }
 
@@ -124,6 +133,7 @@ func (h *Handlers) DeletePlayerCardImage(w http.ResponseWriter, r *http.Request)
 		internalError(w, "remove player image", err)
 		return
 	}
+	h.playerCards.forget(playercard.Target(j))
 	w.WriteHeader(http.StatusNoContent)
 }
 

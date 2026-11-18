@@ -127,6 +127,7 @@ type Handlers struct {
 	captures                   captureSettings
 	renderStateMu       sync.Mutex
 	rosterCache         rosterSummaryCache
+	playerCards         playerCardCache
 	jobsListJSON        cachedJSON
 	streamListJSON      cachedJSON
 	streamJobLocks      *streamclips.JobLocks
