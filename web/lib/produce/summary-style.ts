@@ -1,4 +1,5 @@
 import type { CaptureHud, EditConfig } from '../api/types.ts';
+import { hasPlayerCards, withoutPlayerCards } from '../player-cards.ts';
 
 /** The capture styles of a one-player summary, named as list_short_options names them. */
 export const SUMMARY_STYLES = [
@@ -19,10 +20,10 @@ export function withSummaryStyle(edit: EditConfig, hud: CaptureHud): EditConfig 
   return next;
 }
 
-/** Several players share one capture, so they get no pre-roll or capture style of their own. */
+/** Several players share one capture, so they get no pre-roll, capture style or player card of their own. */
 export function withoutOnePlayerOptions(edit: EditConfig): EditConfig {
-  if (edit.preRollSeconds === undefined && edit.captureHud === undefined) return edit;
-  const next: EditConfig = { ...edit };
+  if (edit.preRollSeconds === undefined && edit.captureHud === undefined && !hasPlayerCards(edit)) return edit;
+  const next: EditConfig = withoutPlayerCards(edit);
   delete next.preRollSeconds;
   delete next.captureHud;
   return next;

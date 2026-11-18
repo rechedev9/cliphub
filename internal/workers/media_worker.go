@@ -36,6 +36,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
+	"github.com/rechedev9/cliphub/internal/playercard"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
@@ -214,6 +215,8 @@ type RenderWorkerConfig struct {
 	// AvatarFetch is an optional bounded downloader for the already-approved
 	// avatar URL snapshot. Tests use it to avoid network access.
 	AvatarFetch func(context.Context, string) ([]byte, error)
+	// Library holds the player matches a player card reads the role from.
+	Library playercard.MatchLister
 	// KeepFullDemoCaptures keeps round clips after a render, for `zv full-demo lab-bundle`.
 	KeepFullDemoCaptures bool
 }
@@ -3231,12 +3234,7 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	_ = demooverlay.MaterializeAvatars(&doc, filepath.Join(workDir, "overlay-avatars"), func(raw string) ([]byte, error) {
-		if w.cfg.AvatarFetch != nil {
-			return w.cfg.AvatarFetch(ctx, raw)
-		}
-		return faceit.FetchAvatar(ctx, nil, raw)
-	})
+	_ = demooverlay.MaterializeAvatars(&doc, filepath.Join(workDir, "overlay-avatars"), func(raw string) ([]byte, error) { return w.fetchAvatar(ctx, raw) })
 	path := filepath.Join(workDir, "full-demo-overlay.json")
 	if err := demooverlay.Write(path, doc); err != nil {
 		return "", err

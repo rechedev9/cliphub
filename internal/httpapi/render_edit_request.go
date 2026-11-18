@@ -30,6 +30,9 @@ type renderEditRequest struct {
 	PlayerLabels        *bool               `json:"player_labels"`
 	GrenadeTrails       *bool               `json:"grenade_trails"`
 	StatsCard           *bool               `json:"stats_card"`
+	OpeningCard         *string             `json:"opening_card"`
+	EndCard             *string             `json:"end_card"`
+	CoverCard           *string             `json:"cover_card"`
 	CenteredKillfeed    *bool               `json:"centered_killfeed"`
 	VerticalHUD         *bool               `json:"vertical_hud"`
 	VerticalHUDTheme    *string             `json:"vertical_hud_theme"`
@@ -122,6 +125,11 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.StatsCard != nil {
 		base.StatsCard = *r.StatsCard
+	}
+	for _, slot := range []struct{ from, to *string }{{r.OpeningCard, &base.OpeningCard}, {r.EndCard, &base.EndCard}, {r.CoverCard, &base.CoverCard}} {
+		if slot.from != nil {
+			*slot.to = *slot.from
+		}
 	}
 	if r.CenteredKillfeed != nil {
 		base.CenteredKillfeed = *r.CenteredKillfeed

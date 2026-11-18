@@ -1,0 +1,12 @@
+{{define "style"}}.carta .head{display:flex;flex-direction:row-reverse;align-items:center;justify-content:flex-end;gap:44px}
+.carta .photo,.carta .initials{width:230px;height:230px;border-radius:50%;border:6px solid #FFC83D;font-size:92px;flex:none}
+.carta .score{display:flex;flex-direction:column;gap:16px;align-items:flex-start}
+.carta .rating .value{font-size:150px;line-height:.9;color:#FFC83D}
+.carta .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:44px}
+.carta .stat{padding:22px 24px;border-radius:22px;background:#FFFFFF0D}
+.carta .stat .value{font-size:56px;margin-top:6px}{{end}}
+{{define "card"}}<main class="card carta">
+<div class="head"><div class="score">{{if .Rating}}<div class="rating"><span class="value">{{.Rating}}</span><span class="label">RATING CLIPHUB</span></div>{{end}}{{if .Role}}<span class="role">{{.Role}}</span>{{end}}</div>{{template "portrait" .}}</div>
+<div class="name">{{.Name}}</div>{{if .Team}}<div class="team">{{.Team}}</div>{{end}}{{template "faceit" .}}
+{{if .Stats}}<div class="grid">{{range .Stats}}<div class="stat"><span class="label">{{.Label}}</span><span class="value">{{.Value}}</span></div>{{end}}</div>{{end}}
+</main>{{end}}

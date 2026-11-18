@@ -9,6 +9,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
@@ -57,6 +58,9 @@ func describeHorizontalDraft(jobID string, d tuiclient.HorizontalDraft) horizont
 	labels := make([]string, 0, len(d.Dropped))
 	for _, id := range d.Dropped {
 		label := cleanName(id)
+		if id == renderplan.DroppedPlayerCards {
+			label = "Cartas de jugador"
+		}
 		for _, t := range toggleOptions {
 			if t.ID == id {
 				label = t.Label

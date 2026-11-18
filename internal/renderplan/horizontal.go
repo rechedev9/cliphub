@@ -15,6 +15,7 @@ const (
 	DroppedStatsCard        = "stats_card"
 	DroppedRadar            = "radar"
 	DroppedKillCounter      = "kill_counter"
+	DroppedPlayerCards      = "player_cards"
 )
 
 const captureHUDGameplay = "gameplay"
@@ -33,7 +34,8 @@ func HorizontalEdit(short EditRequest, capture ShortCapture) (EditRequest, []str
 	for _, option := range []struct {
 		id string
 		on bool
-	}{{DroppedStatsCard, short.StatsCard}, {DroppedRadar, short.Radar}, {DroppedKillCounter, short.KillCounter}} {
+	}{{DroppedStatsCard, short.StatsCard}, {DroppedRadar, short.Radar}, {DroppedKillCounter, short.KillCounter},
+		{DroppedPlayerCards, short.OpeningCard != "" || short.EndCard != "" || short.CoverCard != ""}} {
 		if option.on {
 			dropped = append(dropped, option.id)
 		}
@@ -42,6 +44,7 @@ func HorizontalEdit(short EditRequest, capture ShortCapture) (EditRequest, []str
 	next.Format, next.MatchRecap, next.DeathReel, next.SeparateShorts = FormatLandscape16x9, false, false, false
 	next.VerticalHUD, next.VerticalHUDTheme, next.CenteredKillfeed, next.StatsCard, next.KillCounter = false, "", false, false, false
 	next.Radar, next.RadarPosition, next.RadarSize, next.RadarOpacity = false, "", "", 0
+	next.OpeningCard, next.EndCard, next.CoverCard = "", "", ""
 	next.DemoSource, next.OverlayTheme = "", ""
 	next.NativeHUD = capture.HUDMode == captureHUDGameplay
 	next.CaptureHUD = ""

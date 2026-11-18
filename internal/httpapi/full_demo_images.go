@@ -11,6 +11,13 @@ import (
 )
 
 func (h *Handlers) CreateFullDemoImage(w http.ResponseWriter, r *http.Request) {
+	if asset, ok := h.storeUploadedImage(w, r); ok {
+		writeJSON(w, http.StatusCreated, asset)
+	}
+}
+
+// storeUploadedImage keeps the multipart "image" field as an overlay image; false once it wrote the error.
+func (h *Handlers) storeUploadedImage(w http.ResponseWriter, r *http.Request) (overlayassets.Asset, bool) {
 	r.Body = http.MaxBytesReader(w, r.Body, overlayassets.MaxBytes+(1<<20))
 	defer func() {
 		if r.MultipartForm != nil {
@@ -20,20 +27,20 @@ func (h *Handlers) CreateFullDemoImage(w http.ResponseWriter, r *http.Request) {
 	// #nosec G120 -- MaxBytesReader bounds both memory and temporary files.
 	if err := r.ParseMultipartForm(1 << 20); err != nil {
 		writeError(w, http.StatusBadRequest, "Selecciona una imagen PNG o JPG de hasta 10 MB")
-		return
+		return overlayassets.Asset{}, false
 	}
 	file, header, err := r.FormFile("image")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "Falta la imagen")
-		return
+		return overlayassets.Asset{}, false
 	}
 	defer file.Close()
 	asset, err := overlayassets.Store(r.Context(), h.storage, file, header.Filename)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
-		return
+		return overlayassets.Asset{}, false
 	}
-	writeJSON(w, http.StatusCreated, asset)
+	return asset, true
 }
 
 func (h *Handlers) GetFullDemoImage(w http.ResponseWriter, r *http.Request) {

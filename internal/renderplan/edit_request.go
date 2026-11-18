@@ -77,8 +77,13 @@ type EditRequest struct {
 	PlayerLabels  bool `json:"player_labels,omitempty"`
 	GrenadeTrails bool `json:"grenade_trails,omitempty"`
 	// StatsCard ends a 9:16 Short with the player's match stats and, when known, FACEIT data.
-	StatsCard        bool `json:"stats_card,omitempty"`
-	CenteredKillfeed bool `json:"centered_killfeed,omitempty"`
+	StatsCard bool `json:"stats_card,omitempty"`
+	// OpeningCard, EndCard and CoverCard are playercard template ids for a one-player 9:16 Short; empty is no card.
+	// The end card replaces the stats card and the cover card lies over the cover frame.
+	OpeningCard      string `json:"opening_card,omitempty"`
+	EndCard          string `json:"end_card,omitempty"`
+	CoverCard        string `json:"cover_card,omitempty"`
+	CenteredKillfeed bool   `json:"centered_killfeed,omitempty"`
 	// VerticalHUD draws a 9:16 scoreboard and alive counter read from the demo over the Short, with the
 	// centered kill feed under it, in the VerticalHUDTheme catalog design (empty is the first one).
 	VerticalHUD      bool   `json:"vertical_hud,omitempty"`
@@ -189,7 +194,7 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	if !req.VictimReplay || req.VictimReplaySpeed == DefaultVictimReplaySpeed {
 		req.VictimReplaySpeed = 0
 	}
-	return normalizePortraitSafeKillfeed(normalizeRadar(normalizeCaptureHUD(normalizePreRoll(req))))
+	return normalizePlayerCards(normalizePortraitSafeKillfeed(normalizeRadar(normalizeCaptureHUD(normalizePreRoll(req)))))
 }
 
 func (r EditRequest) Validate() error {
@@ -249,6 +254,9 @@ func (r EditRequest) validateFields() error {
 		return err
 	}
 	if err := r.validateRadar(); err != nil {
+		return err
+	}
+	if err := r.validatePlayerCards(); err != nil {
 		return err
 	}
 	if r.CenteredKillfeed && r.Format != FormatShort9x16 {

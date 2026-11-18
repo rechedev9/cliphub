@@ -37,6 +37,7 @@ import {
 } from '@/lib/produce/short-selection';
 import { canForgeReel, constrainEditConfig, missingAffiliateCode, reelCreativeBrief, verticalHudAllowed, withPresetLimits, type MusicBrief } from '@/lib/reel-brief';
 import { radarAllowed } from '@/lib/radar-overlay';
+import { MULTI_PLAYER_CARD_REASON } from '@/lib/player-cards';
 import { selectShortsFormat, selectShortsPreset, shortsPresetsForFormat } from '@/lib/reel-format';
 import { cn } from '@/lib/utils';
 import { presetDescription } from '@/lib/preset-copy';
@@ -545,6 +546,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
                 disabled={busy}
                 killCounter={!multiPov}
                 statsCard={!multiPov}
+                playerCards={{ jobId: matchId, blockedReason: multiPov ? MULTI_PLAYER_CARD_REASON : undefined }}
                 verticalHud={hudAllowed}
                 radar={radarAllowed(selectedPreset)}
               />
@@ -656,7 +658,8 @@ function overlaysSummary(edit: EditConfig): string {
   if (edit.winProbability) parts.push('Prob. de victoria');
   if (edit.playerLabels) parts.push('Nombres y vida');
   if (edit.grenadeTrails) parts.push('Estelas de granadas');
-  if (edit.statsCard && edit.format === 'short-9x16') parts.push('Estadísticas');
+  if (edit.endCard && edit.format === 'short-9x16') parts.push('Carta de jugador');
+  else if (edit.statsCard && edit.format === 'short-9x16') parts.push('Estadísticas');
   if (edit.victimReplay) parts.push('Repetición');
   if (edit.brandWatermark) parts.push('Marca de agua');
   if (edit.brandBanner && !edit.keyDropStyle) parts.push('Sponsor');

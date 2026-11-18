@@ -1,4 +1,5 @@
 import { isCustomHudTheme } from '../custom-hud.ts';
+import { isPlayerCardId } from '../player-cards.ts';
 import { coerceRadarOpacity, isRadarPosition, isRadarSize } from '../radar-overlay.ts';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import {
@@ -241,6 +242,9 @@ export function coerceEditConfig(value: unknown): EditConfig {
   if (raw.playerLabels === true) cfg.playerLabels = true;
   if (raw.grenadeTrails === true) cfg.grenadeTrails = true;
   if (raw.statsCard === true) cfg.statsCard = true;
+  if (isPlayerCardId(raw.openingCard)) cfg.openingCard = raw.openingCard;
+  if (isPlayerCardId(raw.endCard)) cfg.endCard = raw.endCard;
+  if (isPlayerCardId(raw.coverCard)) cfg.coverCard = raw.coverCard;
   if (raw.brandWatermark === true) cfg.brandWatermark = true;
   if (raw.brandBanner === true) cfg.brandBanner = true;
   const family =
