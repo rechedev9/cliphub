@@ -206,6 +206,8 @@ export class RealApiClient implements ApiClient {
   private readonly redrivenRevisions = new Map<string, RedrivenRevision>();
   /** Why automatic driving stopped (durable POST rejection or repeated mismatch); explicit actions clear it. */
   private readonly driveLatch = new Map<string, { failureReason: string; retryAction: ReelAction }>();
+  /** Reels an explicit action asked for since the page loaded; only they may re-drive a capture by themselves. */
+  private readonly asked = new Set<string>();
   /** GETs the constructor beat still has open, so its three reads share them (see sharedRead). */
   private readonly beatReads = new Map<string, Promise<unknown>>();
   /** Last /api/demos/jobs body, reused when the orchestrator answers 304. */
@@ -871,6 +873,7 @@ export class RealApiClient implements ApiClient {
 
   /** An explicit user action grants a fresh automatic re-drive and lifts any latch. */
   private forgetDriveState(videoId: string): void {
+    this.asked.add(videoId);
     this.redrivenRevisions.delete(videoId);
     this.driveLatch.delete(videoId);
     this.keepAdmissionFailure(videoId, undefined);
@@ -978,13 +981,10 @@ export class RealApiClient implements ApiClient {
       renderEdit: render.editConfig,
       intentSegmentIds: intent.segmentIds,
       renderSegmentIds: render.segmentIds,
-      intentMusic: {
-        songId: intent.songId,
-        musicVolume: intent.musicVolume,
-        gameVolume: intent.gameVolume,
-      },
+      intentMusic: { songId: intent.songId, musicVolume: intent.musicVolume, gameVolume: intent.gameVolume },
       renderMusic: musicChoiceFromEffective(render.effectiveMusic),
       redrivenRevision: this.redrivenRevisions.get(intent.videoId),
+      userAsked: this.asked.has(intent.videoId),
     });
     if (decision.mismatchRedrive === 'fail') {
       this.driveLatch.set(intent.videoId, { failureReason: MISMATCH_REDRIVE_FAILURE_REASON, retryAction: 'record' });
