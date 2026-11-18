@@ -30,6 +30,11 @@ type libraryVoiceRepository interface {
 	ListVoicesByTranscript(ctx context.Context, states []string) ([]uuid.UUID, error)
 	ListVoiceSummaries(ctx context.Context) ([]library.VoiceSummary, error)
 	DeleteMatchVoice(ctx context.Context, matchID uuid.UUID) error
+	GetDemoVoice(ctx context.Context, matchID uuid.UUID) (library.DemoVoiceTranscript, error)
+	SetDemoVoice(ctx context.Context, update library.DemoVoiceUpdate) error
+	ListDemoVoiceLines(ctx context.Context, filter library.DemoVoiceLineFilter) ([]library.DemoVoiceLine, error)
+	UpdateDemoVoiceLine(ctx context.Context, patch library.DemoVoiceLinePatch) (library.DemoVoiceLine, error)
+	ListDemoVoices(ctx context.Context, states []string) ([]library.DemoVoiceTranscript, error)
 }
 
 // VoiceMedia reads and encodes recordings; teamvoice.Media runs FFmpeg for it.
@@ -39,11 +44,18 @@ type VoiceMedia interface {
 	Speech(ctx context.Context, path string) ([]library.VoiceSpan, int64, error)
 }
 
-// VoiceTranscriber is local speech to text; teamvoice.Transcriber runs whisper.cpp for it.
+// VoiceTranscriber is local speech to text; teamvoice.Transcriber runs Parakeet for it.
 type VoiceTranscriber interface {
 	Status() teamvoice.TranscriberStatus
 	Install(ctx context.Context) error
 	Transcribe(ctx context.Context, job teamvoice.TranscribeJob) ([]teamvoice.Line, error)
+}
+
+// VoiceTranslator is local speech to English; teamvoice.Translator runs whisper.cpp for it.
+type VoiceTranslator interface {
+	Status() teamvoice.TranscriberStatus
+	Install(ctx context.Context) error
+	Translate(ctx context.Context, job teamvoice.TranslateJob) ([]string, error)
 }
 
 // VoiceDeps enables team voice: Dir holds each match's tracks under the profile's data folder.
@@ -51,6 +63,7 @@ type VoiceDeps struct {
 	Dir         string
 	Media       VoiceMedia
 	Transcriber VoiceTranscriber
+	Translator  VoiceTranslator
 	DemoVoice   DemoVoiceExtractor
 	Plugin      VoicePluginDeps
 }
@@ -63,9 +76,10 @@ func WithVoice(deps VoiceDeps) Option {
 	}
 }
 
+// voiceJob transcribes a match's TeamSpeak voice, or with demo the voices its demo recorded.
 type voiceJob struct {
-	matchID  uuid.UUID
-	language string
+	matchID uuid.UUID
+	demo    bool
 }
 
 type voiceService struct {
@@ -84,6 +98,10 @@ type voiceService struct {
 func (v *voiceService) lifetime() context.Context {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	return v.lifetimeLocked()
+}
+
+func (v *voiceService) lifetimeLocked() context.Context {
 	if v.installCtx == nil {
 		return context.Background()
 	}
@@ -126,6 +144,7 @@ const (
 	codeNotAudio         = "not_audio"
 	codeTooManyTracks    = "too_many_tracks"
 	codeNoTranscriber    = "transcriber_not_installed"
+	codeNoTranslator     = "translator_not_installed"
 	codeQueueFull        = "queue_full"
 	codeNoDemoFile       = "no_demo_file"
 )

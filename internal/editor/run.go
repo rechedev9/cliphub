@@ -16,6 +16,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/pathguard"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/rhythm"
+	"github.com/rechedev9/cliphub/internal/subtitles"
 )
 
 // runInputs is everything Run resolves before it writes or renders anything:
@@ -225,7 +226,7 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 		if err := verifyFullDemoCapturedInputs(ctx, recordingResult.Artifacts, recordingBaseDir, ffprobePath, cfg.DryRun); err != nil {
 			return runInputs{}, err
 		}
-		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.PlayBadges || cfg.WinProbability || cfg.PlayerLabels || cfg.GrenadeTrails || cfg.WorldTrackPath != "" || cfg.VerticalHUD || cfg.VerticalHUDTrackPath != "" || cfg.StatsCardPath != "" || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" || cfg.Watermark != nil || cfg.SponsorBanner != nil || cfg.Radar || cfg.RadarTrackPath != "" {
+		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.PlayBadges || cfg.WinProbability || cfg.PlayerLabels || cfg.GrenadeTrails || cfg.WorldTrackPath != "" || cfg.VerticalHUD || cfg.VerticalHUDTrackPath != "" || cfg.StatsCardPath != "" || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" || cfg.Watermark != nil || cfg.SponsorBanner != nil || cfg.Radar || cfg.RadarTrackPath != "" || cfg.SubtitlesPath != "" {
 			return runInputs{}, fmt.Errorf("full demo execution cannot be overridden by legacy editorial flags")
 		}
 		if coversEnabled != (fullDemoExecution.Approved.Document.Options.Outputs.CoverPolicy != "no-cover") {
@@ -266,6 +267,11 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 	}
 	if path := strings.TrimSpace(cfg.StatsCardPath); path != "" {
 		if overlays.StatsCard, err = LoadStatsCard(path); err != nil {
+			return runInputs{}, err
+		}
+	}
+	if path := strings.TrimSpace(cfg.SubtitlesPath); path != "" {
+		if overlays.Subtitles, err = subtitles.Load(path); err != nil {
 			return runInputs{}, err
 		}
 	}

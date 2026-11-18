@@ -68,6 +68,7 @@ func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, j job.J
 			execution.VoiceTracks = append(execution.VoiceTracks, editor.FullDemoLocalVoice{SteamID64: track.SteamID64, StorageKey: track.Path, SHA256: extraction.TrackHashes[track.Path], Path: path})
 		}
 	}
+	execution.Subtitles = w.fullDemoSubtitles(ctx, j, snapshot.Document.Options.Subtitles)
 	path := filepath.Join(dir, "full-demo-execution.json")
 	return path, writeJSONFile(path, execution)
 }

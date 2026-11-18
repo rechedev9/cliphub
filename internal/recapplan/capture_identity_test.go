@@ -45,6 +45,7 @@ func TestCaptureIdentityByOption(t *testing.T) {
 		"sonido":                  func(o *Options) { o.Audio.Game.Gain, o.Audio.Voice.Gain = 0.5, 1.5 },
 		"bumpers":                 func(o *Options) { o.Bumpers = &BumperOptions{Intro: BumperSlot{Enabled: true}} },
 		"origen de los overlays":  func(o *Options) { o.SourceKind = "faceit" },
+		"subtítulos":              func(o *Options) { o.Audio.Voice.Enabled, o.Subtitles = true, &SubtitleOptions{Enabled: true, English: true} },
 	}
 	for name, change := range renderOnly {
 		o := custom()

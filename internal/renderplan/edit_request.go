@@ -114,6 +114,10 @@ type EditRequest struct {
 	// BrandWatermark and BrandBanner are copied whole from the brand kit, so a later kit edit never changes this render.
 	BrandWatermark *brandkit.Watermark `json:"brand_watermark,omitempty"`
 	BrandBanner    *brandkit.Banner    `json:"brand_banner,omitempty"`
+	// Subtitles burns the team comms transcript, in English with SubtitlesEnglish; SubtitlesHidden are phrases this video leaves out.
+	Subtitles        bool     `json:"subtitles,omitempty"`
+	SubtitlesEnglish bool     `json:"subtitles_english,omitempty"`
+	SubtitlesHidden  []string `json:"subtitles_hidden,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {
@@ -189,7 +193,7 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	if !req.VictimReplay || req.VictimReplaySpeed == DefaultVictimReplaySpeed {
 		req.VictimReplaySpeed = 0
 	}
-	return normalizePortraitSafeKillfeed(normalizeRadar(normalizeCaptureHUD(normalizePreRoll(req))))
+	return normalizeSubtitles(normalizePortraitSafeKillfeed(normalizeRadar(normalizeCaptureHUD(normalizePreRoll(req)))))
 }
 
 func (r EditRequest) Validate() error {
@@ -249,6 +253,9 @@ func (r EditRequest) validateFields() error {
 		return err
 	}
 	if err := r.validateRadar(); err != nil {
+		return err
+	}
+	if err := r.validateSubtitles(); err != nil {
 		return err
 	}
 	if r.CenteredKillfeed && r.Format != FormatShort9x16 {

@@ -62,6 +62,10 @@ import { TEAM_DOCUMENT_KEYS, TEAM_DOCUMENT_REQUEST_BYTES, teamDocumentContentHre
 import { SEARCH_QUERY_KEYS, SEARCH_RESPONSE_KEYS } from '../../../lib/api/search.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAP_COUNTS_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
 import {
+  DEMO_LINE_FIELDS,
+  DEMO_LINE_KEYS,
+  DEMO_TRANSCRIBE_FIELDS,
+  DEMO_TRANSCRIPT_KEYS,
   DEMO_VOICE_KEYS,
   TRANSCRIBER_KEYS,
   VOICE_COMMS_KEYS,
@@ -230,10 +234,15 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['matches', UUID, 'voice', 'demo'], response: json(DEMO_VOICE_KEYS) },
   { method: 'POST', segments: ['matches', UUID, 'voice', 'demo'], response: json(DEMO_VOICE_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'voice', 'demo', STEAM_ID, 'audio'], response: { kind: 'stream' } },
+  { method: 'GET', segments: ['matches', UUID, 'voice', 'demo', 'transcript'], response: json(DEMO_TRANSCRIPT_KEYS) },
+  { method: 'POST', segments: ['matches', UUID, 'voice', 'demo', 'transcript'], body: fields(DEMO_TRANSCRIBE_FIELDS), response: json(DEMO_TRANSCRIPT_KEYS) },
+  { method: 'PATCH', segments: ['matches', UUID, 'voice', 'demo', 'transcript', 'lines', UUID], body: fields(DEMO_LINE_FIELDS), response: json(DEMO_LINE_KEYS) },
   { method: 'GET', segments: ['voice', 'summary'], response: json(VOICE_SUMMARY_KEYS) },
   { method: 'GET', segments: ['voice', 'search'], query: VOICE_SEARCH_QUERY, response: json(VOICE_SEARCH_KEYS) },
   { method: 'GET', segments: ['voice', 'transcriber'], response: json(TRANSCRIBER_KEYS) },
   { method: 'POST', segments: ['voice', 'transcriber', 'install'], response: json(TRANSCRIBER_KEYS) },
+  { method: 'GET', segments: ['voice', 'translator'], response: json(TRANSCRIBER_KEYS) },
+  { method: 'POST', segments: ['voice', 'translator', 'install'], response: json(TRANSCRIBER_KEYS) },
   { method: 'PUT', segments: ['matches', UUID, 'voice', 'speakers'], body: fields(VOICE_SPEAKERS_FIELDS), response: json(VOICE_KEYS) },
   { method: 'GET', segments: ['voice', 'recordings'], response: json(RECORDING_LIST_KEYS) },
   { method: 'POST', segments: ['voice', 'recordings', RECORDING_ID, 'attach'], body: fields(RECORDING_ATTACH_FIELDS), response: json(RECORDING_KEYS) },

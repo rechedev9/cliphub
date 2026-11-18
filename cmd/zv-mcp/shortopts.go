@@ -84,6 +84,8 @@ var toggleOptions = []shortToggle{
 	{ID: "vertical_hud", Label: "HUD vertical", Description: "Marcador compacto arriba con reloj, ronda y vivos de cada bando leídos de la demo, y la kill feed centrada debajo (solo 9:16; no con el HUD nativo ni con Full HUD)"},
 	{ID: "radar", Label: "Radar de ClipHub", Description: "Radar propio en una esquina con jugadores, humos, molotovs, flashes y bomba leídos de la demo, con posición, tamaño y opacidad (no con el HUD nativo ni con Full HUD, que ya muestran el radar de CS2)"},
 	{ID: "voice_comms", Label: "Comms del equipo", Description: "Mezcla las voces del equipo en el audio"},
+	{ID: "subtitles", Label: "Subtítulos", Description: "Escribe lo que dicen las voces del equipo, con el nombre de quien habla (necesita Comms del equipo)"},
+	{ID: "subtitles_english", Label: "Traducir al inglés", Description: "Los subtítulos salen solo en inglés (necesita Subtítulos)"},
 	{ID: "native_hud", Label: "HUD nativo", Description: "Graba con el HUD original del juego"},
 	{ID: "victim_replay", Label: "Repetición desde la víctima", Description: "Tras cada jugada, la última baja otra vez vista por quien muere, a la velocidad elegida"},
 	{ID: "cover", Label: "Portada", Description: "Genera candidatos de portada desde el gameplay", Default: true},
@@ -190,6 +192,7 @@ type shortChoices struct {
 	CaptureHUD        string   `json:"capture_hud,omitempty" jsonschema:"capture style of a landscape-16x9 video (list_short_options capture_hud): gameplay (HUD completo), deathnotices (Killfeed) or clean (POV limpio); not with native_hud; default the HUD of the preset"`
 	// PortraitSafeKillfeed is copied from horizontal_draft; it describes the Short, not a style to pick.
 	PortraitSafeKillfeed *bool `json:"portrait_safe_killfeed,omitempty" jsonschema:"landscape-16x9 made from a Short (horizontal_draft): record CS2's kill feed where the Short's 9:16 crop kept it, so the Short's recorded plays are reused; not with capture_hud clean; default false"`
+	subtitleChoices
 }
 
 type songIn struct {
@@ -323,6 +326,9 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 		return edit, err
 	}
 	if err := resolveSummaryChoices(&edit, c); err != nil {
+		return edit, err
+	}
+	if err := resolveSubtitles(&edit, c.subtitleChoices); err != nil {
 		return edit, err
 	}
 	edit.PlayBadges, edit.StatsCard = orDefault(c.PlayBadges, false), orDefault(c.StatsCard, false)
@@ -491,7 +497,7 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	if e.VerticalHUD && e.VerticalHUDTheme != "" {
 		out += ", diseño del HUD vertical " + e.VerticalHUDTheme
 	}
-	out += describeRadar(e) + describeSummaryChoices(e)
+	out += describeRadar(e) + describeSummaryChoices(e) + describeSubtitles(e.Subtitles, e.SubtitlesEnglish, len(e.SubtitlesHidden))
 	if e.IntroText != "" {
 		out += fmt.Sprintf(", apertura «%s»", e.IntroText)
 	}

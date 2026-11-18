@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/subtitles"
 )
 
 const (
@@ -34,6 +35,8 @@ type ShortOverlays struct {
 	Banner    *SponsorBanner  `json:"sponsor_banner,omitempty"`
 	// Radar is ClipHub's radar in a corner of the frame.
 	Radar *RadarOverlay `json:"radar,omitempty"`
+	// Subtitles is the team comms transcript on the demo's tick clock.
+	Subtitles *subtitles.Track `json:"subtitles,omitempty"`
 }
 
 // StatsCard is the player's line for the closing card. A nil field is unknown and is not drawn.

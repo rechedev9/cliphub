@@ -207,8 +207,7 @@ type RenderWorkerConfig struct {
 	FFmpegPath  string
 	FFprobePath string
 	Timeout     string
-	// MusicDir holds music tracks named "<key>.<ext>" that a render can mix in
-	// (see RenderVariantPayload.MusicKey). Empty disables music mixing.
+	// MusicDir holds the "<key>.<ext>" tracks a render can mix in (RenderVariantPayload.MusicKey); empty disables music.
 	MusicDir string
 	Faceit   *faceit.Client
 	// AvatarFetch is an optional bounded downloader for the already-approved
@@ -1194,6 +1193,7 @@ type RenderWorker struct {
 	cfg             RenderWorkerConfig
 	runner          commandRunner
 	voiceExtract    voiceExtractFunc
+	subtitles       SubtitleSource
 }
 
 func NewRenderWorker(repo StatusRepository, store storage.Storage, cfg RenderWorkerConfig) *RenderWorker {

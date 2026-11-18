@@ -1012,7 +1012,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 		switch err := bodyErr; {
 		case err == nil, errors.Is(err, io.EOF):
 			edit := renderplan.NormalizeEditRequest(req.Edit)
-			emptyRequest := (req.Preset == "" || req.Preset == "gameplay-pov-60") && req.Edit == (renderplan.EditRequest{}) && len(req.SegmentIDs) == 0
+			emptyRequest := (req.Preset == "" || req.Preset == "gameplay-pov-60") && req.Edit.IsZero() && len(req.SegmentIDs) == 0
 			if edit.FullDemo != nil || (req.Preset == "gameplay-pov-60" && edit.MatchRecap) || emptyRequest || errors.Is(err, io.EOF) {
 				if h.retryApprovedFullDemo(w, r, j, edit.FullDemo) {
 					return

@@ -147,13 +147,13 @@ func (m Media) EncodePCM(ctx context.Context, job PCMEncodeJob) error {
 	return nil
 }
 
-// WAV writes the 16 kHz mono WAV whisper.cpp reads.
-func (m Media) WAV(ctx context.Context, src, dst string) error {
+// RawPCM writes a recording as the raw 16 kHz mono s16le the local speech programs read.
+func (m Media) RawPCM(ctx context.Context, src, dst string) error {
 	if m.FFmpeg == "" {
 		return ErrNoFFmpeg
 	}
 	return m.run(ctx, []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-protocol_whitelist", localProtocols, "-i", src, "-map", "0:a:0",
-		"-ac", "1", "-ar", strconv.Itoa(SampleRate), "-c:a", "pcm_s16le", "-f", "wav", dst})
+		"-ac", "1", "-ar", strconv.Itoa(SampleRate), "-f", "s16le", dst})
 }
 
 // Speech decodes a file to PCM and finds where someone talks.

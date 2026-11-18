@@ -243,6 +243,12 @@ export function coerceEditConfig(value: unknown): EditConfig {
   if (raw.statsCard === true) cfg.statsCard = true;
   if (raw.brandWatermark === true) cfg.brandWatermark = true;
   if (raw.brandBanner === true) cfg.brandBanner = true;
+  if (raw.subtitles === true) {
+    cfg.subtitles = true;
+    if (raw.subtitlesEnglish === true) cfg.subtitlesEnglish = true;
+    const hidden = Array.isArray(raw.subtitlesHidden) ? raw.subtitlesHidden.filter((id) => typeof id === 'string') : [];
+    if (hidden.length > 0) cfg.subtitlesHidden = hidden;
+  }
   const family =
     typeof raw.keyDropFamily === 'string' ? normalizeAffiliateFamily(raw.keyDropFamily) : '';
   if (typeof raw.keyDropStyle === 'string') {

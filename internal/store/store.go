@@ -145,6 +145,7 @@ type LibraryRepository interface {
 	PatternRepository
 	ProMatchRepository
 	VoiceRepository
+	DemoVoiceRepository
 	VoiceRecordingRepository
 }
 

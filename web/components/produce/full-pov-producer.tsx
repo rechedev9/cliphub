@@ -15,7 +15,8 @@ import {
   FULL_DEMO_CAPTURE_VARIANT, type FullDemoBumperOptions, type FullDemoDocument, type FullDemoOptions, type FullDemoProPlayer,
 } from '@/lib/full-demo-plan';
 import { captureNote, editCtaLabel, pickVersion, recapSeconds, spaceWarning, versionDateLabel, type CaptureCheck, type SpaceCheck } from '@/lib/produce/edit-capture';
-import { fullDemoBriefItems } from '@/lib/produce/full-demo-brief';
+import { FULL_DEMO_VOICE_LABEL, fullDemoBriefItems } from '@/lib/produce/full-demo-brief';
+import { fullDemoSubtitles, withFullDemoSubtitles } from '@/lib/produce/subtitles';
 import { INTRO_DESIGN_LABEL } from '@/lib/overlay-design-gallery';
 import { availableFullDemoBumpers, recallFullDemoBumpers, rememberFullDemoBumpers, withRememberedBumpers } from '@/lib/produce/full-demo-bumper-memory';
 import { fullDemoQueueToast } from '@/lib/produce/full-demo-queue-toast';
@@ -27,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { FullDemoGroup, FullDemoPart } from './full-demo-fields';
 import { FullDemoAudio } from './full-demo-audio';
+import { SubtitlesPanel } from './subtitles-panel';
 import { FullDemoBumpers } from './full-demo-bumpers';
 import { FullDemoOverlays } from './full-demo-overlays';
 import { FullDemoTransitions } from './full-demo-transitions';
@@ -289,6 +291,10 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
         <FullDemoBrand options={options} onChange={change} />
         <div className="grid min-w-0 items-start gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))]">
           <FullDemoAudio options={options} document={document} onChange={change} />
+          <FullDemoGroup title="Subtítulos">
+            <SubtitlesPanel jobId={matchId} scope={{ kind: 'rounds', rounds: options.rounds ?? null }} voices={options.audio.voice.enabled} voicesLabel={FULL_DEMO_VOICE_LABEL}
+              planAvailability={document?.voice.availability ?? null} value={fullDemoSubtitles(options)} onChange={(next) => change(withFullDemoSubtitles(options, next))} />
+          </FullDemoGroup>
           <FullDemoGroup title="Grabación">
             <div className="flex flex-col gap-3.5">
               <FullDemoProSettings options={options} players={proPlayers} onChange={change} />

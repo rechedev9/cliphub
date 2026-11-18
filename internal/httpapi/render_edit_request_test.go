@@ -22,7 +22,8 @@ func TestRenderEditRequestMergeCoversEveryField(t *testing.T) {
 		"intro_text":"hi","outro_text":"bye",
 		"keydrop_family":"keydrop","keydrop_style":"jcorko","keydrop_code":"ZACK",
 		"keydrop_position_y":0.7,"keydrop_start_seconds":1.5,"keydrop_end_seconds":9,
-		"demo_source":"faceit","overlay_theme":"neon-violet","pre_roll_seconds":5,"capture_hud":"clean","portrait_safe_killfeed":true
+		"demo_source":"faceit","overlay_theme":"neon-violet","pre_roll_seconds":5,"capture_hud":"clean","portrait_safe_killfeed":true,
+		"subtitles":true,"subtitles_english":true,"subtitles_hidden":["6f1c2a52-3d4b-4c8e-9a51-1f0e2b3c4d5e"]
 	}`
 	var patch renderEditRequest
 	if err := json.Unmarshal([]byte(full), &patch); err != nil {

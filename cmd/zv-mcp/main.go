@@ -293,8 +293,13 @@ where J and K walk its rounds; the notes and drawings drawn there stay with the 
 Team voice (a TeamSpeak recording per library match, played in the Replay): import_voice places it on the demo on its own and
 returns the sync state; while it says unsynced or the user hears it off, sync_voice sets offset_ms (or auto again).
 voice_status reads tracks, sync and transcript; set_voice_track names a track or ties it to a player.
-install_transcriber (about 200 MB, local whisper.cpp) then transcribe_voice; voice_status follows it.
+install_transcriber (about 700 MB, local Parakeet; it detects the language) then transcribe_voice; voice_status follows it.
 demo_voice reads the demo's own in-game voice (extract true, then call again until ready), which the Replay plays as Voz de la demo.
+Subtitles of the team voices a demo recorded: generate_short (Short or 16:9 summary, with voice_comms) and plan_full_demo
+(with team_voices) take subtitles, subtitles_english and subtitles_hidden; they change only the render. The render
+transcribes the demo once when it was not (transcribe_demo_voice does it ahead), and renders without subtitles when it
+cannot. demo_transcript lists the phrases with their ids; correct_demo_phrase fixes one for every later video, and
+subtitles_hidden leaves one out of that video only. subtitles_english needs install_translator (about 500 MB); the video then shows only English.
 get_round_comms gives one round's talk time by phase and phrases, match_talk_time every round's talk time, and
 search_comms finds a phrase by team, dates and period (round phase); each phrase has a studio_path to its moment.
 The TeamSpeak plugin (Instalar plugin de TeamSpeak in Ajustes) records one track per person while CS2 says a match is live;
@@ -328,7 +333,7 @@ set_capture_retention for how many keep theirs.
 generate_short, generate_shorts_batch, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
 delete_stream_video, delete_demo, merge_teams, delete_storage_file, delete_captures, set_capture_retention, retry_video,
 change_video_music, delete_video_version, delete_report, delete_team_document, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
-install_transcriber, launch_practice, launch_bot_replay need the user's approval.
+install_transcriber, install_translator, launch_practice, launch_bot_replay need the user's approval.
 ClipMind (the web edition of ClipHub): clipmind_status says whether Studio is signed in to a ClipMind account, with its workspace and
 the changes waiting; clipmind_sync is Sincronizar ahora and clipmind_disconnect is Desconectar (the library on this PC stays).
 Signing in stays in Studio's Ajustes: never ask the user for a ClipMind password in chat.

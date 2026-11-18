@@ -76,6 +76,7 @@ type planFullDemoIn struct {
 	fullDemoExtrasIn
 	hudLookIn
 	brandChoiceIn
+	subtitleChoices
 	custom *hudthemes.Style // A user theme resolved from hud by resolveUserHUD.
 }
 
@@ -419,6 +420,9 @@ func applyFullDemoChoices(options recapplan.Options, in planFullDemoIn) (recappl
 	if in.TrueView != nil {
 		options.Capture.TrueView = *in.TrueView
 	}
+	if err := applySubtitles(&options, in.subtitleChoices); err != nil {
+		return recapplan.Options{}, err
+	}
 	if len(in.Rounds) > 0 {
 		if len(in.Rounds) > recapplan.MaxSelectedRounds {
 			return recapplan.Options{}, fmt.Errorf("rounds takes at most %d numbers", recapplan.MaxSelectedRounds)
@@ -507,6 +511,9 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	voices := "sin voces del equipo"
 	if out.TeamVoices {
 		voices = fmt.Sprintf("voces del equipo al %d%%", out.VoiceLevel)
+	}
+	if s := o.Subtitles; s != nil {
+		voices += describeSubtitles(s.Enabled, s.English, len(s.Hidden))
 	}
 	effectsText := "sin efectos entre rondas"
 	if effects {

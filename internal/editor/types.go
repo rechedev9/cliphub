@@ -197,6 +197,8 @@ type Config struct {
 	RadarTrackPath      string
 	RadarImagePath      string
 	RadarLowerImagePath string
+	// SubtitlesPath is the subtitles.Track of the team comms the render worker wrote.
+	SubtitlesPath string
 }
 
 type ManifestOptions struct {
@@ -404,6 +406,9 @@ type ShortEdit struct {
 	// RadarASS and RadarFontsDir are the radar's moving layer, drawn over its plate images.
 	RadarASS      string `json:"radar_ass,omitempty"`
 	RadarFontsDir string `json:"radar_fonts_dir,omitempty"`
+	// SubtitlesASS and SubtitlesFontsDir are the team comms subtitles and their faces.
+	SubtitlesASS      string `json:"subtitles_ass,omitempty"`
+	SubtitlesFontsDir string `json:"subtitles_fonts_dir,omitempty"`
 	// KeyDropFamily / KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
 	// the optional sponsor plate for a bounded window of the short.
 	KeyDropFamily          string      `json:"keydrop_family,omitempty"`

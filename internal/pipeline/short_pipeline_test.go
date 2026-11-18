@@ -29,6 +29,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
+	"github.com/rechedev9/cliphub/internal/subtitles"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files in testdata/")
@@ -313,6 +314,7 @@ func TestMultiPOVShortPipelineGolden(t *testing.T) {
 	assertGolden(t, "14-multi-pov-capture.json", normalizedJSON(t, work, capture))
 
 	resultPath := writeRecordingResult(t, recPlan)
+	subtitlesPath := writeSubtitleTrack(t, work, recPlan, fixture)
 	for _, format := range []struct{ name, output, preset string }{
 		{"15-multi-pov-short", editor.OutputFormatShort9x16, ""},
 		{"16-multi-pov-landscape", editor.OutputFormatLandscape16x9, editor.PresetGameplayPOV60},
@@ -331,6 +333,7 @@ func TestMultiPOVShortPipelineGolden(t *testing.T) {
 			CompileSegments:     true,
 			SegmentIDs:          ids,
 			VictimReplay:        true,
+			SubtitlesPath:       subtitlesPath,
 			DryRun:              true,
 		}); err != nil {
 			t.Fatalf("%s editor dry run: %v", format.name, err)
@@ -344,7 +347,40 @@ func TestMultiPOVShortPipelineGolden(t *testing.T) {
 		}
 		assertGolden(t, format.name+"-manifest.json", manifestGolden)
 		assertGolden(t, format.name+"-ffmpeg-commands.txt", formatCommands(normalized))
+		if len(manifest.Shorts) != 1 || manifest.Shorts[0].SubtitlesASS == "" {
+			t.Fatalf("%s drew no subtitles", format.name)
+		}
+		script, err := os.ReadFile(manifest.Shorts[0].SubtitlesASS)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertGolden(t, format.name+"-subtitles.ass", string(script))
 	}
+}
+
+// writeSubtitleTrack stands in for a demo's fixed transcript: a phrase of each player inside
+// the first two captured plays, one the video hides and one said outside every play.
+func writeSubtitleTrack(t *testing.T, work string, plan recording.RecordingPlan, fixture parsedFixture) string {
+	t.Helper()
+	var starts []int
+	for _, segment := range plan.Segments {
+		if len(starts) < 2 && !segment.ReplayOnly {
+			starts = append(starts, recording.EffectiveRecordStartTick(segment, plan.Tickrate))
+		}
+	}
+	if len(starts) < 2 {
+		t.Fatal("the multi-POV capture has fewer than two plays")
+	}
+	rate := plan.Tickrate
+	track := subtitles.Track{Hidden: []string{"hidden"}, Phrases: []subtitles.Phrase{
+		{ID: "before", Speaker: fixture.Teammate.Target.NameInDemo, Text: "eco esta ronda", StartTick: 1, EndTick: rate},
+		{ID: "call", Speaker: fixture.Target.NameInDemo, Text: "dos en B, uno con AWP", StartTick: starts[0] + rate, EndTick: starts[0] + 3*rate},
+		{ID: "hidden", Speaker: fixture.Target.NameInDemo, Text: "esto no sale", StartTick: starts[0] + 4*rate, EndTick: starts[0] + 5*rate},
+		{ID: "reply", Speaker: fixture.Teammate.Target.NameInDemo, Text: "voy con flash", StartTick: starts[1] + rate/2, EndTick: starts[1] + 2*rate},
+	}}
+	path := filepath.Join(work, "subtitles.json")
+	writeJSON(t, path, track)
+	return path
 }
 
 // TestSummaryPipelineGolden walks the 16:9 summary of one player: every play of the match in match order, each

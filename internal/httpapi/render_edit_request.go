@@ -54,8 +54,11 @@ type renderEditRequest struct {
 	// PortraitSafeKillfeed is the kill feed framing of the Short a 16:9 video was made from.
 	PortraitSafeKillfeed *bool `json:"portrait_safe_killfeed"`
 	// BrandWatermark and BrandBanner turn the saved brand kit on or off; applyBrandKit resolves them.
-	BrandWatermark *brandChoice[brandkit.Watermark] `json:"brand_watermark"`
-	BrandBanner    *brandChoice[brandkit.Banner]    `json:"brand_banner"`
+	BrandWatermark   *brandChoice[brandkit.Watermark] `json:"brand_watermark"`
+	BrandBanner      *brandChoice[brandkit.Banner]    `json:"brand_banner"`
+	Subtitles        *bool                            `json:"subtitles"`
+	SubtitlesEnglish *bool                            `json:"subtitles_english"`
+	SubtitlesHidden  *[]string                        `json:"subtitles_hidden"`
 }
 
 func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditRequest {
@@ -191,6 +194,15 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.PortraitSafeKillfeed != nil {
 		base.PortraitSafeKillfeed = *r.PortraitSafeKillfeed
+	}
+	if r.Subtitles != nil {
+		base.Subtitles = *r.Subtitles
+	}
+	if r.SubtitlesEnglish != nil {
+		base.SubtitlesEnglish = *r.SubtitlesEnglish
+	}
+	if r.SubtitlesHidden != nil {
+		base.SubtitlesHidden = *r.SubtitlesHidden
 	}
 	return renderplan.NormalizeEditRequest(base)
 }

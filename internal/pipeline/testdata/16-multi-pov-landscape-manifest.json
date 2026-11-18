@@ -75,6 +75,8 @@
       "video_preset": "slow",
       "hq_filters": true,
       "audio_normalize": true,
+      "subtitles_ass": "$WORK/render-16-multi-pov-landscape/short-001-demo-compilation.mp4.subtitles.ass",
+      "subtitles_fonts_dir": "$WORK/cache/ClipHub/fonts/hud-barlow-dc2940e-v1",
       "caption_path": "$WORK/publish/01_demo-compilation_teammate_y_target_de_mirage_9k_awp.caption.txt",
       "cover_path": "$WORK/publish/01_demo-compilation_teammate_y_target_de_mirage_9k_awp.cover.jpg",
       "cover_sheet_path": "$WORK/publish/01_demo-compilation_teammate_y_target_de_mirage_9k_awp.sheet.jpg",
@@ -548,7 +550,7 @@
         "-i",
         "$WORK/render-16-multi-pov-landscape/concat-list.txt",
         "-filter_complex",
-        "[0:v]setsar=1,format=yuv420p[vgeom];[vgeom]drawtext=text=\\'TEAMMATE\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-0.100)/0.120))\\,((2.200-t)/0.300))':enable='between(t\\,0.100\\,2.200)',drawtext=text=\\'TEAMMATE\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-24.038)/0.120))\\,((26.137-t)/0.300))':enable='between(t\\,24.038\\,26.137)',drawtext=text=\\'TARGET\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-41.725)/0.120))\\,((43.825-t)/0.300))':enable='between(t\\,41.725\\,43.825)',drawtext=text=\\'TARGET\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-55.834)/0.120))\\,((57.934-t)/0.300))':enable='between(t\\,55.834\\,57.934)',fade=t=in:st=0:d=1.000,format=yuv420p[v];[0:a]aformat=channel_layouts=stereo,aresample=48000[ga0];[ga0]anull[gamea];[gamea]loudnorm=I=-16:TP=-1.5:LRA=11[a]",
+        "[0:v]setsar=1,ass=filename=\\'$WORK/render-16-multi-pov-landscape/short-001-demo-compilation.mp4.subtitles.ass\\':fontsdir=\\'$WORK/cache/ClipHub/fonts/hud-barlow-dc2940e-v1\\',format=yuv420p[vgeom];[vgeom]drawtext=text=\\'TEAMMATE\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-0.100)/0.120))\\,((2.200-t)/0.300))':enable='between(t\\,0.100\\,2.200)',drawtext=text=\\'TEAMMATE\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-24.038)/0.120))\\,((26.137-t)/0.300))':enable='between(t\\,24.038\\,26.137)',drawtext=text=\\'TARGET\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-41.725)/0.120))\\,((43.825-t)/0.300))':enable='between(t\\,41.725\\,43.825)',drawtext=text=\\'TARGET\\':expansion=none:fontfile=\\'$WORK/cache/ClipHub/fonts/v7.222/Montserrat-ExtraBold.ttf\\':x=(w-text_w)/2:y=h*0.80:fontsize=40:fontcolor=white@0.96:box=0:shadowcolor=black@0.85:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.9:alpha='min(min(1\\,((t-55.834)/0.120))\\,((57.934-t)/0.300))':enable='between(t\\,55.834\\,57.934)',ass=filename=\\'$WORK/render-16-multi-pov-landscape/short-001-demo-compilation.mp4.subtitles.ass\\':fontsdir=\\'$WORK/cache/ClipHub/fonts/hud-barlow-dc2940e-v1\\',fade=t=in:st=0:d=1.000,format=yuv420p[v];[0:a]aformat=channel_layouts=stereo,aresample=48000[ga0];[ga0]anull[gamea];[gamea]loudnorm=I=-16:TP=-1.5:LRA=11[a]",
         "-map",
         "[v]",
         "-map",
@@ -615,7 +617,44 @@
         "-"
       ],
       "render_log_path": "$WORK/render-16-multi-pov-landscape/logs/short-001-demo-compilation-render.log",
-      "quality_log_path": "$WORK/render-16-multi-pov-landscape/logs/short-001-demo-compilation-quality.log"
+      "quality_log_path": "$WORK/render-16-multi-pov-landscape/logs/short-001-demo-compilation-quality.log",
+      "overlays": {
+        "subtitles": {
+          "phrases": [
+            {
+              "id": "before",
+              "speaker": "teammate",
+              "text": "eco esta ronda",
+              "start_tick": 1,
+              "end_tick": 64
+            },
+            {
+              "id": "call",
+              "speaker": "target",
+              "text": "dos en B, uno con AWP",
+              "start_tick": 5600,
+              "end_tick": 5728
+            },
+            {
+              "id": "hidden",
+              "speaker": "target",
+              "text": "esto no sale",
+              "start_tick": 5792,
+              "end_tick": 5856
+            },
+            {
+              "id": "reply",
+              "speaker": "teammate",
+              "text": "voy con flash",
+              "start_tick": 22792,
+              "end_tick": 22888
+            }
+          ],
+          "hidden": [
+            "hidden"
+          ]
+        }
+      }
     }
   ]
 }
