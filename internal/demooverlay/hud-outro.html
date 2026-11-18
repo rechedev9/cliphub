@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'none'"/>
+<title>Match scoreboard</title>
+<style>
+@font-face{font-family:Roboto;src:url('{{.RegularFont}}') format('truetype');font-weight:400;font-display:block}
+@font-face{font-family:Roboto;src:url('{{.MediumFont}}') format('truetype');font-weight:500;font-display:block}
+@font-face{font-family:Roboto;src:url('{{.BoldFont}}') format('truetype');font-weight:700;font-display:block}
+{{with .Palette}}:root{--ct:#{{.CT}};--t:#{{.T}};--bg:#{{.Background}};--text:#{{.Text}};--muted:#{{.Muted}};--radius:{{.Radius}}px}{{end}}
+*{box-sizing:border-box}html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent}body{font-family:Roboto,Arial,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased}body.preview{background:#808080}
+.board{position:absolute;left:70px;top:70px;width:1780px;height:940px;border-top:6px solid var(--ct);border-radius:var(--radius);padding:24px 30px;background:color-mix(in srgb,var(--bg) 96%,transparent);box-shadow:0 18px 48px #0009}
+.heading{display:flex;align-items:center;justify-content:space-between;height:54px;margin:0 0 8px;color:var(--text);font-weight:700;font-size:28px;text-transform:uppercase;letter-spacing:1px}.map{font-size:18px;letter-spacing:3px;color:var(--muted)}
+.team{--side:var(--ct);margin-bottom:24px}.team[data-side="T"]{--side:var(--t)}
+.team-heading{display:flex;align-items:center;height:58px;gap:18px;font-size:24px;font-weight:700;color:var(--side)}.team-name{max-width:1000px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.score{min-width:52px;padding:2px 10px;border-radius:calc(var(--radius) * .6);text-align:center;font-variant-numeric:tabular-nums;color:var(--side);box-shadow:inset 0 0 0 2px var(--side)}.winner .score{background:var(--side);color:var(--bg);box-shadow:none}
+.average{margin-left:auto;color:var(--muted);font-weight:400;font-size:17px}.average strong{margin-left:12px;color:var(--text)}
+.row{display:grid;grid-template-columns:320px 140px repeat(13,minmax(0,1fr));height:54px;align-items:center;background:color-mix(in srgb,var(--text) 5%,var(--bg));border-bottom:2px solid var(--bg);font-size:20px;font-variant-numeric:tabular-nums;border-radius:calc(var(--radius) * .4);overflow:hidden}
+.row.header{height:40px;background:color-mix(in srgb,var(--side) 16%,var(--bg));color:var(--muted);font-size:16px;font-weight:700}.row>div{text-align:center;min-width:0}.row>div:first-child{text-align:left;padding-left:14px}
+.row.pov{background:color-mix(in srgb,var(--side) 26%,var(--bg));box-shadow:inset 4px 0 var(--side)}.identity{display:flex;align-items:center;gap:12px;font-weight:700}.avatar{width:38px;height:38px;object-fit:cover;border-radius:50%;background:color-mix(in srgb,var(--text) 12%,var(--bg));flex-shrink:0}.name{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.pov-tag{font-size:11px;font-weight:700;color:var(--side);margin-left:1px;flex-shrink:0}
+.rank{display:flex;align-items:center;justify-content:center;gap:11px;font-size:18px}.level{display:flex;align-items:center;justify-content:center;width:29px;height:29px;border:3px solid var(--side);border-radius:50%;color:var(--side);font-size:14px;font-weight:700}.footer{position:absolute;bottom:19px;left:32px;font-size:14px;color:var(--muted)}
+</style>
+</head>
+{{template "scoreboard-body" .}}</html>

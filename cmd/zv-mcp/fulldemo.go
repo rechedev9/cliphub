@@ -66,6 +66,7 @@ type planFullDemoIn struct {
 	JobID               string `json:"job_id" jsonschema:"a parsed job from create_job"`
 	HUD                 string `json:"hud,omitempty" jsonschema:"HUD design id or user theme id from list_hud_themes, or native for the original CS2 HUD; empty keeps Studio's default design"`
 	OverlaySource       string `json:"overlay_source,omitempty" jsonschema:"origin of the match data in the intro and scoreboard: demo (local demo), faceit, premier or professional"`
+	IntroDesign         string `json:"intro_design,omitempty" jsonschema:"look of the player intro and final scoreboard: neon (default) or hud, in the colours of the chosen HUD or own theme (neutral over the native CS2 HUD); render only"`
 	TeamVoices          *bool  `json:"team_voices,omitempty" jsonschema:"include the player's team voice chat; default on"`
 	VoiceLevel          *int   `json:"voice_level,omitempty" jsonschema:"team voices level in percent, 0 to 200; default 110"`
 	GameLevel           *int   `json:"game_level,omitempty" jsonschema:"game sound level in percent, 0 to 200; default 100"`
@@ -87,6 +88,7 @@ type fullDemoPlanOut struct {
 	Rounds              int      `json:"rounds"`
 	HUD                 string   `json:"hud" jsonschema:"HUD design id, or native"`
 	OverlaySource       string   `json:"overlay_source"`
+	IntroDesign         string   `json:"intro_design" jsonschema:"neon or hud"`
 	TeamVoices          bool     `json:"team_voices"`
 	VoiceStatus         string   `json:"voice_status,omitempty" jsonschema:"what the demo holds for team voices, e.g. available or no_packets"`
 	VoiceLevel          int      `json:"voice_level_percent"`
@@ -382,6 +384,9 @@ func applyFullDemoChoices(options recapplan.Options, in planFullDemoIn) (recappl
 		return recapplan.Options{}, err
 	}
 	applyBrandChoice(&options, in.brandChoiceIn)
+	if err := applyIntroDesign(&options, in.IntroDesign); err != nil {
+		return recapplan.Options{}, err
+	}
 	if in.OverlaySource != "" {
 		source := strings.ToLower(strings.TrimSpace(in.OverlaySource))
 		if source == "local" {
@@ -494,7 +499,7 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	effects := o.Transitions != nil && o.Transitions.Enabled
 	out := fullDemoPlanOut{
 		JobID: jobID, PlanHash: doc.PlanHash, Ready: len(doc.Blockers) == 0, DurationSeconds: seconds, Rounds: len(doc.Rounds), NeedsCapture: true,
-		HUD: hud, OverlaySource: source, TeamVoices: o.Audio.Voice.Enabled, VoiceStatus: doc.Voice.Availability,
+		HUD: hud, OverlaySource: source, IntroDesign: introDesignOf(o.Overlays), TeamVoices: o.Audio.Voice.Enabled, VoiceStatus: doc.Voice.Availability,
 		VoiceLevel: percent(o.Audio.Voice.Gain), GameLevel: percent(o.Audio.Game.Gain), BetweenRoundEffects: effects,
 		TrueView: o.Capture.TrueView, Warnings: noticeMessages(doc.Warnings), Blockers: noticeMessages(doc.Blockers),
 	}
@@ -515,7 +520,7 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	if out.HUDPortrait {
 		out.Summary += " Con tu retrato en el HUD."
 	}
-	out.Summary += describeHUDLook(o.Overlays) + describeBrand(o.Overlays.Brand)
+	out.Summary += describeHUDLook(o.Overlays) + describeIntroDesign(o.Overlays) + describeBrand(o.Overlays.Brand)
 	if len(out.Bumpers) > 0 {
 		out.Summary += fmt.Sprintf(" Clips añadidos: %s.", strings.Join(out.Bumpers, ", "))
 	}

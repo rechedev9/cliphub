@@ -259,7 +259,7 @@ func labSynthOverlay(d recapplan.Document) demooverlay.Document {
 		roster.Players = append(roster.Players, player)
 	}
 	doc := demooverlay.BuildForSource(roster, d.Options.OverlaySource(), nil)
-	doc.Theme = demooverlay.NormalizeTheme(d.Options.Overlays.Theme)
+	doc.Theme, doc.Palette = demooverlay.NormalizeTheme(d.Options.Overlays.Theme), demooverlay.DesignPalette(d.Options.Overlays)
 	return doc
 }
 

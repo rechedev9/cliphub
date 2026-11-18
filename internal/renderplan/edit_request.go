@@ -37,6 +37,7 @@ const (
 	DemoSourceFACEIT         = "faceit"
 	OverlayThemeFaceitOrange = "faceit-orange"
 	OverlayThemeNeonViolet   = "neon-violet"
+	OverlayThemeHUD          = recapplan.OverlayThemeHUD
 	// DefaultRecapVoiceVolume is the team-comms gain of the legacy recap chain,
 	// which goes through the Shorts editor and is capped at 1.0.
 	DefaultRecapVoiceVolume = 0.85
@@ -333,6 +334,10 @@ func (r EditRequest) validateFields() error {
 	}
 	switch r.OverlayTheme {
 	case "", OverlayThemeFaceitOrange, OverlayThemeNeonViolet:
+	case OverlayThemeHUD:
+		if r.FullDemo == nil {
+			return fmt.Errorf("the HUD overlay design is only for a Full Demo")
+		}
 	default:
 		return fmt.Errorf("unknown overlay theme %q", r.OverlayTheme)
 	}

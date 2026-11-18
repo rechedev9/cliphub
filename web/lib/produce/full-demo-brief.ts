@@ -1,5 +1,6 @@
 import { customHudLabel } from '../custom-hud.ts';
 import { bumperSummary, type FullDemoOptions } from '../full-demo-plan.ts';
+import { INTRO_DESIGN_LABEL, INTRO_DESIGNS } from '../overlay-design-gallery.ts';
 import type { CreativeBriefItem } from '../reel-brief.ts';
 import { FULL_DEMO_PRO_SETTINGS_LABEL, proSettingsSummary } from './full-demo-pro-settings.ts';
 
@@ -62,6 +63,7 @@ export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: 
     { label: 'Voces del equipo', value: voiceValue(options.audio.voice.enabled, voiceAvailability) },
     { label: 'Efectos entre rondas', value: (options.transitions?.enabled ?? true) ? 'Activados' : 'Desactivados' },
     { label: FULL_DEMO_BUMPERS_TITLE, value: hasBumpers(options) ? bumperSummary(options) : 'Ninguno' },
+    { label: INTRO_DESIGN_LABEL, value: options.overlays.theme === 'hud' ? INTRO_DESIGNS.hud : INTRO_DESIGNS.neon },
     { label: FULL_DEMO_SOURCE_LABEL, value: sourceValue(options) },
   ];
 }

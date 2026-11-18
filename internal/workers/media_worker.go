@@ -3219,7 +3219,7 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 		}
 	}
 	doc := demooverlay.BuildForSource(demooverlay.FromRosterScan(roster, target), edit.DemoSource, enrichment)
-	doc.Theme = demooverlay.NormalizeTheme(edit.OverlayTheme)
+	doc.Theme, doc.Palette = demooverlay.NormalizeTheme(edit.OverlayTheme), fullDemoOverlayPalette(edit)
 	if !screenshots && !demooverlay.UsesFACEITEnrichment(edit.DemoSource) {
 		demooverlay.ApplyAvatarURLs(&doc, storedLocalOverlayAvatarURLs(w, j.ID))
 	}
