@@ -2123,7 +2123,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	}
 	revisionCommitted = true
 	if edit.FullDemo != nil {
-		w.discardFullDemoCaptures(j.ID)
+		w.releaseFullDemoCaptures(ctx, j.ID)
 	}
 	// A request may have resolved the previous state before this pointer swap
 	// and open its artifacts afterward. Retain every published revision until
@@ -3776,14 +3776,7 @@ func recordingOutputsReady(ctx context.Context, store storage.Storage, id uuid.U
 		if result.Plan.FullDemo != nil && expectedPlan.FullDemo != nil && stored && expected {
 			// Narrower editorial requests use an immutable broader capture. The
 			// effective render trims it using its original capture start tick.
-			certifiedEnd := result.FullDemoEvidence.CertifiedEnds[segID]
-			compatibleWindow = storedSegment.TickStart <= expectedSegment.TickStart && storedSegment.TickEnd >= expectedSegment.TickEnd && certifiedEnd >= min(expectedSegment.LiveEndTick+1, expectedSegment.TickEnd)
-			if !expectedPlan.FullDemo.Options.Editorial.AllowSafeTailTrim && certifiedEnd < expectedSegment.TickEnd {
-				compatibleWindow = false
-			}
-			if compatibleWindow && result.ValidateFullDemoRoundFrames(segID, expectedSegment.TickStart, min(expectedSegment.TickEnd, certifiedEnd)) != nil {
-				compatibleWindow = false
-			}
+			compatibleWindow = result.FullDemoRoundCovered(expectedSegment, expectedPlan.FullDemo.Options.Editorial.AllowSafeTailTrim)
 		}
 		if !recorded[segID] || !stored || !expected || !compatibleWindow {
 			missing = append(missing, segID)

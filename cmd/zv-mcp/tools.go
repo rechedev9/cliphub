@@ -179,6 +179,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerProSettingsTool(server)
 	registerVideoTools(server, s)
 	registerVideoLibraryTools(server, s)
+	registerVideoVersionTools(server, s)
 	registerApps(server, s)
 	registerShortOptions(server, s)
 	registerShortsBatchTool(server, s)

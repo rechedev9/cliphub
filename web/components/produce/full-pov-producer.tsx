@@ -1,17 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { parseFailureReason } from '@/lib/api/failure-reason';
 import type { Match, Play } from '@/lib/api/types';
-import { PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
+import { checkFullDemoCapture, fetchStorageSpace, listVideoVersions, projectCaptureCheck } from '@/lib/api/video-edit';
+import { PRODUCE_FORMAT, RESULTS_HREF, STORAGE_HREF, seriesHref, type VideoEdit } from '@/lib/clips/routes';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
-  approveFullDemo, currentFullDemoOptions, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan, withFullDemoRounds,
+  approveFullDemo, currentFullDemoOptions, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, loadFullDemoPlanVersion, saveFullDemoPlan, withFullDemoRounds,
   FULL_DEMO_CAPTURE_VARIANT, type FullDemoBumperOptions, type FullDemoDocument, type FullDemoOptions, type FullDemoProPlayer,
 } from '@/lib/full-demo-plan';
+import { captureNote, editCtaLabel, pickVersion, recapSeconds, spaceWarning, versionDateLabel, type CaptureCheck, type SpaceCheck } from '@/lib/produce/edit-capture';
 import { fullDemoBriefItems } from '@/lib/produce/full-demo-brief';
 import { INTRO_DESIGN_LABEL } from '@/lib/overlay-design-gallery';
 import { availableFullDemoBumpers, recallFullDemoBumpers, rememberFullDemoBumpers, withRememberedBumpers } from '@/lib/produce/full-demo-bumper-memory';
@@ -36,14 +39,19 @@ import { roundListLabel } from '@/lib/library/analysis-video';
 
 /** The design picks how roster and scoreboard look; the demo origin picks their data. */
 const OVERLAYS_NOTE = 'Pantalla de jugadores al empezar y marcador final. El diseño solo cambia el aspecto y no obliga a volver a grabar. El origen de la demo decide qué datos salen: con FACEIT, nivel y ELO.';
+/** The capture check plans on the server (it hashes the demo), so it waits for the user to stop changing options. */
+const CAPTURE_CHECK_DELAY_MS = 1200;
+const LINK_CLASS = 'text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 focus-visible:outline-2 focus-visible:outline-ring';
 
 export type FullPovProducerProps = {
   active: boolean; matchId: string; match: Match; rounds: Play[]; recapFailure: Exclude<FullDemoLoadFailure, null> | null; recBusy: boolean; seriesId: string | null;
   /** From the analysis area: the video covers only these source rounds. */
   selectedRounds?: readonly number[] | null;
+  /** From Editar in Mis vídeos: the producer opens with that version's plan. */
+  edit?: VideoEdit | null;
 };
 
-export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy, seriesId, selectedRounds = null }: FullPovProducerProps): ReactNode {
+export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy, seriesId, selectedRounds = null, edit = null }: FullPovProducerProps): ReactNode {
   const router = useRouter();
   const { back } = useProduceBack({ jobId: matchId, format: PRODUCE_FORMAT.full, seriesId });
   const doneHref = seriesId ? seriesHref(seriesId, PRODUCE_FORMAT.full) : RESULTS_HREF;
@@ -60,6 +68,11 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const createRequest = useRef<AbortController | null>(null);
+  /** Which rounds a create would record, for the options whose key is `key`. */
+  const [captureState, setCaptureState] = useState<{ key: string | null; check: CaptureCheck | null }>({ key: null, check: null });
+  const [editedDate, setEditedDate] = useState<string | null>(null);
+  const editVariant = edit?.variant ?? null;
+  const editRevision = edit?.revision ?? null;
   const draftKey = `cliphub.full-demo.draft.v1:${matchId}`;
   // A string key, so a new array from the same query does not reload the plan.
   const roundsKey = selectedRounds?.join(',') ?? '';
@@ -67,7 +80,14 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
   useEffect(() => {
     const controller = new AbortController();
     setBusy('load'); setError(null); setDocument(null); setOptions(null); setBaseline(null); setRestored(false); setShowMissing(false);
-    void loadFullDemoPlan(matchId, controller.signal).then(async (loaded) => {
+    setCaptureState({ key: null, check: null }); setEditedDate(null);
+    const loadPlan = async (signal: AbortSignal) => {
+      if (editVariant === null) return { loaded: await loadFullDemoPlan(matchId, signal), version: null };
+      const version = pickVersion(await listVideoVersions({ jobId: matchId, variant: editVariant, signal }), editRevision);
+      const loaded = version?.planId ? await loadFullDemoPlanVersion({ jobId: matchId, planId: version.planId, signal }) : await loadFullDemoPlan(matchId, signal);
+      return { loaded, version };
+    };
+    void loadPlan(controller.signal).then(async ({ loaded, version }) => {
       if (controller.signal.aborted) return;
       // A demo that was never planned opens with the intro, sponsor and outro chosen last time.
       let remembered: FullDemoBumperOptions | undefined;
@@ -81,22 +101,56 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
       const saved = currentFullDemoOptions(loaded.document?.options ?? withRememberedBumpers(loaded.defaults, remembered));
       const base = focus ? withFullDemoRounds(saved, focus) : saved;
       let draft: unknown = null;
-      try {
-        const raw = localStorage.getItem(draftKey);
-        draft = raw ? JSON.parse(raw) : null;
-      } catch { }
+      // Editar opens the version's own options, never an older draft.
+      if (editVariant === null) {
+        try {
+          const raw = localStorage.getItem(draftKey);
+          draft = raw ? JSON.parse(raw) : null;
+        } catch { }
+      }
       // An old draft may still carry the retired sponsor group: normalizing moves its video to the sponsor slot.
       const drafted = isFullDemoOptions(draft) ? currentFullDemoOptions(draft) : base;
       const initial = focus ? withFullDemoRounds(drafted, focus) : drafted;
       // Saving a plan also stores its options as the draft; only a real divergence is "recovered".
       setRestored(fullDemoOptionsKey(initial) !== fullDemoOptionsKey(base));
+      const loadedCapture = projectCaptureCheck(loaded.capture);
+      setCaptureState({ key: loadedCapture && loaded.document ? fullDemoOptionsKey(currentFullDemoOptions(loaded.document.options)) : null, check: loadedCapture });
+      setEditedDate(version ? versionDateLabel(version.createdAt) : null);
       setDocument(loaded.document); setBaseline(base); setOptions(initial); setProPlayers(loaded.pro_players ?? []); setBusy(null);
     }).catch((failure: unknown) => {
       if (controller.signal.aborted) return;
       setError(failure instanceof Error ? failure.message : 'No se pudo cargar el plan.'); setBusy(null);
     });
     return () => controller.abort();
-  }, [matchId, draftKey, loadAttempt, roundsKey]);
+  }, [matchId, draftKey, loadAttempt, roundsKey, editVariant, editRevision]);
+  const optionsKey = options === null ? null : fullDemoOptionsKey(options);
+  const checkedKey = captureState.key;
+  useEffect(() => {
+    if (editVariant === null || options === null || optionsKey === null || optionsKey === checkedKey || !isFullDemoOptions(options)) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void checkFullDemoCapture({ jobId: matchId, options, signal: controller.signal }).catch(() => null).then((check) => {
+        if (!controller.signal.aborted) setCaptureState({ key: optionsKey, check });
+      });
+    }, CAPTURE_CHECK_DELAY_MS);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [matchId, editVariant, options, optionsKey, checkedKey]);
+  // A new video records every chosen round: its estimate comes from the recap, without planning on the server.
+  const [newSpace, setNewSpace] = useState<SpaceCheck | null>(null);
+  const newSeconds = editVariant === null ? Math.round(recapSeconds(recap, options?.rounds ?? [])) : 0;
+  useEffect(() => {
+    if (newSeconds === 0) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void fetchStorageSpace({ captureSeconds: newSeconds, renderSeconds: newSeconds, signal: controller.signal }).catch(() => null).then((space) => {
+        if (!controller.signal.aborted) setNewSpace(space);
+      });
+    }, CAPTURE_CHECK_DELAY_MS);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [newSeconds]);
+  // The label keeps the last answer while a newer check runs; only a fresh one promises that CS2 stays closed.
+  const capture = captureState.check;
+  const freshCapture = checkedKey === optionsKey ? capture : null;
   useEffect(() => () => {
     const request = createRequest.current;
     if (request) {
@@ -149,11 +203,13 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
     createRequest.current = controller;
     setBusy('create'); setError(null);
     try {
-      const planned = document && fullDemoApprovalKey(document, options) ? document : await saveCurrentPlan(controller.signal);
+      // An edited version's plan may be older than the job's current one, so an edit always plans again.
+      const planned = editVariant === null && document && fullDemoApprovalKey(document, options) ? document : await saveCurrentPlan(controller.signal);
       if (controller.signal.aborted) return;
       const video = await api.createVideo({ matchId, playIds: planned.rounds.map((round) => round.round_id), mode: 'clean', variant: FULL_DEMO_CAPTURE_VARIANT, editConfig: fullDemoPlanEdit(approveFullDemo(planned)), signal: controller.signal });
       if (controller.signal.aborted) return;
       if (video.status === 'failed') toast.error('La demo completa no ha empezado', { description: parseFailureReason(video.failureReason, { fullDemo: true }).message });
+      else if (editVariant !== null && freshCapture?.needed === false) toast('Montaje en cola', { description: 'Studio vuelve a montar el vídeo con las capturas guardadas: CS2 no se abre. La versión que ya tienes se queda en Versiones.' });
       else toast('Demo completa en cola', fullDemoQueueToast(recBusy, planned.warnings));
       router.push(doneHref);
     } catch (failure) {
@@ -179,11 +235,14 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
   const canCreate = ready && !missingFiles && blockers.length === 0;
   const planRounds = orderRounds.length > 0 ? orderRounds.length : document?.rounds.length ?? 0;
   const planState = document ? `${planRounds} ${planRounds === 1 ? 'ronda' : 'rondas'} · ${dirty ? 'Se aplicarán al crear' : 'Ajustes guardados'}` : null;
-  const readyStatus = recBusy ? 'CS2 ocupado: entrará en cola. Lo encontrarás en Mis vídeos.' : PRODUCE_READY_HINT;
+  const editNote = editVariant !== null && capture !== null ? captureNote(capture, planRounds) : null;
+  const readyStatus = recBusy && capture?.needed !== false ? 'CS2 ocupado: entrará en cola. Lo encontrarás en Mis vídeos.' : editNote ?? PRODUCE_READY_HINT;
+  const shownSpace = editVariant === null ? newSpace : capture?.space;
+  const lowSpace = editVariant === null && newSeconds === 0 ? null : spaceWarning(shownSpace);
   const nextStep = canCreate ? readyStatus : 'Al crear, ClipHub comprueba las rondas y avisa si falta algo.';
   const status = busy === null ? nextStep : '';
   const cta = <Button size="lg" disabled={!ready} loading={busy === 'create'} loadingText="Preparando demo completa…" onClick={() => void create()}
-    className={`w-full font-extrabold ${FORMAT_TONE.full.fill}`}>{recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA}</Button>;
+    className={`w-full font-extrabold ${FORMAT_TONE.full.fill}`}>{editCtaLabel({ capture, editing: editVariant !== null, fallback: recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA })}</Button>;
   const shownError = error ?? (showMissing && missingFiles ? FULL_DEMO_MISSING_FILES : null);
   const title = match.player ? `POV de ${match.player} en ${prettyMapName(match.map)}` : PRODUCE_FULL_TITLE;
 
@@ -205,6 +264,12 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
           </>
         ) : null}
       </p>
+      {editedDate ? <p className="text-body-sm text-fg-3">Editas la versión del {editedDate}. La que ya tienes se queda en Versiones.</p> : null}
+      {lowSpace ? (
+        <p role="status" className="text-body-sm text-warning">
+          {lowSpace}{' '}<Link href={STORAGE_HREF} className={LINK_CLASS}>Liberar espacio en Almacenamiento</Link>
+        </p>
+      ) : null}
       {restored ? (
         <p role="status" className="text-body-sm text-fg-3">
           {PRODUCE_FULL_DRAFT_RESTORED}{' '}

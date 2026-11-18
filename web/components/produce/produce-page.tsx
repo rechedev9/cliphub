@@ -8,8 +8,9 @@ import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
 import { HUB_ROW_STAGE, matchRowStage, type HubRowStage } from '@/lib/clips/hub';
-import { flowHref, parseRoundsParam, PRODUCE_FORMAT, PRODUCE_QUERY, seriesHref, type ProduceFormat } from '@/lib/clips/routes';
+import { flowHref, parseRoundsParam, parseVideoEditParam, PRODUCE_FORMAT, PRODUCE_QUERY, seriesHref, type ProduceFormat } from '@/lib/clips/routes';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
+import { FULL_DEMO_CAPTURE_VARIANT } from '@/lib/full-demo-plan';
 import {
   MATCH_PLAYS_ANALYZING_DESCRIPTION,
   MATCH_PLAYS_ANALYZING_TITLE,
@@ -41,6 +42,7 @@ import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { ShortProducer } from '@/components/produce/short-producer';
 import { FullPovProducer } from '@/components/produce/full-pov-producer';
 import { useProduceBack } from '@/components/produce/use-produce-back';
+import { useShortEditSeed } from '@/hooks/use-short-edit-seed';
 
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
@@ -56,6 +58,9 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
   const series = query[PRODUCE_QUERY.series];
   const seriesId = typeof series === 'string' && isSeriesId(series) ? series : null;
   const focusRounds = parseRoundsParam(query[PRODUCE_QUERY.rounds]);
+  const videoEdit = parseVideoEditParam(query);
+  // A Full Demo version reopens its plan inside its own producer; Shorts and resúmenes need their settings first.
+  const shortEdit = useShortEditSeed(id, videoEdit?.variant === FULL_DEMO_CAPTURE_VARIANT ? null : videoEdit);
   const router = useRouter();
 
   const [match, setMatch] = useState<Match | null>(null);
@@ -226,7 +231,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
   } else if (format === PRODUCE_FORMAT.full && !multiPov) {
     body = (
       <FullPovProducer active matchId={id} match={match} rounds={rounds} recapFailure={recapFailure}
-        recBusy={recBusy} seriesId={seriesId} selectedRounds={focusRounds} />
+        recBusy={recBusy} seriesId={seriesId} selectedRounds={focusRounds} edit={videoEdit?.variant === FULL_DEMO_CAPTURE_VARIANT ? videoEdit : null} />
     );
   } else {
     const shortUnavailable = plays.length === 0 && deathPlays.length === 0;
@@ -236,10 +241,13 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
           <StudioEmptyState icon={SearchX} title={MATCH_PLAYS_EMPTY_TITLE}
             description={MATCH_PLAYS_EMPTY_DESCRIPTION} compact actions={<ExitButton href={backHref}>{backLabel}</ExitButton>} />
         ) : null}
+        {shortEdit.status === 'failed' ? (
+          <p role="alert" className="text-body-sm text-warning">No se pudo abrir esa versión del vídeo: el productor empieza con la selección habitual.</p>
+        ) : null}
         {/* Mounted through an empty poll so a blip never drops the user's selection. */}
-        {shortPlanJobId === id ? (
+        {shortPlanJobId === id && shortEdit.status !== 'loading' ? (
           <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
-            <ShortProducer key={id} matchId={id} match={match} plays={plays} deathPlays={deathPlays} seriesId={seriesId} focusRounds={focusRounds}
+            <ShortProducer key={id} matchId={id} match={match} plays={plays} deathPlays={deathPlays} seriesId={seriesId} focusRounds={focusRounds} editSeed={shortEdit.seed}
               format={format === PRODUCE_FORMAT.full ? 'landscape-16x9' : 'short-9x16'} />
           </div>
         ) : null}

@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -99,6 +100,9 @@ type fullDemoPlanOut struct {
 	Bumpers             []string `json:"bumpers,omitempty" jsonschema:"the added clips: intro, sponsor, outro"`
 	Warnings            []string `json:"warnings,omitempty"`
 	Blockers            []string `json:"blockers,omitempty" jsonschema:"why the video cannot be rendered yet"`
+	NeedsCapture        bool     `json:"needs_capture" jsonschema:"false when Studio still keeps the capture of every round: render_full_demo only renders again and CS2 does not open"`
+	MissingRounds       []int    `json:"missing_rounds,omitempty" jsonschema:"the source rounds render_full_demo records in CS2"`
+	LowSpace            string   `json:"low_space,omitempty" jsonschema:"the data disk may lack the space this capture and render need; Almacenamiento frees it"`
 }
 
 type renderFullDemoIn struct {
@@ -108,10 +112,22 @@ type renderFullDemoIn struct {
 }
 
 // fullDemoState is what GET /full-demo/plan returns: the saved plan, if any,
-// and the defaults a new plan starts from.
+// the defaults a new plan starts from and what the saved plan must capture.
 type fullDemoState struct {
 	Document *recapplan.Document
 	Defaults recapplan.Options
+	Capture  *fullDemoCapture
+}
+
+// fullDemoCapture is the server's answer to "does this plan open CS2?".
+type fullDemoCapture struct {
+	Needed        bool  `json:"needed"`
+	MissingRounds []int `json:"missing_rounds"`
+	Space         *struct {
+		FreeBytes   int64 `json:"free_bytes"`
+		NeededBytes int64 `json:"needed_bytes"`
+		Short       bool  `json:"short"`
+	} `json:"space"`
 }
 
 func registerFullDemoTools(server *mcp.Server, s *studio) {
@@ -208,7 +224,11 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			if err := doc.Validate(); err != nil {
 				return nil, fullDemoPlanOut{}, fmt.Errorf("Studio returned a plan that does not validate: %w", err)
 			}
-			return nil, describeFullDemoPlan(in.JobID, doc), nil
+			out := describeFullDemoPlan(in.JobID, doc)
+			if saved, err := loadFullDemoState(ctx, c, in.JobID); err == nil && saved.Document != nil && saved.Document.PlanHash == doc.PlanHash {
+				describeFullDemoCapture(&out, saved.Capture)
+			}
+			return nil, out, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "render_full_demo", Meta: appToolMeta(jobProgressAppURI),
@@ -234,7 +254,7 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			if doc.PlanHash == "" || doc.PlanHash != in.PlanHash {
 				return nil, generateOut{}, errors.New("plan_hash is not the saved plan of this job (it was replaced or is stale); call plan_full_demo again")
 			}
-			return startFullDemo(ctx, fullDemoStart{Request: req, Client: c, Tool: "render_full_demo", JobID: in.JobID, Doc: *doc, Approve: in.Approve})
+			return startFullDemo(ctx, fullDemoStart{Request: req, Client: c, Tool: "render_full_demo", JobID: in.JobID, Doc: *doc, Approve: in.Approve, Capture: state.Capture})
 		})
 }
 
@@ -245,6 +265,8 @@ type fullDemoStart struct {
 	JobID   string
 	Doc     recapplan.Document
 	Approve string
+	// Capture is nil when unknown: the start then assumes CS2 records.
+	Capture *fullDemoCapture
 }
 
 // startFullDemo asks for approval and starts the capture of a saved plan; the
@@ -255,14 +277,18 @@ func startFullDemo(ctx context.Context, start fullDemoStart) (*mcp.CallToolResul
 	if !plan.Ready {
 		return nil, generateOut{}, fmt.Errorf("the plan cannot be rendered yet: %s", strings.Join(plan.Blockers, "; "))
 	}
-	caps, err := c.Capabilities(ctx)
-	if err != nil {
-		return nil, generateOut{}, toolError(err)
+	describeFullDemoCapture(&plan, start.Capture)
+	summary := plan.Summary + " Studio vuelve a montar el vídeo con las capturas guardadas: CS2 no se abre."
+	if plan.NeedsCapture {
+		caps, err := c.Capabilities(ctx)
+		if err != nil {
+			return nil, generateOut{}, toolError(err)
+		}
+		if !caps.Record.Enabled {
+			return nil, generateOut{}, errors.New("capture is not available: Steam, CS2 or HLAE is missing, so the video cannot be recorded")
+		}
+		summary = plan.Summary + " CS2 se abrirá a pantalla completa y grabará durante bastante tiempo."
 	}
-	if !caps.Record.Enabled {
-		return nil, generateOut{}, errors.New("capture is not available: Steam, CS2 or HLAE is missing, so the video cannot be recorded")
-	}
-	summary := plan.Summary + " CS2 se abrirá a pantalla completa y grabará durante bastante tiempo."
 	ok, err := sessionApprovals.approve(req, approvalSpec{Tool: start.Tool, JobID: start.JobID,
 		Request: struct{ PlanHash string }{doc.PlanHash}, Summary: summary, Given: start.Approve})
 	if err != nil {
@@ -292,13 +318,14 @@ func loadFullDemoState(ctx context.Context, c *tuiclient.Client, jobID string) (
 		return fullDemoState{}, err
 	}
 	var wire struct {
-		Document json.RawMessage `json:"document"`
-		Defaults json.RawMessage `json:"defaults"`
+		Document json.RawMessage  `json:"document"`
+		Defaults json.RawMessage  `json:"defaults"`
+		Capture  *fullDemoCapture `json:"capture"`
 	}
 	if err := json.Unmarshal(raw, &wire); err != nil {
 		return fullDemoState{}, fmt.Errorf("Studio returned an unreadable Full Demo state: %w", err)
 	}
-	var state fullDemoState
+	state := fullDemoState{Capture: wire.Capture}
 	if err := json.Unmarshal(wire.Defaults, &state.Defaults); err != nil {
 		return fullDemoState{}, fmt.Errorf("%w (%v)", errOutdatedMCP, err)
 	}
@@ -471,7 +498,7 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	source := o.SourceKind
 	effects := o.Transitions != nil && o.Transitions.Enabled
 	out := fullDemoPlanOut{
-		JobID: jobID, PlanHash: doc.PlanHash, Ready: len(doc.Blockers) == 0, DurationSeconds: seconds, Rounds: len(doc.Rounds),
+		JobID: jobID, PlanHash: doc.PlanHash, Ready: len(doc.Blockers) == 0, DurationSeconds: seconds, Rounds: len(doc.Rounds), NeedsCapture: true,
 		HUD: hud, OverlaySource: source, IntroDesign: introDesignOf(o.Overlays), TeamVoices: o.Audio.Voice.Enabled, VoiceStatus: doc.Voice.Availability,
 		VoiceLevel: percent(o.Audio.Voice.Gain), GameLevel: percent(o.Audio.Game.Gain), BetweenRoundEffects: effects,
 		TrueView: o.Capture.TrueView, Warnings: noticeMessages(doc.Warnings), Blockers: noticeMessages(doc.Blockers),
@@ -498,6 +525,28 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 		out.Summary += fmt.Sprintf(" Clips añadidos: %s.", strings.Join(out.Bumpers, ", "))
 	}
 	return out
+}
+
+// describeFullDemoCapture adds what the plan records, from the server's check; nil leaves "records every round".
+func describeFullDemoCapture(out *fullDemoPlanOut, capture *fullDemoCapture) {
+	if capture == nil {
+		return
+	}
+	out.NeedsCapture, out.MissingRounds = capture.Needed, capture.MissingRounds
+	switch {
+	case !capture.Needed:
+		out.Summary += " Las capturas de todas las rondas están guardadas: solo se vuelve a montar."
+	case len(capture.MissingRounds) < out.Rounds:
+		rounds := make([]string, len(capture.MissingRounds))
+		for i, r := range capture.MissingRounds {
+			rounds[i] = strconv.Itoa(r)
+		}
+		out.Summary += fmt.Sprintf(" Graba de nuevo solo las rondas %s; las demás ya están capturadas.", strings.Join(rounds, ", "))
+	}
+	if s := capture.Space; s != nil && s.Short {
+		out.LowSpace = fmt.Sprintf("Puede faltar espacio: hacen falta unos %s y quedan %s libres. Almacenamiento libera espacio.", formatBytes(s.NeededBytes), formatBytes(s.FreeBytes))
+		out.Summary += " " + out.LowSpace
+	}
 }
 
 func percent(gain float64) int { return int(math.Round(gain * 100)) }

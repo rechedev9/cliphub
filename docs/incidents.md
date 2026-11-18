@@ -454,9 +454,10 @@ time first. The lab replays the inputs of a job's last render of a variant:
    writes `<data>/lab/<job>-gameplay-pov-60/` with the localized clips, the
    Full Demo execution and `editor-args.json`. It copies the clips (about 5 GB
    for a full match), needs one earlier render of the variant, and never
-   renders or writes render state. Studio deletes the clips when a Full Demo
-   render is ready, so start Studio with `ZV_KEEP_FULL_DEMO_CAPTURES=1`
-   before that render to keep them for the lab.
+   renders or writes render state. Studio keeps the clips of only the newest
+   rendered Full Demos (Capturas guardadas in Almacenamiento, 0 keeps none), so
+   start Studio with `ZV_KEEP_FULL_DEMO_CAPTURES=1` before that render to keep
+   every one for the lab.
 2. `zv-editor lab <mode> --bundle <dir>` runs one stage through the production
    code and writes `lab-evidence.json` under `<bundle>/lab-work/`:
    - `plan`: timeline items, overlay windows, transitions, clamped loudness
@@ -498,6 +499,33 @@ Every mode then runs on it and marks its evidence `synthetic`.
   real render.
 - Nothing deletes `<data>/lab`, not even deleting the job; remove old
   bundles by hand.
+
+## Editing a finished video (2026-11-18)
+
+Mis vídeos edits a finished video without a new capture when the change only
+touches the render, and keeps every version.
+
+- `recapplan.Document.CaptureHash` is the capture identity: HUD type (native or
+  custom), POV 1:1, pro settings, the rounds and the final scoreboard (it
+  extends the last round) move it; HUD design, style, switches, names, portrait,
+  brand kit, transitions, overlays, sound and clips never do. A new render-only
+  option keeps it. Test: `TestCaptureIdentityByOption`.
+- `recording.MissingFullDemoRounds` predicts the record worker's per-round
+  reuse for `POST /full-demo/capture-check` and `GET /full-demo/plan`; the
+  worker still verifies each clip's hash. Test:
+  `TestFullDemoCaptureCheckSaysWhichRoundsAnEditMustRecord`.
+- When a Full Demo render is ready, `captureretention.Apply` frees the clips
+  of the rendered Full Demos outside the newest N (default 3, 0 keeps none),
+  skipping busy jobs; `ZV_KEEP_FULL_DEMO_CAPTURES` wins. A failure is logged
+  and never fails the render. Tests: `full_demo_retention_test.go`.
+- Render revisions are versions: none is deleted on its own, and the current
+  one cannot be deleted alone. Test: `TestEditingAVideoKeepsEveryVersion`.
+- The producers say "Volver a montar" or "Volver a grabar y montar". A Full
+  Demo asks the capture check; a Short predicts it in
+  `web/lib/produce/edit-capture.ts` from what `recordingOutputsReady` compares
+  (plays, HUD, framing, death reel, victim replay). Test: `edit-capture.test.ts`.
+- The low space warning assumes 40 Mb/s of capture and 20 Mb/s of render and
+  never blocks. Test: `TestSpaceCheckWarnsWhenTheEstimateDoesNotFit`.
 
 ## Render QA warnings are informational (2026-09-25)
 
