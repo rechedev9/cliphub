@@ -151,7 +151,7 @@ type Handlers struct {
 	publishAssistant    *publishAssistantCache
 	faceit              *faceit.Client
 	faceitFollows       *faceit.FollowStore
-	faceitSeeds         *faceit.SeedStore
+	faceitRankings      *faceit.RankingStore
 	faceitCache         faceitResponseCache
 	faceitRoster        faceitRosterRefresh
 	steamAvatarResolver steamAvatarResolver

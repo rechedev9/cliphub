@@ -8,15 +8,19 @@ import type { FaceitFollowedPlayer } from '@/lib/api/faceit';
 import { SHORTS_HREF } from '@/lib/clips/routes';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { CountryFlag } from './country-flag';
 import { PlayerAvatar } from './player-avatar';
 import { LevelBadge } from './level-badge';
 
-export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow }: {
+export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow, place }: {
   player: FaceitFollowedPlayer;
-  onUnfollow: () => void;
+  /** Present for a followed player. */
+  onUnfollow?: () => void;
   unfollowing: boolean;
-  /** Present for a seeded zone row: adds the player to the Seguidos list. */
+  /** Present for a ranking player the user does not follow: adds them to Seguidos. */
   onFollow?: () => void;
+  /** The player's place in the ranking open in the rail, such as "Puesto 3 en España". */
+  place?: string;
 }): ReactNode {
   async function copySteamID(): Promise<void> {
     if (!player.steam_id64) return;
@@ -38,7 +42,8 @@ export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow }: {
         <h2 className="break-words text-section font-bold text-fg-1">{player.nickname}</h2>
         <p className="mt-1 text-body-sm text-fg-2">
           FACEIT · Nivel {player.skill_level ?? '-'}
-          {player.country ? <> · <span className="uppercase">{player.country}</span></> : null}
+          {player.country ? <> · <span className="inline-flex items-center gap-1.5 align-middle"><CountryFlag code={player.country} decorative /><span className="uppercase">{player.country}</span></span></> : null}
+          {place ? <> · {place}</> : null}
         </p>
         <p className="mt-1 text-stat font-semibold tabular-nums text-fg-1">
           {player.elo ?? '-'} <span className="text-body-sm font-normal text-fg-3">ELO</span>
@@ -67,10 +72,9 @@ export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow }: {
             {onFollow ? <DropdownMenuItem onSelect={onFollow}>
               <UserPlus aria-hidden className="size-4" /> Añadir {player.nickname} a Seguidos
             </DropdownMenuItem> : null}
-            <DropdownMenuItem variant="destructive" onSelect={onUnfollow}>
-              <UserMinus aria-hidden className="size-4" />
-              {player.seeded === true ? `Quitar a ${player.nickname} de la lista` : `Dejar de seguir a ${player.nickname}`}
-            </DropdownMenuItem>
+            {onUnfollow ? <DropdownMenuItem variant="destructive" onSelect={onUnfollow}>
+              <UserMinus aria-hidden className="size-4" /> Dejar de seguir a {player.nickname}
+            </DropdownMenuItem> : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

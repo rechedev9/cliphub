@@ -123,9 +123,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("faceit follow store: %w", err)
 	}
-	faceitSeeds, err := faceit.NewSeedStore(filepath.Join(cfg.DataDir, "faceit", "zones.json"))
+	faceitRankings, err := faceit.NewRankingStore(filepath.Join(cfg.DataDir, "faceit", "rankings"), time.Now)
 	if err != nil {
-		return fmt.Errorf("faceit seed store: %w", err)
+		return fmt.Errorf("faceit ranking store: %w", err)
 	}
 	steamAccounts, err := steamresolve.NewAccountStore(filepath.Join(cfg.DataDir, "steam", "account.json"), time.Now)
 	if err != nil {
@@ -332,7 +332,7 @@ func run() error {
 		httpapi.WithGenerateIntentStore(generateIntents),
 		httpapi.WithPublishAssistantTrends(youtubeTrends),
 		httpapi.WithFaceit(faceitClient, faceitFollows),
-		httpapi.WithFaceitSeeds(faceitSeeds),
+		httpapi.WithFaceitRankings(faceitRankings),
 		httpapi.WithSteamResolver(steamResolver),
 		httpapi.WithSteamTransportFactory(steamFactory),
 		httpapi.WithSteamAccount(steamAccounts, steamresolve.NewHistoryClient(nil), steamresolve.NewFetcher(nil)),
@@ -379,8 +379,8 @@ func run() error {
 	} else if migrated > 0 {
 		log.Printf("startup: materialized %d legacy render states", migrated)
 	}
-	// The Players ELOs are refreshed from FACEIT once per start, in the
-	// background; list reads never call FACEIT.
+	// The followed players' ELOs are refreshed from FACEIT once per start, in
+	// the background; list reads never call FACEIT.
 	handlers.StartFaceitRosterRefresh()
 	handlers.StartCommunity(ctx)
 	handlers.StartVoice(ctx)

@@ -34,6 +34,9 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/faceit/followed", h.ListFollowedFaceitPlayers)
 	r.Post("/api/faceit/followed", h.FollowFaceitPlayer)
 	r.Delete("/api/faceit/followed/{playerID}", h.UnfollowFaceitPlayer)
+	r.Get("/api/faceit/rankings", h.GetFaceitRanking)
+	r.Get("/api/faceit/countries", h.ListFaceitCountries)
+	r.Get("/api/faceit/flags/{code}", h.GetFaceitFlag)
 	r.Get("/api/loadouts", h.ListLoadouts)
 	r.Get("/api/presets", h.ListPresets)
 	if h.syncLog != nil {
