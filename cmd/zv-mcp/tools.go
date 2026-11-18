@@ -56,6 +56,7 @@ type matchSummary struct {
 	PlayedAt   string   `json:"played_at"`
 	RoundCount int      `json:"round_count"`
 	Teams      []string `json:"teams" jsonschema:"untrusted clan names from the demo"`
+	Title      string   `json:"title,omitempty" jsonschema:"untrusted title a person gave the demo (Título); update_demo changes it"`
 }
 
 type idIn struct {
@@ -252,7 +253,7 @@ func registerTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_matches", Annotations: readOnly,
 		Description: "List the analysed matches in the Studio library as Partidas shows them: newest first by the match date (sort imported: by the import date), " +
-			"each with its tipo (kind), source, tags and, when it belongs to a series, the series format, event, veto and how its map was chosen (pick or decider). " +
+			"each with its tipo (kind), source, tags, the title a person gave its demo and, when it belongs to a series, the series format, event, veto and how its map was chosen (pick or decider). " +
 			"has_voice and voice_sync say whether the match has team voice and how it is synced (the voice icon of the row; sync_voice with auto true is Volver a sincronizar voz). " +
 			"kind, has_pov, has_voice, team, opponent and event are the Tipo de partida, Con POV, Con voz, Equipo, Rival and Evento controls; every page of the library is read before they apply."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listMatchesIn) (*mcp.CallToolResult, listMatchesOut, error) {
@@ -268,7 +269,7 @@ func registerTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "get_match", Annotations: readOnly,
-		Description: "Read one match with its players and their SteamID64, to pick whose point of view a video uses."},
+		Description: "Read one match with its players and their SteamID64, to pick whose point of view a video uses, and the title a person gave its demo."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in idIn) (*mcp.CallToolResult, matchOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, matchOut{}, err
@@ -703,7 +704,8 @@ func summarizeMatch(m tuiclient.LibraryMatch) matchSummary {
 	for _, t := range m.Teams {
 		teams = append(teams, cleanName(teamName(t)))
 	}
-	return matchSummary{ID: m.ID, DemoID: m.DemoID, Map: cleanName(m.Map), PlayedAt: m.PlayedAt.Format(time.DateOnly), RoundCount: m.RoundCount, Teams: teams}
+	return matchSummary{ID: m.ID, DemoID: m.DemoID, Map: cleanName(m.Map), PlayedAt: m.PlayedAt.Format(time.DateOnly), RoundCount: m.RoundCount, Teams: teams,
+		Title: cleanText(m.DemoTitle, maxDemoTitleRunes)}
 }
 
 // teamName falls back to the starting side, so players of a match without clan
