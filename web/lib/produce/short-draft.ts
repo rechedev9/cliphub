@@ -2,6 +2,7 @@ import type { EditConfig, Play } from '../api/types.ts';
 import { coerceEditConfig, DEFAULT_EDIT_CONFIG } from '../api/reel-store.ts';
 import { GAME_VOLUME_DEFAULT_PERCENT, MUSIC_VOLUME_DEFAULT_PERCENT, MUSIC_VOLUME_MIN_PERCENT } from '../api/reel-music.ts';
 import { constrainEditConfig } from '../reel-brief.ts';
+import { SUMMARY_PRE_ROLL_SECONDS } from './pre-roll.ts';
 import { autoPickBestPlays } from './short-selection.ts';
 
 export const SHORT_DRAFT_VERSION = 1;
@@ -21,16 +22,27 @@ export function shortDraftKey(matchId: string): string {
   return `cliphub.short-draft.v1.${matchId}`;
 }
 
-type DefaultShortOptions = { deathPlays?: Play[]; /** The auto pick fills this length; a Short is one minute. */ targetSeconds?: number };
+/** The draft of a one-player 16:9 summary, apart from the Short of the same match. */
+export function summaryDraftId(matchId: string): string {
+  return `${matchId}.resumen`;
+}
+
+type DefaultShortOptions = {
+  deathPlays?: Play[];
+  /** The auto pick fills this length; a Short is one minute. */
+  targetSeconds?: number;
+  /** A one-player summary: every play, in plan order, at the summary pre-roll. */
+  summary?: boolean;
+};
 
 /** A player without kills but with deaths opens a death reel of the deaths that fit the target. */
-export function defaultShortSettings(plays: Play[], { deathPlays = [], targetSeconds }: DefaultShortOptions = {}): ShortSettings {
-  const deathReel = plays.length === 0 && deathPlays.length > 0;
+export function defaultShortSettings(plays: Play[], { deathPlays = [], targetSeconds, summary = false }: DefaultShortOptions = {}): ShortSettings {
+  const deathReel = !summary && plays.length === 0 && deathPlays.length > 0;
   return {
-    selectedIds: [...autoPickBestPlays(deathReel ? deathPlays : plays, { targetSeconds })],
+    selectedIds: summary ? plays.map((play) => play.id) : [...autoPickBestPlays(deathReel ? deathPlays : plays, { targetSeconds })],
     variant: null, songId: null, songTitle: null, musicDecided: false,
     musicVolume: MUSIC_VOLUME_DEFAULT_PERCENT, gameVolume: GAME_VOLUME_DEFAULT_PERCENT,
-    editConfig: constrainEditConfig({ ...DEFAULT_EDIT_CONFIG, format: 'short-9x16', ...(deathReel ? { deathReel } : {}) }),
+    editConfig: constrainEditConfig({ ...DEFAULT_EDIT_CONFIG, format: 'short-9x16', ...(deathReel ? { deathReel } : {}), ...(summary ? { preRollSeconds: SUMMARY_PRE_ROLL_SECONDS } : {}) }),
   };
 }
 

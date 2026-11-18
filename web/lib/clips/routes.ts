@@ -52,9 +52,9 @@ export function flowHref(format: ProduceFormat, opts: { job?: string; from?: str
 
 /**
  * `?series=` returns to the bo3/bo5 series after producing. `?rondas=` comes
- * from the analysis area: the video covers only those source rounds.
+ * from the analysis area: the video covers only those source rounds. `?video=` is the long video's kind.
  */
-export const PRODUCE_QUERY = { series: 'series', rounds: 'rondas' } as const;
+export const PRODUCE_QUERY = { series: 'series', rounds: 'rondas', video: 'video' } as const;
 
 /** The most rounds a selection carries (`recapplan.MaxSelectedRounds`). */
 export const MAX_SELECTED_ROUNDS = 60;

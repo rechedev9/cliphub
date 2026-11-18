@@ -104,6 +104,10 @@ type EditRequest struct {
 	DeathReel bool `json:"death_reel,omitempty"`
 	// SeparateShorts renders each chosen play as its own Short instead of one compilation (Auto-Shorts).
 	SeparateShorts bool `json:"separate_shorts,omitempty"`
+	// PreRollSeconds starts each kill play that long before its first kill (PreRollChoices); 0 keeps the analysed windows.
+	PreRollSeconds int `json:"pre_roll_seconds,omitempty"`
+	// CaptureHUD records a 16:9 video of plays in one of CaptureHUDs instead of its preset's HUD; empty keeps the preset's.
+	CaptureHUD string `json:"capture_hud,omitempty"`
 	// BrandWatermark and BrandBanner are copied whole from the brand kit, so a later kit edit never changes this render.
 	BrandWatermark *brandkit.Watermark `json:"brand_watermark,omitempty"`
 	BrandBanner    *brandkit.Banner    `json:"brand_banner,omitempty"`
@@ -182,7 +186,7 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	if !req.VictimReplay || req.VictimReplaySpeed == DefaultVictimReplaySpeed {
 		req.VictimReplaySpeed = 0
 	}
-	return normalizeRadar(req)
+	return normalizeRadar(normalizeCaptureHUD(normalizePreRoll(req)))
 }
 
 func (r EditRequest) Validate() error {
@@ -249,6 +253,12 @@ func (r EditRequest) validateFields() error {
 	}
 	if r.StatsCard && r.Format != FormatShort9x16 {
 		return fmt.Errorf("the stats card needs the %s format", FormatShort9x16)
+	}
+	if err := ValidatePreRoll(r.PreRollSeconds); err != nil {
+		return err
+	}
+	if err := r.validateCaptureHUD(); err != nil {
+		return err
 	}
 	if r.VictimReplaySpeed != 0 && !slices.Contains(VictimReplaySpeeds, r.VictimReplaySpeed) {
 		return fmt.Errorf("victim replay speed must be 0.25, 0.5 or 1")

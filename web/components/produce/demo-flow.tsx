@@ -80,7 +80,7 @@ const ZERO_PLAYERS_HINT = 'Sin jugadores. ¿Seguro que es una demo de CS2?';
 const PICK_TITLE = '¿De quién es el vídeo?';
 const PICK_DESCRIPTION = {
   short: 'Un jugador, o de 2 a 5 del mismo equipo para mezclar sus jugadas. Después podrás revisar el contenido antes de crearlo.',
-  full: 'Elige el jugador desde cuya vista se graba la partida, o de 2 a 5 del mismo equipo para un resumen con sus mejores jugadas.',
+  full: 'Elige un jugador para grabar la partida entera desde su vista o un resumen con sus kills, o de 2 a 5 del mismo equipo para un resumen con sus mejores jugadas.',
 } as const;
 
 /** Both flows open the same demo with the player picked here. */

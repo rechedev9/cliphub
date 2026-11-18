@@ -7,13 +7,15 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 type autoPOVIn struct {
-	JobID         string  `json:"job_id" jsonschema:"a multi-POV job from create_multi_pov_job, once wait_for_job says parsed"`
-	TargetSeconds float64 `json:"target_seconds,omitempty" jsonschema:"length budget in seconds, 15 to 600; default 180, the 16:9 best-moments video; 60 for a 9:16 Short"`
-	ExtraSeconds  float64 `json:"extra_seconds,omitempty" jsonschema:"seconds each play adds in the edit, 0 to 15, such as a victim replay (7 at the default speed)"`
+	JobID          string  `json:"job_id" jsonschema:"a multi-POV job from create_multi_pov_job, or a job of one player, once wait_for_job says parsed"`
+	TargetSeconds  float64 `json:"target_seconds,omitempty" jsonschema:"length budget in seconds, 15 to 600; default 180, the 16:9 best-moments video; 60 for a 9:16 Short"`
+	ExtraSeconds   float64 `json:"extra_seconds,omitempty" jsonschema:"seconds each play adds in the edit, 0 to 15, such as a victim replay (7 at the default speed)"`
+	PreRollSeconds int     `json:"pre_roll_seconds,omitempty" jsonschema:"one player only: the pre_roll_seconds the video will use (3, 5 or 8), so plays are measured and merged as generate_short will cut them; default 3"`
 }
 
 type autoPOVPlayOut struct {
@@ -40,7 +42,8 @@ type autoPOVOut struct {
 
 func registerAutoPOVTool(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "auto_pov_summary",
-		Description: "Auto-POV, Elegir automáticamente in Studio's summary: picks which teammates and which plays a multi-POV summary shows, like a broadcast observer, from the parsed demo. " +
+		Description: "Auto-POV, Elegir automáticamente in Studio's summary: picks which teammates and which plays a multi-POV summary shows, like a broadcast observer, from the parsed demo; " +
+			"on a job of one player it picks that player's best plays for the 16:9 summary (Resumen), with the video's pre_roll_seconds. " +
 			"Each kill play is ranked by its list_moments score plus observer cues (a clutch, the round's opening duel or chained duels, the bomb planted, momentum), " +
 			"then the best are taken across players within target_seconds; each play a player already has lowers their next one, and no two players are ever less than half a second apart. " +
 			"Read only. Pass segment_ids to generate_short. To let it choose the players too, create the job with the whole team (up to 5) in create_multi_pov_job."},
@@ -54,11 +57,14 @@ func registerAutoPOVTool(server *mcp.Server, s *studio) {
 			if in.ExtraSeconds < 0 || in.ExtraSeconds > moments.MaxDirectorExtraSeconds {
 				return nil, autoPOVOut{}, fmt.Errorf("extra_seconds must be between 0 and %g", moments.MaxDirectorExtraSeconds)
 			}
+			if err := renderplan.ValidatePreRoll(in.PreRollSeconds); err != nil {
+				return nil, autoPOVOut{}, err
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, autoPOVOut{}, toolError(err)
 			}
-			d, err := c.GetAutoPOV(ctx, tuiclient.AutoPOVQuery{JobID: in.JobID, TargetSeconds: in.TargetSeconds, ExtraSeconds: in.ExtraSeconds})
+			d, err := c.GetAutoPOV(ctx, tuiclient.AutoPOVQuery{JobID: in.JobID, TargetSeconds: in.TargetSeconds, ExtraSeconds: in.ExtraSeconds, PreRollSeconds: in.PreRollSeconds})
 			if err != nil {
 				return nil, autoPOVOut{}, toolError(err)
 			}

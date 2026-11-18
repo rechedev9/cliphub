@@ -131,3 +131,17 @@ test('buildEditRequest sends the radar with its chosen options only for a Short 
     for (const key of ['radar', 'radar_position', 'radar_size', 'radar_opacity'] as const) assert.equal(key in sent, false);
   }
 });
+
+test('buildEditRequest sends a pre-roll other than 3 s only for a video of kills', () => {
+  assert.equal(buildEditRequest(edit({ preRollSeconds: 5 })).pre_roll_seconds, 5);
+  assert.equal(buildEditRequest(edit({ format: 'landscape-16x9', preRollSeconds: 8 })).pre_roll_seconds, 8);
+  assert.equal(buildEditRequest(edit({ preRollSeconds: 3 })).pre_roll_seconds, undefined, 'the analysis cut is the default');
+  assert.equal(buildEditRequest(edit({ preRollSeconds: 5, deathReel: true })).pre_roll_seconds, undefined);
+  assert.equal(buildEditRequest(edit({ preRollSeconds: 5, matchRecap: true })).pre_roll_seconds, undefined);
+});
+
+test('buildEditRequest sends the capture style only for a 16:9 video without the native HUD', () => {
+  assert.equal(buildEditRequest(edit({ format: 'landscape-16x9', captureHud: 'clean' })).capture_hud, 'clean');
+  assert.equal(buildEditRequest(edit({ format: 'landscape-16x9', captureHud: 'clean', nativeHud: true })).capture_hud, undefined);
+  assert.equal(buildEditRequest(edit({ captureHud: 'clean' })).capture_hud, undefined, 'a 9:16 Short keeps its preset HUD');
+});

@@ -1,0 +1,1147 @@
+{
+  "preset": "gameplay-pov-60",
+  "recording_result": "$WORK/recording/recording-result.json",
+  "killplan": "$WORK/summary-plan.json",
+  "output_dir": "$WORK/render",
+  "publish_dir": "$WORK/publish",
+  "gallery_path": "$WORK/publish/index.html",
+  "summary_path": "$WORK/publish/publish-summary.md",
+  "segment_filter": [
+    "seg-001",
+    "seg-002",
+    "seg-003",
+    "seg-004",
+    "seg-005",
+    "seg-007",
+    "seg-008",
+    "seg-009",
+    "seg-010",
+    "seg-011",
+    "seg-012",
+    "seg-013",
+    "seg-014",
+    "seg-015",
+    "seg-016",
+    "seg-017",
+    "seg-018",
+    "seg-019",
+    "seg-020",
+    "seg-021"
+  ],
+  "effects_preset": "gameplay-native",
+  "output_format": "landscape-16x9",
+  "kill_effect": "clean",
+  "transition": "cut",
+  "output_fps": 60,
+  "compile_segments": true,
+  "video_crf": 18,
+  "video_preset": "slow",
+  "hq_filters": true,
+  "audio_normalize": true,
+  "quality_checks": true,
+  "cover_sheets": true,
+  "covers_enabled": true,
+  "shorts": [
+    {
+      "index": 1,
+      "segment_total": 20,
+      "segment_id": "demo-compilation",
+      "preset": "gameplay-pov-60",
+      "player": "target",
+      "map": "de_mirage",
+      "kill_count": 23,
+      "primary_weapon": "AK-47",
+      "input": "$WORK/recording/segments/seg-001.mp4",
+      "output": "$WORK/render/short-001-demo-compilation.mp4",
+      "source_artifact": {
+        "segment_id": "seg-001",
+        "type": "video",
+        "role": "segment",
+        "path": "$WORK/recording/segments/seg-001.mp4",
+        "size_bytes": 1,
+        "duration_seconds": 8,
+        "frame_rate": "60/1",
+        "codec": "h264",
+        "width": 1920,
+        "height": 1080,
+        "sample_rate": 48000,
+        "channels": 2
+      },
+      "output_artifact": {
+        "path": "",
+        "size_bytes": 0
+      },
+      "publish_artifact": {
+        "path": "",
+        "size_bytes": 0
+      },
+      "prompt_path": "$WORK/render/prompts/short-001-demo-compilation-cover.md",
+      "publish_path": "$WORK/publish/01_demo-compilation_target_de_mirage_23k_ak47.mp4",
+      "tickrate": 64,
+      "output_format": "landscape-16x9",
+      "kill_effect": "clean",
+      "transition": "cut",
+      "output_fps": 60,
+      "source_width": 1920,
+      "source_height": 1080,
+      "source_fps": 60,
+      "video_crf": 18,
+      "video_preset": "slow",
+      "hq_filters": true,
+      "audio_normalize": true,
+      "caption_path": "$WORK/publish/01_demo-compilation_target_de_mirage_23k_ak47.caption.txt",
+      "cover_path": "$WORK/publish/01_demo-compilation_target_de_mirage_23k_ak47.cover.jpg",
+      "cover_sheet_path": "$WORK/publish/01_demo-compilation_target_de_mirage_23k_ak47.sheet.jpg",
+      "cover_time_seconds": 2.88,
+      "duration_seconds": 163.25,
+      "label": "target | de_mirage | 23K",
+      "title": "target 23K AK-47 | Mirage CS2",
+      "headline": "23K con AK-47 en Mirage",
+      "caption": "target turns this round on Mirage into a clean 23K with the AK-47.\n\n#CS2 #CounterStrike2 #Mirage #AK47 #CS2Highlights",
+      "hashtags": [
+        "#CS2",
+        "#CounterStrike2",
+        "#Mirage",
+        "#AK47",
+        "#CS2Highlights"
+      ],
+      "kills": [
+        {
+          "tick": 12096,
+          "time_seconds": 3,
+          "weapon": "MP9",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-1",
+          "victim_side": "T"
+        },
+        {
+          "tick": 17783,
+          "time_seconds": 11,
+          "weapon": "MP9",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-2",
+          "victim_side": "T",
+          "headshot": true
+        },
+        {
+          "tick": 21344,
+          "time_seconds": 19,
+          "weapon": "AK-47",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-3",
+          "victim_side": "T",
+          "headshot": true
+        },
+        {
+          "tick": 22824,
+          "time_seconds": 27,
+          "weapon": "AK-47",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-2",
+          "victim_side": "T"
+        },
+        {
+          "tick": 22895,
+          "time_seconds": 28.109375,
+          "weapon": "AK-47",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-4",
+          "victim_side": "T"
+        },
+        {
+          "tick": 27391,
+          "time_seconds": 36.109375,
+          "weapon": "AK-47",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-5",
+          "victim_side": "T"
+        },
+        {
+          "tick": 27992,
+          "time_seconds": 45.5,
+          "weapon": "AK-47",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-2",
+          "victim_side": "T",
+          "headshot": true
+        },
+        {
+          "tick": 29495,
+          "time_seconds": 53.5,
+          "weapon": "AK-47",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-1",
+          "victim_side": "T",
+          "headshot": true
+        },
+        {
+          "tick": 34979,
+          "time_seconds": 61.5,
+          "weapon": "AWP",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-2",
+          "victim_side": "T"
+        },
+        {
+          "tick": 40107,
+          "time_seconds": 69.5,
+          "weapon": "M4A1-S",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-2",
+          "victim_side": "T"
+        },
+        {
+          "tick": 52223,
+          "time_seconds": 77.5,
+          "weapon": "M4A1-S",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-4",
+          "victim_side": "T",
+          "headshot": true
+        },
+        {
+          "tick": 61588,
+          "time_seconds": 85.5,
+          "weapon": "M4A1-S",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-1",
+          "victim_side": "T"
+        },
+        {
+          "tick": 61700,
+          "time_seconds": 87.25,
+          "weapon": "M4A1-S",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-4",
+          "victim_side": "T",
+          "headshot": true
+        },
+        {
+          "tick": 65203,
+          "time_seconds": 92.25,
+          "weapon": "M4A1-S",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-4",
+          "victim_side": "T"
+        },
+        {
+          "tick": 66099,
+          "time_seconds": 100.25,
+          "weapon": "M4A1-S",
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-2",
+          "victim_side": "T",
+          "headshot": true
+        },
+        {
+          "tick": 81542,
+          "time_seconds": 108.25,
+          "weapon": "Glock-18",
+          "attacker": "target",
+          "attacker_side": "T",
+          "victim": "opponent-2",
+          "victim_side": "CT"
+        },
+        {
+          "tick": 87372,
+          "time_seconds": 116.25,
+          "weapon": "MAC-10",
+          "attacker": "target",
+          "attacker_side": "T",
+          "victim": "opponent-1",
+          "victim_side": "CT",
+          "headshot": true
+        },
+        {
+          "tick": 90036,
+          "time_seconds": 124.25,
+          "weapon": "MAC-10",
+          "attacker": "target",
+          "attacker_side": "T",
+          "victim": "opponent-4",
+          "victim_side": "CT"
+        },
+        {
+          "tick": 93358,
+          "time_seconds": 129.25,
+          "weapon": "MAC-10",
+          "attacker": "target",
+          "attacker_side": "T",
+          "victim": "opponent-4",
+          "victim_side": "CT",
+          "headshot": true
+        },
+        {
+          "tick": 94993,
+          "time_seconds": 137.25,
+          "weapon": "MAC-10",
+          "attacker": "target",
+          "attacker_side": "T",
+          "victim": "opponent-5",
+          "victim_side": "CT"
+        },
+        {
+          "tick": 99811,
+          "time_seconds": 145.25,
+          "weapon": "AK-47",
+          "attacker": "target",
+          "attacker_side": "T",
+          "victim": "opponent-2",
+          "victim_side": "CT",
+          "headshot": true
+        },
+        {
+          "tick": 124303,
+          "time_seconds": 153.25,
+          "weapon": "AK-47",
+          "attacker": "target",
+          "attacker_side": "T",
+          "victim": "opponent-1",
+          "victim_side": "CT"
+        },
+        {
+          "tick": 126888,
+          "time_seconds": 161.25,
+          "weapon": "AK-47",
+          "attacker": "target",
+          "attacker_side": "T",
+          "victim": "opponent-4",
+          "victim_side": "CT"
+        }
+      ],
+      "parts": [
+        {
+          "segment_id": "seg-001",
+          "input": "$WORK/recording/segments/seg-001.mp4",
+          "source_artifact": {
+            "segment_id": "seg-001",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-001.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "tick_start": 11776,
+          "tick_end": 12416,
+          "capture_tick_start": 11904,
+          "capture_tick_end": 12416,
+          "kills": [
+            {
+              "tick": 12096,
+              "time_seconds": 3,
+              "weapon": "MP9",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-1",
+              "victim_side": "T"
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-002",
+          "input": "$WORK/recording/segments/seg-002.mp4",
+          "source_artifact": {
+            "segment_id": "seg-002",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-002.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 8,
+          "tick_start": 17463,
+          "tick_end": 18103,
+          "capture_tick_start": 17591,
+          "capture_tick_end": 18103,
+          "kills": [
+            {
+              "tick": 17783,
+              "time_seconds": 3,
+              "weapon": "MP9",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-2",
+              "victim_side": "T",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-003",
+          "input": "$WORK/recording/segments/seg-003.mp4",
+          "source_artifact": {
+            "segment_id": "seg-003",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-003.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 16,
+          "tick_start": 21024,
+          "tick_end": 21664,
+          "capture_tick_start": 21152,
+          "capture_tick_end": 21664,
+          "kills": [
+            {
+              "tick": 21344,
+              "time_seconds": 3,
+              "weapon": "AK-47",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-3",
+              "victim_side": "T",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-004",
+          "input": "$WORK/recording/segments/seg-004.mp4",
+          "source_artifact": {
+            "segment_id": "seg-004",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-004.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 9.109375,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 9.109375,
+          "timeline_start_seconds": 24,
+          "tick_start": 22504,
+          "tick_end": 23215,
+          "capture_tick_start": 22632,
+          "capture_tick_end": 23215,
+          "kills": [
+            {
+              "tick": 22824,
+              "time_seconds": 3,
+              "weapon": "AK-47",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-2",
+              "victim_side": "T"
+            },
+            {
+              "tick": 22895,
+              "time_seconds": 4.109375,
+              "weapon": "AK-47",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-4",
+              "victim_side": "T"
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-005",
+          "input": "$WORK/recording/segments/seg-005.mp4",
+          "source_artifact": {
+            "segment_id": "seg-005",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-005.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 17.390625,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 17.390625,
+          "timeline_start_seconds": 33.109375,
+          "tick_start": 27071,
+          "tick_end": 28312,
+          "capture_tick_start": 27199,
+          "capture_tick_end": 28312,
+          "kills": [
+            {
+              "tick": 27391,
+              "time_seconds": 3,
+              "weapon": "AK-47",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-5",
+              "victim_side": "T"
+            },
+            {
+              "tick": 27992,
+              "time_seconds": 12.390625,
+              "weapon": "AK-47",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-2",
+              "victim_side": "T",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-007",
+          "input": "$WORK/recording/segments/seg-007.mp4",
+          "source_artifact": {
+            "segment_id": "seg-007",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-007.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 50.5,
+          "tick_start": 29175,
+          "tick_end": 29815,
+          "capture_tick_start": 29303,
+          "capture_tick_end": 29815,
+          "kills": [
+            {
+              "tick": 29495,
+              "time_seconds": 3,
+              "weapon": "AK-47",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-1",
+              "victim_side": "T",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-008",
+          "input": "$WORK/recording/segments/seg-008.mp4",
+          "source_artifact": {
+            "segment_id": "seg-008",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-008.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 58.5,
+          "tick_start": 34659,
+          "tick_end": 35299,
+          "capture_tick_start": 34787,
+          "capture_tick_end": 35299,
+          "kills": [
+            {
+              "tick": 34979,
+              "time_seconds": 3,
+              "weapon": "AWP",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-2",
+              "victim_side": "T"
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-009",
+          "input": "$WORK/recording/segments/seg-009.mp4",
+          "source_artifact": {
+            "segment_id": "seg-009",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-009.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 66.5,
+          "tick_start": 39787,
+          "tick_end": 40427,
+          "capture_tick_start": 39915,
+          "capture_tick_end": 40427,
+          "kills": [
+            {
+              "tick": 40107,
+              "time_seconds": 3,
+              "weapon": "M4A1-S",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-2",
+              "victim_side": "T"
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-010",
+          "input": "$WORK/recording/segments/seg-010.mp4",
+          "source_artifact": {
+            "segment_id": "seg-010",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-010.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 74.5,
+          "tick_start": 51903,
+          "tick_end": 52543,
+          "capture_tick_start": 52031,
+          "capture_tick_end": 52543,
+          "kills": [
+            {
+              "tick": 52223,
+              "time_seconds": 3,
+              "weapon": "M4A1-S",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-4",
+              "victim_side": "T",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-011",
+          "input": "$WORK/recording/segments/seg-011.mp4",
+          "source_artifact": {
+            "segment_id": "seg-011",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-011.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 6.75,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 6.75,
+          "timeline_start_seconds": 82.5,
+          "tick_start": 61268,
+          "tick_end": 61828,
+          "capture_tick_start": 61396,
+          "capture_tick_end": 61828,
+          "kills": [
+            {
+              "tick": 61588,
+              "time_seconds": 3,
+              "weapon": "M4A1-S",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-1",
+              "victim_side": "T"
+            },
+            {
+              "tick": 61700,
+              "time_seconds": 4.75,
+              "weapon": "M4A1-S",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-4",
+              "victim_side": "T",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-012",
+          "input": "$WORK/recording/segments/seg-012.mp4",
+          "source_artifact": {
+            "segment_id": "seg-012",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-012.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 89.25,
+          "tick_start": 64883,
+          "tick_end": 65523,
+          "capture_tick_start": 65011,
+          "capture_tick_end": 65523,
+          "kills": [
+            {
+              "tick": 65203,
+              "time_seconds": 3,
+              "weapon": "M4A1-S",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-4",
+              "victim_side": "T"
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-013",
+          "input": "$WORK/recording/segments/seg-013.mp4",
+          "source_artifact": {
+            "segment_id": "seg-013",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-013.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 97.25,
+          "tick_start": 65779,
+          "tick_end": 66419,
+          "capture_tick_start": 65907,
+          "capture_tick_end": 66419,
+          "kills": [
+            {
+              "tick": 66099,
+              "time_seconds": 3,
+              "weapon": "M4A1-S",
+              "attacker": "target",
+              "attacker_side": "CT",
+              "victim": "opponent-2",
+              "victim_side": "T",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-014",
+          "input": "$WORK/recording/segments/seg-014.mp4",
+          "source_artifact": {
+            "segment_id": "seg-014",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-014.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 105.25,
+          "tick_start": 81222,
+          "tick_end": 81862,
+          "capture_tick_start": 81350,
+          "capture_tick_end": 81862,
+          "kills": [
+            {
+              "tick": 81542,
+              "time_seconds": 3,
+              "weapon": "Glock-18",
+              "attacker": "target",
+              "attacker_side": "T",
+              "victim": "opponent-2",
+              "victim_side": "CT"
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-015",
+          "input": "$WORK/recording/segments/seg-015.mp4",
+          "source_artifact": {
+            "segment_id": "seg-015",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-015.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 113.25,
+          "tick_start": 87052,
+          "tick_end": 87692,
+          "capture_tick_start": 87180,
+          "capture_tick_end": 87692,
+          "kills": [
+            {
+              "tick": 87372,
+              "time_seconds": 3,
+              "weapon": "MAC-10",
+              "attacker": "target",
+              "attacker_side": "T",
+              "victim": "opponent-1",
+              "victim_side": "CT",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-016",
+          "input": "$WORK/recording/segments/seg-016.mp4",
+          "source_artifact": {
+            "segment_id": "seg-016",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-016.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 5,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 5,
+          "timeline_start_seconds": 121.25,
+          "tick_start": 89716,
+          "tick_end": 90164,
+          "capture_tick_start": 89844,
+          "capture_tick_end": 90164,
+          "kills": [
+            {
+              "tick": 90036,
+              "time_seconds": 3,
+              "weapon": "MAC-10",
+              "attacker": "target",
+              "attacker_side": "T",
+              "victim": "opponent-4",
+              "victim_side": "CT"
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-017",
+          "input": "$WORK/recording/segments/seg-017.mp4",
+          "source_artifact": {
+            "segment_id": "seg-017",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-017.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 126.25,
+          "tick_start": 93038,
+          "tick_end": 93678,
+          "capture_tick_start": 93166,
+          "capture_tick_end": 93678,
+          "kills": [
+            {
+              "tick": 93358,
+              "time_seconds": 3,
+              "weapon": "MAC-10",
+              "attacker": "target",
+              "attacker_side": "T",
+              "victim": "opponent-4",
+              "victim_side": "CT",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-018",
+          "input": "$WORK/recording/segments/seg-018.mp4",
+          "source_artifact": {
+            "segment_id": "seg-018",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-018.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 134.25,
+          "tick_start": 94673,
+          "tick_end": 95313,
+          "capture_tick_start": 94801,
+          "capture_tick_end": 95313,
+          "kills": [
+            {
+              "tick": 94993,
+              "time_seconds": 3,
+              "weapon": "MAC-10",
+              "attacker": "target",
+              "attacker_side": "T",
+              "victim": "opponent-5",
+              "victim_side": "CT"
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-019",
+          "input": "$WORK/recording/segments/seg-019.mp4",
+          "source_artifact": {
+            "segment_id": "seg-019",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-019.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 142.25,
+          "tick_start": 99491,
+          "tick_end": 100131,
+          "capture_tick_start": 99619,
+          "capture_tick_end": 100131,
+          "kills": [
+            {
+              "tick": 99811,
+              "time_seconds": 3,
+              "weapon": "AK-47",
+              "attacker": "target",
+              "attacker_side": "T",
+              "victim": "opponent-2",
+              "victim_side": "CT",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-020",
+          "input": "$WORK/recording/segments/seg-020.mp4",
+          "source_artifact": {
+            "segment_id": "seg-020",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-020.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 8,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 8,
+          "timeline_start_seconds": 150.25,
+          "tick_start": 123983,
+          "tick_end": 124623,
+          "capture_tick_start": 124111,
+          "capture_tick_end": 124623,
+          "kills": [
+            {
+              "tick": 124303,
+              "time_seconds": 3,
+              "weapon": "AK-47",
+              "attacker": "target",
+              "attacker_side": "T",
+              "victim": "opponent-1",
+              "victim_side": "CT"
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-021",
+          "input": "$WORK/recording/segments/seg-021.mp4",
+          "source_artifact": {
+            "segment_id": "seg-021",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-021.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 5,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 5,
+          "timeline_start_seconds": 158.25,
+          "tick_start": 126568,
+          "tick_end": 127016,
+          "capture_tick_start": 126696,
+          "capture_tick_end": 127016,
+          "kills": [
+            {
+              "tick": 126888,
+              "time_seconds": 3,
+              "weapon": "AK-47",
+              "attacker": "target",
+              "attacker_side": "T",
+              "victim": "opponent-4",
+              "victim_side": "CT"
+            }
+          ]
+        }
+      ],
+      "ffmpeg_command": [
+        "ffmpeg",
+        "-y",
+        "-v",
+        "error",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        "$WORK/render/concat-list.txt",
+        "-filter_complex",
+        "[0:v]setsar=1,format=yuv420p[vgeom];[vgeom]fade=t=in:st=0:d=1.000,format=yuv420p[v];[0:a]aformat=channel_layouts=stereo,aresample=48000[ga0];[ga0]anull[gamea];[gamea]loudnorm=I=-16:TP=-1.5:LRA=11[a]",
+        "-map",
+        "[v]",
+        "-map",
+        "[a]",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "slow",
+        "-crf",
+        "18",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-movflags",
+        "+faststart",
+        "$WORK/render/short-001-demo-compilation.mp4"
+      ],
+      "cover_command": [
+        "ffmpeg",
+        "-y",
+        "-v",
+        "error",
+        "-ss",
+        "2.880",
+        "-i",
+        "$WORK/render/short-001-demo-compilation.mp4",
+        "-frames:v",
+        "1",
+        "-vf",
+        "thumbnail=30,scale=1920:1080:force_original_aspect_ratio=increase:flags=lanczos+accurate_rnd+full_chroma_int,crop=1920:1080,setsar=1",
+        "-q:v",
+        "2",
+        "$WORK/publish/01_demo-compilation_target_de_mirage_23k_ak47.cover.jpg"
+      ],
+      "cover_sheet_command": [
+        "ffmpeg",
+        "-y",
+        "-v",
+        "error",
+        "-i",
+        "$WORK/render/short-001-demo-compilation.mp4",
+        "-frames:v",
+        "1",
+        "-vf",
+        "fps=2,scale=640:360:force_original_aspect_ratio=increase:flags=lanczos+accurate_rnd+full_chroma_int,crop=640:360,setsar=1,tile=3x3",
+        "-q:v",
+        "3",
+        "$WORK/publish/01_demo-compilation_target_de_mirage_23k_ak47.sheet.jpg"
+      ],
+      "quality_command": [
+        "ffmpeg",
+        "-hide_banner",
+        "-nostats",
+        "-v",
+        "info",
+        "-i",
+        "$WORK/render/short-001-demo-compilation.mp4",
+        "-vf",
+        "blackdetect=d=0.40:pix_th=0.10,freezedetect=n=-60dB:d=1",
+        "-an",
+        "-f",
+        "null",
+        "-"
+      ],
+      "render_log_path": "$WORK/render/logs/short-001-demo-compilation-render.log",
+      "quality_log_path": "$WORK/render/logs/short-001-demo-compilation-quality.log"
+    }
+  ]
+}
