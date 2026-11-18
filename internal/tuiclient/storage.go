@@ -8,11 +8,20 @@ import (
 
 // StorageUsage is GET /api/storage: disk use per job tree.
 type StorageUsage struct {
-	TotalBytes int64        `json:"total_bytes"`
-	Jobs       []JobStorage `json:"jobs"`
+	TotalBytes       int64            `json:"total_bytes"`
+	Jobs             []JobStorage     `json:"jobs"`
+	CaptureRetention CaptureRetention `json:"capture_retention"`
 }
 
-// JobStorage is one job's disk use; Freeable marks Full Demo captures a finished render covers.
+// CaptureRetention is how many rendered Full Demos keep their captures; KeepsAll
+// is ZV_KEEP_FULL_DEMO_CAPTURES, which wins over Keep.
+type CaptureRetention struct {
+	Keep     int  `json:"keep"`
+	Max      int  `json:"max"`
+	KeepsAll bool `json:"keeps_all,omitempty"`
+}
+
+// JobStorage is one job's disk use; Freeable marks kept Full Demo captures a finished render covers.
 type JobStorage struct {
 	ID           string `json:"id"`
 	CaptureBytes int64  `json:"capture_bytes"`

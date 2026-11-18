@@ -1,4 +1,4 @@
-import type { StorageUsage } from './api/storage.ts';
+import type { CaptureRetention, StorageUsage } from './api/storage.ts';
 import { SERVICE_UNAVAILABLE_CODE, type Match } from './api/types.ts';
 import { DELETE_OFFLINE_MESSAGE } from './delete-error.ts';
 import { prettyMapName } from './format.ts';
@@ -19,6 +19,15 @@ export function formatBytes(bytes: number): string {
     unit += 1;
   }
   return `${BYTE_NUMBER.format(unit === 0 ? Math.round(value) : value)} ${BYTE_UNITS[unit]}`;
+}
+
+/** The captures panel's explanation; it never says a render deletes the captures. */
+export function captureRetentionNote(retention: CaptureRetention | null): string {
+  if (retention === null) return 'Las grabaciones de CS2 de cada vídeo largo. Mientras estén guardadas, editarlo solo vuelve a montar.';
+  if (retention.keepsAll) return 'Studio arrancó con ZV_KEEP_FULL_DEMO_CAPTURES y no borra ninguna grabación de CS2 hasta que la borres tú.';
+  if (retention.keep === 0) return 'Studio borra las grabaciones de CS2 en cuanto el vídeo largo está listo. Editarlo volverá a grabar sus rondas.';
+  const which = retention.keep === 1 ? 'del vídeo largo más reciente, así editarlo' : `de los ${retention.keep} vídeos largos más recientes, así editarlos`;
+  return `Studio guarda las grabaciones de CS2 ${which} solo vuelve a montar. Las de los anteriores se borran cuando termina otro vídeo largo.`;
 }
 
 export type FreeableJob = {

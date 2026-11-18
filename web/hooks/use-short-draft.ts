@@ -13,14 +13,18 @@ type ShortDraftOptions = {
   focusIds?: readonly string[];
   /** The length the first auto pick fills. */
   targetSeconds?: number;
+  /** Editar in Mis vídeos: the version's settings, over any saved draft. */
+  seed?: ShortSettings | null;
 };
 
 /** The producer is keyed by matchId. Polls must not reinitialize the user's choices. */
-export function useShortDraft({ matchId, plays, deathPlays = [], focusIds = [], targetSeconds }: ShortDraftOptions) {
+export function useShortDraft({ matchId, plays, deathPlays = [], focusIds = [], targetSeconds, seed = null }: ShortDraftOptions) {
   const [initial] = useState(() => {
+    const validIds = new Set([...plays, ...deathPlays].map((play) => play.id));
+    if (seed) return { settings: seed, validIds, focus: null, seeded: true };
     const base = defaultShortSettings(plays, { deathPlays, targetSeconds });
     const focus = focusIds.length > 0 ? [...focusIds] : null;
-    return { settings: focus ? { ...base, selectedIds: focus } : base, validIds: new Set([...plays, ...deathPlays].map((play) => play.id)), focus };
+    return { settings: focus ? { ...base, selectedIds: focus } : base, validIds, focus, seeded: false };
   });
   const [settings, setSettings] = useState(initial.settings);
   const current = useRef(initial.settings);
@@ -30,7 +34,7 @@ export function useShortDraft({ matchId, plays, deathPlays = [], focusIds = [], 
   const [restored, setRestored] = useState(false);
 
   useEffect(() => {
-    const loaded = loadShortDraft(matchId, initial.validIds);
+    const loaded = initial.seeded ? null : loadShortDraft(matchId, initial.validIds);
     const saved = loaded && initial.focus ? { ...loaded, selectedIds: initial.focus } : loaded;
     current.current = saved ?? initial.settings;
     edited.current = saved !== null;

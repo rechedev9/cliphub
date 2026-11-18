@@ -245,12 +245,14 @@ func TestFullDemoDiscardedCapturesAskForARecapture(t *testing.T) {
 	if err := store.Put(superseded, strings.NewReader("older attempt")); err != nil {
 		t.Fatal(err)
 	}
-	NewRenderWorker(newFakeRepo(), store, RenderWorkerConfig{KeepFullDemoCaptures: true}).discardFullDemoCaptures(id)
+	writeReadyFullDemoRender(t, store, id, time.Now().Add(time.Hour))
+	setCaptureRetention(t, store, 0)
+	NewRenderWorker(newFakeRepo(), store, RenderWorkerConfig{KeepFullDemoCaptures: true}).releaseFullDemoCaptures(context.Background(), id)
 	if exists, err := store.Exists(key); err != nil || !exists {
 		t.Fatalf("%s with KeepFullDemoCaptures: exists = %v, err = %v", key, exists, err)
 	}
 	w := NewRenderWorker(newFakeRepo(), store, RenderWorkerConfig{})
-	w.discardFullDemoCaptures(id)
+	w.releaseFullDemoCaptures(context.Background(), id)
 	for _, clip := range []string{key, superseded} {
 		if exists, err := store.Exists(clip); err != nil || exists {
 			t.Fatalf("%s survived a ready render: exists = %v, err = %v", clip, exists, err)

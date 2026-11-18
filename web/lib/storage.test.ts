@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
 import { DELETE_OFFLINE_MESSAGE } from './delete-error.ts';
-import { formatBytes, freeableJobs, storageLoadErrorMessage, STORAGE_LOAD_ERROR_MESSAGE } from './storage.ts';
+import { captureRetentionNote, formatBytes, freeableJobs, storageLoadErrorMessage, STORAGE_LOAD_ERROR_MESSAGE } from './storage.ts';
 
 const GIB = 1024 ** 3;
 const A = '11111111-1111-4111-8111-111111111111';
@@ -35,6 +35,7 @@ test('freeableJobs keeps jobs whose captures a render covers, biggest first, nam
       { jobId: C, captureBytes: 9 * GIB, renderBytes: 0, freeable: true },
       { jobId: D, captureBytes: 12 * GIB, renderBytes: 0, freeable: false },
     ],
+    captureRetention: null,
   };
   const matches = [
     { id: A, map: 'de_inferno', player: 'ropz' },
@@ -47,7 +48,7 @@ test('freeableJobs keeps jobs whose captures a render covers, biggest first, nam
 });
 
 test('freeableJobs names a match without a player after its map alone', () => {
-  const usage = { totalBytes: 1, jobs: [{ jobId: B, captureBytes: 1, renderBytes: 0, freeable: true }] };
+  const usage = { totalBytes: 1, jobs: [{ jobId: B, captureBytes: 1, renderBytes: 0, freeable: true }], captureRetention: null };
   assert.equal(freeableJobs(usage, [{ id: B, map: 'Mirage' }])[0].label, 'Mirage');
 });
 
@@ -56,4 +57,12 @@ test('storageLoadErrorMessage tells an offline orchestrator apart from other fai
   assert.equal(storageLoadErrorMessage(offline), DELETE_OFFLINE_MESSAGE);
   assert.equal(storageLoadErrorMessage(new Error('upstream error')), STORAGE_LOAD_ERROR_MESSAGE);
   assert.equal(storageLoadErrorMessage(null), STORAGE_LOAD_ERROR_MESSAGE);
+});
+
+test('the captures panel says how many long videos keep their captures and never that a render deletes them', () => {
+  assert.equal(captureRetentionNote({ keep: 3, max: 20, keepsAll: false }), 'Studio guarda las grabaciones de CS2 de los 3 vídeos largos más recientes, así editarlos solo vuelve a montar. Las de los anteriores se borran cuando termina otro vídeo largo.');
+  assert.equal(captureRetentionNote({ keep: 1, max: 20, keepsAll: false }), 'Studio guarda las grabaciones de CS2 del vídeo largo más reciente, así editarlo solo vuelve a montar. Las de los anteriores se borran cuando termina otro vídeo largo.');
+  assert.equal(captureRetentionNote({ keep: 0, max: 20, keepsAll: false }), 'Studio borra las grabaciones de CS2 en cuanto el vídeo largo está listo. Editarlo volverá a grabar sus rondas.');
+  assert.match(captureRetentionNote({ keep: 3, max: 20, keepsAll: true }), /no borra ninguna/);
+  assert.equal(captureRetentionNote(null), 'Las grabaciones de CS2 de cada vídeo largo. Mientras estén guardadas, editarlo solo vuelve a montar.');
 });

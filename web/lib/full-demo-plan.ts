@@ -339,11 +339,11 @@ export function fullDemoPlanEdit(snapshot: FullDemoSnapshot): EditConfig {
   };
 }
 
-function planURL(jobId: string): string {
+function planURL(jobId: string, planId?: string): string {
   if (!UUID.test(jobId)) throw new Error('Partida desconocida.');
-  return `/api/demos/${jobId}/full-demo/plan`;
+  return planId === undefined ? `/api/demos/${jobId}/full-demo/plan` : `/api/demos/${jobId}/full-demo/plans/${planId}`;
 }
-async function responseJSON(response: Response): Promise<unknown> {
+export async function responseJSON(response: Response): Promise<unknown> {
   const value: unknown = await response.json();
   if (!response.ok) {
     const message = record(value) && typeof value.error === 'string' ? value.error : `Solicitud fallida (${response.status}).`;
@@ -351,9 +351,20 @@ async function responseJSON(response: Response): Promise<unknown> {
   }
   return value;
 }
-const envelopeShape = object({ document: nullable(documentShape), defaults: isFullDemoOptions, pro_players: array(proPlayer, 500), compatibility: oneOf('legacy-until-planned-and-approved', 'editorial-v1') }, ['pro_players']);
-export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Promise<Guarded<typeof envelopeShape>> {
-  const value = await responseJSON(await fetch(planURL(jobId), { cache: 'no-store', signal }));
+// `capture` comes with a saved plan: whether rendering it again opens CS2.
+const captureShape = object({ needed: boolean, missing_rounds: array(integer, 1000), space: object({ free_bytes: integer, needed_bytes: integer, short: boolean }) }, ['space']);
+const envelopeShape = object({ document: nullable(documentShape), defaults: isFullDemoOptions, pro_players: array(proPlayer, 500), compatibility: oneOf('legacy-until-planned-and-approved', 'editorial-v1'), capture: captureShape }, ['pro_players', 'capture']);
+export type FullDemoPlanEnvelope = Guarded<typeof envelopeShape>;
+export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Promise<FullDemoPlanEnvelope> {
+  return envelopeFrom(await fetch(planURL(jobId), { cache: 'no-store', signal }));
+}
+/** The plan a finished version rendered, for Editar in Mis vídeos. */
+export async function loadFullDemoPlanVersion({ jobId, planId, signal }: { jobId: string; planId: string; signal?: AbortSignal }): Promise<FullDemoPlanEnvelope> {
+  if (!UUID.test(planId)) throw new Error('Plan desconocido.');
+  return envelopeFrom(await fetch(planURL(jobId, planId), { cache: 'no-store', signal }));
+}
+async function envelopeFrom(response: Response): Promise<FullDemoPlanEnvelope> {
+  const value = await responseJSON(response);
   if (!envelopeShape(value)) throw new Error('El servidor devolvió un plan de demo completa incompatible.');
   return value;
 }

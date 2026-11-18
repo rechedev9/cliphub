@@ -63,6 +63,7 @@ func fullDemoAPIRequest(t *testing.T, h *Handlers, j job.Job, endpoint string, b
 func fullDemoRawAPIRequest(h *Handlers, j job.Job, endpoint string, b []byte) *httptest.ResponseRecorder {
 	router := chi.NewRouter()
 	router.Post("/api/jobs/{id}/full-demo/plan", h.PlanFullDemo)
+	router.Post("/api/jobs/{id}/full-demo/capture-check", h.CheckFullDemoCapture)
 	router.Post("/api/jobs/{id}/generate", h.StartGenerate)
 	router.Post("/api/jobs/{id}/record", h.StartRecording)
 	router.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
