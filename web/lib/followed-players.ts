@@ -44,3 +44,16 @@ export function followedPlayersReducer(state: FollowedPlayersState, action: Acti
         ? { ...player, ...action.player } : player) };
   }
 }
+
+/** A failed follow and where it was asked: the profile of profileID, or the search form in the header. */
+export type FollowFailure = { message: string; profileID?: string };
+
+/** The failure the profile of playerID shows beside its follow control, where the user is looking. */
+export function profileFollowFailure(failure: FollowFailure | null, playerID: string): string | undefined {
+  return failure?.profileID === playerID ? failure.message : undefined;
+}
+
+/** The failure the header shows: only one its own search form asked for. */
+export function headerFollowFailure(failure: FollowFailure | null): string | undefined {
+  return failure !== null && failure.profileID === undefined ? failure.message : undefined;
+}

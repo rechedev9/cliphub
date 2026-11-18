@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { FaceitFollowedPlayer } from './api/faceit.ts';
-import { defaultPlayerTab, followedPlayersReducer, type FollowedPlayersState } from './followed-players.ts';
+import { defaultPlayerTab, followedPlayersReducer, headerFollowFailure, profileFollowFailure, type FollowedPlayersState, type FollowFailure } from './followed-players.ts';
 
 const player = (id: string): FaceitFollowedPlayer => ({ id, nickname: id, profile_url: `https://www.faceit.com/en/players/${id}` });
 
@@ -50,4 +50,15 @@ test('a polled list always takes the followed player\'s stored ELO', () => {
   const live = followedPlayersReducer({ players: [own], selectedID: 'mine' }, { type: 'profile', player: { ...player('mine'), elo: 2000 } });
   const listed = followedPlayersReducer(live, { type: 'listed', players: [{ ...own, elo: 2150 }] });
   assert.deepEqual(listed, { players: [{ ...own, elo: 2150 }], selectedID: 'mine' });
+});
+
+test('a follow refused from a profile shows beside that profile, not in the header out of view', () => {
+  const limit = 'Ya sigues a 20 jugadores, el máximo. Deja de seguir a alguno para añadir a otro.';
+  const fromProfile: FollowFailure = { message: limit, profileID: 'pro' };
+  assert.equal(profileFollowFailure(fromProfile, 'pro'), limit);
+  assert.equal(profileFollowFailure(fromProfile, 'other'), undefined, 'another profile does not inherit it');
+  assert.equal(headerFollowFailure(fromProfile), undefined);
+  const fromForm: FollowFailure = { message: limit };
+  assert.equal(headerFollowFailure(fromForm), limit, 'the search form in the header keeps its own message');
+  assert.equal(profileFollowFailure(fromForm, 'pro'), undefined);
 });

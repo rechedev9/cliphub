@@ -12,13 +12,15 @@ import { CountryFlag } from './country-flag';
 import { PlayerAvatar } from './player-avatar';
 import { LevelBadge } from './level-badge';
 
-export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow, place }: {
+export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow, followError, place }: {
   player: FaceitFollowedPlayer;
   /** Present for a followed player. */
   onUnfollow?: () => void;
   unfollowing: boolean;
   /** Present for a ranking player the user does not follow: adds them to Seguidos. */
   onFollow?: () => void;
+  /** Why the follow asked from this profile failed, such as the follow limit; shown beside its control. */
+  followError?: string;
   /** The player's place in the ranking open in the rail, such as "Puesto 3 en España". */
   place?: string;
 }): ReactNode {
@@ -78,6 +80,7 @@ export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow, place
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {followError ? <p role="alert" className="basis-full text-body-sm text-destructive sm:text-right">{followError}</p> : null}
     </header>
   );
 }
