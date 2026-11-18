@@ -27,3 +27,17 @@ export function longVideoKindHref({ jobId, kind, query }: { jobId: string; kind:
   const base = `${FLOW_HREF[PRODUCE_FORMAT.full]}/${encodeURIComponent(jobId)}`;
   return params.size > 0 ? `${base}?${params.toString()}` : base;
 }
+
+const VARIANT_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+/** Crear horizontal in Mis vídeos: the summary producer of a Short's job, seeded from that Short. */
+export function horizontalHref({ jobId, variant }: { jobId: string; variant: string }): string {
+  const params = new URLSearchParams({ [PRODUCE_QUERY.video]: LONG_VIDEO_KIND.summary, [PRODUCE_QUERY.horizontal]: variant });
+  return `${FLOW_HREF[PRODUCE_FORMAT.full]}/${encodeURIComponent(jobId)}?${params.toString()}`;
+}
+
+/** The Short variant a summary is made from, or null. */
+export function parseHorizontalParam(query: ProduceQuery): string | null {
+  const variant = query[PRODUCE_QUERY.horizontal];
+  return typeof variant === 'string' && VARIANT_RE.test(variant) ? variant : null;
+}

@@ -126,6 +126,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/jobs/{id}/renders/{variant}/covers/{name}", h.GetRenderCover)
 	r.Get("/api/jobs/{id}/renders/{variant}/captions/{name}", h.GetRenderCaption)
 	r.Get("/api/jobs/{id}/renders/{variant}/versions", h.ListRenderVersions)
+	r.Get("/api/jobs/{id}/renders/{variant}/horizontal", h.GetHorizontalDraft)
 	r.Delete("/api/jobs/{id}/renders/{variant}/versions/{revision}", h.DeleteRenderVersion)
 	r.Get("/api/jobs/{id}/renders/{variant}/revisions/{revision}/gallery", h.GetRenderRevisionGallery)
 	r.Get("/api/jobs/{id}/renders/{variant}/revisions/{revision}/videos/{name}", h.GetRenderRevisionVideo)

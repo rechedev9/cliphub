@@ -54,9 +54,10 @@ export function flowHref(format: ProduceFormat, opts: { job?: string; from?: str
 /**
  * `?series=` returns to the bo3/bo5 series after producing. `?rondas=` comes
  * from the analysis area: the video covers only those source rounds.
- * `?editar=<variant>&version=<revision>` is Editar in Mis vídeos. `?video=` is the long video's kind.
+ * `?editar=<variant>&version=<revision>` is Editar in Mis vídeos. `?video=` is the long video's kind,
+ * and `?horizontal=<variant>` the Short a summary is made from (Crear horizontal).
  */
-export const PRODUCE_QUERY = { series: 'series', rounds: 'rondas', edit: 'editar', version: 'version', video: 'video' } as const;
+export const PRODUCE_QUERY = { series: 'series', rounds: 'rondas', edit: 'editar', version: 'version', video: 'video', horizontal: 'horizontal' } as const;
 
 const VARIANT_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 

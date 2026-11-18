@@ -74,6 +74,7 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   if (parsed.victimReplay && isVictimReplaySpeed(edit.victim_replay_speed)) parsed.victimReplaySpeed = edit.victim_replay_speed;
   if (isPreRollSeconds(edit.pre_roll_seconds) && edit.pre_roll_seconds !== DEFAULT_PRE_ROLL_SECONDS) parsed.preRollSeconds = edit.pre_roll_seconds;
   if (isCaptureHud(edit.capture_hud)) parsed.captureHud = edit.capture_hud;
+  if (edit.portrait_safe_killfeed === true) parsed.portraitSafeKillfeed = true;
   if (edit.play_badges === true) parsed.playBadges = true;
   if (edit.win_probability === true) parsed.winProbability = true;
   if (edit.player_labels === true) parsed.playerLabels = true;

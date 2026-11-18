@@ -22,7 +22,7 @@ var captureHUDOptions = []shortOption{
 	{ID: "clean", Label: "POV limpio", Description: "Sin HUD ni kill feed"},
 }
 
-// resolveSummaryChoices sets the pre-roll, with 3 s unset as Studio sends it, and the capture style of a 16:9 video.
+// resolveSummaryChoices sets the pre-roll, with 3 s unset as Studio sends it, and the capture style and kill feed framing of a 16:9 video.
 func resolveSummaryChoices(edit *tuiclient.ShortEdit, c shortChoices) error {
 	if c.PreRollSeconds != nil {
 		id, err := pickOption("pre_roll_seconds", strconv.Itoa(*c.PreRollSeconds), preRollOptions)
@@ -32,6 +32,12 @@ func resolveSummaryChoices(edit *tuiclient.ShortEdit, c shortChoices) error {
 		if id != "3" {
 			edit.PreRollSeconds = *c.PreRollSeconds
 		}
+	}
+	if orDefault(c.PortraitSafeKillfeed, false) {
+		if edit.Format != "landscape-16x9" || c.CaptureHUD == "clean" {
+			return errors.New("portrait_safe_killfeed needs format landscape-16x9 and a capture with the kill feed; a Short frames it from its preset")
+		}
+		edit.PortraitSafeKillfeed = true
 	}
 	if c.CaptureHUD == "" {
 		return nil
@@ -58,6 +64,9 @@ func describeSummaryChoices(e tuiclient.ShortEdit) string {
 		if o.ID == e.CaptureHUD {
 			out += ", captura " + o.Label
 		}
+	}
+	if e.PortraitSafeKillfeed {
+		out += ", kill feed donde la deja el Short"
 	}
 	return out
 }

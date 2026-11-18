@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Download, Ellipsis, FolderOpen, History, Music, Pencil, Play, UploadCloud } from 'lucide-react';
+import { Download, Ellipsis, FolderOpen, History, Music, Pencil, Play, RectangleHorizontal, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { prettifyMap } from '@/lib/api/map';
@@ -12,6 +12,7 @@ import { CLIP_SIZE, OUTPUT_TYPE, type ClipSize, type HubModel } from '@/lib/clip
 import { CREATE_AGAIN_LABEL, videoDisplayTitle, videoKind, type VideoKind } from '@/lib/clips/results';
 import { ORPHAN_MATCH_SEGMENT, PRODUCE_FORMAT, editVideoHref, matchHref, produceHref, publishHref } from '@/lib/clips/routes';
 import { renderVideoFile } from '@/lib/clips/video-file';
+import { horizontalHref } from '@/lib/produce/long-video-kind';
 import { timeAgo } from '@/lib/format';
 import { PUBLISH_PREP_HINT, PUBLISH_PREP_LABEL } from '@/lib/publish-actions';
 import { cn } from '@/lib/utils';
@@ -180,6 +181,8 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
   const produceFormat = isShort ? PRODUCE_FORMAT.short : PRODUCE_FORMAT.full;
   // Editar reopens the producer with this video's options; a recovered render has no intent to edit.
   const editTarget = matchId !== null && video.variant !== undefined && video.recovered !== true ? { jobId: matchId, variant: video.variant } : null;
+  // Crear horizontal: a 16:9 summary of a Short's kills; a death reel or Auto-Shorts has none.
+  const horizontalFrom = video.editConfig?.format === 'short-9x16' && video.editConfig.deathReel !== true && video.editConfig.separateShorts !== true;
   const player = clip.match?.player ?? video.targetName;
   const title = videoDisplayTitle(video, player);
   const canReveal = playback !== null && video.jobId !== undefined;
@@ -258,6 +261,14 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
                   <History aria-hidden />
                   Versiones
                 </DropdownMenuItem>
+                {horizontalFrom ? (
+                  <DropdownMenuItem asChild>
+                    <Link href={horizontalHref({ jobId: editTarget.jobId, variant: editTarget.variant })}>
+                      <RectangleHorizontal aria-hidden />
+                      Crear horizontal
+                    </Link>
+                  </DropdownMenuItem>
+                ) : null}
               </>
             ) : null}
             {matchId === null ? null : (
