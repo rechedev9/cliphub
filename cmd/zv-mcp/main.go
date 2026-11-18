@@ -126,6 +126,12 @@ design, style, names, portrait, brand kit, transitions, overlays, sound and clip
 captures of the newest rendered Full Demos (storage_usage capture_retention, set_capture_retention, default 3).
 To edit a Short, call generate_short with a version's segment_ids and the changed options: its recorded plays are
 reused, and only new plays, another style HUD or framing, the death reel or a new victim replay open CS2 again.
+Crear horizontal (the 16:9 version of a finished Short): horizontal_draft with the Short's job_id and variant returns the
+generate_short arguments of the summary of the same plays in the same order, with the Short's capture style (capture_hud
+or native_hud, and portrait_safe_killfeed), pre-roll, music and levels, effects, transitions and texts; dropped names the
+9:16 options it leaves out, which the user should hear. needs_capture says whether generate_short opens CS2: the Short's
+recorded plays are reused, and only missing_segment_ids, another capture_hud or new plays record again. The horizontal is
+a new video of the same job and the Short does not change; a death reel or Auto-Shorts has none.
 delete_video deletes a demo video and delete_stream_video one stream video, as Borrar on its card.
 In hosts with MCP Apps, import_demo, wait_for_demo, wait_for_job, generate_short, render_full_demo,
 retry_video, change_video_music and the stream renders show the user a live progress bar that
@@ -228,8 +234,10 @@ Series of the library (BO1, BO2, BO3, BO5 with teams and veto; a BO2 does not pl
 update_library_series, delete_library_series and set_match_series. The maps of one FACEIT match
 (files 1-<match id>-<map>-1.dem) join one series on their own once two are analysed. team_maps reads a team's map record
 over every match (sides_unread: older ones past 200 analyses count in the results, not the sides) and, with the scope keys of the bar, the matches per map (scope_matches); simulate_veto recommends a veto against a rival.
-FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows,
-follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account).
+FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows (Seguidos, at most 20),
+follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account). faceit_ranking is the ranking
+selector of Jugadores FACEIT: the top 100 of a country (ISO code), a region (EU, NA, SA, OCE, SEA) or a zone (cis, latam), by pages;
+rank is the place in that list, stale says FACEIT failed and the stored copy of fetched_at answered.
 Lineups pro are grenades pros repeat in pro matches, served by the ClipHub community server:
 list_pro_lineup_maps, find_pro_lineups (kind, side, landing and throw callouts, insta, video for lineups with a recorded clip), get_pro_lineup
 (setpos, teams, partners, examples, and clip_url: the recorded throw with the thrower's keys, once one is

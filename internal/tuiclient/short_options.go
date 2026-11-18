@@ -78,6 +78,8 @@ type ShortEdit struct {
 	PreRollSeconds int `json:"pre_roll_seconds,omitempty"`
 	// CaptureHUD records a 16:9 video in a Short capture profile (gameplay, deathnotices, clean); empty keeps the preset's.
 	CaptureHUD string `json:"capture_hud,omitempty"`
+	// PortraitSafeKillfeed keeps, in a 16:9 video, the kill feed framing of the Short it is made from.
+	PortraitSafeKillfeed bool `json:"portrait_safe_killfeed,omitempty"`
 }
 
 // ShortMusic is the "music" object of a Short: a track id from ListSongs and its mix.

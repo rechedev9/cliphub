@@ -28,7 +28,7 @@ import {
   PRODUCE_POLL_OFFLINE,
   PRODUCE_SUMMARY_NO_KILLS,
 } from '@/lib/produce/copy';
-import { LONG_VIDEO_KIND, longVideoKind, longVideoKindHref, longVideoKinds } from '@/lib/produce/long-video-kind';
+import { LONG_VIDEO_KIND, longVideoKind, longVideoKindHref, longVideoKinds, parseHorizontalParam } from '@/lib/produce/long-video-kind';
 import { isSeriesId } from '@/lib/series-status';
 import { cn } from '@/lib/utils';
 import {
@@ -47,6 +47,7 @@ import { FullPovProducer } from '@/components/produce/full-pov-producer';
 import { LongVideoKindSwitch } from '@/components/produce/long-video-kind-switch';
 import { useProduceBack } from '@/components/produce/use-produce-back';
 import { useShortEditSeed } from '@/hooks/use-short-edit-seed';
+import { useHorizontalDraft } from '@/hooks/use-horizontal-draft';
 
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
@@ -65,6 +66,8 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
   const videoEdit = parseVideoEditParam(query);
   // A Full Demo version reopens its plan inside its own producer; Shorts and resúmenes need their settings first.
   const shortEdit = useShortEditSeed(id, videoEdit?.variant === FULL_DEMO_CAPTURE_VARIANT ? null : videoEdit);
+  // Crear horizontal: the summary producer starts from a Short's plays; Editar wins when both are asked.
+  const horizontal = useHorizontalDraft(id, format === PRODUCE_FORMAT.full && videoEdit === null ? parseHorizontalParam(query) : null);
   const router = useRouter();
 
   const [match, setMatch] = useState<Match | null>(null);
@@ -260,11 +263,14 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         {shortEdit.status === 'failed' ? (
           <p role="alert" className="text-body-sm text-warning">No se pudo abrir esa versión del vídeo: el productor empieza con la selección habitual.</p>
         ) : null}
+        {horizontal.status === 'failed' ? (
+          <p role="alert" className="text-body-sm text-warning">No se pudo preparar el horizontal de ese Short: el productor empieza con la selección habitual.</p>
+        ) : null}
         {/* Mounted through an empty poll so a blip never drops the user's selection. */}
-        {shortPlanJobId === id && shortEdit.status !== 'loading' ? (
+        {shortPlanJobId === id && shortEdit.status !== 'loading' && horizontal.status !== 'loading' ? (
           <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
             <ShortProducer key={id} matchId={id} match={match} plays={plays} deathPlays={deathPlays} seriesId={seriesId} focusRounds={focusRounds} editSeed={shortEdit.seed}
-              format={format === PRODUCE_FORMAT.full ? 'landscape-16x9' : 'short-9x16'} />
+              horizontal={horizontal.draft} format={format === PRODUCE_FORMAT.full ? 'landscape-16x9' : 'short-9x16'} />
           </div>
         ) : null}
       </>

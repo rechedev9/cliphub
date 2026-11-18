@@ -7,6 +7,14 @@ import (
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
+func TestHorizontalDraftNamesThePlayerCardsItLeavesOut(t *testing.T) {
+	draft := decodeDraft(t, map[string]any{"preset": "gameplay-pov-60", "segment_ids": []string{"seg-001"}, "dropped": []string{"player_cards"},
+		"edit": map[string]any{"format": "landscape-16x9", "killEffect": "clean", "transition": "cut"}})
+	if out := describeHorizontalDraft("job-1", draft); !strings.Contains(out.Summary, "Cartas de jugador") {
+		t.Fatalf("summary %q does not name the player cards", out.Summary)
+	}
+}
+
 func TestShortOptionsCarryThePlayerCardSlots(t *testing.T) {
 	edit, err := resolveEdit(shortChoices{playerCardChoices: playerCardChoices{OpeningCard: " Carta ", EndCard: "mvp", CoverCard: "ficha"}})
 	if err != nil {

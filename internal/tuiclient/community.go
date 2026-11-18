@@ -18,7 +18,6 @@ type FaceitPlayer struct {
 	Region     string    `json:"region"`
 	SkillLevel int       `json:"skill_level"`
 	ELO        int       `json:"elo"`
-	Seeded     bool      `json:"seeded"`
 	FollowedAt time.Time `json:"followed_at"`
 }
 
@@ -61,7 +60,7 @@ func (c *Client) FaceitMatches(ctx context.Context, playerID string, limit int) 
 	return out.Matches, err
 }
 
-// FaceitFollows is the Jugadores list: followed players and the seeded ones.
+// FaceitFollows is the Seguidos list of Jugadores FACEIT.
 type FaceitFollows struct {
 	Enabled bool           `json:"enabled"`
 	Players []FaceitPlayer `json:"players"`
@@ -86,6 +85,48 @@ func (c *Client) FollowFaceitPlayer(ctx context.Context, nickname string) (Facei
 // UnfollowFaceitPlayer removes a player from the list.
 func (c *Client) UnfollowFaceitPlayer(ctx context.Context, playerID string) error {
 	return c.doJSON(ctx, http.MethodDelete, "/api/faceit/followed/"+url.PathEscape(playerID), nil, nil)
+}
+
+// FaceitRankingRequest is one page of a country, region or zone ranking.
+type FaceitRankingRequest struct {
+	Kind   string
+	Code   string
+	Offset int
+	Limit  int
+}
+
+// FaceitRankedPlayer is one place of a FACEIT ranking.
+type FaceitRankedPlayer struct {
+	Rank       int    `json:"rank"`
+	ID         string `json:"id"`
+	Nickname   string `json:"nickname"`
+	Country    string `json:"country"`
+	Region     string `json:"region"`
+	SkillLevel int    `json:"skill_level"`
+	ELO        int    `json:"elo"`
+	ProfileURL string `json:"profile_url"`
+}
+
+// FaceitRanking is a page of a ranking and when Studio read it from FACEIT.
+type FaceitRanking struct {
+	Kind      string               `json:"kind"`
+	Code      string               `json:"code"`
+	Total     int                  `json:"total"`
+	FetchedAt time.Time            `json:"fetched_at"`
+	Stale     bool                 `json:"stale"`
+	StaleCode string               `json:"stale_code"`
+	Players   []FaceitRankedPlayer `json:"players"`
+}
+
+// FaceitRanking returns a page of the FACEIT top 100 of a country, region or zone.
+func (c *Client) FaceitRanking(ctx context.Context, req FaceitRankingRequest) (FaceitRanking, error) {
+	params := map[string]string{"kind": req.Kind, "code": req.Code, "offset": strconv.Itoa(req.Offset)}
+	if req.Limit > 0 {
+		params["limit"] = strconv.Itoa(req.Limit)
+	}
+	var out FaceitRanking
+	err := c.getJSON(ctx, "/api/faceit/rankings"+query(params), &out)
+	return out, err
 }
 
 // LinkPlayerFaceit looks a library player's SteamID64 up on FACEIT and stores the account.

@@ -30,6 +30,7 @@ func TestFaceitHandlersRequireConfiguration(t *testing.T) {
 		{method: http.MethodGet, path: "/api/faceit/followed", want: http.StatusServiceUnavailable},
 		{method: http.MethodPost, path: "/api/faceit/followed", body: `{"nickname":"m0NESY"}`, want: http.StatusServiceUnavailable},
 		{method: http.MethodDelete, path: "/api/faceit/followed/player-1", want: http.StatusServiceUnavailable},
+		{method: http.MethodGet, path: "/api/faceit/rankings?kind=country&code=es", want: http.StatusServiceUnavailable},
 	}
 	for _, test := range tests {
 		t.Run(test.method+" "+test.path, func(t *testing.T) {
@@ -131,8 +132,8 @@ func TestFaceitLookupAndFollowFlow(t *testing.T) {
 	if !listBody.Enabled || len(listBody.Players) < 1 || listBody.Players[0].ID != "player-1" {
 		t.Fatalf("followed = %#v", listBody)
 	}
-	if seededCount(listBody.Players) != len(faceit.DefaultSeed().Players) {
-		t.Fatalf("seeded after follow = %d, want the default zone rosters still projected", seededCount(listBody.Players))
+	if len(listBody.Players) != 1 {
+		t.Fatalf("followed = %#v, want only the followed player", listBody.Players)
 	}
 
 	matches := httptest.NewRecorder()
@@ -159,11 +160,8 @@ func TestFaceitLookupAndFollowFlow(t *testing.T) {
 	if err := json.Unmarshal(empty.Body.Bytes(), &emptyBody); err != nil {
 		t.Fatal(err)
 	}
-	if containsPlayer(emptyBody.Players, "player-1") {
-		t.Fatalf("players after unfollow still include the follow: %s", empty.Body.String())
-	}
-	if seededCount(emptyBody.Players) != len(faceit.DefaultSeed().Players) {
-		t.Fatalf("players after unfollow = %s, want the default seed roster", empty.Body.String())
+	if len(emptyBody.Players) != 0 {
+		t.Fatalf("players after unfollow = %s, want nobody", empty.Body.String())
 	}
 }
 
@@ -250,7 +248,8 @@ func TestFollowedListWorksWithoutAPIKey(t *testing.T) {
 	}
 }
 
-func TestFollowedListSeedsDefaultRosterOnColdStart(t *testing.T) {
+// Studio no longer lists zone players of its own: a fresh install follows nobody.
+func TestFollowedListStartsEmpty(t *testing.T) {
 	t.Parallel()
 	follows, err := faceit.NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), time.Now)
 	if err != nil {
@@ -259,154 +258,41 @@ func TestFollowedListSeedsDefaultRosterOnColdStart(t *testing.T) {
 	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithFaceit(nil, follows))
 	rw := httptest.NewRecorder()
 	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/faceit/followed", nil))
-	if rw.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", rw.Code, rw.Body.String())
-	}
-	var body struct {
-		Enabled bool                 `json:"enabled"`
-		Players []listedFaceitPlayer `json:"players"`
-	}
-	if err := json.Unmarshal(rw.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
-	}
-	seed := faceit.DefaultSeed()
-	if body.Enabled || len(body.Players) != len(seed.Players) {
-		t.Fatalf("cold-start list = %#v, want %d seeded rows without an API key", body, len(seed.Players))
-	}
-	for i, want := range seed.Players {
-		got := body.Players[i]
-		if got.ID != want.PlayerID || got.Nickname != want.Nickname || !got.Seeded {
-			t.Fatalf("players[%d] = %#v, want seeded %#v", i, got, want)
-		}
+	if rw.Code != http.StatusOK || !strings.Contains(rw.Body.String(), `"players":[]`) {
+		t.Fatalf("status = %d body=%s, want an empty list", rw.Code, rw.Body.String())
 	}
 }
 
-func TestUnfollowDismissesSeededPlayer(t *testing.T) {
+// Every Studio start rereads the followed profiles in the background, and
+// only those: no ranking is read until the page asks for one, and a list read
+// never reaches FACEIT.
+func TestStartupRefreshUpdatesFollowedPlayersOnly(t *testing.T) {
 	t.Parallel()
-	follows, err := faceit.NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), time.Now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithFaceit(nil, follows))
-	router := Routes(h)
-
-	first := faceit.DefaultSeed().Players[0]
-	rw := httptest.NewRecorder()
-	router.ServeHTTP(rw, httptest.NewRequest(http.MethodDelete, "/api/faceit/followed/"+first.PlayerID, nil))
-	if rw.Code != http.StatusNoContent {
-		t.Fatalf("dismiss status = %d body=%s", rw.Code, rw.Body.String())
-	}
-
-	listed := httptest.NewRecorder()
-	router.ServeHTTP(listed, httptest.NewRequest(http.MethodGet, "/api/faceit/followed", nil))
-	var body struct {
-		Players []listedFaceitPlayer `json:"players"`
-	}
-	if err := json.Unmarshal(listed.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
-	}
-	if containsPlayer(body.Players, first.PlayerID) {
-		t.Fatalf("dismissed seed %q still listed: %#v", first.PlayerID, body.Players)
-	}
-	if len(body.Players) != len(faceit.DefaultSeed().Players)-1 {
-		t.Fatalf("players after dismiss = %d, want %d", len(body.Players), len(faceit.DefaultSeed().Players)-1)
-	}
-
-	raw, err := follows.List()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(raw) != 0 {
-		t.Fatalf("followed.json after seed dismiss = %#v, want empty", raw)
-	}
-}
-
-// Unfollowing a zone player the user had followed must put them back in the
-// zone list, not dismiss them from it.
-func TestUnfollowReturnsAFollowedZonePlayerToTheirZone(t *testing.T) {
-	t.Parallel()
-	follows, err := faceit.NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), time.Now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithFaceit(nil, follows))
-	router := Routes(h)
-
-	first := faceit.DefaultSeed().Players[0]
-	if _, err := follows.Follow(faceit.Player{ID: first.PlayerID, Nickname: first.Nickname}); err != nil {
-		t.Fatal(err)
-	}
-	list := func() []listedFaceitPlayer {
-		rw := httptest.NewRecorder()
-		router.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/faceit/followed", nil))
-		var body struct {
-			Players []listedFaceitPlayer `json:"players"`
-		}
-		if err := json.Unmarshal(rw.Body.Bytes(), &body); err != nil {
-			t.Fatal(err)
-		}
-		return body.Players
-	}
-	if players := list(); players[0].ID != first.PlayerID || players[0].Seeded || players[0].Zone != first.Zone {
-		t.Fatalf("followed zone player = %#v, want an own follow that keeps zone %q", players[0], first.Zone)
-	}
-
-	rw := httptest.NewRecorder()
-	router.ServeHTTP(rw, httptest.NewRequest(http.MethodDelete, "/api/faceit/followed/"+first.PlayerID, nil))
-	if rw.Code != http.StatusNoContent {
-		t.Fatalf("unfollow status = %d body=%s", rw.Code, rw.Body.String())
-	}
-	players := list()
-	if len(players) != len(faceit.DefaultSeed().Players) || players[0].ID != first.PlayerID || !players[0].Seeded || players[0].Zone != first.Zone {
-		t.Fatalf("after unfollow = %#v, want the player back as a seeded %s row", players[0], first.Zone)
-	}
-}
-
-// The Players list used to show the ELO zones_default.json shipped with and
-// the ELO a followed player had when followed, forever, and a start inside the
-// ladder reuse window kept the zone ELOs of the last ladder read. Every startup
-// refresh must update both in the background; a list read must never reach
-// FACEIT, and a failed refresh must keep the last good roster.
-func TestStartupRefreshUpdatesPlayersEloAndListReadsStayLocal(t *testing.T) {
-	t.Parallel()
-	var faceitHits atomic.Int32
-	var failRankings atomic.Bool
+	var faceitHits, rankingHits atomic.Int32
 	release := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		faceitHits.Add(1)
 		switch {
-		case strings.HasPrefix(r.URL.Path, "/rankings/games/cs2/regions/"):
-			<-release
-			if failRankings.Load() {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			items := `[]`
-			if strings.HasSuffix(r.URL.Path, "/EU") && r.URL.Query().Get("country") == "ua" {
-				items = `[{"player_id":"cis-1","nickname":"nipl","country":"ua","position":1,"faceit_elo":4801,"game_skill_level":10}]`
-			}
-			_, _ = w.Write([]byte(`{"items":` + items + `}`))
+		case strings.HasPrefix(r.URL.Path, "/rankings/"):
+			rankingHits.Add(1)
+			_, _ = w.Write([]byte(`{"items":[]}`))
 		case r.URL.Path == "/players/player-1":
+			<-release
 			// The default FACEIT avatar: the Steam one stored at follow time must survive.
 			_, _ = w.Write([]byte(`{"player_id":"player-1","nickname":"m0NESY-renamed","country":"ru",
 				"avatar":"https://assets.faceit-cdn.net/avatars/3b536dda-e3dd-40cd-baed-7e66ab050c8f.png",
 				"games":{"cs2":{"skill_level":10,"faceit_elo":4123}}}`))
-		case r.URL.Path == "/players/cis-1":
-			_, _ = w.Write([]byte(`{"player_id":"cis-1","nickname":"nipl","games":{"cs2":{"skill_level":10,"faceit_elo":4850}}}`))
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	t.Cleanup(server.Close)
 
-	now := faceit.DefaultSeed().GeneratedAt.Add(faceitZoneRosterMaxAge)
-	client, err := faceit.New(faceit.Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client(),
-		Now: func() time.Time { return now }})
+	client, err := faceit.New(faceit.Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := t.TempDir()
-	follows, err := faceit.NewFollowStore(filepath.Join(dir, "followed.json"), time.Now)
+	follows, err := faceit.NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,106 +300,46 @@ func TestStartupRefreshUpdatesPlayersEloAndListReadsStayLocal(t *testing.T) {
 	if _, err := follows.Follow(faceit.Player{ID: "player-1", Nickname: "m0NESY", ELO: 3000, Avatar: steamAvatar}); err != nil {
 		t.Fatal(err)
 	}
-	seeds, err := faceit.NewSeedStore(filepath.Join(dir, "zones.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithFaceit(client, follows), WithFaceitSeeds(seeds))
+	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithFaceit(client, follows))
 	router := Routes(h)
-	list := func() (bool, time.Time, []listedFaceitPlayer) {
+	list := func() (bool, []listedFaceitPlayer) {
 		t.Helper()
 		rw := httptest.NewRecorder()
 		router.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/faceit/followed", nil))
 		var body struct {
 			Refreshing bool                 `json:"refreshing"`
-			UpdatedAt  time.Time            `json:"updated_at"`
 			Players    []listedFaceitPlayer `json:"players"`
 		}
 		if err := json.Unmarshal(rw.Body.Bytes(), &body); err != nil {
 			t.Fatalf("list body %s: %v", rw.Body.String(), err)
 		}
-		return body.Refreshing, body.UpdatedAt, body.Players
+		return body.Refreshing, body.Players
 	}
 
-	// A list read alone serves the embedded roster and never calls FACEIT.
-	if refreshing, updatedAt, _ := list(); refreshing || !updatedAt.Equal(faceit.DefaultSeed().GeneratedAt) || faceitHits.Load() != 0 {
-		t.Fatalf("list before startup refresh: refreshing=%v updated_at=%v hits=%d", refreshing, updatedAt, faceitHits.Load())
+	if refreshing, _ := list(); refreshing || faceitHits.Load() != 0 {
+		t.Fatalf("list before the startup refresh: refreshing=%v hits=%d", refreshing, faceitHits.Load())
 	}
-
 	h.StartFaceitRosterRefresh()
-	if refreshing, _, _ := list(); !refreshing {
+	if refreshing, _ := list(); !refreshing {
 		t.Fatal("list during the startup refresh reports refreshing=false")
 	}
 	close(release)
 	h.faceitRoster.wg.Wait()
 
-	refreshing, updatedAt, players := list()
-	if refreshing || !updatedAt.Equal(now) {
-		t.Fatalf("list after refresh: refreshing=%v updated_at=%v, want the fresh roster at %v", refreshing, updatedAt, now)
+	refreshing, players := list()
+	if refreshing || len(players) != 1 || players[0].Nickname != "m0NESY-renamed" || players[0].ELO != 4123 || players[0].Avatar != steamAvatar {
+		t.Fatalf("after refresh: refreshing=%v players=%#v, want the live profile", refreshing, players)
 	}
-	if len(players) != 2 || players[0].ID != "player-1" || players[0].Nickname != "m0NESY-renamed" || players[0].ELO != 4123 ||
-		players[0].Avatar != steamAvatar {
-		t.Fatalf("followed row = %#v, want the live profile", players)
-	}
-	if players[1].ID != "cis-1" || !players[1].Seeded || players[1].ELO != 4801 {
-		t.Fatalf("seeded row = %#v, want the live zone ladder", players[1])
-	}
-	hits := faceitHits.Load()
-	if list(); faceitHits.Load() != hits {
-		t.Fatalf("list after refresh reached FACEIT: hits %d -> %d", hits, faceitHits.Load())
-	}
-
-	// A restart inside the reuse window skips the ladders but still rereads
-	// every profile: the followed one and the seeded one, by id.
-	generatedAt := now
-	now = now.Add(time.Hour)
-	hits = faceitHits.Load()
-	h.StartFaceitRosterRefresh()
-	h.faceitRoster.wg.Wait()
-	if got := faceitHits.Load() - hits; got != 2 {
-		t.Fatalf("restart inside the window made %d FACEIT requests, want the two profiles", got)
-	}
-	if _, updatedAt, players := list(); !updatedAt.Equal(now) || players[1].ID != "cis-1" || players[1].ELO != 4850 {
-		t.Fatalf("after restart updated_at=%v players=%#v, want this start's seeded ELO", updatedAt, players)
-	}
-
-	// A failed refresh (a later start) keeps the last good roster.
-	refreshedAt := now
-	now = generatedAt.Add(faceitZoneRosterMaxAge)
-	failRankings.Store(true)
-	h.StartFaceitRosterRefresh()
-	h.faceitRoster.wg.Wait()
-	if _, updatedAt, players := list(); !updatedAt.Equal(refreshedAt) || players[1].ELO != 4850 {
-		t.Fatalf("after failed refresh updated_at=%v players=%#v, want the last roster", updatedAt, players)
+	if faceitHits.Load() != 1 || rankingHits.Load() != 0 {
+		t.Fatalf("startup refresh made %d requests, %d of them rankings; want the one profile", faceitHits.Load(), rankingHits.Load())
 	}
 }
 
 type listedFaceitPlayer struct {
 	ID       string `json:"id"`
 	Nickname string `json:"nickname"`
-	Seeded   bool   `json:"seeded"`
-	Zone     string `json:"zone"`
 	ELO      int    `json:"elo"`
 	Avatar   string `json:"avatar"`
-}
-
-func seededCount(players []listedFaceitPlayer) int {
-	n := 0
-	for _, player := range players {
-		if player.Seeded {
-			n++
-		}
-	}
-	return n
-}
-
-func containsPlayer(players []listedFaceitPlayer, id string) bool {
-	for _, player := range players {
-		if player.ID == id {
-			return true
-		}
-	}
-	return false
 }
 
 func TestProxyFaceitAvatarOnlyFetchesAllowedAvatarHosts(t *testing.T) {

@@ -2,6 +2,7 @@ package renderplan
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -28,6 +29,20 @@ func TestPlayerCardSlotsTravelInTheEditRequest(t *testing.T) {
 	}
 	if body, _ := json.Marshal(DefaultEditRequest()); strings.Contains(string(body), "opening_card") || strings.Contains(string(body), "end_card") || strings.Contains(string(body), "cover_card") {
 		t.Fatalf("an edit without cards should carry no slot: %s", body)
+	}
+}
+
+func TestTheHorizontalOfAShortLeavesItsPlayerCardsOut(t *testing.T) {
+	short := NormalizeEditRequest(EditRequest{Format: FormatShort9x16, OpeningCard: "carta", EndCard: "mvp", CoverCard: "ficha"})
+	edit, dropped := HorizontalEdit(short, ShortCapture{HUDMode: "deathnotices"})
+	if err := edit.Validate(); err != nil {
+		t.Fatalf("the 16:9 summary of a Short with player cards is refused: %v", err)
+	}
+	if !slices.Contains(dropped, "player_cards") {
+		t.Fatalf("dropped = %v, want the player cards named", dropped)
+	}
+	if _, dropped := HorizontalEdit(NormalizeEditRequest(EditRequest{Format: FormatShort9x16}), ShortCapture{HUDMode: "deathnotices"}); slices.Contains(dropped, "player_cards") {
+		t.Fatalf("a Short without cards lists them as dropped: %v", dropped)
 	}
 }
 
