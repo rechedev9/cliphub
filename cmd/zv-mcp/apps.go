@@ -77,7 +77,7 @@ func registerApps(server *mcp.Server, s *studio) {
 	}
 
 	mcp.AddTool(server, &mcp.Tool{Name: "choose_short_options", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}, Meta: appToolMeta(shortOptionsAppURI),
-		Description: "Let the user choose how a Short looks (format, kill effect, transition, music, extras) in an interactive picker, for the plays segment_ids of job_id. " +
+		Description: "Let the user choose how a Short looks (format, kill effect, transition, music, extras, player cards) in an interactive picker, for the plays segment_ids of job_id. " +
 			"Without a UI the result lists the choices: ask the user in chat, then call generate_short. With the picker, the user's Generar button starts generate_short itself, so do not call it again."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in chooseShortIn) (*mcp.CallToolResult, chooseShortOut, error) {
 			if err := checkUUID("job_id", in.JobID); err != nil {
@@ -95,7 +95,8 @@ func registerApps(server *mcp.Server, s *studio) {
 				return nil, chooseShortOut{}, toolError(err)
 			}
 			out := chooseShortOut{JobID: in.JobID, SegmentIDs: in.SegmentIDs, shortOptionsOut: shortOptionsOut{
-				Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions, Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies}}
+				Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions, Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies,
+				PlayerCards: playerCardOptions()}}
 			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: describeShortChoices(out.shortOptionsOut)}}}, out, nil
 		})
 
@@ -202,6 +203,7 @@ func describeShortChoices(o shortOptionsOut) string {
 		fmt.Fprintf(&b, "- %s%s (%s): %s\n", t.ID, defaultMark(t.Default), t.Label, t.Description)
 	}
 	list("Victim replay speed, with victim_replay", "victim_replay_speed", o.ReplaySpeed)
+	list("Player cards of a one-player short-9x16, none by default; end_card replaces stats_card and cover_card needs cover", "opening_card, end_card, cover_card", o.PlayerCards)
 	b.WriteString("\nWith music: music_volume 5 to 100 (default 100), game_volume 0 to 100 (default 70).\n")
 	b.WriteString("With intro or outro: intro_text, outro_text (empty keeps the generated text).\n")
 	b.WriteString("\nAffiliate banner (banner_family and banner_style; none by default; banner_code, the user's own code, is required; banner_start_seconds 0, banner_end_seconds 4):\n")

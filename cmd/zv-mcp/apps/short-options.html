@@ -16,9 +16,15 @@
 /*BRIDGE_JS*/
 </script>
 <script>
-const state = { jobId: "", segmentIds: [], data: null, choice: {}, audio: null, playing: "", loading: "", wanted: "", sources: {}, busy: false, started: "", approval: null };
+const state = { jobId: "", segmentIds: [], data: null, choice: {}, audio: null, playing: "", loading: "", wanted: "", sources: {}, busy: false, started: "", approval: null, cardsReason: "" };
 const root = document.getElementById("root");
 const SINGLE = [["format", "Formato"], ["kill_effect", "Efecto de baja"], ["transition", "Transición"]];
+// The player card slots of generate_short; a card is for a one-player vertical Short.
+const CARD_SLOTS = [
+  ["opening_card", "Carta de apertura", "Cubre los primeros segundos en lugar de la tarjeta de apertura"],
+  ["end_card", "Carta de cierre", "Cierra el Short en lugar de la tarjeta de estadísticas"],
+  ["cover_card", "Carta de portada", "Va sobre la portada"],
+];
 
 function defaults(data) {
   const choice = { music: "" };
@@ -29,12 +35,23 @@ function defaults(data) {
   for (const t of data.toggles) choice[t.id] = Boolean(t.default);
   const speed = (data.replay_speed || []).find((o) => o.default);
   choice.victim_replay_speed = speed ? speed.id : "";
+  for (const [field] of CARD_SLOTS) choice[field] = "";
   return choice;
+}
+
+// Keeps the choices generate_short accepts together: the end card replaces the stats card, the cover
+// card needs a cover, and the cards need the vertical format.
+function settle(choice, field, value) {
+  if (field === "end_card" && value) choice.stats_card = false;
+  if (field === "stats_card" && value) choice.end_card = "";
+  if (field === "cover" && !value) choice.cover_card = "";
+  if (field === "format" && value !== "short-9x16") for (const [slot] of CARD_SLOTS) choice[slot] = "";
 }
 
 // Any change to the options invalidates a pending approval, which is bound to them.
 function change(field, value) {
   state.choice[field] = value;
+  settle(state.choice, field, value);
   state.approval = null;
   state.started = "";
   render();
@@ -59,9 +76,38 @@ function render() {
       data.replay_speed.map((o) => el("button", { class: "card", type: "button", role: "radio", "data-key": "victim_replay_speed:" + o.id, "aria-checked": String(choice.victim_replay_speed === o.id), onclick: () => change("victim_replay_speed", o.id) },
         el("b", {}, o.label), el("span", {}, o.description))))]);
   }
+  sections.push(...cardSections());
   root.replaceChildren(...sections.flat(), footer());
   const again = focused ? root.querySelector('[data-key="' + focused + '"]') : null;
   if (again) again.focus();
+}
+
+function cardSections() {
+  const { data, choice } = state;
+  const templates = data.player_cards || [];
+  if (choice.format !== "short-9x16" || templates.length === 0) return [];
+  if (state.cardsReason) return [[el("h2", {}, "Cartas de jugador"), el("p", { class: "sub" }, state.cardsReason)]];
+  const none = { id: "", label: "Ninguna", description: "Sin carta" };
+  return CARD_SLOTS.filter(([field]) => field !== "cover_card" || choice.cover).map(([field, title, note]) => [
+    el("h2", {}, title),
+    el("p", { class: "sub" }, note),
+    el("div", { class: "grid", role: "radiogroup", "aria-label": title },
+      [none, ...templates].map((o) => el("button", { class: "card", type: "button", role: "radio", "data-key": field + ":" + o.id, "aria-checked": String(choice[field] === o.id), onclick: () => change(field, o.id) },
+        el("b", {}, o.label), el("span", {}, o.description)))),
+  ]);
+}
+
+// Asks Studio whether the job's Shorts can carry a card, so the picker says why not instead of offering them.
+function loadCardAvailability() {
+  state.cardsReason = "";
+  if (!bridge.canCallTools() || !state.jobId) return;
+  bridge.callTool("get_player_card", { job_id: state.jobId }).then((res) => {
+    const out = res.structuredContent;
+    if (res.isError || !out || out.available) return;
+    state.cardsReason = out.reason || "Este Short no puede llevar cartas de jugador.";
+    for (const [field] of CARD_SLOTS) state.choice[field] = "";
+    render();
+  }).catch(() => {});
 }
 
 function musicRows() {
@@ -169,6 +215,7 @@ function request() {
   if (c.music) args.music = c.music;
   for (const t of state.data.toggles) args[t.id] = Boolean(c[t.id]);
   if (c.victim_replay && c.victim_replay_speed) args.victim_replay_speed = Number(c.victim_replay_speed);
+  for (const [field] of CARD_SLOTS) if (c[field]) args[field] = c[field];
   return args;
 }
 
@@ -225,6 +272,7 @@ function show(data, jobId, segmentIds) {
   state.segmentIds = segmentIds && segmentIds.length ? segmentIds : state.segmentIds;
   state.choice = defaults(data);
   render();
+  loadCardAvailability();
 }
 
 function setPlain(text) {
