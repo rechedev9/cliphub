@@ -24,7 +24,6 @@ type demoTranscript struct {
 	Voice       string                      `json:"voice"`
 	Lines       []library.DemoVoiceLine     `json:"lines"`
 	Transcriber teamvoice.TranscriberStatus `json:"transcriber"`
-	Translator  teamvoice.TranscriberStatus `json:"translator"`
 }
 
 func busyTranscript(state string) bool {
@@ -35,7 +34,7 @@ func busyTranscript(state string) bool {
 func (h *Handlers) demoVoiceState(ctx context.Context, matchID uuid.UUID) (library.DemoVoiceTranscript, error) {
 	t, err := h.libraryRepo.GetDemoVoice(ctx, matchID)
 	if errors.Is(err, library.ErrNotFound) {
-		return library.DemoVoiceTranscript{MatchID: matchID, State: library.TranscriptNone, English: library.TranscriptNone}, nil
+		return library.DemoVoiceTranscript{MatchID: matchID, State: library.TranscriptNone}, nil
 	}
 	return t, err
 }
@@ -49,9 +48,8 @@ func (h *Handlers) demoTranscriptOf(ctx context.Context, m library.Match) (demoT
 	if err != nil {
 		return demoTranscript{}, err
 	}
-	out := demoTranscript{DemoVoiceTranscript: t, Voice: h.demoVoiceStatusOf(ctx, m).State, Lines: lines,
-		Transcriber: h.transcriberStatus(), Translator: h.translatorStatus()}
-	if busyTranscript(t.State) || busyTranscript(t.English) {
+	out := demoTranscript{DemoVoiceTranscript: t, Voice: h.demoVoiceStatusOf(ctx, m).State, Lines: lines, Transcriber: h.transcriberStatus()}
+	if busyTranscript(t.State) {
 		out.Progress = h.voice.progressOf(m.DemoID)
 	}
 	return out, nil
@@ -76,12 +74,11 @@ func (h *Handlers) GetLibraryMatchDemoTranscript(w http.ResponseWriter, r *http.
 }
 
 type demoTranscribeRequest struct {
-	Force   bool `json:"force"`
-	English bool `json:"english"`
+	Force bool `json:"force"`
 }
 
 // TranscribeLibraryMatchDemoVoice handles POST /api/library/matches/{id}/voice/demo/transcript: queues
-// the transcription of the demo's voices, and their English with english. A done one is reused unless force.
+// the transcription of the demo's voices. A done one is reused unless force.
 func (h *Handlers) TranscribeLibraryMatchDemoVoice(w http.ResponseWriter, r *http.Request) {
 	m, ok := h.voiceMatch(w, r)
 	if !ok {
@@ -89,15 +86,13 @@ func (h *Handlers) TranscribeLibraryMatchDemoVoice(w http.ResponseWriter, r *htt
 	}
 	var req demoTranscribeRequest
 	if err := decodeSingleJSONBody(w, r, &req, true); err != nil && !errors.Is(err, io.EOF) {
-		writeError(w, http.StatusBadRequest, "body must be a JSON object with force and english")
+		writeError(w, http.StatusBadRequest, "body must be a JSON object with force")
 		return
 	}
 	queued, err := h.queueDemoTranscript(r.Context(), m, req)
 	switch {
 	case errors.Is(err, errNoTranscriber):
 		writeCodedError(w, http.StatusConflict, codeNoTranscriber, "local transcription is not installed; install it first")
-	case errors.Is(err, errNoTranslator):
-		writeCodedError(w, http.StatusConflict, codeNoTranslator, "the English translation is not installed; install it first")
 	case errors.Is(err, errNoDemoVoice):
 		writeCodedError(w, http.StatusNotFound, codeNoVoice, "this demo recorded no team voice")
 	case errors.Is(err, errNoDemoFile):
@@ -116,20 +111,16 @@ func (h *Handlers) TranscribeLibraryMatchDemoVoice(w http.ResponseWriter, r *htt
 // Why a demo transcript cannot be queued.
 var (
 	errNoTranscriber = errors.New("local transcription is not installed")
-	errNoTranslator  = errors.New("the English translation is not installed")
 	errNoDemoVoice   = errors.New("the demo recorded no team voice")
 	errNoDemoFile    = errors.New("the demo file is not on this PC")
 	errQueueFull     = errors.New("the transcription queue is full")
 )
 
-// queueDemoTranscript queues what req asks that is not done yet, extracting the demo's voices
-// first when needed; queued also covers one already waiting or running.
+// queueDemoTranscript queues the transcription unless one is done and req does not force it, extracting
+// the demo's voices first when needed; queued also covers one already waiting or running.
 func (h *Handlers) queueDemoTranscript(ctx context.Context, m library.Match, req demoTranscribeRequest) (bool, error) {
 	if h.transcriberStatus().State != teamvoice.TranscriberInstalled {
 		return false, errNoTranscriber
-	}
-	if req.English && h.translatorStatus().State != teamvoice.TranscriberInstalled {
-		return false, errNoTranslator
 	}
 	switch voice := h.demoVoiceStatusOf(ctx, m); {
 	case voice.State == demoVoiceReady && len(voice.Tracks) == 0:
@@ -138,20 +129,14 @@ func (h *Handlers) queueDemoTranscript(ctx context.Context, m library.Match, req
 		return false, errNoDemoFile
 	}
 	cur, err := h.demoVoiceState(ctx, m.ID)
-	if err != nil || busyTranscript(cur.State) || busyTranscript(cur.English) {
+	if err != nil || busyTranscript(cur.State) {
 		return err == nil, err
 	}
-	next := cur
-	if req.Force || cur.State != library.TranscriptReady {
-		next.State, next.Error, next.Model = library.TranscriptQueued, "", teamvoice.Pinned.ModelName
-		next.English, next.EnglishError = library.TranscriptNone, ""
-	}
-	if req.English && (next.State == library.TranscriptQueued || cur.English != library.TranscriptReady) {
-		next.English, next.EnglishError = library.TranscriptQueued, ""
-	}
-	if next == cur {
+	if !req.Force && cur.State == library.TranscriptReady {
 		return false, nil
 	}
+	next := cur
+	next.State, next.Error, next.Model = library.TranscriptQueued, "", teamvoice.Pinned.ModelName
 	if err := h.libraryRepo.SetDemoVoice(ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: next}); err != nil {
 		return false, err
 	}
@@ -165,8 +150,7 @@ func (h *Handlers) queueDemoTranscript(ctx context.Context, m library.Match, req
 }
 
 type demoLinePatch struct {
-	Text    *string `json:"text"`
-	English *string `json:"english"`
+	Text *string `json:"text"`
 }
 
 // PatchLibraryMatchDemoTranscriptLine handles PATCH /api/library/matches/{id}/voice/demo/transcript/lines/{line}:
@@ -181,26 +165,16 @@ func (h *Handlers) PatchLibraryMatchDemoTranscriptLine(w http.ResponseWriter, r 
 		return
 	}
 	var req demoLinePatch
-	if err := decodeSingleJSONBody(w, r, &req, true); err != nil || (req.Text == nil && req.English == nil) {
-		writeError(w, http.StatusBadRequest, "send text or english")
+	if err := decodeSingleJSONBody(w, r, &req, true); err != nil || req.Text == nil {
+		writeError(w, http.StatusBadRequest, "send text")
 		return
 	}
-	patch := library.DemoVoiceLinePatch{MatchID: m.ID, ID: lineID}
-	for _, field := range []struct {
-		in  *string
-		out **string
-	}{{req.Text, &patch.Text}, {req.English, &patch.English}} {
-		if field.in == nil {
-			continue
-		}
-		text := strings.Join(strings.Fields(*field.in), " ")
-		if text == "" || len([]rune(text)) > library.MaxVoiceLineRunes {
-			writeError(w, http.StatusBadRequest, "a phrase takes 1 to 2000 characters")
-			return
-		}
-		*field.out = &text
+	text := strings.Join(strings.Fields(*req.Text), " ")
+	if text == "" || len([]rune(text)) > library.MaxVoiceLineRunes {
+		writeError(w, http.StatusBadRequest, "a phrase takes 1 to 2000 characters")
+		return
 	}
-	line, err := h.libraryRepo.UpdateDemoVoiceLine(r.Context(), patch)
+	line, err := h.libraryRepo.UpdateDemoVoiceLine(r.Context(), library.DemoVoiceLinePatch{MatchID: m.ID, ID: lineID, Text: text})
 	if err != nil {
 		writeLibraryError(w, "correct demo transcript line", err)
 		return
@@ -220,7 +194,7 @@ func (h *Handlers) requeueDemoTranscripts(ctx context.Context) {
 	}
 }
 
-// transcribeDemo transcribes, then translates, what the match's transcript state asks for.
+// transcribeDemo transcribes the demo voices of a match whose transcript is queued or running.
 func (h *Handlers) transcribeDemo(ctx context.Context, matchID uuid.UUID) {
 	m, err := h.libraryRepo.GetMatch(ctx, matchID)
 	if err != nil {
@@ -237,18 +211,12 @@ func (h *Handlers) transcribeDemo(ctx context.Context, matchID uuid.UUID) {
 	if err == nil && busyTranscript(state.State) {
 		state, err = h.transcribeDemoTracks(ctx, demoTracks{match: m, index: idx, state: state})
 	}
-	if err == nil && busyTranscript(state.English) {
-		state, err = h.translateDemoTracks(ctx, demoTracks{match: m, index: idx, state: state})
-	}
 	if err == nil || ctx.Err() != nil {
 		return
 	}
 	log.Printf("httpapi: transcribe the demo voices of match %s: %v", matchID, err)
 	if busyTranscript(state.State) {
 		state.State, state.Error = library.TranscriptFailed, "La transcripción falló en este PC; studio.log tiene el detalle."
-	}
-	if busyTranscript(state.English) {
-		state.English, state.EnglishError = library.TranscriptFailed, "La traducción falló en este PC; studio.log tiene el detalle."
 	}
 	if err := h.libraryRepo.SetDemoVoice(context.WithoutCancel(ctx), library.DemoVoiceUpdate{MatchID: matchID, Transcript: state}); err != nil {
 		log.Printf("httpapi: mark demo transcript of match %s failed: %v", matchID, err)
@@ -346,76 +314,4 @@ func (g demoLineIDs) next(phrase string) uuid.UUID {
 	}
 	// The same phrase heard twice at once still needs its own primary key.
 	return uuid.NewSHA1(g.match, []byte(fmt.Sprintf("%s#%d", phrase, n)))
-}
-
-// translateDemoTracks translates each player's phrases by their own stretch of audio.
-func (h *Handlers) translateDemoTracks(ctx context.Context, in demoTracks) (library.DemoVoiceTranscript, error) {
-	state, m := in.state, in.match
-	if h.voice.deps.Translator == nil {
-		return state, errors.New("no translator")
-	}
-	state.English = library.TranscriptRunning
-	if err := h.libraryRepo.SetDemoVoice(ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: state}); err != nil {
-		return state, err
-	}
-	lines, err := h.libraryRepo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}, All: true})
-	if err != nil {
-		return state, err
-	}
-	english := map[uuid.UUID]string{}
-	share := 1 / float64(max(1, len(in.index.Tracks)))
-	for i, t := range in.index.Tracks {
-		var ids []uuid.UUID
-		var spans []library.VoiceSpan
-		for _, l := range lines {
-			if l.SteamID64 == t.SteamID64 {
-				ids, spans = append(ids, l.ID), append(spans, library.VoiceSpan{StartMS: l.StartMS, EndMS: l.EndMS})
-			}
-		}
-		if len(spans) == 0 {
-			continue
-		}
-		path, err := h.demoTrackPath(m.DemoID, t)
-		if err != nil {
-			return state, err
-		}
-		got, err := h.voice.deps.Translator.Translate(ctx, teamvoice.TranslateJob{Audio: path, Spans: spans,
-			Progress: func(p float64) { h.voice.setProgress(m.DemoID, (float64(i)+p)*share) }})
-		if err != nil {
-			return state, err
-		}
-		for j, text := range got {
-			if j < len(ids) {
-				english[ids[j]] = text
-			}
-		}
-	}
-	state.English, state.EnglishError = library.TranscriptReady, ""
-	return state, h.libraryRepo.SetDemoVoice(ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: state, English: english})
-}
-
-// GetVoiceTranslator handles GET /api/library/voice/translator.
-func (h *Handlers) GetVoiceTranslator(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, h.translatorStatus())
-}
-
-func (h *Handlers) translatorStatus() teamvoice.TranscriberStatus {
-	if h.voice == nil || h.voice.deps.Translator == nil {
-		return teamvoice.TranscriberStatus{State: teamvoice.TranscriberUnsupported, Version: teamvoice.PinnedTranslator.Version, Model: teamvoice.PinnedTranslator.ModelName}
-	}
-	return h.voice.deps.Translator.Status()
-}
-
-// InstallVoiceTranslator handles POST /api/library/voice/translator/install: fetches the pinned
-// whisper.cpp build and medium model in the background, about 550 MB.
-func (h *Handlers) InstallVoiceTranslator(w http.ResponseWriter, _ *http.Request) {
-	if h.voice == nil || h.voice.deps.Translator == nil {
-		writeCodedError(w, http.StatusServiceUnavailable, codeVoiceUnavailable, "the English translation is not available in this Studio")
-		return
-	}
-	if err := h.voice.deps.Translator.Install(h.voice.lifetime()); err != nil {
-		writeCodedError(w, http.StatusConflict, "unsupported", err.Error())
-		return
-	}
-	writeJSON(w, http.StatusAccepted, h.translatorStatus())
 }

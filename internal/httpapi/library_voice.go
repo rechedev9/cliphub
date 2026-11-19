@@ -51,19 +51,11 @@ type VoiceTranscriber interface {
 	Transcribe(ctx context.Context, job teamvoice.TranscribeJob) ([]teamvoice.Line, error)
 }
 
-// VoiceTranslator is local speech to English; teamvoice.Translator runs whisper.cpp for it.
-type VoiceTranslator interface {
-	Status() teamvoice.TranscriberStatus
-	Install(ctx context.Context) error
-	Translate(ctx context.Context, job teamvoice.TranslateJob) ([]string, error)
-}
-
 // VoiceDeps enables team voice: Dir holds each match's tracks under the profile's data folder.
 type VoiceDeps struct {
 	Dir         string
 	Media       VoiceMedia
 	Transcriber VoiceTranscriber
-	Translator  VoiceTranslator
 	DemoVoice   DemoVoiceExtractor
 	Plugin      VoicePluginDeps
 }
@@ -144,7 +136,6 @@ const (
 	codeNotAudio         = "not_audio"
 	codeTooManyTracks    = "too_many_tracks"
 	codeNoTranscriber    = "transcriber_not_installed"
-	codeNoTranslator     = "translator_not_installed"
 	codeQueueFull        = "queue_full"
 	codeNoDemoFile       = "no_demo_file"
 )

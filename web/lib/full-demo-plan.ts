@@ -128,7 +128,8 @@ const optionsShape = object({
   bumpers: bumperOptions,
   // Mirrors recapplan.Options.Rounds: Go omits it when every round is in the video.
   rounds: array(integerRange(1, 999), 60),
-  // Mirrors recapplan.SubtitleOptions: render only, and Go omits it when off.
+  // Mirrors recapplan.SubtitleOptions: render only, and Go omits it when off. english is the retired
+  // translation of 5.25.0 plans: still readable, but currentFullDemoOptions drops it.
   subtitles: object({ enabled: boolean, english: boolean, hidden: array(string, 2000) }, ['english', 'hidden']),
 }, ['transitions', 'bumpers', 'sponsor', 'rounds', 'subtitles']);
 export type FullDemoOptions = Guarded<typeof optionsShape>;
@@ -208,7 +209,7 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
 function subtitleOptions(subtitles: FullDemoOptions['subtitles']): Pick<FullDemoOptions, 'subtitles'> {
   if (!subtitles?.enabled) return {};
   const hidden = [...new Set((subtitles.hidden ?? []).map((id) => id.toLowerCase()))].sort();
-  return { subtitles: { enabled: true, ...(subtitles.english ? { english: true } : {}), ...(hidden.length > 0 ? { hidden } : {}) } };
+  return { subtitles: { enabled: true, ...(hidden.length > 0 ? { hidden } : {}) } };
 }
 
 /** Go's omitzero drops false switches and empty names, so the draft does the same and an approved plan stays clean. */

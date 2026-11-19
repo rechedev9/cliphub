@@ -47,12 +47,6 @@ func (r *MemoryLibraryRepository) SetDemoVoice(ctx context.Context, update libra
 		}
 		slices.SortStableFunc(v.lines, demoVoiceLineCompare)
 	}
-	if update.English != nil {
-		v.lines = slices.Clone(v.lines)
-		for i := range v.lines {
-			v.lines[i].English = update.English[v.lines[i].ID]
-		}
-	}
 	r.demoVoices[update.MatchID] = v
 	return nil
 }
@@ -93,12 +87,7 @@ func (r *MemoryLibraryRepository) UpdateDemoVoiceLine(ctx context.Context, patch
 		return library.DemoVoiceLine{}, library.ErrNotFound
 	}
 	v.lines = slices.Clone(v.lines)
-	if patch.Text != nil {
-		v.lines[i].Text, v.lines[i].Corrected = *patch.Text, true
-	}
-	if patch.English != nil {
-		v.lines[i].English = *patch.English
-	}
+	v.lines[i].Text, v.lines[i].Corrected = patch.Text, true
 	r.demoVoices[patch.MatchID] = v
 	return v.lines[i], nil
 }
@@ -111,7 +100,7 @@ func (r *MemoryLibraryRepository) ListDemoVoices(ctx context.Context, states []s
 	defer r.mu.RUnlock()
 	out := []library.DemoVoiceTranscript{}
 	for _, v := range r.demoVoices {
-		if slices.Contains(states, v.transcript.State) || slices.Contains(states, v.transcript.English) {
+		if slices.Contains(states, v.transcript.State) {
 			out = append(out, v.transcript)
 		}
 	}

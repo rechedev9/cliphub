@@ -50,7 +50,7 @@ function subtitlesValue(options: FullDemoOptions): string {
   const subtitles = options.subtitles;
   if (!subtitles?.enabled || !options.audio.voice.enabled) return 'No';
   const hidden = subtitles.hidden?.length ?? 0;
-  return `${subtitles.english ? 'En inglés' : 'Sí'}${hidden > 0 ? `, ${hidden} ${hidden === 1 ? 'frase oculta' : 'frases ocultas'}` : ''}`;
+  return `Sí${hidden > 0 ? `, ${hidden} ${hidden === 1 ? 'frase oculta' : 'frases ocultas'}` : ''}`;
 }
 
 function sourceValue(options: FullDemoOptions): string {

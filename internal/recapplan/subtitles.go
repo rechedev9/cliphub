@@ -11,12 +11,13 @@ import (
 // MaxHiddenSubtitles bounds the phrases one Full Demo hides.
 const MaxHiddenSubtitles = 2000
 
-// SubtitleOptions burn the team comms transcript, in English with English, leaving out Hidden
+// SubtitleOptions burn the team comms transcript in the spoken language, leaving out Hidden
 // phrase IDs. They only change the render, so turning them on keeps the capture.
 type SubtitleOptions struct {
-	Enabled bool     `json:"enabled"`
-	English bool     `json:"english,omitempty"`
-	Hidden  []string `json:"hidden,omitempty"`
+	Enabled bool `json:"enabled"`
+	// LegacyEnglish is the retired translation switch of Studio 5.25.0 plans, kept so their hash holds; the render ignores it.
+	LegacyEnglish bool     `json:"english,omitempty"`
+	Hidden        []string `json:"hidden,omitempty"`
 }
 
 // canonicalSubtitles drops subtitles that are off and sorts the hidden IDs, so one choice has one plan hash.
@@ -28,7 +29,7 @@ func canonicalSubtitles(s *SubtitleOptions) *SubtitleOptions {
 	for _, id := range s.Hidden {
 		hidden = append(hidden, strings.ToLower(strings.TrimSpace(id)))
 	}
-	return &SubtitleOptions{Enabled: true, English: s.English, Hidden: slices.Compact(slices.Sorted(slices.Values(hidden)))}
+	return &SubtitleOptions{Enabled: true, Hidden: slices.Compact(slices.Sorted(slices.Values(hidden)))}
 }
 
 func (o Options) validateSubtitles() error {
@@ -37,8 +38,8 @@ func (o Options) validateSubtitles() error {
 		return nil
 	}
 	switch {
-	case !s.Enabled && (s.English || len(s.Hidden) > 0):
-		return fmt.Errorf("subtitles.english and subtitles.hidden need subtitles.enabled")
+	case !s.Enabled && len(s.Hidden) > 0:
+		return fmt.Errorf("subtitles.hidden needs subtitles.enabled")
 	case s.Enabled && !o.Audio.Voice.Enabled:
 		return fmt.Errorf("subtitles need the team voices in the video")
 	case len(s.Hidden) > MaxHiddenSubtitles:

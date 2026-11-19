@@ -236,7 +236,7 @@ test('a reel read back after a reload still matches its ready render, so CS2 doe
       name: 'Crear horizontal of a Kill Feed Short',
       edit: {
         ...DEFAULT_EDIT_CONFIG, format: 'landscape-16x9', killEffect: 'clean', transition: 'cut', captureHud: 'deathnotices',
-        portraitSafeKillfeed: true, voiceComms: true, voiceVolume: 0.6, subtitles: true, subtitlesEnglish: true, subtitlesHidden: ['line-b', 'line-a'],
+        portraitSafeKillfeed: true, voiceComms: true, voiceVolume: 0.6, subtitles: true, subtitlesHidden: ['line-b', 'line-a'],
       },
     },
     {

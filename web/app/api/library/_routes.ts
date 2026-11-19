@@ -241,8 +241,6 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['voice', 'search'], query: VOICE_SEARCH_QUERY, response: json(VOICE_SEARCH_KEYS) },
   { method: 'GET', segments: ['voice', 'transcriber'], response: json(TRANSCRIBER_KEYS) },
   { method: 'POST', segments: ['voice', 'transcriber', 'install'], response: json(TRANSCRIBER_KEYS) },
-  { method: 'GET', segments: ['voice', 'translator'], response: json(TRANSCRIBER_KEYS) },
-  { method: 'POST', segments: ['voice', 'translator', 'install'], response: json(TRANSCRIBER_KEYS) },
   { method: 'PUT', segments: ['matches', UUID, 'voice', 'speakers'], body: fields(VOICE_SPEAKERS_FIELDS), response: json(VOICE_KEYS) },
   { method: 'GET', segments: ['voice', 'recordings'], response: json(RECORDING_LIST_KEYS) },
   { method: 'POST', segments: ['voice', 'recordings', RECORDING_ID, 'attach'], body: fields(RECORDING_ATTACH_FIELDS), response: json(RECORDING_KEYS) },

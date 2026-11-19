@@ -41,7 +41,7 @@ type VoiceTranscript struct {
 	Progress  float64   `json:"progress,omitempty"`
 }
 
-// VoiceTranscriber is a local speech install: the transcriber or the English translator.
+// VoiceTranscriber is the local transcription install.
 type VoiceTranscriber struct {
 	State         string `json:"state"`
 	Version       string `json:"version"`

@@ -12,16 +12,16 @@ import (
 	"github.com/rechedev9/cliphub/internal/library"
 )
 
-const demoVoiceColumns = `SELECT match_id, state, model, error, english, english_error, updated_at FROM library_demo_voice`
+const demoVoiceColumns = `SELECT match_id, state, model, error, updated_at FROM library_demo_voice`
 
-const demoVoiceLineColumns = `SELECT id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, corrected, english
+const demoVoiceLineColumns = `SELECT id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, corrected
 	FROM library_demo_voice_lines`
 
 func scanDemoVoice(row interface{ Scan(...any) error }) (library.DemoVoiceTranscript, error) {
 	var t library.DemoVoiceTranscript
 	var id string
 	var at int64
-	if err := row.Scan(&id, &t.State, &t.Model, &t.Error, &t.English, &t.EnglishError, &at); err != nil {
+	if err := row.Scan(&id, &t.State, &t.Model, &t.Error, &at); err != nil {
 		return t, err
 	}
 	var err error
@@ -33,7 +33,7 @@ func scanDemoVoice(row interface{ Scan(...any) error }) (library.DemoVoiceTransc
 func scanDemoVoiceLine(row interface{ Scan(...any) error }) (library.DemoVoiceLine, error) {
 	var l library.DemoVoiceLine
 	var id, matchID string
-	if err := row.Scan(&id, &matchID, &l.SteamID64, &l.Name, &l.TeamKey, &l.StartMS, &l.EndMS, &l.Tick, &l.Round, &l.Text, &l.Corrected, &l.English); err != nil {
+	if err := row.Scan(&id, &matchID, &l.SteamID64, &l.Name, &l.TeamKey, &l.StartMS, &l.EndMS, &l.Tick, &l.Round, &l.Text, &l.Corrected); err != nil {
 		return l, err
 	}
 	var err error
@@ -62,34 +62,24 @@ func (r *SQLiteLibraryRepository) SetDemoVoice(ctx context.Context, update libra
 		if exists == 0 {
 			return library.ErrNotFound
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO library_demo_voice (match_id, state, model, error, english, english_error, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(match_id) DO UPDATE SET state = excluded.state, model = excluded.model, error = excluded.error,
-			english = excluded.english, english_error = excluded.english_error, updated_at = excluded.updated_at`,
-			id, t.State, t.Model, t.Error, t.English, t.EnglishError, millis(libraryNow())); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO library_demo_voice (match_id, state, model, error, updated_at)
+			VALUES (?, ?, ?, ?, ?) ON CONFLICT(match_id) DO UPDATE SET state = excluded.state, model = excluded.model, error = excluded.error,
+			updated_at = excluded.updated_at`,
+			id, t.State, t.Model, t.Error, millis(libraryNow())); err != nil {
 			return fmt.Errorf("store demo voice: %w", err)
 		}
-		if update.Lines != nil {
-			if _, err := tx.ExecContext(ctx, `DELETE FROM library_demo_voice_lines WHERE match_id = ?`, id); err != nil {
-				return err
-			}
-			for _, l := range *update.Lines {
-				if _, err := tx.ExecContext(ctx, `INSERT INTO library_demo_voice_lines
-					(id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, text_key, corrected, english)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					l.ID.String(), id, l.SteamID64, l.Name, l.TeamKey, l.StartMS, l.EndMS, l.Tick, l.Round, l.Text, voiceLineKey(l.Text), l.Corrected, l.English); err != nil {
-					return fmt.Errorf("store demo voice line: %w", err)
-				}
-			}
-		}
-		if update.English == nil {
+		if update.Lines == nil {
 			return nil
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE library_demo_voice_lines SET english = '' WHERE match_id = ?`, id); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM library_demo_voice_lines WHERE match_id = ?`, id); err != nil {
 			return err
 		}
-		for lineID, english := range update.English {
-			if _, err := tx.ExecContext(ctx, `UPDATE library_demo_voice_lines SET english = ? WHERE match_id = ? AND id = ?`, english, id, lineID.String()); err != nil {
-				return fmt.Errorf("store demo voice translation: %w", err)
+		for _, l := range *update.Lines {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO library_demo_voice_lines
+				(id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, text_key, corrected)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				l.ID.String(), id, l.SteamID64, l.Name, l.TeamKey, l.StartMS, l.EndMS, l.Tick, l.Round, l.Text, voiceLineKey(l.Text), l.Corrected); err != nil {
+				return fmt.Errorf("store demo voice line: %w", err)
 			}
 		}
 		return nil
@@ -132,15 +122,8 @@ func (r *SQLiteLibraryRepository) ListDemoVoiceLines(ctx context.Context, filter
 func (r *SQLiteLibraryRepository) UpdateDemoVoiceLine(ctx context.Context, patch library.DemoVoiceLinePatch) (library.DemoVoiceLine, error) {
 	var out library.DemoVoiceLine
 	err := r.inTx(ctx, func(tx *sql.Tx) error {
-		sets, args := []string{"id = id"}, []any{}
-		if patch.Text != nil {
-			sets, args = append(sets, "text = ?", "text_key = ?", "corrected = 1"), append(args, *patch.Text, voiceLineKey(*patch.Text))
-		}
-		if patch.English != nil {
-			sets, args = append(sets, "english = ?"), append(args, *patch.English)
-		}
-		res, err := tx.ExecContext(ctx, `UPDATE library_demo_voice_lines SET `+strings.Join(sets, ", ")+` WHERE match_id = ? AND id = ?`,
-			append(args, patch.MatchID.String(), patch.ID.String())...)
+		res, err := tx.ExecContext(ctx, `UPDATE library_demo_voice_lines SET text = ?, text_key = ?, corrected = 1 WHERE match_id = ? AND id = ?`,
+			patch.Text, voiceLineKey(patch.Text), patch.MatchID.String(), patch.ID.String())
 		if err != nil {
 			return err
 		}
@@ -158,14 +141,11 @@ func (r *SQLiteLibraryRepository) ListDemoVoices(ctx context.Context, states []s
 	if len(states) == 0 {
 		return out, nil
 	}
-	args := make([]any, 0, 2*len(states))
-	for range 2 {
-		for _, s := range states {
-			args = append(args, s)
-		}
+	args := make([]any, 0, len(states))
+	for _, s := range states {
+		args = append(args, s)
 	}
-	in := placeholders(len(states))
-	rows, err := r.db.QueryContext(ctx, demoVoiceColumns+` WHERE state IN (`+in+`) OR english IN (`+in+`) ORDER BY match_id`, args...)
+	rows, err := r.db.QueryContext(ctx, demoVoiceColumns+` WHERE state IN (`+placeholders(len(states))+`) ORDER BY match_id`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list demo voices: %w", err)
 	}

@@ -100,6 +100,7 @@ func run() error {
 	if n, err := httpapi.PruneBundledMapPictures(cfg.DataDir); err != nil || n > 0 {
 		log.Printf("game cache: removed %d old map pictures (%v)", n, err)
 	}
+	removeRetiredWhisper(cfg.DataDir)
 	observability, err := obs.InitializeDefault()
 	if err != nil {
 		return fmt.Errorf("observability: %w", err)

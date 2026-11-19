@@ -7,15 +7,12 @@ import (
 )
 
 // DemoVoiceTranscript is the transcription of the voices a demo recorded, one per player of a team.
-// English is the state of the optional translation beside it.
 type DemoVoiceTranscript struct {
-	MatchID      uuid.UUID `json:"match_id"`
-	State        string    `json:"state"`
-	Model        string    `json:"model,omitempty"`
-	Error        string    `json:"error,omitempty"`
-	English      string    `json:"english"`
-	EnglishError string    `json:"english_error,omitempty"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	MatchID   uuid.UUID `json:"match_id"`
+	State     string    `json:"state"`
+	Model     string    `json:"model,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // DemoVoiceLine is one phrase a player said, on the demo's clock: StartMS is demo time, Tick and Round place it.
@@ -31,25 +28,21 @@ type DemoVoiceLine struct {
 	Round     int       `json:"round"`
 	Text      string    `json:"text"`
 	// Corrected marks text a person fixed; a new transcription replaces it.
-	Corrected bool   `json:"corrected"`
-	English   string `json:"english,omitempty"`
+	Corrected bool `json:"corrected"`
 }
 
-// DemoVoiceUpdate sets a demo's transcript state. Non-nil Lines replaces every line;
-// non-nil English replaces every line's translation, by line ID.
+// DemoVoiceUpdate sets a demo's transcript state; non-nil Lines replaces every line.
 type DemoVoiceUpdate struct {
 	MatchID    uuid.UUID
 	Transcript DemoVoiceTranscript
 	Lines      *[]DemoVoiceLine
-	English    map[uuid.UUID]string
 }
 
-// DemoVoiceLinePatch corrects one phrase; nil fields are kept.
+// DemoVoiceLinePatch corrects the text of one phrase.
 type DemoVoiceLinePatch struct {
 	MatchID uuid.UUID
 	ID      uuid.UUID
-	Text    *string
-	English *string
+	Text    string
 }
 
 // DemoVoiceLineFilter reads phrases; empty MatchIDs means every match, Query matches the text as a phrase.

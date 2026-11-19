@@ -202,6 +202,16 @@ test('legacy snapshots remain readable but cannot be approved for a new recordin
   assert.throws(() => approveFullDemo(snapshot.document), /Vuelve a preparar/);
 });
 
+test('a 5.25.0 plan with the English subtitles stays readable and renders as approved; a new draft drops the flag', () => {
+  const snapshot = fixture();
+  snapshot.document.options = { ...snapshot.document.options, subtitles: { enabled: true, english: true } };
+  const stored: unknown = JSON.parse(JSON.stringify(snapshot));
+  assert.ok(isFullDemoSnapshot(stored));
+  assert.deepEqual(coerceEditConfig(fullDemoPlanEdit(stored)).fullDemo, stored);
+  assert.deepEqual(parseEffectiveEditConfig(buildEditRequest(fullDemoPlanEdit(stored)))?.fullDemo, stored);
+  assert.deepEqual(currentFullDemoOptions(stored.document.options).subtitles, { enabled: true });
+});
+
 test('Go editorial document survives edit wire, local persistence and render hydration', () => {
   const snapshot = fixture();
   const options = snapshot.document.options;

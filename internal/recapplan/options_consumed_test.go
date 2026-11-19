@@ -36,6 +36,11 @@ var pinnedByValidate = map[string]string{
 	"sponsor.music_policy": `Validate accepts only "pause-resume"`,
 }
 
+// Retired leaves that stored plans still carry so their hash holds; new plans drop them and the render must not read them.
+var retiredOptions = map[string]string{
+	"subtitles.english": "the English translation of Studio 5.25.0",
+}
+
 // Regression for the Studio 3.0.1 FACEIT overlay incident: source_kind was
 // validated and approved but nothing read it, so the render silently ignored
 // it. Every Options leaf the execution gate lets a user change must be read,
@@ -59,6 +64,12 @@ func TestEveryChangeableFullDemoOptionIsRead(t *testing.T) {
 			continue
 		}
 		changeable++
+		if reason, retired := retiredOptions[leaf.path]; retired {
+			if read[leaf.field] {
+				t.Errorf("%s is %s, retired, but render code reads %s", leaf.path, reason, leaf.field)
+			}
+			continue
+		}
 		if reason, pinned := pinnedByValidate[leaf.path]; pinned {
 			if options.Validate() == nil {
 				t.Errorf("%s is exempt because %s, but Validate accepted a changed value", leaf.path, reason)

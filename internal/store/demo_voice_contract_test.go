@@ -22,7 +22,7 @@ func TestDemoVoiceRepositoryContract(t *testing.T) {
 			if _, err := repo.GetDemoVoice(f.ctx, m.ID); !errors.Is(err, library.ErrNotFound) {
 				t.Fatalf("GetDemoVoice(none) = %v, want ErrNotFound", err)
 			}
-			queued := library.DemoVoiceTranscript{State: library.TranscriptQueued, English: library.TranscriptNone}
+			queued := library.DemoVoiceTranscript{State: library.TranscriptQueued}
 			if err := repo.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: uuid.New(), Transcript: queued}); !errors.Is(err, library.ErrNotFound) {
 				t.Fatalf("SetDemoVoice(unknown match) = %v, want ErrNotFound", err)
 			}
@@ -32,7 +32,7 @@ func TestDemoVoiceRepositoryContract(t *testing.T) {
 			call := library.DemoVoiceLine{ID: uuid.New(), SteamID64: "76561198000000001", Name: "ropz", TeamKey: "ct-start", StartMS: 64_000, EndMS: 66_000, Tick: 4096, Round: 2, Text: "Stack  B site"}
 			eco := library.DemoVoiceLine{ID: uuid.New(), SteamID64: "76561198000000002", Name: "b1t", TeamKey: "ct-start", StartMS: 1_000, EndMS: 2_000, Tick: 64, Round: 1, Text: "eco"}
 			lines := []library.DemoVoiceLine{call, eco}
-			ready := library.DemoVoiceTranscript{State: library.TranscriptReady, Model: "parakeet", English: library.TranscriptNone}
+			ready := library.DemoVoiceTranscript{State: library.TranscriptReady, Model: "parakeet"}
 			if err := repo.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: ready, Lines: &lines}); err != nil {
 				t.Fatal(err)
 			}
@@ -41,26 +41,25 @@ func TestDemoVoiceRepositoryContract(t *testing.T) {
 				t.Fatalf("lines = %+v, %v; want time order with player, tick and round", got, err)
 			}
 			fixed := "Stack B, they go B"
-			line, err := repo.UpdateDemoVoiceLine(f.ctx, library.DemoVoiceLinePatch{MatchID: m.ID, ID: call.ID, Text: &fixed})
+			line, err := repo.UpdateDemoVoiceLine(f.ctx, library.DemoVoiceLinePatch{MatchID: m.ID, ID: call.ID, Text: fixed})
 			if err != nil || line.Text != fixed || !line.Corrected {
 				t.Fatalf("correction = %+v, %v", line, err)
 			}
-			if _, err := repo.UpdateDemoVoiceLine(f.ctx, library.DemoVoiceLinePatch{MatchID: other.ID, ID: call.ID, Text: &fixed}); !errors.Is(err, library.ErrNotFound) {
+			if _, err := repo.UpdateDemoVoiceLine(f.ctx, library.DemoVoiceLinePatch{MatchID: other.ID, ID: call.ID, Text: fixed}); !errors.Is(err, library.ErrNotFound) {
 				t.Fatalf("a correction through another match = %v, want ErrNotFound", err)
 			}
-			english := library.DemoVoiceTranscript{State: library.TranscriptReady, Model: "parakeet", English: library.TranscriptReady}
-			if err := repo.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: english, English: map[uuid.UUID]string{eco.ID: "save round"}}); err != nil {
+			if err := repo.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: ready}); err != nil {
 				t.Fatal(err)
 			}
 			got, _ = repo.ListDemoVoiceLines(f.ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}})
-			if len(got) != 2 || got[0].English != "save round" || got[1].English != "" || got[1].Text != fixed {
-				t.Fatalf("lines after the translation = %+v; want the English beside the corrected text", got)
+			if len(got) != 2 || got[1].Text != fixed || !got[1].Corrected {
+				t.Fatalf("lines after a state update = %+v; want the phrases and the correction kept", got)
 			}
 			if found, err := repo.ListDemoVoiceLines(f.ctx, library.DemoVoiceLineFilter{Query: "THEY go"}); err != nil || len(found) != 1 || found[0].ID != call.ID {
 				t.Fatalf("search = %+v, %v; want the corrected phrase", found, err)
 			}
 			state, err := repo.GetDemoVoice(f.ctx, m.ID)
-			if err != nil || state.State != library.TranscriptReady || state.English != library.TranscriptReady || state.Model != "parakeet" || state.MatchID != m.ID {
+			if err != nil || state.State != library.TranscriptReady || state.Model != "parakeet" || state.MatchID != m.ID {
 				t.Fatalf("GetDemoVoice = %+v, %v", state, err)
 			}
 			pending, err := repo.ListDemoVoices(f.ctx, []string{library.TranscriptQueued, library.TranscriptRunning})
@@ -90,7 +89,7 @@ func TestDemoVoiceTranscriptIsReadWhole(t *testing.T) {
 			for i := range lines {
 				lines[i] = library.DemoVoiceLine{ID: uuid.New(), SteamID64: "76561198000000001", Name: "ropz", TeamKey: "ct-start", StartMS: int64(i) * 1000, EndMS: int64(i)*1000 + 500, Tick: 64 + i*64, Round: 1, Text: "go"}
 			}
-			ready := library.DemoVoiceTranscript{State: library.TranscriptReady, English: library.TranscriptNone}
+			ready := library.DemoVoiceTranscript{State: library.TranscriptReady}
 			if err := repo.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: ready, Lines: &lines}); err != nil {
 				t.Fatal(err)
 			}

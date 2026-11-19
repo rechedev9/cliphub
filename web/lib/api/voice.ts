@@ -126,12 +126,12 @@ export const TRANSCRIBER_KEYS = [
 export const DEMO_VOICE_KEYS = ['match_id', 'state', 'tracks'] as const satisfies readonly (keyof DemoVoice)[];
 /** The demo transcript: `demoTranscript` in Go, which the producer's Subtítulos panel reads through its job. */
 export const DEMO_TRANSCRIPT_KEYS = [
-  'match_id', 'state', 'model', 'error', 'english', 'english_error', 'updated_at', 'progress', 'voice', 'lines', 'transcriber', 'translator',
+  'match_id', 'state', 'model', 'error', 'updated_at', 'progress', 'voice', 'lines', 'transcriber',
 ] as const;
-export const DEMO_TRANSCRIBE_FIELDS = ['force', 'english'] as const;
-export const DEMO_LINE_FIELDS = ['text', 'english'] as const;
+export const DEMO_TRANSCRIBE_FIELDS = ['force'] as const;
+export const DEMO_LINE_FIELDS = ['text'] as const;
 export const DEMO_LINE_KEYS = [
-  'id', 'match_id', 'steamid64', 'name', 'team_key', 'start_ms', 'end_ms', 'tick', 'round', 'text', 'corrected', 'english',
+  'id', 'match_id', 'steamid64', 'name', 'team_key', 'start_ms', 'end_ms', 'tick', 'round', 'text', 'corrected',
 ] as const;
 /** One import request: 2 GiB of audio plus 1 MiB of multipart framing, as the orchestrator reads. */
 export const VOICE_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024 + 1024 * 1024;
@@ -184,18 +184,13 @@ export function installTranscriber(): Promise<VoiceTranscriber> {
   return request<VoiceTranscriber>('/voice/transcriber/install', { method: 'POST' });
 }
 
-/** Downloads the English translation of the demo voices (about 500 MB) once. */
-export function installTranslator(): Promise<VoiceTranscriber> {
-  return request<VoiceTranscriber>('/voice/translator/install', { method: 'POST' });
+/** Queues the transcript of a demo's voices; a done one is reused. */
+export function transcribeDemoVoice(matchId: string): Promise<unknown> {
+  return request<unknown>(`${voicePath(matchId)}/demo/transcript`, jsonInit('POST', {}));
 }
 
-/** Queues the transcript of a demo's voices, and their English with english; a done one is reused. */
-export function transcribeDemoVoice(matchId: string, options: { english: boolean }): Promise<unknown> {
-  return request<unknown>(`${voicePath(matchId)}/demo/transcript`, jsonInit('POST', { english: options.english }));
-}
-
-/** Corrects a phrase, or its English, for every later video of the demo. */
-export function correctDemoVoiceLine(target: { matchId: string; lineId: string }, patch: { text?: string; english?: string }): Promise<unknown> {
+/** Corrects a phrase for every later video of the demo. */
+export function correctDemoVoiceLine(target: { matchId: string; lineId: string }, patch: { text: string }): Promise<unknown> {
   return request<unknown>(`${voicePath(target.matchId)}/demo/transcript/lines/${encodeURIComponent(target.lineId)}`, jsonInit('PATCH', patch));
 }
 

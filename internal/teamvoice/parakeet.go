@@ -30,7 +30,7 @@ const (
 type Transcriber struct{ *tool }
 
 func NewTranscriber(opts TranscriberOptions) *Transcriber {
-	return &Transcriber{newTool(opts, Pinned, "La transcripción")}
+	return &Transcriber{newTool(opts, Pinned)}
 }
 
 // TranscribeJob is one track to transcribe; nil Speech means the transcriber finds it.
@@ -195,6 +195,21 @@ func spoken(lines []Line) []Line {
 			l.Text = string(runes[:library.MaxVoiceLineRunes])
 		}
 		out = append(out, l)
+	}
+	return out
+}
+
+// keepSpoken drops lines under a third covered by detected speech: a model fills silence with stock phrases.
+func keepSpoken(lines []Line, speech []library.VoiceSpan) []Line {
+	out := []Line{}
+	for _, l := range lines {
+		var covered int64
+		for _, s := range speech {
+			covered += max(0, min(l.EndMS, s.EndMS)-max(l.StartMS, s.StartMS))
+		}
+		if length := l.EndMS - l.StartMS; length <= 0 || covered*3 >= length {
+			out = append(out, l)
+		}
 	}
 	return out
 }

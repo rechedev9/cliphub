@@ -59,7 +59,7 @@ func TestJobSubtitlesReadTheWholeTranscriptOfALongMatch(t *testing.T) {
 	for i := range lines {
 		lines[i] = library.DemoVoiceLine{ID: uuid.New(), SteamID64: j.TargetSteamID, Name: "b1t", TeamKey: team, StartMS: int64(i) * 1000, EndMS: int64(i)*1000 + 500, Tick: 64 + i*64, Round: 1 + i/200, Text: "fase"}
 	}
-	ready := library.DemoVoiceTranscript{State: library.TranscriptReady, English: library.TranscriptNone}
+	ready := library.DemoVoiceTranscript{State: library.TranscriptReady}
 	if err := env.repo.SetDemoVoice(ctx, library.DemoVoiceUpdate{MatchID: env.match.ID, Transcript: ready, Lines: &lines}); err != nil {
 		t.Fatal(err)
 	}

@@ -513,7 +513,7 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 		voices = fmt.Sprintf("voces del equipo al %d%%", out.VoiceLevel)
 	}
 	if s := o.Subtitles; s != nil {
-		voices += describeSubtitles(s.Enabled, s.English, len(s.Hidden))
+		voices += describeSubtitles(s.Enabled, len(s.Hidden))
 	}
 	effectsText := "sin efectos entre rondas"
 	if effects {

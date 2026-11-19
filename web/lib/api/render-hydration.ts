@@ -78,7 +78,6 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   if (edit.portrait_safe_killfeed === true) parsed.portraitSafeKillfeed = true;
   if (edit.subtitles === true) {
     parsed.subtitles = true;
-    if (edit.subtitles_english === true) parsed.subtitlesEnglish = true;
     const hidden = Array.isArray(edit.subtitles_hidden) ? edit.subtitles_hidden.filter((id) => typeof id === 'string') : [];
     if (hidden.length > 0) parsed.subtitlesHidden = hidden;
   }

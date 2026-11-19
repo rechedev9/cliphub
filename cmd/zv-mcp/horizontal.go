@@ -102,7 +102,7 @@ func horizontalArguments(jobID string, d tuiclient.HorizontalDraft) generateIn {
 		dst **bool
 	}{{e.Intro, &c.Intro}, {e.Outro, &c.Outro}, {e.HookText, &c.HookText}, {e.KillCounter, &c.KillCounter}, {e.VoiceComms, &c.VoiceComms}, {e.NativeHUD, &c.NativeHUD},
 		{e.VictimReplay, &c.VictimReplay}, {e.PlayBadges, &c.PlayBadges}, {e.WinProbability, &c.WinProbability}, {e.PlayerLabels, &c.PlayerLabels},
-		{e.GrenadeTrails, &c.GrenadeTrails}, {e.PortraitSafeKillfeed, &c.PortraitSafeKillfeed}, {e.Subtitles, &c.Subtitles}, {e.SubtitlesEnglish, &c.SubtitlesEnglish}, {kitCopied(e.BrandWatermark), &c.BrandWatermark}, {kitCopied(e.BrandBanner), &c.BrandBanner}} {
+		{e.GrenadeTrails, &c.GrenadeTrails}, {e.PortraitSafeKillfeed, &c.PortraitSafeKillfeed}, {e.Subtitles, &c.Subtitles}, {kitCopied(e.BrandWatermark), &c.BrandWatermark}, {kitCopied(e.BrandBanner), &c.BrandBanner}} {
 		if f.on {
 			*f.dst = new(true)
 		}

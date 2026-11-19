@@ -42,20 +42,6 @@ var Pinned = Spec{
 	ModelBytes:  713_975_456,
 }
 
-// PinnedTranslator is the optional English translation: whisper.cpp v1.9.5 (CPU build for
-// Windows x64) with the multilingual medium model at q5_0, run in translate mode.
-var PinnedTranslator = Spec{
-	Version:     "1.9.5",
-	BinURL:      "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-x64.zip",
-	BinSHA256:   "6ba69e3482d7826214f90a6a9c84ca07782aec1e1d0c6a7c30c994fd5d816ccb",
-	BinBytes:    8_928_640,
-	Exe:         "whisper-cli.exe",
-	ModelName:   "ggml-medium-q5_0.bin",
-	ModelURL:    "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-medium-q5_0.bin",
-	ModelSHA256: "19fea4b380c3a618ec4723c3eef2eb785ffba0d0538cf43f8f235e7b3b34220f",
-	ModelBytes:  539_212_467,
-}
-
 // Transcriber states.
 const (
 	TranscriberMissing     = "not_installed"
@@ -113,10 +99,8 @@ type TranscriberOptions struct {
 
 // tool installs and checks one pinned program and model; no audio leaves the PC.
 type tool struct {
-	opts TranscriberOptions
-	spec Spec
-	// what names the feature in Spanish messages: "La transcripción" or "La traducción".
-	what       string
+	opts       TranscriberOptions
+	spec       Spec
 	mu         sync.Mutex
 	installing bool
 	done       int64
@@ -126,11 +110,11 @@ type tool struct {
 	checkErr *installError
 }
 
-func newTool(opts TranscriberOptions, spec Spec, what string) *tool {
+func newTool(opts TranscriberOptions, spec Spec) *tool {
 	if opts.Client == nil {
 		opts.Client = &http.Client{Timeout: 30 * time.Minute}
 	}
-	return &tool{opts: opts, spec: spec, what: what}
+	return &tool{opts: opts, spec: spec}
 }
 
 func (t *tool) versionDir() string { return filepath.Join(t.opts.Dir, t.spec.Version) }
@@ -185,11 +169,11 @@ func (t *tool) smokeLocked(cli string) *installError {
 	if t.checked == cli {
 		return t.checkErr
 	}
-	t.checked, t.checkErr = cli, smokeTest(cli, t.what)
+	t.checked, t.checkErr = cli, smokeTest(cli)
 	return t.checkErr
 }
 
-func smokeTest(cli, what string) *installError {
+func smokeTest(cli string) *installError {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	// #nosec G204 -- the pinned program, run with a fixed flag.
@@ -203,10 +187,10 @@ func smokeTest(cli, what string) *installError {
 	var exit *exec.ExitError
 	if errors.As(err, &exit) && uint32(exit.ExitCode()) == statusDLLNotFound {
 		return &installError{code: TranscriberRuntimeMissing, err: err,
-			msg: what + " no arranca en este PC porque falta el runtime de Visual C++. " + vcRuntimeHint}
+			msg: "La transcripción no arranca en este PC porque falta el runtime de Visual C++. " + vcRuntimeHint}
 	}
 	return &installError{code: TranscriberStartFailed, err: err,
-		msg: what + " no arranca en este PC; suele faltar el runtime de Visual C++. " + vcRuntimeHint}
+		msg: "La transcripción no arranca en este PC; suele faltar el runtime de Visual C++. " + vcRuntimeHint}
 }
 
 func lastChars(s string, n int) string {
@@ -240,7 +224,7 @@ func (t *tool) Install(ctx context.Context) error {
 		cli, _ := t.paths()
 		var smoke *installError
 		if err == nil && cli != "" {
-			smoke = smokeTest(cli, t.what)
+			smoke = smokeTest(cli)
 		}
 		t.mu.Lock()
 		defer t.mu.Unlock()
@@ -251,7 +235,7 @@ func (t *tool) Install(ctx context.Context) error {
 		if err != nil {
 			log.Printf("teamvoice: install %s: %v", t.spec.Exe, err)
 			t.lastErr = &installError{code: TranscriberDownloadFailed, err: err,
-				msg: "No se pudo descargar " + strings.ToLower(t.what) + " local; comprueba la conexión y vuelve a intentarlo."}
+				msg: "No se pudo descargar la transcripción local; comprueba la conexión y vuelve a intentarlo."}
 		}
 	}()
 	return nil
