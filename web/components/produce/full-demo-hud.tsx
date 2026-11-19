@@ -1,6 +1,6 @@
 'use client';
 
-import { Expand, Upload } from 'lucide-react';
+import { ChevronDown, Expand, Upload } from 'lucide-react';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_THEMES, NATIVE_HUD_CAPTURE_PROFILE, customHudTheme, type CustomHudTheme } from '@/lib/custom-hud';
 import { uploadFullDemoPortrait, type FullDemoOptions, type FullDemoAssetRef } from '@/lib/full-demo-plan';
@@ -117,7 +117,16 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
         </div>
       </fieldset>
       {kind === 'custom' && selected ? <div className="grid min-w-0 gap-2">
-        <HudThemePicker base={selected.id} style={options.overlays.hud_custom} backdrop={<PreviewBackdrop />} onSelect={(id, style) => choose(id, portrait, style)} />
+        {/* The gallery folds away; while open, each design picked shows at once in the preview. */}
+        <details className="group min-w-0 rounded-xl border-[1.5px] border-border-subtle open:border-format-full/60">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-3 text-body-sm focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0 truncate"><span className="text-fg-2">Diseño · </span><span className="font-semibold text-fg-1">{options.overlays.hud_custom?.name ?? selected.name}</span></span>
+            <ChevronDown aria-hidden className="size-4 shrink-0 text-fg-2 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="min-w-0 border-t border-border-subtle p-3">
+            <HudThemePicker base={selected.id} style={options.overlays.hud_custom} backdrop={<PreviewBackdrop />} onSelect={(id, style) => choose(id, portrait, style)} />
+          </div>
+        </details>
         <p className="text-body-sm text-fg-2">{selected.description}</p>
         <p className="text-body-sm text-fg-3">Todos los diseños añaden bajo el marcador los jugadores vivos de cada bando, la racha de 4 o más rondas, el 3K, 4K o ACE de la ronda, la barra de desactivación con o sin kit y el MVP al cerrar cada ronda.</p>
         {selected.id === 'focus' ? <div className="min-w-0 space-y-2">
@@ -134,8 +143,7 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
           <p className="text-body-sm text-fg-3">PNG o JPG, hasta 10 MB. Un PNG sin fondo encaja como en una retransmisión.</p>
           {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
         </div> : null}
-        {/* From 64rem the switches sit in the right column, beside the large preview. */}
-        <HudCompositionSwitches options={options.overlays.hud_options} className="@[64rem]/content:hidden"
+        <HudCompositionSwitches options={options.overlays.hud_options}
           onOptions={(hud_options) => onChange({ ...options, overlays: { ...options.overlays, hud_options } })} />
         <HudTeamNameFields names={options.overlays.team_names}
           onNames={(team_names) => onChange({ ...options, overlays: { ...options.overlays, team_names } })} />
@@ -173,15 +181,6 @@ export function FullDemoHudPreview({ options }: { options: FullDemoOptions }): R
     </Dialog>
     <p className="flex items-center gap-1.5 text-body-sm text-fg-3"><Expand className="size-3.5 shrink-0" aria-hidden />Ejemplo con datos ilustrativos. Pulsa la imagen para ampliarla.</p>
   </div>;
-}
-
-/** The composition switches beside the large preview, so each toggle shows its effect at once; only custom designs have them. */
-export function FullDemoComposition({ options, disabled, onChange }: { options: FullDemoOptions; disabled: boolean; onChange: (options: FullDemoOptions) => void }): ReactNode {
-  if (!customHudTheme(options.overlays.hud_theme)) return null;
-  return <fieldset disabled={disabled} inert={disabled} className="studio-panel hidden min-w-0 rounded-2xl p-4 @[64rem]/content:block">
-    <HudCompositionSwitches options={options.overlays.hud_options}
-      onOptions={(hud_options) => onChange({ ...options, overlays: { ...options.overlays, hud_options } })} />
-  </fieldset>;
 }
 
 /** A HUD radio card with a small drawing of its layout; the native radio keeps keyboard and screen reader behaviour. */

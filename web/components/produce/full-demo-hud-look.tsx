@@ -140,11 +140,11 @@ const SWITCHES: readonly { key: keyof HudOptions; label: string; detail: string 
 ];
 
 /** The composition switches of overlays.hud_options. */
-export function HudCompositionSwitches({ options, className, onOptions }: {
-  options?: HudOptions; className?: string; onOptions: (options: HudOptions) => void;
+export function HudCompositionSwitches({ options, onOptions }: {
+  options?: HudOptions; onOptions: (options: HudOptions) => void;
 }): ReactNode {
   const id = useId();
-  return <FullDemoPart title="Composición" note="Solo cambian el dibujo del HUD, sin volver a grabar." className={className}>
+  return <FullDemoPart title="Composición" note="Solo cambian el dibujo del HUD, sin volver a grabar.">
       {SWITCHES.map((entry) => <label key={entry.key} className="flex min-w-0 cursor-pointer items-start gap-3 text-body-sm">
         <input type="checkbox" checked={options?.[entry.key] === true} aria-describedby={`${id}-${entry.key}`} className="mt-0.5 size-4 shrink-0 accent-format-full"
           onChange={(event) => onOptions({ ...options, [entry.key]: event.target.checked })} />
