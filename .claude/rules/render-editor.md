@@ -8,6 +8,7 @@ paths:
   - "internal/recapplan/**"
   - "internal/reconcile/**"
   - "internal/demooverlay/**"
+  - "internal/captureretention/**"
 ---
 
 # Render and the editor
@@ -45,3 +46,4 @@ A render attempt writes durable state only while it still owns that state. A tas
 ## Full Demo artifact cache
 
 `fullDemoCachedArtifacts` (`internal/workers/full_demo_cache.go`) reuses a finished render only when the approved plan matches, the video bytes match `Delivery.ContentSHA256`, and every document from `editor.FullDemoDocumentFiles` exists beside the video and deep-equals the expected one. Anything missing or altered is a miss. The contract is `TestFullDemoCacheRequiresCommittedBytesAndDocuments`.
+Which captures an edit reuses and which ones `captureretention` frees: `docs/incidents.md`, **Editing a finished video**.

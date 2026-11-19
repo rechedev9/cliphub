@@ -86,10 +86,12 @@ A Full Demo of 18 rounds (23 min of video) failed at exactly 20 minutes with
 Every FFmpeg step had finished; that PC renders at about 2.5 times the video
 length, and the worker gave every render the fixed `ZV_RENDER_TIMEOUT`.
 
-- Scaled render deadline (`internal/workers/render_timeout.go`): a Full Demo
-  gets a multiple of its approved program length plus setup time, never less
-  than the configured deadline. Shorts keep the configured one. It mirrors the
-  capture deadline in `internal/workers/capture_timeout.go`.
+- Scaled render deadline (`internal/workers/render_timeout.go`): a render
+  gets a multiple of its program length plus setup time, never less than the
+  configured deadline. The program is a Full Demo's approved timeline, else the
+  captured plays (`playsLength`), since a summary has no length cap; a Short
+  keeps the configured one. It mirrors the capture deadline in
+  `internal/workers/capture_timeout.go`.
 - An editor run that its deadline cut fails with `render_timeout:`, which
   Studio explains in Spanish (`web/lib/api/failure-reason.ts`) instead of the
   generic message.
