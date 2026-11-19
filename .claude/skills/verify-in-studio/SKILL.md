@@ -20,11 +20,11 @@ $worktree = 'C:\path\to\your\worktree'
 $repo = "C:\temp\cliphub-build\$(Get-Date -f yyyyMMdd-HHmmss)"
 git clone --shared $worktree $repo
 if ($LASTEXITCODE) { throw 'git clone failed' }
-git -C $worktree diff HEAD --binary | git -C $repo apply --binary
+git -C $worktree diff HEAD --binary | git -C $repo apply --binary --allow-empty
 if ($LASTEXITCODE) { throw 'git apply failed' }
 ```
 
-Delete the clone when the check is done: its `node_modules` and build output take gigabytes. Build in `$repo` (the clone, or a checkout whose `.git` is a directory). The chain stops at the first failure:
+`--allow-empty` keeps a clean worktree from failing with "No valid patches in input". [Clean up](#clean-up) deletes the clone: its `node_modules` and build output take gigabytes. Build in `$repo` (the clone, or a checkout whose `.git` is a directory). The chain stops at the first failure:
 
 ```powershell
 Set-Location -LiteralPath $repo -ErrorAction Stop
@@ -56,7 +56,7 @@ $studio.Id | Set-Content "$e\electron.pid"
 - Studio is ready when `$p\agent-session.json` exists: Studio writes it after the orchestrator and the web server answer. A new profile took 15 to 35 s on 2026-11-19. The first boot installs HLAE, FFmpeg and yt-dlp into `$p\tools` and needs the network.
 - `$p\ports.json` holds the `orchestrator` and `web` ports. The UI is at `http://127.0.0.1:<web>`.
 - The Studio window opens on the desktop. Leave it alone: the check drives a browser, not the window.
-- Shell state does not survive between tool calls. Start each later block by setting `$repo`, `$p` and `$e` again from `$stamp`.
+- Shell state does not survive between tool calls. Start each later block by setting `$stamp` again, `$p` and `$e` from it, and `$repo` to the checkout you launched from (ClipMind: `$c` and `$e`).
 
 ## Doctor
 
@@ -65,11 +65,13 @@ Run it first, and again whenever something looks wrong. It only reads.
 ```powershell
 $ports = Get-Content "$p\ports.json" | ConvertFrom-Json
 $session = Get-Content "$p\agent-session.json" | ConvertFrom-Json
+$owner = { param($port) $l = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1; if ($l) { (Get-Process -Id $l.OwningProcess).Path } else { 'not listening' } }
+$code = { param($url) try { (Invoke-WebRequest $url -UseBasicParsing -SkipHttpErrorCheck).StatusCode } catch { $_.Exception.Message } }
 [pscustomobject]@{
   studio_alive = [bool](Get-Process -Id (Get-Content "$e\electron.pid") -ErrorAction SilentlyContinue)
-  orchestrator_exe = (Get-Process -Id (Get-NetTCPConnection -LocalPort $ports.orchestrator -State Listen).OwningProcess).Path
-  healthz = (Invoke-WebRequest "http://127.0.0.1:$($ports.orchestrator)/healthz" -UseBasicParsing).StatusCode
-  web = (Invoke-WebRequest "http://127.0.0.1:$($ports.web)/partidas" -UseBasicParsing).StatusCode
+  orchestrator_exe = & $owner $ports.orchestrator
+  healthz = & $code "http://127.0.0.1:$($ports.orchestrator)/healthz"
+  web = & $code "http://127.0.0.1:$($ports.web)/partidas"
   assistant_access = $session.enabled
   version = $session.studioVersion
 }
@@ -158,11 +160,14 @@ if (-not (Test-Path "$repo\bin\clipmind-server.exe")) { throw "no ClipMind build
 $stamp = Get-Date -f yyyyMMdd-HHmmss
 $c = "C:\temp\clipmind-try\$stamp"; $e = "C:\temp\cliphub-evidence\clipmind-$stamp"
 New-Item -ItemType Directory -Force $c, $e | Out-Null
-function Get-FreePort { $l = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0); $l.Start(); $port = $l.LocalEndpoint.Port; $l.Stop(); $port }
-$ports = @{ api = Get-FreePort; web = Get-FreePort }; $ports | ConvertTo-Json | Set-Content "$c\ports.json"
+# Both listeners stay open until both ports are read, so the OS cannot hand out one port twice.
+$listeners = 1..2 | ForEach-Object { $l = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0); $l.Start(); $l }
+$ports = @{ api = $listeners[0].LocalEndpoint.Port; web = $listeners[1].LocalEndpoint.Port }; $listeners.Stop()
+$ports | ConvertTo-Json | Set-Content "$c\ports.json"
 $env:CLIPMIND_DATA_DIR = "$c\data"
 $password = -join ((48..57) + (97..122) | Get-Random -Count 20 | ForEach-Object { [char]$_ }); $password | Set-Content "$c\password.txt"
 $password | & "$repo\bin\clipmind-server.exe" user add -username verify -email verify@example.invalid -name Verify
+if ($LASTEXITCODE) { throw 'clipmind-server user add failed' }
 $env:CLIPMIND_ADDR = "127.0.0.1:$($ports.api)"; $env:CLIPMIND_PUBLIC_URL = "http://127.0.0.1:$($ports.web)"; $env:CLIPMIND_COMMUNITY_URL = 'off'
 $server = Start-Process "$repo\bin\clipmind-server.exe" -RedirectStandardOutput "$e\server.out.log" -RedirectStandardError "$e\server.err.log" -PassThru -WindowStyle Hidden
 $env:PORT = "$($ports.web)"; $env:HOSTNAME = '127.0.0.1'; $env:CLIPMIND_URL = "http://127.0.0.1:$($ports.api)"
@@ -170,7 +175,7 @@ $web = Start-Process node "`"$repo\web\scripts\start-standalone.mjs`"" -WorkingD
 @{ server = $server.Id; web = $web.Id } | ConvertTo-Json | Set-Content "$e\pids.json"
 ```
 
-It is ready when `$e\web.out.log` has "Ready" and `$e\server.err.log` has "clipmind-server listening on". `CLIPMIND_COMMUNITY_URL=off` keeps the run offline, so "Públicas" and other community data show only their disabled state. To check a change there, leave the variable out: the server then reads the public community server. Doctor:
+It is ready when `$e\web.out.log` has "Ready" and `$e\server.err.log` has "clipmind-server listening on" and no "fatal:" (the server logs the line before it binds, so the Doctor's port owner is the proof). `CLIPMIND_COMMUNITY_URL=off` keeps the run offline, so "Públicas" and other community data show only their disabled state. To check a change there, leave the variable out: the server then reads the public community server. Doctor:
 
 ```powershell
 $ports = Get-Content "$c\ports.json" | ConvertFrom-Json
@@ -196,10 +201,11 @@ Studio:
 
 ```powershell
 if ($p -notmatch '^C:\\temp\\cliphub-try\\\d{8}-\d{6}$') { throw "not a run profile: '$p'" }
+if (-not (Test-Path "$repo\desktop\node_modules\electron\dist\electron.exe") -or -not (Test-Path "$e\electron.pid")) { throw "set `$repo and `$e of this run first" }
 $ports = Get-Content "$p\ports.json" | ConvertFrom-Json
 Copy-Item "$p\studio.log" $e
 $owned = Get-CimInstance Win32_Process -Filter "ProcessId = $(Get-Content "$e\electron.pid")"
-if ($owned.ExecutablePath -eq "$repo\desktop\node_modules\electron\dist\electron.exe") { taskkill /T /F /PID $owned.ProcessId } else { 'Studio already exited or the PID is not ours: nothing stopped' }
+if ($owned.ExecutablePath -eq "$repo\desktop\node_modules\electron\dist\electron.exe") { taskkill /T /F /PID $owned.ProcessId; Wait-Process -Id $owned.ProcessId -Timeout 15 -ErrorAction SilentlyContinue } else { 'Studio already exited or the PID is not ours: nothing stopped' }
 Get-NetTCPConnection -LocalPort $ports.orchestrator, $ports.web -State Listen -ErrorAction SilentlyContinue |
   ForEach-Object { Get-Process -Id $_.OwningProcess } | Where-Object Path -like "$repo\*" | Stop-Process -Force
 Remove-Item -Recurse -Force -LiteralPath $p
@@ -209,6 +215,7 @@ ClipMind:
 
 ```powershell
 if ($c -notmatch '^C:\\temp\\clipmind-try\\\d{8}-\d{6}$') { throw "not a run data dir: '$c'" }
+if (-not (Test-Path "$repo\bin\clipmind-server.exe") -or -not (Test-Path "$e\pids.json")) { throw "set `$repo and `$e of this run first" }
 $ports = Get-Content "$c\ports.json" | ConvertFrom-Json
 $pids = Get-Content "$e\pids.json" | ConvertFrom-Json
 foreach ($id in $pids.server, $pids.web) {
@@ -220,14 +227,17 @@ Get-NetTCPConnection -LocalPort $ports.api, $ports.web -State Listen -ErrorActio
 Remove-Item -Recurse -Force -LiteralPath $c
 ```
 
-Then remove stale runs, skipping any whose ports still listen, and confirm the evidence survived:
+Then delete your build clone, remove stale runs and clones, skipping any whose ports still listen or whose binaries still run, and confirm the evidence survived:
 
 ```powershell
-Get-ChildItem C:\temp\cliphub-try, C:\temp\clipmind-try -Directory -ErrorAction SilentlyContinue |
+if ($repo -match '^C:\\temp\\cliphub-build\\\d{8}-\d{6}$') { Set-Location -LiteralPath C:\temp; Remove-Item -Recurse -Force -LiteralPath $repo }
+Get-ChildItem C:\temp\cliphub-try, C:\temp\clipmind-try, C:\temp\cliphub-build -Directory -ErrorAction SilentlyContinue |
   Where-Object LastWriteTime -lt (Get-Date).AddDays(-2) |
   Where-Object {
-    $old = Get-Content (Join-Path $_.FullName 'ports.json') -ErrorAction SilentlyContinue | ConvertFrom-Json
-    -not ($old -and (Get-NetTCPConnection -LocalPort @($old.PSObject.Properties.Value) -State Listen -ErrorAction SilentlyContinue))
+    $dir = $_.FullName
+    $old = Get-Content (Join-Path $dir 'ports.json') -ErrorAction SilentlyContinue | ConvertFrom-Json
+    -not ($old -and (Get-NetTCPConnection -LocalPort @($old.PSObject.Properties.Value) -State Listen -ErrorAction SilentlyContinue)) -and
+      -not (Get-Process | Where-Object Path -like "$dir\*")
   } |
   Remove-Item -Recurse -Force
 Test-Path $e
