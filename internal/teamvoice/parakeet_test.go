@@ -49,14 +49,3 @@ func TestTranscribeReportsAFailedRun(t *testing.T) {
 		t.Fatalf("a failed run = %v, want its output in the error", err)
 	}
 }
-
-func TestTranslateGivesEachPhraseItsEnglish(t *testing.T) {
-	cli, model := fakeTool(t)
-	t.Setenv(fakeWhisperEnv, "two on B")
-	spans := []library.VoiceSpan{{StartMS: 1000, EndMS: 2000}, {StartMS: 5000, EndMS: 6000}}
-	tr := NewTranslator(TranscriberOptions{CLI: cli, Model: model, Media: fakeDecoder(pcm(8_000, spans))})
-	got, err := tr.Translate(context.Background(), TranslateJob{Audio: "a.ogg", Spans: spans})
-	if err != nil || !reflect.DeepEqual(got, []string{"two on B", "two on B"}) {
-		t.Fatalf("Translate = %q, %v", got, err)
-	}
-}

@@ -14,13 +14,13 @@ import (
 type DemoVoiceRepository interface {
 	// GetDemoVoice returns a match's transcript state; none stored is ErrNotFound.
 	GetDemoVoice(ctx context.Context, matchID uuid.UUID) (library.DemoVoiceTranscript, error)
-	// SetDemoVoice stores the state and, when given, the lines or their translation; an unknown match is ErrNotFound.
+	// SetDemoVoice stores the state and, when given, the lines; an unknown match is ErrNotFound.
 	SetDemoVoice(ctx context.Context, update library.DemoVoiceUpdate) error
 	// ListDemoVoiceLines returns phrases by match, then demo time.
 	ListDemoVoiceLines(ctx context.Context, filter library.DemoVoiceLineFilter) ([]library.DemoVoiceLine, error)
 	// UpdateDemoVoiceLine corrects one phrase of the match; a phrase of another match is ErrNotFound.
 	UpdateDemoVoiceLine(ctx context.Context, patch library.DemoVoiceLinePatch) (library.DemoVoiceLine, error)
-	// ListDemoVoices returns the transcripts whose state or translation is in one of states, by match id.
+	// ListDemoVoices returns the transcripts whose state is one of states, by match id.
 	ListDemoVoices(ctx context.Context, states []string) ([]library.DemoVoiceTranscript, error)
 }
 

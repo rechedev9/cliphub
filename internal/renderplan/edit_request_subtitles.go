@@ -20,7 +20,7 @@ const MaxHiddenSubtitles = 2000
 // normalizeSubtitles clears the subtitle options when they are off and keeps one canonical ID per hidden phrase.
 func normalizeSubtitles(req EditRequest) EditRequest {
 	if !req.Subtitles {
-		req.SubtitlesEnglish, req.SubtitlesHidden = false, nil
+		req.SubtitlesHidden = nil
 		return req
 	}
 	var hidden []string
@@ -38,8 +38,8 @@ func normalizeSubtitles(req EditRequest) EditRequest {
 // validateSubtitles keeps subtitles on a video that plays the team comms they transcribe.
 func (r EditRequest) validateSubtitles() error {
 	if !r.Subtitles {
-		if r.SubtitlesEnglish || len(r.SubtitlesHidden) > 0 {
-			return fmt.Errorf("subtitles_english and subtitles_hidden need subtitles")
+		if len(r.SubtitlesHidden) > 0 {
+			return fmt.Errorf("subtitles_hidden needs subtitles")
 		}
 		return nil
 	}

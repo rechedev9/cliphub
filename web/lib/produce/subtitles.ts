@@ -16,26 +16,22 @@ export type DemoVoiceLine = {
   round: number;
   text: string;
   corrected: boolean;
-  english?: string;
 };
 
 /** GET /api/demos/{jobId}/subtitles: the demo transcript with the phrases of the player's team only. */
 export type JobSubtitles = {
   match_id: string;
   state: VoiceTranscriptState;
-  english: VoiceTranscriptState;
   error?: string;
-  english_error?: string;
   progress?: number;
   /** The Full Demo voice check's words, plus extracting and demo_missing. */
   availability: string;
   lines: DemoVoiceLine[];
   transcriber: VoiceTranscriber;
-  translator: VoiceTranscriber;
 };
 
 /** The subtitles of one video; hidden phrases are left out of this video only. */
-export type SubtitleChoice = { enabled: boolean; english: boolean; hidden: readonly string[] };
+export type SubtitleChoice = { enabled: boolean; hidden: readonly string[] };
 
 /** Where the video plays on the demo: the chosen plays in demo seconds, or rounds (null is every round). */
 export type PhraseScope =
@@ -47,7 +43,6 @@ export type SubtitleRow = { id: string; speaker: string; round: number; text: st
 export type SubtitleAvailability = { enabled: boolean; reason: string | null };
 
 export const SUBTITLES_LABEL = 'Subtítulos';
-export const SUBTITLES_ENGLISH_LABEL = 'Traducir al inglés';
 
 export function subtitleAvailability(input: { voices: boolean; voicesLabel: string; availability: string | null }): SubtitleAvailability {
   if (!input.voices) return { enabled: false, reason: `Activa «${input.voicesLabel}»: los subtítulos escriben lo que dicen las voces.` };
@@ -61,7 +56,7 @@ function inScope(line: DemoVoiceLine, scope: PhraseScope): boolean {
   return scope.windows.some((window) => second >= window.start && second < window.end);
 }
 
-/** The phrases the video can show, in the order they were said; with English, the text is the translation. */
+/** The phrases the video can show, in the order they were said. */
 export function subtitleRows(lines: readonly DemoVoiceLine[], scope: PhraseScope, choice: SubtitleChoice): SubtitleRow[] {
   return lines
     .filter((line) => inScope(line, scope))
@@ -70,7 +65,7 @@ export function subtitleRows(lines: readonly DemoVoiceLine[], scope: PhraseScope
       id: line.id,
       speaker: line.name,
       round: line.round,
-      text: choice.english ? line.english ?? '' : line.text,
+      text: line.text,
       corrected: line.corrected,
       hidden: choice.hidden.includes(line.id),
     }));
@@ -84,30 +79,29 @@ export function playScope(plays: readonly Pick<Play, 'round' | 'startSeconds' | 
 }
 
 export function editSubtitles(edit: EditConfig): SubtitleChoice {
-  return { enabled: edit.subtitles === true, english: edit.subtitlesEnglish === true, hidden: edit.subtitlesHidden ?? [] };
+  return { enabled: edit.subtitles === true, hidden: edit.subtitlesHidden ?? [] };
 }
 
 /** The edit with this choice; off leaves no subtitle field behind. */
 export function withSubtitles(edit: EditConfig, choice: SubtitleChoice): EditConfig {
-  const { subtitles: _on, subtitlesEnglish: _english, subtitlesHidden: _hidden, ...rest } = edit;
+  const { subtitles: _on, subtitlesHidden: _hidden, ...rest } = edit;
   if (!choice.enabled) return rest;
-  return { ...rest, subtitles: true, ...(choice.english ? { subtitlesEnglish: true } : {}), ...(choice.hidden.length > 0 ? { subtitlesHidden: [...choice.hidden] } : {}) };
+  return { ...rest, subtitles: true, ...(choice.hidden.length > 0 ? { subtitlesHidden: [...choice.hidden] } : {}) };
 }
 
-/** The panel header of a Short: off, on, or in English. */
+/** The panel header of a Short: off or on. */
 export function subtitlesSummary(choice: SubtitleChoice, voices: boolean): string {
-  if (!choice.enabled || !voices) return 'No';
-  return choice.english ? 'En inglés' : 'Activados';
+  return choice.enabled && voices ? 'Activados' : 'No';
 }
 
 export function fullDemoSubtitles(options: FullDemoOptions): SubtitleChoice {
   const subtitles = options.subtitles;
-  return { enabled: subtitles?.enabled === true, english: subtitles?.english === true, hidden: subtitles?.hidden ?? [] };
+  return { enabled: subtitles?.enabled === true, hidden: subtitles?.hidden ?? [] };
 }
 
 export function withFullDemoSubtitles(options: FullDemoOptions, choice: SubtitleChoice): FullDemoOptions {
   const { subtitles: _old, ...rest } = options;
-  return choice.enabled ? { ...rest, subtitles: { enabled: true, english: choice.english, hidden: [...choice.hidden] } } : rest;
+  return choice.enabled ? { ...rest, subtitles: { enabled: true, hidden: [...choice.hidden] } } : rest;
 }
 
 export function toggleHiddenPhrase(choice: SubtitleChoice, id: string): SubtitleChoice {
@@ -120,9 +114,8 @@ function percent(progress: number | undefined): string {
 }
 
 /** What the render will do with the transcript as it stands; null when the subtitles are ready. */
-export function subtitleNote(subs: JobSubtitles, english: boolean): string | null {
+export function subtitleNote(subs: JobSubtitles): string | null {
   if (subs.transcriber.state !== 'installed') return 'Instala la transcripción para crear los subtítulos. Sin ella, el vídeo sale sin subtítulos.';
-  if (english && subs.translator.state !== 'installed') return 'Instala la traducción para los subtítulos en inglés. Sin ella, el vídeo sale sin subtítulos.';
   switch (subs.state) {
     case 'none':
       return 'Las voces aún no están transcritas: se transcriben al crear el vídeo. Si no terminan antes del montaje, el vídeo sale sin subtítulos.';
@@ -132,12 +125,8 @@ export function subtitleNote(subs: JobSubtitles, english: boolean): string | nul
     case 'failed':
       return 'La transcripción falló, así que el vídeo saldrá sin subtítulos. Prueba a transcribir de nuevo.';
     case 'ready':
-      break;
+      return null;
   }
-  if (!english || subs.english === 'ready') return null;
-  if (subs.english === 'queued' || subs.english === 'running') return `Traduciendo al inglés… ${percent(subs.progress)}. Si no termina antes del montaje, el vídeo sale sin subtítulos.`;
-  if (subs.english === 'failed') return 'La traducción falló, así que el vídeo saldrá sin subtítulos. Prueba a traducir de nuevo.';
-  return 'Las frases aún no están en inglés: se traducen al crear el vídeo. Si no terminan antes del montaje, el vídeo sale sin subtítulos.';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -170,24 +159,23 @@ function isLine(value: unknown): value is DemoVoiceLine {
   const strings = [value.id, value.match_id, value.steamid64, value.name, value.team_key, value.text];
   const numbers = [value.start_ms, value.end_ms, value.tick, value.round];
   return strings.every((field) => typeof field === 'string') && numbers.every((field) => typeof field === 'number')
-    && typeof value.corrected === 'boolean' && optionalString(value.english);
+    && typeof value.corrected === 'boolean';
 }
 
 function isJobSubtitles(value: unknown): value is JobSubtitles {
-  return isRecord(value) && typeof value.match_id === 'string' && isTranscriptState(value.state) && isTranscriptState(value.english)
-    && optionalString(value.error) && optionalString(value.english_error) && (value.progress === undefined || typeof value.progress === 'number')
+  return isRecord(value) && typeof value.match_id === 'string' && isTranscriptState(value.state)
+    && optionalString(value.error) && (value.progress === undefined || typeof value.progress === 'number')
     && typeof value.availability === 'string' && Array.isArray(value.lines) && value.lines.every(isLine)
-    && isInstall(value.transcriber) && isInstall(value.translator);
+    && isInstall(value.transcriber);
 }
 
 /** The fields the panel reads; null for an answer this build does not understand. */
 export function parseJobSubtitles(value: unknown): JobSubtitles | null {
   if (!isJobSubtitles(value)) return null;
-  const { match_id, state, english, error, english_error, progress, availability, lines, transcriber, translator } = value;
+  const { match_id, state, error, progress, availability, lines, transcriber } = value;
   return {
-    match_id, state, english, availability, lines, transcriber, translator,
+    match_id, state, availability, lines, transcriber,
     ...(error === undefined ? {} : { error }),
-    ...(english_error === undefined ? {} : { english_error }),
     ...(progress === undefined ? {} : { progress }),
   };
 }

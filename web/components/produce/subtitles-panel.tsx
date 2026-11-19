@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { LibraryApiError } from '@/lib/api/library';
-import { correctDemoVoiceLine, extractDemoVoice, installTranscriber, installTranslator, transcribeDemoVoice, type VoiceTranscriber } from '@/lib/api/voice';
+import { correctDemoVoiceLine, extractDemoVoice, installTranscriber, transcribeDemoVoice, type VoiceTranscriber } from '@/lib/api/voice';
 import {
-  SUBTITLES_ENGLISH_LABEL, SUBTITLES_LABEL, fetchJobSubtitles, subtitleAvailability, subtitleNote, subtitleRows, toggleHiddenPhrase,
+  SUBTITLES_LABEL, fetchJobSubtitles, subtitleAvailability, subtitleNote, subtitleRows, toggleHiddenPhrase,
   type JobSubtitles, type PhraseScope, type SubtitleChoice,
 } from '@/lib/produce/subtitles';
 import { voiceErrorText } from '@/lib/replay/voice-errors';
@@ -76,8 +76,8 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
     void load();
   }, [load]);
 
-  const waiting = subs !== null && (['queued', 'running'].includes(subs.state) || ['queued', 'running'].includes(subs.english)
-    || subs.transcriber.state === 'installing' || subs.translator.state === 'installing' || subs.availability === 'extracting');
+  const waiting = subs !== null && (['queued', 'running'].includes(subs.state)
+    || subs.transcriber.state === 'installing' || subs.availability === 'extracting');
   useEffect(() => {
     if (!waiting) return;
     const timer = window.setInterval(() => void load(), POLL_MS);
@@ -108,12 +108,12 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
   const checked = planAvailability !== null && planAvailability !== 'not_requested' ? planAvailability : subs?.availability ?? planAvailability;
   const availability = subtitleAvailability({ voices, voicesLabel, availability: checked });
   const rows = subs === null ? [] : subtitleRows(subs.lines, scope, value);
-  const note = subs === null || !value.enabled ? null : subtitleNote(subs, value.english);
+  const note = subs === null || !value.enabled ? null : subtitleNote(subs);
   const locked = disabled || busy;
   const correct = (id: string, text: string, before: string): void => {
     const clean = text.trim();
     if (matchId === null || clean === '' || clean === before) return;
-    void run(() => correctDemoVoiceLine({ matchId, lineId: id }, value.english ? { english: clean } : { text: clean }), 'No se pudo guardar la corrección.');
+    void run(() => correctDemoVoiceLine({ matchId, lineId: id }, { text: clean }), 'No se pudo guardar la corrección.');
   };
 
   return <div className="flex min-w-0 flex-col gap-3">
@@ -123,17 +123,14 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
       onChange={(enabled) => onChange({ ...value, enabled })} />
     {availability.reason ? <p role="status" className="text-body-sm text-fg-2">{availability.reason}</p> : null}
     {value.enabled && availability.enabled ? <>
-      <Toggle label={SUBTITLES_ENGLISH_LABEL} checked={value.english} disabled={locked} onChange={(english) => onChange({ ...value, english })} />
       {loadError ? <p role="alert" className="text-body-sm text-warning">{loadError}</p> : null}
       {subs ? <>
         <InstallPrompt what="transcripción" credit="Usa el modelo NVIDIA Parakeet TDT 0.6B v3, de NVIDIA, con licencia CC BY 4.0." install={subs.transcriber} busy={locked} onInstall={() => void run(installTranscriber, 'No se pudo instalar la transcripción.')} />
-        {value.english ? <InstallPrompt what="traducción" credit="Usa el modelo Whisper medium, de OpenAI, con licencia MIT." install={subs.translator} busy={locked} onInstall={() => void run(installTranslator, 'No se pudo instalar la traducción.')} /> : null}
         {note ? <p role="status" className="text-body-sm text-fg-2">{note}</p> : null}
-        {matchId !== null && subs.transcriber.state === 'installed' && (subs.state === 'none' || subs.state === 'failed'
-          || (value.english && subs.translator.state === 'installed' && (subs.english === 'none' || subs.english === 'failed'))) ? (
+        {matchId !== null && subs.transcriber.state === 'installed' && (subs.state === 'none' || subs.state === 'failed') ? (
           <Button variant="secondary" size="sm" className="self-start" disabled={locked}
-            onClick={() => void run(() => transcribeDemoVoice(matchId, { english: value.english }), 'No se pudo empezar la transcripción.')}>
-            {subs.state === 'ready' ? 'Traducir ahora' : 'Transcribir ahora'}
+            onClick={() => void run(() => transcribeDemoVoice(matchId), 'No se pudo empezar la transcripción.')}>
+            Transcribir ahora
           </Button>
         ) : null}
         {rows.length > 0 ? <ul className="flex flex-col gap-2" aria-label="Frases de este vídeo">
@@ -145,7 +142,7 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
               </Button>
             </div>
             <Input key={`${row.id}:${row.text}`} defaultValue={row.text} disabled={locked || row.hidden} maxLength={2000}
-              aria-label={`Frase de ${row.speaker || 'un jugador'}`} placeholder={value.english ? 'Sin traducir todavía' : undefined}
+              aria-label={`Frase de ${row.speaker || 'un jugador'}`}
               onBlur={(event) => correct(row.id, event.target.value, row.text)} />
           </li>)}
         </ul> : null}

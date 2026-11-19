@@ -24,13 +24,13 @@ func (w *RenderWorker) UseSubtitles(source SubtitleSource) {
 // renderSubtitles reads the transcript a Short, a summary or an approved Full Demo burns. Subtitles never
 // block a render: without a transcript the video goes without them.
 func (w *RenderWorker) renderSubtitles(ctx context.Context, j job.Job, edit renderplan.EditRequest) *subtitles.Track {
-	req := subtitles.Request{JobID: j.ID, Target: j.TargetSteamID, English: edit.SubtitlesEnglish, Hidden: edit.SubtitlesHidden}
+	req := subtitles.Request{JobID: j.ID, Target: j.TargetSteamID, Hidden: edit.SubtitlesHidden}
 	on := edit.Subtitles
 	if edit.FullDemo != nil {
 		options := edit.FullDemo.Document.Options.Subtitles
 		on = options != nil && options.Enabled
 		if on {
-			req.English, req.Hidden = options.English, options.Hidden
+			req.Hidden = options.Hidden
 		}
 	}
 	if !on || w.subtitles == nil {

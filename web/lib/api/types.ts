@@ -295,8 +295,6 @@ export type EditConfig = {
   voiceVolume?: number;
   /** What the team voices say, burned with the speaker's name; it needs voiceComms. */
   subtitles?: boolean;
-  /** The subtitles only in English. */
-  subtitlesEnglish?: boolean;
   /** Phrase ids of the demo transcript this video leaves out. */
   subtitlesHidden?: string[];
   nativeHud: boolean;

@@ -11,11 +11,8 @@ import (
 	"testing"
 )
 
-// The test binary stands in for nemo-speech and whisper-cli when these variables are set.
-const (
-	fakeNemoEnv    = "CLIPHUB_FAKE_NEMO"
-	fakeWhisperEnv = "CLIPHUB_FAKE_WHISPER"
-)
+// The test binary stands in for nemo-speech when this variable is set.
+const fakeNemoEnv = "CLIPHUB_FAKE_NEMO"
 
 type fakeWord struct {
 	Word  string  `json:"word"`
@@ -26,9 +23,6 @@ type fakeWord struct {
 func TestMain(m *testing.M) {
 	if words, ok := os.LookupEnv(fakeNemoEnv); ok && len(os.Args) > 1 && os.Args[1] == "transcribe" {
 		os.Exit(fakeNemo(words))
-	}
-	if text, ok := os.LookupEnv(fakeWhisperEnv); ok && slices.Contains(os.Args, "-tr") {
-		os.Exit(fakeWhisper(text))
 	}
 	os.Exit(m.Run())
 }
@@ -67,20 +61,6 @@ func fakeNemo(words string) int {
 		raw, _ := json.Marshal(out)
 		name := strings.TrimSuffix(filepath.Base(in), ".wav") + ".json"
 		if err := os.WriteFile(filepath.Join(argAfter("--output-dir"), name), raw, 0o600); err != nil {
-			return 5
-		}
-	}
-	return 0
-}
-
-// fakeWhisper translates every input to text.
-func fakeWhisper(text string) int {
-	for i, arg := range os.Args {
-		if arg != "-of" || i+1 >= len(os.Args) {
-			continue
-		}
-		raw := fmt.Sprintf(`{"transcription":[{"offsets":{"from":0,"to":400},"text":" %s "}]}`, text)
-		if err := os.WriteFile(os.Args[i+1]+".json", []byte(raw), 0o600); err != nil {
 			return 5
 		}
 	}

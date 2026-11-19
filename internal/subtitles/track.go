@@ -23,13 +23,11 @@ type Track struct {
 	Hidden  []string `json:"hidden,omitempty"`
 }
 
-// Request is what a render asks of its demo's transcript: the phrases of Target's team, in English
-// with English, leaving out Hidden.
+// Request is what a render asks of its demo's transcript: the phrases of Target's team, leaving out Hidden.
 type Request struct {
-	JobID   uuid.UUID
-	Target  string
-	English bool
-	Hidden  []string
+	JobID  uuid.UUID
+	Target string
+	Hidden []string
 }
 
 // Load reads the track the render worker wrote.

@@ -119,10 +119,9 @@ type EditRequest struct {
 	// BrandWatermark and BrandBanner are copied whole from the brand kit, so a later kit edit never changes this render.
 	BrandWatermark *brandkit.Watermark `json:"brand_watermark,omitempty"`
 	BrandBanner    *brandkit.Banner    `json:"brand_banner,omitempty"`
-	// Subtitles burns the team comms transcript, in English with SubtitlesEnglish; SubtitlesHidden are phrases this video leaves out.
-	Subtitles        bool     `json:"subtitles,omitempty"`
-	SubtitlesEnglish bool     `json:"subtitles_english,omitempty"`
-	SubtitlesHidden  []string `json:"subtitles_hidden,omitempty"`
+	// Subtitles burns the team comms transcript in the spoken language; SubtitlesHidden are phrases this video leaves out.
+	Subtitles       bool     `json:"subtitles,omitempty"`
+	SubtitlesHidden []string `json:"subtitles_hidden,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {

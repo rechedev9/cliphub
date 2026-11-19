@@ -250,7 +250,6 @@ export function coerceEditConfig(value: unknown): EditConfig {
   if (raw.brandBanner === true) cfg.brandBanner = true;
   if (raw.subtitles === true) {
     cfg.subtitles = true;
-    if (raw.subtitlesEnglish === true) cfg.subtitlesEnglish = true;
     const hidden = Array.isArray(raw.subtitlesHidden) ? raw.subtitlesHidden.filter((id) => typeof id === 'string') : [];
     if (hidden.length > 0) cfg.subtitlesHidden = hidden;
   }

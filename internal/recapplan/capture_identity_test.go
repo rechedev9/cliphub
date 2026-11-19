@@ -35,17 +35,21 @@ func TestCaptureIdentityByOption(t *testing.T) {
 	base := captureHash(t, custom())
 	radius := 4
 	renderOnly := map[string]func(*Options){
-		"diseño del HUD":          func(o *Options) { o.Overlays.HUDTheme = customhud.Themes()[1].ID },
-		"estilo propio":           func(o *Options) { o.Overlays.HUDCustom = &hudthemes.Style{Name: "Mío", CT: "112233", T: "445566", Background: "000000", Radius: &radius} },
-		"interruptores":           func(o *Options) { o.Overlays.HUDOptions = customhud.Options{CompactHeader: true, RoundWinBanner: true} },
-		"nombres de equipo":       func(o *Options) { o.Overlays.TeamNames = customhud.Teams{CTStart: "Vitality", TStart: "Spirit"} },
-		"kit de marca":            func(o *Options) { o.Overlays.Brand.Banner = &brandkit.Banner{Image: brandkit.ImageRef{ID: "22222222-2222-4222-8222-222222222222", SHA256: strings.Repeat("b", 64)}, StartSeconds: 5} },
-		"transiciones":            func(o *Options) { transitions := DynamicTransitions(); o.Transitions = &transitions },
-		"presentación":            func(o *Options) { o.Overlays.Roster = !o.Overlays.Roster },
-		"sonido":                  func(o *Options) { o.Audio.Game.Gain, o.Audio.Voice.Gain = 0.5, 1.5 },
-		"bumpers":                 func(o *Options) { o.Bumpers = &BumperOptions{Intro: BumperSlot{Enabled: true}} },
-		"origen de los overlays":  func(o *Options) { o.SourceKind = "faceit" },
-		"subtítulos":              func(o *Options) { o.Audio.Voice.Enabled, o.Subtitles = true, &SubtitleOptions{Enabled: true, English: true} },
+		"diseño del HUD": func(o *Options) { o.Overlays.HUDTheme = customhud.Themes()[1].ID },
+		"estilo propio": func(o *Options) {
+			o.Overlays.HUDCustom = &hudthemes.Style{Name: "Mío", CT: "112233", T: "445566", Background: "000000", Radius: &radius}
+		},
+		"interruptores":     func(o *Options) { o.Overlays.HUDOptions = customhud.Options{CompactHeader: true, RoundWinBanner: true} },
+		"nombres de equipo": func(o *Options) { o.Overlays.TeamNames = customhud.Teams{CTStart: "Vitality", TStart: "Spirit"} },
+		"kit de marca": func(o *Options) {
+			o.Overlays.Brand.Banner = &brandkit.Banner{Image: brandkit.ImageRef{ID: "22222222-2222-4222-8222-222222222222", SHA256: strings.Repeat("b", 64)}, StartSeconds: 5}
+		},
+		"transiciones":           func(o *Options) { transitions := DynamicTransitions(); o.Transitions = &transitions },
+		"presentación":           func(o *Options) { o.Overlays.Roster = !o.Overlays.Roster },
+		"sonido":                 func(o *Options) { o.Audio.Game.Gain, o.Audio.Voice.Gain = 0.5, 1.5 },
+		"bumpers":                func(o *Options) { o.Bumpers = &BumperOptions{Intro: BumperSlot{Enabled: true}} },
+		"origen de los overlays": func(o *Options) { o.SourceKind = "faceit" },
+		"subtítulos":             func(o *Options) { o.Audio.Voice.Enabled, o.Subtitles = true, &SubtitleOptions{Enabled: true} },
 	}
 	for name, change := range renderOnly {
 		o := custom()

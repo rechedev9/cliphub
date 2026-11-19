@@ -18,36 +18,30 @@ type DemoVoiceLine struct {
 	Round     int    `json:"round"`
 	Text      string `json:"text"`
 	Corrected bool   `json:"corrected"`
-	English   string `json:"english,omitempty"`
 }
 
-// DemoTranscript is a demo's voice transcript, its English, and the two local installs it needs.
+// DemoTranscript is a demo's voice transcript and the local install it needs.
 type DemoTranscript struct {
-	MatchID      string           `json:"match_id"`
-	State        string           `json:"state"`
-	Error        string           `json:"error,omitempty"`
-	English      string           `json:"english"`
-	EnglishError string           `json:"english_error,omitempty"`
-	Progress     float64          `json:"progress,omitempty"`
-	Voice        string           `json:"voice"`
-	Lines        []DemoVoiceLine  `json:"lines"`
-	Transcriber  VoiceTranscriber `json:"transcriber"`
-	Translator   VoiceTranscriber `json:"translator"`
+	MatchID     string           `json:"match_id"`
+	State       string           `json:"state"`
+	Error       string           `json:"error,omitempty"`
+	Progress    float64          `json:"progress,omitempty"`
+	Voice       string           `json:"voice"`
+	Lines       []DemoVoiceLine  `json:"lines"`
+	Transcriber VoiceTranscriber `json:"transcriber"`
 }
 
-// DemoTranscribe asks for a demo's transcript, and its English with English; Force runs a done one again.
+// DemoTranscribe asks for a demo's transcript; Force runs a done one again.
 type DemoTranscribe struct {
 	MatchID string `json:"-"`
 	Force   bool   `json:"force,omitempty"`
-	English bool   `json:"english,omitempty"`
 }
 
-// DemoLineEdit corrects a phrase's text or its English for every later video of the demo.
+// DemoLineEdit corrects a phrase's text for every later video of the demo.
 type DemoLineEdit struct {
-	MatchID string  `json:"-"`
-	LineID  string  `json:"-"`
-	Text    *string `json:"text,omitempty"`
-	English *string `json:"english,omitempty"`
+	MatchID string `json:"-"`
+	LineID  string `json:"-"`
+	Text    string `json:"text"`
 }
 
 func demoTranscriptPath(matchID string) string {
@@ -72,19 +66,5 @@ func (c *Client) TranscribeDemoVoice(ctx context.Context, req DemoTranscribe) (D
 func (c *Client) CorrectDemoVoiceLine(ctx context.Context, edit DemoLineEdit) (DemoVoiceLine, error) {
 	var out DemoVoiceLine
 	err := c.doJSON(ctx, http.MethodPatch, demoTranscriptPath(edit.MatchID)+"/lines/"+url.PathEscape(edit.LineID), edit, &out)
-	return out, err
-}
-
-// VoiceTranslatorStatus reads the local English translation install.
-func (c *Client) VoiceTranslatorStatus(ctx context.Context) (VoiceTranscriber, error) {
-	var out VoiceTranscriber
-	err := c.getJSON(ctx, "/api/library/voice/translator", &out)
-	return out, err
-}
-
-// InstallVoiceTranslator starts the download of the English translation in Studio.
-func (c *Client) InstallVoiceTranslator(ctx context.Context) (VoiceTranscriber, error) {
-	var out VoiceTranscriber
-	err := c.doJSON(ctx, http.MethodPost, "/api/library/voice/translator/install", nil, &out)
 	return out, err
 }

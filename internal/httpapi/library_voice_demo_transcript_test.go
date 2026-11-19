@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -14,44 +13,12 @@ import (
 	"github.com/rechedev9/cliphub/internal/teamvoice"
 )
 
-// fakeTranslator answers every phrase with the same English and counts the tracks it read.
-type fakeTranslator struct {
-	mu     sync.Mutex
-	state  string
-	tracks int
-}
-
-func (f *fakeTranslator) Status() teamvoice.TranscriberStatus {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return teamvoice.TranscriberStatus{State: f.state}
-}
-
-func (f *fakeTranslator) Install(context.Context) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.state = teamvoice.TranscriberInstalled
-	return nil
-}
-
-func (f *fakeTranslator) Translate(_ context.Context, job teamvoice.TranslateJob) ([]string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.tracks++
-	out := make([]string, len(job.Spans))
-	for i := range out {
-		out[i] = "we rotate to B now"
-	}
-	return out, nil
-}
-
 type demoTranscriptEnv struct {
 	libraryTestEnv
 	jobs        *fakeRepo
 	match       library.Match
 	base        string
 	transcriber *fakeTranscriber
-	translator  *fakeTranslator
 }
 
 func newDemoTranscriptEnv(t *testing.T) demoTranscriptEnv {
@@ -59,10 +26,9 @@ func newDemoTranscriptEnv(t *testing.T) demoTranscriptEnv {
 	repo := store.NewMemoryLibraryRepository()
 	files := localFakeStorage{fakeStorage: newFakeStorage(), root: t.TempDir()}
 	tr := &fakeTranscriber{state: teamvoice.TranscriberMissing}
-	tl := &fakeTranslator{state: teamvoice.TranscriberMissing}
 	jobs := newFakeRepo()
 	h := NewHandlers(jobs, files, &fakeQueue{}, WithLibrary(repo),
-		WithVoice(VoiceDeps{Dir: t.TempDir(), Media: fakeVoiceMedia{}, Transcriber: tr, Translator: tl, DemoVoice: &fakeDemoVoice{}}))
+		WithVoice(VoiceDeps{Dir: t.TempDir(), Media: fakeVoiceMedia{}, Transcriber: tr, DemoVoice: &fakeDemoVoice{}}))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	h.StartVoice(ctx)
@@ -80,7 +46,7 @@ func newDemoTranscriptEnv(t *testing.T) demoTranscriptEnv {
 		t.Fatal(err)
 	}
 	return demoTranscriptEnv{libraryTestEnv: env, jobs: jobs, match: m, base: "/api/library/matches/" + m.ID.String() + "/voice/demo/transcript",
-		transcriber: tr, translator: tl}
+		transcriber: tr}
 }
 
 // await polls the transcript until done says so.
@@ -98,7 +64,7 @@ func (e demoTranscriptEnv) await(done func(demoTranscript) bool) demoTranscript 
 	}
 }
 
-func TestDemoVoiceTranscriptTranscribesOnceCorrectsAndTranslates(t *testing.T) {
+func TestDemoVoiceTranscriptTranscribesOnceAndCorrects(t *testing.T) {
 	env := newDemoTranscriptEnv(t)
 	env.json(http.MethodPost, env.base, nil, http.StatusConflict, nil)
 	env.transcriber.state = teamvoice.TranscriberInstalled
@@ -122,14 +88,6 @@ func TestDemoVoiceTranscriptTranscribesOnceCorrectsAndTranslates(t *testing.T) {
 	env.json(http.MethodPatch, line, map[string]string{"text": "Rotamos a B, ya"}, http.StatusOK, &fixed)
 	if fixed.Text != "Rotamos a B, ya" || !fixed.Corrected {
 		t.Fatalf("correction = %+v", fixed)
-	}
-
-	env.json(http.MethodPost, env.base, map[string]bool{"english": true}, http.StatusConflict, nil)
-	env.translator.state = teamvoice.TranscriberInstalled
-	env.json(http.MethodPost, env.base, map[string]bool{"english": true}, http.StatusAccepted, nil)
-	got = env.await(func(d demoTranscript) bool { return d.English == library.TranscriptReady })
-	if got.Lines[0].English != "we rotate to B now" || got.Lines[0].Text != "Rotamos a B, ya" || env.transcriber.calls.Load() != 2 {
-		t.Fatalf("after the translation: %+v, %d transcriptions; want the English beside the kept correction", got.Lines, env.transcriber.calls.Load())
 	}
 
 	var comms voiceComms

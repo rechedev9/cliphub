@@ -7,8 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/rules"
 )
 
@@ -273,5 +276,57 @@ func TestMigrateV22AddsSeriesVetoAuto(t *testing.T) {
 	defer db.Close()
 	if found, err := columnExists(db, "library_series", "veto_auto"); err != nil || !found {
 		t.Fatalf("veto_auto after migrate: found=%v err=%v", found, err)
+	}
+}
+
+// A 5.25.0 database keeps its transcripts and phrases when migration 32 drops their English.
+func TestMigrateV32DropsTheDemoVoiceTranslationAndKeepsTheTranscript(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "jobs.db")
+	db, err := openSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := libraryFixture{t: t, ctx: context.Background(), repo: NewSQLiteLibraryRepository(db)}
+	m := f.analyze(f.demo("demo-voice-english", 0), "de_mirage", side{clan: "FUT", score: 13}, side{clan: "OG", score: 8})
+	lines := []library.DemoVoiceLine{{ID: uuid.New(), SteamID64: "76561198000000001", Name: "ropz", TeamKey: "ct-start", StartMS: 1_000, EndMS: 2_000, Tick: 64, Round: 1, Text: "vamos B"}}
+	if err := f.repo.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: library.DemoVoiceTranscript{State: library.TranscriptReady}, Lines: &lines}); err != nil {
+		t.Fatal(err)
+	}
+	for _, stmt := range []string{
+		`ALTER TABLE library_demo_voice ADD COLUMN english TEXT NOT NULL DEFAULT 'none'`,
+		`ALTER TABLE library_demo_voice ADD COLUMN english_error TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE library_demo_voice_lines ADD COLUMN english TEXT NOT NULL DEFAULT ''`,
+		`UPDATE library_demo_voice SET english = 'running'`,
+		`UPDATE library_demo_voice_lines SET english = 'go B'`,
+		`PRAGMA user_version = 31`,
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err = openSQLite(path)
+	if err != nil {
+		t.Fatalf("openSQLite: %v", err)
+	}
+	defer db.Close()
+	for _, c := range []struct{ table, column string }{{"library_demo_voice", "english"}, {"library_demo_voice", "english_error"}, {"library_demo_voice_lines", "english"}} {
+		if found, err := columnExists(db, c.table, c.column); err != nil || found {
+			t.Fatalf("%s.%s after migrate: found=%v err=%v", c.table, c.column, found, err)
+		}
+	}
+	repo := NewSQLiteLibraryRepository(db)
+	state, err := repo.GetDemoVoice(f.ctx, m.ID)
+	if err != nil || state.State != library.TranscriptReady {
+		t.Fatalf("transcript after migrate = %+v, %v", state, err)
+	}
+	got, err := repo.ListDemoVoiceLines(f.ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}})
+	if err != nil || len(got) != 1 || got[0].Text != "vamos B" {
+		t.Fatalf("phrases after migrate = %+v, %v", got, err)
+	}
+	if pending, err := repo.ListDemoVoices(f.ctx, []string{library.TranscriptQueued, library.TranscriptRunning}); err != nil || len(pending) != 0 {
+		t.Fatalf("a translation left running is queued again: %+v, %v", pending, err)
 	}
 }

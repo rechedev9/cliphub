@@ -116,10 +116,6 @@ func registerVoiceCommsTools(server *mcp.Server, s *studio) {
 		What:   "la transcripción local (Parakeet TDT 0.6b v3 sobre NeMo-Speech.cpp %s, unos %d MB)",
 		About:  "local transcription (NVIDIA Parakeet TDT 0.6b v3 on NeMo-Speech.cpp, about 700 MB, fetched once into Studio's folder; it detects the language)",
 		Status: (*tuiclient.Client).VoiceTranscriberStatus, Install: (*tuiclient.Client).InstallVoiceTranscriber})
-	registerInstallTool(server, s, installTool{Name: "install_translator", Label: "Instalar traducción",
-		What:   "la traducción al inglés (Whisper medium sobre whisper.cpp %s, unos %d MB)",
-		About:  "the English translation of the demo voices (Whisper medium on whisper.cpp, about 500 MB, fetched once into Studio's folder) that subtitles_english needs",
-		Status: (*tuiclient.Client).VoiceTranslatorStatus, Install: (*tuiclient.Client).InstallVoiceTranslator})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "transcribe_voice",
 		Description: "Transcribe a match's imported TeamSpeak voice on this PC; the language is detected. Needs install_transcriber first. It runs in the background; voice_status shows the progress until the transcript is ready. For the voices a demo recorded, use transcribe_demo_voice."},

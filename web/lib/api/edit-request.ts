@@ -24,7 +24,6 @@ export type EditRequestBody = {
   voice_comms: boolean;
   voice_volume?: number;
   subtitles?: boolean;
-  subtitles_english?: boolean;
   subtitles_hidden?: string[];
   native_hud: boolean;
   victim_replay?: boolean;
@@ -115,7 +114,6 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
   // Subtitles write what the comms say, so Studio refuses them without the comms.
   if (edit.subtitles && edit.voiceComms && !edit.fullDemo) {
     body.subtitles = true;
-    if (edit.subtitlesEnglish) body.subtitles_english = true;
     if (edit.subtitlesHidden?.length) body.subtitles_hidden = [...edit.subtitlesHidden].sort();
   }
   const introText = edit.introText?.trim();

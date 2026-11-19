@@ -80,10 +80,9 @@ type ShortEdit struct {
 	CaptureHUD string `json:"capture_hud,omitempty"`
 	// PortraitSafeKillfeed keeps, in a 16:9 video, the kill feed framing of the Short it is made from.
 	PortraitSafeKillfeed bool `json:"portrait_safe_killfeed,omitempty"`
-	// Subtitles burns what the team voices say, in English with SubtitlesEnglish, without the SubtitlesHidden phrases.
-	Subtitles        bool     `json:"subtitles,omitempty"`
-	SubtitlesEnglish bool     `json:"subtitles_english,omitempty"`
-	SubtitlesHidden  []string `json:"subtitles_hidden,omitempty"`
+	// Subtitles burns what the team voices say, without the SubtitlesHidden phrases.
+	Subtitles       bool     `json:"subtitles,omitempty"`
+	SubtitlesHidden []string `json:"subtitles_hidden,omitempty"`
 }
 
 // ShortMusic is the "music" object of a Short: a track id from ListSongs and its mix.

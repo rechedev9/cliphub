@@ -301,8 +301,6 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/library/matches/{id}/voice/demo/transcript", h.GetLibraryMatchDemoTranscript)
 	r.Post("/api/library/matches/{id}/voice/demo/transcript", h.TranscribeLibraryMatchDemoVoice)
 	r.Patch("/api/library/matches/{id}/voice/demo/transcript/lines/{line}", h.PatchLibraryMatchDemoTranscriptLine)
-	r.Get("/api/library/voice/translator", h.GetVoiceTranslator)
-	r.Post("/api/library/voice/translator/install", h.InstallVoiceTranslator)
 	r.Get("/api/library/voice/summary", h.ListLibraryVoiceSummaries)
 	r.Get("/api/library/voice/search", h.SearchLibraryVoice)
 	r.Get("/api/library/voice/transcriber", h.GetVoiceTranscriber)

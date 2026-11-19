@@ -25,8 +25,8 @@ func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subti
 	if err != nil {
 		return nil, err
 	}
-	if t.State != library.TranscriptReady || (req.English && t.English != library.TranscriptReady) {
-		if _, err := h.queueDemoTranscript(ctx, m, demoTranscribeRequest{English: req.English}); err != nil {
+	if t.State != library.TranscriptReady {
+		if _, err := h.queueDemoTranscript(ctx, m, demoTranscribeRequest{}); err != nil {
 			return nil, fmt.Errorf("the transcript is not ready and cannot be queued: %w", err)
 		}
 		return nil, errors.New("the transcript is not ready yet")
@@ -42,15 +42,11 @@ func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subti
 	}
 	track := &subtitles.Track{Phrases: []subtitles.Phrase{}, Hidden: req.Hidden}
 	for _, l := range lines {
-		text := l.Text
-		if req.English {
-			text = l.English
-		}
-		if l.TeamKey != team || text == "" {
+		if l.TeamKey != team || l.Text == "" {
 			continue
 		}
 		end := l.Tick + int(math.Round(float64(l.EndMS-l.StartMS)*rate/1000))
-		track.Phrases = append(track.Phrases, subtitles.Phrase{ID: l.ID.String(), Speaker: l.Name, Text: text, StartTick: l.Tick, EndTick: end})
+		track.Phrases = append(track.Phrases, subtitles.Phrase{ID: l.ID.String(), Speaker: l.Name, Text: l.Text, StartTick: l.Tick, EndTick: end})
 	}
 	return track, nil
 }
@@ -73,17 +69,17 @@ func (h *Handlers) subtitleMatch(ctx context.Context, jobID uuid.UUID) (library.
 // queueSubtitles starts the transcription a new video's subtitles read, so it runs while CS2 records.
 // It is best effort: a render whose transcript is not ready goes without subtitles.
 func (h *Handlers) queueSubtitles(ctx context.Context, jobID uuid.UUID, edit renderplan.EditRequest) {
-	on, english := edit.Subtitles, edit.SubtitlesEnglish
+	on := edit.Subtitles
 	if edit.FullDemo != nil {
 		o := edit.FullDemo.Document.Options.Subtitles
-		on, english = o != nil && o.Enabled, o != nil && o.English
+		on = o != nil && o.Enabled
 	}
 	if !on {
 		return
 	}
 	m, err := h.subtitleMatch(ctx, jobID)
 	if err == nil {
-		_, err = h.queueDemoTranscript(ctx, m, demoTranscribeRequest{English: english})
+		_, err = h.queueDemoTranscript(ctx, m, demoTranscribeRequest{})
 	}
 	if err != nil {
 		log.Printf("httpapi: queue the transcript for the subtitles of job %s: %v", jobID, err)

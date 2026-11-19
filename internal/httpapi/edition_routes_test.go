@@ -31,8 +31,6 @@ var desktopOnlyRoutes = map[Route]string{
 	get("/api/library/matches/{id}/voice/demo/{steamid}/audio"):           "reads the .dem",
 	get("/api/library/voice/transcriber"):                                 "Parakeet on this PC",
 	post("/api/library/voice/transcriber/install"):                        "Parakeet on this PC",
-	get("/api/library/voice/translator"):                                  "Whisper on this PC",
-	post("/api/library/voice/translator/install"):                         "Whisper on this PC",
 	get("/api/library/matches/{id}/voice/demo/transcript"):                "the demo voices stay on this PC",
 	post("/api/library/matches/{id}/voice/demo/transcript"):               "runs Parakeet on this PC",
 	patch("/api/library/matches/{id}/voice/demo/transcript/lines/{line}"): "the demo voices stay on this PC",
