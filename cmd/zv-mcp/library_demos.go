@@ -14,10 +14,11 @@ import (
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
-// Library tag limits (internal/library NormalizeTags).
+// Library tag limits (internal/library NormalizeTags) and the title cap (library.MaxDemoTitleRunes).
 const (
-	maxDemoTags     = 32
-	maxDemoTagRunes = 40
+	maxDemoTags       = 32
+	maxDemoTagRunes   = 40
+	maxDemoTitleRunes = 80
 )
 
 // editableSources are the sources a person may pick in the demo panel; shared is read only.
@@ -36,6 +37,7 @@ type demoOut struct {
 	Source       string   `json:"source,omitempty" jsonschema:"valve, faceit, hltv, scrim, unknown or shared"`
 	SourceManual bool     `json:"source_manual,omitempty" jsonschema:"true when a person picked the source; re-analysis keeps it"`
 	Tags         []string `json:"tags,omitempty" jsonschema:"untrusted labels"`
+	Title        string   `json:"title,omitempty" jsonschema:"untrusted title a person gave the demo"`
 	Duplicate    bool     `json:"duplicate,omitempty"`
 	Error        string   `json:"error,omitempty"`
 }
@@ -47,6 +49,7 @@ type updateDemoIn struct {
 	// AddTags and RemoveTags are the "+ Etiqueta" and remove of a Partidas row: they change the demo's tags without sending the whole set.
 	AddTags    []string `json:"add_tags,omitempty" jsonschema:"tags to add to the ones the demo has (the Etiqueta button of a row); not with tags"`
 	RemoveTags []string `json:"remove_tags,omitempty" jsonschema:"tags to remove from the ones the demo has; not with tags"`
+	Title      *string  `json:"title,omitempty" jsonschema:"the demo's own title (Título), one line of at most 80 characters; an empty string clears it; omit to keep it. The file and its videos keep their names"`
 }
 
 // maxDeleteDemos caps one delete_demo call, so the approval summary stays readable.
@@ -134,8 +137,8 @@ func registerLibraryDemoTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "update_demo", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Change a library demo's source (Fuente) or its tags (Etiquetas), as the Demo panel of a match and the Etiqueta button of a Partidas row do: " +
-			"tags replaces the whole set, add_tags and remove_tags change single tags. " +
+		Description: "Change a library demo's source (Fuente), its tags (Etiquetas) or its title (Título), as the Demo panel of a match, the Etiqueta button and Renombrar of a Partidas row " +
+			"and the pencil of a Crear card do: tags replaces the whole set, add_tags and remove_tags change single tags, an empty title clears it. " +
 			"A source picked here survives every re-analysis. A shared match keeps its source."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updateDemoIn) (*mcp.CallToolResult, demoOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
@@ -147,7 +150,7 @@ func registerLibraryDemoTools(server *mcp.Server, s *studio) {
 			if err := checkDemoTags(in.AddTags); err != nil {
 				return nil, demoOut{}, err
 			}
-			patch := tuiclient.LibraryDemoPatch{Tags: in.Tags}
+			patch := tuiclient.LibraryDemoPatch{Tags: in.Tags, Title: in.Title}
 			if in.Source != "" {
 				if !slices.Contains(editableSources, in.Source) {
 					return nil, demoOut{}, fmt.Errorf("source must be one of %s", strings.Join(editableSources, ", "))
@@ -160,8 +163,8 @@ func registerLibraryDemoTools(server *mcp.Server, s *studio) {
 				}
 			}
 			editsTags := len(in.AddTags) > 0 || len(in.RemoveTags) > 0
-			if patch.Source == nil && patch.Tags == nil && !editsTags {
-				return nil, demoOut{}, errors.New("nothing to change: pass source, tags, add_tags or remove_tags")
+			if patch.Source == nil && patch.Tags == nil && patch.Title == nil && !editsTags {
+				return nil, demoOut{}, errors.New("nothing to change: pass source, tags, add_tags, remove_tags or title")
 			}
 			c, err := s.client(ctx)
 			if err != nil {
@@ -292,7 +295,7 @@ func checkDemoTags(tags []string) error {
 
 func describeDemo(d tuiclient.LibraryDemo) demoOut {
 	out := demoOut{DemoID: d.ID, State: cleanName(d.State), FileName: cleanName(d.FileName), Source: cleanName(d.Source),
-		SourceManual: d.SourceManual, Tags: cleanNames(d.Tags), Error: cleanText(d.Error, maxErrorRunes)}
+		SourceManual: d.SourceManual, Tags: cleanNames(d.Tags), Title: cleanText(d.Title, maxDemoTitleRunes), Error: cleanText(d.Error, maxErrorRunes)}
 	if d.MatchID != nil {
 		out.MatchID = *d.MatchID
 	}

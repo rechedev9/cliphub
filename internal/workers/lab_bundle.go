@@ -34,9 +34,18 @@ func (w *RenderWorker) resolveRenderRequest(ctx context.Context, cfg RenderWorke
 	if err != nil {
 		return resolvedRenderRequest{}, err
 	}
+	segmentIDs, plays, err := preRollRender(w.storage, j, *edit, segmentIDs)
+	if err != nil {
+		return resolvedRenderRequest{}, err
+	}
 	recordingResult, err = selectRenderSegments(recordingResult, segmentIDs)
 	if err != nil {
 		return resolvedRenderRequest{}, err
+	}
+	if plays {
+		if err := requirePlayWindows(recordingResult, *j.KillPlan); err != nil {
+			return resolvedRenderRequest{}, err
+		}
 	}
 	if isFullDemoNativeMix(loadout.Preset, *edit) {
 		musicKey = ""
@@ -143,6 +152,7 @@ func (w *RenderWorker) PrepareLabBundle(ctx context.Context, id uuid.UUID, varia
 		musicPath:       resolved.musicPath,
 		musicVolume:     resolved.musicVolume,
 		gameVolume:      resolved.gameVolume,
+		extras:          w.readRenderExtras(ctx, j, edit),
 	}, dir)
 	if err != nil {
 		return LabBundle{}, err

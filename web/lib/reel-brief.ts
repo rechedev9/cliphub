@@ -1,6 +1,7 @@
 import { affiliateFamilyLabel, affiliateStyleLabel, DEFAULT_VICTIM_REPLAY_SPEED, KEYDROP_CODE_RE, type EditConfig, type Preset } from './api/types.ts';
 import { verticalHudTheme } from './custom-hud.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
+import { hasPlayerCards, withoutPlayerCards } from './player-cards.ts';
 import { formatDecimal } from './format.ts';
 import { radarAllowed, radarBriefLabel } from './radar-overlay.ts';
 import { resolvedReelFormat } from './reel-format.ts';
@@ -104,15 +105,16 @@ export function constrainEditConfig(edit: EditConfig): EditConfig {
     return constrainEditConfig(next);
   }
   if (edit.format !== 'short-9x16') {
-    if (!edit.statsCard && !edit.verticalHud) return edit;
-    // The stats card and the vertical HUD are drawn for 9:16 only.
-    const next: EditConfig = { ...edit };
+    if (!edit.statsCard && !edit.verticalHud && !hasPlayerCards(edit)) return edit;
+    // The stats card, the player cards and the vertical HUD are drawn for 9:16 only.
+    const next: EditConfig = withoutPlayerCards(edit);
     delete next.statsCard;
     delete next.verticalHud;
     delete next.verticalHudTheme;
     return next;
   }
-  if (!edit.matchRecap && !edit.voiceComms && !edit.nativeHud && !edit.demoSource && !edit.overlayTheme) return edit;
+  // A Short keeps its own team comms, which its subtitles write; recap leftovers take theirs along.
+  if (!edit.matchRecap && !edit.nativeHud && !edit.demoSource && !edit.overlayTheme) return edit;
   const next: EditConfig = { ...edit, matchRecap: false, voiceComms: false, nativeHud: false };
   delete next.demoSource;
   delete next.overlayTheme;
@@ -147,6 +149,11 @@ function worldOverlayLabel(edit: EditConfig): string {
   if (edit.matchRecap) return 'No';
   const parts = [edit.playerLabels ? 'Nombres y vida' : '', edit.grenadeTrails ? 'Estelas de granadas' : ''].filter(Boolean);
   return parts.length > 0 ? parts.join(' · ') : 'No';
+}
+
+function closingCardLabel(edit: EditConfig): string {
+  if (edit.endCard && edit.format === 'short-9x16') return 'Carta de jugador';
+  return edit.statsCard ? 'Tarjeta de estadísticas' : 'Sin tarjeta';
 }
 
 function victimReplayLabel(edit: EditConfig): string {
@@ -192,7 +199,7 @@ export function reelCreativeBrief(
     { label: 'Efecto de kill', value: EFFECT_LABEL[edit.killEffect] },
     { label: 'Transiciones', value: TRANSITION_LABEL[edit.transition] },
     { label: 'Título / contador', value: `${edit.hookText ? 'Título automático' : 'Sin título automático'} · ${edit.killCounter ? 'Contador de kills' : 'Sin contador'}` },
-    { label: 'Insignias / tarjeta', value: `${edit.playBadges ? 'Insignias de jugada' : 'Sin insignias'} · ${edit.statsCard ? 'Tarjeta de estadísticas' : 'Sin tarjeta'}` },
+    { label: 'Insignias / tarjeta', value: `${edit.playBadges ? 'Insignias de jugada' : 'Sin insignias'} · ${closingCardLabel(edit)}` },
     { label: 'Probabilidad de victoria', value: edit.winProbability ? 'Tras el plantado' : 'No' },
     { label: 'Repetición', value: victimReplayLabel(edit) },
     { label: 'Sobre el juego', value: worldOverlayLabel(edit) },

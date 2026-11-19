@@ -60,6 +60,10 @@ type ShortEdit struct {
 	VictimReplaySpeed float64 `json:"victim_replay_speed,omitempty"`
 	PlayBadges        bool    `json:"play_badges,omitempty"`
 	StatsCard         bool    `json:"stats_card,omitempty"`
+	// OpeningCard, EndCard and CoverCard are player card template ids (PlayerCard); empty is no card.
+	OpeningCard string `json:"opening_card,omitempty"`
+	EndCard     string `json:"end_card,omitempty"`
+	CoverCard   string `json:"cover_card,omitempty"`
 	// WinProbability shows each side's post-plant round-win chance.
 	WinProbability bool `json:"win_probability,omitempty"`
 	// PlayerLabels and GrenadeTrails draw names, health and team grenade paths over the gameplay.
@@ -70,6 +74,16 @@ type ShortEdit struct {
 	BrandBanner    bool `json:"brand_banner,omitempty"`
 	// SeparateShorts renders each segment as its own Short from one capture (Auto-Shorts).
 	SeparateShorts bool `json:"separate_shorts,omitempty"`
+	// PreRollSeconds starts each play 5 or 8 s before its first kill; 0 keeps the 3 s of the analysis.
+	PreRollSeconds int `json:"pre_roll_seconds,omitempty"`
+	// CaptureHUD records a 16:9 video in a Short capture profile (gameplay, deathnotices, clean); empty keeps the preset's.
+	CaptureHUD string `json:"capture_hud,omitempty"`
+	// PortraitSafeKillfeed keeps, in a 16:9 video, the kill feed framing of the Short it is made from.
+	PortraitSafeKillfeed bool `json:"portrait_safe_killfeed,omitempty"`
+	// Subtitles burns what the team voices say, in English with SubtitlesEnglish, without the SubtitlesHidden phrases.
+	Subtitles        bool     `json:"subtitles,omitempty"`
+	SubtitlesEnglish bool     `json:"subtitles_english,omitempty"`
+	SubtitlesHidden  []string `json:"subtitles_hidden,omitempty"`
 }
 
 // ShortMusic is the "music" object of a Short: a track id from ListSongs and its mix.

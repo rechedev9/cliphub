@@ -116,6 +116,7 @@ func CanonicalNewOptions(options Options) (Options, error) {
 		canonical.Overlays.HUDTheme = options.Overlays.HUDTheme
 	}
 	canonical.Capture.TrueView = options.Capture.TrueView
+	canonical.Subtitles = canonicalSubtitles(options.Subtitles)
 	if len(options.Rounds) > 0 {
 		canonical.Rounds = slices.Compact(slices.Sorted(slices.Values(options.Rounds)))
 	}
@@ -137,7 +138,7 @@ func CanonicalNewOptions(options Options) (Options, error) {
 
 	// Roster and scoreboard are generated from factual demo data. The overlay
 	// source is deliberately demo: SourceKind above is the only origin signal.
-	canonical.Overlays.Theme = "neon-violet"
+	canonical.Overlays.Theme = canonicalOverlayTheme(options.Overlays.Theme)
 	canonical.Overlays.Source = "demo"
 	canonical.Overlays.Mode = "generated"
 	canonical.Overlays.Roster = true
@@ -166,7 +167,7 @@ func (o Options) ValidateCurrentFullDemoPolicy() error {
 		return fmt.Errorf("observed player crosshair and a current HUD capture profile are required")
 	}
 	if o.Overlays != canonical.Overlays {
-		return fmt.Errorf("automatic neon-violet roster and scoreboard overlays are required")
+		return fmt.Errorf("automatic roster and scoreboard overlays in the neon or HUD design are required")
 	}
 	if o.Transitions == nil || canonical.Transitions == nil || *o.Transitions != *canonical.Transitions {
 		return fmt.Errorf("transitions must use the Dinamico preset")

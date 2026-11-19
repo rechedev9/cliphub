@@ -30,6 +30,9 @@ type renderEditRequest struct {
 	PlayerLabels        *bool               `json:"player_labels"`
 	GrenadeTrails       *bool               `json:"grenade_trails"`
 	StatsCard           *bool               `json:"stats_card"`
+	OpeningCard         *string             `json:"opening_card"`
+	EndCard             *string             `json:"end_card"`
+	CoverCard           *string             `json:"cover_card"`
 	CenteredKillfeed    *bool               `json:"centered_killfeed"`
 	VerticalHUD         *bool               `json:"vertical_hud"`
 	VerticalHUDTheme    *string             `json:"vertical_hud_theme"`
@@ -49,9 +52,16 @@ type renderEditRequest struct {
 	KeyDropEndSeconds   *float64            `json:"keydrop_end_seconds"`
 	DemoSource          *string             `json:"demo_source"`
 	OverlayTheme        *string             `json:"overlay_theme"`
+	PreRollSeconds      *int                `json:"pre_roll_seconds"`
+	CaptureHUD          *string             `json:"capture_hud"`
+	// PortraitSafeKillfeed is the kill feed framing of the Short a 16:9 video was made from.
+	PortraitSafeKillfeed *bool `json:"portrait_safe_killfeed"`
 	// BrandWatermark and BrandBanner turn the saved brand kit on or off; applyBrandKit resolves them.
-	BrandWatermark *brandChoice[brandkit.Watermark] `json:"brand_watermark"`
-	BrandBanner    *brandChoice[brandkit.Banner]    `json:"brand_banner"`
+	BrandWatermark   *brandChoice[brandkit.Watermark] `json:"brand_watermark"`
+	BrandBanner      *brandChoice[brandkit.Banner]    `json:"brand_banner"`
+	Subtitles        *bool                            `json:"subtitles"`
+	SubtitlesEnglish *bool                            `json:"subtitles_english"`
+	SubtitlesHidden  *[]string                        `json:"subtitles_hidden"`
 }
 
 func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditRequest {
@@ -119,6 +129,11 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	if r.StatsCard != nil {
 		base.StatsCard = *r.StatsCard
 	}
+	for _, slot := range []struct{ from, to *string }{{r.OpeningCard, &base.OpeningCard}, {r.EndCard, &base.EndCard}, {r.CoverCard, &base.CoverCard}} {
+		if slot.from != nil {
+			*slot.to = *slot.from
+		}
+	}
 	if r.CenteredKillfeed != nil {
 		base.CenteredKillfeed = *r.CenteredKillfeed
 	}
@@ -178,6 +193,24 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.OverlayTheme != nil {
 		base.OverlayTheme = *r.OverlayTheme
+	}
+	if r.PreRollSeconds != nil {
+		base.PreRollSeconds = *r.PreRollSeconds
+	}
+	if r.CaptureHUD != nil {
+		base.CaptureHUD = *r.CaptureHUD
+	}
+	if r.PortraitSafeKillfeed != nil {
+		base.PortraitSafeKillfeed = *r.PortraitSafeKillfeed
+	}
+	if r.Subtitles != nil {
+		base.Subtitles = *r.Subtitles
+	}
+	if r.SubtitlesEnglish != nil {
+		base.SubtitlesEnglish = *r.SubtitlesEnglish
+	}
+	if r.SubtitlesHidden != nil {
+		base.SubtitlesHidden = *r.SubtitlesHidden
 	}
 	return renderplan.NormalizeEditRequest(base)
 }

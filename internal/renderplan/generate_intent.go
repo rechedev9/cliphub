@@ -27,6 +27,9 @@ type GenerateIntent struct {
 	SegmentIDs  []string  `json:"segment_ids,omitempty"`
 	ActiveRunID uuid.UUID `json:"active_run_id,omitzero"`
 	AcceptedAt  time.Time `json:"accepted_at,omitzero"`
+	// NoCapture is a page load's request: its record task reuses stored clips or fails with
+	// capture_required, and never opens CS2. A click never sets it.
+	NoCapture bool `json:"no_capture,omitempty"`
 }
 
 // Normalize fills unset edit fields with their defaults and returns the result.

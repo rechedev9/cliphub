@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
+import type { LibraryDemo } from '@/lib/api/library';
 import { engineMapName, mapShotUrl } from '@/lib/api/game-assets';
 import { MATCH_ROW_UNPICKED_CTA, MATCH_ROW_UNPICKED_HINT } from '@/lib/clips/copy';
 import { fullChipLabel, HUB_ROW_STAGE, matchMetaParts, OUTPUT_TONE, shortsChipTone, type HubMatch } from '@/lib/clips/hub';
@@ -16,6 +17,7 @@ import { MapCover } from '@/components/brand/map-cover';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { OpenInCrearButton } from '@/components/matches/open-in-crear-button';
 import { parseScore } from '@/components/matches/match-score';
+import { DemoCardHeading, DemoLabels } from '@/components/produce/demo-card-library';
 import { CoverImage } from '@/components/studio/cover-image';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { StatusTag } from '@/components/studio/status-tag';
@@ -47,14 +49,15 @@ export function madeCount(row: HubMatch, format: ProduceFormat): number {
 type DemoCardProps = {
   row: DemoRowGroup;
   format: ProduceFormat;
-  /** The analysed library demo behind the row: its teams and score, and a new job to change the player. */
+  /** The analysed library demo behind the row: its title, teams, score, source and tags, and a new job to change the player. */
   library?: LibraryDemoRow | undefined;
   onChange: () => void;
+  onTitleSaved: (saved: LibraryDemo) => void;
   onDelete: () => Promise<void>;
 };
 
 /** One loaded demo as a card: the map cover (or the demo's thumbnail) under the map tint, then this flow's next step. */
-export function DemoCard({ row, format, library, onChange, onDelete }: DemoCardProps): ReactNode {
+export function DemoCard({ row, format, library, onChange, onTitleSaved, onDelete }: DemoCardProps): ReactNode {
   const { match, stage } = row;
   const mapName = prettyMapName(match.map);
   const parsing = stage === HUB_ROW_STAGE.parsing;
@@ -65,12 +68,13 @@ export function DemoCard({ row, format, library, onChange, onDelete }: DemoCardP
   const score = match.score === '' ? (teams?.score ?? '') : match.score;
 
   return (
-    <DemoCardFrame>
+    <DemoCardFrame fileName={library?.demo.file_name}>
       <DemoCover map={match.map} thumbnailUrl={match.thumbnailUrl} striped={parsing} badge={<ResultBadge row={row} />} dateLabel={matchDateLabel(match)} score={score} />
 
       <div className="flex flex-1 flex-col gap-2.5 px-4 pt-3.5 pb-4">
-        {teams !== null && teams.title !== '' ? <p className="text-body-sm wrap-anywhere text-fg-2">{teams.title}</p> : null}
+        <DemoCardHeading demo={library?.demo} teams={teams?.title ?? ''} onSaved={onTitleSaved} />
         {meta.length > 0 ? <p className="text-body-sm wrap-anywhere text-fg-2">{meta.join(' · ')}</p> : null}
+        {library === undefined ? null : <DemoLabels demo={library.demo} />}
         <StateLine row={row} format={format} />
         {ready && library !== undefined ? (
           <OpenInCrearButton request={{ demo: library.demo, format, pickPlayers: true }} variant="ghost" size="xs" className="-ml-2 self-start text-fg-2">
@@ -97,9 +101,13 @@ export function DemoCard({ row, format, library, onChange, onDelete }: DemoCardP
   );
 }
 
-export function DemoCardFrame({ children }: { children: ReactNode }): ReactNode {
+/** fileName is the demo's file, shown on hover so a fresh import can be told apart. */
+export function DemoCardFrame({ children, fileName }: { children: ReactNode; fileName?: string | undefined }): ReactNode {
   return (
-    <article className="flex flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface-2 transition-colors duration-(--dur-fast) hover:border-border-strong">
+    <article
+      title={fileName}
+      className="flex flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface-2 transition-colors duration-(--dur-fast) hover:border-border-strong"
+    >
       {children}
     </article>
   );

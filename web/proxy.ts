@@ -5,7 +5,7 @@ import { DEMO_COOKIE, DEMO_PATH, demoCookieOptions, demoDecision, demoHome } fro
 import { currentEdition, isPathAvailable, isPublicWebPath } from './lib/edition.ts';
 
 /** The API routes this proxy guards; the rest check the guard in-handler. */
-const PROXY_GUARD_SCOPE = /^\/api\/(?!(?:demos\/scan\/?|library\/demos\/?|library\/uploads\/?|library\/import-package\/?|library\/matches\/[^/]+\/voice\/?|library\/matches\/[^/]+\/replay-video\/?|streams\/?|editor\/assets\/?|full-demo\/overlay-images\/?|session\/bootstrap\/?|voice-plugin\/gamestate\/?)$).*/;
+const PROXY_GUARD_SCOPE = /^\/api\/(?!(?:demos\/scan\/?|library\/demos\/?|library\/uploads\/?|library\/import-package\/?|library\/matches\/[^/]+\/voice\/?|library\/matches\/[^/]+\/replay-video\/?|streams\/?|editor\/assets\/?|full-demo\/overlay-images\/?|demos\/[^/]+\/player-card\/image\/?|session\/bootstrap\/?|voice-plugin\/gamestate\/?)$).*/;
 
 function isAPI(pathname: string): boolean {
   return pathname === '/api' || pathname.startsWith('/api/');
@@ -103,7 +103,7 @@ export const config = {
   // Uploads stream past the proxy: Next cuts a body it hands the proxy to 10 MB.
   // Those handlers run the guard and read the session cookie themselves.
   matcher: [
-    '/api/((?!demos/scan/?$|library/demos/?$|library/uploads/?$|library/import-package/?$|library/matches/[^/]+/voice/?$|library/matches/[^/]+/replay-video/?$|streams/?$|editor/assets/?$|full-demo/overlay-images/?$|session/bootstrap/?$|voice-plugin/gamestate/?$).*)',
+    '/api/((?!demos/scan/?$|library/demos/?$|library/uploads/?$|library/import-package/?$|library/matches/[^/]+/voice/?$|library/matches/[^/]+/replay-video/?$|streams/?$|editor/assets/?$|full-demo/overlay-images/?$|demos/[^/]+/player-card/image/?$|session/bootstrap/?$|voice-plugin/gamestate/?$).*)',
     '/((?!api|_next/|favicon|icon\\.svg|.*\\..*).*)',
   ],
 };

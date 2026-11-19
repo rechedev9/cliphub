@@ -41,6 +41,8 @@ export type Play = {
   weapon?: string; thumbnailUrl?: string;
   /** Source-demo clock, only present when its tick rate and range are known. */
   startSeconds?: number; endSeconds?: number; headshots?: number;
+  /** Source-demo second of the first kill, where a pre-roll is measured from. */
+  firstKillSeconds?: number;
   /** Engine ids of every kill's weapon ("awp"), the side the player was on, and the enemies of a clutch. */
   weapons?: string[]; side?: PlaySide; clutchVs?: number;
   /** Death clips only: how the player died at the end of the clip. */
@@ -62,6 +64,19 @@ export type VictimReplaySpeed = (typeof VICTIM_REPLAY_SPEEDS)[number];
 export const DEFAULT_VICTIM_REPLAY_SPEED: VictimReplaySpeed = 0.5;
 export function isVictimReplaySpeed(value: unknown): value is VictimReplaySpeed {
   return VICTIM_REPLAY_SPEEDS.some((speed) => speed === value);
+}
+/** Seconds of play before each play's first kill (renderplan.PreRollChoices); 3 is the analysis cut. */
+export const PRE_ROLL_CHOICES = [3, 5, 8] as const;
+export type PreRollSeconds = (typeof PRE_ROLL_CHOICES)[number];
+export const DEFAULT_PRE_ROLL_SECONDS: PreRollSeconds = 3;
+export function isPreRollSeconds(value: unknown): value is PreRollSeconds {
+  return PRE_ROLL_CHOICES.some((seconds) => seconds === value);
+}
+/** The HUD a 16:9 summary records (renderplan.CaptureHUDs); unset keeps the preset's. */
+const CAPTURE_HUDS = ['gameplay', 'deathnotices', 'clean'] as const;
+export type CaptureHud = (typeof CAPTURE_HUDS)[number];
+export function isCaptureHud(value: unknown): value is CaptureHud {
+  return CAPTURE_HUDS.some((hud) => hud === value);
 }
 type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash' | 'shake' | 'glitch';
 type TransitionStyle = 'cut' | 'flash' | 'whip' | 'dip' | 'glitch' | 'zoom-whip';
@@ -242,11 +257,13 @@ export function isDemoSource(value: unknown): value is DemoSource {
 export const OVERLAY_THEME = {
   faceitOrange: 'faceit-orange',
   neonViolet: 'neon-violet',
+  /** Full Demo only: the intro and scoreboard in the colours of the plan's HUD. */
+  hud: 'hud',
 } as const;
 export type OverlayTheme = (typeof OVERLAY_THEME)[keyof typeof OVERLAY_THEME];
 
 export function isOverlayTheme(value: unknown): value is OverlayTheme {
-  return value === OVERLAY_THEME.faceitOrange || value === OVERLAY_THEME.neonViolet;
+  return value === OVERLAY_THEME.faceitOrange || value === OVERLAY_THEME.neonViolet || value === OVERLAY_THEME.hud;
 }
 
 export type EditConfig = {
@@ -276,11 +293,23 @@ export type EditConfig = {
   separateShorts?: boolean;
   voiceComms: boolean;
   voiceVolume?: number;
+  /** What the team voices say, burned with the speaker's name; it needs voiceComms. */
+  subtitles?: boolean;
+  /** The subtitles only in English. */
+  subtitlesEnglish?: boolean;
+  /** Phrase ids of the demo transcript this video leaves out. */
+  subtitlesHidden?: string[];
   nativeHud: boolean;
   /** Shorts only: replay each play's last kill from the victim, at victimReplaySpeed. */
   victimReplay?: boolean;
   /** Unset plays the replay at DEFAULT_VICTIM_REPLAY_SPEED. */
   victimReplaySpeed?: VictimReplaySpeed;
+  /** One player only: unset is DEFAULT_PRE_ROLL_SECONDS. */
+  preRollSeconds?: PreRollSeconds;
+  /** 16:9 without the native HUD: the capture profile of the summary's style. */
+  captureHud?: CaptureHud;
+  /** 16:9 made from a Short (Crear horizontal): CS2's kill feed where the Short's crop keeps it, so its clips are reused. */
+  portraitSafeKillfeed?: boolean;
   /** A badge naming each play's clutch, ace or multikill. */
   playBadges?: boolean;
   /** Each team's round-win chance after the plant, from the kill plan. */
@@ -291,6 +320,10 @@ export type EditConfig = {
   grenadeTrails?: boolean;
   /** 9:16 only: a closing card with the player's match stats and FACEIT data when known. */
   statsCard?: boolean;
+  /** One-player 9:16 Shorts only: a player card template id per slot; the end card replaces statsCard. */
+  openingCard?: string;
+  endCard?: string;
+  coverCard?: string;
   /** Shorts only: the brand kit's logo as a watermark; the render copies the saved kit. */
   brandWatermark?: boolean;
   /** Shorts only: the brand kit's own sponsor banner; it replaces the affiliate banner. */
@@ -375,6 +408,8 @@ export type Video = {
   selectedCoverName?: string;
   /** Set only on a failed reel whose orchestrator job is gone: retry can never succeed, so the card offers delete/re-forge instead. */
   unrecoverable?: true;
+  /** Ready with its last render while a stored change waits for Reintentar: applying it records with CS2, which a page load never starts. */
+  changePending?: true;
 };
 export type Slots = { used: number; total: number };
 export type FeedItem = { id: string; author: string; authorAvatarUrl: string; title: string; map: string; thumbnailUrl: string; likes: number; createdAt: number; videoUrl: string };
@@ -435,6 +470,8 @@ export const JOB_WAIT_TIMEOUT_CODE = 'job_wait_timeout';
 /** Orchestrator 503 for a feature that is not set up; never the proxy's own code. */
 export const NOT_CONFIGURED_CODE = 'not_configured';
 export const GENERATE_WORK_ACTIVE_CODE = 'generate_work_active';
+/** 409 to a generate sent with allow_capture false whose record task would open CS2. */
+export const CAPTURE_REQUIRED_CODE = 'capture_required';
 export const FACEIT_NOT_CONFIGURED_CODE = 'faceit_not_configured';
 export const STEAM_CODES = {
   credentialsRequired: 'steam_credentials_required',

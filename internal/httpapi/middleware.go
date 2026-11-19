@@ -241,6 +241,9 @@ func isMultipartUpload(r *http.Request) bool {
 			r.URL.Path == "/api/library/demos") {
 		return true
 	}
+	if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/api/jobs/") && strings.HasSuffix(r.URL.Path, "/player-card/image") {
+		return true
+	}
 	return r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/voice-profiles/")
 }
 

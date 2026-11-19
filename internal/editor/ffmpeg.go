@@ -297,8 +297,8 @@ func CompilationFilter(short ShortEdit) string {
 	partShort := short
 	partShort.Effects = nil
 	partShort.Parts = nil
-	// The killfeed runs once on the concatenated timeline, never per part.
-	partShort.KillfeedASS = ""
+	// The killfeed and the subtitles run once on the concatenated timeline, never per part.
+	partShort.KillfeedASS, partShort.SubtitlesASS = "", ""
 	clauses := []string{}
 	concatLabels := []string{}
 	concatCount := 0
@@ -544,6 +544,18 @@ func BuildCoverFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 		// frame (a bumper). Keep the approved gameplay frame at microsecond
 		// resolution, rounding down so FFmpeg cannot cross that boundary.
 		seek = fmt.Sprintf("%.6f", math.Floor(short.CoverTimeSeconds*1e6)/1e6)
+	}
+	if end, ok := openingCardWindow(short); ok && openingPlayerCard(short) != "" && short.CoverTimeSeconds < end {
+		// The frame comes after the opening card, so the cover never catches it.
+		seek = fmt.Sprintf("%.3f", end)
+	}
+	if card := coverPlayerCard(short); card != "" {
+		// The cover card lies over the cover frame, so the thumbnail keeps the play behind it.
+		return []string{
+			ffmpegPath, "-y", "-v", "error", "-ss", seek, "-i", short.Output, "-i", card, "-frames:v", "1",
+			"-filter_complex", fmt.Sprintf("[0:v]%s[frame];[1:v]format=rgba,scale=%d:%d[card];[frame][card]overlay=0:0:format=auto", filter, width, height),
+			"-q:v", "2", short.CoverPath,
+		}
 	}
 	return []string{
 		ffmpegPath,

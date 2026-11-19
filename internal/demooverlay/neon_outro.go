@@ -1,7 +1,6 @@
 package demooverlay
 
 import (
-	"bytes"
 	"fmt"
 	"html/template"
 	"strconv"
@@ -15,36 +14,28 @@ type neonScoreRow struct {
 	Stats                     []string
 }
 type neonScoreTeam struct {
-	Name       string
+	Name, Side string
 	Score      int
 	Winner     bool
 	AverageELO string
 	Players    []neonScoreRow
 }
 
-// NeonOutroHTML uses match facts for the scoreboard and labels profile ELO as
+// scoreboardHTML uses match facts for the scoreboard and labels profile ELO as
 // current. The FACEIT Data API does not supply the reference site's swing metric.
-func NeonOutroHTML(doc Document, previewGrey bool) ([]byte, error) {
+func scoreboardHTML(doc Document, previewGrey bool) ([]byte, error) {
+	fonts, err := loadPageFonts()
+	if err != nil {
+		return nil, err
+	}
 	data := struct {
-		RegularFont, MediumFont, BoldFont template.URL
-		PreviewGrey                       bool
-		Map                               string
-		FACEIT                            bool
-		Teams                             []neonScoreTeam
-	}{PreviewGrey: previewGrey, Map: strings.ToUpper(strings.TrimPrefix(doc.Map, "de_")), FACEIT: NormalizeSource(doc.Source) == SourceFACEIT}
-	var err error
-	data.RegularFont, err = neonAssetURL("assets/fonts/Roboto-Regular.ttf", "font/ttf")
-	if err != nil {
-		return nil, err
-	}
-	data.MediumFont, err = neonAssetURL("assets/fonts/Roboto-Medium.ttf", "font/ttf")
-	if err != nil {
-		return nil, err
-	}
-	data.BoldFont, err = neonAssetURL("assets/fonts/Roboto-Bold.ttf", "font/ttf")
-	if err != nil {
-		return nil, err
-	}
+		pageFonts
+		PreviewGrey bool
+		Map         string
+		FACEIT      bool
+		Teams       []neonScoreTeam
+		Palette     *Palette
+	}{pageFonts: fonts, PreviewGrey: previewGrey, Map: strings.ToUpper(strings.TrimPrefix(doc.Map, "de_")), FACEIT: NormalizeSource(doc.Source) == SourceFACEIT, Palette: doc.Palette}
 	avatars := map[string]template.URL{}
 	for _, panel := range [][]PlayerCard{doc.Intro.Left, doc.Intro.Right} {
 		for _, card := range panel {
@@ -52,7 +43,7 @@ func NeonOutroHTML(doc Document, previewGrey bool) ([]byte, error) {
 		}
 	}
 	for _, team := range doc.Outro.Teams {
-		t := neonScoreTeam{Name: team.Name, Score: team.Score, Winner: team.Score == max(doc.ScoreCT, doc.ScoreT), AverageELO: "—"}
+		t := neonScoreTeam{Name: team.Name, Side: team.Side, Score: team.Score, Winner: team.Score == max(doc.ScoreCT, doc.ScoreT), AverageELO: "—"}
 		if team.AverageELO != nil {
 			t.AverageELO = strconv.Itoa(*team.AverageELO)
 		}
@@ -83,17 +74,5 @@ func NeonOutroHTML(doc Document, previewGrey bool) ([]byte, error) {
 		}
 		data.Teams = append(data.Teams, t)
 	}
-	raw, err := neonAssets.ReadFile("neon-outro.html")
-	if err != nil {
-		return nil, err
-	}
-	t, err := template.New("neon-outro").Parse(string(raw))
-	if err != nil {
-		return nil, err
-	}
-	var out bytes.Buffer
-	if err := t.Execute(&out, data); err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
+	return executePage(designFile(doc, "outro"), data)
 }

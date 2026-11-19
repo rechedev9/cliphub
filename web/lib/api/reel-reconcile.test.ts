@@ -141,6 +141,8 @@ test('reels leave reconciliation only when ready with an MP4 URL; failed/active 
     // Ready before the artifact names arrived: nothing else would fetch them.
     [{ status: 'ready' }, true],
     [{ status: 'ready', downloadUrl: '/api/demos/j/renders/v/videos/a.mp4' }, false],
+    // The last render on show while a change waits: the poll still sees the change land some other way.
+    [{ status: 'ready', downloadUrl: '/api/demos/j/renders/v/videos/a.mp4', changePending: true }, true],
   ];
   for (const [video, want] of cases) {
     assert.equal(shouldReconcileVideoStatus(video), want, JSON.stringify(video));
@@ -441,6 +443,7 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
     },
   ];
   for (const tc of cases) {
+    // Right after the user's click: a page load alone never records (real-mismatch-redrive.test.ts).
     const got = decideReelReconcile({
       jobStatus: tc.jobStatus,
       renderStatus: tc.renderStatus,
@@ -450,6 +453,7 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
       renderSegmentIds: tc.renderSegmentIds,
       intentMusic: tc.intentMusic,
       renderMusic: tc.renderMusic,
+      userAsked: true,
     });
     assert.equal(got.view.action, tc.wantAction, `${tc.name} action`);
     assert.equal(got.view.status, tc.wantStatus, `${tc.name} status`);
@@ -499,6 +503,7 @@ test('ready Shorts are adopted only for the same ordered segment selection', () 
       renderEdit: shortsEdit,
       intentSegmentIds: tc.intentSegmentIds,
       renderSegmentIds: tc.renderSegmentIds,
+      userAsked: true,
     });
     assert.equal(got.view.action, tc.wantAction, `${tc.name} action`);
     assert.equal(got.adoptEffective, tc.wantAdopt, `${tc.name} adopt`);
@@ -755,3 +760,23 @@ test('POST admission: transient, job-gone, in-flight and durable rejections', ()
   assert.deepEqual(viewForRenderAdmission(404, {}), unrecoverableJobGoneView());
 });
 
+test('a page load task refused for a capture keeps the last render on show; after a click the refusal is a failure', () => {
+  const refused = 'capture_required: applying this change needs a CS2 capture, which only an explicit request starts';
+  const input: DecideReelReconcileInput = {
+    jobStatus: 'failed',
+    jobFailureReason: refused,
+    renderStatus: 'ready',
+    renderArtifactPrefix: 'jobs/j/renders/v/revisions/rev-1',
+    intentEdit: { ...DEFAULT_EDIT_CONFIG, intro: true },
+    renderEdit: DEFAULT_EDIT_CONFIG,
+    intentSegmentIds: ['seg-001'],
+    renderSegmentIds: ['seg-001'],
+  };
+  assert.deepEqual(decideReelReconcile(input).view, {
+    status: 'ready',
+    action: 'none',
+    reviewArtifactPrefix: 'jobs/j/renders/v/revisions/rev-1',
+    changePending: true,
+  });
+  assert.deepEqual(decideReelReconcile({ ...input, userAsked: true }).view, { status: 'failed', action: 'none', failureReason: refused });
+});

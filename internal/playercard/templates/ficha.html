@@ -1,0 +1,13 @@
+{{define "style"}}.ficha{padding:0 0 56px}
+.ficha .photo,.ficha .initials{width:100%;height:540px;font-size:240px}
+.ficha .body{padding:0 60px}
+.ficha .tags{display:flex;gap:14px;align-items:center;margin-top:22px;flex-wrap:wrap}
+.ficha .tags .faceit{margin-top:0}
+.ficha .row{display:flex;gap:18px;margin-top:40px}
+.ficha .stat{flex:1;padding:20px 22px;border-left:6px solid #FFC83D;border-radius:8px;background:#FFFFFF0D}
+.ficha .stat .value{font-size:58px;margin-top:6px}{{end}}
+{{define "card"}}<main class="card ficha">{{template "portrait" .}}<div class="body">
+<div class="name">{{.Name}}</div>{{if .Team}}<div class="team">{{.Team}}</div>{{end}}
+<div class="tags">{{if .Role}}<span class="role">{{.Role}}</span>{{end}}{{template "faceit" .}}</div>
+{{if .Stats}}<div class="row">{{range .Stats}}<div class="stat"><span class="label">{{.Label}}</span><span class="value">{{.Value}}</span></div>{{end}}</div>{{end}}
+</div></main>{{end}}

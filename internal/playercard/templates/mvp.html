@@ -1,0 +1,12 @@
+{{define "style"}}.mvp{text-align:center}
+.mvp .title{font-family:'Card Display',Arial,sans-serif;font-weight:800;font-size:150px;line-height:.9;letter-spacing:14px;background:linear-gradient(180deg,#FFE08A,#FFC83D 55%,#FF8A3D);-webkit-background-clip:text;background-clip:text;color:transparent}
+.mvp .result{display:inline-block;margin-top:18px;padding:10px 28px;border-radius:14px;font-weight:700;font-size:40px;letter-spacing:3px;background:#FFFFFF1A}
+.mvp .result.won{background:#16A34A33;color:#86EFAC}.mvp .result.lost{background:#DC262633;color:#FCA5A5}
+.mvp .map{font-size:30px;font-weight:600;color:#A9BACD;letter-spacing:6px;margin-top:12px}
+.mvp .photo,.mvp .initials{width:220px;height:220px;border-radius:50%;margin:32px auto 0;border:6px solid #FFC83D;font-size:88px}
+.mvp .faceit{justify-content:center}
+.mvp .best{margin-top:36px;padding:26px;border-radius:28px;background:#FFC83D14;border:2px solid #FFC83D55}
+.mvp .best .value{font-size:120px;line-height:1;color:#FFC83D}.mvp .best .label{margin-top:10px;font-size:34px}{{end}}
+{{define "card"}}<main class="card mvp"><div class="title">MVP</div>{{if .Result}}<div class="result {{.Outcome}}">{{.Result}}</div>{{end}}{{if .Map}}<div class="map">{{.Map}}</div>{{end}}
+{{template "portrait" .}}<div class="name">{{.Name}}</div>{{if .Team}}<div class="team">{{.Team}}</div>{{end}}{{template "faceit" .}}
+{{with .Best}}<div class="best"><span class="value">{{.Value}}</span><span class="label">{{.Label}}</span></div>{{end}}</main>{{end}}

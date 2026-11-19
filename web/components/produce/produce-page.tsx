@@ -8,8 +8,9 @@ import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
 import { HUB_ROW_STAGE, matchRowStage, type HubRowStage } from '@/lib/clips/hub';
-import { flowHref, parseRoundsParam, PRODUCE_FORMAT, PRODUCE_QUERY, seriesHref, type ProduceFormat } from '@/lib/clips/routes';
+import { flowHref, parseRoundsParam, parseVideoEditParam, PRODUCE_FORMAT, PRODUCE_QUERY, seriesHref, type ProduceFormat } from '@/lib/clips/routes';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
+import { FULL_DEMO_CAPTURE_VARIANT } from '@/lib/full-demo-plan';
 import {
   MATCH_PLAYS_ANALYZING_DESCRIPTION,
   MATCH_PLAYS_ANALYZING_TITLE,
@@ -19,12 +20,15 @@ import {
 import { startPollLoop } from '@/lib/poll-loop';
 import {
   FLOW_TITLE,
+  LONG_VIDEO_KIND_LABEL,
   PRODUCE_MATCH_MISSING,
   PRODUCE_MATCH_NO_POV,
   PRODUCE_PICK_POV_CTA,
   PRODUCE_POLL_ERROR,
   PRODUCE_POLL_OFFLINE,
+  PRODUCE_SUMMARY_NO_KILLS,
 } from '@/lib/produce/copy';
+import { LONG_VIDEO_KIND, longVideoKind, longVideoKindHref, longVideoKinds, parseHorizontalParam } from '@/lib/produce/long-video-kind';
 import { isSeriesId } from '@/lib/series-status';
 import { cn } from '@/lib/utils';
 import {
@@ -40,7 +44,10 @@ import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { ShortProducer } from '@/components/produce/short-producer';
 import { FullPovProducer } from '@/components/produce/full-pov-producer';
+import { LongVideoKindSwitch } from '@/components/produce/long-video-kind-switch';
 import { useProduceBack } from '@/components/produce/use-produce-back';
+import { useShortEditSeed } from '@/hooks/use-short-edit-seed';
+import { useHorizontalDraft } from '@/hooks/use-horizontal-draft';
 
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
@@ -56,6 +63,11 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
   const series = query[PRODUCE_QUERY.series];
   const seriesId = typeof series === 'string' && isSeriesId(series) ? series : null;
   const focusRounds = parseRoundsParam(query[PRODUCE_QUERY.rounds]);
+  const videoEdit = parseVideoEditParam(query);
+  // A Full Demo version reopens its plan inside its own producer; Shorts and resúmenes need their settings first.
+  const shortEdit = useShortEditSeed(id, videoEdit?.variant === FULL_DEMO_CAPTURE_VARIANT ? null : videoEdit);
+  // Crear horizontal: the summary producer starts from a Short's plays; Editar wins when both are asked.
+  const horizontal = useHorizontalDraft(id, format === PRODUCE_FORMAT.full && videoEdit === null ? parseHorizontalParam(query) : null);
   const router = useRouter();
 
   const [match, setMatch] = useState<Match | null>(null);
@@ -171,7 +183,11 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
 
   const stage = matchRowStage(match.status);
   // Several players make a 16:9 best-moments video, not a full match from one POV.
-  const multiPov = (match.povPlayers?.length ?? 0) > 1;
+  const povCount = match.povPlayers?.length ?? 0;
+  const multiPov = povCount > 1;
+  const kind = longVideoKind(povCount, query[PRODUCE_QUERY.video]);
+  const kinds = format === PRODUCE_FORMAT.full && stage === HUB_ROW_STAGE.ready ? longVideoKinds(povCount) : [];
+  const chooseKind = (next: typeof kind): void => router.replace(longVideoKindHref({ jobId: id, kind: next, query }), { scroll: false });
   let body: ReactNode;
   if (stage === HUB_ROW_STAGE.unpicked) {
     body = (
@@ -223,24 +239,38 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         }
       />
     );
-  } else if (format === PRODUCE_FORMAT.full && !multiPov) {
+  } else if (format === PRODUCE_FORMAT.full && kind === LONG_VIDEO_KIND.match) {
     body = (
       <FullPovProducer active matchId={id} match={match} rounds={rounds} recapFailure={recapFailure}
-        recBusy={recBusy} seriesId={seriesId} selectedRounds={focusRounds} />
+        recBusy={recBusy} seriesId={seriesId} selectedRounds={focusRounds} edit={videoEdit?.variant === FULL_DEMO_CAPTURE_VARIANT ? videoEdit : null} />
     );
   } else {
     const shortUnavailable = plays.length === 0 && deathPlays.length === 0;
+    const onePlayerSummary = format === PRODUCE_FORMAT.full && !multiPov;
     body = (
       <>
-        {shortUnavailable ? (
+        {shortUnavailable && onePlayerSummary ? (
+          <StudioEmptyState icon={SearchX} title={PRODUCE_SUMMARY_NO_KILLS.title} description={PRODUCE_SUMMARY_NO_KILLS.description} compact
+            actions={<>
+              <Button className={FORMAT_TONE[format].fill} onClick={() => chooseKind(LONG_VIDEO_KIND.match)}>{LONG_VIDEO_KIND_LABEL.partida}</Button>
+              <ExitButton href={backHref} variant="outline">{backLabel}</ExitButton>
+            </>} />
+        ) : null}
+        {shortUnavailable && !onePlayerSummary ? (
           <StudioEmptyState icon={SearchX} title={MATCH_PLAYS_EMPTY_TITLE}
             description={MATCH_PLAYS_EMPTY_DESCRIPTION} compact actions={<ExitButton href={backHref}>{backLabel}</ExitButton>} />
         ) : null}
+        {shortEdit.status === 'failed' ? (
+          <p role="alert" className="text-body-sm text-warning">No se pudo abrir esa versión del vídeo: el productor empieza con la selección habitual.</p>
+        ) : null}
+        {horizontal.status === 'failed' ? (
+          <p role="alert" className="text-body-sm text-warning">No se pudo preparar el horizontal de ese Short: el productor empieza con la selección habitual.</p>
+        ) : null}
         {/* Mounted through an empty poll so a blip never drops the user's selection. */}
-        {shortPlanJobId === id ? (
+        {shortPlanJobId === id && shortEdit.status !== 'loading' && horizontal.status !== 'loading' ? (
           <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
-            <ShortProducer key={id} matchId={id} match={match} plays={plays} deathPlays={deathPlays} seriesId={seriesId} focusRounds={focusRounds}
-              format={format === PRODUCE_FORMAT.full ? 'landscape-16x9' : 'short-9x16'} />
+            <ShortProducer key={id} matchId={id} match={match} plays={plays} deathPlays={deathPlays} seriesId={seriesId} focusRounds={focusRounds} editSeed={shortEdit.seed}
+              horizontal={horizontal.draft} format={format === PRODUCE_FORMAT.full ? 'landscape-16x9' : 'short-9x16'} />
           </div>
         ) : null}
       </>
@@ -268,6 +298,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
             {pollError === 'offline' ? PRODUCE_POLL_OFFLINE : PRODUCE_POLL_ERROR}
           </p>
         ) : null}
+        {kinds.length > 1 ? <LongVideoKindSwitch kinds={kinds} value={kind} onChange={chooseKind} /> : null}
         {body}
       </div>
     </div>

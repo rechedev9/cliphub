@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -241,9 +242,11 @@ func (f rankedFixture) countryCode() string {
 // exactly as FACEIT does: sorted by ELO with a position counted inside the
 // region, narrowed to the country query when there is one. A broken key is a
 // region ("EU") or a region/country ladder ("EU/ru").
-func leaderboardServer(t *testing.T, population []rankedFixture, broken map[string]bool) *Client {
+func leaderboardServer(t *testing.T, population []rankedFixture, broken map[string]bool) (*Client, *atomic.Int32) {
 	t.Helper()
+	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
 		region := strings.TrimPrefix(r.URL.Path, "/rankings/games/cs2/regions/")
 		if region == r.URL.Path || region == "" {
 			http.NotFound(w, r)
@@ -303,104 +306,7 @@ func leaderboardServer(t *testing.T, population []rankedFixture, broken map[stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	return client
-}
-
-func TestZoneTopBreaksTiesByPlayerID(t *testing.T) {
-	t.Parallel()
-	population := []rankedFixture{
-		{id: "zz-tied", region: "EU", country: "ru", elo: 4000},
-		{id: "aa-tied", region: "NA", country: "ua", elo: 4000},
-		{id: "mm-tied", region: "SA", country: "kz", elo: 4000},
-		{id: "low", region: "SEA", country: "by", elo: 3000},
-	}
-	client := leaderboardServer(t, population, nil)
-	for attempt := range 5 {
-		players, err := client.ZoneTop(context.Background(), ZoneCIS, 4)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got := make([]string, 0, len(players))
-		for _, player := range players {
-			got = append(got, player.PlayerID)
-		}
-		want := "[aa-tied mm-tied zz-tied low]"
-		if fmt.Sprint(got) != want {
-			t.Fatalf("attempt %d: order = %v, want %s", attempt, got, want)
-		}
-	}
-}
-
-func TestZoneTopDropsDuplicatePlayerAcrossLadders(t *testing.T) {
-	t.Parallel()
-	population := []rankedFixture{
-		{id: "double", region: "EU", country: "ru", elo: 4200},
-		{id: "double", region: "NA", country: "ru", elo: 4100},
-		{id: "single", region: "SA", country: "ua", elo: 4000},
-	}
-	client := leaderboardServer(t, population, nil)
-	players, err := client.ZoneTop(context.Background(), ZoneCIS, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(players) != 2 {
-		t.Fatalf("players = %#v, want the duplicate collapsed", players)
-	}
-	if players[0].PlayerID != "double" || players[0].ELO != 4200 {
-		t.Fatalf("first player = %#v, want the higher-elo copy", players[0])
-	}
-}
-
-// TestZoneTopEqualsTheTrueZoneRanking reads every zone country on every
-// region: the best player of a country can queue anywhere, and a player
-// outside the zone must never leak in however high their ELO.
-func TestZoneTopEqualsTheTrueZoneRanking(t *testing.T) {
-	t.Parallel()
-	population := []rankedFixture{
-		{id: "es-top", region: "EU", elo: 5000},
-		{id: "ru-eu", region: "EU", country: "ru", elo: 4600},
-		{id: "ua-na", region: "NA", country: "ua", elo: 4500},
-		{id: "kz-sea", region: "SEA", country: "kz", elo: 4400},
-		{id: "ru-eu-2", region: "EU", country: "ru", elo: 4300},
-		{id: "mx-eu", region: "EU", country: "mx", elo: 3900},
-		{id: "br-sa", region: "SA", country: "br", elo: 3800},
-		{id: "br-sa-2", region: "SA", country: "br", elo: 3700},
-		{id: "us-na", region: "NA", country: "us", elo: 4200},
-	}
-	client := leaderboardServer(t, population, nil)
-	for zone, want := range map[string]string{
-		ZoneCIS:   "[ru-eu ua-na kz-sea]",
-		ZoneLATAM: "[mx-eu br-sa br-sa-2]",
-	} {
-		players, err := client.ZoneTop(context.Background(), zone, 3)
-		if err != nil {
-			t.Fatalf("%s: %v", zone, err)
-		}
-		got := make([]string, 0, len(players))
-		for _, player := range players {
-			got = append(got, player.PlayerID)
-		}
-		if fmt.Sprint(got) != want {
-			t.Fatalf("%s top = %v, want %s", zone, got, want)
-		}
-	}
-}
-
-// A zone roster missing one country would look complete, so one failed ladder
-// fails the whole zone.
-func TestZoneTopFailsOnAnyMissingLadder(t *testing.T) {
-	t.Parallel()
-	population := []rankedFixture{{id: "ru-eu", region: "EU", country: "ru", elo: 4600}}
-	client := leaderboardServer(t, population, map[string]bool{"OCE/md": true})
-	if _, err := client.ZoneTop(context.Background(), ZoneCIS, 10); !errors.Is(err, ErrUnavailable) {
-		t.Fatalf("ZoneTop error = %v, want the failed OCE/md ladder", err)
-	}
-	if players, err := client.ZoneTop(context.Background(), ZoneLATAM, 10); err != nil || len(players) != 0 {
-		t.Fatalf("LATAM = %#v, %v; want an empty roster from healthy ladders", players, err)
-	}
-	if _, err := client.ZoneTop(context.Background(), "eu", 10); err == nil {
-		t.Fatal("ZoneTop accepted an unknown zone")
-	}
+	return client, &requests
 }
 
 func TestRankingsRequiresAPIKey(t *testing.T) {
@@ -416,8 +322,8 @@ func TestRankingsRequiresAPIKey(t *testing.T) {
 			if _, err := client.Rankings(context.Background(), "EU", "", 0, 10); !errors.Is(err, ErrNotConfigured) {
 				t.Fatalf("Rankings error = %v, want ErrNotConfigured", err)
 			}
-			if _, err := client.ZoneTop(context.Background(), ZoneCIS, 10); !errors.Is(err, ErrNotConfigured) {
-				t.Fatalf("ZoneTop error = %v, want ErrNotConfigured", err)
+			if _, err := client.RankingTop(context.Background(), RankingEntry{kind: RankingZone, code: ZoneCIS}); !errors.Is(err, ErrNotConfigured) {
+				t.Fatalf("RankingTop error = %v, want ErrNotConfigured", err)
 			}
 		})
 	}

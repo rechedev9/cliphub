@@ -1,60 +1,49 @@
 package demooverlay
 
 import (
-	"bytes"
-	"context"
 	"embed"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"html/template"
-	"image/png"
 	"net/http"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
+
+	"github.com/rechedev9/cliphub/internal/htmlstill"
 )
 
-// The template uses browser layout, CSS perspective and SVG decoration. All
+// The templates use browser layout, CSS perspective and SVG decoration. All
 // resources are embedded data URLs, so Chromium never needs network access.
 // Roboto and flag-icons licenses and provenance are bundled in assets/.
 //
-//go:embed neon-intro.html neon-outro.html screenshots.html assets/fonts/*.ttf assets/flags/*.svg
+//go:embed neon-intro.html neon-outro.html hud-intro.html hud-outro.html intro-body.html scoreboard-body.html screenshots.html assets/fonts/*.ttf assets/flags/*.svg
 var neonAssets embed.FS
 
 type neonCard struct {
 	Name, SteamID, Avatar, Flag, ELO, Rank, RankClass, Level string
-	Verified, Premium, FACEIT                                bool
+	Verified, Premium, FACEIT, POV                           bool
 	Matches, RecentLabel, Win, ADR, HS, KD, KR, KDA          string
 }
 
 type neonTemplateData struct {
-	RegularFont, MediumFont, BoldFont template.URL
-	PreviewGrey                       bool
-	Panels                            [][]neonCard
+	pageFonts
+	PreviewGrey bool
+	Panels      [][]neonCard
+	// Sides holds the CT or T side of each panel, for the designs that colour them.
+	Sides   []string
+	Palette *Palette
 }
 
-// NeonIntroHTML produces the same self-contained HTML used by the production
+// rosterHTML produces the same self-contained HTML used by the production
 // Chromium renderer, allowing previews to inspect real DOM layout and styles.
-func NeonIntroHTML(doc Document, previewGrey bool) ([]byte, error) {
-	data := neonTemplateData{PreviewGrey: previewGrey}
-	var err error
-	data.RegularFont, err = neonAssetURL("assets/fonts/Roboto-Regular.ttf", "font/ttf")
+func rosterHTML(doc Document, previewGrey bool) ([]byte, error) {
+	fonts, err := loadPageFonts()
 	if err != nil {
 		return nil, err
 	}
-	data.MediumFont, err = neonAssetURL("assets/fonts/Roboto-Medium.ttf", "font/ttf")
-	if err != nil {
-		return nil, err
-	}
-	data.BoldFont, err = neonAssetURL("assets/fonts/Roboto-Bold.ttf", "font/ttf")
-	if err != nil {
-		return nil, err
-	}
-	for _, cards := range [][]PlayerCard{doc.Intro.Left, doc.Intro.Right} {
+	data := neonTemplateData{pageFonts: fonts, PreviewGrey: previewGrey, Palette: doc.Palette}
+	for side, cards := range [][]PlayerCard{doc.Intro.Left, doc.Intro.Right} {
 		panel := []neonCard{}
 		for i, card := range neonRosterOrder(cards, doc.TargetSteamID64) {
 			if i >= 5 {
@@ -62,6 +51,7 @@ func NeonIntroHTML(doc Document, previewGrey bool) ([]byte, error) {
 			}
 			view := neonCardView(card, NormalizeSource(doc.Source) == SourceFACEIT)
 			view.Avatar = string(neonAvatarURL(card.AvatarFile))
+			view.POV = doc.IsPOV(card)
 			code := strings.ToLower(strings.TrimSpace(card.Country))
 			if len(code) == 2 && code[0] >= 'a' && code[0] <= 'z' && code[1] >= 'a' && code[1] <= 'z' {
 				if flag, err := neonAssetURL("assets/flags/"+code+".svg", "image/svg+xml"); err == nil {
@@ -71,26 +61,9 @@ func NeonIntroHTML(doc Document, previewGrey bool) ([]byte, error) {
 			panel = append(panel, view)
 		}
 		data.Panels = append(data.Panels, panel)
+		data.Sides = append(data.Sides, panelSide(cards, []string{"CT", "T"}[side]))
 	}
-	raw, err := neonAssets.ReadFile("neon-intro.html")
-	if err != nil {
-		return nil, err
-	}
-	t, err := template.New("neon-intro").Funcs(template.FuncMap{"asset": func(v string) template.URL {
-		// These values are constructed from local bytes above, never roster strings.
-		if strings.HasPrefix(v, "data:") {
-			return template.URL(v)
-		} // #nosec G203 -- generated data URL.
-		return ""
-	}}).Parse(string(raw))
-	if err != nil {
-		return nil, err
-	}
-	var out bytes.Buffer
-	if err := t.Execute(&out, data); err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
+	return executePage(designFile(doc, "intro"), data)
 }
 
 func neonAssetURL(name, mime string) (template.URL, error) {
@@ -187,81 +160,6 @@ func neonRosterOrder(cards []PlayerCard, target string) []PlayerCard {
 	return ordered
 }
 
-func renderNeonIntroStill(doc Document, outPath string, previewGrey bool) error {
-	html, err := NeonIntroHTML(doc, previewGrey)
-	if err != nil {
-		return err
-	}
-	return renderHTMLStill(html, outPath)
-}
-
 func renderHTMLStill(html []byte, outPath string) error {
-	renderer := strings.TrimSpace(os.Getenv("ZV_OVERLAY_RENDERER_PATH"))
-	if renderer == "" {
-		return fmt.Errorf("neon overlay requires the Studio Chromium renderer (ZV_OVERLAY_RENDERER_PATH)")
-	}
-	if err := os.MkdirAll(filepath.Dir(outPath), 0750); err != nil {
-		return err
-	}
-	dir, err := os.MkdirTemp(filepath.Dir(outPath), ".neon-overlay-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(dir)
-	htmlPath, err := filepath.Abs(filepath.Join(dir, "overlay.html"))
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(htmlPath, html, 0600); err != nil {
-		return err
-	}
-	outputPath, err := filepath.Abs(outPath)
-	if err != nil {
-		return err
-	}
-	requestPath, err := filepath.Abs(filepath.Join(dir, "request.json"))
-	if err != nil {
-		return err
-	}
-	body, err := json.Marshal(struct {
-		HTMLPath   string `json:"html_path"`
-		OutputPath string `json:"output_path"`
-		Width      int    `json:"width"`
-		Height     int    `json:"height"`
-	}{htmlPath, outputPath, FrameWidth, FrameHeight})
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(requestPath, body, 0600); err != nil {
-		return err
-	}
-	args := []string{}
-	if app := strings.TrimSpace(os.Getenv("ZV_OVERLAY_RENDERER_APP")); app != "" {
-		args = append(args, app)
-	}
-	args = append(args, "--cliphub-render-overlay", requestPath)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, renderer, args...)
-	for _, env := range os.Environ() {
-		if !strings.HasPrefix(strings.ToUpper(env), "ELECTRON_RUN_AS_NODE=") {
-			cmd.Env = append(cmd.Env, env)
-		}
-	}
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("Chromium overlay render: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	f, err := os.Open(outputPath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	config, err := png.DecodeConfig(f)
-	if err != nil {
-		return fmt.Errorf("Chromium overlay is not a PNG: %w", err)
-	}
-	if config.Width != FrameWidth || config.Height != FrameHeight {
-		return fmt.Errorf("Chromium overlay is %dx%d, want 1920x1080", config.Width, config.Height)
-	}
-	return nil
+	return htmlstill.Render(html, outPath, htmlstill.Landscape)
 }

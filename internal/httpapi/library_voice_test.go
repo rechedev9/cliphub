@@ -3,13 +3,13 @@ package httpapi
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/library"
@@ -51,7 +51,12 @@ func (fakeVoiceMedia) Speech(context.Context, string) ([]library.VoiceSpan, int6
 	return []library.VoiceSpan{{StartMS: 1000, EndMS: 2500}}, 600_000, nil
 }
 
-type fakeTranscriber struct{ state string }
+type fakeTranscriber struct {
+	state string
+	calls atomic.Int32
+	// gate, when set, holds every transcription until it closes.
+	gate chan struct{}
+}
 
 func (f *fakeTranscriber) Status() teamvoice.TranscriberStatus {
 	return teamvoice.TranscriberStatus{State: f.state}
@@ -62,10 +67,11 @@ func (f *fakeTranscriber) Install(context.Context) error {
 	return nil
 }
 
-func (f *fakeTranscriber) Transcribe(_ context.Context, job teamvoice.TranscribeJob) ([]teamvoice.Line, error) {
-	if job.Language != "es" {
-		return nil, errors.New("unexpected language")
+func (f *fakeTranscriber) Transcribe(context.Context, teamvoice.TranscribeJob) ([]teamvoice.Line, error) {
+	if f.gate != nil {
+		<-f.gate
 	}
+	f.calls.Add(1)
 	return []teamvoice.Line{{StartMS: 1000, EndMS: 2000, Text: "Rotamos a B ya"}}, nil
 }
 

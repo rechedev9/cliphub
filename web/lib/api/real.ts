@@ -12,8 +12,8 @@ import { deathMomentsToPlays, planToMatch, planToPlays, type DeathMoments, type 
 import { readMomentScores, withMomentScores } from './moment-scores.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
-import { customHudTheme } from '../custom-hud.ts';
-import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
+import { reelStyleLabel } from './reel-style-label.ts';
+import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForLatch, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, videoFromIntent, withAdmissionFailure, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type AdmissionFailure, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
 import { autoShortsTitle, reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict } from './reel-identity.ts';
@@ -109,20 +109,6 @@ function variantOf(intent: Pick<ReelIntent, 'variant'>): string {
   return intent.variant ?? REEL_VARIANT;
 }
 
-/** Display-only labels for the known presets (server is the source of truth). */
-const VARIANT_LABELS: Record<string, string> = {
-  'viral-60-clean': 'Killfeed',
-  'clean-pov-60': 'POV limpio',
-  'full-hud-60': 'HUD completo',
-  'gameplay-pov-60': 'POV nativo',
-};
-
-function variantLabel(variant: string, editConfig?: EditConfig): string {
-  const hud = customHudTheme(editConfig?.fullDemo?.document.options.overlays.hud_theme);
-  if (hud) return `HUD ${hud.name}`;
-  return VARIANT_LABELS[variant] ?? variant;
-}
-
 function isJobId(id: string): boolean {
   return UUID_RE.test(id);
 }
@@ -206,6 +192,8 @@ export class RealApiClient implements ApiClient {
   private readonly redrivenRevisions = new Map<string, RedrivenRevision>();
   /** Why automatic driving stopped (durable POST rejection or repeated mismatch); explicit actions clear it. */
   private readonly driveLatch = new Map<string, { failureReason: string; retryAction: ReelAction }>();
+  /** Reels an explicit action asked for since the page loaded; only their generates may open CS2. */
+  private readonly asked = new Set<string>();
   /** GETs the constructor beat still has open, so its three reads share them (see sharedRead). */
   private readonly beatReads = new Map<string, Promise<unknown>>();
   /** Last /api/demos/jobs body, reused when the orchestrator answers 304. */
@@ -497,7 +485,7 @@ export class RealApiClient implements ApiClient {
       ? plays
       : request.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
     const variant = request.variant ?? REEL_VARIANT;
-    const suffix = request.songId ? `${variantLabel(variant, editConfig)} + Music` : variantLabel(variant, editConfig);
+    const suffix = request.songId ? `${reelStyleLabel(variant, editConfig)} + Music` : reelStyleLabel(variant, editConfig);
     let selectionTitle = editConfig.separateShorts ? autoShortsTitle(pickedPlays.length) : (playsSelectionLabel(pickedPlays) ?? 'Highlight');
     if (recap) selectionTitle = `${pickedPlays.length} ${pickedPlays.length === 1 ? 'ronda' : 'rondas'}`;
     else if (editConfig.deathReel) selectionTitle = `${pickedPlays.length} ${pickedPlays.length === 1 ? 'muerte' : 'muertes'}`;
@@ -670,11 +658,7 @@ export class RealApiClient implements ApiClient {
     });
     // A latched reel reads healthy server-side; re-issue the POST the latch stopped.
     const retryAction = derived === 'none' && latched ? latched.retryAction : derived;
-    if (retryAction === 'record') {
-      await this.drive(intent, retryAction, { artifactPrefix: render.artifactPrefix });
-    } else if (retryAction === 'render') {
-      await this.drive(intent, retryAction);
-    }
+    if (retryAction !== 'none') await this.drive(intent, retryAction, retryAction === 'record' ? { artifactPrefix: render.artifactPrefix } : undefined);
     await this.reconcile();
     return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
   }
@@ -706,7 +690,7 @@ export class RealApiClient implements ApiClient {
       applyMusicChoice(nextIntent, nextChoice);
       nextIntent.title = titleWithMusicSuffix(
         intent.title,
-        variantLabel(variantOf(intent), intent.editConfig),
+        reelStyleLabel(variantOf(intent), intent.editConfig),
         Boolean(nextIntent.songId),
       );
       const accepted = await readJson<{ accepted?: boolean; duplicate?: boolean }>(
@@ -871,6 +855,7 @@ export class RealApiClient implements ApiClient {
 
   /** An explicit user action grants a fresh automatic re-drive and lifts any latch. */
   private forgetDriveState(videoId: string): void {
+    this.asked.add(videoId);
     this.redrivenRevisions.delete(videoId);
     this.driveLatch.delete(videoId);
     this.keepAdmissionFailure(videoId, undefined);
@@ -917,24 +902,7 @@ export class RealApiClient implements ApiClient {
       return;
     }
     this.jobGoneTicks.delete(intent.videoId);
-    // Job/render state would re-derive `record` every tick; the latch holds until an explicit action.
-    const latched = this.driveLatch.get(intent.videoId);
-    if (latched !== undefined) {
-      this.applyView(intent, { status: 'failed', action: 'none', failureReason: latched.failureReason });
-      return;
-    }
-    const render: {
-      status: RenderStatus;
-      failureReason?: string;
-      warnings?: string[];
-      videoName?: string;
-      coverName?: string;
-      coverNames?: string[];
-      artifactPrefix?: string;
-      segmentIds?: string[];
-      editConfig?: EditConfig;
-      effectiveMusic?: EffectiveRenderMusic;
-    } = await this.renderForReconcile(intent, job.status, prefetched);
+    const render = await this.renderForReconcile(intent, job.status, prefetched);
     // Use the editor's real artifact names instead of guessing from segment ids.
     if (render.videoName) {
       const names: { video: string; cover?: string; covers?: string[]; revision?: string } = { video: render.videoName };
@@ -947,6 +915,12 @@ export class RealApiClient implements ApiClient {
         names.covers = [render.coverName];
       }
       this.artifactNames.set(intent.videoId, names);
+    }
+    // Job/render state would re-derive `record` every tick; the latch holds until an explicit action.
+    const latched = this.driveLatch.get(intent.videoId);
+    if (latched !== undefined) {
+      this.applyView(intent, viewForLatch(latched, render));
+      return;
     }
     // A ready render whose MP4 never shows up would otherwise stay on the poll forever.
     if (render.status === 'ready' && !render.videoName && !this.artifactNames.has(intent.videoId)) {
@@ -978,13 +952,10 @@ export class RealApiClient implements ApiClient {
       renderEdit: render.editConfig,
       intentSegmentIds: intent.segmentIds,
       renderSegmentIds: render.segmentIds,
-      intentMusic: {
-        songId: intent.songId,
-        musicVolume: intent.musicVolume,
-        gameVolume: intent.gameVolume,
-      },
+      intentMusic: { songId: intent.songId, musicVolume: intent.musicVolume, gameVolume: intent.gameVolume },
       renderMusic: musicChoiceFromEffective(render.effectiveMusic),
       redrivenRevision: this.redrivenRevisions.get(intent.videoId),
+      userAsked: this.asked.has(intent.videoId),
     });
     if (decision.mismatchRedrive === 'fail') {
       this.driveLatch.set(intent.videoId, { failureReason: MISMATCH_REDRIVE_FAILURE_REASON, retryAction: 'record' });
@@ -1004,6 +975,8 @@ export class RealApiClient implements ApiClient {
     if (decision.view.action === 'none') return;
     const redriveFrom = decision.mismatchRedrive === 'drive' ? { artifactPrefix: render.artifactPrefix } : undefined;
     await this.drive(intent, decision.view.action, redriveFrom);
+    const refused = this.driveLatch.get(intent.videoId);
+    if (refused !== undefined) this.applyView(intent, viewForLatch(refused, render));
   }
 
   /** Writes a reel's derived view onto its live Video, wiring URLs once ready. */
@@ -1018,6 +991,7 @@ export class RealApiClient implements ApiClient {
       warnings: view.warnings,
       reviewArtifactPrefix: view.reviewArtifactPrefix,
       captureProgress: view.captureProgress,
+      changePending: view.changePending,
     }, intent);
     if (intent.targetName) next.targetName = intent.targetName;
     // Latch stays set: a later plain-failed view must not clear it.
@@ -1084,6 +1058,7 @@ export class RealApiClient implements ApiClient {
                   music: buildMusicRequest(intent),
                   segment_ids: intent.segmentIds,
                   edit: buildEditRequest(intent.editConfig),
+                  ...(this.asked.has(intent.videoId) ? {} : { allow_capture: false }),
                 }),
               },
             }))

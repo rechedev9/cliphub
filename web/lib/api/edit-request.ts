@@ -1,6 +1,6 @@
 import { persistAffiliateFamily } from '../affiliate-banner.ts';
 import { radarEditFields } from '../radar-overlay.ts';
-import { DEFAULT_VICTIM_REPLAY_SPEED, type EditConfig } from './types.ts';
+import { DEFAULT_PRE_ROLL_SECONDS, DEFAULT_VICTIM_REPLAY_SPEED, type EditConfig } from './types.ts';
 
 export type EditRequestBody = {
   full_demo?: EditConfig['fullDemo'];
@@ -23,14 +23,23 @@ export type EditRequestBody = {
   separate_shorts?: boolean;
   voice_comms: boolean;
   voice_volume?: number;
+  subtitles?: boolean;
+  subtitles_english?: boolean;
+  subtitles_hidden?: string[];
   native_hud: boolean;
   victim_replay?: boolean;
   victim_replay_speed?: number;
+  pre_roll_seconds?: number;
+  capture_hud?: EditConfig['captureHud'];
+  portrait_safe_killfeed?: boolean;
   play_badges?: boolean;
   win_probability?: boolean;
   player_labels?: boolean;
   grenade_trails?: boolean;
   stats_card?: boolean;
+  opening_card?: string;
+  end_card?: string;
+  cover_card?: string;
   brand_watermark?: boolean;
   brand_banner?: boolean;
   cover_strategy: EditConfig['coverStrategy'];
@@ -68,11 +77,19 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     if (edit.victimReplaySpeed !== undefined && edit.victimReplaySpeed !== DEFAULT_VICTIM_REPLAY_SPEED) body.victim_replay_speed = edit.victimReplaySpeed;
   }
   if (!edit.fullDemo && !edit.matchRecap) {
+    if (!edit.deathReel && edit.preRollSeconds !== undefined && edit.preRollSeconds !== DEFAULT_PRE_ROLL_SECONDS) body.pre_roll_seconds = edit.preRollSeconds;
+    if (edit.captureHud && edit.format === 'landscape-16x9' && !edit.nativeHud) body.capture_hud = edit.captureHud;
+    if (edit.portraitSafeKillfeed && edit.format === 'landscape-16x9' && !edit.deathReel && (edit.nativeHud || edit.captureHud !== 'clean')) body.portrait_safe_killfeed = true;
     if (edit.playBadges && !edit.deathReel) body.play_badges = true;
     if (edit.winProbability && !edit.deathReel) body.win_probability = true;
     if (edit.playerLabels) body.player_labels = true;
     if (edit.grenadeTrails) body.grenade_trails = true;
-    if (edit.statsCard && edit.format === 'short-9x16') body.stats_card = true;
+    if (edit.statsCard && edit.format === 'short-9x16' && !edit.endCard) body.stats_card = true;
+    if (edit.format === 'short-9x16') {
+      if (edit.openingCard) body.opening_card = edit.openingCard;
+      if (edit.endCard) body.end_card = edit.endCard;
+      if (edit.coverCard && edit.coverStrategy !== 'no-cover') body.cover_card = edit.coverCard;
+    }
     if (edit.brandWatermark) body.brand_watermark = true;
     if (edit.brandBanner && !edit.keyDropStyle?.trim()) body.brand_banner = true;
   }
@@ -94,6 +111,12 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
   }
   if (edit.voiceComms || edit.fullDemo) {
     body.voice_volume = edit.voiceVolume ?? 0.85;
+  }
+  // Subtitles write what the comms say, so Studio refuses them without the comms.
+  if (edit.subtitles && edit.voiceComms && !edit.fullDemo) {
+    body.subtitles = true;
+    if (edit.subtitlesEnglish) body.subtitles_english = true;
+    if (edit.subtitlesHidden?.length) body.subtitles_hidden = [...edit.subtitlesHidden].sort();
   }
   const introText = edit.introText?.trim();
   if (edit.intro && introText) body.intro_text = introText;

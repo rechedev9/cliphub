@@ -17,6 +17,7 @@ import {
   listLibraryTeams,
   listUnlinkedLibraryJobs,
   patchLibraryDemo,
+  type LibraryDemo,
   type LibrarySource,
 } from '@/lib/api/library';
 import type { LibrarySeries } from '@/lib/api/veto';
@@ -113,6 +114,11 @@ function columns({ handlers, voice, ownTeam }: { handlers: RowHandlers; voice: V
             <span className="flex items-center gap-2 font-semibold">
               {failed}
               {prettyMapName(match.map)}
+              {demo.title ? (
+                <span className="max-w-48 truncate font-normal text-fg-2" title={demo.title}>
+                  {demo.title}
+                </span>
+              ) : null}
             </span>
           );
         }
@@ -324,6 +330,13 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     window.history.replaceState(null, '', query === '' ? window.location.pathname : `${window.location.pathname}?${query}`);
   }
 
+  const changeTitle = useCallback((saved: LibraryDemo) => {
+    setLoaded((current) =>
+      current === null ? current : { ...current, rows: current.rows.map((row) => (row.demo.id === saved.id ? { ...row, demo: saved } : row)) },
+    );
+    pollRef.current();
+  }, []);
+
   const changeTags = useCallback((demoId: string, tags: string[]) => {
     setLoaded((current) =>
       current === null ? current : { ...current, rows: current.rows.map((row) => (row.demo.id === demoId ? { ...row, demo: { ...row.demo, tags } } : row)) },
@@ -490,7 +503,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
       state: ({ demo }) => demo.state,
     },
     searchText: ({ demo, match }) =>
-      [match ? prettyMapName(match.map) : '', match ? matchTitle(match) : '', demo.file_name, ...demo.tags].join(' '),
+      [demo.title ?? '', match ? prettyMapName(match.map) : '', match ? matchTitle(match) : '', demo.file_name, ...demo.tags].join(' '),
   })
     .filter((row) => inDateRange(view.state.filters.date ?? FILTER_ANY, partidaDate(row), now))
     .filter((row) => listView.kind === null || rowKind(row, seriesById) === listView.kind)
@@ -569,6 +582,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
                 onToggle: (demoId) => setSelected((current) => toggled(current, demoId)),
                 onTagsChanged: changeTags,
                 onSourceChange: (demoId, source) => void changeSources([demoId], source),
+                onTitleSaved: changeTitle,
               }}
             />
             {chosenIds.length > 0 ? (

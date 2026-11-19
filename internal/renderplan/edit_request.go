@@ -37,6 +37,7 @@ const (
 	DemoSourceFACEIT         = "faceit"
 	OverlayThemeFaceitOrange = "faceit-orange"
 	OverlayThemeNeonViolet   = "neon-violet"
+	OverlayThemeHUD          = recapplan.OverlayThemeHUD
 	// DefaultRecapVoiceVolume is the team-comms gain of the legacy recap chain,
 	// which goes through the Shorts editor and is capped at 1.0.
 	DefaultRecapVoiceVolume = 0.85
@@ -76,8 +77,13 @@ type EditRequest struct {
 	PlayerLabels  bool `json:"player_labels,omitempty"`
 	GrenadeTrails bool `json:"grenade_trails,omitempty"`
 	// StatsCard ends a 9:16 Short with the player's match stats and, when known, FACEIT data.
-	StatsCard        bool `json:"stats_card,omitempty"`
-	CenteredKillfeed bool `json:"centered_killfeed,omitempty"`
+	StatsCard bool `json:"stats_card,omitempty"`
+	// OpeningCard, EndCard and CoverCard are playercard template ids for a one-player 9:16 Short; empty is no card.
+	// The end card replaces the stats card and the cover card lies over the cover frame.
+	OpeningCard      string `json:"opening_card,omitempty"`
+	EndCard          string `json:"end_card,omitempty"`
+	CoverCard        string `json:"cover_card,omitempty"`
+	CenteredKillfeed bool   `json:"centered_killfeed,omitempty"`
 	// VerticalHUD draws a 9:16 scoreboard and alive counter read from the demo over the Short, with the
 	// centered kill feed under it, in the VerticalHUDTheme catalog design (empty is the first one).
 	VerticalHUD      bool   `json:"vertical_hud,omitempty"`
@@ -104,9 +110,19 @@ type EditRequest struct {
 	DeathReel bool `json:"death_reel,omitempty"`
 	// SeparateShorts renders each chosen play as its own Short instead of one compilation (Auto-Shorts).
 	SeparateShorts bool `json:"separate_shorts,omitempty"`
+	// PreRollSeconds starts each kill play that long before its first kill (PreRollChoices); 0 keeps the analysed windows.
+	PreRollSeconds int `json:"pre_roll_seconds,omitempty"`
+	// CaptureHUD records a 16:9 video of plays in one of CaptureHUDs instead of its preset's HUD; empty keeps the preset's.
+	CaptureHUD string `json:"capture_hud,omitempty"`
+	// PortraitSafeKillfeed records a 16:9 video's kill feed where the 9:16 crop of the Short it comes from keeps it, so the Short's clips are reused.
+	PortraitSafeKillfeed bool `json:"portrait_safe_killfeed,omitempty"`
 	// BrandWatermark and BrandBanner are copied whole from the brand kit, so a later kit edit never changes this render.
 	BrandWatermark *brandkit.Watermark `json:"brand_watermark,omitempty"`
 	BrandBanner    *brandkit.Banner    `json:"brand_banner,omitempty"`
+	// Subtitles burns the team comms transcript, in English with SubtitlesEnglish; SubtitlesHidden are phrases this video leaves out.
+	Subtitles        bool     `json:"subtitles,omitempty"`
+	SubtitlesEnglish bool     `json:"subtitles_english,omitempty"`
+	SubtitlesHidden  []string `json:"subtitles_hidden,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {
@@ -182,7 +198,7 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	if !req.VictimReplay || req.VictimReplaySpeed == DefaultVictimReplaySpeed {
 		req.VictimReplaySpeed = 0
 	}
-	return normalizeRadar(req)
+	return normalizeSubtitles(normalizePlayerCards(normalizePortraitSafeKillfeed(normalizeRadar(normalizeCaptureHUD(normalizePreRoll(req))))))
 }
 
 func (r EditRequest) Validate() error {
@@ -244,11 +260,26 @@ func (r EditRequest) validateFields() error {
 	if err := r.validateRadar(); err != nil {
 		return err
 	}
+	if err := r.validateSubtitles(); err != nil {
+		return err
+	}
+	if err := r.validatePlayerCards(); err != nil {
+		return err
+	}
 	if r.CenteredKillfeed && r.Format != FormatShort9x16 {
 		return fmt.Errorf("centered killfeed needs the %s format", FormatShort9x16)
 	}
 	if r.StatsCard && r.Format != FormatShort9x16 {
 		return fmt.Errorf("the stats card needs the %s format", FormatShort9x16)
+	}
+	if err := ValidatePreRoll(r.PreRollSeconds); err != nil {
+		return err
+	}
+	if err := r.validateCaptureHUD(); err != nil {
+		return err
+	}
+	if err := r.validatePortraitSafeKillfeed(); err != nil {
+		return err
 	}
 	if r.VictimReplaySpeed != 0 && !slices.Contains(VictimReplaySpeeds, r.VictimReplaySpeed) {
 		return fmt.Errorf("victim replay speed must be 0.25, 0.5 or 1")
@@ -323,6 +354,10 @@ func (r EditRequest) validateFields() error {
 	}
 	switch r.OverlayTheme {
 	case "", OverlayThemeFaceitOrange, OverlayThemeNeonViolet:
+	case OverlayThemeHUD:
+		if r.FullDemo == nil {
+			return fmt.Errorf("the HUD overlay design is only for a Full Demo")
+		}
 	default:
 		return fmt.Errorf("unknown overlay theme %q", r.OverlayTheme)
 	}

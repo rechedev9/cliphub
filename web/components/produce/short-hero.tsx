@@ -18,15 +18,15 @@ export type ShortHeroProps = {
   notices?: ReactNode;
   cues: readonly SelectionCue[];
   totalSeconds: number;
-  /** The length the video should stay within; a Short is one minute. */
-  targetSeconds: number;
+  /** The length the video should stay within; a Short is one minute, a one-player summary has none (null). */
+  targetSeconds: number | null;
   /** Why the video runs past the target; null while it fits. */
   overNotice: string | null;
 };
 
 /** The flow's band: title, the running total against the target, and the filmstrip of chosen plays. */
 export function ShortHero({ tone, title, meta, notices, cues, totalSeconds, targetSeconds, overNotice }: ShortHeroProps): ReactNode {
-  const over = totalSeconds > targetSeconds;
+  const over = targetSeconds !== null && totalSeconds > targetSeconds;
   return (
     <section aria-labelledby="short-hero-title" className={cn('flex min-w-0 flex-col gap-4 rounded-2xl border px-5 py-5 @[56rem]/content:px-6', FORMAT_TONE[tone].tint, FORMAT_TONE[tone].border)}>
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
@@ -38,7 +38,7 @@ export function ShortHero({ tone, title, meta, notices, cues, totalSeconds, targ
         <p className="flex items-baseline gap-2 tabular-nums">
           <span className={cn('font-mono text-display font-medium leading-none tracking-[-0.03em]', over ? 'text-warning' : 'text-fg-1')}>{formatClock(totalSeconds)}</span>
           {/* No tilde: beside the figures it reads as a minus sign ("-0:00"). */}
-          <span className="text-body text-fg-2">aprox. · objetivo {formatClock(targetSeconds)}</span>
+          <span className="text-body text-fg-2">{targetSeconds === null ? 'aprox.' : `aprox. · objetivo ${formatClock(targetSeconds)}`}</span>
         </p>
       </div>
       <Filmstrip tone={tone} cues={cues} totalSeconds={totalSeconds} targetSeconds={targetSeconds} />
@@ -51,7 +51,7 @@ type FilmstripProps = Omit<ShortHeroProps, 'title' | 'meta' | 'notices' | 'overN
 
 /** One block per chosen play, as wide as its length, then the room left before the target. */
 function Filmstrip({ tone, cues, totalSeconds, targetSeconds }: FilmstripProps): ReactNode {
-  const room = Math.max(0, Math.round(targetSeconds - totalSeconds));
+  const room = targetSeconds === null ? 0 : Math.max(0, Math.round(targetSeconds - totalSeconds));
   const label = cues.length === 0
     ? 'Ninguna jugada elegida todavía'
     : `${cues.length} ${cues.length === 1 ? 'jugada' : 'jugadas'} en orden, ${formatClock(totalSeconds)}`;

@@ -841,7 +841,7 @@ function registerStudioSettingsIPC(): void {
     const teamspeak = { packagePath: resourcePath('bin', TEAMSPEAK_PLUGIN_FILE), exists: fs.existsSync, openPath: (file: string) => shell.openPath(file), logLine };
     if (request.action === 'teamspeak-plugin-install') return openTeamSpeakPlugin(teamspeak);
     const build = app.isPackaged ? 'production' : 'development';
-    return { version: app.getVersion(), build, electronVersion: process.versions.electron, chromiumVersion: process.versions.chrome };
+    return { version: app.getVersion(), build, electronVersion: process.versions.electron, chromiumVersion: process.versions.chrome, localeCountry: app.getLocaleCountryCode() };
   });
 }
 

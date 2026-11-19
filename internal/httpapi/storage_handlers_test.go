@@ -15,6 +15,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/storage"
@@ -138,8 +139,9 @@ func TestDeleteJobCapturesRejectsACaptureInFlight(t *testing.T) {
 }
 
 type storageUsageResponse struct {
-	Jobs       []jobStorageUsage `json:"jobs"`
-	TotalBytes int64             `json:"total_bytes"`
+	Jobs             []jobStorageUsage `json:"jobs"`
+	TotalBytes       int64             `json:"total_bytes"`
+	CaptureRetention captureRetention  `json:"capture_retention"`
 }
 
 func readStorageUsage(t *testing.T, r http.Handler) storageUsageResponse {
@@ -162,7 +164,7 @@ func writeReadyFullDemoState(t *testing.T, h *Handlers, id uuid.UUID) renderplan
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{JobID: id, Loadout: loadout, Status: renderplan.RenderVariantStatusReady, RevisionID: uuid.New()})
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{JobID: id, Loadout: loadout, Status: renderplan.RenderVariantStatusReady, RevisionID: uuid.New(), FullDemo: approvedFullDemo(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,6 +175,14 @@ func writeReadyFullDemoState(t *testing.T, h *Handlers, id uuid.UUID) renderplan
 		t.Fatal(err)
 	}
 	return state
+}
+
+// approvedFullDemo is an approved Full Demo plan, as a long video's render state names it.
+func approvedFullDemo(t *testing.T) *recapplan.Snapshot {
+	t.Helper()
+	h, j, _, _, o := fullDemoAPIFixture(t)
+	s := fullDemoAPIPlan(t, h, j, o)
+	return &s
 }
 
 func TestStorageCapturesAreNotFreeableOnceTheLongVideoIsDeleted(t *testing.T) {

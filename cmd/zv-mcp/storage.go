@@ -35,7 +35,9 @@ var storageKindLabels = map[string]string{
 
 type storageUsageOut struct {
 	TotalBytes       int64              `json:"total_bytes" jsonschema:"disk used by every job: captures and renders"`
-	FreeableCaptures []freeableCaptures `json:"freeable_captures" jsonschema:"Full Demo captures delete_captures can free, largest first"`
+	FreeableCaptures []freeableCaptures `json:"freeable_captures" jsonschema:"kept Full Demo captures delete_captures can free, largest first"`
+	CaptureRetention int                `json:"capture_retention" jsonschema:"how many of the newest rendered Full Demos keep their captures; set_capture_retention changes it"`
+	KeepsAllCaptures bool               `json:"keeps_all_captures,omitempty" jsonschema:"Studio started with ZV_KEEP_FULL_DEMO_CAPTURES, which keeps every capture"`
 }
 
 type freeableCaptures struct {
@@ -98,7 +100,7 @@ func registerStorageTools(server *mcp.Server, s *studio) {
 	destructive := &mcp.ToolAnnotations{DestructiveHint: new(true)}
 
 	mcp.AddTool(server, &mcp.Tool{Name: "storage_usage", Annotations: readOnly,
-		Description: "Disk used by Studio's jobs, and the Full Demo captures that can be freed, as Almacenamiento shows."},
+		Description: "Disk used by Studio's jobs, the Full Demo captures Studio keeps so an edit only renders again, and how many it keeps, as Almacenamiento shows."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, storageUsageOut, error) {
 			c, err := s.client(ctx)
 			if err != nil {
@@ -112,7 +114,7 @@ func registerStorageTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "delete_captures", Annotations: destructive,
-		Description: "Free the CS2 recordings of one Full Demo (Borrar capturas in Almacenamiento). The finished long video stays, but editing and rendering it again needs a new capture. " +
+		Description: "Free the kept CS2 recordings of one Full Demo (Borrar capturas in Almacenamiento). The finished long video and its versions stay, but an edit records its rounds again. " +
 			"It cannot be undone, so the user must approve it. " + deleteApprovalHint},
 		func(ctx context.Context, req *mcp.CallToolRequest, in jobApprovalIn) (*mcp.CallToolResult, freedOut, error) {
 			if err := checkUUID("job_id", in.JobID); err != nil {
@@ -130,8 +132,8 @@ func registerStorageTools(server *mcp.Server, s *studio) {
 			if i < 0 || !usage.Jobs[i].Freeable {
 				return nil, freedOut{}, errors.New("this job has no captures to free: storage_usage lists the ones that can go")
 			}
-			summary := fmt.Sprintf("Borrar %s de grabaciones de CS2 de esta demo completa. El vídeo final se queda. "+
-				"Para editarlo y renderizarlo de nuevo habrá que volver a capturar.", formatBytes(usage.Jobs[i].CaptureBytes))
+			summary := fmt.Sprintf("Borrar %s de grabaciones de CS2 de esta demo completa. El vídeo final y sus versiones se quedan. "+
+				"Para editarlo habrá que volver a grabar sus rondas.", formatBytes(usage.Jobs[i].CaptureBytes))
 			return approveAndFree(req, approvalSpec{Tool: "delete_captures", JobID: in.JobID, Request: usage.Jobs[i].CaptureBytes, Summary: summary, Given: in.Approve, Question: "¿Borrar ahora?"},
 				func() (int64, error) { return c.DeleteJobCaptures(ctx, in.JobID) })
 		})
@@ -240,7 +242,7 @@ func approveAndFree(req *mcp.CallToolRequest, spec approvalSpec, remove func() (
 }
 
 func describeStorageUsage(usage tuiclient.StorageUsage) storageUsageOut {
-	out := storageUsageOut{TotalBytes: usage.TotalBytes, FreeableCaptures: []freeableCaptures{}}
+	out := storageUsageOut{TotalBytes: usage.TotalBytes, FreeableCaptures: []freeableCaptures{}, CaptureRetention: usage.CaptureRetention.Keep, KeepsAllCaptures: usage.CaptureRetention.KeepsAll}
 	for _, j := range usage.Jobs {
 		if j.Freeable && checkUUID("job_id", j.ID) == nil {
 			out.FreeableCaptures = append(out.FreeableCaptures, freeableCaptures{JobID: j.ID, CaptureBytes: j.CaptureBytes, RenderBytes: j.RenderBytes})

@@ -46,6 +46,6 @@ test('a batch render found on disk is recovered under the batch reel id', () => 
   const render = { status: 'ready', videoName: 'short-002-seg-002.mp4', segmentIds: ['seg-002', 'seg-005'], editConfig: { ...DEFAULT_EDIT_CONFIG, separateShorts: true } };
   const found = recoveredVideo(job, 'viral-60-clean', render, new Set());
   assert.equal(found?.video.id, `${JOB}__auto__seg-002_seg-005`);
-  assert.equal(found?.video.title, 'Auto-Shorts: 2 Shorts - Kill Feed');
+  assert.equal(found?.video.title, 'Auto-Shorts: 2 Shorts - Killfeed');
   assert.equal(recoveredVideo(job, 'viral-60-clean', render, new Set([`${JOB}__auto__seg-002_seg-005`])), null);
 });

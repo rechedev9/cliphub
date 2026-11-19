@@ -45,7 +45,7 @@ export async function runOverlayRenderer(requestPath: string | undefined): Promi
       await Promise.all(Array.from(document.images, image => image.decode()));
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       if (document.querySelector('canvas')) throw new Error('Overlay must use HTML/CSS and SVG');
-      if (window.innerWidth !== 1920 || window.innerHeight !== 1080) throw new Error('Incorrect overlay viewport: ' + window.innerWidth + 'x' + window.innerHeight);
+      if (window.innerWidth !== ${request.width} || window.innerHeight !== ${request.height}) throw new Error('Incorrect overlay viewport: ' + window.innerWidth + 'x' + window.innerHeight);
     })()`);
     // Fonts/layout readiness can precede an already queued empty paint. A tiny
     // temporary DOM marker proves the compositor has presented this document;

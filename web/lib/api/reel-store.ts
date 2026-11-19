@@ -1,11 +1,15 @@
 import { isCustomHudTheme } from '../custom-hud.ts';
+import { isPlayerCardId } from '../player-cards.ts';
 import { coerceRadarOpacity, isRadarPosition, isRadarSize } from '../radar-overlay.ts';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import {
+  DEFAULT_PRE_ROLL_SECONDS,
   isAffiliateStyle,
+  isCaptureHud,
   isDemoSource,
   isKeyDropStyle,
   isOverlayTheme,
+  isPreRollSeconds,
   isVictimReplaySpeed,
   normalizeAffiliateFamily,
   type EditConfig,
@@ -231,13 +235,25 @@ export function coerceEditConfig(value: unknown): EditConfig {
   if (voiceVolume !== undefined) cfg.voiceVolume = voiceVolume;
   if (raw.victimReplay === true) cfg.victimReplay = true;
   if (cfg.victimReplay && isVictimReplaySpeed(raw.victimReplaySpeed)) cfg.victimReplaySpeed = raw.victimReplaySpeed;
+  if (isPreRollSeconds(raw.preRollSeconds) && raw.preRollSeconds !== DEFAULT_PRE_ROLL_SECONDS) cfg.preRollSeconds = raw.preRollSeconds;
+  if (isCaptureHud(raw.captureHud)) cfg.captureHud = raw.captureHud;
+  if (raw.portraitSafeKillfeed === true) cfg.portraitSafeKillfeed = true;
   if (raw.playBadges === true) cfg.playBadges = true;
   if (raw.winProbability === true) cfg.winProbability = true;
   if (raw.playerLabels === true) cfg.playerLabels = true;
   if (raw.grenadeTrails === true) cfg.grenadeTrails = true;
   if (raw.statsCard === true) cfg.statsCard = true;
+  if (isPlayerCardId(raw.openingCard)) cfg.openingCard = raw.openingCard;
+  if (isPlayerCardId(raw.endCard)) cfg.endCard = raw.endCard;
+  if (isPlayerCardId(raw.coverCard)) cfg.coverCard = raw.coverCard;
   if (raw.brandWatermark === true) cfg.brandWatermark = true;
   if (raw.brandBanner === true) cfg.brandBanner = true;
+  if (raw.subtitles === true) {
+    cfg.subtitles = true;
+    if (raw.subtitlesEnglish === true) cfg.subtitlesEnglish = true;
+    const hidden = Array.isArray(raw.subtitlesHidden) ? raw.subtitlesHidden.filter((id) => typeof id === 'string') : [];
+    if (hidden.length > 0) cfg.subtitlesHidden = hidden;
+  }
   const family =
     typeof raw.keyDropFamily === 'string' ? normalizeAffiliateFamily(raw.keyDropFamily) : '';
   if (typeof raw.keyDropStyle === 'string') {

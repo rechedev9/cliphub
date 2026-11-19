@@ -473,6 +473,13 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 		if hudFilter != "" {
 			video += "," + hudFilter
 		}
+		subtitleFilter, err := fullDemoSubtitlesFilter(short, item, output)
+		if err != nil {
+			return nil, err
+		}
+		if subtitleFilter != "" {
+			video += "," + subtitleFilter
+		}
 		command, video, err = fullDemoHUDPortrait(short, item, command, video)
 		if err != nil {
 			return nil, err

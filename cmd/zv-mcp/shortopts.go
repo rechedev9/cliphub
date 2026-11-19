@@ -84,6 +84,8 @@ var toggleOptions = []shortToggle{
 	{ID: "vertical_hud", Label: "HUD vertical", Description: "Marcador compacto arriba con reloj, ronda y vivos de cada bando leídos de la demo, y la kill feed centrada debajo (solo 9:16; no con el HUD nativo ni con Full HUD)"},
 	{ID: "radar", Label: "Radar de ClipHub", Description: "Radar propio en una esquina con jugadores, humos, molotovs, flashes y bomba leídos de la demo, con posición, tamaño y opacidad (no con el HUD nativo ni con Full HUD, que ya muestran el radar de CS2)"},
 	{ID: "voice_comms", Label: "Comms del equipo", Description: "Mezcla las voces del equipo en el audio"},
+	{ID: "subtitles", Label: "Subtítulos", Description: "Escribe lo que dicen las voces del equipo, con el nombre de quien habla (necesita Comms del equipo)"},
+	{ID: "subtitles_english", Label: "Traducir al inglés", Description: "Los subtítulos salen solo en inglés (necesita Subtítulos)"},
 	{ID: "native_hud", Label: "HUD nativo", Description: "Graba con el HUD original del juego"},
 	{ID: "victim_replay", Label: "Repetición desde la víctima", Description: "Tras cada jugada, la última baja otra vez vista por quien muere, a la velocidad elegida"},
 	{ID: "cover", Label: "Portada", Description: "Genera candidatos de portada desde el gameplay", Default: true},
@@ -141,6 +143,9 @@ type shortOptionsOut struct {
 	VerticalHUDThemes []shortOption `json:"vertical_hud_themes" jsonschema:"values for vertical_hud_theme, used only with vertical_hud"`
 	RadarPositions    []shortOption `json:"radar_positions" jsonschema:"values for radar_position, used only with radar"`
 	RadarSizes        []shortOption `json:"radar_sizes" jsonschema:"values for radar_size, used only with radar"`
+	PreRoll           []shortOption `json:"pre_roll" jsonschema:"values for pre_roll_seconds: how long before its first kill each play starts"`
+	CaptureHUD        []shortOption `json:"capture_hud" jsonschema:"values for capture_hud, the capture style of a landscape-16x9 video"`
+	PlayerCards       []shortOption `json:"player_cards" jsonschema:"player card templates for opening_card, end_card and cover_card (one-player short-9x16 only); get_player_card tells whether a job can carry them"`
 }
 
 // shortChoices are the optional edit fields of generate_short. Unset fields keep the product defaults.
@@ -184,6 +189,12 @@ type shortChoices struct {
 	RadarPosition     string   `json:"radar_position,omitempty" jsonschema:"radar corner from list_short_options radar_positions; needs radar; default auto (bottom left in 9:16, top left in 16:9)"`
 	RadarSize         string   `json:"radar_size,omitempty" jsonschema:"radar size from list_short_options radar_sizes; needs radar; default medium"`
 	RadarOpacity      *int     `json:"radar_opacity,omitempty" jsonschema:"radar opacity in percent, 40 to 100; needs radar; default 90"`
+	PreRollSeconds    *int     `json:"pre_roll_seconds,omitempty" jsonschema:"seconds each play starts before its first kill: 3, 5 or 8 (list_short_options pre_roll); two plays of one round that then overlap become one, named by the first id; one player only, not for death reels; default 3, the Short; the 16:9 summary of one player uses 5"`
+	CaptureHUD        string   `json:"capture_hud,omitempty" jsonschema:"capture style of a landscape-16x9 video (list_short_options capture_hud): gameplay (HUD completo), deathnotices (Killfeed) or clean (POV limpio); not with native_hud; default the HUD of the preset"`
+	playerCardChoices
+	// PortraitSafeKillfeed is copied from horizontal_draft; it describes the Short, not a style to pick.
+	PortraitSafeKillfeed *bool `json:"portrait_safe_killfeed,omitempty" jsonschema:"landscape-16x9 made from a Short (horizontal_draft): record CS2's kill feed where the Short's 9:16 crop kept it, so the Short's recorded plays are reused; not with capture_hud clean; default false"`
+	subtitleChoices
 }
 
 type songIn struct {
@@ -205,7 +216,7 @@ func registerShortOptions(server *mcp.Server, s *studio) {
 			}
 			return nil, shortOptionsOut{Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions,
 				Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies, VerticalHUDThemes: verticalHUDThemes(),
-				RadarPositions: radarPositionOptions, RadarSizes: radarSizeOptions}, nil
+				RadarPositions: radarPositionOptions, RadarSizes: radarSizeOptions, PreRoll: preRollOptions, CaptureHUD: captureHUDOptions, PlayerCards: playerCardOptions()}, nil
 		})
 
 	// Only the Short picker app plays previews; MCP Apps hosts hide app-only tools from the model.
@@ -316,6 +327,12 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 	if err := resolveRadar(&edit, c); err != nil {
 		return edit, err
 	}
+	if err := resolveSummaryChoices(&edit, c); err != nil {
+		return edit, err
+	}
+	if err := resolveSubtitles(&edit, c.subtitleChoices); err != nil {
+		return edit, err
+	}
 	edit.PlayBadges, edit.StatsCard = orDefault(c.PlayBadges, false), orDefault(c.StatsCard, false)
 	edit.WinProbability = orDefault(c.WinProbability, false)
 	edit.PlayerLabels, edit.GrenadeTrails = orDefault(c.PlayerLabels, false), orDefault(c.GrenadeTrails, false)
@@ -330,6 +347,9 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 		edit.CoverStrategy = coverGenerated
 	}
 	if err := resolveBookendText(&edit, c); err != nil {
+		return edit, err
+	}
+	if err := resolvePlayerCards(&edit, c); err != nil {
 		return edit, err
 	}
 	edit.BrandWatermark, edit.BrandBanner = orDefault(c.BrandWatermark, false), orDefault(c.BrandBanner, false)
@@ -482,7 +502,7 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	if e.VerticalHUD && e.VerticalHUDTheme != "" {
 		out += ", diseño del HUD vertical " + e.VerticalHUDTheme
 	}
-	out += describeRadar(e)
+	out += describeRadar(e) + describeSummaryChoices(e) + describePlayerCards(e) + describeSubtitles(e.Subtitles, e.SubtitlesEnglish, len(e.SubtitlesHidden))
 	if e.IntroText != "" {
 		out += fmt.Sprintf(", apertura «%s»", e.IntroText)
 	}

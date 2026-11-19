@@ -51,6 +51,8 @@ type Options struct {
 	Overlays    OverlayOptions     `json:"overlays"`
 	Outputs     OutputOptions      `json:"outputs"`
 	Transitions *TransitionOptions `json:"transitions,omitempty"`
+	// Subtitles burns the team comms transcript; omitted is off, so older documents keep their hash.
+	Subtitles *SubtitleOptions `json:"subtitles,omitempty"`
 	// Rounds limits the video to these source round numbers, as a review made
 	// from the analysis area does. Omitted means every round, so documents
 	// approved before it existed keep their hash.

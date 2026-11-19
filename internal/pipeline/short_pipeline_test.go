@@ -29,6 +29,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
+	"github.com/rechedev9/cliphub/internal/subtitles"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files in testdata/")
@@ -313,6 +314,7 @@ func TestMultiPOVShortPipelineGolden(t *testing.T) {
 	assertGolden(t, "14-multi-pov-capture.json", normalizedJSON(t, work, capture))
 
 	resultPath := writeRecordingResult(t, recPlan)
+	subtitlesPath := writeSubtitleTrack(t, work, recPlan, fixture)
 	for _, format := range []struct{ name, output, preset string }{
 		{"15-multi-pov-short", editor.OutputFormatShort9x16, ""},
 		{"16-multi-pov-landscape", editor.OutputFormatLandscape16x9, editor.PresetGameplayPOV60},
@@ -331,6 +333,7 @@ func TestMultiPOVShortPipelineGolden(t *testing.T) {
 			CompileSegments:     true,
 			SegmentIDs:          ids,
 			VictimReplay:        true,
+			SubtitlesPath:       subtitlesPath,
 			DryRun:              true,
 		}); err != nil {
 			t.Fatalf("%s editor dry run: %v", format.name, err)
@@ -344,7 +347,97 @@ func TestMultiPOVShortPipelineGolden(t *testing.T) {
 		}
 		assertGolden(t, format.name+"-manifest.json", manifestGolden)
 		assertGolden(t, format.name+"-ffmpeg-commands.txt", formatCommands(normalized))
+		if len(manifest.Shorts) != 1 || manifest.Shorts[0].SubtitlesASS == "" {
+			t.Fatalf("%s drew no subtitles", format.name)
+		}
+		script, err := os.ReadFile(manifest.Shorts[0].SubtitlesASS)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertGolden(t, format.name+"-subtitles.ass", string(script))
 	}
+}
+
+// writeSubtitleTrack stands in for a demo's fixed transcript: a phrase of each player inside
+// the first two captured plays, one the video hides and one said outside every play.
+func writeSubtitleTrack(t *testing.T, work string, plan recording.RecordingPlan, fixture parsedFixture) string {
+	t.Helper()
+	var starts []int
+	for _, segment := range plan.Segments {
+		if len(starts) < 2 && !segment.ReplayOnly {
+			starts = append(starts, recording.EffectiveRecordStartTick(segment, plan.Tickrate))
+		}
+	}
+	if len(starts) < 2 {
+		t.Fatal("the multi-POV capture has fewer than two plays")
+	}
+	rate := plan.Tickrate
+	track := subtitles.Track{Hidden: []string{"hidden"}, Phrases: []subtitles.Phrase{
+		{ID: "before", Speaker: fixture.Teammate.Target.NameInDemo, Text: "eco esta ronda", StartTick: 1, EndTick: rate},
+		{ID: "call", Speaker: fixture.Target.NameInDemo, Text: "dos en B, uno con AWP", StartTick: starts[0] + rate, EndTick: starts[0] + 3*rate},
+		{ID: "hidden", Speaker: fixture.Target.NameInDemo, Text: "esto no sale", StartTick: starts[0] + 4*rate, EndTick: starts[0] + 5*rate},
+		{ID: "reply", Speaker: fixture.Teammate.Target.NameInDemo, Text: "voy con flash", StartTick: starts[1] + rate/2, EndTick: starts[1] + 2*rate},
+	}}
+	path := filepath.Join(work, "subtitles.json")
+	writeJSON(t, path, track)
+	return path
+}
+
+// TestSummaryPipelineGolden walks the 16:9 summary of one player: every play of the match in match order, each
+// starting 5 s before its first kill, so the two round 5 plays that then overlap are captured and cut as one.
+func TestSummaryPipelineGolden(t *testing.T) {
+	work := t.TempDir()
+	fixture := readFixture(t)
+	analysed := buildKillPlan(t, fixture)
+	plan := parser.WithPreRoll(analysed, 5, fixture.RoundStarts)
+	if len(plan.Segments) != len(analysed.Segments)-1 {
+		t.Fatalf("summary has %d plays from %d; the fixture should merge one pair", len(plan.Segments), len(analysed.Segments))
+	}
+	ids := make([]string, 0, len(plan.Segments))
+	for _, s := range plan.Segments {
+		ids = append(ids, s.ID)
+	}
+	planPath := filepath.Join(work, "summary-plan.json")
+	writeJSON(t, planPath, plan)
+
+	// HUD completo: the capture keeps CS2's own HUD.
+	recPlan, err := recording.NewPlanFromKillPlan(plan, filepath.Join(work, "match.dem"), filepath.Join(work, "recording"), recording.DefaultStreamConfig())
+	if err != nil {
+		t.Fatalf("recording plan: %v", err)
+	}
+	script, err := recording.GenerateHLAEJavaScript(recPlan)
+	if err != nil {
+		t.Fatalf("HLAE script: %v", err)
+	}
+	assertGolden(t, "17-summary-recording-plan.json", normalizedJSON(t, work, recPlan))
+	capture := simulateCapture(t, work, script, fixture.Target.SteamID64, recPlan)
+	assertGolden(t, "18-summary-capture.json", normalizedJSON(t, work, capture))
+
+	outDir := filepath.Join(work, "render")
+	if _, err := editor.Run(context.Background(), editor.Config{
+		RecordingResultPath: writeRecordingResult(t, recPlan),
+		KillPlanPath:        planPath,
+		OutputDir:           outDir,
+		PublishDir:          filepath.Join(work, "publish"),
+		FFmpegPath:          "ffmpeg",
+		FFprobePath:         "ffprobe",
+		Preset:              editor.PresetGameplayPOV60,
+		OutputFormat:        editor.OutputFormatLandscape16x9,
+		CompileSegments:     true,
+		SegmentIDs:          ids,
+		DryRun:              true,
+	}); err != nil {
+		t.Fatalf("editor dry run: %v", err)
+	}
+	var manifest editor.Manifest
+	readJSON(t, filepath.Join(outDir, "edit-manifest.json"), &manifest)
+	manifestGolden := normalizedJSON(t, work, manifest)
+	var normalized editor.Manifest
+	if err := json.Unmarshal([]byte(manifestGolden), &normalized); err != nil {
+		t.Fatalf("decode normalized manifest: %v", err)
+	}
+	assertGolden(t, "19-summary-manifest.json", manifestGolden)
+	assertGolden(t, "19-summary-ffmpeg-commands.txt", formatCommands(normalized))
 }
 
 // clashFreePick takes the best moments that one capture can film, the way the

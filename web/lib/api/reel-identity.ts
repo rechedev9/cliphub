@@ -1,7 +1,7 @@
 import type { EditConfig, RenderMode, VideoStatus } from './types.ts';
 import { DEFAULT_EDIT_CONFIG, DEFAULT_VARIANT, FULL_DEMO_REEL_SUFFIX, type ReelIntent } from './reel-store.ts';
 import { editConfigsEqual } from './edit-request.ts';
-import { isLandscapeRecap } from '../reel-brief.ts';
+import { isLandscapeHighlights, isLandscapeRecap } from '../reel-brief.ts';
 
 export type ReelIdentityInput = {
   matchId: string;
@@ -15,11 +15,14 @@ export type ReelIdentityInput = {
 
 /** Auto-Shorts reels carry their own prefix, so a batch never replaces a compiled reel of the same plays. */
 const AUTO_SHORTS_REEL_PREFIX = 'auto';
+/** A 16:9 summary of chosen plays has its own slot, so Crear horizontal never replaces the Short of the same plays. */
+const LANDSCAPE_REEL_PREFIX = 'landscape';
 
 /** The plays part of a reel id, shared with the reels recovered from disk. */
-export function reelPlaysSuffix(playIds: readonly string[], edit?: Pick<EditConfig, 'separateShorts'>): string {
+export function reelPlaysSuffix(playIds: readonly string[], edit?: Pick<EditConfig, 'separateShorts' | 'format' | 'matchRecap'>): string {
   const plays = playIds.join('_');
-  return edit?.separateShorts ? `${AUTO_SHORTS_REEL_PREFIX}__${plays}` : plays;
+  if (edit?.separateShorts) return `${AUTO_SHORTS_REEL_PREFIX}__${plays}`;
+  return edit !== undefined && isLandscapeHighlights(edit) ? `${LANDSCAPE_REEL_PREFIX}__${plays}` : plays;
 }
 
 /** Mis vídeos title of an Auto-Shorts batch: one Short per play. */

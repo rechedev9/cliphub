@@ -163,13 +163,36 @@ export function downloadVideoMP4(video: Video): void {
   downloadMP4(video.downloadUrl, video.title);
 }
 
+/** Re-drives a failed video, or records the stored change a ready video still waits for. */
+export function RetryButton({ video, onChange }: { video: Video; onChange: () => void }): ReactNode {
+  const [retrying, setRetrying] = useState(false);
+  return (
+    <Button
+      type="button"
+      size="xs"
+      variant="outline"
+      loading={retrying}
+      onClick={() => {
+        setRetrying(true);
+        void api
+          .retryVideo(video.id)
+          .then(onChange)
+          .catch(() => toast('No se pudo reintentar', { description: video.title }))
+          .finally(() => setRetrying(false));
+      }}
+    >
+      <RotateCcw aria-hidden />
+      Reintentar
+    </Button>
+  );
+}
+
 /**
- * Ready: MP4 + Preparar publicación + delete. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only.
+ * Ready: MP4 + Preparar publicación + delete, and Reintentar while a stored change waits. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only.
  * Compact is the card: its thumbnail already plays, and delete sits at the far end of one row.
  */
 export function OutputActions({ output, matchId, onChange, onPlay, className, compact = false }: OutputActionsProps): ReactNode {
   const { video } = output;
-  const [retrying, setRetrying] = useState(false);
   const rowClass = cn('flex flex-wrap items-center gap-1.5', className);
   const remove = (
     <span className={cn('inline-flex', compact && 'ml-auto')}>
@@ -202,6 +225,7 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
             <Link href={publishHref(matchId, video.id)} title={PUBLISH_PREP_HINT}>{PUBLISH_PREP_LABEL}</Link>
           </Button>
         )}
+        {video.changePending ? <RetryButton video={video} onChange={onChange} /> : null}
         {remove}
       </span>
     );
@@ -217,25 +241,7 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
             <Link href={produceHref(matchId, PRODUCE_FORMAT.full)}>Volver a preparar</Link>
           </Button>
         ) : null}
-        {canRetry ? (
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            loading={retrying}
-            onClick={() => {
-              setRetrying(true);
-              void api
-                .retryVideo(video.id)
-                .then(onChange)
-                .catch(() => toast('No se pudo reintentar', { description: video.title }))
-                .finally(() => setRetrying(false));
-            }}
-          >
-            <RotateCcw aria-hidden />
-            Reintentar
-          </Button>
-        ) : null}
+        {canRetry ? <RetryButton video={video} onChange={onChange} /> : null}
         {remove}
       </span>
     );

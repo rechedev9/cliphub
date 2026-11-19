@@ -2,16 +2,18 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Download, Ellipsis, FolderOpen, Music, Play, UploadCloud } from 'lucide-react';
+import { Download, Ellipsis, FolderOpen, History, Music, Pencil, Play, RectangleHorizontal, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { CHANGE_NOT_APPLIED_REASON } from '@/lib/api/failure-reason';
 import { prettifyMap } from '@/lib/api/map';
 import { PLAYBACK_REVIEW, demoPlaybackItem, type MediaPlaybackItem, type PlaybackFormat } from '@/lib/api/playback';
 import { streamsApi } from '@/lib/api/streams';
 import { CLIP_SIZE, OUTPUT_TYPE, type ClipSize, type HubModel } from '@/lib/clips/hub';
 import { CREATE_AGAIN_LABEL, videoDisplayTitle, videoKind, type VideoKind } from '@/lib/clips/results';
-import { ORPHAN_MATCH_SEGMENT, PRODUCE_FORMAT, matchHref, produceHref, publishHref } from '@/lib/clips/routes';
+import { ORPHAN_MATCH_SEGMENT, PRODUCE_FORMAT, editVideoHref, matchHref, produceHref, publishHref } from '@/lib/clips/routes';
 import { renderVideoFile } from '@/lib/clips/video-file';
+import { horizontalHref } from '@/lib/produce/long-video-kind';
 import { timeAgo } from '@/lib/format';
 import { PUBLISH_PREP_HINT, PUBLISH_PREP_LABEL } from '@/lib/publish-actions';
 import { cn } from '@/lib/utils';
@@ -31,7 +33,8 @@ import {
 import { DeleteVideoDialog } from '@/components/videos/delete-video-button';
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
 import { VideoPoster } from '@/components/videos/video-poster';
-import { downloadMP4, downloadVideoMP4 } from '@/components/clips-hub/output-item';
+import { VideoVersionsDialog } from '@/components/videos/video-versions-dialog';
+import { RetryButton, downloadMP4, downloadVideoMP4 } from '@/components/clips-hub/output-item';
 
 type HubClip = HubModel['clips'][number];
 
@@ -175,6 +178,12 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
   const iconOnly = size === CLIP_SIZE.s;
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const produceFormat = isShort ? PRODUCE_FORMAT.short : PRODUCE_FORMAT.full;
+  // Editar reopens the producer with this video's options; a recovered render has no intent to edit.
+  const editTarget = matchId !== null && video.variant !== undefined && video.recovered !== true ? { jobId: matchId, variant: video.variant } : null;
+  // Crear horizontal: a 16:9 summary of a Short's kills; a death reel or Auto-Shorts has none.
+  const horizontalFrom = video.editConfig?.format === 'short-9x16' && video.editConfig.deathReel !== true && video.editConfig.separateShorts !== true;
   const player = clip.match?.player ?? video.targetName;
   const title = videoDisplayTitle(video, player);
   const canReveal = playback !== null && video.jobId !== undefined;
@@ -197,6 +206,12 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
         title={title}
         meta={[prettifyMap(video.map), player, timeAgo(video.createdAt)].filter(Boolean).join(' · ')}
       />
+      {video.changePending ? (
+        <span className={cn('flex flex-col items-start gap-2', size === CLIP_SIZE.s ? 'px-3 pt-2.5' : 'px-4 pt-3')}>
+          <span className="text-meta text-warning">{CHANGE_NOT_APPLIED_REASON}</span>
+          <RetryButton video={video} onChange={onChange} />
+        </span>
+      ) : null}
       <span className={actionRowClass(size)}>
         {video.publishable === false ? null : (
           <Button asChild size={iconOnly ? 'icon-sm' : 'sm'}>
@@ -241,6 +256,28 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
                 {video.songId ? 'Cambiar música' : 'Añadir música'}
               </DropdownMenuItem>
             ) : null}
+            {editTarget ? (
+              <>
+                <DropdownMenuItem asChild>
+                  <Link href={editVideoHref({ matchId: editTarget.jobId, format: produceFormat, variant: editTarget.variant })}>
+                    <Pencil aria-hidden />
+                    Editar
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setVersionsOpen(true)}>
+                  <History aria-hidden />
+                  Versiones
+                </DropdownMenuItem>
+                {horizontalFrom ? (
+                  <DropdownMenuItem asChild>
+                    <Link href={horizontalHref({ jobId: editTarget.jobId, variant: editTarget.variant })}>
+                      <RectangleHorizontal aria-hidden />
+                      Crear horizontal
+                    </Link>
+                  </DropdownMenuItem>
+                ) : null}
+              </>
+            ) : null}
             {matchId === null ? null : (
               <>
                 <DropdownMenuItem asChild>
@@ -248,7 +285,7 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link
-                    href={produceHref(matchId, isShort ? PRODUCE_FORMAT.short : PRODUCE_FORMAT.full)}
+                    href={produceHref(matchId, produceFormat)}
                   >
                     {CREATE_AGAIN_LABEL[kind]}
                   </Link>
@@ -271,6 +308,9 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
       />
       {canChangeMusic ? (
         <LibraryMusicDialog open={musicOpen} video={video} onOpenChange={setMusicOpen} onApplied={onChange} />
+      ) : null}
+      {editTarget ? (
+        <VideoVersionsDialog open={versionsOpen} onOpenChange={setVersionsOpen} title={title} jobId={editTarget.jobId} variant={editTarget.variant} format={produceFormat} />
       ) : null}
     </article>
   );

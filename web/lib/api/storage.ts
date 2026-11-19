@@ -6,9 +6,13 @@ export type JobStorage = {
   freeable: boolean;
 };
 
+/** How many of the newest rendered Full Demos keep their captures; `keepsAll` is the ZV_KEEP_FULL_DEMO_CAPTURES switch. */
+export type CaptureRetention = { keep: number; max: number; keepsAll: boolean };
+
 export type StorageUsage = {
   jobs: JobStorage[];
   totalBytes: number;
+  captureRetention: CaptureRetention | null;
 };
 
 function byteCount(body: unknown, key: string): number {
@@ -31,7 +35,16 @@ export function projectStorageUsage(body: unknown): StorageUsage {
       freeable: Reflect.get(job, 'freeable') === true,
     });
   }
-  return { jobs, totalBytes: byteCount(body, 'total_bytes') };
+  return { jobs, totalBytes: byteCount(body, 'total_bytes'), captureRetention: projectCaptureRetention(body) };
+}
+
+function projectCaptureRetention(body: unknown): CaptureRetention | null {
+  const raw: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, 'capture_retention') : undefined;
+  if (typeof raw !== 'object' || raw === null) return null;
+  const keep: unknown = Reflect.get(raw, 'keep');
+  const max: unknown = Reflect.get(raw, 'max');
+  if (!Number.isSafeInteger(keep) || !Number.isSafeInteger(max) || typeof keep !== 'number' || typeof max !== 'number' || keep < 0 || keep > max) return null;
+  return { keep, max, keepsAll: Reflect.get(raw, 'keeps_all') === true };
 }
 
 /** Orchestrator `DELETE /api/jobs/{id}/captures` body to the bytes it freed. */

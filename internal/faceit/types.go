@@ -72,7 +72,7 @@ type Player struct {
 // no region-less global leaderboard endpoint.
 //
 // The leaderboard response carries neither an avatar nor a SteamID64, so a row
-// on its own can seed a name and an ELO but never a demo lookup.
+// on its own can carry a name and an ELO but never a demo lookup.
 type RankedPlayer struct {
 	PlayerID   string `json:"player_id"`
 	Nickname   string `json:"nickname"`
@@ -81,40 +81,6 @@ type RankedPlayer struct {
 	Position   int    `json:"position"`
 	ELO        int    `json:"faceit_elo"`
 	SkillLevel int    `json:"game_skill_level"`
-}
-
-// SeedDocument is the default roster the Players section shows beside the
-// user's own follows: the FACEIT top N of each zone, merged out of the
-// regional leaderboards. GeneratedAt and Regions travel with the players so a
-// stale refresh is visible to whoever reads it, and GeneratedAt is what a
-// seeded row reports as its FollowedAt so the list does not reshuffle on every
-// restart.
-type SeedDocument struct {
-	SchemaVersion string    `json:"schema_version"`
-	GeneratedAt   time.Time `json:"generated_at"`
-	// RefreshedAt is when SeedStore.RefreshProfiles last reread the players'
-	// ELOs; the ladders, and so the membership, date from GeneratedAt.
-	RefreshedAt time.Time    `json:"refreshed_at,omitzero"`
-	Regions     []string     `json:"regions"`
-	Players     []SeedPlayer `json:"players"`
-}
-
-// UpdatedAt is when the listed ELOs were last read from FACEIT.
-func (d SeedDocument) UpdatedAt() time.Time {
-	if d.RefreshedAt.After(d.GeneratedAt) {
-		return d.RefreshedAt
-	}
-	return d.GeneratedAt
-}
-
-// SeedPlayer is a leaderboard row as the seed document stores it. Zone is the
-// roster it belongs to and Rank the player's place in that zone's merged
-// order, which Position cannot express because Position counts within one
-// region.
-type SeedPlayer struct {
-	RankedPlayer
-	Zone string `json:"zone"`
-	Rank int    `json:"rank,omitempty"`
 }
 
 type RecentMatch struct {

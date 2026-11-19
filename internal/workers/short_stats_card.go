@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"path/filepath"
 	"time"
 
@@ -15,8 +14,8 @@ import (
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/parser"
+	"github.com/rechedev9/cliphub/internal/playercard"
 	"github.com/rechedev9/cliphub/internal/renderplan"
-	"github.com/rechedev9/cliphub/internal/tacticalplan"
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
@@ -28,10 +27,7 @@ func (w *RenderWorker) writeShortStatsCard(j job.Job, workDir string, edit rende
 	if !edit.StatsCard || edit.Format != renderplan.FormatShort9x16 || edit.FullDemo != nil || j.IsMultiPOV() {
 		return ""
 	}
-	target := j.TargetSteamID
-	if j.KillPlan != nil && j.KillPlan.Target.SteamID64 != "" {
-		target = j.KillPlan.Target.SteamID64
-	}
+	target := playercard.Target(j)
 	roster, err := w.readRoster(j.ID)
 	if err != nil {
 		logWorkerError(j.ID, tasks.TypeRenderVariant, fmt.Errorf("stats card left out: %w", err))
@@ -68,28 +64,11 @@ func (w *RenderWorker) readRoster(id uuid.UUID) (parser.RosterResult, error) {
 
 // shortStatsCard is the player's match line from the roster scan, with ClipHub's own rating.
 func shortStatsCard(roster parser.RosterResult, steamID string) (editor.StatsCard, bool) {
-	for _, p := range roster.Players {
-		if p.SteamID64 != steamID || steamID == "" {
-			continue
-		}
-		card := editor.StatsCard{Player: p.Name, Kills: p.Kills, Deaths: p.Deaths}
-		if p.Kills > 0 {
-			hs := p.HSPct
-			card.HSPct = &hs
-		}
-		if p.Rounds > 0 {
-			adr := p.ADR
-			card.ADR = &adr
-			rounds := float64(p.Rounds)
-			rating := math.Round(100*tacticalplan.Rating(tacticalplan.RatingLine{
-				Rounds: p.Rounds, Kills: p.Kills, Deaths: p.Deaths, Assists: p.Assists,
-				Damage: int(math.Round(p.ADR * rounds)), KASTRounds: int(math.Round(p.KAST * rounds / 100)),
-			})) / 100
-			card.Rating = &rating
-		}
-		return card, true
+	card, ok := playercard.RosterCard(roster, steamID)
+	if !ok {
+		return editor.StatsCard{}, false
 	}
-	return editor.StatsCard{}, false
+	return editor.StatsCard{Player: card.Name, Kills: card.Kills, Deaths: card.Deaths, HSPct: card.HSPct, ADR: card.ADR, Rating: card.Rating}, true
 }
 
 // statsCardEnrichment prefers the Full Demo FACEIT snapshot; without one it asks FACEIT for the

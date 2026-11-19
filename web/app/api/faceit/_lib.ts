@@ -10,10 +10,6 @@ export type UpstreamFaceitPlayer = {
   skill_level?: unknown;
   elo?: unknown;
   followed_at?: unknown;
-  seeded?: unknown;
-  zone?: unknown;
-  region?: unknown;
-  position?: unknown;
 };
 
 export function whitelistFaceitPlayer(raw: UpstreamFaceitPlayer | undefined): Record<string, unknown> | null {
@@ -31,9 +27,5 @@ export function whitelistFaceitPlayer(raw: UpstreamFaceitPlayer | undefined): Re
   if (typeof raw.skill_level === 'number') player.skill_level = raw.skill_level;
   if (typeof raw.elo === 'number') player.elo = raw.elo;
   if (typeof raw.followed_at === 'string') player.followed_at = raw.followed_at;
-  if (raw.seeded === true) player.seeded = true;
-  if (raw.zone === 'cis' || raw.zone === 'latam') player.zone = raw.zone;
-  if (typeof raw.region === 'string') player.region = raw.region;
-  if (typeof raw.position === 'number') player.position = raw.position;
   return player;
 }

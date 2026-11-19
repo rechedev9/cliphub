@@ -27,15 +27,15 @@ const (
 // query that happens to return nothing.
 var rankingRegions = []string{"EU", "NA", "SA", "OCE", "SEA"}
 
-// Zone ids name the curated rosters the Players section groups its seeded
-// rows into.
+// Zone ids name the groups of countries the ranking selector offers beside
+// countries and regions.
 const (
 	ZoneCIS   = "cis"
 	ZoneLATAM = "latam"
 )
 
 // rankingZones maps each zone to the FACEIT country codes it covers, in the
-// order the Players section lists them. FACEIT has no zone leaderboard and its
+// order the ranking selector lists them. FACEIT has no zone leaderboard and its
 // country field is whatever the player set on their profile, so a zone is only
 // as accurate as those profiles.
 var rankingZones = []struct {
@@ -134,8 +134,8 @@ func canonicalRankingRegion(region string) (string, bool) {
 // first, optionally narrowed to a country code. Region must be one of
 // rankingRegions.
 //
-// A row that fails validation fails the whole page: a leaderboard is seeded
-// straight into the Players section, and half a page of players with unusable
+// A row that fails validation fails the whole page: a leaderboard is stored
+// as the Jugadores FACEIT ranking, and half a page of players with unusable
 // ids is worse than an error the caller can retry.
 func (c *Client) Rankings(ctx context.Context, region, country string, offset, limit int) ([]RankedPlayer, error) {
 	if c == nil || c.apiKey == "" {
@@ -185,39 +185,6 @@ func (c *Client) Rankings(ctx context.Context, region, country string, offset, l
 	}
 	if responseContainsCredential(players, c.apiKey) {
 		return nil, ErrInvalidResponse
-	}
-	return players, nil
-}
-
-// ZoneTop returns the highest-ELO CS2 players whose FACEIT country belongs to
-// zone. Players queue on any region regardless of country (measured
-// 2026-09-25: the best Mexican played on EU, not NA), so every zone country is
-// read on every region.
-//
-// Reading N rows per ladder is exact, not an approximation: a ladder is the
-// zone ranking filtered down to one region and country, and removing other
-// players can only move a player up, so anyone inside the zone top N is
-// necessarily inside their own ladder's top N.
-//
-// A zone roster is all or nothing. A missing ladder would silently drop a
-// country from it, so any failed read fails the call.
-func (c *Client) ZoneTop(ctx context.Context, zone string, limit int) ([]RankedPlayer, error) {
-	if c == nil || c.apiKey == "" {
-		return nil, ErrNotConfigured
-	}
-	countries, ok := zoneCountries(zone)
-	if !ok {
-		return nil, fmt.Errorf("FACEIT zone %q is not one of %v", zone, Zones())
-	}
-	ladders := make([]rankingLadder, 0, len(countries)*len(rankingRegions))
-	for _, country := range countries {
-		for _, region := range rankingRegions {
-			ladders = append(ladders, rankingLadder{region: region, country: country})
-		}
-	}
-	players, failed := c.topAcross(ctx, ladders, limit)
-	if failed != nil {
-		return nil, fmt.Errorf("list FACEIT %s rankings: %w", zone, failed)
 	}
 	return players, nil
 }
@@ -283,7 +250,7 @@ func (c *Client) topAcross(ctx context.Context, ladders []rankingLadder, limit i
 
 // dedupeRankedPlayers keeps the highest-ELO row per player id. A player should
 // appear on exactly one ladder, but a duplicate would otherwise take two slots
-// in the Players section.
+// in the ranking.
 func dedupeRankedPlayers(players []RankedPlayer) []RankedPlayer {
 	best := make(map[string]int, len(players))
 	out := make([]RankedPlayer, 0, len(players))

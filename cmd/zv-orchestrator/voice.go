@@ -12,8 +12,8 @@ import (
 	"github.com/rechedev9/cliphub/internal/voiceplugin"
 )
 
-// voiceDeps keeps team voice under <DataDir>/voice and the whisper.cpp install under
-// <DataDir>/tools/whisper. ZV_WHISPER_CLI and ZV_WHISPER_MODEL point at a local build instead.
+// voiceDeps keeps team voice in <DataDir>/voice and the Parakeet and whisper.cpp tools in <DataDir>/tools;
+// ZV_PARAKEET_CLI, ZV_PARAKEET_MODEL, ZV_WHISPER_CLI and ZV_WHISPER_MODEL point at a local build instead.
 func voiceDeps(cfg config) httpapi.VoiceDeps {
 	if cfg.FFmpegPath == "" {
 		log.Printf("voice: no FFmpeg, team voice import is disabled")
@@ -25,6 +25,12 @@ func voiceDeps(cfg config) httpapi.VoiceDeps {
 		Media:     media,
 		DemoVoice: demoVoiceExtractor{ffmpeg: cfg.FFmpegPath},
 		Transcriber: teamvoice.NewTranscriber(teamvoice.TranscriberOptions{
+			Dir:   filepath.Join(cfg.DataDir, "tools", "parakeet"),
+			Media: media,
+			CLI:   os.Getenv("ZV_PARAKEET_CLI"),
+			Model: os.Getenv("ZV_PARAKEET_MODEL"),
+		}),
+		Translator: teamvoice.NewTranslator(teamvoice.TranscriberOptions{
 			Dir:   filepath.Join(cfg.DataDir, "tools", "whisper"),
 			Media: media,
 			CLI:   os.Getenv("ZV_WHISPER_CLI"),

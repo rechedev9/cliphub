@@ -4,6 +4,7 @@ import { buildEditRequest } from './edit-request.ts';
 import { constrainEditConfig } from '../reel-brief.ts';
 import type { EditConfig } from './types.ts';
 import { FULL_DEMO_EDIT } from '../full-demo.ts';
+import { parseEffectiveEditConfig } from './render-hydration.ts';
 
 function edit(overrides: Partial<EditConfig> = {}): EditConfig {
   return {
@@ -130,4 +131,40 @@ test('buildEditRequest sends the radar with its chosen options only for a Short 
     const sent = buildEditRequest(off);
     for (const key of ['radar', 'radar_position', 'radar_size', 'radar_opacity'] as const) assert.equal(key in sent, false);
   }
+});
+
+test('buildEditRequest sends a pre-roll other than 3 s only for a video of kills', () => {
+  assert.equal(buildEditRequest(edit({ preRollSeconds: 5 })).pre_roll_seconds, 5);
+  assert.equal(buildEditRequest(edit({ format: 'landscape-16x9', preRollSeconds: 8 })).pre_roll_seconds, 8);
+  assert.equal(buildEditRequest(edit({ preRollSeconds: 3 })).pre_roll_seconds, undefined, 'the analysis cut is the default');
+  assert.equal(buildEditRequest(edit({ preRollSeconds: 5, deathReel: true })).pre_roll_seconds, undefined);
+  assert.equal(buildEditRequest(edit({ preRollSeconds: 5, matchRecap: true })).pre_roll_seconds, undefined);
+});
+
+test('buildEditRequest sends the capture style only for a 16:9 video without the native HUD', () => {
+  assert.equal(buildEditRequest(edit({ format: 'landscape-16x9', captureHud: 'clean' })).capture_hud, 'clean');
+  assert.equal(buildEditRequest(edit({ format: 'landscape-16x9', captureHud: 'clean', nativeHud: true })).capture_hud, undefined);
+  assert.equal(buildEditRequest(edit({ captureHud: 'clean' })).capture_hud, undefined, 'a 9:16 Short keeps its preset HUD');
+});
+
+test('a horizontal asks for the kill feed framing of its Short only in 16:9 with a kill feed', () => {
+  const framed = (patch: Partial<EditConfig>) => buildEditRequest(edit({ portraitSafeKillfeed: true, ...patch })).portrait_safe_killfeed;
+  assert.equal(framed({ format: 'landscape-16x9', captureHud: 'deathnotices' }), true);
+  assert.equal(framed({ format: 'landscape-16x9', nativeHud: true }), true, 'HUD completo keeps the kill feed');
+  assert.equal(framed({ format: 'landscape-16x9', captureHud: 'clean' }), undefined, 'POV limpio has no kill feed');
+  assert.equal(framed({}), undefined, 'a Short frames it from its preset');
+});
+
+test('a Short keeps its own comms, sends its subtitles only with them, and reads them back for Editar', () => {
+  const short = constrainEditConfig(edit({ voiceComms: true, subtitles: true, subtitlesEnglish: true, subtitlesHidden: ['b', 'a'] }));
+  const body = buildEditRequest(short);
+  assert.equal(body.voice_comms, true);
+  assert.equal(body.subtitles, true);
+  assert.equal(body.subtitles_english, true);
+  assert.deepEqual(body.subtitles_hidden, ['a', 'b']);
+  assert.equal(buildEditRequest(edit({ subtitles: true })).subtitles, undefined);
+  const back = parseEffectiveEditConfig(JSON.parse(JSON.stringify(body)));
+  assert.equal(back?.subtitles, true);
+  assert.equal(back?.subtitlesEnglish, true);
+  assert.deepEqual(back?.subtitlesHidden, ['a', 'b']);
 });

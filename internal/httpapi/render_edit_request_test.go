@@ -17,12 +17,13 @@ func TestRenderEditRequestMergeCoversEveryField(t *testing.T) {
 	const full = `{
 		"format":"landscape-16x9","killEffect":"clean","transition":"cut",
 		"intro":true,"outro":true,"hook_text":true,"kill_counter":true,
-		"match_recap":true,"death_reel":true,"separate_shorts":true,"voice_comms":true,"voice_volume":0.5,"native_hud":true,"victim_replay":true,"victim_replay_speed":0.25,"play_badges":true,"win_probability":true,"player_labels":true,"grenade_trails":true,"stats_card":true,"centered_killfeed":true,"vertical_hud":true,"vertical_hud_theme":"prism","radar":true,"radar_position":"top-right","radar_size":"large","radar_opacity":0.6,
+		"match_recap":true,"death_reel":true,"separate_shorts":true,"voice_comms":true,"voice_volume":0.5,"native_hud":true,"victim_replay":true,"victim_replay_speed":0.25,"play_badges":true,"win_probability":true,"player_labels":true,"grenade_trails":true,"stats_card":true,"opening_card":"carta","end_card":"mvp","cover_card":"ficha","centered_killfeed":true,"vertical_hud":true,"vertical_hud_theme":"prism","radar":true,"radar_position":"top-right","radar_size":"large","radar_opacity":0.6,
 		"cover_strategy":"generated-gameplay","cover_first_frame":true,
 		"intro_text":"hi","outro_text":"bye",
 		"keydrop_family":"keydrop","keydrop_style":"jcorko","keydrop_code":"ZACK",
 		"keydrop_position_y":0.7,"keydrop_start_seconds":1.5,"keydrop_end_seconds":9,
-		"demo_source":"faceit","overlay_theme":"neon-violet"
+		"demo_source":"faceit","overlay_theme":"neon-violet","pre_roll_seconds":5,"capture_hud":"clean","portrait_safe_killfeed":true,
+		"subtitles":true,"subtitles_english":true,"subtitles_hidden":["6f1c2a52-3d4b-4c8e-9a51-1f0e2b3c4d5e"]
 	}`
 	var patch renderEditRequest
 	if err := json.Unmarshal([]byte(full), &patch); err != nil {

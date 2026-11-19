@@ -1,5 +1,6 @@
 import { customHudLabel } from '../custom-hud.ts';
 import { bumperSummary, type FullDemoOptions } from '../full-demo-plan.ts';
+import { INTRO_DESIGN_LABEL, INTRO_DESIGNS } from '../overlay-design-gallery.ts';
 import type { CreativeBriefItem } from '../reel-brief.ts';
 import { FULL_DEMO_PRO_SETTINGS_LABEL, proSettingsSummary } from './full-demo-pro-settings.ts';
 
@@ -28,6 +29,9 @@ const VOICE_STATUS: Record<string, VoiceStatus> = {
   unsupported: { text: 'El formato de voz de esta demo no es compatible.', problem: true },
   unsupported_codec: { text: 'El códec de voz de esta demo no es compatible.', problem: true },
   decode_failed: { text: 'No se pudieron leer las voces de esta demo.', problem: true },
+  // Read from the library demo by the Subtítulos panel, before any plan.
+  extracting: { text: 'Leyendo las voces de la demo…', problem: false },
+  demo_missing: { text: 'El archivo de esta demo ya no está en este PC.', problem: true },
 };
 
 /** What the last plan found about the demo's voices; `null` means no plan has analysed it yet. */
@@ -40,6 +44,13 @@ function voiceValue(enabled: boolean, availability: string | null): string {
   if (!enabled) return 'Sin voces';
   if (availability === 'available') return 'Incluidas';
   return fullDemoVoiceStatus(availability).problem ? 'No hay en esta demo' : 'Si la demo las tiene';
+}
+
+function subtitlesValue(options: FullDemoOptions): string {
+  const subtitles = options.subtitles;
+  if (!subtitles?.enabled || !options.audio.voice.enabled) return 'No';
+  const hidden = subtitles.hidden?.length ?? 0;
+  return `${subtitles.english ? 'En inglés' : 'Sí'}${hidden > 0 ? `, ${hidden} ${hidden === 1 ? 'frase oculta' : 'frases ocultas'}` : ''}`;
 }
 
 function sourceValue(options: FullDemoOptions): string {
@@ -60,8 +71,10 @@ export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: 
     { label: FULL_DEMO_TRUEVIEW_LABEL, value: options.capture.trueview ? 'Sí' : 'No' },
     { label: FULL_DEMO_PRO_SETTINGS_LABEL, value: proSettingsSummary(options.capture.pro_settings) },
     { label: 'Voces del equipo', value: voiceValue(options.audio.voice.enabled, voiceAvailability) },
+    { label: 'Subtítulos', value: subtitlesValue(options) },
     { label: 'Efectos entre rondas', value: (options.transitions?.enabled ?? true) ? 'Activados' : 'Desactivados' },
     { label: FULL_DEMO_BUMPERS_TITLE, value: hasBumpers(options) ? bumperSummary(options) : 'Ninguno' },
+    { label: INTRO_DESIGN_LABEL, value: options.overlays.theme === 'hud' ? INTRO_DESIGNS.hud : INTRO_DESIGNS.neon },
     { label: FULL_DEMO_SOURCE_LABEL, value: sourceValue(options) },
   ];
 }

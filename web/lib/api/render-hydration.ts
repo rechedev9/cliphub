@@ -2,12 +2,16 @@ import type { ReelIntent } from './reel-store';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import { isBrandBanner, isBrandWatermark } from '../brand-kit.ts';
 import { isCustomHudTheme } from '../custom-hud.ts';
+import { isPlayerCardId } from '../player-cards.ts';
 import { coerceRadarOpacity, isRadarPosition, isRadarSize } from '../radar-overlay.ts';
 import {
+  DEFAULT_PRE_ROLL_SECONDS,
   isAffiliateStyle,
+  isCaptureHud,
   isDemoSource,
   isKeyDropStyle,
   isOverlayTheme,
+  isPreRollSeconds,
   isVictimReplaySpeed,
   normalizeAffiliateFamily,
   type EditConfig,
@@ -69,11 +73,23 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   if (edit.separate_shorts === true) parsed.separateShorts = true;
   if (edit.victim_replay === true) parsed.victimReplay = true;
   if (parsed.victimReplay && isVictimReplaySpeed(edit.victim_replay_speed)) parsed.victimReplaySpeed = edit.victim_replay_speed;
+  if (isPreRollSeconds(edit.pre_roll_seconds) && edit.pre_roll_seconds !== DEFAULT_PRE_ROLL_SECONDS) parsed.preRollSeconds = edit.pre_roll_seconds;
+  if (isCaptureHud(edit.capture_hud)) parsed.captureHud = edit.capture_hud;
+  if (edit.portrait_safe_killfeed === true) parsed.portraitSafeKillfeed = true;
+  if (edit.subtitles === true) {
+    parsed.subtitles = true;
+    if (edit.subtitles_english === true) parsed.subtitlesEnglish = true;
+    const hidden = Array.isArray(edit.subtitles_hidden) ? edit.subtitles_hidden.filter((id) => typeof id === 'string') : [];
+    if (hidden.length > 0) parsed.subtitlesHidden = hidden;
+  }
   if (edit.play_badges === true) parsed.playBadges = true;
   if (edit.win_probability === true) parsed.winProbability = true;
   if (edit.player_labels === true) parsed.playerLabels = true;
   if (edit.grenade_trails === true) parsed.grenadeTrails = true;
   if (edit.stats_card === true) parsed.statsCard = true;
+  if (isPlayerCardId(edit.opening_card)) parsed.openingCard = edit.opening_card;
+  if (isPlayerCardId(edit.end_card)) parsed.endCard = edit.end_card;
+  if (isPlayerCardId(edit.cover_card)) parsed.coverCard = edit.cover_card;
   // The effective edit holds the kit copy the render used; true is a request that has not been rendered yet.
   if (edit.brand_watermark === true || isBrandWatermark(edit.brand_watermark)) parsed.brandWatermark = true;
   if (edit.brand_banner === true || isBrandBanner(edit.brand_banner)) parsed.brandBanner = true;

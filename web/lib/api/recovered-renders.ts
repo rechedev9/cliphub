@@ -5,6 +5,8 @@ import { DEFAULT_EDIT_CONFIG, FULL_DEMO_REEL_SUFFIX } from './reel-store.ts';
 import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.ts';
 import { dataPlane } from './dataplane.ts';
 import { autoShortsTitle, reelPlaysSuffix } from './reel-identity.ts';
+import { isLandscapeHighlights } from '../reel-brief.ts';
+import { reelStyleLabel } from './reel-style-label.ts';
 
 /**
  * Finished renders the orchestrator still holds but no local reel intent points
@@ -24,12 +26,6 @@ export const RECOVERY_VARIANTS: readonly string[] = [
   'clean-pov-60',
   'full-hud-60',
 ];
-
-const SHORT_VARIANT_LABELS: Record<string, string> = {
-  'viral-60-clean': 'Kill Feed',
-  'clean-pov-60': 'Clean POV',
-  'full-hud-60': 'Full HUD',
-};
 
 /** The render half of a status read, as RealApiClient parses it. */
 export type RecoveryRender = {
@@ -77,21 +73,26 @@ export function recoveredVideo(
   knownIds: ReadonlySet<string>,
 ): RecoveredVideo | null {
   if (render.status !== 'ready' || !render.videoName) return null;
-  const batch = render.editConfig?.separateShorts === true && variant !== RECOVERY_FULL_DEMO_VARIANT;
-  const baseId = recoveredVideoId(job.jobId, variant, render.segmentIds);
-  const id = batch && baseId !== null ? `${job.jobId}__${reelPlaysSuffix(render.segmentIds ?? [], render.editConfig)}` : baseId;
+  const segmentIds = render.segmentIds ?? [];
+  const long = variant === RECOVERY_FULL_DEMO_VARIANT;
+  // The long-video variant also renders Crear horizontal and the other 16:9 summaries of chosen plays.
+  const highlights = long && segmentIds.length > 0 && render.editConfig !== undefined && isLandscapeHighlights(render.editConfig);
+  const batch = render.editConfig?.separateShorts === true && !long;
+  const id = (batch && segmentIds.length > 0) || highlights
+    ? `${job.jobId}__${reelPlaysSuffix(segmentIds, render.editConfig)}`
+    : recoveredVideoId(job.jobId, variant, render.segmentIds);
   if (id === null || knownIds.has(id)) return null;
 
-  const full = variant === RECOVERY_FULL_DEMO_VARIANT;
+  const full = long && !highlights;
   const editConfig: EditConfig = full
     ? { ...DEFAULT_EDIT_CONFIG, ...render.editConfig, format: 'landscape-16x9', matchRecap: true }
-    : { ...DEFAULT_EDIT_CONFIG, ...render.editConfig, format: 'short-9x16', matchRecap: false };
-  const plays = render.segmentIds?.length ?? 0;
+    : { ...DEFAULT_EDIT_CONFIG, ...render.editConfig, format: highlights ? 'landscape-16x9' : 'short-9x16', matchRecap: false };
+  const plays = segmentIds.length;
   const selection = batch ? autoShortsTitle(plays) : `${plays} ${plays === 1 ? 'jugada' : 'jugadas'}`;
-  const title = full ? 'Demo completa' : `${selection} - ${SHORT_VARIANT_LABELS[variant] ?? variant}`;
+  const title = full ? 'Demo completa' : `${selection} - ${reelStyleLabel(variant, editConfig)}`;
 
   const dp = dataPlane();
-  const revision = full ? renderRevisionFromPrefix(render.artifactPrefix, job.jobId, variant) : undefined;
+  const revision = long ? renderRevisionFromPrefix(render.artifactPrefix, job.jobId, variant) : undefined;
   const cover = render.coverName ?? render.coverNames?.[0];
   const created = job.createdAt ? Date.parse(job.createdAt) : Number.NaN;
   const video: Video = {

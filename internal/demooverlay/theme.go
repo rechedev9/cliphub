@@ -13,6 +13,8 @@ func NormalizeTheme(theme string) string {
 	switch strings.ToLower(strings.TrimSpace(theme)) {
 	case ThemeNeonViolet:
 		return ThemeNeonViolet
+	case ThemeHUD:
+		return ThemeHUD
 	case ThemeFaceitOrange, "":
 		return ThemeFaceitOrange
 	default:
@@ -37,5 +39,5 @@ func ResolveTheme(doc Document) CardTheme {
 // intro JPG plates. FACEIT overlays always use live programmatic chrome so an
 // old screenshot plate can never replace current roster data.
 func UsesProgrammaticIntroChrome(doc Document) bool {
-	return NormalizeSource(doc.Source) == SourceFACEIT || NormalizeTheme(doc.Theme) == ThemeNeonViolet
+	return NormalizeSource(doc.Source) == SourceFACEIT || UsesDesignHTML(doc)
 }

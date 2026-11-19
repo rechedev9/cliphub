@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { BrandKitOptions } from './brand-kit-options';
+import { PlayerCardOptions } from './player-card-options';
 import { RadarOptions } from './radar-options';
 import { VerticalHudOptions } from './vertical-hud-options';
 
@@ -45,6 +46,8 @@ export type EditOptionsProps = {
   verticalHud?: boolean;
   /** False disables ClipHub's radar: the chosen style records CS2's own HUD and radar. */
   radar?: boolean;
+  /** The job a one-player 9:16 Short's player cards read; unset hides them. */
+  playerCards?: { jobId: string; blockedReason?: string | undefined };
 };
 
 /** "0,25x": the decimal comma of the Spanish UI. */
@@ -80,6 +83,7 @@ export function EditOptions({
   statsCard = true,
   verticalHud = true,
   radar = true,
+  playerCards,
 }: EditOptionsProps) {
   const onChange = (next: EditConfig): void => emit(exclusiveBanner(value, next));
   const portraitShort = value.format === 'short-9x16' && !showFullDemoDelivery && !value.deathReel;
@@ -399,13 +403,19 @@ export function EditOptions({
       </OptionGroup>
 
       <OptionGroup title="Final, portada y marca">
+        {value.format === 'short-9x16' && playerCards && !showFullDemoDelivery && !value.matchRecap ? (
+          <OptionBlock label="Cartas de jugador">
+            <PlayerCardOptions value={value} onChange={onChange} disabled={disabled} jobId={playerCards.jobId} blockedReason={playerCards.blockedReason} />
+          </OptionBlock>
+        ) : null}
+
         {value.format === 'short-9x16' && statsCard && !showFullDemoDelivery ? (
           <OptionBlock label="Tarjeta final">
             <ToggleGroup
               type="multiple"
-              value={value.statsCard ? ['stats-card'] : []}
+              value={value.statsCard && !value.endCard ? ['stats-card'] : []}
               onValueChange={(items) => onChange({ ...value, statsCard: items.includes('stats-card') })}
-              disabled={disabled}
+              disabled={disabled || value.endCard !== undefined}
               variant="outline"
               spacing={CHIP_SPACING}
               className="flex-wrap"
@@ -416,7 +426,9 @@ export function EditOptions({
               </ToggleGroupItem>
             </ToggleGroup>
             <p className="text-body-sm text-fg-3">
-              Cierra el Short con K/D, ADR, HS % y el rating de ClipHub del jugador. Si FACEIT tiene sus datos, añade su nivel, su porcentaje de victorias y su mejor mapa.
+              {value.endCard
+                ? 'La carta de jugador cierra el Short en su lugar.'
+                : 'Cierra el Short con K/D, ADR, HS % y el rating de ClipHub del jugador. Si FACEIT tiene sus datos, añade su nivel, su porcentaje de victorias y su mejor mapa.'}
             </p>
           </OptionBlock>
         ) : null}
@@ -443,6 +455,9 @@ export function EditOptions({
               Sin portada
             </ToggleGroupItem>
           </ToggleGroup>
+          {value.coverCard && value.coverStrategy !== 'no-cover' && value.format === 'short-9x16' ? (
+            <p className="text-body-sm text-fg-3">La carta de jugador va encima del fotograma.</p>
+          ) : null}
         </OptionBlock>
 
         {showFullDemoDelivery ? null : (

@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/captureretention"
 	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
@@ -17,6 +17,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/overlayassets"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/subtitles"
 	"github.com/rechedev9/cliphub/internal/voicecomms"
 )
 
@@ -28,7 +29,17 @@ func fullDemoExecutionArgs(path string) []string {
 	return []string{"--full-demo-execution", path, "--tail-trim=0", "--compile-segments"}
 }
 
-func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, j job.Job, snapshot recapplan.Snapshot, dir, ffmpeg string) (string, error) {
+// fullDemoExecutionInput is the approved Full Demo a render plays, its stage folder and the subtitles it read.
+type fullDemoExecutionInput struct {
+	job       job.Job
+	snapshot  recapplan.Snapshot
+	dir       string
+	ffmpeg    string
+	subtitles *subtitles.Track
+}
+
+func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, in fullDemoExecutionInput) (string, error) {
+	j, snapshot, dir, ffmpeg := in.job, in.snapshot, in.dir, in.ffmpeg
 	execution := editor.FullDemoExecution{SchemaVersion: "1.0", Approved: snapshot, Assets: []editor.FullDemoLocalMedia{}, VoiceTracks: []editor.FullDemoLocalVoice{}}
 	if snapshot.Document.Options.Overlays.HUDTheme != "" {
 		telemetry, err := w.materializeFullDemoHUD(ctx, j, snapshot.Document, dir)
@@ -68,6 +79,7 @@ func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, j job.J
 			execution.VoiceTracks = append(execution.VoiceTracks, editor.FullDemoLocalVoice{SteamID64: track.SteamID64, StorageKey: track.Path, SHA256: extraction.TrackHashes[track.Path], Path: path})
 		}
 	}
+	execution.Subtitles = in.subtitles
 	path := filepath.Join(dir, "full-demo-execution.json")
 	return path, writeJSONFile(path, execution)
 }
@@ -124,23 +136,24 @@ func (w *RenderWorker) verifyFullDemoCaptureContent(ctx context.Context, id uuid
 	return firstErr
 }
 
-// discardFullDemoCaptures deletes the round clips of every capture attempt of a
-// ready Full Demo, most of a job's disk. The recording result stays, so a new edit recaptures.
-func (w *RenderWorker) discardFullDemoCaptures(id uuid.UUID) {
-	resolver, ok := w.storage.(storagePathResolver)
-	if !ok || w.cfg.KeepFullDemoCaptures {
+// releaseFullDemoCaptures frees the clips of the Full Demos outside the retention;
+// rendered, whose render just finished, does not count as busy.
+func (w *RenderWorker) releaseFullDemoCaptures(ctx context.Context, rendered uuid.UUID) {
+	if w.cfg.KeepFullDemoCaptures {
 		return
 	}
-	dir, err := resolver.ResolvePath(artifacts.FullDemoCaptureRevisionsPrefix(id))
-	var clips []recording.CaptureClip
+	keep, err := captureretention.Load(w.storage)
 	if err == nil {
-		clips, err = recording.FullDemoCaptureClips(dir)
-	}
-	if err == nil {
-		_, err = recording.DeleteCaptureClips(clips)
+		_, err = captureretention.Apply(captureretention.ApplyOptions{Store: w.storage, Keep: keep, Busy: func(id uuid.UUID) bool {
+			if id == rendered {
+				return false
+			}
+			j, err := w.repo.GetMeta(ctx, id)
+			return err != nil || captureretention.InFlight(j.Status)
+		}})
 	}
 	if err != nil {
-		logWorkerError(id, "discard full demo captures", err)
+		logWorkerError(rendered, "release full demo captures", err)
 	}
 }
 
