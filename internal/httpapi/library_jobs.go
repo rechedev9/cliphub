@@ -97,11 +97,8 @@ func (h *Handlers) restoreLibraryDemoFile(ctx context.Context, d library.Demo, s
 	return d
 }
 
-// registerJobDemo puts the demo of a Crear job in the library and links the
-// job to it. A demo already in the library (same hash) is linked as is, and
-// gets the job's copy back if its own file is gone; a new one gets its own
-// copy of the file, so deleting the job later does not take the library's
-// demo with it, and is queued for its scan.
+// registerJobDemo links a Crear job to its library demo: one with the same hash gets the job's copy back if
+// its file is gone; a new one gets its own copy, so deleting the job keeps it, and is queued for its scan.
 func (h *Handlers) registerJobDemo(ctx context.Context, j job.Job) (library.Demo, error) {
 	if d, err := h.libraryRepo.DemoForJob(ctx, j.ID); err == nil {
 		return h.restoreLibraryDemoFile(ctx, d, j.DemoPath), nil
