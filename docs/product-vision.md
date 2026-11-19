@@ -216,7 +216,7 @@ Parsers y librerías:
 
 | Repo | Estrellas | Lenguaje | Licencia | Uso para nosotros |
 |---|---|---|---|---|
-| [markus-wa/demoinfocs-golang](https://github.com/markus-wa/demoinfocs-golang) | 1.073 | Go | MIT | Ya es nuestro parser |
+| [markus-wa/demoinfocs-golang](https://github.com/markus-wa/demoinfocs-golang) | 1.073 | Go | MIT | Base de nuestro parser, `rechedev9/demo-parser-rsn` |
 | [akiver/cs-demo-analyzer](https://github.com/akiver/cs-demo-analyzer) | 125 | Go | MIT | Motor de CS Demo Manager. API Go (`api.AnalyzeDemo`) con stats, posiciones y fuentes (FACEIT, ESL, 5E...). Referencia o dependencia para métricas por jugador |
 | [LaihoE/demoparser](https://github.com/LaihoE/demoparser) (demoparser2) | 739 | Rust | MIT | Parser rápido con bindings Python/JS. Referencia |
 | [pnxenopoulos/awpy](https://github.com/pnxenopoulos/awpy) | 627 | Python/Rust | MIT | Análisis y visualización, radares calibrados, ADR/KAST/rating. Referencia de fórmulas |

@@ -14,7 +14,7 @@ ClipHub reads demos with our own parser, `github.com/rechedev9/demo-parser-rsn` 
 
 ## Where it lives
 
-- Repository: `rechedev9/demo-parser-rsn`, default branch `cliphub/v5`. Clone in `C:\Users\<user>\projects\demoinfocs-golang`: `origin` is ours, `upstream` is markus-wa with `tagOpt --no-tags`.
+- Repository: `rechedev9/demo-parser-rsn`, default branch `cliphub/v5`. Clone in `C:\Users\<user>\projects\demo-parser-rsn`: `origin` is ours, `upstream` is markus-wa with `tagOpt --no-tags`.
 - The clone holds upstream's old v0 and v1 tags, which the Go proxy would read as versions of our module. Push one tag by name; never `git push --tags`.
 - Versions are semver tags on `cliphub/v5`, from `v1.0.0`. Never move a tag; the Go proxy caches it.
 
