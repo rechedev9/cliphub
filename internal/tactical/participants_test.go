@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/golang/geo/r3"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/constants"
-	st "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/sendtables"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/common"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/constants"
+	st "github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/sendtables"
 
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )

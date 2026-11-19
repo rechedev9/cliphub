@@ -48,7 +48,7 @@ el lenguaje visual.
   `internal/utilityaudit`: auditoría de cada granada (tick de lanzamiento, postura, movimiento).
 - `internal/voicecomms`: voz de los jugadores extraída de la demo.
 - `internal/faceit`: API de FACEIT (la clave ya va embebida en `zv-orchestrator.exe`).
-- Parser: `github.com/markus-wa/demoinfocs-golang/v5` (Go). Base de datos local: SQLite
+- Parser: `github.com/rechedev9/demo-parser-rsn`, nuestro parser, derivado de demoinfocs-golang v5 (Go). Base de datos local: SQLite
   (`modernc.org/sqlite`, `internal/store`).
 
 ### Lo que ya existe para contenido
@@ -216,7 +216,7 @@ Parsers y librerías:
 
 | Repo | Estrellas | Lenguaje | Licencia | Uso para nosotros |
 |---|---|---|---|---|
-| [markus-wa/demoinfocs-golang](https://github.com/markus-wa/demoinfocs-golang) | 1.073 | Go | MIT | Ya es nuestro parser |
+| [markus-wa/demoinfocs-golang](https://github.com/markus-wa/demoinfocs-golang) | 1.073 | Go | MIT | Base de nuestro parser, `rechedev9/demo-parser-rsn` |
 | [akiver/cs-demo-analyzer](https://github.com/akiver/cs-demo-analyzer) | 125 | Go | MIT | Motor de CS Demo Manager. API Go (`api.AnalyzeDemo`) con stats, posiciones y fuentes (FACEIT, ESL, 5E...). Referencia o dependencia para métricas por jugador |
 | [LaihoE/demoparser](https://github.com/LaihoE/demoparser) (demoparser2) | 739 | Rust | MIT | Parser rápido con bindings Python/JS. Referencia |
 | [pnxenopoulos/awpy](https://github.com/pnxenopoulos/awpy) | 627 | Python/Rust | MIT | Análisis y visualización, radares calibrados, ADR/KAST/rating. Referencia de fórmulas |

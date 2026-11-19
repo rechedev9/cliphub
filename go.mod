@@ -13,10 +13,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hibiken/asynq v0.26.0
 	github.com/klauspost/compress v1.20.3
-	github.com/markus-wa/demoinfocs-golang/v5 v5.3.0
 	github.com/markus-wa/godispatch v1.4.1
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nwaples/rardecode/v2 v2.4.6
+	github.com/rechedev9/demo-parser-rsn v1.0.0
 	github.com/yuin/gopher-lua v1.1.2
 	golang.org/x/image v0.45.0
 	golang.org/x/sys v0.47.0

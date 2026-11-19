@@ -1,8 +1,8 @@
 package parser
 
 import (
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
+	demoinfocs "github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/common"
 )
 
 // The demo vocabulary below is shared with other packages that read demos, so

@@ -15,8 +15,8 @@ import (
 	"github.com/rechedev9/cliphub/internal/storage"
 )
 
-// demoinfocsModule is the parser module whose version alone decides whether a demo parses.
-const demoinfocsModule = "github.com/markus-wa/demoinfocs-golang/v5"
+// demoParserModule is the parser module whose version alone decides whether a demo parses.
+const demoParserModule = "github.com/rechedev9/demo-parser-rsn"
 
 // scannerBuild names the running Studio build: the commit it was built from, or
 // its module version when the binary carries no VCS stamp.
@@ -40,7 +40,7 @@ var parserVersion = sync.OnceValue(func() string {
 		return "devel"
 	}
 	for _, dep := range info.Deps {
-		if dep.Path != demoinfocsModule {
+		if dep.Path != demoParserModule {
 			continue
 		}
 		if dep.Replace != nil {

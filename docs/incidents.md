@@ -563,8 +563,8 @@ refuses them.
 - A new admission or scan failure needs a code and a line in
   `SCAN_FAILURE_HINTS`, not another generic message.
 - A `demo_incompatible` scan on a fresh CS2 demo usually means a CS2 update
-  changed the demo format before demoinfocs caught up: check its releases
-  before touching our parser code.
+  changed the demo format before the parser caught up. ClipHub uses its own
+  parser; `.claude/rules/demo-parser.md` says how to change it.
 
 ### Incident: every demo played after the CS2 update failed its scan (Studio 5.21.1, 2026-11-13)
 
@@ -689,6 +689,27 @@ followed each other on the same demo.
   `TestHTTPTraceLogsRenderVariantNotReadyPollBelowErrorLevel`.
 - The duplicate was rebuilt with synthetic players; the users' demo was not
   available, so which of the two shapes it had is unknown.
+
+### Incident: a pro demo panicked the parser when a player started a plant (2026-11-19)
+
+From 2026-11-13 the `prepare` stage of the daily pro demo run
+(`cliphub-community prepare-hltv`) failed every morning on HLTV match 2400507
+(K27 vs LUNTIKI, Dust2) with a nil pointer panic in demoinfocs. When a player
+starts arming the bomb, demoinfocs found the pawn that owns the bomb, then
+looked it up again through the controller's `m_hPawn` to read the bomb zone.
+In round 11 that handle named no pawn. Upstream v5.3.0 and v6 both had it.
+
+- ClipHub moved to its own parser, `demo-parser-rsn` v1.0.0
+  (`.claude/rules/demo-parser.md`). The plant reads the planting pawn
+  (`TestBombStartedArming_ControllerPawnMismatch`).
+- An audit of the parser found about 130 places where a valid demo could
+  panic. Most came from two causes, fixed at the root: unchecked type
+  assertions in the `PropertyValue` getters, and properties a CS2 build can
+  rename read without a check. Tests: `TestPropertyValueWithoutValueReadsZero`,
+  `TestPlayerWithoutPawnReadsZero`, `TestBindNewPlayerPawn_ControllerNotKnownYet`,
+  `TestHandleGameEvent_UnknownEventIDIsSkipped`.
+- The demo now parses to the end, but it has 9 players from round 1 (5 T,
+  4 CT): one team played a man down. The parser loses no one.
 
 ## Match dates (`library.MatchDate`, 2026-11-13)
 

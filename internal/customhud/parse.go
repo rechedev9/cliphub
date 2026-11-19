@@ -15,11 +15,11 @@ import (
 	"strings"
 	"sync"
 
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
-	st "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/sendtables"
+	demoinfocs "github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/common"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/events"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/msg"
+	st "github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/sendtables"
 
 	"github.com/rechedev9/cliphub/internal/demosafe"
 )

@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
 	dp "github.com/markus-wa/godispatch"
+	demoinfocs "github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/msg"
 
 	"github.com/rechedev9/cliphub/internal/demosafe"
 )

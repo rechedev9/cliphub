@@ -3,7 +3,7 @@ package tactical
 import (
 	"testing"
 
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/common"
 
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
