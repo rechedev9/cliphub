@@ -71,3 +71,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+replace github.com/markus-wa/demoinfocs-golang/v5 => github.com/rechedev9/demoinfocs-golang/v5 v5.3.1-cliphub.1

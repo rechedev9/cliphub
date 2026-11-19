@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"testing"
@@ -17,6 +18,9 @@ const demoinfocsImport = "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfo
 
 // demoParserHelper is the one production file that may build a parser outside demosafe.NewParser.
 const demoParserHelper = "internal/demosafe/demosafe.go"
+
+// demoinfocsFork is the module that replaces demoinfocs in every build; see .claude/rules/demoinfocs-fork.md.
+const demoinfocsFork = "github.com/rechedev9/demoinfocs-golang/v5"
 
 var demoParserConstructors = map[string]bool{"NewParser": true, "NewParserWithConfig": true}
 
@@ -87,4 +91,22 @@ func directParserCalls(rel string, data []byte) ([]string, error) {
 		return true
 	})
 	return problems, nil
+}
+
+// TestDemoinfocsComesFromTheFork fails when go.mod drops the fork, or points it at a local folder.
+func TestDemoinfocsComesFromTheFork(t *testing.T) {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		t.Fatal("no build info")
+	}
+	for _, dep := range info.Deps {
+		if dep.Path != "github.com/markus-wa/demoinfocs-golang/v5" {
+			continue
+		}
+		if dep.Replace == nil || dep.Replace.Path != demoinfocsFork || dep.Replace.Version == "" {
+			t.Fatalf("demoinfocs must be replaced by a tagged %s, got %+v", demoinfocsFork, dep.Replace)
+		}
+		return
+	}
+	t.Fatal("demoinfocs is not a dependency")
 }
