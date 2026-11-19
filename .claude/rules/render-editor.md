@@ -21,7 +21,7 @@ Studio ships FFmpeg 8.1.2. Some Full Demo and `internal/demooverlay` tests fail 
 
 ## Render deadline
 
-A render's deadline scales with its program length (a Full Demo's approved timeline, else the captured plays, since a summary has no length cap) and never drops below the configured one; a run its deadline cut fails with `render_timeout`. Do not go back to one fixed deadline for every render. `docs/incidents.md`, **a slow PC's Full Demo render was cut at the fixed deadline**.
+A `RenderWorker` render's deadline scales with its program length (a Full Demo's approved timeline, else the captured plays, since a summary has no length cap) and never drops below the configured one; a run its deadline cut fails with `render_timeout`. Do not go back to one fixed deadline for every render. `docs/incidents.md`, **a slow PC's Full Demo render was cut at the fixed deadline**.
 
 ## Pipeline golden test
 
@@ -46,4 +46,5 @@ A render attempt writes durable state only while it still owns that state. A tas
 ## Full Demo artifact cache
 
 `fullDemoCachedArtifacts` (`internal/workers/full_demo_cache.go`) reuses a finished render only when the approved plan matches, the video bytes match `Delivery.ContentSHA256`, and every document from `editor.FullDemoDocumentFiles` exists beside the video and deep-equals the expected one. Anything missing or altered is a miss. The contract is `TestFullDemoCacheRequiresCommittedBytesAndDocuments`.
+
 Which captures an edit reuses and which ones `captureretention` frees: `docs/incidents.md`, **Editing a finished video**.
