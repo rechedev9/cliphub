@@ -65,6 +65,7 @@ func (h *Handlers) GetJobSubtitles(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "find the job's demo", err)
 		return
 	}
+	h.restoreLibraryDemoFile(r.Context(), demo, j.DemoPath)
 	m, err := h.libraryRepo.GetMatch(r.Context(), *demo.MatchID)
 	if err != nil {
 		writeLibraryError(w, "get the job's match", err)

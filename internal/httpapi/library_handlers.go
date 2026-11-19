@@ -351,6 +351,7 @@ func (h *Handlers) importLibraryDemo(ctx context.Context, src io.Reader, rawName
 		return result, err
 	}
 	if !created {
+		demo = h.restoreLibraryDemoFile(ctx, demo, upload.Path)
 		h.discardLibraryDemo(id)
 		result.Status, result.Demo = libraryImportDuplicate, &demo
 		return result, nil

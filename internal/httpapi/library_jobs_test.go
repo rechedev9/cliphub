@@ -174,3 +174,43 @@ func TestLibraryPlayerRoleReadsTheMatchDocuments(t *testing.T) {
 		t.Fatalf("role of an unknown player = %d, want 404", rw.Code)
 	}
 }
+
+func TestRepeatedDemoRestoresALostLibraryFile(t *testing.T) {
+	ctx := context.Background()
+	repo := store.NewMemoryLibraryRepository()
+	files := newFakeStorage()
+	queue := &fakeQueue{}
+	env := libraryTestEnv{t: t, repo: repo, storage: files, queue: queue, router: Routes(NewHandlers(newFakeRepo(), files, queue, WithLibrary(repo)))}
+	data := append(append([]byte{}, demoMagic...), []byte("repeated demo")...)
+	analyzed := func() int {
+		n := 0
+		for _, task := range queue.enqueued {
+			if task.Type() == tasks.TypeAnalyzeLibraryDemo {
+				n++
+			}
+		}
+		return n
+	}
+
+	first := uploadJobDemo(t, env.router, data)
+	var demo library.Demo
+	env.json(http.MethodGet, "/api/library/jobs/"+first.String(), nil, http.StatusOK, &demo)
+	// The library copy is lost, as when Studio's data folder moves, and its scan fails.
+	delete(files.puts, demo.Path)
+	if err := repo.SetDemoState(ctx, demo.ID, library.ParseFailed, "demo_unreadable", "open demo: not found"); err != nil {
+		t.Fatal(err)
+	}
+
+	second := uploadJobDemo(t, env.router, data)
+	env.json(http.MethodGet, "/api/library/jobs/"+second.String(), nil, http.StatusOK, &demo)
+	if !bytes.Equal(files.puts[demo.Path], data) || demo.State != library.ParseQueued || analyzed() != 2 {
+		t.Fatalf("library demo after the same demo came back = %+v (copy %q, %d scans), want its file and a new scan", demo, files.puts[demo.Path], analyzed())
+	}
+
+	// A job linked before the copy was lost gives it back too.
+	delete(files.puts, demo.Path)
+	env.json(http.MethodPost, "/api/library/jobs/"+first.String(), nil, http.StatusOK, &demo)
+	if !bytes.Equal(files.puts[demo.Path], data) {
+		t.Fatalf("library copy after linking the first job again = %q, want the demo", files.puts[demo.Path])
+	}
+}
