@@ -711,6 +711,17 @@ In round 11 that handle named no pawn. Upstream v5.3.0 and v6 both had it.
 - The demo now parses to the end, but it has 9 players from round 1 (5 T,
   4 CT): one team played a man down. The parser loses no one.
 
+### Incident: subtitles locked because a repeated demo kept a lost library copy (Studio 5.26.0, 2026-11-19)
+
+A FACEIT demo imported on 2026-11-14 lost its library copy (`library/<id>/demo.dem`),
+probably when Studio's data folder moved, and its scan failed as `demo_unreadable`.
+Importing the same demo again through Crear linked the new job to that entry by hash,
+so the Subtítulos panel read the lost path and said the demo was no longer on the PC.
+
+- A repeated demo now puts its file back under the library entry and queues the scan
+  again (`restoreLibraryDemoFile`), from Crear, from a library import and from the
+  Subtítulos panel of a job already linked (`TestRepeatedDemoRestoresALostLibraryFile`).
+
 ## Match dates (`library.MatchDate`, 2026-11-13)
 
 ### Incident: FACEIT demos dated by their import day (Studio 5.21.1, 2026-11-13)

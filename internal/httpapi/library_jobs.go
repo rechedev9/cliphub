@@ -65,13 +65,43 @@ func (h *Handlers) storedSize(key string) int64 {
 	return info.Size()
 }
 
-// registerJobDemo puts the demo of a Crear job in the library and links the
-// job to it. A demo already in the library (same hash) is linked as is; a new
-// one gets its own copy of the file, so deleting the job later does not take
-// the library's demo with it, and is queued for its scan.
+// restoreLibraryDemoFile puts srcKey, another copy of the same demo, back under a library demo
+// whose file is gone, and queues the scan again when the demo was not analysed. It never fails the caller.
+func (h *Handlers) restoreLibraryDemoFile(ctx context.Context, d library.Demo, srcKey string) library.Demo {
+	if d.Source.WithoutDemo() || d.Path == "" || srcKey == "" {
+		return d
+	}
+	if exists, err := h.storage.Exists(d.Path); err != nil || exists {
+		return d
+	}
+	if exists, err := h.storage.Exists(srcKey); err != nil || !exists {
+		return d
+	}
+	if err := h.placeLibraryDemo(srcKey, d.Path); err != nil {
+		log.Printf("httpapi: restore the file of library demo %s: %v", d.ID, err)
+		return d
+	}
+	if d.State == library.ParseReady {
+		return d
+	}
+	if err := h.libraryRepo.SetDemoState(ctx, d.ID, library.ParseQueued, "", ""); err != nil {
+		log.Printf("httpapi: queue library demo %s again: %v", d.ID, err)
+		return d
+	}
+	if err := h.enqueueLibraryScan(ctx, d.ID); err != nil {
+		log.Printf("httpapi: %v", err)
+	}
+	if current, err := h.libraryRepo.GetDemo(ctx, d.ID); err == nil {
+		return current
+	}
+	return d
+}
+
+// registerJobDemo links a Crear job to its library demo: one with the same hash gets the job's copy back if
+// its file is gone; a new one gets its own copy, so deleting the job keeps it, and is queued for its scan.
 func (h *Handlers) registerJobDemo(ctx context.Context, j job.Job) (library.Demo, error) {
 	if d, err := h.libraryRepo.DemoForJob(ctx, j.ID); err == nil {
-		return d, nil
+		return h.restoreLibraryDemoFile(ctx, d, j.DemoPath), nil
 	} else if !errors.Is(err, library.ErrNotFound) {
 		return library.Demo{}, err
 	}
@@ -104,6 +134,8 @@ func (h *Handlers) registerJobDemo(ctx context.Context, j job.Job) (library.Demo
 		if demo, err = h.attachSharedDemo(ctx, demo, upload); err != nil {
 			return library.Demo{}, err
 		}
+	} else if !created {
+		demo = h.restoreLibraryDemoFile(ctx, demo, j.DemoPath)
 	}
 	if created {
 		if err := h.placeLibraryDemo(j.DemoPath, key); err != nil {
