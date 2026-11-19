@@ -83,7 +83,7 @@ Each rule has a check or a longer page behind it. Follow the link before you wor
 - [Store method](.claude/skills/store-method/SKILL.md): `internal/store` gains or changes a method or a migration.
 - [Split a file](.claude/skills/split-file/SKILL.md): a file nears 1000 lines, or `TestGoFileLength` or `max-lines` fails.
 - [Update pipeline goldens](.claude/skills/update-golden/SKILL.md): `go test ./internal/pipeline` fails on a golden diff.
-- [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md): run Studio from source and check a change by hand.
+- [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md): run Studio or ClipMind from source and drive a change from the UI; its `features/` map says which edition has each flow.
 - [Diff review](.claude/skills/diff-review/SKILL.md): review a branch, diff or PR. Read-only.
 - [Post-work review](.claude/skills/post-work-review/SKILL.md): review and fix the staged change before each commit, then record it for `.githooks/pre-commit`.
 - [Release check](.claude/skills/release-check/SKILL.md): full checks and a dry-run release workflow before a tag. It does not publish.
