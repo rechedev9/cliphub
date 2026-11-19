@@ -1,6 +1,6 @@
 export const DOWNLOAD_URL =
-  "https://github.com/rechedev9/cliphub/releases/download/v5.26.1/ClipHub.Studio.Setup.5.26.1.exe";
-export const RELEASE_VERSION = "v5.26.1";
+  "https://github.com/rechedev9/cliphub/releases/download/v5.27.0/ClipHub.Studio.Setup.5.27.0.exe";
+export const RELEASE_VERSION = "v5.27.0";
 export const INSTALLER_SIZE = "171 MB";
 export const REPO_URL = "https://github.com/rechedev9/cliphub";
 export const ANALYTICS_URL = "https://cliphubstrats.rechedev.cloud";
