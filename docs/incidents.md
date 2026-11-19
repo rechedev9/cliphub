@@ -697,7 +697,7 @@ From 2026-11-13 the community indexer on the VPS failed every morning on HLTV
 match 2400507 (K27 vs LUNTIKI, Dust2) with a nil pointer panic in demoinfocs.
 When a player starts arming the bomb, demoinfocs found the pawn that owns the
 bomb, then looked it up again through the controller's `m_hPawn` to read the
-bomb zone. In round 10 that handle named no pawn, so the second lookup
+bomb zone. In round 11 that handle named no pawn, so the second lookup
 returned nil. Upstream v5.3.0 and v6 both had it.
 
 - Fixed in our fork (`v5.3.1-cliphub.1`, `TestBombStartedArming_ControllerPawnMismatch`):
