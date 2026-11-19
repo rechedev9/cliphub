@@ -1,7 +1,7 @@
 export const DOWNLOAD_URL =
-  "https://github.com/rechedev9/cliphub/releases/download/v5.24.4/ClipHub.Studio.Setup.5.24.4.exe";
-export const RELEASE_VERSION = "v5.24.4";
-export const INSTALLER_SIZE = "168 MB";
+  "https://github.com/rechedev9/cliphub/releases/download/v5.25.0/ClipHub.Studio.Setup.5.25.0.exe";
+export const RELEASE_VERSION = "v5.25.0";
+export const INSTALLER_SIZE = "171 MB";
 export const REPO_URL = "https://github.com/rechedev9/cliphub";
 export const ANALYTICS_URL = "https://cliphubstrats.rechedev.cloud";
 /** Opens a read-only library of real pro matches without an account. */
