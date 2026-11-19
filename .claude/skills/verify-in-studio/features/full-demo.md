@@ -20,12 +20,12 @@ Not yet proven by this skill. The handles below come from the code at `83ce9fff`
 
 ## Driving it with the browser and zv-mcp
 
-1. Import and wait as in [Partidas](partidas.md). `create_job` for one player (a multi-POV job is refused).
+1. Import and wait as in [Partidas](partidas.md). `create_job` for one player (a multi-POV job is refused), then `wait_for_job` until the job is parsed. Planning earlier answers 409 "Parse the selected player before planning Full Demo".
 2. `plan_full_demo` returns a `plan_hash`. It never starts CS2.
 3. `render_full_demo` with that `plan_hash` asks for approval, then starts. Follow it with `wait_for_job` and the variant `gameplay-pov-60`, then `list_videos`.
 4. In the browser: the plan page shows the planned rounds, and `/mis-videos` shows the card under "Listos" with the pill "Demo completa".
 
-Proof: `$p\data\jobs\<job>\full-demo\current-plan.json` exists after the plan, the MP4 is in `renders\gameplay-pov-60\videos\`, and the card is under "Listos".
+Proof: `$p\data\jobs\<job>\full-demo\current-plan.json` exists after the plan, the new MP4 is in `renders\gameplay-pov-60\revisions\<revision>\videos\` (`status.json` beside `revisions\` names the current revision), and the card is under "Listos".
 
 ## Gotchas
 

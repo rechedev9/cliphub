@@ -22,12 +22,12 @@ Not yet proven by this skill. The handles below come from the code at `83ce9fff`
 ## Driving it with the browser and zv-mcp
 
 1. Import and wait as in [Partidas](partidas.md). Then `create_job` for one player and `wait_for_job` until the job is parsed.
-2. `list_moments` returns the same plays as the list, ranked as "Elegir las mejores" ranks them.
+2. `list_moments` returns the same plays as the list, ranked as "Elegir las mejores" ranks them. It returns the top 10 and a `total`; pass a larger `limit` to compare every play with the list.
 3. `generate_short` with the chosen segment ids returns a `variant`. It asks for approval first, so it needs a client that answers elicitation or the approval code path.
 4. `wait_for_job` with that `variant`, in a loop (55 s at most per call), then `list_videos`.
 5. In the browser: `/mis-videos` shows the card under "Listos", with "Reproducir <title>" and "MP4".
 
-Proof: `wait_for_job` ends with no `failure_code`, the MP4 is in `$p\data\jobs\<job>\renders\<variant>\videos\`, and the card is under "Listos".
+Proof: `wait_for_job` ends with no `failure_code`, the new MP4 is in `$p\data\jobs\<job>\renders\<variant>\revisions\<revision>\videos\` (`status.json` beside `revisions\` names the current revision), and the card is under "Listos".
 
 ## Gotchas
 

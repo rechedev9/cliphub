@@ -13,31 +13,36 @@ Run it on Windows. Use demo files from outside the repo. Capture needs Steam and
 
 ## Build
 
-Studio runs from a checkout that holds `bin\` and `desktop\build-resources\`:
+In a linked worktree beside the main checkout, `build.ps1` stops with "carries no vcs.revision": Go reads VCS data only from a `.git` directory, and a linked worktree has a `.git` file. Build in a shared clone of your branch instead. The clone checks out the worktree's branch, and the diff carries uncommitted edits over (stage new files with `git add -N` first):
 
 ```powershell
-pnpm --dir web install --frozen-lockfile; pnpm --dir desktop install --frozen-lockfile
-.\scripts\build.ps1
-pnpm --dir desktop run build
-node desktop/scripts/seed-bundled-music.mjs
-pnpm --dir desktop run assemble
-```
-
-- `assemble` stops on a missing `data\music\<track>.mp3` until `seed-bundled-music.mjs` fetches the local-only tracks from the pinned release.
-- In a linked worktree beside the main checkout, `build.ps1` stops with "carries no vcs.revision": Go reads VCS data only from a `.git` directory, and a linked worktree has a `.git` file. Build in a shared clone of your branch instead, and carry uncommitted edits over (stage new files with `git add -N` first):
-
-```powershell
+$worktree = 'C:\path\to\your\worktree'
 $repo = "C:\temp\cliphub-build\$(Get-Date -f yyyyMMdd-HHmmss)"
-git clone --shared <worktree> $repo
-git -C <worktree> diff HEAD --binary | git -C $repo apply --binary
+git clone --shared $worktree $repo
+if ($LASTEXITCODE) { throw 'git clone failed' }
+git -C $worktree diff HEAD --binary | git -C $repo apply --binary
+if ($LASTEXITCODE) { throw 'git apply failed' }
 ```
 
-The clone checks out the worktree's branch. Delete it when the check is done: its `node_modules` and build output take gigabytes. The build takes minutes, and the Next build runs twice because `assemble` builds `web` again.
+Delete the clone when the check is done: its `node_modules` and build output take gigabytes. Build in `$repo` (the clone, or a checkout whose `.git` is a directory). The chain stops at the first failure:
+
+```powershell
+Set-Location -LiteralPath $repo -ErrorAction Stop
+pnpm --dir web install --frozen-lockfile &&
+  pnpm --dir desktop install --frozen-lockfile &&
+  .\scripts\build.ps1 &&
+  pnpm --dir desktop run build &&
+  node desktop/scripts/seed-bundled-music.mjs &&
+  pnpm --dir desktop run assemble
+```
+
+`assemble` stops on a missing `data\music\<track>.mp3` until `seed-bundled-music.mjs` fetches the local-only tracks from the pinned release. The build takes minutes, and the Next build runs twice because `assemble` builds `web` again.
 
 ## Launch Studio
 
 ```powershell
 $repo = '<checkout with desktop\build-resources>'
+if (-not (Test-Path "$repo\desktop\build-resources\bin\zv-orchestrator.exe")) { throw "no Studio build in '$repo'" }
 $stamp = Get-Date -f yyyyMMdd-HHmmss
 $p = "C:\temp\cliphub-try\$stamp"; $e = "C:\temp\cliphub-evidence\$stamp"
 New-Item -ItemType Directory -Force $p, $e | Out-Null
@@ -81,9 +86,15 @@ State changes go through the branch's `bin\zv-mcp.exe` with `CLIPHUB_STUDIO_USER
 ```powershell
 function Invoke-StudioMcp {
     param([Parameter(Mandatory)][string]$Tool, [hashtable]$Arguments = @{})
+    $runProfile = $env:CLIPHUB_STUDIO_USER_DATA
+    # An empty value makes zv-mcp fall back to the real %APPDATA%\cliphub-studio.
+    if ($runProfile -notmatch '^C:\\temp\\cliphub-try\\\d{8}-\d{6}$' -or -not (Test-Path "$runProfile\agent-session.json")) {
+        throw "CLIPHUB_STUDIO_USER_DATA is not a running throwaway profile: '$runProfile'"
+    }
     $psi = [Diagnostics.ProcessStartInfo]::new((Join-Path $env:CLIPHUB_REPO 'bin\zv-mcp.exe'))
     $psi.RedirectStandardInput = $true; $psi.RedirectStandardOutput = $true; $psi.UseShellExecute = $false
-    $psi.Environment['CLIPHUB_STUDIO_USER_DATA'] = $env:CLIPHUB_STUDIO_USER_DATA
+    $psi.Environment['CLIPHUB_STUDIO_USER_DATA'] = $runProfile
+    foreach ($name in 'ORCHESTRATOR_URL', 'ZV_MUTATION_TOKEN') { $null = $psi.Environment.Remove($name) }
     $mcp = [Diagnostics.Process]::Start($psi)
     try {
         $send = { param($message) $mcp.StandardInput.WriteLine(($message | ConvertTo-Json -Depth 20 -Compress)) }
@@ -111,7 +122,8 @@ $env:CLIPHUB_REPO = $repo; $env:CLIPHUB_STUDIO_USER_DATA = $p; . "$p\mcp.ps1"
 Invoke-StudioMcp studio_status
 ```
 
-- This client offers no elicitation, so a tool that asks for approval (`generate_short`, `render_full_demo`, the deletes) takes the approval-code path in `docs/studio-mcp.md`, Approval.
+- The helper refuses to start unless `CLIPHUB_STUDIO_USER_DATA` is a run profile with `agent-session.json` (Studio writes it after boot and removes it on a clean exit, not after a crash), and it drops `ORCHESTRATOR_URL` and `ZV_MUTATION_TOKEN` from the child. Either one would point `zv-mcp` at another Studio.
+- One process per call cannot carry an approval. A tool that asks for one (`generate_short`, `render_full_demo`, the deletes) answers this client with an approval code that only the issuing process accepts, and a new process also forgets that a capture was just queued, so its first `wait_for_job` can read an old state. Run those tools from one MCP session that lives through the approval and the polling, such as an assistant connected to `$repo\bin\zv-mcp.exe` with `CLIPHUB_STUDIO_USER_DATA` set to `$p`. This skill has not proven that path yet.
 - `studio_status` returns a support code. Never paste it into a PR.
 
 The UI is your browser tool (the built-in browser pane, or the agent's own browser) at `http://127.0.0.1:<web>`. It reads and clicks. A POST from it fails without the window's capability cookie, so it cannot import or start a job: [Web inside Electron](../../rules/web-electron.md). Use the handles in the feature files (`href`, role and name, `aria-label`, `aria-current`) instead of coordinates.
@@ -128,14 +140,21 @@ The reference journey, proven on 2026-11-19: import a demo through the MCP, then
 Run it when the change shows in the web edition. Build it in the same checkout after Studio's `assemble`, because the web build replaces `web\.next`:
 
 ```powershell
+$repo = '<checkout with the Studio build>'
+Set-Location -LiteralPath $repo -ErrorAction Stop
 go build -o "$repo\bin\clipmind-server.exe" ./cmd/clipmind-server
-$env:NEXT_PUBLIC_CLIPHUB_EDITION = 'web'; pnpm --dir web run build; Remove-Item Env:NEXT_PUBLIC_CLIPHUB_EDITION
+if ($LASTEXITCODE) { throw 'clipmind-server build failed' }
+$env:NEXT_PUBLIC_CLIPHUB_EDITION = 'web'
+pnpm --dir web run build
+$webBuild = $LASTEXITCODE; Remove-Item Env:NEXT_PUBLIC_CLIPHUB_EDITION
+if ($webBuild) { throw 'web edition build failed' }
 ```
 
 `pnpm run build` also compiles the WebAssembly scanner that `/importar` needs. Launch on a throwaway data dir with a confirmed test account:
 
 ```powershell
 $repo = '<checkout with bin\clipmind-server.exe and the web build>'
+if (-not (Test-Path "$repo\bin\clipmind-server.exe")) { throw "no ClipMind build in '$repo'" }
 $stamp = Get-Date -f yyyyMMdd-HHmmss
 $c = "C:\temp\clipmind-try\$stamp"; $e = "C:\temp\cliphub-evidence\clipmind-$stamp"
 New-Item -ItemType Directory -Force $c, $e | Out-Null
@@ -151,7 +170,7 @@ $web = Start-Process node "`"$repo\web\scripts\start-standalone.mjs`"" -WorkingD
 @{ server = $server.Id; web = $web.Id } | ConvertTo-Json | Set-Content "$e\pids.json"
 ```
 
-It is ready when `$e\web.out.log` has "Ready" and `$e\server.err.log` has "clipmind-server listening on". Doctor:
+It is ready when `$e\web.out.log` has "Ready" and `$e\server.err.log` has "clipmind-server listening on". `CLIPMIND_COMMUNITY_URL=off` keeps the run offline, so "Públicas" and other community data show only their disabled state. To check a change there, leave the variable out: the server then reads the public community server. Doctor:
 
 ```powershell
 $ports = Get-Content "$c\ports.json" | ConvertFrom-Json
@@ -171,35 +190,49 @@ Expect `/partidas -> 307 /iniciar-sesion?next=%2Fpartidas`, `/shorts -> 307 /des
 
 ## Clean up
 
-Stop only what you started. The user's installed Studio (`ClipHub Studio.exe`, `zv-orchestrator.exe`, `zv-mcp.exe` under `%LOCALAPPDATA%\Programs`) can run beside yours, so never stop a process by name.
+Stop only what you started. The user's installed Studio (`ClipHub Studio.exe`, `zv-orchestrator.exe`, `zv-mcp.exe` under `%LOCALAPPDATA%\Programs`) can run beside yours, so never stop a process by name. A saved PID is checked against the executable you started before anything is stopped, because Windows reuses the PID of a process that already exited.
 
 Studio:
 
 ```powershell
+if ($p -notmatch '^C:\\temp\\cliphub-try\\\d{8}-\d{6}$') { throw "not a run profile: '$p'" }
 $ports = Get-Content "$p\ports.json" | ConvertFrom-Json
 Copy-Item "$p\studio.log" $e
-taskkill /T /F /PID (Get-Content "$e\electron.pid")
-Get-NetTCPConnection -LocalPort $ports.orchestrator, $ports.web -State Listen -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force $p
+$owned = Get-CimInstance Win32_Process -Filter "ProcessId = $(Get-Content "$e\electron.pid")"
+if ($owned.ExecutablePath -eq "$repo\desktop\node_modules\electron\dist\electron.exe") { taskkill /T /F /PID $owned.ProcessId } else { 'Studio already exited or the PID is not ours: nothing stopped' }
+Get-NetTCPConnection -LocalPort $ports.orchestrator, $ports.web -State Listen -ErrorAction SilentlyContinue |
+  ForEach-Object { Get-Process -Id $_.OwningProcess } | Where-Object Path -like "$repo\*" | Stop-Process -Force
+Remove-Item -Recurse -Force -LiteralPath $p
 ```
 
 ClipMind:
 
 ```powershell
+if ($c -notmatch '^C:\\temp\\clipmind-try\\\d{8}-\d{6}$') { throw "not a run data dir: '$c'" }
 $ports = Get-Content "$c\ports.json" | ConvertFrom-Json
 $pids = Get-Content "$e\pids.json" | ConvertFrom-Json
-foreach ($id in $pids.server, $pids.web) { taskkill /T /F /PID $id }
+foreach ($id in $pids.server, $pids.web) {
+  $owned = Get-CimInstance Win32_Process -Filter "ProcessId = $id"
+  $ours = $owned.ExecutablePath -eq "$repo\bin\clipmind-server.exe" -or "$($owned.CommandLine)".Contains("$repo\web\scripts\start-standalone.mjs")
+  if ($ours) { taskkill /T /F /PID $id } else { "PID $id already exited or is not ours: nothing stopped" }
+}
 Get-NetTCPConnection -LocalPort $ports.api, $ports.web -State Listen -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force $c
+Remove-Item -Recurse -Force -LiteralPath $c
 ```
 
-Then remove stale runs and confirm the evidence survived:
+Then remove stale runs, skipping any whose ports still listen, and confirm the evidence survived:
 
 ```powershell
-Get-ChildItem C:\temp\cliphub-try, C:\temp\clipmind-try -Directory -ErrorAction SilentlyContinue | Where-Object LastWriteTime -lt (Get-Date).AddDays(-2) | Remove-Item -Recurse -Force
+Get-ChildItem C:\temp\cliphub-try, C:\temp\clipmind-try -Directory -ErrorAction SilentlyContinue |
+  Where-Object LastWriteTime -lt (Get-Date).AddDays(-2) |
+  Where-Object {
+    $old = Get-Content (Join-Path $_.FullName 'ports.json') -ErrorAction SilentlyContinue | ConvertFrom-Json
+    -not ($old -and (Get-NetTCPConnection -LocalPort @($old.PSObject.Properties.Value) -State Listen -ErrorAction SilentlyContinue))
+  } |
+  Remove-Item -Recurse -Force
 Test-Path $e
 ```
 
-`taskkill /T` stops Electron together with the orchestrator and the web server it spawned. The `Get-NetTCPConnection` lines print nothing when the ports are free. Each Studio profile keeps demos, captures and renders, and stale ones once filled 200 GB of `C:`.
+`taskkill /T` stops Electron together with the orchestrator and the web server it spawned. The ClipMind `Get-NetTCPConnection` line prints nothing when its ports are free. Each Studio profile keeps demos, captures and renders, and stale ones once filled 200 GB of `C:`.
 
 The check is finished when the changed flow and one failure path behaved as expected in each edition that shows it, the PR says what you did and saw, and the profiles are deleted. It does not replace the automated checks in [Build and check](../../../AGENTS.md#build-and-check): before a PR they are green too, with the full Go suite (`-timeout 30m`, not `-short`).

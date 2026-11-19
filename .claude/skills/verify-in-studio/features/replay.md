@@ -8,7 +8,7 @@ Last proven: 2026-11-19 on Studio 5.25.0 (`83ce9fff`): the match tab and a round
 
 - Views: "Repetición", "Mapa de calor", "Recorridos", "Granadas".
 - The round bar under the map, "MULTI RONDA", "Eventos", "Jugadores", the zoom and the speed buttons (0,25x to 4x).
-- Team voice: "IMPORTAR VOZ" and "PLUGIN DE TEAMSPEAK" under the round bar.
+- Team voice, Studio only: "IMPORTAR VOZ" and "PLUGIN DE TEAMSPEAK" under the round bar, shown while the match has no voice. ClipMind shows a read-only voice note there instead.
 - Playlists: `/replay/playlists`, and `/replay?p=<id>` for one playlist.
 
 ## How to get to it (user POV)

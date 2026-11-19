@@ -35,4 +35,4 @@ Proof: before, "Aún no hay partidas"; after, "Importación terminada: 1 partida
 - `clipmind-server user add` makes a confirmed account, so no mail is needed. With `CLIPMIND_MAIL=log` (the default) a sign-up through `/crear-cuenta` prints the confirmation link in the server log.
 - Sign-up is limited to 5 per 10 minutes per server.
 - The match source reads "Sin identificar" for a demo whose source the scanner could not tell.
-- Linking Studio to a workspace needs the Studio window (no MCP tool signs in), so this skill has not proven sync. Plain `http` is accepted only for a localhost server (`http://127.0.0.1:<api>`). A 409 on sync means Studio and ClipMind run different commits.
+- Linking Studio to a workspace needs the Studio window (no MCP tool signs in), so this skill has not proven sync. Plain `http` is accepted only for a localhost server (`http://127.0.0.1:<api>`). A 409 on sync carries a code: `sync_client_outdated` or `sync_server_outdated` means the two sides disagree on the sync contract, while codes such as `no_workspace` or `demo_not_synced` mean something else. Read the code, not the status.
