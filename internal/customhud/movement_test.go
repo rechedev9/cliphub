@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/msg"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 )

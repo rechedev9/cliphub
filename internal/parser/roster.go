@@ -6,8 +6,8 @@ import (
 	"sort"
 	"sync"
 
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
+	demoinfocs "github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/common"
 )
 
 // PlayerStat is one player's scoreboard line from a roster scan of a demo.

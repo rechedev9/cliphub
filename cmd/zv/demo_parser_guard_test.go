@@ -14,13 +14,13 @@ import (
 	"testing"
 )
 
-const demoinfocsImport = "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
+const demoinfocsImport = "github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs"
 
 // demoParserHelper is the one production file that may build a parser outside demosafe.NewParser.
 const demoParserHelper = "internal/demosafe/demosafe.go"
 
-// demoinfocsFork is the module that replaces demoinfocs in every build; see .claude/rules/demoinfocs-fork.md.
-const demoinfocsFork = "github.com/rechedev9/demoinfocs-golang/v5"
+// demoParserModule is our parser; see .claude/rules/demo-parser.md.
+const demoParserModule = "github.com/rechedev9/demo-parser-rsn"
 
 var demoParserConstructors = map[string]bool{"NewParser": true, "NewParserWithConfig": true}
 
@@ -93,20 +93,35 @@ func directParserCalls(rel string, data []byte) ([]string, error) {
 	return problems, nil
 }
 
-// TestDemoinfocsComesFromTheFork fails when go.mod drops the fork, or points it at a local folder.
-func TestDemoinfocsComesFromTheFork(t *testing.T) {
+// TestDemoParserIsATaggedRelease fails when the build links upstream demoinfocs again, or links
+// our parser from a local folder instead of a published tag.
+func TestDemoParserIsATaggedRelease(t *testing.T) {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		t.Fatal("no build info")
 	}
+	found := false
 	for _, dep := range info.Deps {
-		if dep.Path != "github.com/markus-wa/demoinfocs-golang/v5" {
+		if strings.HasPrefix(dep.Path, "github.com/markus-wa/demoinfocs-golang") {
+			t.Errorf("upstream %s is linked; import %s instead", dep.Path, demoParserModule)
+		}
+		if dep.Path != demoParserModule {
 			continue
 		}
-		if dep.Replace == nil || dep.Replace.Path != demoinfocsFork || dep.Replace.Version == "" {
-			t.Fatalf("demoinfocs must be replaced by a tagged %s, got %+v", demoinfocsFork, dep.Replace)
+		found = true
+		if dep.Replace != nil {
+			t.Errorf("%s is replaced by %+v; go.mod must require a tag", demoParserModule, dep.Replace)
 		}
-		return
 	}
-	t.Fatal("demoinfocs is not a dependency")
+	if !found {
+		t.Fatalf("%s is not a dependency", demoParserModule)
+	}
+	// parserVersion reads the version by this name; a stale name records "devel" and failed demos never retry.
+	src, err := os.ReadFile(filepath.Join(repoRoot(t), "internal", "workers", "library_reanalysis.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "const demoParserModule = " + strconv.Quote(demoParserModule); !strings.Contains(string(src), want) {
+		t.Errorf("internal/workers/library_reanalysis.go must declare %s", want)
+	}
 }

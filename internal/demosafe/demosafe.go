@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
+	demoinfocs "github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs"
 )
 
 // ErrPanicked marks a parse that panicked instead of returning an error.

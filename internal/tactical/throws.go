@@ -3,8 +3,8 @@ package tactical
 import (
 	"slices"
 
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/common"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/events"
 
 	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"

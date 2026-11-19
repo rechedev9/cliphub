@@ -69,7 +69,7 @@ Each rule has a check or a longer page behind it. Follow the link before you wor
 ### Rules
 
 - [HLAE pin and capture](.claude/rules/capture-hlae.md): CS2 updates, the HLAE pin, capture pitfalls.
-- [demoinfocs fork](.claude/rules/demoinfocs-fork.md): ClipHub links our fork of the demo parser; how to fix it, tag it and take upstream releases.
+- [Demo parser](.claude/rules/demo-parser.md): our CS2 demo parser `demo-parser-rsn`, how it reads odd data, and how to change, tag and prove it.
 - [Render and the editor](.claude/rules/render-editor.md): FFmpeg 8.1.2, the `internal/pipeline` golden test, render-attempt ownership, startup reconcile, the Full Demo artifact cache.
 - [SQLite store](.claude/rules/store-sqlite.md): migrations and the paired SQLite and memory repositories.
 - [MCP parity](.claude/rules/mcp-parity.md): what a UI change updates under `cmd/zv-mcp` and in `docs/studio-mcp.md`.

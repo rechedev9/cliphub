@@ -3,8 +3,8 @@ package customhud
 import (
 	"fmt"
 
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/common"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/msg"
 	"google.golang.org/protobuf/encoding/protowire"
 )
 

@@ -48,7 +48,7 @@ el lenguaje visual.
   `internal/utilityaudit`: auditoría de cada granada (tick de lanzamiento, postura, movimiento).
 - `internal/voicecomms`: voz de los jugadores extraída de la demo.
 - `internal/faceit`: API de FACEIT (la clave ya va embebida en `zv-orchestrator.exe`).
-- Parser: `github.com/markus-wa/demoinfocs-golang/v5` (Go). Base de datos local: SQLite
+- Parser: `github.com/rechedev9/demo-parser-rsn`, nuestro parser, derivado de demoinfocs-golang v5 (Go). Base de datos local: SQLite
   (`modernc.org/sqlite`, `internal/store`).
 
 ### Lo que ya existe para contenido

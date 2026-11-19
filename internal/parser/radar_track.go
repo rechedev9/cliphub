@@ -11,9 +11,9 @@ import (
 	"sync"
 
 	"github.com/golang/geo/r3"
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
+	demoinfocs "github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/common"
+	"github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/events"
 
 	"github.com/rechedev9/cliphub/internal/demosafe"
 	"github.com/rechedev9/cliphub/internal/radarmap"

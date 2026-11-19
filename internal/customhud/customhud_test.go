@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	st "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/sendtables"
 	"github.com/rechedev9/cliphub/internal/mediafont"
+	st "github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs/sendtables"
 )
 
 type propertyEntity struct {

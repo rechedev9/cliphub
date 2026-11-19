@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
+	demoinfocs "github.com/rechedev9/demo-parser-rsn/pkg/demoinfocs"
 
 	"github.com/rechedev9/cliphub/internal/worldoverlay"
 )
