@@ -117,7 +117,7 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
         </div>
       </fieldset>
       {kind === 'custom' && selected ? <div className="grid min-w-0 gap-2">
-        {/* The gallery folds away; while open, each design picked shows at once in the preview beside it. */}
+        {/* The gallery folds away; while open, each design picked shows at once in the preview. */}
         <details className="group min-w-0 rounded-xl border-[1.5px] border-border-subtle open:border-format-full/60">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-3 text-body-sm focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
             <span className="min-w-0 truncate"><span className="text-fg-2">Diseño · </span><span className="font-semibold text-fg-1">{options.overlays.hud_custom?.name ?? selected.name}</span></span>
