@@ -286,12 +286,12 @@ type EffectsPlan struct {
 	Grade bool `json:"grade,omitempty"`
 }
 
-// KillFeedPlan redraws the streamer's own kill-feed notices, rebuilt from the
-// source, centered on the gameplay panel of a vertical Short.
+// KillFeedPlan moves the streamer's kill feed, cut live from the source with
+// feathered edges, to the center of the gameplay panel of a vertical Short.
 type KillFeedPlan struct {
 	Centered bool `json:"centered,omitempty"`
-	// PositionY is the normalized top of the newest notice; nil sits it just
-	// below the players HUD.
+	// PositionY is the normalized top of the cut; nil sits it just below the
+	// players HUD.
 	PositionY *float64 `json:"position_y,omitempty"`
 }
 

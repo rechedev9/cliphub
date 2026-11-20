@@ -53,9 +53,9 @@ type FFmpegInputs struct {
 	// clip's Edit.TextOverlays. drawtext reads each file with expansion=none,
 	// so arbitrary user text never needs filtergraph escaping.
 	TextOverlayPaths []string
-	// KillFeed holds the clip's notice sprites when the plan centers the kill
-	// feed; SourceWidth and SourceHeight place them on the game panel.
-	KillFeed                  []KillFeedNotice
+	// KillFeed is the feed cut when the plan centers the kill feed; nil
+	// renders without it. SourceWidth and SourceHeight size the cut.
+	KillFeed                  *KillFeedOverlay
 	SourceWidth, SourceHeight int
 	// MusicOffsetSeconds skips the start of the track so a joined Short's
 	// music runs on across the cut instead of restarting each moment.
@@ -117,17 +117,9 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 		nextInput++
 	}
 	var killFeed *killFeedGraph
-	if plan.KillFeedEnabled() && len(in.KillFeed) > 0 {
-		scale, err := KillFeedScale(plan, in.SourceWidth, in.SourceHeight)
-		if err != nil {
-			return nil, err
-		}
-		killFeed = &killFeedGraph{
-			notices: in.KillFeed, firstInput: nextInput, scale: scale,
-			top:         killFeedTop(layout, plan, in.SourceWidth, in.SourceHeight),
-			outputWidth: layout.OutputWidth, duration: duration,
-			sourceMask: killFeedMask(in.KillFeed, in.SourceWidth, in.SourceHeight),
-		}
+	if plan.KillFeedEnabled() && in.KillFeed != nil && len(in.KillFeed.Windows) > 0 && in.SourceWidth > 0 && in.SourceHeight > 0 {
+		kf := newKillFeedGraph(layout, plan, in, duration)
+		killFeed = &kf
 	}
 
 	filter, err := buildStandardFilterGraph(layout, plan, clip, graphExtras{
@@ -149,11 +141,6 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 	}
 	if keyDropInput >= 0 {
 		args = append(args, "-loop", "1", "-t", secondsArg(duration), "-i", in.KeyDropImagePath)
-	}
-	if killFeed != nil {
-		for _, n := range killFeed.notices {
-			args = append(args, "-framerate", strconv.Itoa(outputFPS), "-loop", "1", "-t", secondsArg(duration), "-i", n.Path)
-		}
 	}
 	audioMap := "0:a?"
 	shortest := false
@@ -383,6 +370,10 @@ func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRang
 		)
 	}
 
+	if extras.killFeed != nil {
+		// The cut reads the source before the game panel hides the original notices.
+		content = "[0:v]split=2[kfmain][kfsrc];[kfmain]" + strings.TrimPrefix(content, "[0:v]")
+	}
 	if !needsNamedContent {
 		return content + "," + tail, nil
 	}
@@ -395,8 +386,7 @@ func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRang
 	}
 	// The streamer banner reads [content] itself, so the feed goes on after it.
 	if kf := extras.killFeed; kf != nil {
-		kf.contentLabel = current
-		graph += ";" + killFeedFilter(*kf) + "[killfeed]"
+		graph += ";" + killFeedFilter(*kf, current) + "[killfeed]"
 		current = "killfeed"
 	}
 	if plan.KeyDropBanner.Enabled() {

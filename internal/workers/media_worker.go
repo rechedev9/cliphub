@@ -1426,11 +1426,11 @@ func (w *StreamRenderWorker) render(
 			return err
 		}
 		killFeed, err := clipKillFeed(runCtx, killFeedRequest{
-			ffmpeg: cfg.FFmpegPath, source: sourcePath, workDir: workDir, plan: plan, clip: clip, probe: j.Probe,
+			ffmpeg: cfg.FFmpegPath, source: sourcePath, plan: plan, clip: clip, probe: j.Probe,
 		})
 		if err != nil {
 			// A clip without its feed still renders; the warning says why.
-			warnings = append(warnings, fmt.Sprintf("clip %s: kill feed not redrawn: %v", clip.ID, err))
+			warnings = append(warnings, fmt.Sprintf("clip %s: kill feed not moved: %v", clip.ID, err))
 		}
 		outPath := filepath.Join(workDir, "parts", clip.ID+".mp4")
 		renderStarted := time.Now()

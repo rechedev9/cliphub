@@ -3,15 +3,13 @@ package vodplays
 import (
 	"context"
 	"image"
-	"image/png"
 	"math"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 )
 
-func TestExtractNoticesRecoversThePlateOpacityAndTheOpaqueText(t *testing.T) {
+func TestFindNoticesTracksWhereAndWhenTheNoticeSat(t *testing.T) {
 	if testing.Short() {
 		t.Skip("decodes video")
 	}
@@ -19,13 +17,11 @@ func TestExtractNoticesRecoversThePlateOpacityAndTheOpaqueText(t *testing.T) {
 	if err != nil {
 		t.Skip("ffmpeg not on PATH")
 	}
-	dir := t.TempDir()
-	source := filepath.Join(dir, "clip.mp4")
-	// A panning picture with, from 1 s to 5 s, a notice blended over it in RGB
-	// the way CS2 draws its HUD: a 60% black plate, a red border and an opaque
-	// white mark where a name would be.
+	source := filepath.Join(t.TempDir(), "clip.mp4")
+	// A panning picture with, from 1 s to 5 s, a highlighted notice blended
+	// over it the way CS2 draws its HUD: a 60% black plate with a red border.
 	notice := "color=c=black@0.6:size=402x32:rate=30:duration=6,format=rgba," +
-		"drawbox=x=0:y=0:w=402:h=32:color=red:t=3:replace=1,drawbox=x=40:y=10:w=40:h=12:color=white:t=fill:replace=1"
+		"drawbox=x=0:y=0:w=402:h=32:color=red:t=3:replace=1"
 	cmd := exec.Command(ffmpeg, "-v", "error",
 		"-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30:duration=6",
 		"-f", "lavfi", "-i", notice,
@@ -34,37 +30,26 @@ func TestExtractNoticesRecoversThePlateOpacityAndTheOpaqueText(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("make clip: %v: %s", err, out)
 	}
-	sprites, err := ExtractNotices(context.Background(), NoticeOptions{FFmpeg: ffmpeg, Input: source, StartSeconds: 0, EndSeconds: 6, WorkDir: dir})
+	spots, err := FindNotices(context.Background(), NoticeOptions{FFmpeg: ffmpeg, Input: source, StartSeconds: 0, EndSeconds: 6})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sprites) != 1 {
-		t.Fatalf("sprites = %+v, want one notice", sprites)
+	if len(spots) == 0 {
+		t.Fatal("no notice found")
 	}
-	s := sprites[0]
-	if s.AppearSeconds < 0.9 || s.AppearSeconds > 1.2 || s.DisappearSeconds < 4.8 || s.DisappearSeconds > 5.2 {
-		t.Fatalf("on screen %.2f to %.2f, want about 1 to 5", s.AppearSeconds, s.DisappearSeconds)
+	// Red scenery next to the notice can add a short second track on the same row.
+	s := spots[0]
+	for _, o := range spots[1:] {
+		if o.To-o.From > s.To-s.From {
+			s = o
+		}
 	}
-	f, err := os.Open(s.Path)
-	if err != nil {
-		t.Fatal(err)
+	if s.From < 0.9 || s.From > 1.2 || s.To < 4.8 || s.To > 5.2 {
+		t.Fatalf("on screen %.2f to %.2f, want about 1 to 5", s.From, s.To)
 	}
-	defer f.Close()
-	img, err := png.Decode(f)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Sprite pixels are the notice bounds (x from 1500 in the frame) plus the pad.
-	text := img.At(1560-1500+noticePad, 90-74+noticePad)
-	plate := img.At(1700-1500+noticePad, 90-74+noticePad)
-	_, _, _, textA := text.RGBA()
-	tr, _, _, _ := text.RGBA()
-	_, _, _, plateA := plate.RGBA()
-	if textA>>8 < 230 || tr>>8 < 200 {
-		t.Fatalf("text pixel = %v, want opaque white", text)
-	}
-	if a := float64(plateA>>8) / 255; a < 0.54 || a > 0.66 {
-		t.Fatalf("plate opacity = %.2f, want 0.6", a)
+	x, y, w, h := s.SourceArea()
+	if math.Abs(x*1920-1500) > 6 || math.Abs(y*1080-74) > 6 || math.Abs(w*1920-402) > 12 || math.Abs(h*1080-32) > 12 {
+		t.Fatalf("area = %.0f,%.0f %.0fx%.0f px, want about 1500,74 402x32", x*1920, y*1080, w*1920, h*1080)
 	}
 }
 

@@ -8,7 +8,7 @@ import { StreamStepCard } from '@/components/streams/step-card';
 import { Switch } from '@/components/ui/switch';
 import { STREAMER_BANNER_MAX_POSITION, STREAMER_BANNER_MIN_POSITION } from '@/lib/stream-preview';
 
-/** Redraws the streamer's own kill feed notices centered on the Short. */
+/** Moves the streamer's live kill feed, feathered, to the center of the Short. */
 export function StreamKillFeedControls({
   centered,
   position,
@@ -35,7 +35,7 @@ export function StreamKillFeedControls({
       {centered ? (
         <>
           <p className="text-body-sm text-fg-3">
-            Tus kills aparecen centradas bajo el marcador, una debajo de otra, como en la partida.
+            Mientras salen tus kills, la kill feed del directo se recorta tal cual, con los bordes difuminados, y aparece centrada bajo el marcador.
           </p>
           {position === null ? null : (
             <>
