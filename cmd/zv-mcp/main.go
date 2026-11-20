@@ -321,7 +321,8 @@ hour are kept, and a marked one is a shout far over the streamer's own level, ra
 makes one 16:9 video of the plays (all, or play_ids); render_stream makes one video per moment in a
 layout from list_stream_variants (9:16 Shorts or 16:9), or one per group. To edit before rendering, get_stream_edit_plan
 reads the moments and their speed, audio, fades and text, the groups, the banners, music, kill feed and effects;
-edit_stream_plan changes them with expected_updated_at set to the updated_at it read (read again if
+kill_feed centered cuts the stream's own kill feed live, with feathered edges, and lays it centered below the scoreboard
+while the streamer's kills are on screen. edit_stream_plan changes them with expected_updated_at set to the updated_at it read (read again if
 the save fails). A group (edit_stream_plan groups) joins 2 or more moments into one Short in its clip_ids
 order, with the same look and music running on; groups [] separates them. shorts says how many videos
 render_stream makes; warn the user when a joined Short passes 3 minutes, the YouTube Shorts limit. Both renders return a variant for wait_for_stream_render, which reports the percent

@@ -72,8 +72,8 @@ type streamMusicArg struct {
 }
 
 type killFeedArg struct {
-	Centered  bool     `json:"centered,omitempty" jsonschema:"redraw the streamer's kill feed centered on the gameplay of a vertical Short"`
-	PositionY *float64 `json:"position_y,omitempty" jsonschema:"top of the newest notice from 0.025 to 0.975; empty sits it under the players HUD"`
+	Centered  bool     `json:"centered,omitempty" jsonschema:"cut the streamer's kill feed live from the stream, feathered and slightly see-through, and lay it centered on the gameplay of a vertical Short while their kills are on screen"`
+	PositionY *float64 `json:"position_y,omitempty" jsonschema:"top of the moved kill feed from 0.025 to 0.975; empty sits it under the players HUD"`
 }
 
 type effectsArg struct {
