@@ -5,11 +5,11 @@ import { PINNED_HLAE_TOOL } from './hlae-tool.ts';
 
 test('pins the HLAE release', () => {
   assert.deepEqual(PINNED_HLAE_TOOL, {
-    version: '2.193.0',
-    archiveName: 'hlae_2_193_0.zip',
-    url: 'https://github.com/advancedfx/advancedfx/releases/download/v2.193.0/hlae_2_193_0.zip',
-    sha256: 'ac1f6740551cba7a72ba8437b84097d6f9a95d922ae05f333417bac6d1b746c2',
-    treeSha256: '990bb7614a89ca7a0e93d914b7b680eb93c7469a0d559bf933ca818b732d1783',
+    version: '2.193.1',
+    archiveName: 'hlae_2_193_1.zip',
+    url: 'https://github.com/advancedfx/advancedfx/releases/download/v2.193.1/hlae_2_193_1.zip',
+    sha256: '1d07333fa34aca23c9f994d77010591e60bf93e176debdf511a854fd6902c99e',
+    treeSha256: '3cc4faaadb7c23a83c175b96f43db54835889960d609482cb478907aa2ccfd3a',
     kind: 'zip',
     exeRel: 'HLAE.exe',
     timeoutMs: 90_000,

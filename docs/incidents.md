@@ -302,6 +302,10 @@ what users run.
   picture.
 - Studio 5.13.0 pins official 2.193.0; a one-round Short capture of a Nuke
   pro demo with it recorded the game picture (2026-11-07).
+- CS2 1.42.0.0 (2026-11-19) broke 2.193.0 (`Error - AfxHookSource2`, exit 6).
+  Studio 5.27.1 pins official 2.193.1 (AfxHookSource2 0.42.1); a five-play
+  Short capture of a Cache FACEIT demo with it recorded the game picture
+  (2026-11-20).
 
 ### Incident: frozen picture certified as a good capture (HLAE 2.192.7, 2026-10-09)
 
