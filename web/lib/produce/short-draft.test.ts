@@ -28,7 +28,8 @@ test('validates edit fields and strips Full Demo data before forcing the Short f
     format: 'landscape-16x9', fullDemo: { invalid: true }, matchRecap: true, nativeHud: true,
     voiceComms: true, overlayTheme: 'neon-violet', intro: 'true', killEffect: 'unknown', introText: 123,
   } }, validIds);
-  assert.deepEqual(restored?.editConfig, defaults.editConfig);
+  assert.equal(restored?.editConfig.centeredKillfeed, undefined, 'a draft keeps the kill feed it stored');
+  assert.deepEqual({ ...restored?.editConfig, centeredKillfeed: true }, defaults.editConfig);
 });
 
 test('validates volumes and requires a complete music choice', () => {
@@ -86,6 +87,7 @@ test('a player without kills opens a death reel of the deaths that fit the minut
   assert.deepEqual(settings.selectedIds, ['death-001', 'death-002']);
   assert.equal(settings.editConfig.deathReel, true);
   assert.equal(settings.editConfig.killCounter, false);
+  assert.equal(settings.editConfig.centeredKillfeed, undefined, 'a death reel has no kill feed');
   const many = Array.from({ length: 15 }, (_, i) => ({ ...deaths[0], id: `death-${i}`, round: i + 1, startSeconds: i * 100, endSeconds: i * 100 + 12 }));
   assert.equal(defaultShortSettings([], { deathPlays: many }).selectedIds.length, 5, 'five 12 s deaths fill the minute');
 });
@@ -101,6 +103,7 @@ test('a one-player summary opens with every kill in match order and five seconds
   const short = defaultShortSettings(kills);
   assert.equal(short.editConfig.preRollSeconds, undefined, 'a Short keeps the 3 s of the analysis');
   assert.equal(short.selectedIds.length, 3, 'a Short still opens with the best minute');
+  assert.equal(short.editConfig.centeredKillfeed, true, 'a new Short opens with the centered kill feed');
 });
 
 test('a summary draft keeps its pre-roll and capture style, apart from the Short draft of the same match', (t) => {

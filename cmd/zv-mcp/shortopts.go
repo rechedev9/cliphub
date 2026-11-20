@@ -162,7 +162,7 @@ type shortChoices struct {
 	VictimReplay *bool  `json:"victim_replay,omitempty" jsonschema:"after each play, replay its last kill from the victim's view; default false"`
 	Cover        *bool  `json:"cover,omitempty" jsonschema:"generate cover candidates; default true"`
 	// CenteredKillfeed is rejected outside short-9x16, like the server does.
-	CenteredKillfeed *bool    `json:"centered_killfeed,omitempty" jsonschema:"draw the kill feed centered near the top; short-9x16 only; default false"`
+	CenteredKillfeed *bool    `json:"centered_killfeed,omitempty" jsonschema:"draw the kill feed centered near the top; short-9x16 only; default true for short-9x16"`
 	MusicVolume      *int     `json:"music_volume,omitempty" jsonschema:"music level in percent, 5 to 100; needs music; default 100"`
 	GameVolume       *int     `json:"game_volume,omitempty" jsonschema:"game sound level under the music in percent, 0 to 100; needs music; default 70"`
 	IntroText        string   `json:"intro_text,omitempty" jsonschema:"opening card title, at most 80 bytes; needs intro; empty uses the generated headline"`
@@ -316,7 +316,7 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 	edit.HookText, edit.KillCounter = orDefault(c.HookText, false), orDefault(c.KillCounter, false)
 	edit.VoiceComms, edit.NativeHUD = orDefault(c.VoiceComms, false), orDefault(c.NativeHUD, false)
 	edit.VictimReplay = orDefault(c.VictimReplay, false)
-	edit.CenteredKillfeed = orDefault(c.CenteredKillfeed, false)
+	edit.CenteredKillfeed = orDefault(c.CenteredKillfeed, edit.Format == "short-9x16")
 	if edit.CenteredKillfeed && edit.Format != "short-9x16" {
 		return edit, fmt.Errorf("centered_killfeed needs format short-9x16")
 	}
