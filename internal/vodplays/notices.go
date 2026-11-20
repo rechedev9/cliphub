@@ -43,7 +43,16 @@ type noticeTrack struct {
 	spots      []NoticeSpot
 	first      float64
 	last       float64
-	frames     int
+	// sizes counts frames by ring size: a notice keeps one size, scenery does not.
+	sizes map[image.Point]int
+}
+
+func (tr *noticeTrack) steadyFrames() int {
+	best := 0
+	for _, n := range tr.sizes {
+		best = max(best, n)
+	}
+	return best
 }
 
 // FindNotices returns every row a highlighted notice held while the range
@@ -61,12 +70,12 @@ func FindNotices(ctx context.Context, opts NoticeOptions) ([]NoticeSpot, error) 
 		for _, ring := range s.Rings {
 			tr := matchNoticeTrack(tracks, ring.Bounds, s.Seconds)
 			if tr == nil {
-				tr = &noticeTrack{minX: ring.Bounds.Min.X, maxX: ring.Bounds.Max.X, first: s.Seconds}
+				tr = &noticeTrack{minX: ring.Bounds.Min.X, maxX: ring.Bounds.Max.X, first: s.Seconds, sizes: map[image.Point]int{}}
 				tracks = append(tracks, tr)
 			}
 			tr.addSpot(ring.Bounds, s.Seconds)
 			tr.last = s.Seconds
-			tr.frames++
+			tr.sizes[ring.Bounds.Size()]++
 		}
 	})
 	if err != nil {
@@ -75,7 +84,7 @@ func FindNotices(ctx context.Context, opts NoticeOptions) ([]NoticeSpot, error) 
 	var spots []NoticeSpot
 	for _, tr := range tracks {
 		end := tr.last + 1/noticeSamplesPerSecond
-		if tr.frames < minNoticeFrames || end <= opts.StartSeconds || tr.first >= opts.EndSeconds {
+		if tr.steadyFrames() < minNoticeFrames || end <= opts.StartSeconds || tr.first >= opts.EndSeconds {
 			continue
 		}
 		spots = append(spots, tr.spots...)

@@ -57,18 +57,34 @@ func renderStreamClip(ctx context.Context, r streamClipRender) (string, error) {
 		return "", err
 	}
 	runErr := r.run(ctx, args)
-	if runErr == nil || ctx.Err() != nil || !hasSourceMask(r.in.KillFeed) {
+	if runErr == nil || ctx.Err() != nil || r.in.KillFeed == nil {
 		return "", runErr
 	}
-	r.in.KillFeed = withoutSourceMask(r.in.KillFeed)
-	if args, err = streamclips.BuildFFmpegArgs(r.in, r.plan, r.clip); err != nil {
-		return "", err
-	}
-	if err := r.run(ctx, args); err != nil {
-		return "", err
-	}
+	// Each retry drops one more part of the feed: first the mask, then the cut.
 	// FFmpeg's whole stderr is in runErr; the warning keeps only the outcome.
-	return fmt.Sprintf("clip %s: original kill feed not hidden, FFmpeg refused the mask", r.clip.ID), nil
+	if hasSourceMask(r.in.KillFeed) {
+		r.in.KillFeed = withoutSourceMask(r.in.KillFeed)
+		err := r.rerun(ctx)
+		if err == nil {
+			return fmt.Sprintf("clip %s: original kill feed not hidden, FFmpeg refused the mask", r.clip.ID), nil
+		}
+		if ctx.Err() != nil {
+			return "", err
+		}
+	}
+	r.in.KillFeed = nil
+	if err := r.rerun(ctx); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("clip %s: kill feed not moved, FFmpeg refused the cut", r.clip.ID), nil
+}
+
+func (r streamClipRender) rerun(ctx context.Context) error {
+	args, err := streamclips.BuildFFmpegArgs(r.in, r.plan, r.clip)
+	if err != nil {
+		return err
+	}
+	return r.run(ctx, args)
 }
 
 func hasSourceMask(o *streamclips.KillFeedOverlay) bool {
