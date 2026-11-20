@@ -80,7 +80,7 @@ var toggleOptions = []shortToggle{
 	{ID: "player_labels", Label: "Nombres y vida", Description: "Nombre y barra de vida sobre cada compañero, y sobre cada rival que tu jugador ve o daña, leídos de la demo"},
 	{ID: "grenade_trails", Label: "Estelas de granadas", Description: "Dibuja el recorrido de las granadas de tu equipo sobre el gameplay, leído de la demo"},
 	{ID: "stats_card", Label: "Tarjeta de estadísticas", Description: "Cierra el Short con K/D, ADR, HS % y rating de ClipHub del jugador, y su nivel FACEIT si lo hay (solo 9:16)"},
-	{ID: "centered_killfeed", Label: "Kill feed centrada arriba", Description: "Dibuja tus kills en el centro, arriba del Short (solo 9:16)"},
+	{ID: "centered_killfeed", Label: "Kill feed centrada arriba", Description: "Dibuja tus kills en el centro, arriba del Short (solo 9:16)", Default: true},
 	{ID: "vertical_hud", Label: "HUD vertical", Description: "Marcador compacto arriba con reloj, ronda y vivos de cada bando leídos de la demo, y la kill feed centrada debajo (solo 9:16; no con el HUD nativo ni con Full HUD)"},
 	{ID: "radar", Label: "Radar de ClipHub", Description: "Radar propio en una esquina con jugadores, humos, molotovs, flashes y bomba leídos de la demo, con posición, tamaño y opacidad (no con el HUD nativo ni con Full HUD, que ya muestran el radar de CS2)"},
 	{ID: "voice_comms", Label: "Comms del equipo", Description: "Mezcla las voces del equipo en el audio"},
@@ -162,7 +162,7 @@ type shortChoices struct {
 	VictimReplay *bool  `json:"victim_replay,omitempty" jsonschema:"after each play, replay its last kill from the victim's view; default false"`
 	Cover        *bool  `json:"cover,omitempty" jsonschema:"generate cover candidates; default true"`
 	// CenteredKillfeed is rejected outside short-9x16, like the server does.
-	CenteredKillfeed *bool    `json:"centered_killfeed,omitempty" jsonschema:"draw the kill feed centered near the top; short-9x16 only; default false"`
+	CenteredKillfeed *bool    `json:"centered_killfeed,omitempty" jsonschema:"draw the kill feed centered near the top; short-9x16 only; default true for short-9x16"`
 	MusicVolume      *int     `json:"music_volume,omitempty" jsonschema:"music level in percent, 5 to 100; needs music; default 100"`
 	GameVolume       *int     `json:"game_volume,omitempty" jsonschema:"game sound level under the music in percent, 0 to 100; needs music; default 70"`
 	IntroText        string   `json:"intro_text,omitempty" jsonschema:"opening card title, at most 80 bytes; needs intro; empty uses the generated headline"`
@@ -316,7 +316,7 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 	edit.HookText, edit.KillCounter = orDefault(c.HookText, false), orDefault(c.KillCounter, false)
 	edit.VoiceComms, edit.NativeHUD = orDefault(c.VoiceComms, false), orDefault(c.NativeHUD, false)
 	edit.VictimReplay = orDefault(c.VictimReplay, false)
-	edit.CenteredKillfeed = orDefault(c.CenteredKillfeed, false)
+	edit.CenteredKillfeed = orDefault(c.CenteredKillfeed, edit.Format == "short-9x16")
 	if edit.CenteredKillfeed && edit.Format != "short-9x16" {
 		return edit, fmt.Errorf("centered_killfeed needs format short-9x16")
 	}

@@ -34,6 +34,18 @@ func TestResolveEditDefaultsMatchProduct(t *testing.T) {
 	if got.Intro || got.Outro || got.HookText || got.KillCounter || got.VoiceComms || got.NativeHUD {
 		t.Errorf("toggles must default off: %+v", got)
 	}
+	if !got.CenteredKillfeed {
+		t.Errorf("a 9:16 Short must default to the centered kill feed: %+v", got)
+	}
+	for _, o := range toggleOptions {
+		if o.ID == "centered_killfeed" && !o.Default {
+			t.Error("list_short_options must mark centered_killfeed as a default")
+		}
+	}
+	landscape, err := resolveEdit(shortChoices{Format: "landscape-16x9"})
+	if err != nil || landscape.CenteredKillfeed {
+		t.Errorf("a 16:9 video must default without the centered kill feed: %+v, %v", landscape, err)
+	}
 }
 
 func TestEveryOptionIsAcceptedByRenderplan(t *testing.T) {

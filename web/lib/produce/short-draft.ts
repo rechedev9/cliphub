@@ -42,7 +42,8 @@ export function defaultShortSettings(plays: Play[], { deathPlays = [], targetSec
     selectedIds: summary ? plays.map((play) => play.id) : [...autoPickBestPlays(deathReel ? deathPlays : plays, { targetSeconds })],
     variant: null, songId: null, songTitle: null, musicDecided: false,
     musicVolume: MUSIC_VOLUME_DEFAULT_PERCENT, gameVolume: GAME_VOLUME_DEFAULT_PERCENT,
-    editConfig: constrainEditConfig({ ...DEFAULT_EDIT_CONFIG, format: 'short-9x16', ...(deathReel ? { deathReel } : {}), ...(summary ? { preRollSeconds: SUMMARY_PRE_ROLL_SECONDS } : {}) }),
+    // A new Short starts with the centered kill feed; reopened versions keep their own choice.
+    editConfig: constrainEditConfig({ ...DEFAULT_EDIT_CONFIG, format: 'short-9x16', centeredKillfeed: true, ...(deathReel ? { deathReel } : {}), ...(summary ? { preRollSeconds: SUMMARY_PRE_ROLL_SECONDS } : {}) }),
   };
 }
 
