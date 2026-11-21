@@ -2,6 +2,8 @@
 
 Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
 
+In a Claude Code cloud session `gh issue` and `gh pr` fail, because the GitHub proxy blocks GraphQL. Use the same operations through `gh api` (REST) there.
+
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.

@@ -96,17 +96,11 @@ Each rule names what enforces it. "Review only" means nothing fails when an agen
 
 ## Agent skills
 
-### Issue tracker
+What the engineering skills (grilling, specs, tickets, triage) read before they work:
 
-Issues and specs live in this repo's GitHub Issues, through the `gh` CLI. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five default triage labels, unchanged. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: `GLOSSARY.md` at the root and ADRs in `docs/adr/`. See `docs/agents/domain.md`.
+- [Issue tracker](docs/agents/issue-tracker.md): issues and specs live in this repo's GitHub Issues.
+- [Triage labels](docs/agents/triage-labels.md): the five default triage labels.
+- [Domain docs](docs/agents/domain.md): single-context, with `GLOSSARY.md` at the root and ADRs in `docs/adr/`.
 
 ## Issues
 
