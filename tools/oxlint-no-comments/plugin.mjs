@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 export const BASELINE_FILE = "comment-baseline.json";
@@ -7,17 +7,24 @@ export const REPORT_PREFIX = "comment-lines:";
 
 const baselines = new Map();
 
-function baselineFor(cwd) {
-  if (!baselines.has(cwd)) {
-    let frozen = {};
-    try {
-      frozen = JSON.parse(readFileSync(path.join(cwd, BASELINE_FILE), "utf8"));
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
-    baselines.set(cwd, frozen);
+function packageRoot(filename) {
+  let dir = path.dirname(filename);
+  while (!existsSync(path.join(dir, "package.json"))) {
+    const parent = path.dirname(dir);
+    if (parent === dir) return path.dirname(filename);
+    dir = parent;
   }
-  return baselines.get(cwd);
+  return dir;
+}
+
+function baselineFor(root) {
+  const file = path.join(root, BASELINE_FILE);
+  const mtime = existsSync(file) ? statSync(file).mtimeMs : 0;
+  const cached = baselines.get(root);
+  if (cached?.mtime === mtime) return cached.frozen;
+  const frozen = mtime === 0 ? {} : JSON.parse(readFileSync(file, "utf8"));
+  baselines.set(root, { mtime, frozen });
+  return frozen;
 }
 
 function isDirective(comment) {
@@ -38,12 +45,13 @@ const noComments = {
       "Program:exit"() {
         const comments = context.sourceCode.getAllComments().filter((comment) => !isDirective(comment));
         const lines = comments.reduce((sum, comment) => sum + lineCount(comment), 0);
-        const rel = path.relative(context.cwd, context.filename).split(path.sep).join("/");
+        const root = packageRoot(context.filename);
+        const rel = path.relative(root, context.filename).split(path.sep).join("/");
         if (process.env[REPORT_ENV]) {
           if (lines > 0) context.report({ loc: comments[0].loc, message: `${REPORT_PREFIX}${rel}=${lines}` });
           return;
         }
-        const frozen = baselineFor(context.cwd)[rel] ?? 0;
+        const frozen = baselineFor(root)[rel] ?? 0;
         if (frozen === 0) {
           for (const comment of comments) {
             context.report({ loc: comment.loc, message: "Delete this comment: code has no comments." });

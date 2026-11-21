@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { BASELINE_FILE, REPORT_ENV, REPORT_PREFIX } from "./plugin.mjs";
 
-export function currentCommentLines(cwd) {
+function currentCommentLines(cwd) {
   const lint = JSON.parse(readFileSync(path.join(cwd, "package.json"), "utf8")).scripts.lint.split(/\s+/);
   if (lint[0] !== "oxlint") throw new Error(`${cwd}: the lint script must start with oxlint`);
   const oxlint = path.join(cwd, "node_modules", "oxlint", "bin", "oxlint");
@@ -14,9 +14,11 @@ export function currentCommentLines(cwd) {
     env: { ...process.env, [REPORT_ENV]: "1" },
     maxBuffer: 256 * 1024 * 1024,
   });
+  if (run.error) throw run.error;
   const start = run.stdout.indexOf("{");
-  if (start < 0) throw new Error(`oxlint gave no JSON report:\n${run.stdout}${run.stderr}`);
+  if (run.status > 1 || start < 0) throw new Error(`oxlint failed (exit ${run.status}):\n${run.stdout}${run.stderr}`);
   const report = JSON.parse(run.stdout.slice(start));
+  if (!report.number_of_files) throw new Error(`oxlint linted no files in ${cwd}; the baseline is left as it is`);
   const counts = {};
   for (const diagnostic of report.diagnostics) {
     if (!diagnostic.message.startsWith(REPORT_PREFIX)) continue;
