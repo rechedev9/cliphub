@@ -51,6 +51,16 @@ export function PlatformLayerShapes({ layer }: { layer: PlatformLayer }): ReactN
   );
 }
 
+const PICKER_OPTIONS = PLATFORM_LAYER_OPTIONS.map(({ value, label, narrowLabel }) => ({
+  value,
+  label: narrowLabel === undefined ? label : (
+    <>
+      <span aria-hidden className="md:hidden">{narrowLabel}</span>
+      <span className="max-md:sr-only">{label}</span>
+    </>
+  ),
+}));
+
 export function PlatformLayerPicker({ value, onChange }: { value: PlatformLayer; onChange: (layer: PlatformLayer) => void }): ReactNode {
-  return <Segmented label="Lo que tapa cada plataforma" value={value} options={PLATFORM_LAYER_OPTIONS} onChange={onChange} />;
+  return <Segmented label="Lo que tapa cada plataforma" value={value} options={PICKER_OPTIONS} onChange={onChange} />;
 }

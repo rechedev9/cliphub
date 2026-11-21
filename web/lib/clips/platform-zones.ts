@@ -42,9 +42,9 @@ function unionOfPlatforms(): readonly ZoneRect[] {
   return all.filter((zone, at) => !all.some((other, otherAt) => otherAt !== at && contains(other, zone) && (!contains(zone, other) || otherAt < at)));
 }
 
-export const PLATFORM_LAYER_OPTIONS: readonly { value: PlatformLayer; label: string }[] = [
+export const PLATFORM_LAYER_OPTIONS: readonly { value: PlatformLayer; label: string; narrowLabel?: string }[] = [
   { value: 'todas', label: 'Todas' },
-  { value: 'youtube-shorts', label: 'YouTube Shorts' },
+  { value: 'youtube-shorts', label: 'YouTube Shorts', narrowLabel: 'YouTube' },
   { value: 'tiktok', label: 'TikTok' },
   { value: 'reels', label: 'Reels' },
   { value: 'ninguna', label: 'Ninguna' },

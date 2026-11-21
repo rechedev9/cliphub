@@ -173,9 +173,9 @@ export function Visor({ entries: queued, currentId, onMove, onClose, onChange }:
           }}
           onKeyDown={onKeyDown}
           onWheel={onWheel}
-          className="fixed inset-0 z-50 grid grid-cols-[1fr_auto_1fr] content-start justify-items-center gap-x-4 gap-y-3 bg-background px-4 pt-3 pb-4 outline-none"
+          className="fixed inset-0 z-50 grid grid-cols-[1fr_auto_1fr] content-start justify-items-center gap-x-4 gap-y-3 bg-background px-4 pt-3 pb-4 outline-none max-md:grid-cols-1 max-md:grid-rows-[auto_minmax(0,1fr)_auto_auto] max-md:gap-y-2"
         >
-          <div className="col-span-3 flex w-full max-w-3xl items-center gap-3">
+          <div className="col-span-3 flex w-full max-w-3xl items-center gap-3 max-md:col-span-1">
             <p className="text-body-sm font-semibold text-fg-1 tabular-nums" aria-live="polite">
               {index + 1} de {entries.length}
             </p>
@@ -188,41 +188,49 @@ export function Visor({ entries: queued, currentId, onMove, onClose, onChange }:
             </DialogPrimitive.Close>
           </div>
 
-          <div
-            ref={stageRef}
-            tabIndex={-1}
-            role="group"
-            aria-roledescription="Short"
-            aria-label={current.title}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerCancel}
-            className="relative col-start-2 aspect-[9/16] h-[min(calc(100dvh_-_9rem),calc((100vw_-_28rem)_*_16_/_9))] touch-none overflow-hidden rounded-[2rem] border border-border-strong bg-black outline-none select-none"
-          >
-            {neighbours.map(({ entry, offset }) => (
-              <div
-                key={entry.id}
-                aria-hidden={offset !== 0 || undefined}
-                style={{ transform: `translateY(calc(${offset * 100}% + ${dragOffset ?? 0}px))` }}
-                className={cn(
-                  'absolute inset-0 motion-reduce:transition-none',
-                  dragOffset === null && 'transition-transform duration-(--dur-slow) ease-standard',
-                )}
-              >
-                {offset === 0 ? (
-                  <ActiveShort key={entry.item.playbackUrl} entry={entry} muted={muted} paused={paused} onPausedChange={setPaused} onUnplayable={leaveUnplayable} />
-                ) : (
-                  <Poster url={entry.item.posterUrl} />
-                )}
-              </div>
-            ))}
-            <PlatformLayerShapes layer={layer} />
+          <div className="contents max-md:flex max-md:size-full max-md:min-h-0 max-md:items-center max-md:justify-center max-md:[container-type:size]">
+            <div
+              ref={stageRef}
+              tabIndex={-1}
+              role="group"
+              aria-roledescription="Short"
+              aria-label={current.title}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerCancel}
+              className="relative col-start-2 aspect-[9/16] h-[min(calc(100dvh_-_9rem),calc((100vw_-_28rem)_*_16_/_9))] touch-none overflow-hidden rounded-[2rem] border border-border-strong bg-black outline-none select-none max-md:h-[min(100cqh,calc(100cqw_*_16_/_9))]"
+            >
+              {neighbours.map(({ entry, offset }) => (
+                <div
+                  key={entry.id}
+                  aria-hidden={offset !== 0 || undefined}
+                  style={{ transform: `translateY(calc(${offset * 100}% + ${dragOffset ?? 0}px))` }}
+                  className={cn(
+                    'absolute inset-0 motion-reduce:transition-none',
+                    dragOffset === null && 'transition-transform duration-(--dur-slow) ease-standard',
+                  )}
+                >
+                  {offset === 0 ? (
+                    <ActiveShort key={entry.item.playbackUrl} entry={entry} muted={muted} paused={paused} onPausedChange={setPaused} onUnplayable={leaveUnplayable} />
+                  ) : (
+                    <Poster url={entry.item.posterUrl} />
+                  )}
+                </div>
+              ))}
+              <PlatformLayerShapes layer={layer} />
+            </div>
           </div>
 
-          <VisorActions key={current.id} entry={current} onChange={onChange} onDeleted={leave} className="col-start-3 self-end justify-self-start" />
+          <VisorActions
+            key={current.id}
+            entry={current}
+            onChange={onChange}
+            onDeleted={leave}
+            className="col-start-3 self-end justify-self-start max-md:col-start-1 max-md:self-auto max-md:justify-self-center"
+          />
 
-          <div className="col-start-2 flex items-center gap-2">
+          <div className="col-start-2 flex items-center gap-2 max-md:col-start-1 max-md:flex-wrap max-md:justify-center">
             <Button
               type="button"
               variant="ghost"

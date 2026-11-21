@@ -155,7 +155,7 @@ window one after another as a phone shows them, in the order of the list. visor=
 that Short; an empty id starts on the first one, and an id that is gone, unfinished or 16:9 starts on the first with a short
 notice. With no finished Short, Mis vídeos opens as usual. Each Short of a lote (one Auto-Shorts pass) is its own entry, in
 list_videos order, marked with its lote and position ("Lote de Mirage · 2 de 5"); visor=<id> with the lote's id starts on its first.
-Beside the Short the Visor offers the card's actions: Editar, Cambiar música, Preparar publicación, Descargar and Borrar for a
+Beside the Short (under it, as icons, in a narrow window) the Visor offers the card's actions: Editar, Cambiar música, Preparar publicación, Descargar and Borrar for a
 demo Short (an imported or recovered one only those it supports), Abrir proyecto, Descargar and Borrar for a stream Short;
 your tools for the same are change_video_music, delete_video and delete_stream_video. On a Short of a lote, Editar el lote and
 Cambiar música del lote render the whole lote again, while Descargar, Preparar publicación and Borrar act on that Short alone
