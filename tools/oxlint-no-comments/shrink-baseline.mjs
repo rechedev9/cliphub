@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { BASELINE_FILE, REPORT_ENV, REPORT_PREFIX } from "./plugin.mjs";
@@ -29,10 +29,18 @@ function currentCommentLines(cwd) {
   return counts;
 }
 
-function shrunkBaseline(frozen, current) {
+function shrunkBaseline(cwd, frozen) {
+  const current = currentCommentLines(cwd);
   const next = {};
   for (const rel of Object.keys(frozen).sort()) {
-    const lines = Math.min(frozen[rel], current[rel] ?? 0);
+    if (!(rel in current)) {
+      if (existsSync(path.join(cwd, rel))) {
+        console.warn(`${rel} was not linted (a parse error?); its entry stays at ${frozen[rel]}.`);
+        next[rel] = frozen[rel];
+      }
+      continue;
+    }
+    const lines = Math.min(frozen[rel], current[rel]);
     if (lines > 0) next[rel] = lines;
   }
   return next;
@@ -42,7 +50,7 @@ function main() {
   const cwd = process.cwd();
   const file = path.join(cwd, BASELINE_FILE);
   const frozen = JSON.parse(readFileSync(file, "utf8"));
-  const next = shrunkBaseline(frozen, currentCommentLines(cwd));
+  const next = shrunkBaseline(cwd, frozen);
   if (Object.keys(next).length === 0) {
     rmSync(file);
     console.log(`${BASELINE_FILE} is empty and was removed.`);

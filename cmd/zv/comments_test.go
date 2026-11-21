@@ -9,13 +9,19 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
 )
 
 const commentBaselineFile = "cmd/zv/comment-baseline.json"
+
+var generatedHeader = regexp.MustCompile(`^// Code generated .* DO NOT EDIT\.$`)
+
+var jsCommentBaselines = []string{"web", "desktop", "landing", "mcp-apps"}
 
 var shrinkCommentBaseline = flag.Bool("shrink-comment-baseline", false, "lower "+commentBaselineFile+" to the current comment counts")
 
@@ -31,12 +37,16 @@ func goCommentLines(src []byte) (int, []int) {
 		if tok == token.EOF {
 			return total, starts
 		}
-		if tok != token.COMMENT || strings.HasPrefix(lit, "//go:") || strings.HasPrefix(lit, "//line ") {
+		if tok != token.COMMENT || isGoDirective(lit) {
 			continue
 		}
 		total += strings.Count(lit, "\n") + 1
 		starts = append(starts, file.Line(pos))
 	}
+}
+
+func isGoDirective(lit string) bool {
+	return strings.HasPrefix(lit, "//go:build ") || strings.HasPrefix(lit, "//go:embed ") || generatedHeader.MatchString(lit)
 }
 
 func readCommentBaseline(t *testing.T, path string) map[string]int {
@@ -130,5 +140,65 @@ func TestNoComments(t *testing.T) {
 	if len(problems) > 0 {
 		sort.Strings(problems)
 		t.Fatalf("Go code has no comments (%s freezes older files):\n%s", commentBaselineFile, strings.Join(problems, "\n"))
+	}
+}
+
+func gitOutput(root string, args ...string) ([]byte, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = root
+	return cmd.Output()
+}
+
+func baselineRaises(t *testing.T, root string, rev string, file string) []string {
+	t.Helper()
+	data, err := gitOutput(root, "show", rev+":"+file)
+	if err != nil {
+		return nil
+	}
+	before := map[string]int{}
+	if err := json.Unmarshal(data, &before); err != nil {
+		t.Fatalf("parse %s at %s: %v", file, rev, err)
+	}
+	var problems []string
+	for rel, lines := range readCommentBaseline(t, filepath.Join(root, filepath.FromSlash(file))) {
+		limit, listed := before[rel]
+		switch {
+		case !listed:
+			problems = append(problems, fmt.Sprintf("%s adds %s, which %s does not list; delete its comments instead", file, rel, rev))
+		case lines > limit:
+			problems = append(problems, fmt.Sprintf("%s raises %s from %d at %s to %d; delete comments instead", file, rel, limit, rev, lines))
+		}
+	}
+	return problems
+}
+
+func TestCommentBaselinesOnlyShrink(t *testing.T) {
+	root := repoRoot(t)
+	revs := []string{"HEAD"}
+	if out, err := gitOutput(root, "merge-base", "HEAD", "origin/main"); err == nil {
+		revs = append(revs, strings.TrimSpace(string(out)))
+	}
+	files := []string{commentBaselineFile}
+	for _, pkg := range jsCommentBaselines {
+		files = append(files, pkg+"/comment-baseline.json")
+	}
+	var problems []string
+	for _, file := range files {
+		for _, rev := range revs {
+			problems = append(problems, baselineRaises(t, root, rev, file)...)
+		}
+		if file == commentBaselineFile {
+			continue
+		}
+		pkg := strings.TrimSuffix(file, "/comment-baseline.json")
+		for rel := range readCommentBaseline(t, filepath.Join(root, filepath.FromSlash(file))) {
+			if _, err := os.Stat(filepath.Join(root, pkg, filepath.FromSlash(rel))); errors.Is(err, fs.ErrNotExist) {
+				problems = append(problems, fmt.Sprintf("%s lists %s, which no longer exists; run the shrink script in %s", file, rel, pkg))
+			}
+		}
+	}
+	if len(problems) > 0 {
+		sort.Strings(problems)
+		t.Fatalf("comment baselines only shrink:\n%s", strings.Join(problems, "\n"))
 	}
 }

@@ -48,7 +48,6 @@ export function CoverImage({ src, className, loading = 'lazy' }: CoverImageProps
   if (src === undefined || failedSrc === src) return null;
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- dynamic same-origin media proxied by the orchestrator
     <img
       key={src}
       ref={check}

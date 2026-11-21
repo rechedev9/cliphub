@@ -8,7 +8,7 @@
   "scripts/dist.mjs": 5,
   "scripts/distribution-build.mjs": 5,
   "scripts/hlae-bundle.mjs": 8,
-  "scripts/isolated-userdata.cjs": 18,
+  "scripts/isolated-userdata.cjs": 12,
   "scripts/release-workflow.test.mjs": 1,
   "scripts/seed-bundled-music.mjs": 3,
   "scripts/smoke-launch-contract.test.mjs": 3,

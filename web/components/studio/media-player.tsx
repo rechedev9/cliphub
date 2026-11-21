@@ -329,7 +329,6 @@ export function MediaPlayer({
           className="flex min-h-0 flex-col overflow-hidden border border-border bg-surface-0 shadow-[var(--elev-3)]"
         >
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black">
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <video
               key={storageKey}
               ref={videoRef}

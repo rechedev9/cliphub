@@ -12,12 +12,13 @@ description: Split a Go or TypeScript file by responsibility to stay under the 1
 1. Split by responsibility. Each new file, or a new package when there is a real API boundary, owns one concern and is named for it, such as `handlers_library.go` and `handlers_streams.go`. A cut by line count (`handlers2.go`) does not count.
 2. Files already past the cap are frozen at their size: `oversizedGoFiles` in `cmd/zv/file_length_test.go` for Go, a `max-lines` entry under `overrides` in the package's oxlint config for TS. A frozen file may shrink, never grow. Do not raise a max and do not add a new frozen entry.
 3. When a frozen file shrinks, lower its entry in the same change. When it fits under the cap, drop the entry.
-4. Keep the dead-code rule while you move code: a helper that only tests call goes to a `_test.go` file, and a helper that only `_windows.go` code calls goes to a `_windows.go` file.
+4. A new file is not in any `comment-baseline.json`, so the code you move into it loses its comments. Lower the source file's entry afterwards with the shrink command `TestNoComments` or `cliphub/no-comments` prints.
+5. Keep the dead-code rule while you move code: a helper that only tests call goes to a `_test.go` file, and a helper that only `_windows.go` code calls goes to a `_windows.go` file.
 
 ## Checks
 
 ```bash
-go test ./cmd/zv -run TestGoFileLength -count=1
+go test ./cmd/zv -run 'TestGoFileLength|TestNoComments' -count=1
 go vet ./...
 ```
 

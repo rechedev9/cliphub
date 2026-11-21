@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -110,10 +111,18 @@ func gitGoFiles(t *testing.T, listing goFileListing) []string {
 		t.Fatalf("git ls-files: %v", err)
 	}
 	var files []string
+	dirs := map[string]bool{".": true}
 	for _, rel := range strings.Split(string(out), "\x00") {
-		if rel != "" {
-			files = append(files, rel)
+		if rel == "" {
+			continue
 		}
+		files = append(files, rel)
+		for dir := path.Dir(rel); !dirs[dir]; dir = path.Dir(dir) {
+			dirs[dir] = true
+		}
+	}
+	for dir := range dirs {
+		_, _ = os.ReadDir(filepath.Join(list.Dir, filepath.FromSlash(dir)))
 	}
 	return files
 }

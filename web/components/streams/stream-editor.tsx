@@ -738,7 +738,6 @@ export function StreamEditor({
             {activeStep === 'results' && hasRender && resultClip && renderedPlan ? (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
                 <h2 className="font-semibold">{resultTitle}</h2>
-                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                 <video
                   key={`${resultClip.clip_id}:${renderedPlan.updated_at}`}
                   aria-label="Vídeo final"

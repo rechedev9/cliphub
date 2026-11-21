@@ -16,6 +16,7 @@ Read-only. Check the diff against each item and report what fails. Do not edit t
 
 ## What must not appear
 
+- No new comment and no `eslint-*` or `oxlint-*` directive. A `comment-baseline.json` only loses entries or lowers counts, and a frozen file that keeps its count did not swap an old comment for a new one. `TestNoComments`, `TestCommentBaselinesOnlyShrink` and oxlint `cliphub/no-comments` are the checks.
 - No new e2e suite, verification script, evidence folder or report. The one exception is an extension of `internal/pipeline` and its `testdata/`, and a golden rewrite has a reviewed diff. [Render and the editor](../../rules/render-editor.md).
 - No real user path, token, key, support code, or contents of `agent-session.json`. Paths use `<user>` and `%APPDATA%`.
 - No `pull_request` trigger, branch `push` trigger or second workflow under `.github/workflows/`. [Release](../../rules/release.md).
@@ -31,7 +32,7 @@ Read-only. Check the diff against each item and report what fails. Do not edit t
 ```bash
 go vet ./...
 go run ./cmd/zv check
-go test ./cmd/zv -run 'TestGoFileLength|TestNoDeadCode' -count=1
+go test ./cmd/zv -run 'TestGoFileLength|TestNoComments|TestCommentBaselinesOnlyShrink|TestNoDeadCode' -count=1
 ```
 
 `TestNoDeadCode` is slow and installs pinned tools. Skip it when the diff cannot add or remove a Go function. For a web or desktop diff, also re-run that package's `typecheck`, `lint` and `test:unit`.
