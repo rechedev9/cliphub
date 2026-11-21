@@ -2,7 +2,7 @@ import { STREAM_VARIANTS, type StreamEditPlan, type StreamRenderState } from '..
 import { CREATE_FLOW_STEPS } from '../produce/create-flow.ts';
 import { formatStreamClock } from './plan.ts';
 import { momentsWord, streamPlanShorts, streamShortCount, type StreamShort } from './groups.ts';
-import { momentsFooterHint, momentsFooterText } from './moments.ts';
+import { momentsFooterHint, momentsFooterText, momentsRangeIssue } from './moments.ts';
 import type { StreamPlaybackMode } from '../stream-playback.ts';
 
 export const STREAM_STEP = { cuts: 'cuts', layout: 'layout', review: 'review', results: 'results' } as const;
@@ -114,12 +114,17 @@ export function streamFooterLabels({
   step,
   plan,
   stale,
+  sourceDuration,
 }: {
   step: StreamStep;
   plan: StreamEditPlan;
   stale: boolean;
+  sourceDuration: number;
 }): { count: string; summary: string } {
-  if (step === STREAM_STEP.cuts) return { count: momentsFooterText(plan.clips), summary: momentsFooterHint(plan.clips.length) };
+  if (step === STREAM_STEP.cuts) {
+    const issue = momentsRangeIssue({ clips: plan.clips, sourceDuration });
+    return { count: momentsFooterText(plan.clips), summary: issue ?? momentsFooterHint(plan.clips.length) };
+  }
   if (step === STREAM_STEP.layout) {
     return { count: momentsFooterText(plan.clips), summary: 'En el siguiente paso revisas tus Shorts antes de exportar.' };
   }

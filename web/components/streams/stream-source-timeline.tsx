@@ -12,7 +12,7 @@ import {
   secondsAtFraction,
   timelineKeySeek,
   timelineMomentRanges,
-  timelinePercent,
+  timelinePlayhead,
   timelinePlayMarks,
   type PlayMarkState,
   type TimelineWindow,
@@ -70,6 +70,7 @@ export function StreamSourceTimeline({
   const marks = timelinePlayMarks({ plays, clips, activePlayId, window: view });
   const ranges = timelineMomentRanges({ clips, selectedClipIds, window: view });
   const seekable = !disabled && sourceDuration > 0;
+  const playhead = timelinePlayhead({ seconds: playheadSeconds, window: view });
 
   const seekAtPointer = (event: PointerEvent<HTMLDivElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -146,9 +147,9 @@ export function StreamSourceTimeline({
           tabIndex={seekable ? 0 : -1}
           aria-label="Posición en el vídeo original"
           aria-disabled={!seekable}
-          aria-valuemin={Math.round(view.start)}
-          aria-valuemax={Math.round(view.end)}
-          aria-valuenow={Math.round(playheadSeconds)}
+          aria-valuemin={playhead.valueMin}
+          aria-valuemax={playhead.valueMax}
+          aria-valuenow={playhead.valueNow}
           aria-valuetext={formatStreamClock(playheadSeconds)}
           onKeyDown={onLaneKey}
           onPointerDown={(event) => {
@@ -201,11 +202,11 @@ export function StreamSourceTimeline({
               />
             ))
           : null}
-        {sourceDuration > 0 ? (
+        {sourceDuration > 0 && playhead.leftPercent !== null ? (
           <span
             aria-hidden
             className="pointer-events-none absolute inset-y-0 z-[2] w-0.5 -translate-x-px bg-fg-1"
-            style={{ left: `${timelinePercent(playheadSeconds, view)}%` }}
+            style={{ left: `${playhead.leftPercent}%` }}
           />
         ) : null}
       </div>

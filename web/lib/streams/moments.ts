@@ -52,6 +52,26 @@ export function momentsFooterHint(count: number): string {
     : 'En el siguiente paso eliges cómo se ve en vertical.';
 }
 
+function momentEdgeIssue(clip: StreamClipRange, sourceDuration: number): string | null {
+  if (!Number.isFinite(clip.start_seconds) || clip.start_seconds < 0) return 'empieza antes que el vídeo. Mueve su inicio más adelante.';
+  if (!Number.isFinite(clip.end_seconds) || clip.end_seconds <= clip.start_seconds) return 'acaba antes de empezar. Mueve su final más adelante.';
+  if (sourceDuration > 0 && clip.end_seconds > sourceDuration) return 'sigue después de que acabe el vídeo. Acerca su final.';
+  return null;
+}
+
+export function momentsRangeIssue({ clips, sourceDuration }: { clips: readonly StreamClipRange[]; sourceDuration: number }): string | null {
+  const numbered = momentsInOrder(clips);
+  for (const { clip, number } of numbered) {
+    const issue = momentEdgeIssue(clip, sourceDuration);
+    if (issue !== null) return `El momento ${number} ${issue}`;
+  }
+  for (const [index, first] of numbered.entries()) {
+    const second = numbered.slice(index + 1).find(({ clip }) => clip.start_seconds < first.clip.end_seconds && first.clip.start_seconds < clip.end_seconds);
+    if (second) return `Los momentos ${first.number} y ${second.number} usan el mismo trozo del vídeo. Mueve sus bordes para que no se pisen.`;
+  }
+  return null;
+}
+
 export function momentLengthLabel(seconds: number): string {
   return Math.round(seconds) < 60 ? `${Math.max(0, Math.round(seconds))} s` : formatStreamClock(seconds);
 }

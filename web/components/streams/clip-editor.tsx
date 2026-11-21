@@ -19,6 +19,7 @@ export function StreamClipEditor({
   plays,
   sourceDuration,
   selectedClipId,
+  shortcutClipId,
   onChange,
   onSelect,
   onRemove,
@@ -31,6 +32,7 @@ export function StreamClipEditor({
   plays: readonly StreamPlay[];
   sourceDuration: number;
   selectedClipId: string | null;
+  shortcutClipId: string | null;
   onChange: (clips: StreamClipRange[]) => void;
   onSelect: (clip: StreamClipRange) => void;
   onRemove: (clip: StreamClipRange) => void;
@@ -66,6 +68,7 @@ export function StreamClipEditor({
           index={index}
           canSuggest={suggestedCut({ clips, clipId: clip.id, plays, sourceDuration }) !== null}
           selected={clip.id === selectedClipId}
+          removeShortcut={clip.id === shortcutClipId}
           disabled={disabled}
           onSelect={() => onSelect(clip)}
           onRemove={() => onRemove(clip)}
@@ -84,6 +87,7 @@ function ClipCard({
   index,
   canSuggest,
   selected,
+  removeShortcut,
   disabled,
   onSelect,
   onRemove,
@@ -96,6 +100,7 @@ function ClipCard({
   index: number;
   canSuggest: boolean;
   selected: boolean;
+  removeShortcut: boolean;
   disabled: boolean;
   onSelect: () => void;
   onRemove: () => void;
@@ -140,10 +145,10 @@ function ClipCard({
             </span>
           </span>
         </button>
-        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={onRemove} aria-label={`Quitar momento ${number}`} aria-keyshortcuts="Delete">
+        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={onRemove} aria-label={`Quitar momento ${number}`} aria-keyshortcuts={removeShortcut ? 'Delete' : undefined}>
           <Trash2 aria-hidden />
           Quitar
-          <Kbd>{MOMENTS_KEY.remove}</Kbd>
+          {removeShortcut ? <Kbd>{MOMENTS_KEY.remove}</Kbd> : null}
         </Button>
       </div>
 

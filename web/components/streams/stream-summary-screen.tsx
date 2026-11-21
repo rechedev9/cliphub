@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AlertTriangle, Film } from 'lucide-react';
 import { streamsApi, type StreamJob, type StreamPlayScan } from '@/lib/api/streams';
 import { STREAMS_HREF, streamEditorHref } from '@/lib/clips/routes';
+import { scanVoiceSettings } from '@/lib/streams/detection';
 import { streamHasSource } from '@/lib/streams/list';
 import { errorMessage } from '@/lib/streams/plan';
 import { streamDocumentTitle, streamTitle } from '@/lib/streams/title';
@@ -44,7 +45,7 @@ function SummaryPlays({ jobId }: { jobId: string }): ReactNode {
   const start = async () => {
     setRequestError(null);
     try {
-      setScan(await streamsApi.startPlayScan(jobId, { enabled: true, sensitivity: 3 }));
+      setScan(await streamsApi.startPlayScan(jobId, scanVoiceSettings(scan?.voice)));
     } catch (err) {
       setRequestError(errorMessage(err, SCAN_FAIL_MESSAGE));
     }

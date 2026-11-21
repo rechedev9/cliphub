@@ -33,6 +33,19 @@ export function useStreamMoments({
 
   const setClips = (clips: StreamClipRange[]) => onPlanChange(pruneStreamGroups({ ...plan, clips }));
   const selectClip = focusClip;
+  const showRemaining = (next: StreamEditPlan) => {
+    const [first] = next.clips;
+    if (first) selectClip(first);
+    else clearSelection();
+    showWholeVideo();
+  };
+  const undoAdd = (ids: readonly string[]) => {
+    const current = latestPlanRef.current;
+    const next = pruneStreamGroups({ ...current, clips: withoutMoments(current.clips, ids) });
+    latestPlanRef.current = next;
+    onPlanChange(next);
+    showRemaining(next);
+  };
   const createMoment = ({ range, message }: { range: { start_seconds: number; end_seconds: number }; message: string }) => {
     const { clips } = latestPlanRef.current;
     const sourceTitle = streamTitle(job);
@@ -44,14 +57,7 @@ export function useStreamMoments({
     selectClip(clip);
     toast(message, {
       position: 'top-right',
-      action: {
-        label: 'Deshacer',
-        onClick: () => {
-          const current = latestPlanRef.current;
-          onPlanChange(pruneStreamGroups({ ...current, clips: withoutMoments(current.clips, [clip.id]) }));
-          showWholeVideo();
-        },
-      },
+      action: { label: 'Deshacer', onClick: () => undoAdd([clip.id]) },
     });
   };
   const markHere = (seconds: number) => {
@@ -78,13 +84,7 @@ export function useStreamMoments({
     const addedIds = added.map((clip) => clip.id);
     toast(added.length === 1 ? `Añadida: ${first.title ?? 'jugada'} (${formatStreamClock(first.start_seconds)})` : `${added.length} jugadas añadidas a tus momentos`, {
       position: 'top-right',
-      action: {
-        label: 'Deshacer',
-        onClick: () => {
-          const current = latestPlanRef.current;
-          onPlanChange(pruneStreamGroups({ ...current, clips: withoutMoments(current.clips, addedIds) }));
-        },
-      },
+      action: { label: 'Deshacer', onClick: () => undoAdd(addedIds) },
     });
   };
   const removeClips = (removed: readonly StreamClipRange[]) => {
@@ -92,10 +92,7 @@ export function useStreamMoments({
     if (!clip) return;
     const removal = removeMoments(plan, removed.map((c) => c.id));
     onPlanChange(removal.plan);
-    const [next] = removal.plan.clips;
-    if (next) selectClip(next);
-    else clearSelection();
-    showWholeVideo();
+    showRemaining(removal.plan);
     toast(removed.length === 1 ? `Quitado: ${clip.title?.trim() || 'momento'}` : `${removed.length} momentos quitados`, {
       position: 'top-right',
       action: {

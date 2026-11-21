@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamClipRange, StreamEditPlan, StreamPlay } from '../api/streams.ts';
 import { clipsWithPlays } from './plays.ts';
-import { bulkAddLabel, bulkAddPlays, momentsFooterText, momentsInOrder, playRowAction, playTimeLabel, removeMoments, topPlayIds, undoRemoval, withoutMoments } from './moments.ts';
+import { bulkAddLabel, bulkAddPlays, momentsFooterText, momentsInOrder, momentsRangeIssue, playRowAction, playTimeLabel, removeMoments, topPlayIds, undoRemoval, withoutMoments } from './moments.ts';
 
 function play(id: string, start: number, end: number, score = 50): StreamPlay {
   return { id, label: id, start_seconds: start, end_seconds: end, kill_seconds: [start + 2], score };
@@ -59,6 +59,37 @@ test('the footer reads the count and the total length of the momentos', () => {
   assert.equal(momentsFooterText([]), 'Aún no has elegido ningún momento');
 });
 
+
+const EDITOR_WORDS = /solap|rango|duración|segundo|inválid|\d+ s\b/i;
+
+function issueOf(clips: StreamClipRange[]): string {
+  const issue = momentsRangeIssue({ clips, sourceDuration: 600 });
+  assert.notEqual(issue, null);
+  assert.doesNotMatch(issue ?? '', EDITOR_WORDS);
+  return issue ?? '';
+}
+
+test('momentos that share a piece of the video name both, by the number the strip shows', () => {
+  const issue = issueOf([moment('a', 10, 40), moment('c', 200, 230), moment('b', 30, 60)]);
+  assert.match(issue, /momentos 1 y 2\b/);
+});
+
+test('a momento that runs past the end of the video names that momento and its end', () => {
+  const issue = issueOf([moment('a', 10, 40), moment('b', 590, 640)]);
+  assert.match(issue, /momento 2\b/);
+  assert.match(issue, /final/);
+});
+
+test('a momento with its edges the wrong way round or before the video starts names the edge to move', () => {
+  assert.match(issueOf([moment('a', 50, 50)]), /momento 1\b.*final/);
+  assert.match(issueOf([moment('ok', 100, 120), moment('a', -5, 20)]), /momento 1\b.*inicio/);
+});
+
+test('momentos that fit the video, or none at all, have nothing to fix', () => {
+  assert.equal(momentsRangeIssue({ clips: [moment('a', 10, 40), moment('b', 40, 60)], sourceDuration: 600 }), null);
+  assert.equal(momentsRangeIssue({ clips: [], sourceDuration: 600 }), null);
+  assert.equal(momentsRangeIssue({ clips: [moment('a', 10, 4000)], sourceDuration: 0 }), null);
+});
 
 test('a jugada row reads its start as m:ss and its length in seconds, or m:ss past a minute', () => {
   assert.equal(playTimeLabel(play('a', 1437, 1449)), '23:57 · 12 s');

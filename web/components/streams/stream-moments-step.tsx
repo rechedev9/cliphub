@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { Flag, Play } from 'lucide-react';
 import type { StreamClipRange, StreamEditPlan, StreamJob, StreamPlay } from '@/lib/api/streams';
 import { momentLengthLabel, momentsInOrder } from '@/lib/streams/moments';
-import { MOMENTS_KEY, momentsShortcutLegend } from '@/lib/streams/moments-keys';
+import { MOMENTS_KEY, momentsShortcutLegend, removableMomentId } from '@/lib/streams/moments-keys';
 import { fullVideoMoment } from '@/lib/streams/mark-moment';
 import { clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
 import { orderPlays, type PlayOrder } from '@/lib/streams/plays';
@@ -138,6 +138,7 @@ export function StreamMomentsStep({
   sourceDuration,
   playheadSeconds,
   selectedClipId,
+  cardClipId,
   plays,
   activePlayId,
   busy,
@@ -156,6 +157,7 @@ export function StreamMomentsStep({
   sourceDuration: number;
   playheadSeconds: number;
   selectedClipId: string | null;
+  cardClipId: string | null;
   plays: readonly StreamPlay[];
   activePlayId: string | null;
   busy: boolean;
@@ -171,6 +173,7 @@ export function StreamMomentsStep({
   const isVod = job.source_kind === 'vod';
   const [order, setOrder] = useState<PlayOrder>('best');
   const canMark = !busy && sourceDuration > 0;
+  const removableId = removableMomentId({ clips: plan.clips, selectedClipId, selectedPlayId: activePlayId });
   useMomentsShortcuts({
     state: {
       plays: isVod ? orderPlays(plays, order) : [],
@@ -212,7 +215,8 @@ export function StreamMomentsStep({
           clips={plan.clips}
           plays={plays}
           sourceDuration={sourceDuration}
-          selectedClipId={selectedClipId}
+          selectedClipId={cardClipId}
+          shortcutClipId={removableId}
           onChange={moments.setClips}
           onSelect={moments.selectClip}
           onRemove={moments.removeClip}

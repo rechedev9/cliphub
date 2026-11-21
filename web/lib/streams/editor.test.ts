@@ -72,12 +72,20 @@ test('the rail counts momentos in Momentos and Shorts only from Revisar on', () 
 });
 test('the footer counts momentos until Aspecto and Shorts from Revisar on', () => {
   const joined = joinStreamMoments(plan(), ['c1', 'c2']);
-  const footer = (step: StreamStep) => streamFooterLabels({ step, plan: joined, stale: false });
+  const footer = (step: StreamStep) => streamFooterLabels({ step, plan: joined, stale: false, sourceDuration: 600 });
   assert.equal(footer('cuts').count, '2 momentos · 0:36 en total');
   assert.equal(footer('layout').count, '2 momentos · 0:36 en total');
   assert.doesNotMatch(footer('layout').summary, /\d/);
   assert.equal(footer('review').count, '1 Short');
   assert.equal(footer('results').summary, '01 · 0:36');
+});
+test('in Momentos the footer names the momento to fix in place of the hint while one does not fit', () => {
+  const broken = plan({ clips: [{ id: 'a', start_seconds: 10, end_seconds: 40 }, { id: 'b', start_seconds: 590, end_seconds: 640 }] });
+  const fine = streamFooterLabels({ step: 'cuts', plan: plan(), stale: false, sourceDuration: 600 }).summary;
+  const issue = streamFooterLabels({ step: 'cuts', plan: broken, stale: false, sourceDuration: 600 }).summary;
+  assert.match(issue, /momento 2\b/);
+  assert.notEqual(issue, fine);
+  assert.doesNotMatch(fine, /momento \d/);
 });
 test('moments must exist before camera confirmation, and no-camera layouts skip it', () => {
   assert.equal(streamPlanBlocker(plan({ clips: [], face_crop_reviewed: false })), 'cuts');

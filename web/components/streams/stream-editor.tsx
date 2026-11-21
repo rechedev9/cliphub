@@ -24,7 +24,7 @@ import {
   streamSourceLabel,
 } from '@/lib/streams/plan';
 import { PLAYBACK_STATUS, type PlaybackStatus } from '@/lib/playback-session';
-import { STREAM_PLAYBACK_MODE, streamClipIndexAt, streamPlaybackIndex, type StreamPlaybackMode } from '@/lib/stream-playback';
+import { STREAM_PLAYBACK_MODE, streamPlaybackIndex, type StreamPlaybackMode } from '@/lib/stream-playback';
 import {
   STREAM_STEP,
   STREAM_STEP_LABEL,
@@ -54,6 +54,7 @@ import { StreamReviewStep } from '@/components/streams/stream-review-step';
 import { useStreamMoments } from '@/components/streams/use-stream-moments';
 import { momentZoomWindow } from '@/lib/streams/moment-edges';
 import { MOMENTS_KEY } from '@/lib/streams/moments-keys';
+import { timelineSeekKeepsPlayback } from '@/lib/streams/timeline';
 
 /** Guided stream editor: moments, appearance, review, then finished videos. */
 export function StreamEditor({
@@ -309,7 +310,7 @@ export function StreamEditor({
   const blocker = rangesIssue ? STREAM_STEP.cuts : streamPlanBlocker(plan);
   const ctaDisabled = busy || (activeStep === 'cuts' && (!plan.clips.length || rangesIssue !== null));
   const panelTitle = STREAM_STEP_LABEL[activeStep];
-  const footer = streamFooterLabels({ step: activeStep, plan, stale });
+  const footer = streamFooterLabels({ step: activeStep, plan, stale, sourceDuration });
   const cropEditor =
     activeStep === STREAM_STEP.layout && variantMeta.needsFaceCrop
       ? { rect: faceCrop, disabled: busy, onChange: setFaceCrop }
@@ -412,18 +413,14 @@ export function StreamEditor({
           : undefined
       }
       onSeek={(seconds) => {
-        // Scrubbing inside a Short being previewed keeps that mode; anywhere else is the original.
-        const insideSelected =
-          sessionMode === STREAM_PLAYBACK_MODE.selected &&
-          selectedClip !== undefined &&
-          seconds >= selectedClip.start_seconds &&
-          seconds <= selectedClip.end_seconds;
-        // A sequence follows the playhead: the session switches to the Short under it.
-        const insidePreviewed =
-          sessionMode === STREAM_PLAYBACK_MODE.sequence
-            ? streamClipIndexAt(playbackClips, seconds) >= 0
-            : insideSelected;
-        if (!insidePreviewed) {
+        const keeps = timelineSeekKeepsPlayback({
+          mode: sessionMode,
+          seconds,
+          preview: previewing?.range ?? null,
+          selected: selectedClip,
+          clips: playbackClips,
+        });
+        if (!keeps) {
           setPreviewPlay(null);
           setPlaybackMode(STREAM_PLAYBACK_MODE.source);
         }
@@ -446,7 +443,8 @@ export function StreamEditor({
         moments={moments}
         sourceDuration={sourceDuration}
         playheadSeconds={previewSeconds}
-        selectedClipId={selectedClip?.id ?? null}
+        selectedClipId={selectedClipId}
+        cardClipId={selectedClip?.id ?? null}
         plays={foundPlays}
         activePlayId={previewing?.play.id ?? null}
         busy={busy}

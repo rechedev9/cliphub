@@ -10,7 +10,9 @@ import {
   timelineKeySeek,
   timelineMomentRanges,
   timelinePercent,
+  timelinePlayhead,
   timelinePlayMarks,
+  timelineSeekKeepsPlayback,
 } from './timeline.ts';
 
 test('a time maps to its share of the shown window and back', () => {
@@ -102,6 +104,42 @@ test('arrow keys on the lane step through the video and Home and End jump to its
   assert.equal(timelineKeySeek({ key: 'End', seconds: 100, window }), 600);
   assert.equal(timelineKeySeek({ key: 'Home', seconds: 100, window: { start: 50, end: 150 } }), 50);
   assert.equal(timelineKeySeek({ key: 'Enter', seconds: 100, window }), null);
+});
+
+test('the playhead shows where it is inside the window and the slider value stays within its bounds', () => {
+  assert.deepEqual(timelinePlayhead({ seconds: 150, window: { start: 100, end: 200 } }), { leftPercent: 50, valueMin: 100, valueMax: 200, valueNow: 150 });
+  assert.deepEqual(timelinePlayhead({ seconds: 200, window: { start: 100, end: 200 } }), { leftPercent: 100, valueMin: 100, valueMax: 200, valueNow: 200 });
+});
+
+test('a playhead outside the zoomed window is hidden instead of stuck on the edge', () => {
+  assert.deepEqual(timelinePlayhead({ seconds: 40, window: { start: 100, end: 200 } }), { leftPercent: null, valueMin: 100, valueMax: 200, valueNow: 100 });
+  assert.deepEqual(timelinePlayhead({ seconds: 900.4, window: { start: 100, end: 200 } }), { leftPercent: null, valueMin: 100, valueMax: 200, valueNow: 200 });
+  assert.equal(timelinePlayhead({ seconds: 0, window: fullTimelineWindow(0) }).leftPercent, null);
+});
+
+test('a click inside the momento being played keeps playing it and a click outside goes back to the original video', () => {
+  const selected = moment('m1', 100, 130);
+  const seekAt = (seconds: number) => timelineSeekKeepsPlayback({ mode: 'selected', seconds, preview: null, selected, clips: [selected] });
+  assert.equal(seekAt(115), true);
+  assert.equal(seekAt(130), true);
+  assert.equal(seekAt(140), false);
+});
+
+test('while a jugada is previewed only a click inside that jugada keeps the preview', () => {
+  const selected = moment('m1', 100, 130);
+  const preview = moment('play:a', 300, 312);
+  const seekAt = (seconds: number) => timelineSeekKeepsPlayback({ mode: 'selected', seconds, preview, selected, clips: [preview] });
+  assert.equal(seekAt(305), true);
+  assert.equal(seekAt(115), false);
+  assert.equal(seekAt(320), false);
+});
+
+test('playing every momento in a row keeps going wherever a momento is, and the original video stays itself', () => {
+  const clips = [moment('m1', 100, 130), moment('m2', 200, 230)];
+  assert.equal(timelineSeekKeepsPlayback({ mode: 'sequence', seconds: 210, preview: null, selected: clips[0], clips }), true);
+  assert.equal(timelineSeekKeepsPlayback({ mode: 'sequence', seconds: 160, preview: null, selected: clips[0], clips }), false);
+  assert.equal(timelineSeekKeepsPlayback({ mode: 'source', seconds: 110, preview: null, selected: clips[0], clips }), false);
+  assert.equal(timelineSeekKeepsPlayback({ mode: 'selected', seconds: 110, preview: null, selected: undefined, clips: [] }), false);
 });
 
 test('a video with no known length maps everything to the start', () => {

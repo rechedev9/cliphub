@@ -13,6 +13,12 @@ export function shoutOptions(sensitivity: number): ShoutOption[] {
   return [...SHOUT_PRESETS, { value: String(sensitivity), label: `Nivel ${sensitivity}` }].sort((a, b) => Number(b.value) - Number(a.value));
 }
 
+const DEFAULT_VOICE: StreamVoiceSettings = { enabled: true, sensitivity: 3 };
+
+export function scanVoiceSettings(scanned: StreamVoiceScan | undefined): StreamVoiceSettings {
+  return scanned ? { enabled: scanned.enabled, sensitivity: scanned.sensitivity } : { ...DEFAULT_VOICE };
+}
+
 export function detectionSettingsChanged(scanned: StreamVoiceScan | undefined, voice: StreamVoiceSettings): boolean {
   if (scanned === undefined) return true;
   return scanned.enabled !== voice.enabled || (voice.enabled && scanned.sensitivity !== voice.sensitivity);

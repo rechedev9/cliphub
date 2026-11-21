@@ -83,8 +83,18 @@ function keptPlay(state: MomentsKeyState, playId: string | null): MomentsKeyActi
   return action.kind === 'jump' ? { kind: 'jump', clip: action.clip } : { kind: 'add-play', play };
 }
 
+export function removableMomentId({
+  clips,
+  selectedClipId,
+  selectedPlayId,
+}: Pick<MomentsKeyState, 'clips' | 'selectedClipId' | 'selectedPlayId'>): string | null {
+  if (selectedPlayId !== null) return null;
+  return clips.find((c) => c.id === selectedClipId)?.id ?? null;
+}
+
 function removedMoment(state: MomentsKeyState): MomentsKeyAction {
-  const clip = state.clips.find((c) => c.id === state.selectedClipId);
+  const id = removableMomentId(state);
+  const clip = state.clips.find((c) => c.id === id);
   return clip ? { kind: 'remove', clip } : NONE;
 }
 

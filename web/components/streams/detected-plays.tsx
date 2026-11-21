@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Crosshair, Mic, SlidersHorizontal } from 'lucide-react';
 import { streamsApi, type StreamClipRange, type StreamPlay, type StreamPlayScan, type StreamVoiceSettings } from '@/lib/api/streams';
-import { detectionNote, detectionSettingsChanged, shoutOptions } from '@/lib/streams/detection';
+import { detectionNote, detectionSettingsChanged, scanVoiceSettings, shoutOptions } from '@/lib/streams/detection';
 import { bulkAddLabel, bulkAddPlays, playRowAction, playTimeLabel, topPlayIds } from '@/lib/streams/moments';
+import { nearestScrollTop } from '@/lib/streams/list-scroll';
 import { errorMessage, formatStreamClock } from '@/lib/streams/plan';
+import { createSlotPool } from '@/lib/streams/slot-pool';
 import { playNumbers } from '@/lib/streams/timeline';
 import { isVoiceOnly, orderPlays, playMoment, rankPlays, type PlayOrder } from '@/lib/streams/plays';
 import { MOMENTS_KEY } from '@/lib/streams/moments-keys';
@@ -19,7 +21,8 @@ import { Switch } from '@/components/ui/switch';
 
 const POLL_MS = 2000;
 const NO_PLAYS: readonly StreamPlay[] = [];
-const DEFAULT_VOICE: StreamVoiceSettings = { enabled: true, sensitivity: 3 };
+const THUMB_SLOTS = createSlotPool(3);
+const THUMB_SIZE = { width: 160, height: 90 } as const;
 const ORDER_OPTIONS: readonly { value: PlayOrder; label: string }[] = [
   { value: 'best', label: 'Mejores primero' },
   { value: 'time', label: 'Por tiempo' },
@@ -79,19 +82,58 @@ function DetectionSettings({
   );
 }
 
+function drawCover(canvas: HTMLCanvasElement, video: HTMLVideoElement): boolean {
+  const context = canvas.getContext('2d');
+  const { videoWidth, videoHeight } = video;
+  if (!context || videoWidth <= 0 || videoHeight <= 0) return false;
+  const scale = Math.max(canvas.width / videoWidth, canvas.height / videoHeight);
+  const width = canvas.width / scale;
+  const height = canvas.height / scale;
+  context.drawImage(video, (videoWidth - width) / 2, (videoHeight - height) / 2, width, height, 0, 0, canvas.width, canvas.height);
+  return true;
+}
+
 function PlayThumb({ jobId, play, number }: { jobId: string; play: StreamPlay; number: number }): ReactNode {
   const { ref, seen } = useSeen<HTMLSpanElement>();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [phase, setPhase] = useState<'waiting' | 'ready' | 'failed'>('waiting');
+  const [granted, setGranted] = useState(false);
+  const capturing = seen && phase === 'waiting';
+  useEffect(() => {
+    if (!capturing) return;
+    return THUMB_SLOTS.request(() => setGranted(true));
+  }, [capturing]);
+  const finish = (video: HTMLVideoElement, next: 'ready' | 'failed') => {
+    video.removeAttribute('src');
+    video.load();
+    setPhase(next);
+  };
   const Icon = isVoiceOnly(play) ? Mic : Crosshair;
   return (
     <span ref={ref} className="relative block aspect-video w-20 shrink-0 overflow-hidden rounded bg-surface-3">
-      {seen ? (
+      <canvas
+        ref={canvasRef}
+        width={THUMB_SIZE.width}
+        height={THUMB_SIZE.height}
+        aria-hidden
+        className={cn('size-full', phase !== 'ready' && 'invisible')}
+      />
+      {capturing && granted ? (
         <video
-          src={`${streamsApi.sourceUrl(jobId)}#t=${playMoment(play)}`}
+          src={streamsApi.sourceUrl(jobId)}
           preload="metadata"
           muted
           playsInline
           aria-hidden
-          className="size-full object-cover"
+          className="absolute inset-0 size-full opacity-0"
+          onLoadedMetadata={(event) => {
+            event.currentTarget.currentTime = playMoment(play);
+          }}
+          onSeeked={(event) => {
+            const canvas = canvasRef.current;
+            finish(event.currentTarget, canvas && drawCover(canvas, event.currentTarget) ? 'ready' : 'failed');
+          }}
+          onError={(event) => finish(event.currentTarget, 'failed')}
         />
       ) : null}
       <span aria-hidden className="absolute bottom-1 left-1 flex h-5 items-center gap-0.5 rounded-sm bg-surface-0/75 px-1 text-meta font-semibold tabular-nums text-fg-1">
@@ -129,7 +171,13 @@ function PlayRow({
   const loud = !isVoiceOnly(play) && (play.voice_seconds?.length ?? 0) > 0;
   const rowRef = useRef<HTMLLIElement>(null);
   useEffect(() => {
-    if (active) rowRef.current?.scrollIntoView({ block: 'nearest' });
+    const row = rowRef.current;
+    const list = row?.parentElement;
+    if (!active || !row || !list) return;
+    const rowBox = row.getBoundingClientRect();
+    const itemTop = rowBox.top - list.getBoundingClientRect().top + list.scrollTop;
+    const next = nearestScrollTop({ itemTop, itemBottom: itemTop + rowBox.height, scrollTop: list.scrollTop, viewHeight: list.clientHeight });
+    if (next !== null) list.scrollTop = next;
   }, [active]);
   return (
     <li ref={rowRef} className={cn('flex items-center gap-2 px-1 py-1.5', active && 'bg-surface-3')}>
@@ -208,7 +256,7 @@ export function StreamDetectedPlays({
 }): ReactNode {
   const [scan, setScan] = useState<StreamPlayScan | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const [voice, setVoice] = useState<StreamVoiceSettings>(DEFAULT_VOICE);
+  const [voice, setVoice] = useState<StreamVoiceSettings>(() => scanVoiceSettings(undefined));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const voiceSynced = useRef(false);
   const running = scan?.status === 'running';
@@ -223,7 +271,7 @@ export function StreamDetectedPlays({
         setScan(next);
         if (next.voice && !voiceSynced.current) {
           voiceSynced.current = true;
-          setVoice({ enabled: next.voice.enabled, sensitivity: next.voice.sensitivity });
+          setVoice(scanVoiceSettings(next.voice));
         }
       } catch (err) {
         if (active) setRequestError(errorMessage(err, 'No pudimos buscar jugadas. Vuelve a intentarlo.'));

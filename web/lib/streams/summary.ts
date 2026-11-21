@@ -6,7 +6,7 @@ export function summaryDefaultIds(plays: readonly StreamPlay[]): string[] {
   return plays.filter((play) => !isVoiceOnly(play)).map((play) => play.id);
 }
 
-function countWord(count: number, one: string, many: string): string {
+function countWord({ count, one, many }: { count: number; one: string; many: string }): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
@@ -15,8 +15,8 @@ export function summaryChoiceText(selected: readonly StreamPlay[]): string {
   const voice = selected.filter(isVoiceOnly).length;
   const kills = selected.length - voice;
   const parts = [
-    kills > 0 ? countWord(kills, 'jugada con kill', 'jugadas con kill') : null,
-    voice > 0 ? countWord(voice, 'pico de voz', 'picos de voz') : null,
+    kills > 0 ? countWord({ count: kills, one: 'jugada con kill', many: 'jugadas con kill' }) : null,
+    voice > 0 ? countWord({ count: voice, one: 'pico de voz', many: 'picos de voz' }) : null,
   ].filter((part) => part !== null);
   const seconds = selected.reduce((total, play) => total + play.end_seconds - play.start_seconds, 0);
   return `Un vídeo 16:9 con ${parts.join(' y ')}, una tras otra, unos ${formatStreamClock(seconds)}.`;

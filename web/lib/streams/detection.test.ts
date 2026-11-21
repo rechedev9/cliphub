@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamVoiceScan } from '../api/streams.ts';
-import { detectionNote, detectionSettingsChanged, shoutOptions } from './detection.ts';
+import { detectionNote, detectionSettingsChanged, scanVoiceSettings, shoutOptions } from './detection.ts';
 
 function scanned(over: Partial<StreamVoiceScan> = {}): StreamVoiceScan {
   return { enabled: true, sensitivity: 3, status: 'done', peaks: 2, ...over };
@@ -39,6 +39,15 @@ test('the level does not matter while voice peaks stay off', () => {
 
 test('a search saved before voice peaks can always be redone', () => {
   assert.equal(detectionSettingsChanged(undefined, { enabled: true, sensitivity: 3 }), true);
+});
+
+test('a new search reuses the settings the last search ran with', () => {
+  assert.deepEqual(scanVoiceSettings(scanned({ enabled: false, sensitivity: 5, status: 'off' })), { enabled: false, sensitivity: 5 });
+  assert.deepEqual(scanVoiceSettings(scanned({ sensitivity: 1, mix: true })), { enabled: true, sensitivity: 1 });
+});
+
+test('a video never searched starts with voice peaks on at Normal', () => {
+  assert.deepEqual(scanVoiceSettings(undefined), { enabled: true, sensitivity: 3 });
 });
 
 test('a search without a mic of its own says so without editor words', () => {

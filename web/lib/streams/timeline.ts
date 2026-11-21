@@ -1,4 +1,5 @@
 import type { StreamClipRange, StreamPlay } from '../api/streams.ts';
+import { STREAM_PLAYBACK_MODE, streamClipIndexAt, type StreamPlaybackMode } from '../stream-playback.ts';
 import { momentsInOrder } from './moments.ts';
 import { formatStreamClock } from './plan.ts';
 import { isVoiceOnly, playIsCovered } from './plays.ts';
@@ -23,6 +24,20 @@ export function timelinePercent(seconds: number, window: TimelineWindow): number
   const span = window.end - window.start;
   if (span <= 0) return 0;
   return clamp(((seconds - window.start) / span) * 100, 0, 100);
+}
+
+export type TimelinePlayhead = { leftPercent: number | null; valueMin: number; valueMax: number; valueNow: number };
+
+export function timelinePlayhead({ seconds, window }: { seconds: number; window: TimelineWindow }): TimelinePlayhead {
+  const valueMin = Math.round(window.start);
+  const valueMax = Math.max(valueMin, Math.round(window.end));
+  const shown = window.end > window.start && seconds >= window.start && seconds <= window.end;
+  return {
+    leftPercent: shown ? timelinePercent(seconds, window) : null,
+    valueMin,
+    valueMax,
+    valueNow: clamp(Math.round(seconds), valueMin, valueMax),
+  };
 }
 
 function inWindow(start: number, end: number, window: TimelineWindow): boolean {
@@ -109,6 +124,25 @@ export function timelineKeySeek({ key, seconds, window }: { key: string; seconds
     default:
       return null;
   }
+}
+
+export function timelineSeekKeepsPlayback({
+  mode,
+  seconds,
+  preview,
+  selected,
+  clips,
+}: {
+  mode: StreamPlaybackMode;
+  seconds: number;
+  preview: StreamClipRange | null;
+  selected: StreamClipRange | undefined;
+  clips: readonly StreamClipRange[];
+}): boolean {
+  if (mode === STREAM_PLAYBACK_MODE.sequence) return streamClipIndexAt(clips, seconds) >= 0;
+  if (mode !== STREAM_PLAYBACK_MODE.selected) return false;
+  const playing = preview ?? selected;
+  return playing !== undefined && seconds >= playing.start_seconds && seconds <= playing.end_seconds;
 }
 
 export function secondsAtFraction(fraction: number, window: TimelineWindow): number {

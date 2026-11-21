@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamClipRange, StreamPlay } from '../api/streams.ts';
-import { momentsKeyAction, momentsShortcutLegend, type MomentsKeyFocus, type MomentsKeyState } from './moments-keys.ts';
+import { momentsKeyAction, momentsShortcutLegend, removableMomentId, type MomentsKeyFocus, type MomentsKeyState } from './moments-keys.ts';
 
 function play(id: string, start: number, end: number): StreamPlay {
   return { id, label: `Jugada ${id}`, start_seconds: start, end_seconds: end, kill_seconds: [start + 1], score: 1 };
@@ -104,6 +104,19 @@ test('Delete removes the selected momento, and does nothing without one', () => 
   assert.deepEqual(press('Backspace', { state: { clips, selectedClipId: 'x' } }), { kind: 'remove', clip: clips[0] });
   assert.deepEqual(press('Delete', { state: { clips } }), { kind: 'none' });
   assert.deepEqual(press('Delete', { state: { clips: [], selectedClipId: 'gone' } }), { kind: 'none' });
+});
+
+test('Delete leaves the momentos alone while a jugada is being previewed', () => {
+  const clips = [moment('x', 400, 420)];
+  assert.deepEqual(press('Delete', { state: { clips, selectedClipId: 'x', selectedPlayId: 'a' } }), { kind: 'none' });
+  assert.equal(removableMomentId({ clips, selectedClipId: 'x', selectedPlayId: 'a' }), null);
+});
+
+test('only a momento the user selected can be removed with the key', () => {
+  const clips = [moment('x', 400, 420), moment('y', 500, 520)];
+  assert.equal(removableMomentId({ clips, selectedClipId: 'y', selectedPlayId: null }), 'y');
+  assert.equal(removableMomentId({ clips, selectedClipId: null, selectedPlayId: null }), null);
+  assert.equal(removableMomentId({ clips, selectedClipId: 'gone', selectedPlayId: null }), null);
 });
 
 test('M marks a momento at the playhead once the video is loaded', () => {
