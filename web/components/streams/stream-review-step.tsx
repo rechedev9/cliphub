@@ -5,6 +5,7 @@ import type { StreamEditPlan } from '@/lib/api/streams';
 import { streamCreativeBrief } from '@/lib/streams/brief';
 import { streamBlockerHint, type StreamStep } from '@/lib/streams/editor';
 import type { StreamShort } from '@/lib/streams/groups';
+import { ShortAdjustments } from '@/components/streams/moment-adjustments';
 import { StreamReviewList } from '@/components/streams/stream-review-list';
 import { CreativeBriefList } from '@/components/studio/creative-brief';
 import { Button } from '@/components/ui/button';
@@ -57,6 +58,9 @@ export function StreamReviewStep({
       <Button variant="outline" disabled={!canPlay} onClick={onPlaySelected}>
         Ver este Short
       </Button>
+      {selectedShortId ? (
+        <ShortAdjustments plan={plan} shortId={selectedShortId} disabled={busy} onPlanChange={onPlanChange} />
+      ) : null}
       <details className="rounded border border-border-subtle p-3">
         <DisclosureSummary className="text-body-sm">Detalles de la exportación</DisclosureSummary>
         <CreativeBriefList items={briefItems} />
