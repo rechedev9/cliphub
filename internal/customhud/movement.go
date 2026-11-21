@@ -11,8 +11,7 @@ import (
 const movementMask = uint64(common.ButtonForward | common.ButtonBack | common.ButtonMoveLeft | common.ButtonMoveRight | common.ButtonJump | common.ButtonDuck | common.ButtonSpeed | common.ButtonAttack | common.ButtonAttack2)
 
 // CS2 records commands per controller slot, independently of pawn properties.
-// Recent demos use CMsgServerUserCmd.delta_data (field 6), not declared in our
-// pinned v5 parser. Its protobuf unknown fields preserve that payload verbatim.
+// Recent demos send changes in CMsgServerUserCmd.delta_data.
 // Valve deltas reset fields with wire type 7; they are NOT ordinary protobuf.
 // Encoding reference: demoinfocs-golang commit
 // 14db58bad6e6ac2cb794b441c7b3d0d2a6dd1752, s2_usercmd_buttons.go.
@@ -74,14 +73,12 @@ func decodeMovementCommand(cmd *msg.CMsgServerUserCmd, previous movementCommand)
 	if cmd.CmdNumber == nil || cmd.ServerTickExecuted == nil || cmd.GetServerTickExecuted() < 0 {
 		return invalid()
 	}
-	delta, err := commandDelta(cmd.ProtoReflect().GetUnknown())
-	if err != nil {
-		return movementCommand{}, err
-	}
+	delta := cmd.GetDeltaData()
 	if len(cmd.Data) == 0 && len(delta) == 0 {
 		return previous, nil
 	}
 	var buttons uint64
+	var err error
 	if len(cmd.Data) > 0 {
 		buttons, err = mergeMovement(cmd.Data, 0, 0)
 	} else {
@@ -97,30 +94,6 @@ func decodeMovementCommand(cmd *msg.CMsgServerUserCmd, previous movementCommand)
 		return movementCommand{}, err
 	}
 	return movementCommand{buttons: buttons, number: cmd.GetCmdNumber(), tick: cmd.GetServerTickExecuted(), known: true}, nil
-}
-
-func commandDelta(unknown []byte) ([]byte, error) {
-	var delta []byte
-	for len(unknown) > 0 {
-		field, wire, n := protowire.ConsumeTag(unknown)
-		if n < 0 {
-			return nil, protowire.ParseError(n)
-		}
-		unknown = unknown[n:]
-		if field == 6 {
-			if wire != protowire.BytesType {
-				return nil, fmt.Errorf("invalid command delta wire type %d", wire)
-			}
-			delta, n = protowire.ConsumeBytes(unknown)
-		} else {
-			n = protowire.ConsumeFieldValue(field, wire, unknown)
-		}
-		if n < 0 {
-			return nil, protowire.ParseError(n)
-		}
-		unknown = unknown[n:]
-	}
-	return delta, nil
 }
 
 // Follow only base(1).buttons_pb(3).buttonstate1(1). Skipping unrelated

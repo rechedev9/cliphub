@@ -263,7 +263,7 @@
   "internal/customhud/killfeed_test.go": 3,
   "internal/customhud/model.go": 21,
   "internal/customhud/motion.go": 7,
-  "internal/customhud/movement.go": 15,
+  "internal/customhud/movement.go": 14,
   "internal/customhud/movement_test.go": 7,
   "internal/customhud/parse.go": 27,
   "internal/customhud/preview.go": 4,
