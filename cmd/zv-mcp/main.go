@@ -150,6 +150,9 @@ Libreta play or every round of a detected play (play_rounds counts them); it rea
 and more_matches says when older ones were left out.
 open_in_studio brings the Studio window to the front on a studio_path (app pages only, routed in the app); opened says whether
 the window did it, and when it did not it returns the full http://127.0.0.1:<port> address for the user to open.
+studio_path /mis-videos?visor= opens the Visor: the finished 9:16 Shorts of Mis vídeos, from demos and streams, played full
+window one after another as a phone shows them, in the order of the list. visor=<id> (an id the Visor's own address showed) starts on
+that Short; an empty or unknown id starts on the first one. With no finished Short, Mis vídeos opens as usual.
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
 library_norms gives the same rates over every team of the library: say a team is above or below the usual only against it.
 team_side_stats is the team's Estadísticas tab: figures overall and per side, each with group_avg over the

@@ -90,6 +90,10 @@ func TestOpenInStudioFallsBackToTheURL(t *testing.T) {
 	if left, _ := filepath.Glob(filepath.Join(dir, "open-*")); len(left) != 0 {
 		t.Fatalf("a request nobody took stayed in the profile: %v", left)
 	}
+	callTool(t, cs, "open_in_studio", map[string]any{"studio_path": "/mis-videos?visor=demo%3Aabc"}, &out)
+	if out.URL != testWebOrigin+"/mis-videos?visor=demo%3Aabc" {
+		t.Fatalf("visor address = %+v, want the Visor url", out)
+	}
 
 	for _, args := range []map[string]any{
 		{},

@@ -28,3 +28,9 @@ _Avoid_: Recap, highlights, Short horizontal
 
 **Clip**:
 Not a term inside the editor. It survives only in the section name "Clips de stream" and as the kind of source to import: a short clip from Twitch, YouTube or Kick, as opposed to a VOD.
+
+### Mis vídeos
+
+**Visor**:
+The full-window screen of Mis vídeos that plays the finished vertical 9:16 videos one after another, as a phone shows them. A 16:9 video never enters it.
+_Avoid_: Feed, reproductor, modo móvil

@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronDown, Film, Plus } from 'lucide-react';
+import { ChevronDown, Film, Plus, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { streamPlaybackItem } from '@/lib/api/playback';
@@ -20,8 +20,18 @@ import {
   type HubModel,
   type HubSnapshot,
 } from '@/lib/clips/hub';
-import { librarySummary, outputStateCount, streamActivity } from '@/lib/clips/results';
-import { LONG_VIDEOS_HREF, ORPHAN_MATCH_SEGMENT, SHORTS_HREF, STREAMS_HREF, publishHref } from '@/lib/clips/routes';
+import { LIBRARY_FILTER, LIBRARY_STAGE, librarySummary, outputStateCount, streamActivity } from '@/lib/clips/results';
+import {
+  LONG_VIDEOS_HREF,
+  ORPHAN_MATCH_SEGMENT,
+  RESULTS_HREF,
+  SHORTS_HREF,
+  STREAMS_HREF,
+  VISOR_QUERY,
+  publishHref,
+  visorHref,
+} from '@/lib/clips/routes';
+import { buildVisorQueue, type VisorFilter } from '@/lib/clips/visor-queue';
 import { createCoalescedCall } from '@/lib/coalesced-call';
 import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { prettyMapName } from '@/lib/format';
@@ -31,6 +41,7 @@ import { cn } from '@/lib/utils';
 import { ClipsLens } from '@/components/clips-hub/clips-lens';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
 import { useWebMCPLibrary } from '@/components/clips-hub/use-webmcp-library';
+import { Visor } from '@/components/clips-hub/visor';
 import { EmptyState } from '@/components/records/empty-state';
 import { FORMAT_TONE, type FormatTone } from '@/components/studio/format-tone';
 import { StudioPageHeader } from '@/components/studio/page-header';
@@ -80,7 +91,23 @@ function streamLibraryCount(streams: readonly StreamJob[]): number {
 }
 
 export default function ResultsPage(): ReactNode {
+  return (
+    <Suspense fallback={<ResultsSkeleton />}>
+      <ResultsView />
+    </Suspense>
+  );
+}
+
+function ResultsView(): ReactNode {
   const router = useRouter();
+  const visorId = useSearchParams().get(VISOR_QUERY);
+  const [filter, setFilter] = useState<VisorFilter>({ format: LIBRARY_FILTER.all, stage: LIBRARY_STAGE.all });
+  const [listOrigin, setListOrigin] = useState<VisorFilter | null>(null);
+  const [seenVisorId, setSeenVisorId] = useState(visorId);
+  if (seenVisorId !== visorId) {
+    setSeenVisorId(visorId);
+    if (visorId === null) setListOrigin(null);
+  }
 
   const [model, setModel] = useState<HubModel | null>(null);
   const [streams, setStreams] = useState<StreamJob[]>([]);
@@ -160,6 +187,15 @@ export default function ResultsPage(): ReactNode {
 
   useWebMCPLibrary({ model, failed: loadError !== null });
 
+  const moveVisor = useCallback((entryId: string) => {
+    window.history.replaceState(null, '', visorHref(entryId));
+  }, []);
+
+  const closeVisor = useCallback(() => {
+    if (listOrigin !== null) window.history.back();
+    else window.history.replaceState(null, '', RESULTS_HREF);
+  }, [listOrigin]);
+
   const banner = loadError === null ? null : <HubBanner offline={loadError.offline} onRetry={onChange} />;
 
   if (model === null) {
@@ -200,24 +236,49 @@ export default function ResultsPage(): ReactNode {
     );
   }
 
+  const listQueue = buildVisorQueue({ clips: model.clips, streams, filter, requestedId: null });
+  const visorQueue = visorId === null ? null : buildVisorQueue({ clips: model.clips, streams, filter: listOrigin, requestedId: visorId });
+  const openVisor = (): void => {
+    if (listQueue.start === null) return;
+    setListOrigin(filter);
+    window.history.pushState(null, '', visorHref(listQueue.start.id));
+  };
+
   return (
     <div className="measure-list flex flex-col gap-8">
-      <LibraryHeader summary={summary} live />
+      <LibraryHeader
+        summary={summary}
+        live
+        visorAction={listQueue.start === null ? null : (
+          <Button type="button" variant="outline" onClick={openVisor}>
+            <Smartphone aria-hidden />
+            Ver como en el móvil
+          </Button>
+        )}
+      />
       {banner}
       <div aria-busy={loadError !== null || undefined}>
-        <ClipsLens clips={model.clips} streams={streams} onChange={onChange} />
+        <ClipsLens clips={model.clips} streams={streams} filter={filter} onFilterChange={setFilter} onChange={onChange} />
       </div>
+      {visorQueue === null || visorQueue.start === null ? null : (
+        <Visor entries={visorQueue.entries} currentId={visorQueue.start.id} onMove={moveVisor} onClose={closeVisor} />
+      )}
     </div>
   );
 }
 
 /** The title on the Studio type scale, the one-line count and the Nuevo vídeo menu. `live` announces count changes. */
-function LibraryHeader({ summary, live = false }: { summary: string; live?: boolean }): ReactNode {
+function LibraryHeader({ summary, live = false, visorAction = null }: { summary: string; live?: boolean; visorAction?: ReactNode }): ReactNode {
   return (
     <StudioPageHeader
       title={PAGE_TITLE}
       description={<span role={live ? 'status' : undefined}>{summary}</span>}
-      actions={<NewVideoMenu />}
+      actions={(
+        <div className="flex flex-wrap items-center gap-2">
+          {visorAction}
+          <NewVideoMenu />
+        </div>
+      )}
     />
   );
 }

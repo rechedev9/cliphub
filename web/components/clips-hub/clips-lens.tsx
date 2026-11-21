@@ -68,6 +68,8 @@ const SIZE_LABEL_ID = 'mis-videos-tamano';
 export type ClipsLensProps = {
   clips: HubModel['clips'];
   streams: readonly StreamJob[];
+  filter: { format: LibraryFilter; stage: LibraryStage };
+  onFilterChange: (filter: { format: LibraryFilter; stage: LibraryStage }) => void;
   onChange: () => void;
 };
 
@@ -78,9 +80,10 @@ function chipClass(active: boolean, count: number): string {
 }
 
 /** Every video recorded on this PC: what is in progress on top, the ready ones as a filtered grid. */
-export function ClipsLens({ clips, streams, onChange }: ClipsLensProps): ReactNode {
-  const [format, setFormat] = useState<LibraryFilter>(LIBRARY_FILTER.all);
-  const [stage, setStage] = useState<LibraryStage>(LIBRARY_STAGE.all);
+export function ClipsLens({ clips, streams, filter, onFilterChange, onChange }: ClipsLensProps): ReactNode {
+  const { format, stage } = filter;
+  const setFormat = (next: LibraryFilter): void => onFilterChange({ format: next, stage });
+  const setStage = (next: LibraryStage): void => onFilterChange({ format, stage: next });
   const [size, setSize] = useState<ClipSize>(CLIP_SIZE.m);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [playerOpen, setPlayerOpen] = useState(false);
