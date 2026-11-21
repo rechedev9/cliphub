@@ -246,7 +246,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 				manifest.Warnings = append(manifest.Warnings, ValidateSourceArtifact(part.SourceArtifact, result.Plan.Stream)...)
 				manifest.Warnings = append(manifest.Warnings, killCueTailMarginWarnings(part.SegmentID, part.Kills, part.DurationSeconds)...)
 			}
-			manifest.Shorts = append(manifest.Shorts, compiled)
+			manifest.Shorts = append(manifest.Shorts, withEndCardHold(compiled))
 		}
 		if len(manifest.Shorts) == 0 {
 			manifest.Warnings = append(manifest.Warnings, "segment selection produced no shorts")

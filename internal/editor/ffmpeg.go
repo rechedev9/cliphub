@@ -342,9 +342,10 @@ func CompilationFilter(short ShortEdit) string {
 		if short.Transition == TransitionFlash {
 			slowFlash = "" // The transition already flashes into every part.
 		}
+		holdV, holdA, holdFrames := partHoldFilters(part, fps)
 		clauses = append(clauses,
-			fmt.Sprintf("[%d:v]%s%s%s%s,trim=end_frame=%d,setpts=PTS-STARTPTS[%s]", i, world, slowIn, VideoFilter(partShort), slowFlash, partFrames, videoLabel),
-			fmt.Sprintf("[%d:a]aformat=channel_layouts=stereo,aresample=48000%s,atrim=duration=%.6f,asetpts=PTS-STARTPTS[%s]", i, slowAudio, partDuration, audioLabel),
+			fmt.Sprintf("[%d:v]%s%s%s%s,trim=end_frame=%d,setpts=PTS-STARTPTS%s[%s]", i, world, slowIn, VideoFilter(partShort), slowFlash, partFrames, holdV, videoLabel),
+			fmt.Sprintf("[%d:a]aformat=channel_layouts=stereo,aresample=48000%s,atrim=duration=%.6f,asetpts=PTS-STARTPTS%s[%s]", i, slowAudio, partDuration, holdA, audioLabel),
 		)
 		if voice := voiceMixFilter(short, i, part, audioLabel, partDuration); voice != "" {
 			clauses = append(clauses, voice)
@@ -352,7 +353,7 @@ func CompilationFilter(short ShortEdit) string {
 		}
 		concatLabels = append(concatLabels, "["+videoLabel+"]["+audioLabel+"]")
 		concatCount++
-		cursorFrame = partStartFrame + partFrames
+		cursorFrame = partStartFrame + partFrames + holdFrames
 	}
 	clauses = append(clauses, fmt.Sprintf("%sconcat=n=%d:v=1:a=1[catv][gamea]", strings.Join(concatLabels, ""), concatCount))
 	imageInputStart := len(short.Parts)
@@ -374,6 +375,15 @@ func CompilationFilter(short ShortEdit) string {
 		clauses = append(clauses, "[gamea]anull[a]")
 	}
 	return strings.Join(clauses, ";")
+}
+
+// partHoldFilters clone the part's last frame and pad its audio with silence for HoldAfterSeconds.
+func partHoldFilters(part ShortPart, fps int) (string, string, int) {
+	frames := int(math.Round(part.HoldAfterSeconds * float64(fps)))
+	if frames <= 0 {
+		return "", "", 0
+	}
+	return fmt.Sprintf(",tpad=stop_mode=clone:stop=%d", frames), fmt.Sprintf(",apad=pad_dur=%.6f", float64(frames)/float64(fps)), frames
 }
 
 func compilationPartDuration(short ShortEdit, part ShortPart) float64 {
@@ -504,7 +514,7 @@ func killfeedCropFilter(effect Effect, short ShortEdit, sampleSeconds float64) s
 	if short.DurationSeconds > 0 {
 		filters = append(filters, fmt.Sprintf("trim=duration=%.3f", short.DurationSeconds))
 	}
-	filters = append(filters, gradeFilters(short.Effects)...)
+	filters = append(filters, gradeFilters(short.Effects, short.DurationSeconds)...)
 	// The notice background is translucent, so the frozen frame still bakes
 	// in source-world pixels. Crushing the shadows flattens them into a
 	// uniform dark backing while the bright text and icons stay untouched.

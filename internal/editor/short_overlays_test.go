@@ -168,3 +168,49 @@ func TestRunRejectsAnUnknownVictimReplaySpeed(t *testing.T) {
 		t.Fatalf("Run error = %v, want the speed rejected", err)
 	}
 }
+
+func TestEndCardHoldsTheLastFrameInsteadOfCoveringTheLastKill(t *testing.T) {
+	t.Parallel()
+	short := ShortEdit{
+		OutputFormat: OutputFormatShort9x16, OutputFPS: 60, DurationSeconds: 20,
+		Kills: []KillCue{{TimeSeconds: 8}, {TimeSeconds: 18.7}},
+		Parts: []ShortPart{
+			{Input: "a.mp4", DurationSeconds: 10, Kills: []KillCue{{TimeSeconds: 8}}},
+			{Input: "b.mp4", DurationSeconds: 10, TimelineStartSeconds: 10, Kills: []KillCue{{TimeSeconds: 8.7}}},
+		},
+		Overlays: ShortOverlays{PlayerCards: &PlayerCards{End: "end.png"}},
+	}
+	held := withEndCardHold(short)
+	if got := held.Parts[1].HoldAfterSeconds; got != 0.8 {
+		t.Fatalf("last part hold = %v, want 0.8 s so the card starts 0.6 s after the 18.7 s kill", got)
+	}
+	if held.DurationSeconds != 20.8 || short.Parts[1].HoldAfterSeconds != 0 {
+		t.Errorf("held duration = %v (input part hold %v), want 20.8 and the input untouched", held.DurationSeconds, short.Parts[1].HoldAfterSeconds)
+	}
+	if start, end, _ := statsCardWindow(held); start != 19.3 || end != 20.8 {
+		t.Errorf("end card spans %v..%v, want 19.3..20.8", start, end)
+	}
+	filter := CompilationFilter(held)
+	if !strings.Contains(filter, "setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop=48[pv1]") || !strings.Contains(filter, "apad=pad_dur=0.800000[pa1]") {
+		t.Errorf("compilation filter does not hold the last part for 48 frames:\n%s", filter)
+	}
+	if strings.Contains(filter, "tpad=stop_mode=clone:stop=48[pv0]") {
+		t.Errorf("the first part was held too:\n%s", filter)
+	}
+
+	early := short
+	early.Kills = []KillCue{{TimeSeconds: 8}, {TimeSeconds: 15}}
+	if got := withEndCardHold(early); got.DurationSeconds != 20 || got.Parts[1].HoldAfterSeconds != 0 {
+		t.Errorf("a kill well before the end held the Short: %+v", got.Parts[1])
+	}
+	noCard := short
+	noCard.Overlays = ShortOverlays{}
+	if got := withEndCardHold(noCard); got.DurationSeconds != 20 {
+		t.Errorf("a Short without a closing card was held to %v", got.DurationSeconds)
+	}
+	stats := short
+	stats.Overlays = ShortOverlays{StatsCard: &StatsCard{Player: "ZywOo"}}
+	if got := withEndCardHold(stats); got.DurationSeconds != 20.8 {
+		t.Errorf("stats card Short duration = %v, want it held to 20.8", got.DurationSeconds)
+	}
+}
