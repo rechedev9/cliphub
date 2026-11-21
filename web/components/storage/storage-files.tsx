@@ -564,8 +564,9 @@ async function deleteStorageEntry(file: StorageFile, videos: readonly Video[]): 
     await api.deleteMatch(file.jobId);
     return file.sizeBytes;
   }
+  const card = libraryVideoFor(videos, file);
+  if (card !== null && card.loteShort !== null) await api.deleteLoteShort(card.id, card.loteShort);
   const freed = await api.deleteStorageFile(file.path);
-  const cardId = libraryVideoFor(videos, file);
-  if (cardId !== null) await api.deleteVideo(cardId).catch(() => undefined);
+  if (card !== null && card.loteShort === null) await api.deleteVideo(card.id).catch(() => undefined);
   return freed;
 }

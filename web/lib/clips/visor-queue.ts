@@ -1,3 +1,4 @@
+import { isLote } from '../api/auto-shorts.ts';
 import { demoPlaybackItem, streamPlaybackItem, type MediaPlaybackItem } from '../api/playback.ts';
 import type { StreamJob } from '../api/streams.ts';
 import type { Video } from '../api/types.ts';
@@ -29,6 +30,7 @@ export type VisorEntry = {
   source: VisorSource;
   actions: VisorAction[];
   rendering: boolean;
+  renderFailed: boolean;
 };
 
 export type VisorFilter = { format: LibraryFilter; stage: LibraryStage };
@@ -52,28 +54,25 @@ export type VisorQueue = {
 type Clip = HubModel['clips'][number];
 type DemoEntries = { entries: VisorEntry[]; pending: boolean };
 
-const EVERY_SHORT: VisorFilter = { format: LIBRARY_FILTER.all, stage: LIBRARY_STAGE.all };
+export const EVERY_SHORT: VisorFilter = { format: LIBRARY_FILTER.all, stage: LIBRARY_STAGE.all };
 const NO_LOTES: ReadonlyMap<string, readonly LoteShort[]> = new Map();
 
 type EntryParts = Pick<VisorEntry, 'title' | 'mark' | 'source' | 'actions'>;
 
 function entryOf(item: MediaPlaybackItem | null, parts: (item: MediaPlaybackItem) => EntryParts): VisorEntry[] {
-  return item === null || item.format !== '9:16' ? [] : [{ id: item.id, item, ...parts(item), rendering: false }];
+  return item === null || item.format !== '9:16' ? [] : [{ id: item.id, item, ...parts(item), rendering: false, renderFailed: false }];
 }
 
 function heldWhileRendering(clip: Clip, shown: readonly VisorEntry[]): VisorEntry[] {
-  if (!isWorking(clip.state)) return [];
+  const rendering = isWorking(clip.state);
+  if (!rendering && clip.state !== OUTPUT_STATE.failed) return [];
   return shown
     .filter((entry) => entry.source.kind === 'demo' && entry.source.video.id === clip.video.id)
-    .map((entry) => ({ ...entry, actions: entry.actions.filter(changesNothing), rendering: true }));
+    .map((entry) => ({ ...entry, actions: entry.actions.filter(changesNothing), rendering, renderFailed: !rendering }));
 }
 
 function changesNothing(action: VisorAction): boolean {
-  return action.kind === VISOR_ACTION.download || action.kind === VISOR_ACTION.delete;
-}
-
-function isLote(video: Video): boolean {
-  return video.editConfig?.separateShorts === true;
+  return action.kind === VISOR_ACTION.download;
 }
 
 function mapName(video: Video): string {
@@ -132,19 +131,20 @@ function streamEntries(streams: readonly StreamJob[]): VisorEntry[] {
   );
 }
 
-function requestedEntry(entries: readonly VisorEntry[], requestedId: string): VisorEntry | undefined {
+export function findVisorEntry(entries: readonly VisorEntry[], requestedId: string): VisorEntry | undefined {
   return entries.find((entry) => entry.id === requestedId)
     ?? entries.find((entry) => entry.source.kind === 'demo' && entry.source.loteShort !== undefined && `demo:${entry.source.video.id}` === requestedId);
 }
 
-export function buildVisorQueue({ clips, streams, filter, requestedId, shown = [], lotes = NO_LOTES }: VisorQueueInput): VisorQueue {
+export function buildVisorQueue({ clips, streams, filter, requestedId: asked, shown = [], lotes = NO_LOTES }: VisorQueueInput): VisorQueue {
+  const requestedId = asked === '' ? null : asked;
   const { format, stage } = filter ?? EVERY_SHORT;
   if (stage === LIBRARY_STAGE.working) return { entries: [], start: null, fellBack: false, pending: false };
   const demo = matchesFormat(OUTPUT_TYPE.short, format) ? clips.map((clip) => demoEntriesOf(clip, { shown, lotes })) : [];
   const pending = demo.some((part) => part.pending);
   const stream = matchesFormat(LIBRARY_FILTER.stream, format) ? streamEntries(streams) : [];
   const entries = [...demo.flatMap((part) => part.entries), ...stream];
-  const requested = requestedId === null ? undefined : requestedEntry(entries, requestedId);
+  const requested = requestedId === null ? undefined : findVisorEntry(entries, requestedId);
   if (requestedId !== null && requested === undefined && pending) return { entries, start: null, fellBack: false, pending };
   const start = requested ?? entries[0] ?? null;
   return { entries, start, fellBack: requestedId !== null && requested === undefined && start !== null, pending };
@@ -152,7 +152,7 @@ export function buildVisorQueue({ clips, streams, filter, requestedId, shown = [
 
 function entryKey(entry: VisorEntry): string {
   const actions = entry.actions.map((action) => action.label);
-  return [entry.id, entry.item.playbackUrl, entry.rendering, entry.title, entry.mark ?? '', ...actions].join('\n');
+  return [entry.id, entry.item.playbackUrl, entry.rendering, entry.renderFailed, entry.title, entry.mark ?? '', ...actions].join('\n');
 }
 
 export function sameVisorEntries(a: readonly VisorEntry[], b: readonly VisorEntry[]): boolean {

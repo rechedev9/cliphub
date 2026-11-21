@@ -20,7 +20,7 @@ import {
   type HubModel,
   type HubSnapshot,
 } from '@/lib/clips/hub';
-import { LIBRARY_FILTER, LIBRARY_STAGE, librarySummary, outputStateCount, streamActivity } from '@/lib/clips/results';
+import { librarySummary, outputStateCount, streamActivity } from '@/lib/clips/results';
 import {
   LONG_VIDEOS_HREF,
   ORPHAN_MATCH_SEGMENT,
@@ -31,7 +31,7 @@ import {
   publishHref,
   visorHref,
 } from '@/lib/clips/routes';
-import { buildVisorQueue, sameVisorEntries, visorEntryId, type VisorEntry, type VisorFilter } from '@/lib/clips/visor-queue';
+import { buildVisorQueue, EVERY_SHORT, findVisorEntry, sameVisorEntries, visorEntryId, type VisorEntry, type VisorFilter } from '@/lib/clips/visor-queue';
 import { createCoalescedCall } from '@/lib/coalesced-call';
 import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { prettyMapName } from '@/lib/format';
@@ -68,7 +68,6 @@ const NEW_VIDEO_OPTIONS = [
 
 type LoadError = { offline: boolean };
 
-const EVERY_SHORT: VisorFilter = { format: LIBRARY_FILTER.all, stage: LIBRARY_STAGE.all };
 const VISOR_FALLBACK_TOAST_ID = 'visor-fallback';
 
 async function fetchSnapshot(prev: HubSnapshot | null): Promise<HubSnapshot> {
@@ -105,7 +104,7 @@ export default function ResultsPage(): ReactNode {
 function ResultsView(): ReactNode {
   const router = useRouter();
   const visorId = useSearchParams().get(VISOR_QUERY);
-  const [filter, setFilter] = useState<VisorFilter>({ format: LIBRARY_FILTER.all, stage: LIBRARY_STAGE.all });
+  const [filter, setFilter] = useState<VisorFilter>(EVERY_SHORT);
   const [listOrigin, setListOrigin] = useState<VisorFilter | null>(null);
   const [seenVisorId, setSeenVisorId] = useState(visorId);
   const [visorShown, setVisorShown] = useState<readonly VisorEntry[]>([]);
@@ -124,10 +123,16 @@ function ResultsView(): ReactNode {
   // not be dropped, and the poll must not publish the list it started with.
   const loadSnapshot = useRef(createCoalescedCall(() => fetchSnapshot(snapshotRef.current)));
 
+  const visorEntriesRef = useRef<readonly VisorEntry[]>([]);
+  useEffect(() => {
+    visorEntriesRef.current = visorShown;
+  }, [visorShown]);
+
   const openVisorOn = useCallback((entryId: string, origin: VisorFilter) => {
     if (new URLSearchParams(window.location.search).has(VISOR_QUERY)) {
-      setListOrigin((was) => (was === null ? null : origin));
-      window.history.replaceState(null, '', visorHref(entryId));
+      const kept = findVisorEntry(visorEntriesRef.current, entryId);
+      if (kept === undefined) setListOrigin((was) => (was === null ? null : origin));
+      window.history.replaceState(null, '', visorHref(kept?.id ?? entryId));
       return;
     }
     setListOrigin(origin);
@@ -183,11 +188,14 @@ function ResultsView(): ReactNode {
     }
   }, [accept]);
 
+  const { lotes, retry: retryLotes } = useLoteShorts(model?.clips ?? null);
+
   useEffect(() => {
     let active = true;
     const stop = startPollLoop({
       tick: async () => {
         const next = await refresh();
+        retryLotes();
         if (!active) return 'idle';
         return next === null || anyoneWorking(next, snapshotRef.current?.streams ?? []) ? 'fast' : 'idle';
       },
@@ -198,14 +206,13 @@ function ResultsView(): ReactNode {
       active = false;
       stop();
     };
-  }, [refresh]);
+  }, [refresh, retryLotes]);
 
   const onChange = useCallback(() => {
     void refresh();
   }, [refresh]);
 
   useWebMCPLibrary({ model, failed: loadError !== null });
-  const lotes = useLoteShorts(model?.clips ?? null);
 
   const moveVisor = useCallback((entryId: string) => {
     window.history.replaceState(null, '', visorHref(entryId));
@@ -224,7 +231,7 @@ function ResultsView(): ReactNode {
   const settled = visorQueue !== null && loadError === null;
   const startId = settled ? visorQueue.start?.id ?? null : null;
   const fellBack = settled && visorQueue.fellBack;
-  const nothingToShow = settled && visorQueue.start === null && !visorQueue.pending && listOrigin === null;
+  const nothingToShow = settled && visorQueue.start === null && !visorQueue.pending;
 
   useEffect(() => {
     if (startId === null || startId === visorId) return;
@@ -233,8 +240,8 @@ function ResultsView(): ReactNode {
   }, [startId, visorId, fellBack]);
 
   useEffect(() => {
-    if (nothingToShow) window.history.replaceState(null, '', RESULTS_HREF);
-  }, [nothingToShow]);
+    if (nothingToShow) closeVisor();
+  }, [nothingToShow, closeVisor]);
 
   const banner = loadError === null ? null : <HubBanner offline={loadError.offline} onRetry={onChange} />;
 

@@ -18,7 +18,7 @@ import {
   type LibraryItem,
   type LibraryStage,
 } from '@/lib/clips/results';
-import { visorEntryId } from '@/lib/clips/visor-queue';
+import { visorEntryId, type VisorFilter } from '@/lib/clips/visor-queue';
 import { cn } from '@/lib/utils';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { MediaPlayer } from '@/components/studio/media-player';
@@ -69,8 +69,8 @@ const SIZE_LABEL_ID = 'mis-videos-tamano';
 export type ClipsLensProps = {
   clips: HubModel['clips'];
   streams: readonly StreamJob[];
-  filter: { format: LibraryFilter; stage: LibraryStage };
-  onFilterChange: (filter: { format: LibraryFilter; stage: LibraryStage }) => void;
+  filter: VisorFilter;
+  onFilterChange: (filter: VisorFilter) => void;
   onChange: () => void;
   onOpenVisor: (entryId: string) => void;
 };

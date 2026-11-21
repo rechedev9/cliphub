@@ -3,7 +3,6 @@ import { dataPlane } from './dataplane.ts';
 import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.ts';
 import { apiFetch } from './edition-fetch.ts';
 import { reelPlaysSuffix, withAutoShortsCount } from './reel-identity.ts';
-import { DEFAULT_VARIANT } from './reel-store.ts';
 import type { RenderView } from './status-view.ts';
 import type { Video } from './types.ts';
 
@@ -61,16 +60,21 @@ export type AutoShortsFile = { name: string; url: string };
 /** A batch render's Shorts; replaced when the style's newest render is another video's. */
 export type AutoShortsFiles = { files: AutoShortsFile[]; replaced: boolean };
 
-export function loteVideoNames(render: RenderView, lote: { jobId: string; id: string }): string[] {
-  if (render.status !== 'ready' || render.editConfig?.separateShorts !== true || !render.segmentIds) return [];
+export function isLote(video: { editConfig?: { separateShorts?: boolean } }): boolean {
+  return video.editConfig?.separateShorts === true;
+}
+
+export function loteVideoNames(render: RenderView, lote: { jobId: string; id: string }): string[] | null {
+  if (render.status === 'queued' || render.status === 'rendering') return null;
+  if (render.status === 'none' || !isLote(render) || !render.segmentIds) return [];
   const current = `${lote.jobId}__${reelPlaysSuffix(render.segmentIds, render.editConfig)}`;
   return current === lote.id ? (render.videoNames ?? []) : [];
 }
 
-export function loteShortVideo(video: Video, short: string | null): Video {
-  if (short === null || !ARTIFACT_NAME.test(short) || video.editConfig?.separateShorts !== true || video.jobId === undefined) return video;
-  const url = dataPlane().videoUrl(video.jobId, video.variant ?? DEFAULT_VARIANT, short);
-  return { ...video, downloadUrl: pinRenderRevision(url, video.artifactRevision), thumbnailUrl: undefined };
+export function loteShortVideo(video: Video, request: { short: string | null; files: readonly AutoShortsFile[] | null }): Video {
+  if (!isLote(video)) return video;
+  const file = request.files?.find((entry) => entry.name === request.short);
+  return file === undefined ? video : { ...video, downloadUrl: file.url, thumbnailUrl: undefined };
 }
 
 export function loteCardAfterDelete(video: Video, change: { deleted: string; firstUrl: string; left: number }): Video {

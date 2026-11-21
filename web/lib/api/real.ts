@@ -40,7 +40,7 @@ import { batchItemError, parseRenderView, parseStatusView, type RawRenderView, t
 import { playsSelectionLabel } from '../format.ts';
 import { constrainEditConfig, isLandscapeRecap } from '../reel-brief.ts';
 import { apiFetch } from './edition-fetch.ts';
-import { loteCardAfterDelete, loteVideoNames } from './auto-shorts.ts';
+import { isLote, loteCardAfterDelete, loteVideoNames } from './auto-shorts.ts';
 
 /** Server roster row as returned by /api/demos/{jobId}/roster (steamid64). */
 type RosterPlayer = {
@@ -79,7 +79,6 @@ type RosterResponse = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-
 type BatchStatusEntry = { error: string; job?: undefined; render?: undefined } | ReadBatchStatusEntry;
 
 /** A row the server did read: the job's status view and its render state. */
@@ -88,7 +87,6 @@ type ReadBatchStatusEntry = { error?: undefined; job: JobStatusView | null; rend
 function batchKey(jobId: string, variant: string): string {
   return `${jobId}:${variant}`;
 }
-
 
 /** Pairs per recovery batch read; the batch-status route rejects more than 100. */
 const RECOVERY_BATCH_SIZE = 96;
@@ -127,8 +125,6 @@ async function readJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-
-
 /** Bare song key at full default mix; object when music or game gain is set. */
 export function buildMusicRequest(
   intent: Pick<ReelIntent, 'mode' | 'songId' | 'musicVolume' | 'gameVolume'>,
@@ -154,8 +150,6 @@ function musicChoiceFromEffective(music: EffectiveRenderMusic | undefined): Musi
   if (music.mode === 'clean') return {};
   return { songId: music.songId, musicVolume: music.musicVolume, gameVolume: music.gameVolume };
 }
-
-
 
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw new DOMException('La creación se canceló.', 'AbortError');
@@ -726,18 +720,17 @@ export class RealApiClient implements ApiClient {
     const intent = this.intents.get(id);
     const recovered = this.recovered.get(id);
     if (!intent && recovered) {
-      const lote = recovered.video.editConfig?.separateShorts === true;
-      const names = lote ? loteVideoNames(await this.fetchRenderStatus(recovered.jobId, recovered.variant), { jobId: recovered.jobId, id }) : [recovered.videoName];
-      await this.deleteRenderVideos(recovered.jobId, recovered.variant, names);
+      const target = { jobId: recovered.jobId, variant: recovered.variant, id };
+      await this.deleteRenderVideos({ ...target, names: isLote(recovered.video) ? await this.currentLoteNames(target) : [recovered.videoName] });
       this.recovered.delete(id);
       return;
     }
     if (!intent) return;
     const variant = variantOf(intent);
-    const names = intent.editConfig.separateShorts
-      ? loteVideoNames(await this.fetchRenderStatus(intent.jobId, variant), { jobId: intent.jobId, id })
+    const names = isLote(intent)
+      ? await this.currentLoteNames({ jobId: intent.jobId, variant, id })
       : [await this.resolveArtifactName(intent, variant)].filter((name): name is string => name !== undefined);
-    await this.deleteRenderVideos(intent.jobId, variant, names);
+    await this.deleteRenderVideos({ jobId: intent.jobId, variant, names });
     this.artifactNames.delete(id);
     this.intents.delete(id);
     this.reels.delete(id);
@@ -750,12 +743,12 @@ export class RealApiClient implements ApiClient {
     const recovered = intent ? undefined : this.recovered.get(id);
     const lote = intent ? { jobId: intent.jobId, variant: variantOf(intent) } : recovered;
     if (!lote) return;
-    const names = loteVideoNames(await this.fetchRenderStatus(lote.jobId, lote.variant), { jobId: lote.jobId, id });
+    const names = await this.currentLoteNames({ jobId: lote.jobId, variant: lote.variant, id });
     const left = names.filter((other) => other !== name);
     const first = left[0];
     if (left.length === names.length) return;
     if (first === undefined) return this.deleteVideo(id);
-    await this.deleteRenderVideos(lote.jobId, lote.variant, [name]);
+    await this.deleteRenderVideos({ jobId: lote.jobId, variant: lote.variant, names: [name] });
     const change = { deleted: name, firstUrl: dataPlane().videoUrl(lote.jobId, lote.variant, first), left: left.length };
     if (recovered) this.recovered.set(id, { ...recovered, videoName: first, video: loteCardAfterDelete(recovered.video, change) });
     if (!intent) return;
@@ -767,7 +760,13 @@ export class RealApiClient implements ApiClient {
     if (reel) this.reels.set(id, loteCardAfterDelete(reel, change));
   }
 
-  private async deleteRenderVideos(jobId: string, variant: string, names: readonly string[]): Promise<void> {
+  private async currentLoteNames(lote: { jobId: string; variant: string; id: string }): Promise<string[]> {
+    const names = loteVideoNames(await this.fetchRenderStatus(lote.jobId, lote.variant), lote);
+    if (names === null) throw new Error('Espera a que termine el render del lote para borrarlo.');
+    return names;
+  }
+
+  private async deleteRenderVideos({ jobId, variant, names }: { jobId: string; variant: string; names: readonly string[] }): Promise<void> {
     for (const name of names) {
       const res = await this.send((dp) => ({ url: dp.videoUrl(jobId, variant, name), init: { method: 'DELETE' } }));
       if (res.status !== 404 && !res.ok) await readJson<unknown>(res);

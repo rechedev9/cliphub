@@ -28,11 +28,11 @@ const ACTION_CLASS = 'h-11 w-full justify-start gap-3 px-3 text-body-sm motion-s
 export type VisorActionsProps = {
   entry: VisorEntry;
   onChange: () => void;
-  onDeleting: () => void;
+  onDeleted: () => void;
   className?: string;
 };
 
-export function VisorActions({ entry, onChange, onDeleting, className }: VisorActionsProps): ReactNode {
+export function VisorActions({ entry, onChange, onDeleted, className }: VisorActionsProps): ReactNode {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
   const { item, source } = entry;
@@ -43,7 +43,6 @@ export function VisorActions({ entry, onChange, onDeleting, className }: VisorAc
     else downloadMP4(item.playbackUrl, item.title);
   };
   const remove = (): Promise<void> => {
-    onDeleting();
     if (source.kind === 'stream') return streamsApi.deleteVideo(item.jobId, item.variant, source.clipId);
     return source.loteShort === undefined ? api.deleteVideo(source.video.id) : api.deleteLoteShort(source.video.id, source.loteShort.name);
   };
@@ -81,7 +80,7 @@ export function VisorActions({ entry, onChange, onDeleting, className }: VisorAc
           </Button>
         );
       })}
-      <DeleteVideoDialog title={entry.title} onConfirm={remove} open={deleteOpen} onOpenChange={setDeleteOpen} onDeleted={onChange} />
+      <DeleteVideoDialog title={entry.title} onConfirm={remove} open={deleteOpen} onOpenChange={setDeleteOpen} onDeleted={() => { onDeleted(); onChange(); }} />
       {source.kind === 'demo' && entry.actions.some((action) => action.kind === VISOR_ACTION.music) ? (
         <LibraryMusicDialog open={musicOpen} video={source.video} onOpenChange={setMusicOpen} onApplied={onChange} />
       ) : null}

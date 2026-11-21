@@ -25,7 +25,7 @@ import { StudioEmptyState } from '@/components/studio/empty-state';
 import { PublishAssistantPanel } from '@/components/videos/publish-assistant-panel';
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
 import { FullDemoEvidence } from '@/components/videos/full-demo-evidence';
-import { AutoShortsList } from '@/components/videos/auto-shorts-list';
+import { AutoShortsList, useAutoShortsFiles } from '@/components/videos/auto-shorts-list';
 import { VideoPoster } from '@/components/videos/video-poster';
 
 const FAST_POLL_MS = 1500;
@@ -60,6 +60,7 @@ export default function PublishPage({ params, searchParams }: PublishPageProps):
   const [playerOpen, setPlayerOpen] = useState(false);
   const [returnFocus, setReturnFocus] = useState<HTMLElement | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const loteView = useAutoShortsFiles(video);
 
   useEffect(() => {
     let active = true;
@@ -129,7 +130,7 @@ export default function PublishPage({ params, searchParams }: PublishPageProps):
   const mapName = map === '' ? '' : prettyMapName(map);
   const meta = [`${dims} · 60 fps`, mapName, score, timeAgo(video.createdAt)].filter((part) => part !== '').join(' · ');
   const description = publishSummary(video, { map, player, score });
-  const shown = loteShortVideo(video, short);
+  const shown = loteShortVideo(video, { short, files: loteView.status === 'ready' ? loteView.files : null });
   const playback = demoPlaybackItem(shown);
 
   function download(): void {
@@ -195,7 +196,7 @@ export default function PublishPage({ params, searchParams }: PublishPageProps):
           </div>
         </section>
         <FullDemoEvidence video={video} />
-        <AutoShortsList video={video} />
+        <AutoShortsList video={video} view={loteView} />
       </div>
 
       <aside className="studio-panel p-4">

@@ -6,7 +6,7 @@ import { FULL_DEMO_EDIT } from '../full-demo.ts';
 import { buildHubModel } from './hub.ts';
 import { DEFAULT_EDIT_CONFIG } from '../api/reel-store.ts';
 import type { LoteShort } from './visor-actions.ts';
-import { buildVisorQueue, sameVisorEntries, visorAfterDelete, visorEntryId } from './visor-queue.ts';
+import { buildVisorQueue, findVisorEntry, sameVisorEntries, visorAfterDelete, visorEntryId } from './visor-queue.ts';
 
 function demoVideo(id: string, overrides: Partial<Video> = {}): Video {
   return {
@@ -312,7 +312,7 @@ test('a Short on screen that renders again keeps its previous version with the m
   const held = buildVisorQueue({ clips: clipsOf(rendering, demoVideo('busy', { status: 'composing' })), streams: [], filter: null, requestedId: 'demo:a', shown });
   assert.deepEqual(held.entries.map((entry) => [entry.id, entry.rendering]), [['demo:a', true]]);
   assert.equal(held.entries[0]?.item.playbackUrl, shown[0]?.item.playbackUrl);
-  assert.deepEqual(actionsOf(held)[0]?.map((action) => action.kind), ['download', 'delete']);
+  assert.deepEqual(actionsOf(held)[0]?.map((action) => action.kind), ['download']);
   assert.equal(held.start?.id, 'demo:a');
 
   const rerendered = demoVideo('a', { reviewArtifactPrefix: 'renders/viral-60-clean/revisions/22222222-2222-4222-8222-222222222222/' });
@@ -324,8 +324,39 @@ test('a Short on screen that renders again keeps its previous version with the m
   assert.equal(sameVisorEntries(again.entries, held.entries), true);
   assert.equal(sameVisorEntries(after.entries, held.entries), false);
 
-  const failed = buildVisorQueue({ clips: clipsOf({ ...rendering, status: 'failed' }), streams: [], filter: null, requestedId: 'demo:a', shown });
-  assert.deepEqual(failed.entries, []);
+  const unseen = buildVisorQueue({ clips: clipsOf({ ...rendering, status: 'failed' }), streams: [], filter: null, requestedId: 'demo:a' });
+  assert.deepEqual(unseen.entries, []);
+});
+
+test('a Short on screen whose new render fails stays on its previous version, without Borrar, and says it failed', () => {
+  const ready = demoVideo('a', { createdAt: 2000 });
+  const shown = buildVisorQueue({ clips: clipsOf(ready, demoVideo('b')), streams: [], filter: null, requestedId: 'demo:a' }).entries;
+  const failed = buildVisorQueue({ clips: clipsOf({ ...ready, status: 'failed', downloadUrl: undefined }, demoVideo('b')), streams: [], filter: null, requestedId: 'demo:a', shown });
+  assert.deepEqual(failed.entries.map((entry) => [entry.id, entry.rendering, entry.renderFailed]), [['demo:a', false, true], ['demo:b', false, false]]);
+  assert.equal(failed.entries[0]?.item.playbackUrl, shown[0]?.item.playbackUrl);
+  assert.deepEqual(actionsOf(failed)[0]?.map((action) => action.kind), ['download']);
+  assert.deepEqual([failed.start?.id, failed.fellBack], ['demo:a', false]);
+  assert.equal(sameVisorEntries(failed.entries, shown), false);
+});
+
+test('a lote on screen whose new render fails keeps its Shorts', () => {
+  const lotes = loteShorts('seg-001', 'seg-004');
+  const shown = buildVisorQueue({ clips: clipsOf(loteVideo()), streams: [], filter: null, requestedId: null, lotes }).entries;
+  const failed = buildVisorQueue({ clips: clipsOf(loteVideo({ status: 'failed' })), streams: [], filter: null, requestedId: `demo:${LOTE_ID}/seg-004`, lotes, shown });
+  assert.deepEqual(failed.entries.map((entry) => [entry.id, entry.renderFailed]), [[`demo:${LOTE_ID}/seg-001`, true], [`demo:${LOTE_ID}/seg-004`, true]]);
+  assert.deepEqual([failed.start?.id, failed.fellBack], [`demo:${LOTE_ID}/seg-004`, false]);
+});
+
+test('an empty requested id starts on the first Short without saying it fell back', () => {
+  const queue = buildVisorQueue({ ...MIXED, filter: null, requestedId: '' });
+  assert.deepEqual([queue.start?.id, queue.fellBack], ['demo:short', false]);
+});
+
+test('a Short in the open queue is found by its id, and a lote by its card id', () => {
+  const entries = buildVisorQueue({ clips: clipsOf(demoVideo('a'), loteVideo()), streams: [], filter: null, requestedId: null, lotes: loteShorts('seg-004', 'seg-009') }).entries;
+  assert.equal(findVisorEntry(entries, 'demo:a')?.id, 'demo:a');
+  assert.equal(findVisorEntry(entries, `demo:${LOTE_ID}`)?.id, `demo:${LOTE_ID}/seg-004`);
+  assert.equal(findVisorEntry(entries, 'demo:gone'), undefined);
 });
 
 test('after Borrar the Visor moves to the next Short, to the previous one at the end, and closes on the last one', () => {

@@ -9,11 +9,11 @@ import { cn } from '@/lib/utils';
 import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
 import { VisorActions } from '@/components/clips-hub/visor-actions';
-import { PlatformLayerPicker, PlatformLayerShapes, usePlatformLayer } from './visor-platform-layer';
+import { PlatformLayerPicker, PlatformLayerShapes, usePlatformLayer } from '@/components/clips-hub/visor-platform-layer';
 
 const MUTED_STORAGE_KEY = 'cliphub-visor-muted';
 const WHEEL_STEP_PX = 40;
-const MOVE_COOLDOWN_MS = 420;
+const WHEEL_GESTURE_GAP_MS = 200;
 const DRAG_SHARE = 0.18;
 const FLICK_PX_PER_MS = 0.5;
 const TAP_PX = 6;
@@ -30,6 +30,7 @@ export type VisorProps = {
 };
 
 type Drag = { pointerId: number; startY: number; startAt: number; offset: number };
+type WheelGesture = { sum: number; lastAt: number; moved: boolean };
 
 function readMuted(): boolean {
   try {
@@ -48,12 +49,13 @@ function writeMuted(muted: boolean): boolean {
   }
 }
 
-export function Visor({ entries, currentId, onMove, onClose, onChange }: VisorProps): ReactNode {
+export function Visor({ entries: queued, currentId, onMove, onClose, onChange }: VisorProps): ReactNode {
+  const [unplayable, setUnplayable] = useState<ReadonlySet<string>>(() => new Set());
+  const entries = queued.filter((entry) => !unplayable.has(entry.id));
   const index = Math.max(0, entries.findIndex((entry) => entry.id === currentId));
   const current = entries[index];
   const stageRef = useRef<HTMLDivElement>(null);
-  const lastMoveAt = useRef(0);
-  const wheelSum = useRef(0);
+  const wheel = useRef<WheelGesture>({ sum: 0, lastAt: 0, moved: false });
   const drag = useRef<Drag | null>(null);
   const [dragOffset, setDragOffset] = useState<number | null>(null);
   const [muted, setMuted] = useState(readMuted);
@@ -63,10 +65,14 @@ export function Visor({ entries, currentId, onMove, onClose, onChange }: VisorPr
   const step = useCallback((delta: 1 | -1): void => {
     const next = entries[index + delta];
     if (next === undefined) return;
-    lastMoveAt.current = performance.now();
     setPaused(false);
     onMove(next.id);
   }, [entries, index, onMove]);
+
+  const shownId = current?.id;
+  useEffect(() => {
+    if (shownId !== undefined) stageRef.current?.focus({ preventScroll: true });
+  }, [shownId]);
 
   const toggleMuted = (): void => {
     setMuted((was) => {
@@ -93,15 +99,15 @@ export function Visor({ entries, currentId, onMove, onClose, onChange }: VisorPr
 
   const onWheel = (event: WheelEvent<HTMLDivElement>): void => {
     if (!ownsEvent(event)) return;
-    if (performance.now() - lastMoveAt.current < MOVE_COOLDOWN_MS) {
-      wheelSum.current = 0;
-      return;
-    }
-    wheelSum.current += event.deltaY;
-    if (Math.abs(wheelSum.current) < WHEEL_STEP_PX) return;
-    const delta = wheelSum.current > 0 ? 1 : -1;
-    wheelSum.current = 0;
-    step(delta);
+    const gesture = wheel.current;
+    const now = performance.now();
+    if (now - gesture.lastAt > WHEEL_GESTURE_GAP_MS) Object.assign(gesture, { sum: 0, moved: false });
+    gesture.lastAt = now;
+    if (gesture.moved) return;
+    gesture.sum += event.deltaY;
+    if (Math.abs(gesture.sum) < WHEEL_STEP_PX) return;
+    gesture.moved = true;
+    step(gesture.sum > 0 ? 1 : -1);
   };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
@@ -140,10 +146,14 @@ export function Visor({ entries, currentId, onMove, onClose, onChange }: VisorPr
   };
 
   if (current === undefined) return null;
-  const leaveDeleted = (): void => {
+  const leave = (): void => {
     const next = visorAfterDelete(entries, current.id);
     if (next === null) onClose();
     else onMove(next);
+  };
+  const leaveUnplayable = (): void => {
+    leave();
+    setUnplayable((was) => new Set([...was, current.id]));
   };
   const neighbours = [index - 1, index, index + 1].flatMap((at) => {
     const entry = entries[at];
@@ -155,6 +165,10 @@ export function Visor({ entries, currentId, onMove, onClose, onChange }: VisorPr
       <DialogPrimitive.Portal>
         <DialogPrimitive.Content
           aria-describedby={undefined}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            stageRef.current?.focus({ preventScroll: true });
+          }}
           onKeyDown={onKeyDown}
           onWheel={onWheel}
           className="fixed inset-0 z-50 grid grid-cols-[1fr_auto_1fr] content-start justify-items-center gap-x-4 gap-y-3 bg-background px-4 pt-3 pb-4 outline-none"
@@ -174,11 +188,15 @@ export function Visor({ entries, currentId, onMove, onClose, onChange }: VisorPr
 
           <div
             ref={stageRef}
+            tabIndex={-1}
+            role="group"
+            aria-roledescription="Short"
+            aria-label={current.title}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}
-            className="relative col-start-2 aspect-[9/16] h-[min(calc(100dvh_-_9rem),calc((100vw_-_28rem)_*_16_/_9))] touch-none overflow-hidden rounded-[2rem] border border-border-strong bg-black select-none"
+            className="relative col-start-2 aspect-[9/16] h-[min(calc(100dvh_-_9rem),calc((100vw_-_28rem)_*_16_/_9))] touch-none overflow-hidden rounded-[2rem] border border-border-strong bg-black outline-none select-none"
           >
             {neighbours.map(({ entry, offset }) => (
               <div
@@ -191,7 +209,7 @@ export function Visor({ entries, currentId, onMove, onClose, onChange }: VisorPr
                 )}
               >
                 {offset === 0 ? (
-                  <ActiveShort entry={entry} muted={muted} paused={paused} onPausedChange={setPaused} />
+                  <ActiveShort entry={entry} muted={muted} paused={paused} onPausedChange={setPaused} onUnplayable={leaveUnplayable} />
                 ) : (
                   <Poster url={entry.item.posterUrl} />
                 )}
@@ -200,7 +218,7 @@ export function Visor({ entries, currentId, onMove, onClose, onChange }: VisorPr
             <PlatformLayerShapes layer={layer} />
           </div>
 
-          <VisorActions key={current.id} entry={current} onChange={onChange} onDeleting={leaveDeleted} className="col-start-3 self-end justify-self-start" />
+          <VisorActions key={current.id} entry={current} onChange={onChange} onDeleted={leave} className="col-start-3 self-end justify-self-start" />
 
           <div className="col-start-2 flex items-center gap-2">
             <Button
@@ -248,9 +266,10 @@ type ActiveShortProps = {
   muted: boolean;
   paused: boolean;
   onPausedChange: (paused: boolean) => void;
+  onUnplayable: () => void;
 };
 
-function ActiveShort({ entry, muted, paused, onPausedChange }: ActiveShortProps): ReactNode {
+function ActiveShort({ entry, muted, paused, onPausedChange, onUnplayable }: ActiveShortProps): ReactNode {
   const videoRef = useRef<HTMLVideoElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const owner = useRef({});
@@ -297,6 +316,7 @@ function ActiveShort({ entry, muted, paused, onPausedChange }: ActiveShortProps)
         preload="auto"
         onPlay={() => onPausedChange(false)}
         onPause={() => onPausedChange(true)}
+        onError={() => { if (entry.renderFailed) onUnplayable(); }}
         className="size-full object-cover"
       />
       <div aria-hidden className="absolute inset-x-0 bottom-0 h-1 bg-white/20">

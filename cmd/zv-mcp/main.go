@@ -159,7 +159,8 @@ Beside the Short the Visor offers the card's actions: Editar, Cambiar música, P
 demo Short (an imported or recovered one only those it supports), Abrir proyecto, Descargar and Borrar for a stream Short;
 your tools for the same are change_video_music, delete_video and delete_stream_video. On a Short of a lote, Editar el lote and
 Cambiar música del lote render the whole lote again, while Descargar, Preparar publicación and Borrar act on that Short alone
-(delete_video with its name); Borrar on the last one also removes the lote's card.
+(delete_video with its name); Borrar on the last one also removes the lote's card. While a Short on screen renders again,
+and after that render fails, the Visor keeps playing its previous version and offers only Descargar.
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
 library_norms gives the same rates over every team of the library: say a team is above or below the usual only against it.
 team_side_stats is the team's Estadísticas tab: figures overall and per side, each with group_avg over the

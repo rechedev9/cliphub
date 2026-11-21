@@ -11,7 +11,7 @@ const LOTE = ['seg-001', 'seg-004', 'seg-007'];
 const LOTE_ID = `${JOB}__auto__${LOTE.join('_')}`;
 
 type Seedable = { intents: Map<string, ReelIntent>; reels: Map<string, Video>; recovered: Map<string, RecoveredVideo> };
-type Disk = { videos: string[]; segmentIds: string[]; separateShorts: boolean };
+type Disk = { videos: string[]; segmentIds: string[]; separateShorts: boolean; status?: string };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -58,7 +58,7 @@ function diskFetch(disk: Disk): { deletes: string[]; restore: () => void } {
         format: 'short-9x16', kill_effect: 'punch-in', transition: 'flash', cover_strategy: 'generated-gameplay',
         intro: false, outro: false, hook_text: false, kill_counter: false, separate_shorts: disk.separateShorts,
       };
-      return json({ status: 'ready', videos: disk.videos, segment_ids: disk.segmentIds, edit });
+      return json({ status: disk.status ?? 'ready', videos: disk.videos, segment_ids: disk.segmentIds, edit });
     }
     if (method === 'DELETE' && url.startsWith(prefix)) {
       const name = url.slice(prefix.length);
@@ -193,5 +193,29 @@ test('Borrar on a Short that already left the lote deletes nothing and keeps the
     await client.deleteLoteShort(LOTE_ID, 'seg-001');
     assert.deepEqual(fake.deletes, []);
     assert.equal((await client.getVideo(LOTE_ID))?.title, 'Auto-Shorts: 1 Short - Viral');
+  } finally { fake.restore(); }
+});
+
+test('Borrar on a lote card while the lote renders again deletes nothing, keeps the card and fails', async () => {
+  const disk: Disk = { videos: [...LOTE], segmentIds: LOTE, separateShorts: true, status: 'rendering' };
+  const fake = diskFetch(disk);
+  try {
+    const client = new RealApiClient();
+    seedIntent(client, { id: LOTE_ID, segmentIds: LOTE, separateShorts: true, title: LOTE_TITLE });
+    await assert.rejects(client.deleteVideo(LOTE_ID));
+    assert.deepEqual(fake.deletes, []);
+    assert.equal((client as unknown as Seedable).intents.has(LOTE_ID), true);
+  } finally { fake.restore(); }
+});
+
+test('Borrar on one Short of a lote while the lote renders again deletes nothing and fails', async () => {
+  const disk: Disk = { videos: [...LOTE], segmentIds: LOTE, separateShorts: true, status: 'queued' };
+  const fake = diskFetch(disk);
+  try {
+    const client = new RealApiClient();
+    seedIntent(client, { id: LOTE_ID, segmentIds: LOTE, separateShorts: true, title: LOTE_TITLE });
+    await assert.rejects(client.deleteLoteShort(LOTE_ID, 'seg-004'));
+    assert.deepEqual(fake.deletes, []);
+    assert.equal((await client.getVideo(LOTE_ID))?.title, LOTE_TITLE);
   } finally { fake.restore(); }
 });

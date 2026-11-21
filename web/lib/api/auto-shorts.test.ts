@@ -50,17 +50,20 @@ test('a batch render found on disk is recovered under the batch reel id', () => 
   assert.equal(recoveredVideo(job, 'viral-60-clean', render, new Set([`${JOB}__auto__seg-002_seg-005`])), null);
 });
 
-test('the publishing page of a lote opened on one of its Shorts shows and downloads that Short', () => {
+test('the publishing page of a lote opened on one of its Shorts shows and downloads that Short, and an unknown Short shows the lote', () => {
   const lote = {
     id: `${JOB}__auto__seg-001_seg-004`, jobId: JOB, title: 'Auto-Shorts: 2 Shorts - Viral', map: 'de_mirage', score: '', mode: 'clean' as const,
     variant: 'viral-60-clean', status: 'ready' as const, createdAt: 0, editConfig: { ...DEFAULT_EDIT_CONFIG, separateShorts: true },
     downloadUrl: `/api/demos/${JOB}/renders/viral-60-clean/videos/seg-001`, thumbnailUrl: `/api/demos/${JOB}/renders/viral-60-clean/covers/seg-001`,
   };
-  const shown = loteShortVideo(lote, 'seg-004');
-  assert.equal(shown.downloadUrl, `/api/demos/${JOB}/renders/viral-60-clean/videos/seg-004`);
+  const files = ['seg-001', 'seg-004'].map((name) => ({ name, url: `/api/demos/${JOB}/renders/viral-60-clean/videos/${name}?revision=r2` }));
+  const shown = loteShortVideo(lote, { short: 'seg-004', files });
+  assert.equal(shown.downloadUrl, `/api/demos/${JOB}/renders/viral-60-clean/videos/seg-004?revision=r2`);
   assert.equal(shown.thumbnailUrl, undefined);
-  assert.equal(loteShortVideo(lote, null), lote);
-  assert.equal(loteShortVideo(lote, '../x'), lote);
+  assert.equal(loteShortVideo(lote, { short: null, files }), lote);
+  assert.equal(loteShortVideo(lote, { short: 'seg-009', files }), lote);
+  assert.equal(loteShortVideo(lote, { short: '../x', files }), lote);
+  assert.equal(loteShortVideo(lote, { short: 'seg-004', files: null }), lote);
   const single = { ...lote, editConfig: DEFAULT_EDIT_CONFIG };
-  assert.equal(loteShortVideo(single, 'seg-004'), single);
+  assert.equal(loteShortVideo(single, { short: 'seg-004', files }), single);
 });
