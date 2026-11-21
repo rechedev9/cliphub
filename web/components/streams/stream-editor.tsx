@@ -3,51 +3,31 @@
 import { streamTitle } from '@/lib/streams/title';
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { toast } from 'sonner';
 import {
   STREAM_VARIANTS,
   streamsApi,
   type NormalizedRect,
   type StreamClipRange,
   type StreamEditPlan,
-  type StreamerBannerPlatform,
   type StreamJob,
-  type StreamPlay,
   type StreamRenderState,
-  type StreamVariant,
 } from '@/lib/api/streams';
 import { api } from '@/lib/api';
-import { isKeyDropBannerStyle, type AffiliateFamily, type Song } from '@/lib/api/types';
+import { isKeyDropBannerStyle, type Song } from '@/lib/api/types';
+import { keyDropPreviewSourceSeconds } from '@/lib/stream-preview';
 import {
-  clampKeyDropBannerPosition,
-  clampStreamerBannerPosition,
-  keyDropPreviewSourceSeconds,
-  resolveKeyDropBannerPosition,
-  resolveStreamerBannerPosition,
-} from '@/lib/stream-preview';
-import {
-  DEFAULT_KEYDROP_CODE,
-  DEFAULT_KEYDROP_END_SECONDS,
-  DEFAULT_KEYDROP_START_SECONDS,
-  FULL_SOURCE_MOMENT_MAX_SECONDS,
-  STREAMER_NICK_RE,
   formatStreamClock,
   clipOutputDuration,
-  insertClipSorted,
-  nextClipId,
   planFingerprint,
   resolveFaceCrop,
-  resolveStreamerBannerPlatform,
   streamSourceLabel,
 } from '@/lib/streams/plan';
-import { streamCreativeBrief } from '@/lib/streams/brief';
 import { PLAYBACK_STATUS, type PlaybackStatus } from '@/lib/playback-session';
 import { STREAM_PLAYBACK_MODE, streamClipIndexAt, streamPlaybackIndex, type StreamPlaybackMode } from '@/lib/stream-playback';
 import {
   STREAM_STEP,
   STREAM_STEP_LABEL,
   shortsWord,
-  streamBlockerHint,
   streamCtaLabel,
   streamEditorSteps,
   streamOutputSummary,
@@ -56,44 +36,22 @@ import {
   streamTimelineLabel,
   type StreamStep,
 } from '@/lib/streams/editor';
-import {
-  persistAffiliateFamily,
-  selectAffiliateFamily,
-  selectAffiliateOff,
-  selectAffiliateStyle,
-} from '@/lib/affiliate-banner';
 import { StreamFrameSession } from '@/components/streams/stream-frame-session';
-import { StreamLayoutBar } from '@/components/streams/stream-layout-bar';
 import { StreamStepsRail, type StreamAutosaveState } from '@/components/streams/stream-steps-rail';
 import { StreamMonitor } from '@/components/streams/stream-monitor';
 import { StreamSourceTimeline } from '@/components/streams/stream-source-timeline';
-import { StreamLayoutStep, StreamStepPanel } from '@/components/streams/stream-step-panel';
-import { StreamBannerControls } from '@/components/streams/banner-controls';
-import { isKeyDropCodeValid, StreamKeyDropBannerControls } from '@/components/streams/keydrop-banner-controls';
-import { StreamClipEditor } from '@/components/streams/clip-editor';
-import { StreamMusicCard } from '@/components/streams/music-card';
-import { StreamRenderStage } from '@/components/streams/render-stage';
-import { StreamRenderResults } from '@/components/streams/render-results';
+import { StreamStepPanel } from '@/components/streams/stream-step-panel';
 import { StreamFooter } from '@/components/streams/stream-footer';
-import { Button } from '@/components/ui/button';
-import { MomentRange } from '@/components/streams/moment-range';
-import { CreativeBriefList } from '@/components/studio/creative-brief';
-import { streamRangeIssue, streamRangeOverlapIssue, streamRangesIssue } from '@/lib/clip-edit';
+import { streamRangesIssue } from '@/lib/clip-edit';
 import { StreamSaveButton } from '@/components/streams/stream-save-button';
-import { StreamDetectedPlays } from '@/components/streams/detected-plays';
-import { clipsWithPlays, playCoveringClips } from '@/lib/streams/plays';
-import { StreamKillFeedControls } from '@/components/streams/kill-feed-controls';
-import { killFeedDefaultPosition } from '@/lib/streams/kill-feed';
-import {
-  pruneStreamGroups,
-  restoreStreamGroup,
-  streamMusicOffsets,
-  streamPlanShorts,
-  type StreamShort,
-} from '@/lib/streams/groups';
-import { StreamReviewList } from '@/components/streams/stream-review-list';
-import { DisclosureSummary } from '@/components/ui/disclosure-summary';
+import { streamMusicOffsets, streamPlanShorts, type StreamShort } from '@/lib/streams/groups';
 import { recordRendererError } from '@/lib/desktop-telemetry';
+import { streamBannerActions } from '@/components/streams/stream-banner-actions';
+import { StreamLookStep } from '@/components/streams/stream-look-step';
+import { StreamMomentsStep } from '@/components/streams/stream-moments-step';
+import { StreamResultsStep, StreamResultVideo } from '@/components/streams/stream-results-step';
+import { StreamReviewStep } from '@/components/streams/stream-review-step';
+import { useStreamMoments } from '@/components/streams/use-stream-moments';
 
 /** Guided stream editor: moments, appearance, review, then finished videos. */
 export function StreamEditor({
@@ -149,12 +107,8 @@ export function StreamEditor({
   const resultClip = resultVideos[resultIndex];
   const resultTitle = resultClip?.title || `Short ${resultIndex + 1}`;
   const hasRenderedVideos = hasRender && resultVideos.length > 0;
-  const [draftRange, setDraftRange] = useState({ start_seconds: 0, end_seconds: Math.min(sourceDuration, 30) });
-  const [creatingMoment, setCreatingMoment] = useState(plan.clips.length === 0);
   const [playbackMode, setPlaybackMode] = useState<StreamPlaybackMode>(STREAM_PLAYBACK_MODE.source);
   const panelRef = useRef<HTMLDivElement>(null);
-  const latestPlanRef = useRef(plan);
-  latestPlanRef.current = plan;
   const selectedClip = plan.clips.find((c) => c.id === selectedClipId) ?? plan.clips[0];
   const [songs, setSongs] = useState<Song[] | null>(null);
   const [previewSeconds, setPreviewSeconds] = useState(0);
@@ -217,7 +171,6 @@ export function StreamEditor({
 
   const busy = stage === 'rendering' || saving;
 
-  const setVariant = (variant: StreamVariant) => onPlanChange({ ...plan, variant });
   const faceCrop = resolveFaceCrop(plan.face_crop);
   const setFaceCrop = (rect: NormalizedRect) => onPlanChange({ ...plan, face_crop: rect, face_crop_reviewed: false });
   const confirmFaceCrop = () => {
@@ -246,149 +199,37 @@ export function StreamEditor({
     setPreviewPlaying(true);
   }
 
-  const bannerPosition = resolveStreamerBannerPosition(plan.variant, plan.streamer_banner?.position_y);
-  const bannerPlatform = resolveStreamerBannerPlatform(plan.streamer_banner?.platform, job.source_url);
-  const keyDropPosition = resolveKeyDropBannerPosition(plan.keydrop_banner?.position_y);
-  const setStreamerNick = (nick: string) =>
-    onPlanChange({ ...plan, streamer_banner: { ...plan.streamer_banner, nick, platform: bannerPlatform } });
-  const setStreamerPlatform = (platform: StreamerBannerPlatform) =>
-    onPlanChange({ ...plan, streamer_banner: { ...plan.streamer_banner, platform } });
-  const setStreamerPosition = (position: number) =>
-    onPlanChange({
-      ...plan,
-      streamer_banner: {
-        ...plan.streamer_banner,
-        position_y: clampStreamerBannerPosition(position),
-        platform: bannerPlatform,
-      },
-    });
-  const resetStreamerPosition = () => {
-    const { position_y: _position, ...banner } = plan.streamer_banner ?? {};
-    onPlanChange({ ...plan, streamer_banner: { ...banner, platform: bannerPlatform } });
-  };
-  const setStreamerSlide = (slideEnabled: boolean) =>
-    onPlanChange({
-      ...plan,
-      streamer_banner: { ...plan.streamer_banner, slide_enabled: slideEnabled, platform: bannerPlatform },
-    });
-
-  const longestClipSeconds = Math.max(0, ...plan.clips.map((c) => Math.max(0, c.end_seconds - c.start_seconds)));
-  const keyDropStart = plan.keydrop_banner?.start_seconds ?? DEFAULT_KEYDROP_START_SECONDS;
-  const keyDropEndRaw = plan.keydrop_banner?.end_seconds;
-  const keyDropEnd =
-    keyDropEndRaw ??
-    (longestClipSeconds > 0 ? Math.min(DEFAULT_KEYDROP_END_SECONDS, longestClipSeconds) : DEFAULT_KEYDROP_END_SECONDS);
-
   /** Keep the 9:16 monitor inside the plate's on-screen window so code edits are visible. */
   const revealKeyDropOnPreview = (start: number, end: number) => {
     setPreviewPlaying(false);
     seek(keyDropPreviewSourceSeconds(plan.clips, previewSecondsRef.current, start, end));
   };
+  const banners = streamBannerActions({ job, plan, onPlanChange, revealKeyDrop: revealKeyDropOnPreview });
+  const { bannerPlatform, keyDropStart, keyDropEnd, setKeyDropPosition, setStreamerPosition } = banners;
 
-  const setKeyDropFamily = (family: AffiliateFamily) => {
-    const selected = selectAffiliateFamily(
-      { family: plan.keydrop_banner?.family ?? '', style: plan.keydrop_banner?.style ?? '' },
-      family,
-    );
-    setKeyDropStyle(selected.style, selected.family);
-  };
-
-  const setKeyDropStyle = (style: string, family = plan.keydrop_banner?.family ?? '') => {
-    if (!style) {
-      const off = selectAffiliateOff();
-      onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, family: off.family, style: off.style } });
-      return;
-    }
-    const selected = selectAffiliateStyle(family, style);
-    const next = {
-      ...plan.keydrop_banner,
-      family: persistAffiliateFamily(selected.family, selected.style) || selected.family,
-      style: selected.style,
-    };
-    // First enable: pin the default sponsor code and a short callout window so
-    // the rendered plate never depends on an implicit ZACKCSGO fallback alone.
-    if (!plan.keydrop_banner?.code?.trim()) {
-      next.code = DEFAULT_KEYDROP_CODE;
-    }
-    if (plan.keydrop_banner?.start_seconds === undefined) {
-      next.start_seconds = DEFAULT_KEYDROP_START_SECONDS;
-    }
-    if (plan.keydrop_banner?.end_seconds === undefined) {
-      next.end_seconds =
-        longestClipSeconds > 0
-          ? Math.min(DEFAULT_KEYDROP_END_SECONDS, longestClipSeconds)
-          : DEFAULT_KEYDROP_END_SECONDS;
-    }
-    const start = next.start_seconds ?? DEFAULT_KEYDROP_START_SECONDS;
-    const end = next.end_seconds ?? DEFAULT_KEYDROP_END_SECONDS;
-    revealKeyDropOnPreview(start, end);
-    onPlanChange({ ...plan, keydrop_banner: next });
-  };
-  const setKeyDropCode = (code: string) => {
-    revealKeyDropOnPreview(keyDropStart, keyDropEnd);
-    onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, code } });
-  };
-  const setKeyDropPosition = (position: number) =>
-    onPlanChange({
-      ...plan,
-      keydrop_banner: { ...plan.keydrop_banner, position_y: clampKeyDropBannerPosition(position) },
-    });
-  const resetKeyDropPosition = () => {
-    const { position_y: _position, ...banner } = plan.keydrop_banner ?? {};
-    onPlanChange({ ...plan, keydrop_banner: banner });
-  };
-  const setKeyDropSlide = (slideEnabled: boolean) =>
-    onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, slide_enabled: slideEnabled } });
-  const setKeyDropStart = (startSeconds: number) => {
-    const start = Math.max(0, startSeconds);
-    let end = keyDropEnd;
-    if (end <= start) end = start + 0.5;
-    revealKeyDropOnPreview(start, end);
-    onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, start_seconds: start, end_seconds: end } });
-  };
-  const setKeyDropEnd = (endSeconds: number) => {
-    let end = Math.max(0.1, endSeconds);
-    if (longestClipSeconds > 0) end = Math.min(end, longestClipSeconds);
-    let start = keyDropStart;
-    if (end <= start) start = Math.max(0, end - 0.5);
-    revealKeyDropOnPreview(start, end);
-    onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, start_seconds: start, end_seconds: end } });
-  };
-
-  const setClips = (clips: StreamClipRange[]) => onPlanChange(pruneStreamGroups({ ...plan, clips }));
-  const selectClip = (clip: StreamClipRange) => {
-    setSelectedClipId(clip.id);
-    setCreatingMoment(false);
-    setPlaybackMode(STREAM_PLAYBACK_MODE.selected);
-    seek(clip.start_seconds);
-    panelRef.current?.scrollTo(0, 0);
-  };
-  const draftClip: StreamClipRange = { id: 'draft', ...draftRange };
-  const draftCandidates = insertClipSorted(plan.clips, draftClip);
-  const draftIndex = draftCandidates.findIndex((c) => c.id === 'draft');
-  const draftIssue =
-    streamRangeIssue(draftClip, sourceDuration, draftIndex) ?? streamRangeOverlapIssue(draftCandidates, draftIndex);
-  const addMoment = (range = draftRange) => {
-    const sourceTitle = streamTitle(job);
-    const title = plan.clips.length ? `${sourceTitle} ${plan.clips.length + 1}` : sourceTitle;
-    const clip: StreamClipRange = { id: nextClipId(), ...range, title };
-    const next = insertClipSorted(plan.clips, clip);
-    const index = next.findIndex((c) => c.id === clip.id);
-    const issue = streamRangeIssue(clip, sourceDuration, index) ?? streamRangeOverlapIssue(next, index);
-    if (issue) {
-      toast.error(issue);
-      return;
-    }
-    setClips(next);
-    selectClip(clip);
-  };
-  const addPlays = (plays: StreamPlay[]) => {
-    const next = clipsWithPlays(plan.clips, plays, nextClipId);
-    const added = next.find((clip) => !plan.clips.some((c) => c.id === clip.id));
-    if (!added) return;
-    setClips(next);
-    selectClip(added);
-  };
+  const moments = useStreamMoments({
+    job,
+    plan,
+    sourceDuration,
+    onPlanChange,
+    focusClip: (clip: StreamClipRange) => {
+      setSelectedClipId(clip.id);
+      setPlaybackMode(STREAM_PLAYBACK_MODE.selected);
+      seek(clip.start_seconds);
+      panelRef.current?.scrollTo(0, 0);
+    },
+    clearSelection: () => {
+      setSelectedClipId(null);
+      setPlaybackMode('source');
+      setPreviewPlaying(false);
+    },
+    showDraft: () => {
+      setPlaybackMode('source');
+      setPreviewPlaying(false);
+      panelRef.current?.scrollTo(0, 0);
+    },
+  });
+  const selectClip = moments.selectClip;
   const selectShort = (short: StreamShort) => {
     const [first] = short.clips;
     if (!first) return;
@@ -400,59 +241,9 @@ export function StreamEditor({
     setPreviewPlaying(false);
     seek(seconds);
   };
-  const removeClips = (removed: readonly StreamClipRange[]) => {
-    const [clip] = removed;
-    if (!clip) return;
-    const ids = new Set(removed.map((c) => c.id));
-    const groups = plan.groups?.filter((g) => g.clip_ids.some((id) => ids.has(id))) ?? [];
-    const next = plan.clips.filter((c) => !ids.has(c.id));
-    setClips(next);
-    if (next.length) selectClip(next[0]);
-    else {
-      setSelectedClipId(null);
-      setCreatingMoment(true);
-      setPlaybackMode('source');
-      setPreviewPlaying(false);
-    }
-    toast(removed.length === 1 ? 'Momento quitado' : `${removed.length} momentos quitados`, {
-      position: 'top-right',
-      action: {
-        label: 'Deshacer',
-        onClick: () => {
-          const current = latestPlanRef.current;
-          const missing = removed.filter((r) => !current.clips.some((c) => c.id === r.id));
-          if (missing.length) {
-            const restored: StreamEditPlan = { ...current, clips: missing.reduce(insertClipSorted, current.clips) };
-            onPlanChange(groups.reduce(restoreStreamGroup, restored));
-          }
-          selectClip(clip);
-        },
-      },
-    });
-  };
-  const removeClip = (clip: StreamClipRange) => removeClips([clip]);
-  const removePlay = (play: StreamPlay) => removeClips(playCoveringClips(plan.clips, play));
-
-  const setMusicKey = (key: string) => onPlanChange({ ...plan, music: key ? { key, volume: plan.music?.volume } : {} });
-  const setMusicVolume = (volume: number) => onPlanChange({ ...plan, music: { key: plan.music?.key, volume } });
-  const setGrade = (grade: boolean) => onPlanChange({ ...plan, effects: { grade } });
-  const killFeed = plan.kill_feed ?? {};
-  const killFeedPosition =
-    killFeed.position_y ??
-    killFeedDefaultPosition({
-      variant: plan.variant,
-      gameplayCrop: plan.gameplay_crop ?? { x: 0, y: 0, width: 1, height: 1 },
-      width: job.probe?.width ?? 0,
-      height: job.probe?.height ?? 0,
-    });
-  const setKillFeedCentered = (centered: boolean) =>
-    onPlanChange({ ...plan, kill_feed: centered ? { ...killFeed, centered } : {} });
-  const setKillFeedPosition = (position_y: number) => onPlanChange({ ...plan, kill_feed: { ...killFeed, position_y } });
-  const resetKillFeedPosition = () => onPlanChange({ ...plan, kill_feed: { centered: killFeed.centered } });
 
   const musicKey = plan.music?.key ?? '';
   const musicLabel = songs?.find((song) => song.id === musicKey)?.title ?? musicKey;
-  const briefItems = useMemo(() => streamCreativeBrief(plan, musicLabel), [plan, musicLabel]);
   const steps = streamEditorSteps({ plan, musicLabel, renderState, stale, rendering: stage === 'rendering' });
   const activeClip =
     plan.clips.find((c) => previewSeconds >= c.start_seconds && previewSeconds < c.end_seconds) ??
@@ -483,7 +274,6 @@ export function StreamEditor({
     activeStep === STREAM_STEP.layout && variantMeta.needsFaceCrop
       ? { rect: faceCrop, disabled: busy, onChange: setFaceCrop }
       : undefined;
-  const isVod = job.source_kind === 'vod';
   const sourceMeta = [
     streamSourceLabel(job.source_url) ?? 'Archivo local',
     sourceDuration > 0 ? formatStreamClock(sourceDuration) : null,
@@ -494,209 +284,54 @@ export function StreamEditor({
   let stepContent: ReactNode;
   if (activeStep === STREAM_STEP.layout) {
     stepContent = (
-      <>
-        <StreamLayoutBar variant={plan.variant} disabled={busy} onVariantChange={setVariant} />
-        <StreamLayoutStep
-          needsFaceCrop={variantMeta.needsFaceCrop}
-          faceCropReviewed={plan.face_crop_reviewed === true}
-        />
-        <StreamKillFeedControls
-          centered={killFeed.centered ?? false}
-          position={killFeedPosition}
-          hasExplicitPosition={killFeed.position_y !== undefined}
-          busy={busy}
-          onCenteredChange={setKillFeedCentered}
-          onPositionChange={setKillFeedPosition}
-          onResetPosition={resetKillFeedPosition}
-        />
-        <details className="rounded-md border border-border-subtle p-3">
-          <DisclosureSummary className="font-semibold text-body-sm">Banners · opcional</DisclosureSummary>
-          <div className="mt-3 flex flex-col gap-3">
-            <StreamBannerControls
-              nick={plan.streamer_banner?.nick ?? ''}
-              nickValid={STREAMER_NICK_RE.test(plan.streamer_banner?.nick?.trim() ?? '')}
-              platform={bannerPlatform}
-              position={bannerPosition}
-              hasExplicitPosition={plan.streamer_banner?.position_y !== undefined}
-              slideEnabled={plan.streamer_banner?.slide_enabled ?? false}
-              busy={busy}
-              onNickChange={setStreamerNick}
-              onPlatformChange={setStreamerPlatform}
-              onPositionChange={setStreamerPosition}
-              onResetPosition={resetStreamerPosition}
-              onSlideChange={setStreamerSlide}
-            />
-            <StreamKeyDropBannerControls
-              family={plan.keydrop_banner?.family ?? ''}
-              style={isKeyDropBannerStyle(plan.keydrop_banner?.style) ? plan.keydrop_banner.style : ''}
-              code={plan.keydrop_banner?.code ?? ''}
-              codeValid={isKeyDropCodeValid(plan.keydrop_banner?.code ?? '')}
-              position={keyDropPosition}
-              hasExplicitPosition={plan.keydrop_banner?.position_y !== undefined}
-              slideEnabled={plan.keydrop_banner?.slide_enabled ?? false}
-              startSeconds={keyDropStart}
-              endSeconds={keyDropEnd}
-              clipDurationSeconds={longestClipSeconds}
-              busy={busy}
-              onFamilyChange={setKeyDropFamily}
-              onStyleChange={setKeyDropStyle}
-              onCodeChange={setKeyDropCode}
-              onPositionChange={setKeyDropPosition}
-              onResetPosition={resetKeyDropPosition}
-              onSlideChange={setKeyDropSlide}
-              onStartChange={setKeyDropStart}
-              onEndChange={setKeyDropEnd}
-            />
-          </div>
-        </details>
-        <details className="rounded-md border border-border-subtle p-3">
-          <DisclosureSummary className="font-semibold text-body-sm">Música y realce de color · opcional</DisclosureSummary>
-          <div className="mt-3 flex flex-col gap-3">
-            <StreamMusicCard
-              songs={songs}
-              musicKey={musicKey}
-              volume={plan.music?.volume ?? 0.25}
-              grade={plan.effects?.grade ?? false}
-              busy={busy}
-              onMusicKey={setMusicKey}
-              onMusicVolume={setMusicVolume}
-              onGrade={setGrade}
-            />
-          </div>
-        </details>
-      </>
+      <StreamLookStep job={job} plan={plan} banners={banners} songs={songs} busy={busy} onPlanChange={onPlanChange} />
     );
   } else if (activeStep === STREAM_STEP.cuts) {
     stepContent = (
-      <>
-        <p className="text-body-sm text-fg-2">
-          {isVod
-            ? 'Añade las jugadas que quieras como Short, o marca tú el inicio y el final. Cada momento será un Short vertical.'
-            : 'Reproduce el original, marca el inicio y el final y añade el momento. Cada momento será un Short.'}
-        </p>
-        {isVod ? (
-          <StreamDetectedPlays
-            jobId={job.id}
-            vod
-            clips={plan.clips}
-            disabled={busy}
-            onAdd={addPlays}
-            onRemove={removePlay}
-            onSeek={seekSource}
-          />
-        ) : null}
-        {creatingMoment ? (
-          <section aria-label="Nuevo momento" className="flex flex-col gap-3 rounded-md border border-stream/40 p-3">
-            <h3 className="font-semibold">Nuevo momento</h3>
-            <MomentRange
-              id="draft"
-              start={draftRange.start_seconds}
-              end={draftRange.end_seconds}
-              duration={sourceDuration}
-              playhead={previewSeconds}
-              disabled={busy}
-              invalid={draftIssue !== null}
-              onChange={(patch) => setDraftRange((current) => ({ ...current, ...patch }))}
-            />
-            {draftIssue ? (
-              <p role="alert" className="text-body-sm text-destructive">
-                {draftIssue}
-              </p>
-            ) : null}
-            <Button variant="stream" disabled={busy || draftIssue !== null} onClick={() => addMoment()}>
-              Añadir este momento
-            </Button>
-            {!plan.clips.length && sourceDuration > 0 && sourceDuration <= FULL_SOURCE_MOMENT_MAX_SECONDS ? (
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => addMoment({ start_seconds: 0, end_seconds: sourceDuration })}
-              >
-                Usar vídeo completo
-              </Button>
-            ) : null}
-            {plan.clips.length ? (
-              <Button variant="ghost" onClick={() => setCreatingMoment(false)}>
-                Cancelar nuevo momento
-              </Button>
-            ) : null}
-          </section>
-        ) : (
-          <>
-            <StreamClipEditor
-              clips={plan.clips}
-              sourceDuration={sourceDuration}
-              selectedClipId={selectedClip?.id ?? null}
-              onChange={setClips}
-              onSelect={selectClip}
-              onRemove={removeClip}
-              disabled={busy}
-              playheadSeconds={previewSeconds}
-              onPlay={playSelected}
-            />
-            <Button
-              variant="outline"
-              disabled={busy}
-              onClick={() => {
-                setDraftRange({
-                  start_seconds: Math.min(previewSeconds, Math.max(0, sourceDuration - 1)),
-                  end_seconds: Math.min(sourceDuration, previewSeconds + 10),
-                });
-                setCreatingMoment(true);
-                setPlaybackMode('source');
-                setPreviewPlaying(false);
-                panelRef.current?.scrollTo(0, 0);
-              }}
-            >
-              Nuevo momento
-            </Button>
-          </>
-        )}
-      </>
+      <StreamMomentsStep
+        job={job}
+        plan={plan}
+        moments={moments}
+        sourceDuration={sourceDuration}
+        playheadSeconds={previewSeconds}
+        selectedClipId={selectedClip?.id ?? null}
+        busy={busy}
+        onSeekSource={seekSource}
+        onPlaySelected={playSelected}
+      />
     );
   } else if (activeStep === STREAM_STEP.review) {
     stepContent = (
-      <>
-        <p className="text-body-sm text-fg-2">Revisa cada Short antes de exportar. Se guardará un vídeo por Short: junta momentos para que salgan en el mismo.</p>
-        {blocker ? (
-          <Button variant="outline" className="h-auto whitespace-normal" onClick={() => navigateStep(blocker)}>
-            {rangesIssue || streamBlockerHint(plan)}
-          </Button>
-        ) : null}
-        <StreamReviewList
-          plan={plan}
-          shorts={shorts}
-          selectedShortId={selectedShort?.id ?? null}
-          disabled={busy}
-          onSelect={selectShort}
-          onPlanChange={onPlanChange}
-        />
-        <Button variant="outline" disabled={!selectedClip} onClick={playSelected}>
-          Ver este Short
-        </Button>
-        <details className="rounded border border-border-subtle p-3">
-          <DisclosureSummary className="text-body-sm">Detalles de la exportación</DisclosureSummary>
-          <CreativeBriefList items={briefItems} />
-        </details>
-      </>
+      <StreamReviewStep
+        plan={plan}
+        shorts={shorts}
+        selectedShortId={selectedShort?.id ?? null}
+        musicLabel={musicLabel}
+        blocker={blocker}
+        rangesIssue={rangesIssue}
+        canPlay={!!selectedClip}
+        busy={busy}
+        onNavigate={navigateStep}
+        onSelectShort={selectShort}
+        onPlaySelected={playSelected}
+        onPlanChange={onPlanChange}
+      />
     );
-  } else if (stage === 'rendering') {
+  } else {
     stepContent = (
-      <StreamRenderStage shorts={shorts} renderState={renderState} variantLabel={variantMeta.label} />
-    );
-  } else if (renderedPlan && hasRender) {
-    stepContent = (
-      <StreamRenderResults
-        renderState={renderState}
+      <StreamResultsStep
         job={job}
+        stage={stage}
+        shorts={shorts}
+        renderState={renderState}
         renderedPlan={renderedPlan}
+        hasRender={hasRender}
         stale={stale}
+        variantLabel={variantMeta.label}
         selectedClipId={resultClip?.clip_id}
         onSelect={setSelectedClipId}
       />
     );
-  } else {
-    stepContent = <p className="text-body-sm text-fg-3">Todavía no hay vídeos exportados.</p>;
   }
 
   return (
@@ -736,21 +371,7 @@ export function StreamEditor({
         <div className="grid min-h-0 flex-1 grid-cols-1 @[48rem]/content:grid-cols-[minmax(0,1fr)_340px]">
           <section className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto p-4" aria-label="Monitor">
             {activeStep === 'results' && hasRender && resultClip && renderedPlan ? (
-              <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
-                <h2 className="font-semibold">{resultTitle}</h2>
-                <video
-                  key={`${resultClip.clip_id}:${renderedPlan.updated_at}`}
-                  aria-label="Vídeo final"
-                  controls
-                  playsInline
-                  preload="metadata"
-                  src={streamsApi.videoUrl(job.id, renderedPlan.variant, resultClip.clip_id, renderedPlan.updated_at)}
-                  className="min-h-0 max-h-[60vh] max-w-full rounded-md bg-black"
-                />
-                <p className="text-label text-fg-3">
-                  {formatStreamClock(resultClip.duration_seconds ?? 0)} · 1080 × 1920
-                </p>
-              </div>
+              <StreamResultVideo job={job} renderedPlan={renderedPlan} video={resultClip} title={resultTitle} />
             ) : (
               <>
                 <StreamMonitor

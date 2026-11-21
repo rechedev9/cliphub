@@ -516,7 +516,7 @@
   "components/streams/render-results.tsx": 3,
   "components/streams/render-stage.tsx": 14,
   "components/streams/step-card.tsx": 1,
-  "components/streams/stream-editor.tsx": 12,
+  "components/streams/stream-editor.tsx": 10,
   "components/streams/stream-footer.tsx": 2,
   "components/streams/stream-frame-session.tsx": 9,
   "components/streams/stream-layout-bar.tsx": 1,
