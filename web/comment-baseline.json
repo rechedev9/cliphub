@@ -937,7 +937,7 @@
   "lib/produce/pre-roll.ts": 8,
   "lib/produce/round-ordinals.ts": 6,
   "lib/produce/short-create-error.ts": 4,
-  "lib/produce/short-draft.ts": 8,
+  "lib/produce/short-draft.ts": 9,
   "lib/produce/short-preview-timeline.ts": 14,
   "lib/produce/short-selection.test.ts": 1,
   "lib/produce/short-selection.ts": 21,
