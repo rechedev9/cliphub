@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "jsPlugins": ["../tools/oxlint-no-comments/plugin.mjs"],
   "plugins": ["typescript", "unicorn"],
   "categories": {
     "correctness": "off"
@@ -15,6 +16,7 @@
     "dist-installer/"
   ],
   "rules": {
+    "cliphub/no-comments": "error",
     "@typescript-eslint/ban-ts-comment": "error",
     "no-array-constructor": "error",
     "@typescript-eslint/no-duplicate-enum-values": "error",
@@ -52,6 +54,7 @@
   },
   "overrides": [
     { "files": ["src/main.ts"], "rules": { "max-lines": ["error", { "max": 1047 }] } },
-    { "files": ["scripts/build-publication.test.mjs"], "rules": { "max-lines": ["error", { "max": 1343 }] } }
+    { "files": ["scripts/build-publication.test.mjs"], "rules": { "max-lines": ["error", { "max": 1343 }] } },
+    { "files": ["scripts/isolated-userdata.cjs"], "rules": { "@typescript-eslint/no-require-imports": "off" } }
   ]
 }

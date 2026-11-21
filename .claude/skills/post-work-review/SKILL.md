@@ -15,7 +15,7 @@ Stage exactly what the commit will hold. Leave other people's edits and `scratch
 
 - Every item of [Diff review](../diff-review/SKILL.md) on the staged diff: MCP parity, the 1000-line cap, dead code, store contracts, no e2e or evidence files, no secrets, rules moving with the code.
 - TypeScript: no `any`, `as` (except `as const`), `!`, `@ts-ignore`, `@ts-expect-error` or lint disables outside test mocks. No re-exports, one block of static imports at the top, and a typed options object for more than two parameters.
-- Comments: one or two lines, only for a reason or an invariant the code does not show. Delete one that restates the code or tells history.
+- Comments: none. New code has no comments and a frozen file never gains one (`TestNoComments`, oxlint `cliphub/no-comments`). After you delete comments, lower the baselines as the failure message says.
 - UI copy is Spanish with accents and no em or en dashes. A user-visible change was checked by hand in a throwaway profile ([Verify in Studio](../verify-in-studio/SKILL.md)).
 - Each new or changed test catches a regression you can name. A test that only pins authored text or counts is rewritten to the invariant or deleted.
 - A fix for a production failure adds its incident to `docs/incidents.md` when the rule files point there.
