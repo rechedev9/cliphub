@@ -38,6 +38,23 @@ type TranscribeJob struct {
 	Audio    string
 	Speech   []library.VoiceSpan
 	Progress func(share float64)
+	Track    int
+	Clip     *library.VoiceSpan
+}
+
+func (j TranscribeJob) inSourceTime(lines []Line) []Line {
+	if j.Clip == nil {
+		return lines
+	}
+	for i := range lines {
+		lines[i].StartMS += j.Clip.StartMS
+		lines[i].EndMS += j.Clip.StartMS
+		for w := range lines[i].Words {
+			lines[i].Words[w].StartMS += j.Clip.StartMS
+			lines[i].Words[w].EndMS += j.Clip.StartMS
+		}
+	}
+	return lines
 }
 
 // Line is one transcribed phrase in audio time.
@@ -66,7 +83,7 @@ func (t *Transcriber) Transcribe(ctx context.Context, job TranscribeJob) ([]Line
 		return nil, err
 	}
 	defer os.RemoveAll(dir)
-	audio, err := decodeTrack(ctx, t.opts.Media, job.Audio, dir)
+	audio, err := decodeTrack(ctx, t.opts.Media, job, dir)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +107,7 @@ func (t *Transcriber) Transcribe(ctx context.Context, job TranscribeJob) ([]Line
 			job.Progress(float64(from+len(batch)) / float64(len(regions)))
 		}
 	}
-	return keepSpoken(lines, speech), nil
+	return job.inSourceTime(keepSpoken(lines, speech)), nil
 }
 
 type nemoBatch struct {

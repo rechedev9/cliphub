@@ -12,6 +12,7 @@ import { StreamMusicCard } from '@/components/streams/music-card';
 import type { StreamBannerActions } from '@/components/streams/stream-banner-actions';
 import { StreamLayoutBar } from '@/components/streams/stream-layout-bar';
 import { StreamLayoutStep } from '@/components/streams/stream-step-panel';
+import { clipStretch, StreamSubtitlesPanel, type StreamSubtitlesVideo } from '@/components/streams/stream-subtitles-panel';
 import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 
 export function StreamLookStep({
@@ -20,10 +21,12 @@ export function StreamLookStep({
   banners,
   songs,
   busy,
+  subtitlesVideo,
   onPlanChange,
 }: {
   job: StreamJob;
   plan: StreamEditPlan;
+  subtitlesVideo: StreamSubtitlesVideo | null;
   banners: StreamBannerActions;
   songs: Song[] | null;
   busy: boolean;
@@ -47,6 +50,7 @@ export function StreamLookStep({
     onPlanChange({ ...plan, kill_feed: centered ? { ...killFeed, centered } : {} });
   const setKillFeedPosition = (position_y: number) => onPlanChange({ ...plan, kill_feed: { ...killFeed, position_y } });
   const resetKillFeedPosition = () => onPlanChange({ ...plan, kill_feed: { centered: killFeed.centered } });
+  const stretches = plan.clips.map(clipStretch);
 
   return (
     <>
@@ -114,6 +118,12 @@ export function StreamLookStep({
             onMusicVolume={setMusicVolume}
             onGrade={setGrade}
           />
+        </div>
+      </details>
+      <details className="rounded-md border border-border-subtle p-3">
+        <DisclosureSummary className="font-semibold text-body-sm">Subtítulos · opcional</DisclosureSummary>
+        <div className="mt-3">
+          <StreamSubtitlesPanel jobId={job.id} kind="shorts" video={subtitlesVideo} stretches={stretches} disabled={busy} />
         </div>
       </details>
     </>

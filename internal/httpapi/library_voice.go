@@ -72,12 +72,14 @@ func WithVoice(deps VoiceDeps) Option {
 type voiceJob struct {
 	matchID uuid.UUID
 	demo    bool
+	stream  bool
 }
 
 type voiceService struct {
 	deps     VoiceDeps
 	queue    chan voiceJob
 	mu       sync.Mutex
+	streamMu sync.Mutex
 	progress map[uuid.UUID]float64
 	// demoJobs is the extraction state of each demo's in-game voice while it runs or after it failed.
 	demoJobs map[uuid.UUID]string

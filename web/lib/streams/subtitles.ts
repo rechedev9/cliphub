@@ -1,0 +1,174 @@
+import { apiFetch } from '../api/edition-fetch.ts';
+import type { VoiceTranscriber, VoiceTranscriptState } from '../api/voice.ts';
+import { isInstall, isRecord, isTranscriptState, optionalString } from '../produce/subtitles.ts';
+import { formatStreamClock } from './plan.ts';
+
+export type StreamVoiceLine = {
+  id: string;
+  start_ms: number;
+  end_ms: number;
+  text: string;
+  corrected: boolean;
+  original_text?: string;
+  discarded: boolean;
+};
+
+export type StreamVoiceSpan = { start_ms: number; end_ms: number };
+
+export type StreamSubtitles = { shorts: boolean; summary: boolean; hidden: Record<string, string[]> };
+
+export type StreamTranscript = {
+  state: VoiceTranscriptState;
+  error?: string;
+  progress?: number;
+  availability: string;
+  spans: StreamVoiceSpan[];
+  pending: StreamVoiceSpan[];
+  lines: StreamVoiceLine[];
+  transcriber: VoiceTranscriber;
+  subtitles: StreamSubtitles;
+};
+
+export type StreamSubtitlesKind = 'shorts' | 'summary';
+
+export type Stretch = { start: number; end: number };
+
+export type StreamSubtitleRow = {
+  id: string; clock: string; text: string; corrected: boolean; original: string | null; discarded: boolean; hidden: boolean;
+};
+
+export const SUMMARY_VIDEO = 'summary';
+
+export function streamSubtitlesStatus(availability: string): { enabled: boolean; reason: string | null } {
+  switch (availability) {
+    case 'available':
+      return { enabled: true, reason: null };
+    case 'no_audio':
+      return { enabled: false, reason: 'Este vídeo no tiene audio, así que no hay nada que transcribir.' };
+    default:
+      return {
+        enabled: false,
+        reason: 'Este stream solo tiene una pista con tu voz y el juego mezclados. Los subtítulos aún no están disponibles para estos streams: graba el micro en una pista aparte.',
+      };
+  }
+}
+
+export function streamSubtitleRows(input: { lines: readonly StreamVoiceLine[]; windows: readonly Stretch[]; hidden: readonly string[] }): StreamSubtitleRow[] {
+  return input.lines
+    .filter((line) => input.windows.some((window) => line.start_ms >= window.start * 1000 && line.start_ms < window.end * 1000))
+    .toSorted((a, b) => a.start_ms - b.start_ms)
+    .map((line) => ({
+      id: line.id,
+      clock: formatStreamClock(line.start_ms / 1000),
+      text: line.text,
+      corrected: line.corrected,
+      original: line.corrected && line.original_text ? line.original_text : null,
+      discarded: line.discarded,
+      hidden: input.hidden.includes(line.id),
+    }));
+}
+
+export function stretchesKey(stretches: readonly Stretch[]): string {
+  return stretches.map((stretch) => `${stretch.start.toFixed(3)}-${stretch.end.toFixed(3)}`).toSorted().join('|');
+}
+
+export function streamSubtitleNote(transcript: StreamTranscript): string | null {
+  if (transcript.transcriber.state !== 'installed') return 'Instala la transcripción para crear los subtítulos.';
+  switch (transcript.state) {
+    case 'queued':
+    case 'running':
+      return `Transcribiendo lo que dices en estos momentos… ${Math.round((transcript.progress ?? 0) * 100)} %. Puedes seguir editando.`;
+    case 'failed':
+      return 'La transcripción falló en este PC. Prueba a transcribir de nuevo.';
+    default:
+      return null;
+  }
+}
+
+function isLine(value: unknown): value is StreamVoiceLine {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.start_ms === 'number' && typeof value.end_ms === 'number'
+    && typeof value.text === 'string' && typeof value.corrected === 'boolean' && typeof value.discarded === 'boolean' && optionalString(value.original_text);
+}
+
+function isSpan(value: unknown): value is StreamVoiceSpan {
+  return isRecord(value) && typeof value.start_ms === 'number' && typeof value.end_ms === 'number';
+}
+
+function isIdList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((id) => typeof id === 'string');
+}
+
+function isSubtitles(value: unknown): value is StreamSubtitles {
+  return isRecord(value) && typeof value.shorts === 'boolean' && typeof value.summary === 'boolean'
+    && isRecord(value.hidden) && Object.values(value.hidden).every(isIdList);
+}
+
+export function parseStreamSubtitles(value: unknown): StreamSubtitles | null {
+  if (!isSubtitles(value)) return null;
+  return { shorts: value.shorts, summary: value.summary, hidden: value.hidden };
+}
+
+export function parseStreamTranscript(value: unknown): StreamTranscript | null {
+  if (!isRecord(value) || !isTranscriptState(value.state) || typeof value.availability !== 'string' || !optionalString(value.error)) return null;
+  const { state, availability, error, progress, spans, pending, lines, transcriber } = value;
+  if (progress !== undefined && typeof progress !== 'number') return null;
+  if (!Array.isArray(spans) || !spans.every(isSpan) || !Array.isArray(pending) || !pending.every(isSpan)) return null;
+  if (!Array.isArray(lines) || !lines.every(isLine) || !isInstall(transcriber)) return null;
+  const subtitles = parseStreamSubtitles(value.subtitles);
+  if (subtitles === null) return null;
+  return {
+    state, availability, spans, pending, lines, transcriber, subtitles,
+    ...(error === undefined ? {} : { error }),
+    ...(progress === undefined ? {} : { progress }),
+  };
+}
+
+export class StreamSubtitlesError extends Error {
+  readonly code: string | undefined;
+
+  constructor(status: number, code: string | undefined) {
+    super(`stream subtitles ${status}`);
+    this.code = code;
+  }
+}
+
+async function readAnswer(response: Response): Promise<unknown> {
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) throw new StreamSubtitlesError(response.status, isRecord(body) && typeof body.code === 'string' ? body.code : undefined);
+  return body;
+}
+
+function jsonInit(method: string, body: unknown): RequestInit {
+  return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+}
+
+function transcriptPath(jobId: string): string {
+  return `/api/streams/${encodeURIComponent(jobId)}/transcript`;
+}
+
+async function readTranscript(response: Response): Promise<StreamTranscript> {
+  const transcript = parseStreamTranscript(await readAnswer(response));
+  if (transcript === null) throw new Error('stream transcript: unexpected answer');
+  return transcript;
+}
+
+export async function fetchStreamTranscript(jobId: string): Promise<StreamTranscript> {
+  return readTranscript(await apiFetch(transcriptPath(jobId), { cache: 'no-store' }));
+}
+
+export async function transcribeStream(jobId: string, stretches: readonly Stretch[]): Promise<StreamTranscript> {
+  const spans = stretches.map((stretch) => ({ start_seconds: stretch.start, end_seconds: stretch.end }));
+  return readTranscript(await apiFetch(transcriptPath(jobId), jsonInit('POST', { spans })));
+}
+
+export async function patchStreamVoiceLine(target: { jobId: string; lineId: string }, patch: { text: string } | { discarded: boolean }): Promise<void> {
+  await readAnswer(await apiFetch(`${transcriptPath(target.jobId)}/lines/${encodeURIComponent(target.lineId)}`, jsonInit('PATCH', patch)));
+}
+
+export type StreamSubtitlesPatch = { shorts: boolean } | { summary: boolean } | { video: string; line_id: string; hidden: boolean };
+
+export async function patchStreamSubtitles(jobId: string, patch: StreamSubtitlesPatch): Promise<StreamSubtitles> {
+  const subtitles = parseStreamSubtitles(await readAnswer(await apiFetch(`/api/streams/${encodeURIComponent(jobId)}/subtitles`, jsonInit('PATCH', patch))));
+  if (subtitles === null) throw new Error('stream subtitles: unexpected answer');
+  return subtitles;
+}

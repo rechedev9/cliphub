@@ -48,6 +48,7 @@ import { streamMusicOffsets, streamPlanShorts, type StreamShort } from '@/lib/st
 import { recordRendererError } from '@/lib/desktop-telemetry';
 import { streamBannerActions } from '@/components/streams/stream-banner-actions';
 import { StreamLookStep } from '@/components/streams/stream-look-step';
+import { clipStretch } from '@/components/streams/stream-subtitles-panel';
 import { StreamMomentsStep } from '@/components/streams/stream-moments-step';
 import { StreamResultsStep, StreamResultVideo } from '@/components/streams/stream-results-step';
 import { StreamReviewStep } from '@/components/streams/stream-review-step';
@@ -434,7 +435,8 @@ export function StreamEditor({
   let stepContent: ReactNode;
   if (activeStep === STREAM_STEP.layout) {
     stepContent = (
-      <StreamLookStep job={job} plan={plan} banners={banners} songs={songs} busy={busy} onPlanChange={onPlanChange} />
+      <StreamLookStep job={job} plan={plan} banners={banners} songs={songs} busy={busy} onPlanChange={onPlanChange}
+        subtitlesVideo={selectedShort ? { id: selectedShort.id, windows: selectedShort.clips.map(clipStretch) } : null} />
     );
   } else if (activeStep === STREAM_STEP.cuts) {
     stepContent = (

@@ -148,12 +148,20 @@ func (m Media) EncodePCM(ctx context.Context, job PCMEncodeJob) error {
 }
 
 // RawPCM writes a recording as the raw 16 kHz mono s16le the local speech programs read.
-func (m Media) RawPCM(ctx context.Context, src, dst string) error {
+func (m Media) RawPCM(ctx context.Context, job PCMJob) error {
 	if m.FFmpeg == "" {
 		return ErrNoFFmpeg
 	}
-	return m.run(ctx, []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-protocol_whitelist", localProtocols, "-i", src, "-map", "0:a:0",
-		"-ac", "1", "-ar", strconv.Itoa(SampleRate), "-f", "s16le", dst})
+	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-protocol_whitelist", localProtocols}
+	if c := job.Clip; c != nil {
+		args = append(args, "-ss", millisArg(c.StartMS), "-t", millisArg(c.EndMS-c.StartMS))
+	}
+	return m.run(ctx, append(args, "-i", job.Src, "-map", fmt.Sprintf("0:a:%d", job.Track),
+		"-ac", "1", "-ar", strconv.Itoa(SampleRate), "-f", "s16le", job.Dst))
+}
+
+func millisArg(ms int64) string {
+	return strconv.FormatFloat(float64(ms)/1000, 'f', 3, 64)
 }
 
 // Speech decodes a file to PCM and finds where someone talks.

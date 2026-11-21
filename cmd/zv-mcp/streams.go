@@ -228,6 +228,7 @@ func registerStreamTools(server *mcp.Server, s *studio) {
 
 	registerStreamRenderTools(server, s)
 	registerStreamPlanTools(server, s)
+	registerStreamTranscriptTools(server, s)
 }
 
 // checkStreamImport takes exactly one source. The link is checked against the
