@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Download, FolderOpen, Music, Pencil, Trash2, UploadCloud, type LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -35,7 +35,13 @@ export type VisorActionsProps = {
 export function VisorActions({ entry, onChange, onDeleted, className }: VisorActionsProps): ReactNode {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
+  const opener = useRef<HTMLButtonElement | null>(null);
   const { item, source } = entry;
+
+  const returnFocus = (event: Event): void => {
+    event.preventDefault();
+    opener.current?.focus({ preventScroll: true });
+  };
 
   const download = (): void => {
     if (source.kind === 'demo' && source.loteShort !== undefined) downloadMP4(source.loteShort.url, entry.title);
@@ -47,7 +53,8 @@ export function VisorActions({ entry, onChange, onDeleted, className }: VisorAct
     return source.loteShort === undefined ? api.deleteVideo(source.video.id) : api.deleteLoteShort(source.video.id, source.loteShort.name);
   };
 
-  const press = (action: VisorAction): void => {
+  const press = (action: VisorAction, button: HTMLButtonElement): void => {
+    opener.current = button;
     if (action.kind === VISOR_ACTION.music) setMusicOpen(true);
     if (action.kind === VISOR_ACTION.download) download();
     if (action.kind === VISOR_ACTION.delete) setDeleteOpen(true);
@@ -74,15 +81,15 @@ export function VisorActions({ entry, onChange, onDeleted, className }: VisorAct
           );
         }
         return (
-          <Button key={action.kind} type="button" variant="ghost" className={cn(ACTION_CLASS, tone)} onClick={() => press(action)}>
+          <Button key={action.kind} type="button" variant="ghost" className={cn(ACTION_CLASS, tone)} onClick={(event) => press(action, event.currentTarget)}>
             <Icon aria-hidden />
             {action.label}
           </Button>
         );
       })}
-      <DeleteVideoDialog title={entry.title} onConfirm={remove} open={deleteOpen} onOpenChange={setDeleteOpen} onDeleted={() => { onDeleted(); onChange(); }} />
+      <DeleteVideoDialog title={entry.title} onConfirm={remove} open={deleteOpen} onOpenChange={setDeleteOpen} onDeleted={() => { onDeleted(); onChange(); }} onCloseAutoFocus={returnFocus} />
       {source.kind === 'demo' && entry.actions.some((action) => action.kind === VISOR_ACTION.music) ? (
-        <LibraryMusicDialog open={musicOpen} video={source.video} onOpenChange={setMusicOpen} onApplied={onChange} />
+        <LibraryMusicDialog open={musicOpen} video={source.video} onOpenChange={setMusicOpen} onApplied={onChange} onCloseAutoFocus={returnFocus} />
       ) : null}
     </div>
   );
