@@ -29,7 +29,7 @@ test('the bulk add takes only kill jugadas that no momento covers', () => {
 
 test('the bulk button label carries how many jugadas it adds', () => {
   assert.equal(bulkAddLabel(19), 'Añadir las 19 con kill');
-  assert.match(bulkAddLabel(1), /\b1\b/);
+  assert.equal(bulkAddLabel(1), 'Añadir la que queda con kill');
   assert.doesNotMatch(bulkAddLabel(0), /Añadir/);
 });
 

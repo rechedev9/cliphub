@@ -44,7 +44,7 @@ function DetectionSettings({
           <span id="voice-peaks-label" className="text-body-sm font-semibold">
             Incluir picos de voz
           </span>
-          <span className="text-meta text-fg-3">Momentos en los que gritas, aunque no haya kill.</span>
+          <span className="text-meta text-fg-3">Jugadas en las que gritas, aunque no haya kill.</span>
         </span>
         <Switch
           tone="stream"
@@ -153,7 +153,7 @@ function PlayRow({
                 · <Mic aria-hidden className="size-3" /> con voz
               </span>
             ) : null}
-            {play.marked ? <span>· Marcado a propósito</span> : null}
+            {play.marked ? <span>· Voz muy alta</span> : null}
           </span>
         </span>
       </button>
@@ -286,7 +286,7 @@ export function StreamDetectedPlays({
       {scan?.status === 'idle' && !requestError ? (
         <>
           <p className="text-body-sm text-fg-2">
-            Busca tus kills en el kill feed de CS2 y los momentos en que subes la voz, y crea un momento por cada jugada.
+            Busca tus kills en la kill feed de CS2 y las veces que subes la voz. Luego eliges qué jugadas añadir a tus momentos.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" disabled={disabled} onClick={() => void start()}>

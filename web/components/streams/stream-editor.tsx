@@ -28,10 +28,9 @@ import { STREAM_PLAYBACK_MODE, streamClipIndexAt, streamPlaybackIndex, type Stre
 import {
   STREAM_STEP,
   STREAM_STEP_LABEL,
-  shortsWord,
   streamCtaLabel,
   streamEditorSteps,
-  streamOutputSummary,
+  streamFooterLabels,
   streamPlanBlocker,
   streamRenderQueued,
   streamTimelineLabel,
@@ -53,7 +52,6 @@ import { StreamMomentsStep } from '@/components/streams/stream-moments-step';
 import { StreamResultsStep, StreamResultVideo } from '@/components/streams/stream-results-step';
 import { StreamReviewStep } from '@/components/streams/stream-review-step';
 import { useStreamMoments } from '@/components/streams/use-stream-moments';
-import { momentsFooterHint, momentsFooterText } from '@/lib/streams/moments';
 import { momentZoomWindow } from '@/lib/streams/moment-edges';
 
 /** Guided stream editor: moments, appearance, review, then finished videos. */
@@ -310,6 +308,7 @@ export function StreamEditor({
   const blocker = rangesIssue ? STREAM_STEP.cuts : streamPlanBlocker(plan);
   const ctaDisabled = busy || (activeStep === 'cuts' && (!plan.clips.length || rangesIssue !== null));
   const panelTitle = STREAM_STEP_LABEL[activeStep];
+  const footer = streamFooterLabels({ step: activeStep, plan, stale });
   const cropEditor =
     activeStep === STREAM_STEP.layout && variantMeta.needsFaceCrop
       ? { rect: faceCrop, disabled: busy, onChange: setFaceCrop }
@@ -551,8 +550,8 @@ export function StreamEditor({
 
         <StreamFooter
           error={error}
-          countLabel={cutsStep ? momentsFooterText(plan.clips) : shortsWord(shorts.length)}
-          summary={cutsStep ? momentsFooterHint(plan.clips.length) : streamOutputSummary(plan, stale)}
+          countLabel={footer.count}
+          summary={footer.summary}
           ctaLabel={ctaLabel}
           ctaDisabled={ctaDisabled}
           rendering={stage === 'rendering'}

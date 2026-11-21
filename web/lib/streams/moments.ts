@@ -1,5 +1,5 @@
 import type { StreamClipGroup, StreamClipRange, StreamEditPlan, StreamPlay } from '../api/streams.ts';
-import { pruneStreamGroups, restoreStreamGroup } from './groups.ts';
+import { momentsWord, pruneStreamGroups, restoreStreamGroup } from './groups.ts';
 import { clipOutputDuration, formatStreamClock, insertClipSorted } from './plan.ts';
 import { isVoiceOnly, playCoveringClips, playIsCovered, rankPlays } from './plays.ts';
 
@@ -23,7 +23,7 @@ export function bulkAddPlays(clips: readonly StreamClipRange[], plays: readonly 
 
 export function bulkAddLabel(count: number): string {
   if (count === 0) return 'Todas las de kill están añadidas';
-  return count === 1 ? 'Añadir 1 con kill' : `Añadir las ${count} con kill`;
+  return count === 1 ? 'Añadir la que queda con kill' : `Añadir las ${count} con kill`;
 }
 
 const TOP_PLAY_COUNT = 3;
@@ -43,8 +43,7 @@ export function momentsInOrder(clips: readonly StreamClipRange[]): NumberedMomen
 export function momentsFooterText(clips: readonly StreamClipRange[]): string {
   if (clips.length === 0) return 'Aún no has elegido ningún momento';
   const total = clips.reduce((sum, clip) => sum + clipOutputDuration(clip), 0);
-  const count = clips.length === 1 ? '1 momento' : `${clips.length} momentos`;
-  return `${count} · ${formatStreamClock(total)} en total`;
+  return `${momentsWord(clips.length)} · ${formatStreamClock(total)} en total`;
 }
 
 export function momentsFooterHint(count: number): string {

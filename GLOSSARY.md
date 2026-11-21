@@ -27,4 +27,4 @@ A horizontal 16:9 video made from jugadas played one after another. It is not bu
 _Avoid_: Recap, highlights, Short horizontal
 
 **Clip**:
-Not a term inside the editor. It survives only in the section name "Clips de stream".
+Not a term inside the editor. It survives only in the section name "Clips de stream" and as the kind of source to import: a short clip from Twitch, YouTube or Kick, as opposed to a VOD.

@@ -126,7 +126,7 @@ export function useStreamMoments({
     const previous = { start_seconds: clip.start_seconds, end_seconds: clip.end_seconds };
     onPlanChange({ ...plan, clips: next });
     showEdge(cut.start_seconds);
-    toast('Corte sugerido recuperado', {
+    toast('El momento vuelve a los bordes de la jugada', {
       position: 'top-right',
       action: {
         label: 'Deshacer',

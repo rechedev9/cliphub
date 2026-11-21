@@ -55,8 +55,12 @@ export function streamShortCount(plan: StreamEditPlan): number {
 }
 
 /** "6 momentos", or "6 momentos · 5 Shorts" once joined moments make fewer videos than moments. */
+export function momentsWord(moments: number): string {
+  return moments === 1 ? '1 momento' : `${moments} momentos`;
+}
+
 export function streamMomentsLabel(moments: number, shorts: number): string {
-  const word = moments === 1 ? '1 momento' : `${moments} momentos`;
+  const word = momentsWord(moments);
   if (shorts === moments) return word;
   return `${word} · ${shorts === 1 ? '1 Short' : `${shorts} Shorts`}`;
 }

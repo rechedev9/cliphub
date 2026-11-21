@@ -22,8 +22,8 @@ type cropOut struct {
 type textOverlayArg struct {
 	Text         string   `json:"text" jsonschema:"one line burned into the video, at most 120 characters"`
 	PositionY    float64  `json:"position_y" jsonschema:"vertical center of the line, from 0.025 (top) to 0.975 (bottom)"`
-	StartSeconds *float64 `json:"start_seconds,omitempty" jsonschema:"seconds from the clip start when the line appears; empty is the clip start"`
-	EndSeconds   *float64 `json:"end_seconds,omitempty" jsonschema:"seconds from the clip start when the line goes; empty is the clip end"`
+	StartSeconds *float64 `json:"start_seconds,omitempty" jsonschema:"seconds from the moment's start when the line appears; empty is the moment's start"`
+	EndSeconds   *float64 `json:"end_seconds,omitempty" jsonschema:"seconds from the moment's start when the line goes; empty is the moment's end"`
 	FontSize     int      `json:"font_size,omitempty" jsonschema:"24 to 120 output pixels; empty is 64"`
 }
 

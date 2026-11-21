@@ -92,7 +92,7 @@ func registerStreamTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_streams", Annotations: readOnly,
-		Description: "List the streams (Twitch, Kick or YouTube VODs and clips, or uploaded recordings) in Studio, newest first: the list under Streams."},
+		Description: "List the streams (Twitch, Kick or YouTube VODs and clips, or uploaded recordings) in Studio, newest first: the Tus proyectos list of Clips de stream."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listStreamsIn) (*mcp.CallToolResult, listStreamsOut, error) {
 			limit := in.Limit
 			if limit <= 0 {
@@ -287,7 +287,7 @@ func streamVideos(j tuiclient.StreamJob, summary tuiclient.StreamSummary, origin
 		out.Videos = append(out.Videos, v)
 	}
 	if summary.Status == playScanDone {
-		v := streamVideoOut{Variant: summaryVariant, Title: "Resumen horizontal", AspectRatio: "16:9", DurationSeconds: summary.DurationSeconds}
+		v := streamVideoOut{Variant: summaryVariant, Title: "Resumen", AspectRatio: "16:9", DurationSeconds: summary.DurationSeconds}
 		if withURLs {
 			v.URL = base + "/api/streams/" + url.PathEscape(j.ID) + "/summary/video"
 			if summary.RenderedAt != "" {

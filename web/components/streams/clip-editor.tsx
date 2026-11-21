@@ -134,7 +134,7 @@ function ClipCard({
               {formatStreamClock(clip.start_seconds)} → {formatStreamClock(clip.end_seconds)}
               {formatStreamClock(clipOutputDuration(clip)) === formatStreamClock(clip.end_seconds - clip.start_seconds)
                 ? null
-                : ` · Short de ${formatStreamClock(clipOutputDuration(clip))}`}
+                : ` · ${formatStreamClock(clipOutputDuration(clip))} con el cambio de velocidad`}
             </span>
           </span>
         </button>
@@ -165,7 +165,7 @@ function ClipCard({
         </Button>
         {canSuggest ? (
           <Button variant="outline" size="sm" disabled={disabled} onClick={onSuggest}>
-            Volver al corte sugerido
+            Volver a los bordes de la jugada
           </Button>
         ) : null}
       </div>
