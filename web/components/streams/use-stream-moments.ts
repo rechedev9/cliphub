@@ -3,8 +3,9 @@ import { toast } from 'sonner';
 import type { StreamClipRange, StreamEditPlan, StreamJob, StreamPlay } from '@/lib/api/streams';
 import { streamRangeIssue, streamRangeOverlapIssue } from '@/lib/clip-edit';
 import { pruneStreamGroups, restoreStreamGroup } from '@/lib/streams/groups';
-import { insertClipSorted, nextClipId } from '@/lib/streams/plan';
-import { clipsWithPlays, playCoveringClips } from '@/lib/streams/plays';
+import { withoutMoments } from '@/lib/streams/moments';
+import { formatStreamClock, insertClipSorted, nextClipId } from '@/lib/streams/plan';
+import { clipsWithPlays } from '@/lib/streams/plays';
 import { streamTitle } from '@/lib/streams/title';
 
 type MomentRangeValue = { start_seconds: number; end_seconds: number };
@@ -60,10 +61,21 @@ export function useStreamMoments({
   };
   const addPlays = (plays: StreamPlay[]) => {
     const next = clipsWithPlays(plan.clips, plays, nextClipId);
-    const added = next.find((clip) => !plan.clips.some((c) => c.id === clip.id));
-    if (!added) return;
+    const added = next.filter((clip) => !plan.clips.some((c) => c.id === clip.id));
+    const [first] = added;
+    if (!first) return;
     setClips(next);
-    selectClip(added);
+    const addedIds = added.map((clip) => clip.id);
+    toast(added.length === 1 ? `Añadida: ${first.title ?? 'jugada'} (${formatStreamClock(first.start_seconds)})` : `${added.length} jugadas añadidas a tus momentos`, {
+      position: 'top-right',
+      action: {
+        label: 'Deshacer',
+        onClick: () => {
+          const current = latestPlanRef.current;
+          onPlanChange(pruneStreamGroups({ ...current, clips: withoutMoments(current.clips, addedIds) }));
+        },
+      },
+    });
   };
   const removeClips = (removed: readonly StreamClipRange[]) => {
     const [clip] = removed;
@@ -94,7 +106,6 @@ export function useStreamMoments({
     });
   };
   const removeClip = (clip: StreamClipRange) => removeClips([clip]);
-  const removePlay = (play: StreamPlay) => removeClips(playCoveringClips(plan.clips, play));
   const startNewMoment = (playheadSeconds: number) => {
     setDraftRange({
       start_seconds: Math.min(playheadSeconds, Math.max(0, sourceDuration - 1)),
@@ -117,7 +128,6 @@ export function useStreamMoments({
     addMoment,
     addPlays,
     removeClip,
-    removePlay,
     startNewMoment,
   };
 }

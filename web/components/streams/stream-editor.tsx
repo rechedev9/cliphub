@@ -10,6 +10,7 @@ import {
   type StreamClipRange,
   type StreamEditPlan,
   type StreamJob,
+  type StreamPlay,
   type StreamRenderState,
 } from '@/lib/api/streams';
 import { api } from '@/lib/api';
@@ -52,6 +53,7 @@ import { StreamMomentsStep } from '@/components/streams/stream-moments-step';
 import { StreamResultsStep, StreamResultVideo } from '@/components/streams/stream-results-step';
 import { StreamReviewStep } from '@/components/streams/stream-review-step';
 import { useStreamMoments } from '@/components/streams/use-stream-moments';
+import { momentsFooterHint, momentsFooterText } from '@/lib/streams/moments';
 
 /** Guided stream editor: moments, appearance, review, then finished videos. */
 export function StreamEditor({
@@ -124,11 +126,19 @@ export function StreamEditor({
   // In Revisar the selected Short is the unit: a joined one plays its moments in the group's order.
   const previewGroup = activeStep === STREAM_STEP.review && selectedShort?.groupId ? selectedShort : undefined;
   const groupPlaying = previewGroup && playbackMode === STREAM_PLAYBACK_MODE.selected ? previewGroup : undefined;
-  const playbackClips = groupPlaying?.clips ?? plan.clips;
+  const [previewPlay, setPreviewPlay] = useState<{ play: StreamPlay; range: StreamClipRange } | null>(null);
+  const cutsStep = activeStep === STREAM_STEP.cuts;
+  const previewing = cutsStep && playbackMode === STREAM_PLAYBACK_MODE.selected ? previewPlay : null;
+  const groupClips = groupPlaying?.clips;
+  const playbackClips = useMemo(
+    () => (previewing ? [previewing.range] : (groupClips ?? plan.clips)),
+    [previewing, groupClips, plan.clips],
+  );
   const sessionMode = groupPlaying ? STREAM_PLAYBACK_MODE.sequence : playbackMode;
+  const sessionClipId = previewing?.range.id ?? selectedClipId;
   const playbackClock = useMemo(() => {
     if (sessionMode === STREAM_PLAYBACK_MODE.source) return { elapsed: previewSeconds, duration: sourceDuration };
-    const activeIndex = streamPlaybackIndex(playbackClips, playbackClipId ?? selectedClipId);
+    const activeIndex = streamPlaybackIndex(playbackClips, playbackClipId ?? sessionClipId);
     const active = playbackClips[activeIndex];
     if (!active) return { elapsed: 0, duration: 0 };
     const activeElapsed = Math.max(0, Math.min(previewSeconds, active.end_seconds) - active.start_seconds) / (active.edit?.speed ?? 1);
@@ -140,7 +150,7 @@ export function StreamEditor({
       elapsed: prior + activeElapsed,
       duration: playbackClips.reduce((sum, clip) => sum + clipOutputDuration(clip), 0),
     };
-  }, [playbackClipId, sessionMode, playbackClips, previewSeconds, selectedClipId, sourceDuration]);
+  }, [playbackClipId, sessionMode, playbackClips, previewSeconds, sessionClipId, sourceDuration]);
   const musicOffsets = useMemo(() => streamMusicOffsets(shorts), [shorts]);
   const previewMusic = useMemo(() => {
     const song = songs?.find((entry) => entry.id === plan.music?.key);
@@ -179,6 +189,7 @@ export function StreamEditor({
   };
   function navigateStep(step: StreamStep) {
     setPreviewPlaying(false);
+    setPreviewPlay(null);
     setActiveStep(step);
     setPlaybackMode(step === 'cuts' ? STREAM_PLAYBACK_MODE.source : STREAM_PLAYBACK_MODE.selected);
     const first = step === STREAM_STEP.review && selectedShort?.groupId ? selectedShort.clips[0] : undefined;
@@ -193,7 +204,25 @@ export function StreamEditor({
   function playSelected() {
     const first = previewGroup?.clips[0] ?? selectedClip;
     if (!first) return;
+    setPreviewPlay(null);
     setPlaybackMode(STREAM_PLAYBACK_MODE.selected);
+    setPreviewError(null);
+    seek(first.start_seconds);
+    setPreviewPlaying(true);
+  }
+  function watchPlay(play: StreamPlay) {
+    setPreviewPlay({ play, range: { id: `play:${play.id}`, start_seconds: play.start_seconds, end_seconds: play.end_seconds } });
+    setPlaybackMode(STREAM_PLAYBACK_MODE.selected);
+    setPreviewError(null);
+    seek(play.start_seconds);
+    setPreviewPlaying(true);
+  }
+  function playAllMoments() {
+    const [first] = plan.clips;
+    if (!first) return;
+    setPreviewPlay(null);
+    setSelectedClipId(first.id);
+    setPlaybackMode(STREAM_PLAYBACK_MODE.sequence);
     setPreviewError(null);
     seek(first.start_seconds);
     setPreviewPlaying(true);
@@ -213,33 +242,36 @@ export function StreamEditor({
     sourceDuration,
     onPlanChange,
     focusClip: (clip: StreamClipRange) => {
+      setPreviewPlay(null);
       setSelectedClipId(clip.id);
       setPlaybackMode(STREAM_PLAYBACK_MODE.selected);
       seek(clip.start_seconds);
       panelRef.current?.scrollTo(0, 0);
     },
     clearSelection: () => {
+      setPreviewPlay(null);
       setSelectedClipId(null);
       setPlaybackMode('source');
       setPreviewPlaying(false);
     },
     showDraft: () => {
+      setPreviewPlay(null);
       setPlaybackMode('source');
       setPreviewPlaying(false);
       panelRef.current?.scrollTo(0, 0);
     },
   });
   const selectClip = moments.selectClip;
+  const playMoment = (clip: StreamClipRange) => {
+    selectClip(clip);
+    setPreviewError(null);
+    setPreviewPlaying(true);
+  };
   const selectShort = (short: StreamShort) => {
     const [first] = short.clips;
     if (!first) return;
     setPreviewPlaying(false);
     selectClip(first);
-  };
-  const seekSource = (seconds: number) => {
-    setPlaybackMode('source');
-    setPreviewPlaying(false);
-    seek(seconds);
   };
 
   const musicKey = plan.music?.key ?? '';
@@ -281,6 +313,101 @@ export function StreamEditor({
     .filter((part): part is string => part !== null)
     .join(' · ');
 
+  let timelineClipId = playbackMode === STREAM_PLAYBACK_MODE.sequence ? (playbackClipId ?? selectedClipId) : selectedClipId;
+  if (previewing) timelineClipId = null;
+  let watchingLabel = 'Vídeo original';
+  if (previewing) watchingLabel = `Jugada · ${previewing.play.label}`;
+  else if (sessionMode === STREAM_PLAYBACK_MODE.sequence) watchingLabel = 'Todos tus momentos seguidos';
+  else if (sessionMode === STREAM_PLAYBACK_MODE.selected && selectedClip) watchingLabel = selectedClip.title?.trim() || 'Tu momento';
+  const monitor = (
+    <StreamMonitor
+      cropEditor={cropEditor}
+      preview={{
+        variant: plan.variant,
+        faceCrop,
+        gameplayCrop: plan.gameplay_crop,
+        clips: playbackClips,
+        activeClipId: playbackClipId ?? selectedClipId ?? undefined,
+        frameSeconds: previewSeconds,
+        streamerNick: plan.streamer_banner?.nick?.trim(),
+        streamerPlatform: bannerPlatform,
+        streamerPositionY: plan.streamer_banner?.position_y,
+        streamerSlideEnabled: plan.streamer_banner?.slide_enabled,
+        keyDropFamily: plan.keydrop_banner?.family ?? '',
+        keyDropStyle: isKeyDropBannerStyle(plan.keydrop_banner?.style) ? plan.keydrop_banner.style : '',
+        keyDropCode: plan.keydrop_banner?.code,
+        keyDropPositionY: plan.keydrop_banner?.position_y,
+        keyDropSlideEnabled: plan.keydrop_banner?.slide_enabled,
+        keyDropStartSeconds: keyDropStart,
+        keyDropEndSeconds: keyDropEnd,
+        onKeyDropPositionChange: busy || cropEditor ? undefined : setKeyDropPosition,
+        onStreamerPositionChange: cropEditor ? undefined : setStreamerPosition,
+        disabled: busy || cropEditor !== undefined,
+        playheadPercent: clipProgress,
+        className: 'h-full w-auto min-h-[120px]',
+      }}
+      elapsedSeconds={playbackClock.elapsed}
+      playbackDuration={playbackClock.duration}
+      playing={previewPlaying}
+      status={playbackStatus}
+      canPlay={!busy && sourceDuration > 0 && (playbackMode === STREAM_PLAYBACK_MODE.source || streamPlaybackIndex(playbackClips, sessionClipId) >= 0)}
+      mode={playbackMode}
+      hasSelection={!!selectedClip}
+      clipCount={plan.clips.length}
+      onModeChange={(mode) => {
+        setPreviewPlaying(false);
+        setPlaybackMode(mode);
+        const first = previewGroup?.clips[0] ?? selectedClip;
+        if (mode === STREAM_PLAYBACK_MODE.selected && first) seek(first.start_seconds);
+      }}
+      loop={playbackLoop}
+      onLoopChange={setPlaybackLoop}
+      previewError={previewError}
+      onTogglePlay={() => {
+        setPreviewError(null);
+        setPreviewPlaying((current) => !current);
+      }}
+      onRetry={() => {
+        setPreviewError(null);
+        setPreviewReload((current) => current + 1);
+      }}
+      watching={cutsStep ? watchingLabel : undefined}
+    />
+  );
+  const timeline = (
+    <StreamSourceTimeline
+      clips={plan.clips}
+      label={streamTimelineLabel({
+        mode: playbackMode,
+        shorts,
+        clipId: timelineClipId,
+      })}
+      sourceDuration={sourceDuration}
+      selectedClipIds={selectedShort?.clips.map((clip) => clip.id) ?? []}
+      playheadSeconds={previewSeconds}
+      disabled={busy}
+      onSeek={(seconds) => {
+        // Scrubbing inside a Short being previewed keeps that mode; anywhere else is the original.
+        const insideSelected =
+          sessionMode === STREAM_PLAYBACK_MODE.selected &&
+          selectedClip !== undefined &&
+          seconds >= selectedClip.start_seconds &&
+          seconds <= selectedClip.end_seconds;
+        // A sequence follows the playhead: the session switches to the Short under it.
+        const insidePreviewed =
+          sessionMode === STREAM_PLAYBACK_MODE.sequence
+            ? streamClipIndexAt(playbackClips, seconds) >= 0
+            : insideSelected;
+        if (!insidePreviewed) {
+          setPreviewPlay(null);
+          setPlaybackMode(STREAM_PLAYBACK_MODE.source);
+        }
+        seek(seconds);
+      }}
+      onSelect={selectClip}
+    />
+  );
+
   let stepContent: ReactNode;
   if (activeStep === STREAM_STEP.layout) {
     stepContent = (
@@ -295,8 +422,13 @@ export function StreamEditor({
         sourceDuration={sourceDuration}
         playheadSeconds={previewSeconds}
         selectedClipId={selectedClip?.id ?? null}
+        activePlayId={previewing?.play.id ?? null}
         busy={busy}
-        onSeekSource={seekSource}
+        player={monitor}
+        timeline={timeline}
+        onWatchPlay={watchPlay}
+        onPlayMoment={playMoment}
+        onPlayAll={playAllMoments}
         onPlaySelected={playSelected}
       />
     );
@@ -341,9 +473,9 @@ export function StreamEditor({
       seek={previewSeek}
       playing={previewPlaying}
       mode={sessionMode}
-      loop={playbackLoop}
+      loop={cutsStep ? false : playbackLoop}
       clips={playbackClips}
-      selectedClipId={selectedClipId}
+      selectedClipId={sessionClipId}
       music={previewMusic}
       musicOffsets={musicOffsets}
       onPosition={setPreviewSeconds}
@@ -368,109 +500,36 @@ export function StreamEditor({
           onSelectStep={navigateStep}
         />
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 @[48rem]/content:grid-cols-[minmax(0,1fr)_340px]">
-          <section className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto p-4" aria-label="Monitor">
-            {activeStep === 'results' && hasRender && resultClip && renderedPlan ? (
-              <StreamResultVideo job={job} renderedPlan={renderedPlan} video={resultClip} title={resultTitle} />
-            ) : (
-              <>
-                <StreamMonitor
-                  cropEditor={cropEditor}
-                  preview={{
-                    variant: plan.variant,
-                    faceCrop,
-                    gameplayCrop: plan.gameplay_crop,
-                    clips: playbackClips,
-                    activeClipId: playbackClipId ?? selectedClipId ?? undefined,
-                    frameSeconds: previewSeconds,
-                    streamerNick: plan.streamer_banner?.nick?.trim(),
-                    streamerPlatform: bannerPlatform,
-                    streamerPositionY: plan.streamer_banner?.position_y,
-                    streamerSlideEnabled: plan.streamer_banner?.slide_enabled,
-                    keyDropFamily: plan.keydrop_banner?.family ?? '',
-                    keyDropStyle: isKeyDropBannerStyle(plan.keydrop_banner?.style) ? plan.keydrop_banner.style : '',
-                    keyDropCode: plan.keydrop_banner?.code,
-                    keyDropPositionY: plan.keydrop_banner?.position_y,
-                    keyDropSlideEnabled: plan.keydrop_banner?.slide_enabled,
-                    keyDropStartSeconds: keyDropStart,
-                    keyDropEndSeconds: keyDropEnd,
-                    onKeyDropPositionChange: busy || cropEditor ? undefined : setKeyDropPosition,
-                    onStreamerPositionChange: cropEditor ? undefined : setStreamerPosition,
-                    disabled: busy || cropEditor !== undefined,
-                    playheadPercent: clipProgress,
-                    className: 'h-full w-auto min-h-[120px]',
-                  }}
-                  elapsedSeconds={playbackClock.elapsed}
-                  playbackDuration={playbackClock.duration}
-                  playing={previewPlaying}
-                  status={playbackStatus}
-                  canPlay={!busy && sourceDuration > 0 && (playbackMode === STREAM_PLAYBACK_MODE.source || streamPlaybackIndex(playbackClips, selectedClipId) >= 0)}
-                  mode={playbackMode}
-                  hasSelection={!!selectedClip}
-                  clipCount={plan.clips.length}
-                  onModeChange={(mode) => {
-                    setPreviewPlaying(false);
-                    setPlaybackMode(mode);
-                    const first = previewGroup?.clips[0] ?? selectedClip;
-                    if (mode === STREAM_PLAYBACK_MODE.selected && first) seek(first.start_seconds);
-                  }}
-                  loop={playbackLoop}
-                  onLoopChange={setPlaybackLoop}
-                  previewError={previewError}
-                  onTogglePlay={() => {
-                    setPreviewError(null);
-                    setPreviewPlaying((current) => !current);
-                  }}
-                  onRetry={() => {
-                    setPreviewError(null);
-                    setPreviewReload((current) => current + 1);
-                  }}
-                />
-                <div className="shrink-0 pb-3">
-                  <StreamSourceTimeline
-                    clips={plan.clips}
-                    label={streamTimelineLabel({
-                      mode: playbackMode,
-                      shorts,
-                      clipId: playbackMode === STREAM_PLAYBACK_MODE.sequence ? (playbackClipId ?? selectedClipId) : selectedClipId,
-                    })}
-                    sourceDuration={sourceDuration}
-                    selectedClipIds={selectedShort?.clips.map((clip) => clip.id) ?? []}
-                    playheadSeconds={previewSeconds}
-                    disabled={busy}
-                    onSeek={(seconds) => {
-                      // Scrubbing inside a Short being previewed keeps that mode; anywhere else is the original.
-                      const insideSelected =
-                        sessionMode === STREAM_PLAYBACK_MODE.selected &&
-                        selectedClip !== undefined &&
-                        seconds >= selectedClip.start_seconds &&
-                        seconds <= selectedClip.end_seconds;
-                      // A sequence follows the playhead: the session switches to the Short under it.
-                      const insidePreviewed =
-                        sessionMode === STREAM_PLAYBACK_MODE.sequence
-                          ? streamClipIndexAt(playbackClips, seconds) >= 0
-                          : insideSelected;
-                      if (!insidePreviewed) setPlaybackMode(STREAM_PLAYBACK_MODE.source);
-                      seek(seconds);
-                    }}
-                    onSelect={selectClip}
-                  />
-                </div>
-              </>
-            )}
-          </section>
-
-          <div ref={panelRef} className="min-h-0 overflow-y-auto bg-surface-1 shadow-[inset_1px_0_0_0_var(--border-subtle)]">
-            <StreamStepPanel title={panelTitle} key={activeStep}>
-              {stepContent}
-            </StreamStepPanel>
+        {cutsStep ? (
+          <div ref={panelRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+            <h2 className="sr-only">{panelTitle}</h2>
+            {stepContent}
           </div>
-        </div>
+        ) : (
+          <div className="grid min-h-0 flex-1 grid-cols-1 @[48rem]/content:grid-cols-[minmax(0,1fr)_340px]">
+            <section className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto p-4" aria-label="Monitor">
+              {activeStep === 'results' && hasRender && resultClip && renderedPlan ? (
+                <StreamResultVideo job={job} renderedPlan={renderedPlan} video={resultClip} title={resultTitle} />
+              ) : (
+                <>
+                  {monitor}
+                  <div className="shrink-0 pb-3">{timeline}</div>
+                </>
+              )}
+            </section>
+
+            <div ref={panelRef} className="min-h-0 overflow-y-auto bg-surface-1 shadow-[inset_1px_0_0_0_var(--border-subtle)]">
+              <StreamStepPanel title={panelTitle} key={activeStep}>
+                {stepContent}
+              </StreamStepPanel>
+            </div>
+          </div>
+        )}
 
         <StreamFooter
           error={error}
-          countLabel={shortsWord(shorts.length)}
-          summary={streamOutputSummary(plan, stale)}
+          countLabel={cutsStep ? momentsFooterText(plan.clips) : shortsWord(shorts.length)}
+          summary={cutsStep ? momentsFooterHint(plan.clips.length) : streamOutputSummary(plan, stale)}
           ctaLabel={ctaLabel}
           ctaDisabled={ctaDisabled}
           rendering={stage === 'rendering'}

@@ -68,7 +68,7 @@ export function StreamClipEditor({
     return (
       <p className="border border-dashed border-border-subtle p-3.5 text-center text-body-sm text-fg-2">
         {sourceDuration > 0
-          ? 'Reproduce el vídeo y marca el inicio y el final. Cada momento se guarda como un Short independiente.'
+          ? 'Reproduce el vídeo y marca el inicio y el final de lo que quieras quedarte.'
           : 'Espera a que cargue el vídeo original antes de añadir momentos.'}
       </p>
     );
@@ -81,34 +81,7 @@ export function StreamClipEditor({
   const clip = clips[index];
   return (
     <div className="flex flex-col gap-3">
-      <ul aria-label="Tus momentos" className="flex max-h-36 flex-col gap-1 overflow-y-auto">
-        {clips.map((item, i) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              disabled={disabled}
-              aria-pressed={item.id === clip.id}
-              onClick={() => onSelect(item)}
-              className={cn(
-                'flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-label',
-                item.id === clip.id ? 'border-stream bg-stream/10' : 'border-border-subtle',
-              )}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span aria-hidden className={cn('grid h-5 min-w-6 shrink-0 place-items-center rounded-md px-1 text-meta font-extrabold tabular-nums', FORMAT_TONE.stream.bg, 'text-format-stream-foreground')}>
-                  {i + 1}
-                </span>
-                <span className="truncate">
-                  <span className="sr-only">{i + 1}. </span>
-                  {item.title || `Momento ${i + 1}`}
-                </span>
-              </span>
-              <span className="shrink-0 tabular-nums">{formatStreamClock(clipOutputDuration(item))}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      <ul>
+      <ul aria-label="Momento seleccionado">
         <ClipCard
           key={clip.id}
           clip={clip}
@@ -258,7 +231,7 @@ function ClipCard({
         onChange={onClipChange}
       />
       <Button variant="outline" disabled={disabled || rangeIssue !== null} onClick={onPlay}>
-        Ver este Short
+        Ver este momento
       </Button>
       <details className="flex flex-col gap-3">
         <DisclosureSummary className="min-h-10 py-2 text-body-sm text-fg-2">

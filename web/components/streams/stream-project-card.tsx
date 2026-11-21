@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { ArrowRight, Film } from 'lucide-react';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
 import { streamClipCount, streamCutMarks, streamJobShortCount, streamJobTag, type StreamJobTagTone } from '@/lib/streams/list';
@@ -8,6 +8,7 @@ import { streamMomentsLabel } from '@/lib/streams/groups';
 import { formatStreamClock, streamSourceLabel } from '@/lib/streams/plan';
 import { streamRenderProgressView } from '@/lib/streams/render-progress';
 import { streamTitle } from '@/lib/streams/title';
+import { useSeen } from '@/components/streams/use-seen';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { MediaFrame } from '@/components/studio/media-frame';
@@ -33,26 +34,6 @@ const STATUS_PILL_CLASS = {
   success: 'bg-success text-success-foreground',
   danger: 'bg-destructive-solid text-destructive-foreground',
 } as const satisfies Record<StreamJobTagTone, string>;
-
-/** True once the element has scrolled into view; stays true so a painted frame never unmounts. */
-function useSeen<T extends Element>(): { ref: React.RefObject<T | null>; seen: boolean } {
-  const ref = useRef<T>(null);
-  const [seen, setSeen] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (el === null || seen) return;
-    if (typeof IntersectionObserver === 'undefined') {
-      setSeen(true);
-      return;
-    }
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [seen]);
-  return { ref, seen };
-}
 
 /** A project poster card. Deletion stays apart from the opener and re-fetches after confirmation. */
 export function StreamProjectCard({ job, onOpen, onDeleted }: { job: StreamJob; onOpen: () => void; onDeleted: () => void }): ReactNode {
