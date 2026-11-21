@@ -152,7 +152,8 @@ open_in_studio brings the Studio window to the front on a studio_path (app pages
 the window did it, and when it did not it returns the full http://127.0.0.1:<port> address for the user to open.
 studio_path /mis-videos?visor= opens the Visor: the finished 9:16 Shorts of Mis vídeos, from demos and streams, played full
 window one after another as a phone shows them, in the order of the list. visor=<id> (an id the Visor's own address showed) starts on
-that Short; an empty or unknown id starts on the first one. With no finished Short, Mis vídeos opens as usual.
+that Short; an empty id starts on the first one, and an id that is gone, unfinished or 16:9 starts on the first with a short
+notice. With no finished Short, Mis vídeos opens as usual.
 Beside the Short the Visor offers the card's actions: Editar, Cambiar música, Preparar publicación, Descargar and Borrar for a
 demo Short (an imported or recovered one only those it supports), Abrir proyecto, Descargar and Borrar for a stream Short;
 your tools for the same are change_video_music, delete_video and delete_stream_video.
