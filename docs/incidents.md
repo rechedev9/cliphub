@@ -715,6 +715,22 @@ In round 11 that handle named no pawn. Upstream v5.3.0 and v6 both had it.
 - The demo now parses to the end, but it has 9 players from round 1 (5 T,
   4 CT): one team played a man down. The parser loses no one.
 
+### Incident: the Focus HUD lost its recorded keys with our own parser (Studio 5.26.0, 2026-11-21)
+
+The Focus HUD draws the keys a player presses from the demo's user commands.
+CS2 sends a button change in `CMsgServerUserCmd.delta_data`. Upstream v5.3.0 did
+not declare that field, so `internal/customhud` read it from the message's
+unknown fields. `demo-parser-rsn` declares it, so the unknown fields came back
+empty and every change was dropped: a Valve demo of 128,410 ticks gave 46 ticks
+with buttons for one player, and the HUD showed almost no keys. Nothing failed,
+because the unit tests wrote the delta into the unknown fields themselves.
+
+- The delta is read from the declared field (`decodeMovementCommand`), and the
+  tests build each command from wire bytes, so they follow whatever the parser
+  declares (`TestMovementCommandFullDeltaAndSourceClock`).
+- HUD telemetry is cached per job. A job whose telemetry was extracted while
+  the keys were missing keeps it until `customhud.TelemetryVersion` changes.
+
 ### Incident: subtitles locked because a repeated demo kept a lost library copy (Studio 5.26.0, 2026-11-19)
 
 A FACEIT demo imported on 2026-11-14 lost its library copy (`library/<id>/demo.dem`),

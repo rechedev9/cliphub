@@ -22,9 +22,19 @@ func movementValue(buttons uint64) []byte {
 }
 
 func movementMessage(slot, number, tick int32, full, delta []byte) *msg.CSVCMsg_UserCommands {
-	cmd := &msg.CMsgServerUserCmd{PlayerSlot: proto.Int32(slot), CmdNumber: proto.Int32(number), ServerTickExecuted: proto.Int32(tick), Data: full}
+	var wire []byte
+	if full != nil {
+		wire = append(wire, movementBytes(1, full)...)
+	}
+	for field, value := range map[protowire.Number]int32{2: number, 3: slot, 4: tick} {
+		wire = protowire.AppendVarint(protowire.AppendTag(wire, field, protowire.VarintType), uint64(int64(value)))
+	}
 	if delta != nil {
-		cmd.ProtoReflect().SetUnknown(movementBytes(6, delta))
+		wire = append(wire, movementBytes(6, delta)...)
+	}
+	cmd := &msg.CMsgServerUserCmd{}
+	if err := proto.Unmarshal(wire, cmd); err != nil {
+		panic(err)
 	}
 	return &msg.CSVCMsg_UserCommands{Commands: []*msg.CMsgServerUserCmd{cmd}}
 }
@@ -120,9 +130,6 @@ func TestMovementCommandBrokenChainsStayUnknownUntilFullSnapshot(t *testing.T) {
 		if m.at(controller, 500) != nil {
 			t.Fatal("invalid slot produced input")
 		}
-	}
-	if _, err := commandDelta([]byte{0x32, 0xff}); err == nil {
-		t.Fatal("truncated delta envelope accepted")
 	}
 }
 
