@@ -6,6 +6,7 @@ import { Dialog as DialogPrimitive } from 'radix-ui';
 import { visorAfterDelete, type VisorEntry } from '@/lib/clips/visor-queue';
 import { claimMediaPlayback } from '@/lib/media-playback-owner';
 import { cn } from '@/lib/utils';
+import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
 import { VisorActions } from '@/components/clips-hub/visor-actions';
 import { PlatformLayerPicker, PlatformLayerShapes, usePlatformLayer } from './visor-platform-layer';
@@ -162,6 +163,7 @@ export function Visor({ entries, currentId, onMove, onClose, onChange }: VisorPr
             <p className="text-body-sm font-semibold text-fg-1 tabular-nums" aria-live="polite">
               {index + 1} de {entries.length}
             </p>
+            {current.mark === null ? null : <StatusTag className="shrink-0">{current.mark}</StatusTag>}
             <DialogPrimitive.Title className="min-w-0 flex-1 truncate text-body-sm text-fg-2">{current.title}</DialogPrimitive.Title>
             <DialogPrimitive.Close asChild>
               <Button type="button" variant="ghost" size="icon" aria-label="Cerrar el visor" className={CONTROL_CLASS}>

@@ -2,8 +2,10 @@
 import { dataPlane } from './dataplane.ts';
 import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.ts';
 import { apiFetch } from './edition-fetch.ts';
-import { reelPlaysSuffix } from './reel-identity.ts';
+import { reelPlaysSuffix, withAutoShortsCount } from './reel-identity.ts';
+import { DEFAULT_VARIANT } from './reel-store.ts';
 import type { RenderView } from './status-view.ts';
+import type { Video } from './types.ts';
 
 /** Mirrors internal/moments: the default bar and limit, and the hard cap. */
 export const AUTO_SHORTS_DEFAULT_MIN_SCORE = 0.6;
@@ -63,6 +65,18 @@ export function loteVideoNames(render: RenderView, lote: { jobId: string; id: st
   if (render.status !== 'ready' || render.editConfig?.separateShorts !== true || !render.segmentIds) return [];
   const current = `${lote.jobId}__${reelPlaysSuffix(render.segmentIds, render.editConfig)}`;
   return current === lote.id ? (render.videoNames ?? []) : [];
+}
+
+export function loteShortVideo(video: Video, short: string | null): Video {
+  if (short === null || !ARTIFACT_NAME.test(short) || video.editConfig?.separateShorts !== true || video.jobId === undefined) return video;
+  const url = dataPlane().videoUrl(video.jobId, video.variant ?? DEFAULT_VARIANT, short);
+  return { ...video, downloadUrl: pinRenderRevision(url, video.artifactRevision), thumbnailUrl: undefined };
+}
+
+export function loteCardAfterDelete(video: Video, change: { deleted: string; firstUrl: string; left: number }): Video {
+  const next: Video = { ...video, title: withAutoShortsCount(video.title, change.left), downloadUrl: pinRenderRevision(change.firstUrl, video.artifactRevision) };
+  if (video.thumbnailUrl?.split('?', 1)[0]?.endsWith(`/covers/${change.deleted}`)) delete next.thumbnailUrl;
+  return next;
 }
 
 /** Reads the Shorts of a batch from its GET /renders/{variant} state; none while it is not ready. */

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { autoShortsFiles, parseShortsBatch, shortsBatchUrl } from './auto-shorts.ts';
+import { autoShortsFiles, loteShortVideo, parseShortsBatch, shortsBatchUrl } from './auto-shorts.ts';
 import { buildEditRequest } from './edit-request.ts';
 import { parseEffectiveEditConfig } from './render-hydration.ts';
 import { recoveredVideo } from './recovered-renders.ts';
@@ -48,4 +48,19 @@ test('a batch render found on disk is recovered under the batch reel id', () => 
   assert.equal(found?.video.id, `${JOB}__auto__seg-002_seg-005`);
   assert.equal(found?.video.title, 'Auto-Shorts: 2 Shorts - Killfeed');
   assert.equal(recoveredVideo(job, 'viral-60-clean', render, new Set([`${JOB}__auto__seg-002_seg-005`])), null);
+});
+
+test('the publishing page of a lote opened on one of its Shorts shows and downloads that Short', () => {
+  const lote = {
+    id: `${JOB}__auto__seg-001_seg-004`, jobId: JOB, title: 'Auto-Shorts: 2 Shorts - Viral', map: 'de_mirage', score: '', mode: 'clean' as const,
+    variant: 'viral-60-clean', status: 'ready' as const, createdAt: 0, editConfig: { ...DEFAULT_EDIT_CONFIG, separateShorts: true },
+    downloadUrl: `/api/demos/${JOB}/renders/viral-60-clean/videos/seg-001`, thumbnailUrl: `/api/demos/${JOB}/renders/viral-60-clean/covers/seg-001`,
+  };
+  const shown = loteShortVideo(lote, 'seg-004');
+  assert.equal(shown.downloadUrl, `/api/demos/${JOB}/renders/viral-60-clean/videos/seg-004`);
+  assert.equal(shown.thumbnailUrl, undefined);
+  assert.equal(loteShortVideo(lote, null), lote);
+  assert.equal(loteShortVideo(lote, '../x'), lote);
+  const single = { ...lote, editConfig: DEFAULT_EDIT_CONFIG };
+  assert.equal(loteShortVideo(single, 'seg-004'), single);
 });

@@ -40,6 +40,7 @@ import { collectShellJobs, publishShellJobs } from '@/lib/shell-activity';
 import { cn } from '@/lib/utils';
 import { ClipsLens } from '@/components/clips-hub/clips-lens';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
+import { useLoteShorts } from '@/components/clips-hub/use-lote-shorts';
 import { useWebMCPLibrary } from '@/components/clips-hub/use-webmcp-library';
 import { Visor } from '@/components/clips-hub/visor';
 import { EmptyState } from '@/components/records/empty-state';
@@ -204,6 +205,7 @@ function ResultsView(): ReactNode {
   }, [refresh]);
 
   useWebMCPLibrary({ model, failed: loadError !== null });
+  const lotes = useLoteShorts(model?.clips ?? null);
 
   const moveVisor = useCallback((entryId: string) => {
     window.history.replaceState(null, '', visorHref(entryId));
@@ -216,18 +218,19 @@ function ResultsView(): ReactNode {
 
   const visorQueue = model === null || visorId === null
     ? null
-    : buildVisorQueue({ clips: model.clips, streams, filter: listOrigin, requestedId: visorId, shown: visorShown });
+    : buildVisorQueue({ clips: model.clips, streams, filter: listOrigin, requestedId: visorId, shown: visorShown, lotes });
   const visorEntries = visorQueue?.entries ?? [];
   if (!sameVisorEntries(visorEntries, visorShown)) setVisorShown(visorEntries);
   const settled = visorQueue !== null && loadError === null;
-  const fallbackId = settled && visorQueue.fellBack ? visorQueue.start?.id ?? null : null;
-  const nothingToShow = settled && visorQueue.start === null && listOrigin === null;
+  const startId = settled ? visorQueue.start?.id ?? null : null;
+  const fellBack = settled && visorQueue.fellBack;
+  const nothingToShow = settled && visorQueue.start === null && !visorQueue.pending && listOrigin === null;
 
   useEffect(() => {
-    if (fallbackId === null) return;
-    toast('No encontramos ese Short', { id: VISOR_FALLBACK_TOAST_ID, description: 'Te mostramos el primero de la lista.' });
-    window.history.replaceState(null, '', visorHref(fallbackId));
-  }, [fallbackId]);
+    if (startId === null || startId === visorId) return;
+    if (fellBack) toast('No encontramos ese Short', { id: VISOR_FALLBACK_TOAST_ID, description: 'Te mostramos el primero de la lista.' });
+    window.history.replaceState(null, '', visorHref(startId));
+  }, [startId, visorId, fellBack]);
 
   useEffect(() => {
     if (nothingToShow) window.history.replaceState(null, '', RESULTS_HREF);
@@ -273,7 +276,7 @@ function ResultsView(): ReactNode {
     );
   }
 
-  const listQueue = buildVisorQueue({ clips: model.clips, streams, filter, requestedId: null });
+  const listQueue = buildVisorQueue({ clips: model.clips, streams, filter, requestedId: null, lotes });
   const openVisor = (entryId: string): void => openVisorOn(entryId, filter);
 
   return (

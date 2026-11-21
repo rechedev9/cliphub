@@ -540,6 +540,10 @@ export class MockApiClient implements ApiClient {
     if (index !== -1) videos.splice(index, 1);
   }
 
+  async deleteLoteShort(id: string): Promise<void> {
+    await this.deleteVideo(id);
+  }
+
   // The mock has no orchestrator, so a delete only clears its own in-memory
   // uploaded state (fixture matches are read-only seeds and stay put).
   async deleteMatch(jobId: string): Promise<void> {

@@ -6,8 +6,9 @@ import { AlertTriangle, Check, Download, Music, Play, SearchX } from 'lucide-rea
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { Match, Video } from '@/lib/api/types';
+import { loteShortVideo } from '@/lib/api/auto-shorts';
 import { demoPlaybackItem } from '@/lib/api/playback';
-import { ORPHAN_MATCH_SEGMENT, RESULTS_HREF } from '@/lib/clips/routes';
+import { ORPHAN_MATCH_SEGMENT, PUBLISH_SHORT_QUERY, RESULTS_HREF } from '@/lib/clips/routes';
 import { OUTPUT_STATE, OUTPUT_TYPE, outputState, outputType, type OutputState } from '@/lib/clips/hub';
 import { videoDisplayTitle } from '@/lib/clips/results';
 import { prettyMapName, timeAgo } from '@/lib/format';
@@ -38,8 +39,15 @@ const STATE_TAG: Record<OutputState, { label: string; tone: StatusTagTone }> = {
   failed: { label: 'Falló', tone: 'danger' },
 };
 
-export default function PublishPage({ params }: { params: Promise<{ id: string; clipId: string }> }): ReactNode {
+type PublishPageProps = {
+  params: Promise<{ id: string; clipId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default function PublishPage({ params, searchParams }: PublishPageProps): ReactNode {
   const { id, clipId } = use(params);
+  const requestedShort = use(searchParams)[PUBLISH_SHORT_QUERY];
+  const short = typeof requestedShort === 'string' ? requestedShort : null;
   const router = useRouter();
   const orphan = id === ORPHAN_MATCH_SEGMENT;
   const backHref = RESULTS_HREF;
@@ -121,12 +129,13 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   const mapName = map === '' ? '' : prettyMapName(map);
   const meta = [`${dims} · 60 fps`, mapName, score, timeAgo(video.createdAt)].filter((part) => part !== '').join(' · ');
   const description = publishSummary(video, { map, player, score });
-  const playback = demoPlaybackItem(video);
+  const shown = loteShortVideo(video, short);
+  const playback = demoPlaybackItem(shown);
 
   function download(): void {
-    if (!video?.downloadUrl) return;
-    downloadPublishMP4(video.downloadUrl, video.title);
-    toast('Descargando MP4', { description: `${video.title} → Descargas` });
+    if (!shown.downloadUrl) return;
+    downloadPublishMP4(shown.downloadUrl, shown.title);
+    toast('Descargando MP4', { description: `${shown.title} → Descargas` });
   }
 
   return (
@@ -151,7 +160,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
             <MediaFrame
               aspect={isShort ? '9:16' : '16:9'}
               className={isShort ? 'w-[120px] shrink-0 border border-primary' : 'w-[240px] shrink-0 border border-primary'}
-              media={<VideoPoster posterUrl={video.thumbnailUrl} videoUrl={playback?.playbackUrl} loading="eager" fallback={<ReelCover seed={video.id} label={mapName} />} />}
+              media={<VideoPoster posterUrl={shown.thumbnailUrl} videoUrl={playback?.playbackUrl} loading="eager" fallback={<ReelCover seed={video.id} label={mapName} />} />}
             />
             <div className="flex min-w-0 flex-1 basis-56 flex-col gap-2.5">
               <p className="text-meta text-fg-3">{meta}</p>
@@ -169,7 +178,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
                     <Play className="size-4" aria-hidden /> Reproducir
                   </Button>
                 ) : null}
-                <Button variant="hero" size="sm" disabled={!video.downloadUrl} onClick={download}>
+                <Button variant="hero" size="sm" disabled={!shown.downloadUrl} onClick={download}>
                   <Download className="size-4" /> Descargar MP4
                 </Button>
                 {canAddMusic ? (

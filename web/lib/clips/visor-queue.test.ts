@@ -4,6 +4,8 @@ import type { StreamJob, StreamRenderedOutput } from '../api/streams.ts';
 import type { EditConfig, Match, Video } from '../api/types.ts';
 import { FULL_DEMO_EDIT } from '../full-demo.ts';
 import { buildHubModel } from './hub.ts';
+import { DEFAULT_EDIT_CONFIG } from '../api/reel-store.ts';
+import type { LoteShort } from './visor-actions.ts';
 import { buildVisorQueue, sameVisorEntries, visorAfterDelete, visorEntryId } from './visor-queue.ts';
 
 function demoVideo(id: string, overrides: Partial<Video> = {}): Video {
@@ -91,19 +93,108 @@ test('finished vertical stream videos enter after the demo Shorts, in the order 
   ]);
 });
 
-test('imported, recovered Shorts and a lote enter, a lote as one entry with its first Short', () => {
+test('imported and recovered Shorts enter the queue', () => {
   const clips = clipsOf(
     demoVideo('imported', { jobId: undefined, publishable: false, createdAt: 3000 }),
     demoVideo('recovered', { recovered: true, createdAt: 2000 }),
-    demoVideo('job7__auto__seg-001_seg-004', {
-      jobId: 'job7',
-      createdAt: 1000,
-      downloadUrl: '/api/demos/job7/renders/viral-60-clean/videos/seg-001.mp4',
-    }),
   );
-  const queue = buildVisorQueue({ clips, streams: [], filter: null, requestedId: null });
-  assert.deepEqual(queue.entries.map((entry) => entry.id), ['demo:imported', 'demo:recovered', 'demo:job7__auto__seg-001_seg-004']);
-  assert.equal(queue.entries[2]?.item.artifactName, 'seg-001.mp4');
+  assert.deepEqual(ids({ clips }), ['demo:imported', 'demo:recovered']);
+});
+
+const LOTE_ID = 'job7__auto__seg-001_seg-004_seg-009';
+
+function loteVideo(overrides: Partial<Video> = {}): Video {
+  return demoVideo(LOTE_ID, {
+    jobId: 'job7',
+    title: 'Auto-Shorts: 3 Shorts - Viral',
+    targetName: 'ropz',
+    editConfig: { ...DEFAULT_EDIT_CONFIG, separateShorts: true },
+    downloadUrl: '/api/demos/job7/renders/viral-60-clean/videos/seg-001.mp4',
+    ...overrides,
+  });
+}
+
+function loteShorts(...names: string[]): ReadonlyMap<string, LoteShort[]> {
+  return new Map([[LOTE_ID, names.map((name) => ({ name, url: `/api/demos/job7/renders/viral-60-clean/videos/${name}` }))]]);
+}
+
+test('every Short of a lote is its own entry, in the order the server lists them, each with its lote and position', () => {
+  const clips = buildHubModel([partida('job7')], [demoVideo('newer', { createdAt: 5000 }), loteVideo()]).clips;
+  const queue = buildVisorQueue({ clips, streams: [], filter: null, requestedId: null, lotes: loteShorts('seg-009', 'seg-001', 'seg-004') });
+  assert.deepEqual(queue.entries.map((entry) => [entry.id, entry.mark, entry.title, entry.item.artifactName]), [
+    ['demo:newer', null, 'Short newer', 'seg-001.mp4'],
+    [`demo:${LOTE_ID}/seg-009`, 'Lote de Mirage · 1 de 3', 'Short 1 · Mirage · ropz', 'seg-009'],
+    [`demo:${LOTE_ID}/seg-001`, 'Lote de Mirage · 2 de 3', 'Short 2 · Mirage · ropz', 'seg-001'],
+    [`demo:${LOTE_ID}/seg-004`, 'Lote de Mirage · 3 de 3', 'Short 3 · Mirage · ropz', 'seg-004'],
+  ]);
+  assert.equal(queue.pending, false);
+});
+
+test('after a Short of a lote is deleted the others are renumbered', () => {
+  const clips = clipsOf(loteVideo({ title: 'Auto-Shorts: 2 Shorts - Viral' }));
+  const queue = buildVisorQueue({ clips, streams: [], filter: null, requestedId: `demo:${LOTE_ID}/seg-009`, lotes: loteShorts('seg-001', 'seg-009') });
+  assert.deepEqual(queue.entries.map((entry) => entry.mark), ['Lote de Mirage · 1 de 2', 'Lote de Mirage · 2 de 2']);
+  assert.equal(queue.start?.id, `demo:${LOTE_ID}/seg-009`);
+  assert.equal(queue.fellBack, false);
+});
+
+test('a Short of a lote edits and changes the music of the whole lote, and downloads, publishes and deletes only itself', () => {
+  const clips = buildHubModel([partida('job7')], [loteVideo({ songId: 'song-1' })]).clips;
+  const queue = buildVisorQueue({ clips, streams: [], filter: null, requestedId: null, lotes: loteShorts('seg-004') });
+  assert.deepEqual(actionsOf(queue), [[
+    { kind: 'edit', label: 'Editar el lote', href: '/shorts/job7?editar=viral-60-clean' },
+    { kind: 'music', label: 'Cambiar música del lote' },
+    { kind: 'publish', label: 'Preparar publicación', href: `/mis-videos/job7/publicar/${LOTE_ID}?short=seg-004` },
+    { kind: 'download', label: 'Descargar' },
+    { kind: 'delete', label: 'Borrar' },
+  ]]);
+  assert.deepEqual(queue.entries[0]?.source, {
+    kind: 'demo',
+    video: clips[0]?.video,
+    loteShort: { name: 'seg-004', url: '/api/demos/job7/renders/viral-60-clean/videos/seg-004' },
+  });
+  const silent = buildVisorQueue({ clips: clipsOf(loteVideo()), streams: [], filter: null, requestedId: null, lotes: loteShorts('seg-004') });
+  assert.equal(actionsOf(silent)[0]?.find((action) => action.kind === 'music')?.label, 'Añadir música al lote');
+});
+
+test('the address of a lote opens its first Short, and an unknown map leaves the mark without one', () => {
+  const clips = clipsOf(loteVideo({ map: 'Unknown' }));
+  const queue = buildVisorQueue({ clips, streams: [], filter: null, requestedId: `demo:${LOTE_ID}`, lotes: loteShorts('seg-001', 'seg-004') });
+  assert.equal(queue.start?.id, `demo:${LOTE_ID}/seg-001`);
+  assert.equal(queue.fellBack, false);
+  assert.deepEqual(queue.entries.map((entry) => entry.mark), ['Lote · 1 de 2', 'Lote · 2 de 2']);
+});
+
+test('while the Shorts of a lote are being read the lote stands as its card, and a requested Short waits instead of falling back', () => {
+  const clips = clipsOf(demoVideo('other', { createdAt: 5000 }), loteVideo());
+  const waiting = buildVisorQueue({ clips, streams: [], filter: null, requestedId: `demo:${LOTE_ID}/seg-004` });
+  assert.deepEqual(waiting.entries.map((entry) => entry.id), ['demo:other', `demo:${LOTE_ID}`]);
+  assert.deepEqual([waiting.start, waiting.fellBack, waiting.pending], [null, false, true]);
+  const listed = buildVisorQueue({ clips, streams: [], filter: null, requestedId: 'demo:other' });
+  assert.deepEqual([listed.start?.id, listed.fellBack], ['demo:other', false]);
+  const read = buildVisorQueue({ clips, streams: [], filter: null, requestedId: `demo:${LOTE_ID}/seg-004`, lotes: loteShorts('seg-001') });
+  assert.deepEqual([read.start?.id, read.fellBack, read.pending], ['demo:other', true, false]);
+});
+
+test('a lote with no Shorts left gives no entry', () => {
+  assert.deepEqual(ids({ clips: clipsOf(loteVideo()), lotes: loteShorts() }), []);
+});
+
+test('Borrar on a Short of a lote moves to the next Short of the lote', () => {
+  const entries = buildVisorQueue({ clips: clipsOf(loteVideo()), streams: [], filter: null, requestedId: null, lotes: loteShorts('seg-001', 'seg-004', 'seg-009') }).entries;
+  assert.equal(visorAfterDelete(entries, `demo:${LOTE_ID}/seg-004`), `demo:${LOTE_ID}/seg-009`);
+});
+
+test('a lote on screen that renders again keeps its Shorts with the mark until the new ones are ready', () => {
+  const lotes = loteShorts('seg-001', 'seg-004');
+  const shown = buildVisorQueue({ clips: clipsOf(loteVideo()), streams: [], filter: null, requestedId: null, lotes }).entries;
+  const rendering = loteVideo({ status: 'composing', downloadUrl: undefined });
+  const held = buildVisorQueue({ clips: clipsOf(rendering), streams: [], filter: null, requestedId: `demo:${LOTE_ID}/seg-004`, lotes, shown });
+  assert.deepEqual(held.entries.map((entry) => [entry.id, entry.rendering, entry.mark]), [
+    [`demo:${LOTE_ID}/seg-001`, true, 'Lote de Mirage · 1 de 2'],
+    [`demo:${LOTE_ID}/seg-004`, true, 'Lote de Mirage · 2 de 2'],
+  ]);
+  assert.equal(held.start?.id, `demo:${LOTE_ID}/seg-004`);
 });
 
 const MIXED = {
@@ -132,7 +223,7 @@ test('the queue starts on the requested Short, or on the first one when it is no
 
 test('an empty queue has no start and no fallback, so the Visor does not open', () => {
   const queue = buildVisorQueue({ clips: clipsOf(demoVideo('busy', { status: 'composing' })), streams: [], filter: null, requestedId: 'demo:busy' });
-  assert.deepEqual(queue, { entries: [], start: null, fellBack: false });
+  assert.deepEqual(queue, { entries: [], start: null, fellBack: false, pending: false });
 });
 
 test('a Short that becomes ready keeps the requested one as the start', () => {

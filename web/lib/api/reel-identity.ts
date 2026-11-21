@@ -30,6 +30,10 @@ export function autoShortsTitle(shorts: number): string {
   return `Auto-Shorts: ${shorts} ${shorts === 1 ? 'Short' : 'Shorts'}`;
 }
 
+export function withAutoShortsCount(title: string, shorts: number): string {
+  return title.replace(/^Auto-Shorts: \d+ Shorts?/, autoShortsTitle(shorts));
+}
+
 export function reelIdentity(input: ReelIdentityInput): string {
   if (input.editConfig && isLandscapeRecap(input.editConfig)) {
     return `${input.matchId}__${FULL_DEMO_REEL_SUFFIX}`;

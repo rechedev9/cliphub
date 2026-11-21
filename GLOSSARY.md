@@ -4,6 +4,20 @@ ClipHub turns CS2 demos and stream recordings into edited videos. The terms are 
 
 ## Language
 
+### Vídeos
+
+**Short**:
+A vertical 9:16 video, made from a demo or from the momentos of a stream. Vertical and Short mean the same: a 16:9 video is never a Short.
+_Avoid_: Clip, vídeo vertical, Short horizontal, momento
+
+**Lote**:
+The Shorts that one pass of Auto-Shorts makes from the same demo. Auto-Shorts is the function; the lote is what it leaves.
+_Avoid_: Auto-Shorts as a name for the group, batch, tanda
+
+**Visor**:
+The full-window screen that plays the finished Shorts one after another as a phone shows them, so the user reviews each one and decides to publish it, change it or delete it.
+_Avoid_: Feed, vista previa, reproductor
+
 ### Clips de stream
 
 **Jugada**:
@@ -18,19 +32,9 @@ _Avoid_: Voz alzada as a noun, grito
 A stretch of the stream with a start and an end that the user chose, taken from a jugada or marked by hand.
 _Avoid_: Clip, corte, tramo, Short
 
-**Short**:
-A vertical video made from one momento or from several momentos joined together.
-_Avoid_: Clip, vídeo vertical, momento
-
 **Resumen**:
 A horizontal 16:9 video made from jugadas played one after another. It is not built from momentos.
 _Avoid_: Recap, highlights, Short horizontal
 
 **Clip**:
 Not a term inside the editor. It survives only in the section name "Clips de stream" and as the kind of source to import: a short clip from Twitch, YouTube or Kick, as opposed to a VOD.
-
-### Mis vídeos
-
-**Visor**:
-The full-window screen of Mis vídeos that plays the finished vertical 9:16 videos one after another, as a phone shows them. A 16:9 video never enters it.
-_Avoid_: Feed, reproductor, modo móvil

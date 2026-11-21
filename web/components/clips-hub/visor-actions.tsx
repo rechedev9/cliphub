@@ -38,12 +38,14 @@ export function VisorActions({ entry, onChange, onDeleting, className }: VisorAc
   const { item, source } = entry;
 
   const download = (): void => {
-    if (source.kind === 'demo') downloadVideoMP4(source.video);
+    if (source.kind === 'demo' && source.loteShort !== undefined) downloadMP4(source.loteShort.url, entry.title);
+    else if (source.kind === 'demo') downloadVideoMP4(source.video);
     else downloadMP4(item.playbackUrl, item.title);
   };
   const remove = (): Promise<void> => {
     onDeleting();
-    return source.kind === 'demo' ? api.deleteVideo(source.video.id) : streamsApi.deleteVideo(item.jobId, item.variant, source.clipId);
+    if (source.kind === 'stream') return streamsApi.deleteVideo(item.jobId, item.variant, source.clipId);
+    return source.loteShort === undefined ? api.deleteVideo(source.video.id) : api.deleteLoteShort(source.video.id, source.loteShort.name);
   };
 
   const press = (action: VisorAction): void => {

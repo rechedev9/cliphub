@@ -11,7 +11,7 @@ import { reelStyleLabel } from './reel-style-label.ts';
 import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForLatch, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, videoFromIntent, withAdmissionFailure, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type AdmissionFailure, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
-import { autoShortsTitle, reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict } from './reel-identity.ts';
+import { autoShortsTitle, reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict, withAutoShortsCount } from './reel-identity.ts';
 import {
   applyEffectiveRenderMusic,
   clearVideoArtifactUrls,
@@ -40,7 +40,7 @@ import { batchItemError, parseRenderView, parseStatusView, type RawRenderView, t
 import { playsSelectionLabel } from '../format.ts';
 import { constrainEditConfig, isLandscapeRecap } from '../reel-brief.ts';
 import { apiFetch } from './edition-fetch.ts';
-import { loteVideoNames } from './auto-shorts.ts';
+import { loteCardAfterDelete, loteVideoNames } from './auto-shorts.ts';
 
 /** Server roster row as returned by /api/demos/{jobId}/roster (steamid64). */
 type RosterPlayer = {
@@ -80,11 +80,6 @@ type RosterResponse = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 
-/**
- * One reel's prefetched reconcile inputs. `job: null` means the orchestrator no
- * longer knows the job; `error` means the server could not read this item at
- * all, which is neither "job gone" nor "no render yet" but "unknown".
- */
 type BatchStatusEntry = { error: string; job?: undefined; render?: undefined } | ReadBatchStatusEntry;
 
 /** A row the server did read: the job's status view and its render state. */
@@ -168,40 +163,23 @@ function throwIfAborted(signal?: AbortSignal): void {
 
 /** Local orchestrator client: persist intents, reconcile live status via proxy. */
 export class RealApiClient implements ApiClient {
-  /** Live, derived view of each tracked reel (status/downloadUrl/failureReason). */
   private readonly reels = new Map<string, Video>();
-  /** Durable facts the user asked for, mirrored to localStorage via reel-store. */
   private readonly intents = new Map<string, ReelIntent>();
-  /** Reels with a record/render POST in flight, so a tick never double-drives. */
   private readonly driving = new Set<string>();
 
-  /** Consecutive 404 status polls per reel, feeding the unrecoverable latch. */
   private readonly jobGoneTicks = new Map<string, number>();
-  /** Consecutive ready-without-MP4 render polls per reel, feeding the unrecoverable latch. */
   private readonly readyWithoutVideoTicks = new Map<string, number>();
-  /** When POST /generate was accepted; the job may still read its old status until the worker dequeues. */
   private readonly pendingCapture = new Map<string, number>();
-  /** Server-reported artifact names for each reel (the file names the editor wrote). */
   private readonly artifactNames = new Map<string, { video: string; cover?: string; covers?: string[]; revision?: string }>();
-  /** Cached per-job series match (map/score); immutable once a job has one. */
   private readonly seriesMatches = new Map<string, RosterMatch>();
-  /** Mismatching revision each reel already re-drove from; bounds automatic /generate re-POSTs. */
   private readonly redrivenRevisions = new Map<string, RedrivenRevision>();
-  /** Why automatic driving stopped (durable POST rejection or repeated mismatch); explicit actions clear it. */
   private readonly driveLatch = new Map<string, { failureReason: string; retryAction: ReelAction }>();
-  /** Reels an explicit action asked for since the page loaded; only their generates may open CS2. */
   private readonly asked = new Set<string>();
-  /** GETs the constructor beat still has open, so its three reads share them (see sharedRead). */
   private readonly beatReads = new Map<string, Promise<unknown>>();
-  /** Last /api/demos/jobs body, reused when the orchestrator answers 304. */
   private jobsListCache: ConditionalJSONCache<IndexedJob[]> | null = null;
-  /** The jobs list every poll of one beat shares; any write through `send` drops it. */
   private readonly jobsRead = new RecentRead(() => this.fetchJobs(), { keepMs: 1000 });
-  /** Delivered renders with no local intent (see recovered-renders.ts); read-only. */
   private readonly recovered = new Map<string, RecoveredVideo>();
-  /** Job status each job's renders were last read at; a status change re-reads them. */
   private readonly recoveryProbed = new Map<string, string>();
-  /** Shorts kept from the retired cloud; null until read once. The list only ever shrinks, by deletion. */
   private imported: ImportedVideo[] | null = null;
 
   constructor() {
@@ -237,15 +215,6 @@ export class RealApiClient implements ApiClient {
     return readJson<KillPlan>(await this.send((dp) => ({ url: dp.planUrl(jobId) })));
   }
 
-  /**
-   * Shares one in-flight GET between the callers of a single poll beat. The
-   * constructor asks for the match, the Short plays and the recap rounds at the
-   * same time; they all need `/status` first and two of them need the same kill
-   * plan, so this turns a beat into one status read plus one document wave
-   * instead of three independent status → document waterfalls. The promise is dropped the moment it settles: re-picking a POV rewrites the
-   * kill plan while the job walks parsed → parsing → parsed, so any memo past
-   * that would hand out the previous target's kills.
-   */
   private sharedRead<T>(key: string, read: () => Promise<T>): Promise<T> {
     const open = this.beatReads.get(key) as Promise<T> | undefined;
     if (open) return open;
@@ -545,10 +514,6 @@ export class RealApiClient implements ApiClient {
     return this.imported.map((video) => importedVideo(video, dp.importedVideoUrl(video.cloudJobId, video.name), jobs));
   }
 
-  /**
-   * Lists delivered renders no intent points at. Each job is read once per
-   * status through one batch request, so a steady hub poll costs nothing.
-   */
   private async recoverServerRenders(): Promise<void> {
     let jobs: IndexedJob[];
     try {
@@ -778,6 +743,28 @@ export class RealApiClient implements ApiClient {
     this.reels.delete(id);
     this.forgetDriveState(id);
     saveReelIntents(Array.from(this.intents.values()));
+  }
+
+  async deleteLoteShort(id: string, name: string): Promise<void> {
+    const intent = this.intents.get(id);
+    const recovered = intent ? undefined : this.recovered.get(id);
+    const lote = intent ? { jobId: intent.jobId, variant: variantOf(intent) } : recovered;
+    if (!lote) return;
+    const names = loteVideoNames(await this.fetchRenderStatus(lote.jobId, lote.variant), { jobId: lote.jobId, id });
+    const left = names.filter((other) => other !== name);
+    const first = left[0];
+    if (left.length === names.length) return;
+    if (first === undefined) return this.deleteVideo(id);
+    await this.deleteRenderVideos(lote.jobId, lote.variant, [name]);
+    const change = { deleted: name, firstUrl: dataPlane().videoUrl(lote.jobId, lote.variant, first), left: left.length };
+    if (recovered) this.recovered.set(id, { ...recovered, videoName: first, video: loteCardAfterDelete(recovered.video, change) });
+    if (!intent) return;
+    intent.title = withAutoShortsCount(intent.title, left.length);
+    saveReelIntents(Array.from(this.intents.values()));
+    const artifacts = this.artifactNames.get(id);
+    if (artifacts) this.artifactNames.set(id, { ...artifacts, video: first });
+    const reel = this.reels.get(id);
+    if (reel) this.reels.set(id, loteCardAfterDelete(reel, change));
   }
 
   private async deleteRenderVideos(jobId: string, variant: string, names: readonly string[]): Promise<void> {

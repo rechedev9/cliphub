@@ -17,7 +17,7 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
-function seedIntent(client: RealApiClient, options: { id: string; segmentIds: string[]; separateShorts: boolean }): void {
+function seedIntent(client: RealApiClient, options: { id: string; segmentIds: string[]; separateShorts: boolean; title?: string }): void {
   const intent: ReelIntent = {
     videoId: options.id,
     jobId: JOB,
@@ -25,7 +25,7 @@ function seedIntent(client: RealApiClient, options: { id: string; segmentIds: st
     mode: 'clean',
     variant: DEFAULT_VARIANT,
     editConfig: { ...DEFAULT_EDIT_CONFIG, separateShorts: options.separateShorts },
-    title: 'Test reel',
+    title: options.title ?? 'Test reel',
     map: 'de_mirage',
     score: '13-7',
     createdAt: Date.now(),
@@ -75,6 +75,7 @@ function recoveredOnReload(disk: Disk): RecoveredVideo | null {
   const render = {
     status: 'ready',
     videoName: disk.videos[0],
+    videoNames: disk.videos,
     segmentIds: disk.segmentIds,
     editConfig: { ...DEFAULT_EDIT_CONFIG, separateShorts: disk.separateShorts },
   };
@@ -130,5 +131,67 @@ test('Borrar on a Short that is not part of a lote deletes only its video', asyn
     await client.deleteVideo(`${JOB}__seg-002`);
     assert.deepEqual(fake.deletes, ['seg-002']);
     assert.equal((client as unknown as Seedable).intents.has(`${JOB}__seg-002`), false);
+  } finally { fake.restore(); }
+});
+
+const LOTE_TITLE = 'Auto-Shorts: 3 Shorts - Viral';
+
+test('Borrar on one Short of a lote deletes only that Short and the card counts the ones left', async () => {
+  const disk: Disk = { videos: [...LOTE], segmentIds: LOTE, separateShorts: true };
+  const fake = diskFetch(disk);
+  try {
+    const client = new RealApiClient();
+    seedIntent(client, { id: LOTE_ID, segmentIds: LOTE, separateShorts: true, title: LOTE_TITLE });
+    await client.deleteLoteShort(LOTE_ID, 'seg-001');
+    assert.deepEqual(fake.deletes, ['seg-001']);
+    const card = await client.getVideo(LOTE_ID);
+    assert.equal(card?.title, 'Auto-Shorts: 2 Shorts - Viral');
+    assert.equal(card?.downloadUrl, `${RENDER_URL}/videos/seg-004`);
+    assert.equal(recoveredOnReload(disk)?.video.title.startsWith('Auto-Shorts: 2 Shorts'), true);
+  } finally { fake.restore(); }
+});
+
+test('Borrar on the last Short of a lote removes its card and it does not come back on reload', async () => {
+  const disk: Disk = { videos: ['seg-007'], segmentIds: LOTE, separateShorts: true };
+  const fake = diskFetch(disk);
+  try {
+    const client = new RealApiClient();
+    seedIntent(client, { id: LOTE_ID, segmentIds: LOTE, separateShorts: true, title: 'Auto-Shorts: 1 Short - Viral' });
+    await client.deleteLoteShort(LOTE_ID, 'seg-007');
+    assert.deepEqual(fake.deletes, ['seg-007']);
+    assert.equal(await client.getVideo(LOTE_ID), null);
+    assert.equal((client as unknown as Seedable).intents.has(LOTE_ID), false);
+    assert.equal(recoveredOnReload(disk), null);
+  } finally { fake.restore(); }
+});
+
+test('Borrar on one Short of a recovered lote keeps the card with the ones left, and the last one removes it', async () => {
+  const disk: Disk = { videos: ['seg-001', 'seg-004'], segmentIds: LOTE, separateShorts: true };
+  const fake = diskFetch(disk);
+  try {
+    const recovered = recoveredOnReload(disk);
+    assert.ok(recovered);
+    const client = new RealApiClient();
+    (client as unknown as Seedable).recovered.set(recovered.video.id, recovered);
+    await client.deleteLoteShort(LOTE_ID, 'seg-004');
+    const card = await client.getVideo(LOTE_ID);
+    assert.equal(card?.title.startsWith('Auto-Shorts: 1 Short -'), true);
+    assert.equal(card?.downloadUrl, `${RENDER_URL}/videos/seg-001`);
+    await client.deleteLoteShort(LOTE_ID, 'seg-001');
+    assert.deepEqual(fake.deletes, ['seg-004', 'seg-001']);
+    assert.equal(await client.getVideo(LOTE_ID), null);
+    assert.equal(recoveredOnReload(disk), null);
+  } finally { fake.restore(); }
+});
+
+test('Borrar on a Short that already left the lote deletes nothing and keeps the card', async () => {
+  const disk: Disk = { videos: ['seg-004'], segmentIds: LOTE, separateShorts: true };
+  const fake = diskFetch(disk);
+  try {
+    const client = new RealApiClient();
+    seedIntent(client, { id: LOTE_ID, segmentIds: LOTE, separateShorts: true, title: 'Auto-Shorts: 1 Short - Viral' });
+    await client.deleteLoteShort(LOTE_ID, 'seg-001');
+    assert.deepEqual(fake.deletes, []);
+    assert.equal((await client.getVideo(LOTE_ID))?.title, 'Auto-Shorts: 1 Short - Viral');
   } finally { fake.restore(); }
 });

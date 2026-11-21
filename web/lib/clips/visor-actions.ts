@@ -2,7 +2,7 @@ import type { MediaPlaybackItem } from '../api/playback.ts';
 import type { Video } from '../api/types.ts';
 import { PUBLISH_PREP_LABEL } from '../publish-actions.ts';
 import type { HubModel } from './hub.ts';
-import { ORPHAN_MATCH_SEGMENT, PRODUCE_FORMAT, editVideoHref, publishHref, streamEditorHref } from './routes.ts';
+import { ORPHAN_MATCH_SEGMENT, PRODUCE_FORMAT, editVideoHref, loteShortPublishHref, publishHref, streamEditorHref } from './routes.ts';
 
 export const VISOR_ACTION = {
   edit: 'edit',
@@ -21,24 +21,37 @@ export type VisorAction =
   | { kind: typeof VISOR_ACTION.download; label: string }
   | { kind: typeof VISOR_ACTION.delete; label: string };
 
+export type LoteShort = { name: string; url: string };
+
 export type VisorSource =
-  | { kind: 'demo'; video: Video }
+  | { kind: 'demo'; video: Video; loteShort?: LoteShort }
   | { kind: 'stream'; clipId: string };
 
 const DOWNLOAD: VisorAction = { kind: VISOR_ACTION.download, label: 'Descargar' };
 const DELETE: VisorAction = { kind: VISOR_ACTION.delete, label: 'Borrar' };
 
-export function demoShortActions(clip: HubModel['clips'][number]): VisorAction[] {
+function musicLabel(video: Video, lote: boolean): string {
+  if (!lote) return video.songId ? 'Cambiar música' : 'Añadir música';
+  return video.songId ? 'Cambiar música del lote' : 'Añadir música al lote';
+}
+
+export function demoShortActions(clip: HubModel['clips'][number], loteShort?: LoteShort): VisorAction[] {
   const { video } = clip;
   const matchId = clip.match?.id ?? null;
   const editable = video.recovered !== true;
+  const lote = loteShort !== undefined;
   const actions: VisorAction[] = [];
   if (editable && matchId !== null && video.variant !== undefined) {
-    actions.push({ kind: VISOR_ACTION.edit, label: 'Editar', href: editVideoHref({ matchId, format: PRODUCE_FORMAT.short, variant: video.variant }) });
+    const href = editVideoHref({ matchId, format: PRODUCE_FORMAT.short, variant: video.variant });
+    actions.push({ kind: VISOR_ACTION.edit, label: lote ? 'Editar el lote' : 'Editar', href });
   }
-  if (editable) actions.push({ kind: VISOR_ACTION.music, label: video.songId ? 'Cambiar música' : 'Añadir música' });
+  if (editable) actions.push({ kind: VISOR_ACTION.music, label: musicLabel(video, lote) });
   if (video.publishable !== false) {
-    actions.push({ kind: VISOR_ACTION.publish, label: PUBLISH_PREP_LABEL, href: publishHref(matchId ?? ORPHAN_MATCH_SEGMENT, video.id) });
+    const publishMatch = matchId ?? ORPHAN_MATCH_SEGMENT;
+    const href = loteShort === undefined
+      ? publishHref(publishMatch, video.id)
+      : loteShortPublishHref({ matchId: publishMatch, clipId: video.id, short: loteShort.name });
+    actions.push({ kind: VISOR_ACTION.publish, label: PUBLISH_PREP_LABEL, href });
   }
   return [...actions, DOWNLOAD, DELETE];
 }

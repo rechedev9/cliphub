@@ -241,5 +241,11 @@ export function publishHref(matchId: string, clipId: string): string {
   return `${RESULTS_HREF}/${encodeURIComponent(matchId)}/publicar/${encodeURIComponent(clipId)}`;
 }
 
+export const PUBLISH_SHORT_QUERY = 'short' as const;
+
+export function loteShortPublishHref({ matchId, clipId, short }: { matchId: string; clipId: string; short: string }): string {
+  return `${publishHref(matchId, clipId)}?${new URLSearchParams({ [PUBLISH_SHORT_QUERY]: short }).toString()}`;
+}
+
 /** Orphan reels (no `jobId`) still publish; the segment is a placeholder. */
 export const ORPHAN_MATCH_SEGMENT = '-' as const;
