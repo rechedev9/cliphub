@@ -31,6 +31,7 @@ export const RECOVERY_VARIANTS: readonly string[] = [
 export type RecoveryRender = {
   status: string;
   videoName?: string;
+  videoNames?: string[];
   coverName?: string;
   coverNames?: string[];
   artifactPrefix?: string;
@@ -88,7 +89,7 @@ export function recoveredVideo(
     ? { ...DEFAULT_EDIT_CONFIG, ...render.editConfig, format: 'landscape-16x9', matchRecap: true }
     : { ...DEFAULT_EDIT_CONFIG, ...render.editConfig, format: highlights ? 'landscape-16x9' : 'short-9x16', matchRecap: false };
   const plays = segmentIds.length;
-  const selection = batch ? autoShortsTitle(plays) : `${plays} ${plays === 1 ? 'jugada' : 'jugadas'}`;
+  const selection = batch ? autoShortsTitle(render.videoNames?.length ?? plays) : `${plays} ${plays === 1 ? 'jugada' : 'jugadas'}`;
   const title = full ? 'Demo completa' : `${selection} - ${reelStyleLabel(variant, editConfig)}`;
 
   const dp = dataPlane();

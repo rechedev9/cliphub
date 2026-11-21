@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Download, Play } from 'lucide-react';
 import { toast } from 'sonner';
-import { autoShortsFiles, type AutoShortsFiles } from '@/lib/api/auto-shorts';
+import { autoShortsFiles, isLote, type AutoShortsFiles } from '@/lib/api/auto-shorts';
 import { dataPlane } from '@/lib/api/dataplane';
 import { demoPlaybackItem } from '@/lib/api/playback';
 import type { Video } from '@/lib/api/types';
@@ -12,30 +12,37 @@ import { Button } from '@/components/ui/button';
 import { MediaPlayer } from '@/components/studio/media-player';
 import { apiFetch } from '@/lib/api/edition-fetch';
 
-type ListView = { status: 'loading' } | { status: 'failed' } | ({ status: 'ready' } & AutoShortsFiles);
+export type AutoShortsListView = { status: 'loading' } | { status: 'failed' } | ({ status: 'ready' } & AutoShortsFiles);
 
-/** Every Short of a finished Auto-Shorts batch; the page's own player and download cover only the first. */
-export function AutoShortsList({ video }: { video: Video }): ReactNode {
-  const jobId = video.jobId;
-  const variant = video.variant ?? 'viral-60-clean';
-  const batch = video.editConfig?.separateShorts === true && video.status === 'ready' && jobId !== undefined;
-  const [view, setView] = useState<ListView>({ status: 'loading' });
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [returnFocus, setReturnFocus] = useState<HTMLElement | null>(null);
+export function useAutoShortsFiles(video: Video | null): AutoShortsListView {
+  const jobId = video?.jobId;
+  const variant = video?.variant ?? 'viral-60-clean';
+  const prefix = video?.reviewArtifactPrefix;
+  const batch = video !== null && isLote(video) && video.status === 'ready';
+  const [view, setView] = useState<AutoShortsListView>({ status: 'loading' });
 
   useEffect(() => {
-    if (!batch) return;
+    if (!batch || jobId === undefined) return;
     const controller = new AbortController();
     apiFetch(dataPlane().renderUrl(jobId, variant), { cache: 'no-store', signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`render ${response.status}`);
-        setView({ status: 'ready', ...autoShortsFiles(await response.json(), { jobId, variant, artifactPrefix: video.reviewArtifactPrefix }) });
+        setView({ status: 'ready', ...autoShortsFiles(await response.json(), { jobId, variant, artifactPrefix: prefix }) });
       })
       .catch(() => {
         if (!controller.signal.aborted) setView({ status: 'failed' });
       });
     return () => controller.abort();
-  }, [batch, jobId, variant, video.reviewArtifactPrefix]);
+  }, [batch, jobId, variant, prefix]);
+
+  return view;
+}
+
+/** Every Short of a finished Auto-Shorts batch; the page's own player and download cover only the first. */
+export function AutoShortsList({ video, view }: { video: Video; view: AutoShortsListView }): ReactNode {
+  const batch = isLote(video) && video.status === 'ready' && video.jobId !== undefined;
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [returnFocus, setReturnFocus] = useState<HTMLElement | null>(null);
 
   if (!batch) return null;
   const files = view.status === 'ready' ? view.files : [];

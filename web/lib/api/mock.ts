@@ -3,6 +3,8 @@ import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
 import type { Session, Match, Play, Song, Video, FeedItem, RenderMode, VideoStatus, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, ScannedDemo, SeriesDemo } from './types';
 import type { SeriesSummary } from './jobs-index';
 import { DEFAULT_EDIT_CONFIG } from './reel-store.ts';
+import { autoShortsTitle, withAutoShortsCount } from './reel-identity.ts';
+import { isLote } from './auto-shorts.ts';
 import {
   PUBLISH_ASSISTANT_SCHEMA_VERSION,
   PUBLISH_ASSISTANT_TIME_ZONE,
@@ -36,6 +38,7 @@ const session: Session = {
 };
 
 const videos: Video[] = seedVideos();
+const loteShorts = new Map<string, string[]>();
 
 const GIB = 1024 ** 3;
 const mockStorage = fixtureMatches.map((m, index) => ({
@@ -435,8 +438,10 @@ export class MockApiClient implements ApiClient {
     const pickedPlays = input.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
 
     const modeLabel = input.mode === 'music' ? 'Edición Musical' : 'Clean POV';
-    const playLabel = playsSelectionLabel(pickedPlays) ?? 'Highlight';
+    const lote = isLote(input);
+    const playLabel = lote ? autoShortsTitle(pickedPlays.length) : (playsSelectionLabel(pickedPlays) ?? 'Highlight');
     const id = `v-${Date.now()}`;
+    if (lote) loteShorts.set(id, pickedPlays.map((play) => play.id));
 
     const video: Video = {
       id,
@@ -538,6 +543,20 @@ export class MockApiClient implements ApiClient {
     await delay();
     const index = videos.findIndex((v) => v.id === id);
     if (index !== -1) videos.splice(index, 1);
+  }
+
+  async deleteLoteShort(id: string, name: string): Promise<void> {
+    const shorts = loteShorts.get(id) ?? [];
+    const left = shorts.filter((short) => short !== name);
+    const video = videos.find((v) => v.id === id);
+    if (video === undefined || left.length === shorts.length) return;
+    if (left.length === 0) {
+      loteShorts.delete(id);
+      return this.deleteVideo(id);
+    }
+    await delay();
+    loteShorts.set(id, left);
+    video.title = withAutoShortsCount(video.title, left.length);
   }
 
   // The mock has no orchestrator, so a delete only clears its own in-memory

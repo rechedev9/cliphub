@@ -2,6 +2,9 @@
 import { dataPlane } from './dataplane.ts';
 import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.ts';
 import { apiFetch } from './edition-fetch.ts';
+import { reelPlaysSuffix, withAutoShortsCount } from './reel-identity.ts';
+import type { RenderView } from './status-view.ts';
+import type { Video } from './types.ts';
 
 /** Mirrors internal/moments: the default bar and limit, and the hard cap. */
 export const AUTO_SHORTS_DEFAULT_MIN_SCORE = 0.6;
@@ -56,6 +59,29 @@ export type AutoShortsFile = { name: string; url: string };
 
 /** A batch render's Shorts; replaced when the style's newest render is another video's. */
 export type AutoShortsFiles = { files: AutoShortsFile[]; replaced: boolean };
+
+export function isLote(video: { editConfig?: { separateShorts?: boolean } }): boolean {
+  return video.editConfig?.separateShorts === true;
+}
+
+export function loteVideoNames(render: RenderView, lote: { jobId: string; id: string }): string[] | null {
+  if (render.status === 'queued' || render.status === 'rendering') return null;
+  if (render.status === 'none' || !isLote(render) || !render.segmentIds) return [];
+  const current = `${lote.jobId}__${reelPlaysSuffix(render.segmentIds, render.editConfig)}`;
+  return current === lote.id ? (render.videoNames ?? []) : [];
+}
+
+export function loteShortVideo(video: Video, request: { short: string | null; files: readonly AutoShortsFile[] | null }): Video {
+  if (!isLote(video)) return video;
+  const file = request.files?.find((entry) => entry.name === request.short);
+  return file === undefined ? video : { ...video, downloadUrl: file.url, thumbnailUrl: undefined };
+}
+
+export function loteCardAfterDelete(video: Video, change: { deleted: string; firstUrl: string; left: number }): Video {
+  const next: Video = { ...video, title: withAutoShortsCount(video.title, change.left), downloadUrl: pinRenderRevision(change.firstUrl, video.artifactRevision) };
+  if (video.thumbnailUrl?.split('?', 1)[0]?.endsWith(`/covers/${change.deleted}`)) delete next.thumbnailUrl;
+  return next;
+}
 
 /** Reads the Shorts of a batch from its GET /renders/{variant} state; none while it is not ready. */
 export function autoShortsFiles(raw: unknown, target: { jobId: string; variant: string; artifactPrefix?: string }): AutoShortsFiles {

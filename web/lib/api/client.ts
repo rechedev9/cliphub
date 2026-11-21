@@ -35,6 +35,7 @@ export interface ApiClient {
   rerenderVideoMusic(id: string, choice: MusicChoice): Promise<Video>;
   selectVideoCover(id: string, coverName: string): Promise<Video>;
   deleteVideo(id: string): Promise<void>;
+  deleteLoteShort(id: string, name: string): Promise<void>;
   /** 404 is success; 409/503 throw. */
   deleteMatch(jobId: string): Promise<void>;
   deleteSeries(seriesId: string): Promise<void>;

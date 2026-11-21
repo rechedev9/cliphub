@@ -51,10 +51,11 @@ export type DeleteVideoDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDeleted: () => void;
+  onCloseAutoFocus?: (event: Event) => void;
 };
 
 /** The confirmation alone, for a delete that starts from a menu item. */
-export function DeleteVideoDialog({ title, onConfirm: remove, open, onOpenChange, onDeleted }: DeleteVideoDialogProps) {
+export function DeleteVideoDialog({ title, onConfirm: remove, open, onOpenChange, onDeleted, onCloseAutoFocus }: DeleteVideoDialogProps) {
   const [deleting, setDeleting] = useState(false);
 
   async function onConfirm() {
@@ -74,7 +75,7 @@ export function DeleteVideoDialog({ title, onConfirm: remove, open, onOpenChange
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm" onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>¿Borrar este vídeo?</DialogTitle>
           <DialogDescription className="break-words">

@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronDown, Film, Plus } from 'lucide-react';
+import { ChevronDown, Film, Plus, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { streamPlaybackItem } from '@/lib/api/playback';
@@ -21,7 +21,17 @@ import {
   type HubSnapshot,
 } from '@/lib/clips/hub';
 import { librarySummary, outputStateCount, streamActivity } from '@/lib/clips/results';
-import { LONG_VIDEOS_HREF, ORPHAN_MATCH_SEGMENT, SHORTS_HREF, STREAMS_HREF, publishHref } from '@/lib/clips/routes';
+import {
+  LONG_VIDEOS_HREF,
+  ORPHAN_MATCH_SEGMENT,
+  RESULTS_HREF,
+  SHORTS_HREF,
+  STREAMS_HREF,
+  VISOR_QUERY,
+  publishHref,
+  visorHref,
+} from '@/lib/clips/routes';
+import { buildVisorQueue, EVERY_SHORT, findVisorEntry, sameVisorEntries, visorEntryId, type VisorEntry, type VisorFilter } from '@/lib/clips/visor-queue';
 import { createCoalescedCall } from '@/lib/coalesced-call';
 import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { prettyMapName } from '@/lib/format';
@@ -30,7 +40,9 @@ import { collectShellJobs, publishShellJobs } from '@/lib/shell-activity';
 import { cn } from '@/lib/utils';
 import { ClipsLens } from '@/components/clips-hub/clips-lens';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
+import { useLoteShorts } from '@/components/clips-hub/use-lote-shorts';
 import { useWebMCPLibrary } from '@/components/clips-hub/use-webmcp-library';
+import { Visor } from '@/components/clips-hub/visor';
 import { EmptyState } from '@/components/records/empty-state';
 import { FORMAT_TONE, type FormatTone } from '@/components/studio/format-tone';
 import { StudioPageHeader } from '@/components/studio/page-header';
@@ -56,6 +68,8 @@ const NEW_VIDEO_OPTIONS = [
 
 type LoadError = { offline: boolean };
 
+const VISOR_FALLBACK_TOAST_ID = 'visor-fallback';
+
 async function fetchSnapshot(prev: HubSnapshot | null): Promise<HubSnapshot> {
   return settleHubSnapshot(
     await Promise.allSettled([api.listMatches(), api.listVideos(), streamsApi.listJobs()]),
@@ -80,7 +94,24 @@ function streamLibraryCount(streams: readonly StreamJob[]): number {
 }
 
 export default function ResultsPage(): ReactNode {
+  return (
+    <Suspense fallback={<ResultsSkeleton />}>
+      <ResultsView />
+    </Suspense>
+  );
+}
+
+function ResultsView(): ReactNode {
   const router = useRouter();
+  const visorId = useSearchParams().get(VISOR_QUERY);
+  const [filter, setFilter] = useState<VisorFilter>(EVERY_SHORT);
+  const [listOrigin, setListOrigin] = useState<VisorFilter | null>(null);
+  const [seenVisorId, setSeenVisorId] = useState(visorId);
+  const [visorShown, setVisorShown] = useState<readonly VisorEntry[]>([]);
+  if (seenVisorId !== visorId) {
+    setSeenVisorId(visorId);
+    if (visorId === null) setListOrigin(null);
+  }
 
   const [model, setModel] = useState<HubModel | null>(null);
   const [streams, setStreams] = useState<StreamJob[]>([]);
@@ -92,20 +123,40 @@ export default function ResultsPage(): ReactNode {
   // not be dropped, and the poll must not publish the list it started with.
   const loadSnapshot = useRef(createCoalescedCall(() => fetchSnapshot(snapshotRef.current)));
 
+  const visorEntriesRef = useRef<readonly VisorEntry[]>([]);
+  useEffect(() => {
+    visorEntriesRef.current = visorShown;
+  }, [visorShown]);
+
+  const openVisorOn = useCallback((entryId: string, origin: VisorFilter) => {
+    if (new URLSearchParams(window.location.search).has(VISOR_QUERY)) {
+      const kept = findVisorEntry(visorEntriesRef.current, entryId);
+      if (kept === undefined) setListOrigin((was) => (was === null ? null : origin));
+      window.history.replaceState(null, '', visorHref(kept?.id ?? entryId));
+      return;
+    }
+    setListOrigin(origin);
+    window.history.pushState(null, '', visorHref(entryId));
+  }, []);
+
   const announceReady = useCallback(
     (prev: HubModel, next: HubModel) => {
       for (const clip of hubTransitions(prev, next).ready) {
+        const entryId = visorEntryId(clip);
         toast(`${clip.title} listo`, {
           description: `${prettyMapName(clip.video.map)} · Revisa el vídeo y descárgalo`,
           action: {
             label: 'Abrir',
             // The publishing page also previews and downloads outputs whose demo was deleted.
-            onClick: () => router.push(publishHref(clip.match?.id ?? ORPHAN_MATCH_SEGMENT, clip.id)),
+            onClick: () => {
+              if (entryId !== null) openVisorOn(entryId, EVERY_SHORT);
+              else router.push(publishHref(clip.match?.id ?? ORPHAN_MATCH_SEGMENT, clip.id));
+            },
           },
         });
       }
     },
-    [router],
+    [router, openVisorOn],
   );
 
   const accept = useCallback((snapshot: HubSnapshot) => {
@@ -137,11 +188,14 @@ export default function ResultsPage(): ReactNode {
     }
   }, [accept]);
 
+  const { lotes, retry: retryLotes } = useLoteShorts(model?.clips ?? null);
+
   useEffect(() => {
     let active = true;
     const stop = startPollLoop({
       tick: async () => {
         const next = await refresh();
+        retryLotes();
         if (!active) return 'idle';
         return next === null || anyoneWorking(next, snapshotRef.current?.streams ?? []) ? 'fast' : 'idle';
       },
@@ -152,13 +206,52 @@ export default function ResultsPage(): ReactNode {
       active = false;
       stop();
     };
-  }, [refresh]);
+  }, [refresh, retryLotes]);
 
   const onChange = useCallback(() => {
     void refresh();
   }, [refresh]);
 
   useWebMCPLibrary({ model, failed: loadError !== null });
+
+  const moveVisor = useCallback((entryId: string) => {
+    window.history.replaceState(null, '', visorHref(entryId));
+  }, []);
+
+  const closingRef = useRef(false);
+  useEffect(() => {
+    if (visorId === null) closingRef.current = false;
+  }, [visorId]);
+
+  const closeVisor = useCallback(() => {
+    if (listOrigin === null) {
+      window.history.replaceState(null, '', RESULTS_HREF);
+      return;
+    }
+    if (closingRef.current) return;
+    closingRef.current = true;
+    window.history.back();
+  }, [listOrigin]);
+
+  const visorQueue = model === null || visorId === null
+    ? null
+    : buildVisorQueue({ clips: model.clips, streams, filter: listOrigin, requestedId: visorId, shown: visorShown, lotes });
+  const visorEntries = visorQueue?.entries ?? [];
+  if (!sameVisorEntries(visorEntries, visorShown)) setVisorShown(visorEntries);
+  const settled = visorQueue !== null && loadError === null;
+  const startId = settled ? visorQueue.start?.id ?? null : null;
+  const fellBack = settled && visorQueue.fellBack;
+  const nothingToShow = settled && visorQueue.start === null && !visorQueue.pending;
+
+  useEffect(() => {
+    if (startId === null || startId === visorId) return;
+    if (fellBack) toast('No encontramos ese Short', { id: VISOR_FALLBACK_TOAST_ID, description: 'Te mostramos el primero de la lista.' });
+    window.history.replaceState(null, '', visorHref(startId));
+  }, [startId, visorId, fellBack]);
+
+  useEffect(() => {
+    if (nothingToShow) closeVisor();
+  }, [nothingToShow, closeVisor]);
 
   const banner = loadError === null ? null : <HubBanner offline={loadError.offline} onRetry={onChange} />;
 
@@ -200,24 +293,44 @@ export default function ResultsPage(): ReactNode {
     );
   }
 
+  const listQueue = buildVisorQueue({ clips: model.clips, streams, filter, requestedId: null, lotes });
+  const openVisor = (entryId: string): void => openVisorOn(entryId, filter);
+
   return (
     <div className="measure-list flex flex-col gap-8">
-      <LibraryHeader summary={summary} live />
+      <LibraryHeader
+        summary={summary}
+        live
+        visorAction={listQueue.start === null ? null : (
+          <Button type="button" variant="outline" onClick={() => { if (listQueue.start !== null) openVisor(listQueue.start.id); }}>
+            <Smartphone aria-hidden />
+            Ver como en el móvil
+          </Button>
+        )}
+      />
       {banner}
       <div aria-busy={loadError !== null || undefined}>
-        <ClipsLens clips={model.clips} streams={streams} onChange={onChange} />
+        <ClipsLens clips={model.clips} streams={streams} filter={filter} onFilterChange={setFilter} onChange={onChange} onOpenVisor={openVisor} />
       </div>
+      {visorQueue === null || visorQueue.start === null ? null : (
+        <Visor entries={visorQueue.entries} currentId={visorQueue.start.id} onMove={moveVisor} onClose={closeVisor} onChange={onChange} />
+      )}
     </div>
   );
 }
 
 /** The title on the Studio type scale, the one-line count and the Nuevo vídeo menu. `live` announces count changes. */
-function LibraryHeader({ summary, live = false }: { summary: string; live?: boolean }): ReactNode {
+function LibraryHeader({ summary, live = false, visorAction = null }: { summary: string; live?: boolean; visorAction?: ReactNode }): ReactNode {
   return (
     <StudioPageHeader
       title={PAGE_TITLE}
       description={<span role={live ? 'status' : undefined}>{summary}</span>}
-      actions={<NewVideoMenu />}
+      actions={(
+        <div className="flex flex-wrap items-center gap-2">
+          {visorAction}
+          <NewVideoMenu />
+        </div>
+      )}
     />
   );
 }

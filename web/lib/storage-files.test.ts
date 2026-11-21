@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { LibraryMatchTeam } from './api/library.ts';
+import { DEFAULT_EDIT_CONFIG } from './api/reel-store.ts';
 import type { StorageFile } from './api/storage.ts';
 import { bulkDeleteWarning, groupByFolder, groupByKind, libraryCopyLabel, libraryVideoFor, matchLabel, splitPath } from './storage-files.ts';
 
@@ -47,9 +48,27 @@ test('libraryVideoFor finds the Mis vídeos card of a render MP4', () => {
     { id: 'other', jobId: 'j2', downloadUrl: '/api/demos/j2/renders/v/videos/reel.mp4' },
     { id: 'mine', jobId: 'j1', downloadUrl: '/api/demos/j1/renders/v/videos/reel.mp4?revision=r' },
   ];
-  assert.equal(libraryVideoFor(videos, reel), 'mine');
+  assert.deepEqual(libraryVideoFor(videos, reel), { id: 'mine', loteShort: null });
   assert.equal(libraryVideoFor(videos, { ...reel, kind: 'stream' }), null);
   assert.equal(libraryVideoFor([], reel), null);
+});
+
+test('libraryVideoFor finds the lote card of any Short of its render, and only that Short is the one to delete', () => {
+  const lote = {
+    id: 'lote',
+    jobId: 'j1',
+    variant: 'v',
+    editConfig: { ...DEFAULT_EDIT_CONFIG, separateShorts: true },
+    downloadUrl: '/api/demos/j1/renders/v/videos/seg-001?revision=r',
+  };
+  const short = (path: string) => ({ ...file(path, 1, 'short'), jobId: 'j1' });
+  assert.deepEqual(libraryVideoFor([lote], short('D:/data/jobs/j1/renders/v/revisions/r/videos/seg-001.mp4')), { id: 'lote', loteShort: 'seg-001' });
+  assert.deepEqual(libraryVideoFor([lote], short('D:\\data\\jobs\\j1\\renders\\v\\revisions\\r\\videos\\seg-004.mp4')), { id: 'lote', loteShort: 'seg-004' });
+  assert.equal(libraryVideoFor([lote], short('D:/data/jobs/j1/renders/v/revisions/old/videos/seg-004.mp4')), null);
+  assert.equal(libraryVideoFor([lote], short('D:/data/jobs/j1/renders/other/revisions/r/videos/seg-004.mp4')), null);
+  const unpinned = { ...lote, downloadUrl: '/api/demos/j1/renders/v/videos/seg-001' };
+  assert.deepEqual(libraryVideoFor([unpinned], short('D:/data/jobs/j1/renders/v/videos/seg-009.mp4')), { id: 'lote', loteShort: 'seg-009' });
+  assert.equal(libraryVideoFor([unpinned], short('D:/data/jobs/j1/renders/v/revisions/r/videos/seg-009.mp4')), null);
 });
 
 test('bulkDeleteWarning only mentions what the selection holds', () => {

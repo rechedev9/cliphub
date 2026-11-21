@@ -16,6 +16,10 @@ export function streamSummaryHref(jobId: string): string {
 }
 export const LONG_VIDEOS_HREF = '/videos-largos' as const;
 export const RESULTS_HREF = '/mis-videos' as const;
+export const VISOR_QUERY = 'visor' as const;
+export function visorHref(entryId: string): string {
+  return `${RESULTS_HREF}?${new URLSearchParams({ [VISOR_QUERY]: entryId }).toString()}`;
+}
 export const MATCHES_HREF = '/partidas' as const;
 export const TEAMS_HREF = '/equipos' as const;
 /** Player sheets live under this prefix; the list itself is retired. */
@@ -235,6 +239,12 @@ export function seriesHref(seriesId: string, format: ProduceFormat): string {
 
 export function publishHref(matchId: string, clipId: string): string {
   return `${RESULTS_HREF}/${encodeURIComponent(matchId)}/publicar/${encodeURIComponent(clipId)}`;
+}
+
+export const PUBLISH_SHORT_QUERY = 'short' as const;
+
+export function loteShortPublishHref({ matchId, clipId, short }: { matchId: string; clipId: string; short: string }): string {
+  return `${publishHref(matchId, clipId)}?${new URLSearchParams({ [PUBLISH_SHORT_QUERY]: short }).toString()}`;
 }
 
 /** Orphan reels (no `jobId`) still publish; the segment is a placeholder. */

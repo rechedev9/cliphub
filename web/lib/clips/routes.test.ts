@@ -17,7 +17,15 @@ import {
   seriesHref,
   SHORTS_HREF,
   teamHref,
+  visorHref,
+  VISOR_QUERY,
 } from './routes.ts';
+
+test('the Visor address is Mis vídeos with the id of the Short, read back by its query key', () => {
+  const href = visorHref('demo:job7__auto__seg-001');
+  assert.equal(href, '/mis-videos?visor=demo%3Ajob7__auto__seg-001');
+  assert.equal(new URL(href, 'http://studio').searchParams.get(VISOR_QUERY), 'demo:job7__auto__seg-001');
+});
 
 const JOB_ID = '9a1c6e2f-4b3d-4a10-8f2e-1d6c7b9a0e55';
 const FROM_ID = '1b2c3d4e-5f60-4a71-8b92-a3b4c5d6e7f8';

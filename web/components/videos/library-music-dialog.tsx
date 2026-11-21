@@ -38,11 +38,13 @@ export function LibraryMusicDialog({
   video,
   onOpenChange,
   onApplied,
+  onCloseAutoFocus,
 }: {
   open: boolean;
   video: Video;
   onOpenChange: (open: boolean) => void;
   onApplied: () => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }) {
   const original = currentMusicChoice(video);
   const [song, setSong] = useState<Song | null>(null);
@@ -125,7 +127,7 @@ export function LibraryMusicDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto" onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>{video.songId ? 'Cambiar música' : 'Añadir música'}</DialogTitle>
           <DialogDescription>

@@ -1,4 +1,6 @@
+import { isLote } from './api/auto-shorts.ts';
 import type { LibraryMatch } from './api/library.ts';
+import { DEFAULT_VARIANT } from './api/reel-store.ts';
 import type { StorageFile, StorageFileKind } from './api/storage.ts';
 import type { Match, Video } from './api/types.ts';
 import { prettyMapName } from './format.ts';
@@ -84,11 +86,26 @@ export function formatFileDate(iso: string): string {
 }
 
 /** The Mis vídeos entry that plays this render MP4, so deleting the file also drops the card. */
-export function libraryVideoFor(videos: readonly Pick<Video, 'id' | 'jobId' | 'downloadUrl'>[], file: StorageFile): string | null {
+export type LibraryVideoMatch = { id: string; loteShort: string | null };
+
+type CardVideo = Pick<Video, 'id' | 'jobId' | 'downloadUrl' | 'variant' | 'editConfig'>;
+
+function inLoteRender(video: CardVideo, folder: string): boolean {
+  if (!isLote(video) || video.downloadUrl === undefined) return false;
+  const revision = new URL(video.downloadUrl, 'http://studio.local').searchParams.get('revision');
+  const render = `/jobs/${video.jobId}/renders/${video.variant ?? DEFAULT_VARIANT}`;
+  return folder.endsWith(revision === null ? `${render}/videos` : `${render}/revisions/${revision}/videos`);
+}
+
+export function libraryVideoFor(videos: readonly CardVideo[], file: StorageFile): LibraryVideoMatch | null {
   if (file.jobId === undefined || (file.kind !== 'short' && file.kind !== 'full_demo')) return null;
-  const suffix = `/videos/${splitPath(file.path).name}`;
-  const video = videos.find((entry) => entry.jobId === file.jobId && entry.downloadUrl?.split('?')[0]?.endsWith(suffix));
-  return video?.id ?? null;
+  const { folder, name } = splitPath(file.path.replaceAll('\\', '/'));
+  const short = name.endsWith('.mp4') ? name.slice(0, -'.mp4'.length) : name;
+  const lote = videos.find((entry) => entry.jobId === file.jobId && inLoteRender(entry, folder));
+  if (lote !== undefined) return { id: lote.id, loteShort: short };
+  const suffix = `/videos/${name}`;
+  const video = videos.find((entry) => entry.jobId === file.jobId && !isLote(entry) && entry.downloadUrl?.split('?')[0]?.endsWith(suffix));
+  return video === undefined ? null : { id: video.id, loteShort: null };
 }
 
 /** What a bulk delete will remove, in the words the confirmation dialog shows. */
