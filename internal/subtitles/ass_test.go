@@ -37,7 +37,7 @@ func TestASSPlacesEachFormatClearOfTheHUD(t *testing.T) {
 		}
 	}
 	got := dialogues(portrait)
-	want := "Dialogue: 0,0:00:01.00,0:00:02.50,Subtitle,,0,0,0,,{\\c&H4FD7FF&}ropz:{\\c&HFFFFFF&} stack B"
+	want := "Dialogue: 0,0:00:01.00,0:00:02.50,Subtitle,,0,0,0,,{\\c&H4FD7FF&}ropz: stack B"
 	if len(got) != 1 || got[0] != want {
 		t.Fatalf("dialogues = %q, want %q", got, want)
 	}
@@ -56,9 +56,9 @@ func TestASSCapsHowLongAPhraseStaysAndDropsHiddenOnes(t *testing.T) {
 	}
 	got := dialogues(script)
 	want := []string{
-		"Dialogue: 0,0:00:00.00,0:00:07.00,Subtitle,,0,0,0,,{\\c&H4FD7FF&}a:{\\c&HFFFFFF&} una frase muy larga",
-		"Dialogue: 0,0:00:09.00,0:00:10.20,Subtitle,,0,0,0,,{\\c&H4FD7FF&}b:{\\c&HFFFFFF&} ok",
-		"Dialogue: 0,0:00:19.50,0:00:20.00,Subtitle,,0,0,0,,{\\c&H4FD7FF&}d:{\\c&HFFFFFF&} tarde",
+		"Dialogue: 0,0:00:00.00,0:00:07.00,Subtitle,,0,0,0,,{\\c&H4FD7FF&}a: una frase muy larga",
+		"Dialogue: 0,0:00:09.00,0:00:10.20,Subtitle,,0,0,0,,{\\c&H4FD7FF&}b: ok",
+		"Dialogue: 0,0:00:19.50,0:00:20.00,Subtitle,,0,0,0,,{\\c&H4FD7FF&}d: tarde",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("dialogues:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -88,7 +88,7 @@ func TestASSDrawsTheLinesOfASubtituloUnderTheSpeaker(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := dialogues(script)
-	if len(got) != 2 || !strings.HasSuffix(got[0], `ropz:{\c&HFFFFFF&} dos en B,\Nuno con AWP`) || !strings.HasSuffix(got[1], `un_nombre_muy_largo:{\c&HFFFFFF&}\Nvamos B`) {
+	if len(got) != 2 || !strings.HasSuffix(got[0], `ropz: dos en B,\Nuno con AWP`) || !strings.HasSuffix(got[1], `un_nombre_muy_largo:\Nvamos B`) {
 		t.Fatalf("dialogues = %q; want each line of a subtítulo on its own row", got)
 	}
 }

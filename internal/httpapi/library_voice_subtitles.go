@@ -36,6 +36,12 @@ func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subti
 		return nil, err
 	}
 	team := teamOf(m, req.Target)
+	var roster []string
+	for _, p := range m.Players {
+		if p.TeamKey == team {
+			roster = append(roster, p.SteamID64)
+		}
+	}
 	rate := m.Tickrate
 	if rate <= 0 {
 		rate = 64
@@ -46,7 +52,7 @@ func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subti
 			continue
 		}
 		tick := func(ms int64) int { return l.Tick + int(math.Round(float64(ms-l.StartMS)*rate/1000)) }
-		phrase := subtitles.Phrase{ID: l.ID.String(), Speaker: l.Name, Text: l.Text, StartTick: l.Tick, EndTick: tick(l.EndMS)}
+		phrase := subtitles.Phrase{ID: l.ID.String(), Speaker: l.Name, SteamID64: l.SteamID64, Slot: subtitles.Slot(roster, l.SteamID64), Text: l.Text, StartTick: l.Tick, EndTick: tick(l.EndMS)}
 		for _, w := range l.Words {
 			phrase.Words = append(phrase.Words, subtitles.PhraseWord{Text: w.Text, StartTick: tick(w.StartMS), EndTick: tick(w.EndMS)})
 		}

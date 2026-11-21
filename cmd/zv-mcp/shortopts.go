@@ -84,7 +84,7 @@ var toggleOptions = []shortToggle{
 	{ID: "vertical_hud", Label: "HUD vertical", Description: "Marcador compacto arriba con reloj, ronda y vivos de cada bando leídos de la demo, y la kill feed centrada debajo (solo 9:16; no con el HUD nativo ni con Full HUD)"},
 	{ID: "radar", Label: "Radar de ClipHub", Description: "Radar propio en una esquina con jugadores, humos, molotovs, flashes y bomba leídos de la demo, con posición, tamaño y opacidad (no con el HUD nativo ni con Full HUD, que ya muestran el radar de CS2)"},
 	{ID: "voice_comms", Label: "Comms del equipo", Description: "Mezcla las voces del equipo en el audio"},
-	{ID: "subtitles", Label: "Subtítulos", Description: "Escribe lo que dicen las voces del equipo, con el nombre de quien habla (necesita Comms del equipo)"},
+	{ID: "subtitles", Label: "Subtítulos", Description: "Escribe lo que dicen las voces del equipo, con el nombre de quien habla y un color por jugador (necesita Comms del equipo)"},
 	{ID: "native_hud", Label: "HUD nativo", Description: "Graba con el HUD original del juego"},
 	{ID: "victim_replay", Label: "Repetición desde la víctima", Description: "Tras cada jugada, la última baja otra vez vista por quien muere, a la velocidad elegida"},
 	{ID: "cover", Label: "Portada", Description: "Genera candidatos de portada desde el gameplay", Default: true},

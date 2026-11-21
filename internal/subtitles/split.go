@@ -11,6 +11,8 @@ const (
 	closedGapSeconds   = 0.5
 	portraitLineRunes  = 20
 	landscapeLineRunes = 42
+	portraitNameRunes  = 10
+	landscapeNameRunes = 16
 )
 
 const (
@@ -30,13 +32,15 @@ type Word struct {
 
 type Format struct {
 	LineRunes int
+	NameRunes int
+	AtOnce    int
 }
 
 func FormatOf(width, height int) Format {
 	if height > width {
-		return Format{LineRunes: portraitLineRunes}
+		return Format{LineRunes: portraitLineRunes, NameRunes: portraitNameRunes, AtOnce: portraitAtOnce}
 	}
-	return Format{LineRunes: landscapeLineRunes}
+	return Format{LineRunes: landscapeLineRunes, NameRunes: landscapeNameRunes, AtOnce: landscapeAtOnce}
 }
 
 type SplitInput struct {
@@ -59,7 +63,7 @@ func Split(in SplitInput) []Block {
 	if len(words) == 0 {
 		return nil
 	}
-	s := splitter{lead: max(0, in.LeadRunes), room: max(1, in.Format.LineRunes)}
+	s := splitter{name: max(0, in.LeadRunes), lead: max(0, in.LeadRunes-in.Format.NameRunes), room: max(1, in.Format.LineRunes)}
 	var blocks []Block
 	for len(words) > 0 {
 		n := s.cut(words)
@@ -68,6 +72,18 @@ func Split(in SplitInput) []Block {
 		words = words[n:]
 	}
 	return s.paced(blocks)
+}
+
+func SentenceCase(text string) string {
+	text = strings.TrimSpace(text)
+	for i, r := range text {
+		if unicode.IsPunct(r) {
+			continue
+		}
+		_, size := utf8.DecodeRuneInString(text[i:])
+		return text[:i] + string(unicode.ToUpper(r)) + text[i+size:]
+	}
+	return text
 }
 
 func timedWords(in SplitInput) []Word {
@@ -94,7 +110,7 @@ func timedWords(in SplitInput) []Word {
 }
 
 type splitter struct {
-	lead, room int
+	name, lead, room int
 }
 
 func (s splitter) cut(words []Word) int {
@@ -181,7 +197,7 @@ func (s splitter) paced(blocks []Block) []Block {
 	for i := range blocks {
 		b := &blocks[i]
 		b.StartSeconds = max(b.StartSeconds, cursor)
-		runes := s.lead + len(b.Lines) - 1
+		runes := s.name + len(b.Lines) - 1
 		for _, line := range b.Lines {
 			runes += utf8.RuneCountInString(line)
 		}

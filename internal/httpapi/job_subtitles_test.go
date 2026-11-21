@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/subtitles"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 	"github.com/rechedev9/cliphub/internal/teamvoice"
 )
 
@@ -132,5 +134,49 @@ func TestGenerateWithSubtitlesQueuesTheTranscription(t *testing.T) {
 	}
 	if got := env.await(func(d demoTranscript) bool { return d.State != library.TranscriptNone && !busyTranscript(d.State) }); got.State != library.TranscriptReady {
 		t.Fatalf("transcript = %+v, want the one the generate queued", got)
+	}
+}
+
+func TestSubtitlesGiveAPlayerTheSameSlotWhoeverThePOVIs(t *testing.T) {
+	env := newDemoTranscriptEnv(t)
+	ctx := context.Background()
+	team := "t-start"
+	roster := []string{"76561198000000002", "76561198000000005", "76561198000000007"}
+	doc, _ := tacticalFixture(t, uuid.Nil)
+	doc.Teams = []tacticalplan.Team{{Key: "ct-start", Name: "Alpha", StartSide: tacticalplan.SideCT}, {Key: team, Name: "Bravo", StartSide: tacticalplan.SideT}}
+	doc.Players = []tacticalplan.Player{
+		{Slot: 0, SteamID64: roster[2], Name: "seven", TeamKey: team, StartSide: tacticalplan.SideT},
+		{Slot: 1, SteamID64: "76561198000000001", Name: "one", TeamKey: "ct-start", StartSide: tacticalplan.SideCT},
+		{Slot: 2, SteamID64: roster[0], Name: "two", TeamKey: team, StartSide: tacticalplan.SideT},
+		{Slot: 3, SteamID64: roster[1], Name: "five", TeamKey: team, StartSide: tacticalplan.SideT},
+	}
+	if _, err := env.repo.SaveAnalysis(ctx, library.AnalysisFromDocument(env.match.DemoID, doc)); err != nil {
+		t.Fatal(err)
+	}
+	var lines []library.DemoVoiceLine
+	for i, id := range slices.Backward(roster) {
+		lines = append(lines, library.DemoVoiceLine{ID: uuid.New(), SteamID64: id, Name: "p" + id, TeamKey: team, StartMS: int64(i) * 1000, EndMS: int64(i)*1000 + 500, Tick: 64 + i*64, Round: 1, Text: "fase"})
+	}
+	ready := library.DemoVoiceTranscript{State: library.TranscriptReady}
+	if err := env.repo.SetDemoVoice(ctx, library.DemoVoiceUpdate{MatchID: env.match.ID, Transcript: ready, Lines: &lines}); err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range roster {
+		j := job.Job{ID: uuid.New(), Status: job.StatusParsed, TargetSteamID: target}
+		if err := env.jobs.Create(ctx, &j); err != nil {
+			t.Fatal(err)
+		}
+		if err := env.repo.LinkDemoJob(ctx, env.match.DemoID, j.ID); err != nil {
+			t.Fatal(err)
+		}
+		track, err := env.h.Subtitles(ctx, subtitles.Request{JobID: j.ID, Target: target})
+		if err != nil || len(track.Phrases) != len(roster) {
+			t.Fatalf("subtitles for %s = %+v, %v; want a phrase of each teammate", target, track, err)
+		}
+		for _, p := range track.Phrases {
+			if want := slices.Index(roster, p.SteamID64); want < 0 || p.Slot != want {
+				t.Errorf("with %s as the POV, %q has slot %d, want %d", target, p.SteamID64, p.Slot, want)
+			}
+		}
 	}
 }
