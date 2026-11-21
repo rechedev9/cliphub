@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type WheelEvent } from 'react';
 import { Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
-import type { VisorEntry } from '@/lib/clips/visor-queue';
+import { visorAfterDelete, type VisorEntry } from '@/lib/clips/visor-queue';
 import { claimMediaPlayback } from '@/lib/media-playback-owner';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { VisorActions } from '@/components/clips-hub/visor-actions';
 
 const MUTED_STORAGE_KEY = 'cliphub-visor-muted';
 const WHEEL_STEP_PX = 40;
@@ -23,6 +24,7 @@ export type VisorProps = {
   currentId: string;
   onMove: (entryId: string) => void;
   onClose: () => void;
+  onChange: () => void;
 };
 
 type Drag = { pointerId: number; startY: number; startAt: number; offset: number };
@@ -44,7 +46,7 @@ function writeMuted(muted: boolean): boolean {
   }
 }
 
-export function Visor({ entries, currentId, onMove, onClose }: VisorProps): ReactNode {
+export function Visor({ entries, currentId, onMove, onClose, onChange }: VisorProps): ReactNode {
   const index = Math.max(0, entries.findIndex((entry) => entry.id === currentId));
   const current = entries[index];
   const stageRef = useRef<HTMLDivElement>(null);
@@ -71,7 +73,8 @@ export function Visor({ entries, currentId, onMove, onClose }: VisorProps): Reac
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.altKey || event.ctrlKey || event.metaKey || !ownsEvent(event)) return;
+    if (event.key === ' ' && event.target instanceof Element && event.target.closest('a, button') !== null) return;
     const actions: Record<string, () => void> = {
       ArrowDown: () => step(1),
       ArrowUp: () => step(-1),
@@ -86,6 +89,7 @@ export function Visor({ entries, currentId, onMove, onClose }: VisorProps): Reac
   };
 
   const onWheel = (event: WheelEvent<HTMLDivElement>): void => {
+    if (!ownsEvent(event)) return;
     if (performance.now() - lastMoveAt.current < MOVE_COOLDOWN_MS) {
       wheelSum.current = 0;
       return;
@@ -133,6 +137,11 @@ export function Visor({ entries, currentId, onMove, onClose }: VisorProps): Reac
   };
 
   if (current === undefined) return null;
+  const leaveDeleted = (): void => {
+    const next = visorAfterDelete(entries, current.id);
+    if (next === null) onClose();
+    else onMove(next);
+  };
   const neighbours = [index - 1, index, index + 1].flatMap((at) => {
     const entry = entries[at];
     return entry === undefined ? [] : [{ entry, offset: at - index }];
@@ -145,9 +154,9 @@ export function Visor({ entries, currentId, onMove, onClose }: VisorProps): Reac
           aria-describedby={undefined}
           onKeyDown={onKeyDown}
           onWheel={onWheel}
-          className="fixed inset-0 z-50 flex flex-col items-center gap-3 bg-background px-4 pt-3 pb-4 outline-none"
+          className="fixed inset-0 z-50 grid grid-cols-[1fr_auto_1fr] content-start justify-items-center gap-x-4 gap-y-3 bg-background px-4 pt-3 pb-4 outline-none"
         >
-          <div className="flex w-full max-w-3xl items-center gap-3">
+          <div className="col-span-3 flex w-full max-w-3xl items-center gap-3">
             <p className="text-body-sm font-semibold text-fg-1 tabular-nums" aria-live="polite">
               {index + 1} de {entries.length}
             </p>
@@ -165,7 +174,7 @@ export function Visor({ entries, currentId, onMove, onClose }: VisorProps): Reac
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}
-            className="relative aspect-[9/16] h-[min(calc(100dvh_-_9rem),calc((100vw_-_2rem)_*_16_/_9))] touch-none overflow-hidden rounded-[2rem] border border-border-strong bg-black select-none"
+            className="relative col-start-2 aspect-[9/16] h-[min(calc(100dvh_-_9rem),calc((100vw_-_28rem)_*_16_/_9))] touch-none overflow-hidden rounded-[2rem] border border-border-strong bg-black select-none"
           >
             {neighbours.map(({ entry, offset }) => (
               <div
@@ -186,7 +195,9 @@ export function Visor({ entries, currentId, onMove, onClose }: VisorProps): Reac
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <VisorActions key={current.id} entry={current} onChange={onChange} onDeleting={leaveDeleted} className="col-start-3 self-end justify-self-start" />
+
+          <div className="col-start-2 flex items-center gap-2">
             <Button
               type="button"
               variant="ghost"
@@ -215,6 +226,10 @@ export function Visor({ entries, currentId, onMove, onClose }: VisorProps): Reac
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
+}
+
+function ownsEvent(event: { target: EventTarget; currentTarget: Element }): boolean {
+  return event.target instanceof Node && event.currentTarget.contains(event.target);
 }
 
 function Poster({ url }: { url: string | undefined }): ReactNode {

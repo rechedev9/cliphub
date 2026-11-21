@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamJob, StreamRenderedOutput } from '../api/streams.ts';
-import type { EditConfig, Video } from '../api/types.ts';
+import type { EditConfig, Match, Video } from '../api/types.ts';
 import { FULL_DEMO_EDIT } from '../full-demo.ts';
 import { buildHubModel } from './hub.ts';
-import { buildVisorQueue } from './visor-queue.ts';
+import { buildVisorQueue, sameVisorEntries, visorAfterDelete } from './visor-queue.ts';
 
 function demoVideo(id: string, overrides: Partial<Video> = {}): Video {
   return {
@@ -156,4 +156,101 @@ test('each entry carries the title the list shows', () => {
     requestedId: null,
   });
   assert.deepEqual(queue.entries.map((entry) => entry.title), ['Short · Mirage · ropz', 'Ace en B']);
+});
+
+function partida(id: string): Match {
+  return {
+    id,
+    map: 'de_mirage',
+    score: '13-9',
+    playedAt: '2026-09-01T10:00:00Z',
+    stats: { kills: 20, deaths: 10, assists: 3, mvps: 2, kd: 2 },
+    decentPlays: 5,
+  };
+}
+
+function actionsOf(queue: ReturnType<typeof buildVisorQueue>): Array<Array<{ kind: string; label: string; href?: string }>> {
+  return queue.entries.map((entry) => entry.actions.map((action) => ({ ...action })));
+}
+
+test('a demo Short offers Editar, Cambiar música, Preparar publicación, Descargar and Borrar, in that order', () => {
+  const clips = buildHubModel([partida('job-a')], [demoVideo('a', { songId: 'song-1' })]).clips;
+  const queue = buildVisorQueue({ clips, streams: [], filter: null, requestedId: null });
+  assert.deepEqual(actionsOf(queue), [[
+    { kind: 'edit', label: 'Editar', href: '/shorts/job-a?editar=viral-60-clean' },
+    { kind: 'music', label: 'Cambiar música' },
+    { kind: 'publish', label: 'Preparar publicación', href: '/mis-videos/job-a/publicar/a' },
+    { kind: 'download', label: 'Descargar' },
+    { kind: 'delete', label: 'Borrar' },
+  ]]);
+});
+
+test('a stream Short offers Abrir proyecto, Descargar and Borrar', () => {
+  const queue = buildVisorQueue({ clips: [], streams: [streamJob('s1', [streamOutput('c1')])], filter: null, requestedId: null });
+  assert.deepEqual(actionsOf(queue), [[
+    { kind: 'open-project', label: 'Abrir proyecto', href: '/streams/s1' },
+    { kind: 'download', label: 'Descargar' },
+    { kind: 'delete', label: 'Borrar' },
+  ]]);
+  assert.deepEqual(queue.entries[0]?.source, { kind: 'stream', clipId: 'c1' });
+});
+
+test('an imported Short only downloads and deletes, a recovered one also prepares its publication', () => {
+  const clips = buildHubModel([partida('job-rec')], [
+    demoVideo('imported__cloud1__seg-001.mp4', { jobId: undefined, recovered: true, publishable: false, createdAt: 2000 }),
+    demoVideo('rec', { recovered: true, createdAt: 1000 }),
+  ]).clips;
+  const queue = buildVisorQueue({ clips, streams: [], filter: null, requestedId: null });
+  assert.deepEqual(actionsOf(queue), [
+    [{ kind: 'download', label: 'Descargar' }, { kind: 'delete', label: 'Borrar' }],
+    [
+      { kind: 'publish', label: 'Preparar publicación', href: '/mis-videos/job-rec/publicar/rec' },
+      { kind: 'download', label: 'Descargar' },
+      { kind: 'delete', label: 'Borrar' },
+    ],
+  ]);
+});
+
+test('a Short on screen that renders again keeps its previous version with the mark until the new one is ready', () => {
+  const ready = demoVideo('a', { reviewArtifactPrefix: 'renders/viral-60-clean/revisions/11111111-1111-4111-8111-111111111111/' });
+  const shown = buildVisorQueue({ clips: clipsOf(ready), streams: [], filter: null, requestedId: 'demo:a' }).entries;
+  assert.equal(shown[0]?.rendering, false);
+
+  const rendering = { ...ready, status: 'queued' as const, downloadUrl: undefined, reviewArtifactPrefix: undefined };
+  const held = buildVisorQueue({ clips: clipsOf(rendering, demoVideo('busy', { status: 'composing' })), streams: [], filter: null, requestedId: 'demo:a', shown });
+  assert.deepEqual(held.entries.map((entry) => [entry.id, entry.rendering]), [['demo:a', true]]);
+  assert.equal(held.entries[0]?.item.playbackUrl, shown[0]?.item.playbackUrl);
+  assert.deepEqual(actionsOf(held)[0]?.map((action) => action.kind), ['download', 'delete']);
+  assert.equal(held.start?.id, 'demo:a');
+
+  const rerendered = demoVideo('a', { reviewArtifactPrefix: 'renders/viral-60-clean/revisions/22222222-2222-4222-8222-222222222222/' });
+  const after = buildVisorQueue({ clips: clipsOf(rerendered), streams: [], filter: null, requestedId: 'demo:a', shown: held.entries });
+  assert.equal(after.entries[0]?.rendering, false);
+  assert.match(after.entries[0]?.item.playbackUrl ?? '', /22222222-2222-4222-8222-222222222222/);
+
+  const again = buildVisorQueue({ clips: clipsOf(rendering), streams: [], filter: null, requestedId: 'demo:a', shown: held.entries });
+  assert.equal(sameVisorEntries(again.entries, held.entries), true);
+  assert.equal(sameVisorEntries(after.entries, held.entries), false);
+
+  const failed = buildVisorQueue({ clips: clipsOf({ ...rendering, status: 'failed' }), streams: [], filter: null, requestedId: 'demo:a', shown });
+  assert.deepEqual(failed.entries, []);
+});
+
+test('after Borrar the Visor moves to the next Short, to the previous one at the end, and closes on the last one', () => {
+  const entries = buildVisorQueue({
+    clips: clipsOf(demoVideo('a', { createdAt: 3000 }), demoVideo('b', { createdAt: 2000 }), demoVideo('c', { createdAt: 1000 })),
+    streams: [],
+    filter: null,
+    requestedId: null,
+  }).entries;
+  assert.equal(visorAfterDelete(entries, 'demo:a'), 'demo:b');
+  assert.equal(visorAfterDelete(entries, 'demo:b'), 'demo:c');
+  assert.equal(visorAfterDelete(entries, 'demo:c'), 'demo:b');
+  assert.equal(visorAfterDelete(entries.slice(0, 1), 'demo:a'), null);
+});
+
+test('a demo Short whose demo is gone cannot be edited and adds music when it has none', () => {
+  const queue = buildVisorQueue({ clips: clipsOf(demoVideo('orphan')), streams: [], filter: null, requestedId: null });
+  assert.deepEqual(actionsOf(queue)[0]?.map((action) => action.label), ['Añadir música', 'Preparar publicación', 'Descargar', 'Borrar']);
+  assert.equal(actionsOf(queue)[0]?.find((action) => action.kind === 'publish')?.href, '/mis-videos/-/publicar/orphan');
 });

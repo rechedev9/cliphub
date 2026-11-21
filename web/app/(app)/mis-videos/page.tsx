@@ -31,7 +31,7 @@ import {
   publishHref,
   visorHref,
 } from '@/lib/clips/routes';
-import { buildVisorQueue, type VisorFilter } from '@/lib/clips/visor-queue';
+import { buildVisorQueue, sameVisorEntries, type VisorEntry, type VisorFilter } from '@/lib/clips/visor-queue';
 import { createCoalescedCall } from '@/lib/coalesced-call';
 import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { prettyMapName } from '@/lib/format';
@@ -104,6 +104,7 @@ function ResultsView(): ReactNode {
   const [filter, setFilter] = useState<VisorFilter>({ format: LIBRARY_FILTER.all, stage: LIBRARY_STAGE.all });
   const [listOrigin, setListOrigin] = useState<VisorFilter | null>(null);
   const [seenVisorId, setSeenVisorId] = useState(visorId);
+  const [visorShown, setVisorShown] = useState<readonly VisorEntry[]>([]);
   if (seenVisorId !== visorId) {
     setSeenVisorId(visorId);
     if (visorId === null) setListOrigin(null);
@@ -237,7 +238,9 @@ function ResultsView(): ReactNode {
   }
 
   const listQueue = buildVisorQueue({ clips: model.clips, streams, filter, requestedId: null });
-  const visorQueue = visorId === null ? null : buildVisorQueue({ clips: model.clips, streams, filter: listOrigin, requestedId: visorId });
+  const visorQueue = visorId === null ? null : buildVisorQueue({ clips: model.clips, streams, filter: listOrigin, requestedId: visorId, shown: visorShown });
+  const visorEntries = visorQueue?.entries ?? [];
+  if (!sameVisorEntries(visorEntries, visorShown)) setVisorShown(visorEntries);
   const openVisor = (): void => {
     if (listQueue.start === null) return;
     setListOrigin(filter);
@@ -261,7 +264,7 @@ function ResultsView(): ReactNode {
         <ClipsLens clips={model.clips} streams={streams} filter={filter} onFilterChange={setFilter} onChange={onChange} />
       </div>
       {visorQueue === null || visorQueue.start === null ? null : (
-        <Visor entries={visorQueue.entries} currentId={visorQueue.start.id} onMove={moveVisor} onClose={closeVisor} />
+        <Visor entries={visorQueue.entries} currentId={visorQueue.start.id} onMove={moveVisor} onClose={closeVisor} onChange={onChange} />
       )}
     </div>
   );
