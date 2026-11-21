@@ -59,19 +59,21 @@ export function Visor({ entries: queued, currentId, onMove, onClose, onChange }:
   const drag = useRef<Drag | null>(null);
   const [dragOffset, setDragOffset] = useState<number | null>(null);
   const [muted, setMuted] = useState(readMuted);
-  const [paused, setPaused] = useState(false);
+  const shownId = current?.id ?? null;
+  const [pausedId, setPausedId] = useState<string | null>(null);
+  const paused = shownId !== null && pausedId === shownId;
+  const setPaused = useCallback((next: boolean): void => setPausedId(next ? shownId : null), [shownId]);
+  const togglePaused = (): void => setPausedId((was) => (was === shownId ? null : shownId));
   const [layer, setLayer] = usePlatformLayer();
 
   const step = useCallback((delta: 1 | -1): void => {
     const next = entries[index + delta];
     if (next === undefined) return;
-    setPaused(false);
     onMove(next.id);
   }, [entries, index, onMove]);
 
-  const shownId = current?.id;
   useEffect(() => {
-    if (shownId !== undefined) stageRef.current?.focus({ preventScroll: true });
+    if (shownId !== null) stageRef.current?.focus({ preventScroll: true });
   }, [shownId]);
 
   const toggleMuted = (): void => {
@@ -83,11 +85,11 @@ export function Visor({ entries: queued, currentId, onMove, onClose, onChange }:
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.altKey || event.ctrlKey || event.metaKey || !ownsEvent(event)) return;
-    if (event.key === ' ' && event.target instanceof Element && event.target.closest('a, button') !== null) return;
+    if (event.key === ' ' && event.target instanceof Element && event.target.closest('button') !== null) return;
     const actions: Record<string, () => void> = {
       ArrowDown: () => step(1),
       ArrowUp: () => step(-1),
-      ' ': () => setPaused((was) => !was),
+      ' ': togglePaused,
       m: toggleMuted,
       M: toggleMuted,
     };
@@ -132,7 +134,7 @@ export function Visor({ entries: queued, currentId, onMove, onClose, onChange }:
     setDragOffset(null);
     const moved = event.clientY - active.startY;
     if (Math.abs(moved) <= TAP_PX) {
-      setPaused((was) => !was);
+      togglePaused();
       return;
     }
     const height = stageRef.current?.clientHeight ?? 1;
@@ -209,7 +211,7 @@ export function Visor({ entries: queued, currentId, onMove, onClose, onChange }:
                 )}
               >
                 {offset === 0 ? (
-                  <ActiveShort entry={entry} muted={muted} paused={paused} onPausedChange={setPaused} onUnplayable={leaveUnplayable} />
+                  <ActiveShort key={entry.item.playbackUrl} entry={entry} muted={muted} paused={paused} onPausedChange={setPaused} onUnplayable={leaveUnplayable} />
                 ) : (
                   <Poster url={entry.item.posterUrl} />
                 )}
@@ -227,7 +229,7 @@ export function Visor({ entries: queued, currentId, onMove, onClose, onChange }:
               size="icon"
               aria-label={paused ? 'Reproducir' : 'Pausar'}
               aria-keyshortcuts="Space"
-              onClick={() => setPaused((was) => !was)}
+              onClick={togglePaused}
               className={CONTROL_CLASS}
             >
               {paused ? <Play aria-hidden /> : <Pause aria-hidden />}
@@ -287,8 +289,14 @@ function ActiveShort({ entry, muted, paused, onPausedChange, onUnplayable }: Act
       return undefined;
     }
     const release = claimMediaPlayback(owner.current, () => video.pause());
-    video.play().catch(() => onPausedChange(true));
-    return release;
+    let live = true;
+    video.play().catch(() => {
+      if (live) onPausedChange(true);
+    });
+    return () => {
+      live = false;
+      release();
+    };
   }, [paused, onPausedChange]);
 
   useEffect(() => {

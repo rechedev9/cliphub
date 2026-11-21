@@ -218,9 +218,19 @@ function ResultsView(): ReactNode {
     window.history.replaceState(null, '', visorHref(entryId));
   }, []);
 
+  const closingRef = useRef(false);
+  useEffect(() => {
+    if (visorId === null) closingRef.current = false;
+  }, [visorId]);
+
   const closeVisor = useCallback(() => {
-    if (listOrigin !== null) window.history.back();
-    else window.history.replaceState(null, '', RESULTS_HREF);
+    if (listOrigin === null) {
+      window.history.replaceState(null, '', RESULTS_HREF);
+      return;
+    }
+    if (closingRef.current) return;
+    closingRef.current = true;
+    window.history.back();
   }, [listOrigin]);
 
   const visorQueue = model === null || visorId === null
