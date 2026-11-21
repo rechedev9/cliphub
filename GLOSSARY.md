@@ -28,3 +28,17 @@ _Avoid_: Recap, highlights, Short horizontal
 
 **Clip**:
 Not a term inside the editor. It survives only in the section name "Clips de stream" and as the kind of source to import: a short clip from Twitch, YouTube or Kick, as opposed to a VOD.
+
+### Voz y subtítulos
+
+**Transcripción**:
+Everything said in a match's team voice or in a stream, as text.
+_Avoid_: Subtítulos as a name for the text, captions
+
+**Frase**:
+What one speaker says in one go. It is the unit a person corrects or hides.
+_Avoid_: Línea, cue, subtítulo
+
+**Subtítulo**:
+One block of text drawn on a video. A frase gives one subtítulo or several.
+_Avoid_: Frase as a name for the block on screen, caption
