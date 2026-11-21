@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, Crosshair, Mic } from 'lucide-react';
+import { Check, Crosshair, Mic, SlidersHorizontal } from 'lucide-react';
 import { streamsApi, type StreamClipRange, type StreamPlay, type StreamPlayScan, type StreamVoiceSettings } from '@/lib/api/streams';
+import { detectionNote, detectionSettingsChanged, shoutOptions } from '@/lib/streams/detection';
 import { bulkAddLabel, bulkAddPlays, playRowAction, playTimeLabel, topPlayIds } from '@/lib/streams/moments';
 import { errorMessage, formatStreamClock } from '@/lib/streams/plan';
 import { playNumbers } from '@/lib/streams/timeline';
@@ -18,51 +19,33 @@ import { StreamSummaryCard } from '@/components/streams/stream-summary';
 const POLL_MS = 2000;
 const NO_PLAYS: readonly StreamPlay[] = [];
 const DEFAULT_VOICE: StreamVoiceSettings = { enabled: true, sensitivity: 3 };
-const PRESETS = [
-  { value: '1', label: 'Baja' },
-  { value: '3', label: 'Media' },
-  { value: '5', label: 'Alta' },
-];
 const ORDER_OPTIONS: readonly { value: PlayOrder; label: string }[] = [
   { value: 'best', label: 'Mejores primero' },
   { value: 'time', label: 'Por tiempo' },
 ];
+const SETTINGS_ID = 'stream-detection-settings';
 
-/** The presets, plus the level itself when the assistant set a 2 or a 4. */
-function sensitivityOptions(sensitivity: number): { value: string; label: string }[] {
-  if (PRESETS.some((preset) => preset.value === String(sensitivity))) return PRESETS;
-  return [...PRESETS, { value: String(sensitivity), label: `Nivel ${sensitivity}` }].sort((a, b) => Number(a.value) - Number(b.value));
-}
-
-function voiceNote(scan: StreamPlayScan): string | null {
-  switch (scan.voice?.status) {
-    case 'no_audio':
-      return 'El vídeo no tiene audio, así que no hemos buscado picos de voz.';
-    case 'no_voice':
-      return 'No hemos oído voz en el audio, así que no hay picos de voz.';
-    case 'failed':
-      return 'No pudimos leer el audio para buscar picos de voz.';
-    case 'done':
-      return scan.voice.mix ? 'Sin pista de micro: se usa la mezcla. La detección de picos de voz es menos precisa.' : null;
-    default:
-      return null;
-  }
-}
-
-function VoiceSettingsRow({
+function DetectionSettings({
   value,
+  note,
   disabled,
   onChange,
+  children,
 }: {
   value: StreamVoiceSettings;
+  note: string | null;
   disabled: boolean;
   onChange: (next: StreamVoiceSettings) => void;
+  children?: ReactNode;
 }): ReactNode {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <span id="voice-peaks-label" className="text-body-sm text-fg-2">
-          Picos de voz: marca cuando subes la voz por encima de lo normal
+    <div id={SETTINGS_ID} className="flex flex-col gap-3 rounded-md border border-border-subtle bg-surface-2 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex flex-col gap-0.5">
+          <span id="voice-peaks-label" className="text-body-sm font-semibold">
+            Incluir picos de voz
+          </span>
+          <span className="text-meta text-fg-3">Momentos en los que gritas, aunque no haya kill.</span>
         </span>
         <Switch
           tone="stream"
@@ -73,16 +56,24 @@ function VoiceSettingsRow({
         />
       </div>
       {value.enabled ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-body-sm text-fg-3">Sensibilidad</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="flex flex-col gap-0.5">
+            <span className="text-body-sm font-semibold">Cuánto tienes que gritar</span>
+            <span className="text-meta text-fg-3">Con «Poco» salen más picos de voz.</span>
+          </span>
           <Segmented
-            label="Sensibilidad de los picos de voz"
+            label="Cuánto tienes que gritar"
             value={String(value.sensitivity)}
-            options={sensitivityOptions(value.sensitivity)}
+            options={shoutOptions(value.sensitivity)}
             onChange={(next) => onChange({ ...value, sensitivity: Number(next) })}
           />
         </div>
       ) : null}
+      {note ? <p className="text-body-sm text-fg-3">{note}</p> : null}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-meta text-fg-3">Cambiar esto no toca los momentos que ya has elegido.</span>
+        {children}
+      </div>
     </div>
   );
 }
@@ -212,6 +203,7 @@ export function StreamDetectedPlays({
   const [requestError, setRequestError] = useState<string | null>(null);
   const [voice, setVoice] = useState<StreamVoiceSettings>(DEFAULT_VOICE);
   const [order, setOrder] = useState<PlayOrder>('best');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const voiceSynced = useRef(false);
   const running = scan?.status === 'running';
   const autoStarted = useRef(false);
@@ -263,10 +255,20 @@ export function StreamDetectedPlays({
   const tops = topPlayIds(ranked);
   const open = bulkAddPlays(clips, rankPlays(ranked));
   const hasKills = ranked.some((play) => !isVoiceOnly(play));
-  const scanned = scan?.voice;
-  // A scan saved before voice peaks has no settings, so it can always be redone with them.
-  const voiceChanged = scanned === undefined || scanned.enabled !== voice.enabled || (voice.enabled && scanned.sensitivity !== voice.sensitivity);
-  const note = scan ? voiceNote(scan) : null;
+  const voiceChanged = detectionSettingsChanged(scan?.voice, voice);
+  const note = detectionNote(scan?.voice);
+  const settingsButton = (
+    <Button
+      variant="ghost"
+      size="sm"
+      aria-expanded={settingsOpen}
+      aria-controls={SETTINGS_ID}
+      onClick={() => setSettingsOpen((open) => !open)}
+    >
+      <SlidersHorizontal aria-hidden />
+      Ajustes de detección
+    </Button>
+  );
 
   return (
     <section aria-label="Jugadas" className="flex min-h-0 min-w-0 flex-col gap-3 rounded-md border border-border-subtle bg-surface-1 p-3">
@@ -288,22 +290,13 @@ export function StreamDetectedPlays({
           <p className="text-body-sm text-fg-2">
             Busca tus kills en el kill feed de CS2 y los momentos en que subes la voz, y crea un momento por cada jugada.
           </p>
-          <VoiceSettingsRow value={voice} disabled={disabled} onChange={setVoice} />
-          <Button variant="outline" disabled={disabled} onClick={() => void start()}>
-            Buscar jugadas
-          </Button>
-        </>
-      ) : null}
-
-      {scan?.status === 'done' ? (
-        <>
-          <VoiceSettingsRow value={voice} disabled={disabled} onChange={setVoice} />
-          {voiceChanged ? (
-            <Button variant="outline" size="sm" disabled={disabled} onClick={() => void start()}>
-              Buscar con estos ajustes
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" disabled={disabled} onClick={() => void start()}>
+              Buscar jugadas
             </Button>
-          ) : null}
-          {note ? <p className="text-body-sm text-fg-3">{note}</p> : null}
+            {settingsButton}
+          </div>
+          {settingsOpen ? <DetectionSettings value={voice} note={null} disabled={disabled} onChange={setVoice} /> : null}
         </>
       ) : null}
 
@@ -327,11 +320,26 @@ export function StreamDetectedPlays({
         <StreamSummaryCard jobId={jobId} plays={scan.plays} disabled={disabled} />
       ) : null}
 
-      {scan?.status === 'done' && ranked.length > 1 ? (
+      {scan?.status === 'done' ? (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-body-sm text-fg-3">Orden</span>
-          <Segmented label="Orden de las jugadas" value={order} options={ORDER_OPTIONS} onChange={setOrder} />
+          {ranked.length > 1 ? (
+            <>
+              <span className="text-body-sm text-fg-3">Orden</span>
+              <Segmented label="Orden de las jugadas" value={order} options={ORDER_OPTIONS} onChange={setOrder} />
+            </>
+          ) : null}
+          <span className="ml-auto">{settingsButton}</span>
         </div>
+      ) : null}
+
+      {scan?.status === 'done' && settingsOpen ? (
+        <DetectionSettings value={voice} note={note} disabled={disabled} onChange={setVoice}>
+          {voiceChanged ? (
+            <Button variant="outline" size="sm" disabled={disabled} onClick={() => void start()}>
+              Volver a buscar
+            </Button>
+          ) : null}
+        </DetectionSettings>
       ) : null}
 
       {scan?.status === 'done' && ranked.length > 0 ? (
