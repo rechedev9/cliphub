@@ -94,6 +94,14 @@ Each rule names what enforces it. "Review only" means nothing fails when an agen
 - [Release check](.claude/skills/release-check/SKILL.md): full checks and a dry-run release workflow before a tag. It does not publish.
 - [Shorts thumbnail](.claude/skills/shorts-thumbnail/SKILL.md): pixel-art Shorts thumbnail.
 
+## Agent skills
+
+What the engineering skills (grilling, specs, tickets, triage) read before they work:
+
+- [Issue tracker](docs/agents/issue-tracker.md): issues and specs live in this repo's GitHub Issues.
+- [Triage labels](docs/agents/triage-labels.md): the five default triage labels.
+- [Domain docs](docs/agents/domain.md): single-context, with `GLOSSARY.md` at the root and ADRs in `docs/adr/`.
+
 ## Issues
 
 Outside contributors only file issues, through their own AI agent. `CONTRIBUTING.md` tells that
