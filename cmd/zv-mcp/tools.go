@@ -173,12 +173,14 @@ type generateOut struct {
 func registerTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 	registerFullDemoTools(server, s)
+	registerSavedFullDemoTools(server, s)
 	registerHUDThemeTools(server, s)
 	registerBrandKitTools(server, s)
 	registerRoundPOVTool(server, s)
 	registerProSettingsTool(server)
 	registerVideoTools(server, s)
 	registerVideoLibraryTools(server, s)
+	registerImportedVideoTools(server, s)
 	registerVideoVersionTools(server, s)
 	registerHorizontalTool(server, s)
 	registerApps(server, s)
@@ -192,6 +194,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerTeamTools(server, s)
 	registerPlayerTools(server, s)
 	registerReportTools(server, s)
+	registerSharePackageTool(server, s)
 	registerTeamDocumentTools(server, s)
 	registerStratbookTools(server, s)
 	registerLibretaTableTools(server, s)
@@ -218,6 +221,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerPatternTools(server, s)
 	registerVoiceTools(server, s)
 	registerTeamReportTools(server, s)
+	registerLibraryNormsTool(server, s)
 	registerTeamSideStatsTool(server, s)
 	registerTeamAttackTool(server, s)
 	registerZoneMapTool(server, s)
@@ -232,6 +236,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerLibraryDemoTools(server, s)
 	registerStorageTools(server, s)
 	registerSteamTools(server, s)
+	registerFaceitRoomTools(server, s)
 	registerClipMindTools(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,

@@ -42,6 +42,30 @@ func (c *Client) GetFullDemoPlan(ctx context.Context, id string) (json.RawMessag
 	return result, err
 }
 
+// GetFullDemoPlanVersion reads the saved plan planID of a job, as an older Full Demo version rendered it.
+func (c *Client) GetFullDemoPlanVersion(ctx context.Context, id, planID string) (json.RawMessage, error) {
+	root, err := fullDemoJobPath(id)
+	if err != nil {
+		return nil, err
+	}
+	var result json.RawMessage
+	err = c.getJSON(ctx, root+"/full-demo/plans/"+url.PathEscape(planID), &result)
+	return result, err
+}
+
+// CheckFullDemoCapture plans options without saving them and says what the capture would need.
+func (c *Client) CheckFullDemoCapture(ctx context.Context, id string, options json.RawMessage) (json.RawMessage, error) {
+	root, err := fullDemoJobPath(id)
+	if err != nil {
+		return nil, err
+	}
+	var result json.RawMessage
+	err = c.doJSON(ctx, http.MethodPost, root+"/full-demo/capture-check", struct {
+		Options json.RawMessage `json:"options"`
+	}{options}, &result)
+	return result, err
+}
+
 func (c *Client) GetFullDemoEvidence(ctx context.Context, id, document string) (json.RawMessage, error) {
 	root, err := fullDemoJobPath(id)
 	if err != nil {

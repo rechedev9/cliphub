@@ -40,7 +40,7 @@ var remoteTools = map[string]bool{
 	"player_setpos": true, "list_pinned_players": true, "set_pinned_players": true, "link_player_faceit": true,
 	"scout_team": true, "prepare_team": true, "team_prep": true, "team_attack": true, "team_bombsites": true, "team_grenades": true,
 	"team_heatmap": true, "team_lineups": true, "team_maps": true, "team_playbook": true, "team_rounds": true, "team_side_stats": true,
-	"detect_team_plays": true, "simulate_veto": true,
+	"detect_team_plays": true, "simulate_veto": true, "library_norms": true,
 	"find_rounds": true, "get_round": true, "match_metrics": true, "match_tendencies": true, "match_patterns": true, "match_heatmap": true,
 	"replay_rounds": true, "round_lineups": true, "get_round_comms": true, "match_talk_time": true, "search_comms": true,
 	"find_player_pattern": true, "find_pattern_rounds": true, "list_patterns": true, "save_pattern": true, "update_pattern": true,

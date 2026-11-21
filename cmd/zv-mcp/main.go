@@ -118,12 +118,15 @@ list_moments ranks plays by score (kills, clutch size and whether it was won, fa
 kills through smoke or while blind, entry (opening kill), retake, eco_win, flick, and win_prob_swing, the round-win chance the play gave); kinds filters by
 those reason codes, as Elegir las mejores and the play filters in Studio do. Format landscape-16x9 with preset gameplay-pov-60 gives the horizontal best-moments video.
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
-list_all_videos lists the videos of every recent job and stream (Mis vídeos); retry_video renders a failed Short
+list_all_videos lists the videos of every recent job and stream (Mis vídeos) and the Shorts imported from the old cloud
+(delete_imported_video removes one); retry_video renders a failed Short
 again from its last finished version and change_video_music changes a Short's music, both without a new capture.
 Editing a finished video keeps every version: list_video_versions lists them with their options and MP4, and
 delete_video_version deletes an older one. To edit a Full Demo, call plan_full_demo with the changed options:
 needs_capture says whether render_full_demo opens CS2 (only missing_rounds are recorded) or only renders again; HUD
-design, style, names, portrait, brand kit, transitions, overlays, sound and clips never need a capture. Studio keeps the
+design, style, names, portrait, brand kit, transitions, overlays, sound and clips never need a capture. plan_full_demo
+check_only answers needs_capture without saving the plan; get_full_demo_plan reads the current plan or, with a plan_id
+from list_video_versions, the plan an older version rendered. Studio keeps the
 captures of the newest rendered Full Demos (storage_usage capture_retention, set_capture_retention, default 3).
 To edit a Short, call generate_short with a version's segment_ids and the changed options: its recorded plays are
 reused, and only new plays, another style HUD or framing, the death reel or a new victim replay open CS2 again.
@@ -147,6 +150,7 @@ and more_matches says when older ones were left out.
 open_in_studio brings the Studio window to the front on a studio_path (app pages only, routed in the app); opened says whether
 the window did it, and when it did not it returns the full http://127.0.0.1:<port> address for the user to open.
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
+library_norms gives the same rates over every team of the library: say a team is above or below the usual only against it.
 team_side_stats is the team's Estadísticas tab: figures overall and per side, each with group_avg over the
 compare_to teams (empty: the whole library) in the same map, side, dates and buys (buy, opponent_buy), and
 one card per player (with side set, the ct and t blocks ignore the side filter while overall honours it); its rating is ClipHub's own (rating_formula), never call it an HLTV rating.
@@ -238,7 +242,8 @@ over every match (sides_unread: older ones past 200 analyses count in the result
 FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows (Seguidos, at most 20),
 follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account). faceit_ranking is the ranking
 selector of Jugadores FACEIT: the top 100 of a country (ISO code), a region (EU, NA, SA, OCE, SEA) or a zone (cis, latam), by pages;
-rank is the place in that list, stale says FACEIT failed and the stored copy of fetched_at answered.
+rank is the place in that list, stale says FACEIT failed and the stored copy of fetched_at answered;
+faceit_ranking_countries lists the countries it offers. job_players of a FACEIT demo adds the room scoreboard (faceit).
 Lineups pro are grenades pros repeat in pro matches, served by the ClipHub community server:
 list_pro_lineup_maps, find_pro_lineups (kind, side, landing and throw callouts, insta, video for lineups with a recorded clip), get_pro_lineup
 (setpos, teams, partners, examples, and clip_url: the recorded throw with the thrower's keys, once one is
@@ -336,11 +341,13 @@ tags (add_tags and remove_tags for single ones) or title (Título: one line of u
 analyses it again (a match still dated by its import day takes the demo's or the FACEIT room's date), then wait_for_demo; delete_demo removes it from the library (videos stay), or several with ids.
 Steam: steam_matches lists recent matches (sync_steam_matches looks for new ones); import_share_code
 downloads one by share code and makes a job: wait_for_job, and on "scanned" job_players then
-pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_storage_files,
+pick_player; check_only only checks the code. Steam sign-in stays in Studio's UI. import_share_package imports a
+.cliphub package a teammate shared. Storage: storage_usage (also the free disk and, with capture_seconds or
+render_seconds, whether that work fits), list_storage_files,
 rescan_storage_files, reveal_storage_file, delete_storage_file, delete_captures for Full Demo captures and
 set_capture_retention for how many keep theirs.
 generate_short, generate_shorts_batch, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
-delete_stream_video, delete_demo, merge_teams, delete_storage_file, delete_captures, set_capture_retention, retry_video,
+delete_stream_video, delete_imported_video, delete_demo, merge_teams, delete_storage_file, delete_captures, set_capture_retention, retry_video,
 change_video_music, delete_video_version, delete_report, delete_team_document, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
 install_transcriber, launch_practice, launch_bot_replay need the user's approval.
 ClipMind (the web edition of ClipHub): clipmind_status says whether Studio is signed in to a ClipMind account, with its workspace and

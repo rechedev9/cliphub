@@ -58,3 +58,16 @@ func (c *Client) ImportShareCode(ctx context.Context, code string) (SteamImport,
 	err := c.doJSON(ctx, http.MethodPost, "/api/steam/import", map[string]string{"code": code}, &out)
 	return out, err
 }
+
+// ShareCodeCheck is POST /api/steam/sharecode: status is resolved when Valve named the match's demo, decoded otherwise.
+type ShareCodeCheck struct {
+	Status  string `json:"status"`
+	MatchID string `json:"matchId"`
+}
+
+// CheckShareCode decodes a share code and asks Valve for its demo without downloading it, as the share code field does.
+func (c *Client) CheckShareCode(ctx context.Context, code string) (ShareCodeCheck, error) {
+	var out ShareCodeCheck
+	err := c.doJSON(ctx, http.MethodPost, "/api/steam/sharecode", map[string]string{"code": code}, &out)
+	return out, err
+}

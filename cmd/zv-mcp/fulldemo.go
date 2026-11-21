@@ -64,6 +64,7 @@ var customHUDShows = []string{
 
 type planFullDemoIn struct {
 	JobID               string `json:"job_id" jsonschema:"a parsed job from create_job"`
+	CheckOnly           bool   `json:"check_only,omitempty" jsonschema:"only say whether these options need CS2 to record again and the disk they need, as the Full Demo editor does before saving; saves nothing and returns no plan_hash"`
 	HUD                 string `json:"hud,omitempty" jsonschema:"HUD design id or user theme id from list_hud_themes, or native for the original CS2 HUD; empty keeps Studio's default design"`
 	OverlaySource       string `json:"overlay_source,omitempty" jsonschema:"origin of the match data in the intro and scoreboard: demo (local demo), faceit, premier or professional"`
 	IntroDesign         string `json:"intro_design,omitempty" jsonschema:"look of the player intro and final scoreboard: neon (default) or hud, in the colours of the chosen HUD or own theme (neutral over the native CS2 HUD); render only"`
@@ -214,6 +215,9 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, fullDemoPlanOut{}, err
 			}
+			if in.CheckOnly {
+				return checkFullDemoCapture(ctx, c, in.JobID, body)
+			}
 			raw, err := c.PlanFullDemo(ctx, in.JobID, body)
 			if err != nil {
 				return nil, fullDemoPlanOut{}, toolError(err)
@@ -318,6 +322,11 @@ func loadFullDemoState(ctx context.Context, c *tuiclient.Client, jobID string) (
 	if err != nil {
 		return fullDemoState{}, err
 	}
+	return decodeFullDemoState(raw)
+}
+
+// decodeFullDemoState reads a GET /full-demo/plan or /full-demo/plans/{planID} answer.
+func decodeFullDemoState(raw json.RawMessage) (fullDemoState, error) {
 	var wire struct {
 		Document json.RawMessage  `json:"document"`
 		Defaults json.RawMessage  `json:"defaults"`
