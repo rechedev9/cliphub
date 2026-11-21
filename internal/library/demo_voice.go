@@ -19,19 +19,20 @@ type DemoVoiceTranscript struct {
 
 // DemoVoiceLine is one phrase a player said, on the demo's clock: StartMS is demo time, Tick and Round place it.
 type DemoVoiceLine struct {
-	ID        uuid.UUID `json:"id"`
-	MatchID   uuid.UUID `json:"match_id"`
-	SteamID64 string    `json:"steamid64"`
-	Name      string    `json:"name"`
-	TeamKey   string    `json:"team_key"`
-	StartMS   int64     `json:"start_ms"`
-	EndMS     int64     `json:"end_ms"`
-	Tick      int       `json:"tick"`
-	Round     int       `json:"round"`
-	Text      string    `json:"text"`
-	// Corrected marks text a person fixed; a new transcription replaces it.
-	Corrected bool            `json:"corrected"`
-	Words     []DemoVoiceWord `json:"-"`
+	ID           uuid.UUID       `json:"id"`
+	MatchID      uuid.UUID       `json:"match_id"`
+	SteamID64    string          `json:"steamid64"`
+	Name         string          `json:"name"`
+	TeamKey      string          `json:"team_key"`
+	StartMS      int64           `json:"start_ms"`
+	EndMS        int64           `json:"end_ms"`
+	Tick         int             `json:"tick"`
+	Round        int             `json:"round"`
+	Text         string          `json:"text"`
+	Corrected    bool            `json:"corrected"`
+	OriginalText string          `json:"original_text,omitempty"`
+	Discarded    bool            `json:"discarded"`
+	Words        []DemoVoiceWord `json:"-"`
 }
 
 type DemoVoiceWord struct {
@@ -62,18 +63,17 @@ func SpreadVoiceWords(in VoiceWordSpread) []DemoVoiceWord {
 	return words
 }
 
-// DemoVoiceUpdate sets a demo's transcript state; non-nil Lines replaces every line.
 type DemoVoiceUpdate struct {
 	MatchID    uuid.UUID
 	Transcript DemoVoiceTranscript
 	Lines      *[]DemoVoiceLine
 }
 
-// DemoVoiceLinePatch corrects the text of one phrase.
 type DemoVoiceLinePatch struct {
-	MatchID uuid.UUID
-	ID      uuid.UUID
-	Text    string
+	MatchID   uuid.UUID
+	ID        uuid.UUID
+	Text      *string
+	Discarded *bool
 }
 
 // DemoVoiceLineFilter reads phrases; empty MatchIDs means every match, Query matches the text as a phrase.

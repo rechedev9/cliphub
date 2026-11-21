@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func migrateV33DemoVoiceWords(tx *sql.Tx) error {
+func migrateV34DemoVoiceWords(tx *sql.Tx) error {
 	found, err := columnExists(tx, "library_demo_voice_lines", "words")
 	if err != nil || found {
 		return err

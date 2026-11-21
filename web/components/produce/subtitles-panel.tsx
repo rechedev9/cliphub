@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { LibraryApiError } from '@/lib/api/library';
-import { correctDemoVoiceLine, extractDemoVoice, installTranscriber, transcribeDemoVoice, type VoiceTranscriber } from '@/lib/api/voice';
+import { extractDemoVoice, patchDemoVoiceLine, installTranscriber, transcribeDemoVoice, type VoiceTranscriber } from '@/lib/api/voice';
 import {
   SUBTITLES_LABEL, fetchJobSubtitles, subtitleAvailability, subtitleNote, subtitleRows, toggleHiddenPhrase,
   type JobSubtitles, type PhraseScope, type SubtitleChoice,
@@ -113,11 +113,15 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
   const correct = (id: string, text: string, before: string): void => {
     const clean = text.trim();
     if (matchId === null || clean === '' || clean === before) return;
-    void run(() => correctDemoVoiceLine({ matchId, lineId: id }, { text: clean }), 'No se pudo guardar la corrección.');
+    void run(() => patchDemoVoiceLine({ matchId, lineId: id }, { text: clean }), 'No se pudo guardar la corrección.');
+  };
+  const discard = (id: string, discarded: boolean): void => {
+    if (matchId === null) return;
+    void run(() => patchDemoVoiceLine({ matchId, lineId: id }, { discarded }), discarded ? 'No se pudo descartar la frase.' : 'No se pudo recuperar la frase.');
   };
 
   return <div className="flex min-w-0 flex-col gap-3">
-    <p className="text-body-sm text-fg-2">Cada frase de las voces del equipo, con el nombre de quien habla. Se transcriben en este PC una vez por demo.</p>
+    <p className="text-body-sm text-fg-2">Cada frase de las voces del equipo, con el nombre de quien habla. Se transcriben en este PC una vez por demo. Una corrección vale para todos los vídeos de la demo y guarda lo que oyó el transcriptor; descarta las frases que nadie dijo.</p>
     {onVoicesChange ? <Toggle label={voicesLabel} checked={voices} disabled={disabled} onChange={onVoicesChange} /> : null}
     <Toggle label={SUBTITLES_LABEL} checked={value.enabled && availability.enabled} disabled={locked || !availability.enabled}
       onChange={(enabled) => onChange({ ...value, enabled })} />
@@ -134,16 +138,26 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
           </Button>
         ) : null}
         {rows.length > 0 ? <ul className="flex flex-col gap-2" aria-label="Frases de este vídeo">
-          {rows.map((row) => <li key={row.id} className={cn('flex flex-col gap-1.5 rounded-lg bg-surface-3 p-2.5', row.hidden && 'opacity-60')}>
+          {rows.map((row) => <li key={row.id} className={cn('flex flex-col gap-1.5 rounded-lg bg-surface-3 p-2.5', (row.hidden || row.discarded) && 'opacity-60')}>
             <div className="flex flex-wrap items-center justify-between gap-2 text-meta text-fg-2">
-              <span><span className="font-semibold text-fg-1">{row.speaker || 'Jugador'}</span> · Ronda {row.round}{row.corrected ? ' · corregida' : ''}</span>
-              <Button variant="ghost" size="sm" disabled={locked} aria-pressed={row.hidden} onClick={() => onChange(toggleHiddenPhrase(value, row.id))}>
-                {row.hidden ? 'Mostrar en este vídeo' : 'Ocultar en este vídeo'}
-              </Button>
+              <span><span className="font-semibold text-fg-1">{row.speaker || 'Jugador'}</span> · Ronda {row.round}{row.corrected ? ' · corregida' : ''}{row.discarded ? ' · descartada' : ''}</span>
+              <span className="flex flex-wrap items-center gap-1">
+                {row.discarded ? null : <Button variant="ghost" size="sm" disabled={locked} aria-pressed={row.hidden} onClick={() => onChange(toggleHiddenPhrase(value, row.id))}>
+                  {row.hidden ? 'Mostrar en este vídeo' : 'Ocultar en este vídeo'}
+                </Button>}
+                <Button variant="ghost" size="sm" disabled={locked} aria-pressed={row.discarded} onClick={() => discard(row.id, !row.discarded)}>
+                  {row.discarded ? 'Recuperar la frase' : 'Descartar en todos los vídeos'}
+                </Button>
+              </span>
             </div>
-            <Input key={`${row.id}:${row.text}`} defaultValue={row.text} disabled={locked || row.hidden} maxLength={2000}
+            <Input key={`${row.id}:${row.text}`} defaultValue={row.text} disabled={locked || row.hidden || row.discarded} maxLength={2000}
               aria-label={`Frase de ${row.speaker || 'un jugador'}`}
               onBlur={(event) => correct(row.id, event.target.value, row.text)} />
+            {row.original === null ? null : <div className="flex flex-wrap items-center justify-between gap-2 text-meta text-fg-3">
+              <span>El transcriptor oyó: «{row.original}»</span>
+              <Button variant="ghost" size="sm" disabled={locked || row.discarded} onClick={() => correct(row.id, row.original ?? '', row.text)}>Volver al original</Button>
+            </div>}
+            {row.discarded ? <p className="text-meta text-fg-3">No sale en ningún vídeo de esta demo.</p> : null}
           </li>)}
         </ul> : null}
         {rows.length === 0 && subs.state === 'ready' ? <p className="text-body-sm text-fg-2">Nadie del equipo habla en lo que muestra este vídeo.</p> : null}

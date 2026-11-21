@@ -129,9 +129,9 @@ export const DEMO_TRANSCRIPT_KEYS = [
   'match_id', 'state', 'model', 'error', 'updated_at', 'progress', 'voice', 'lines', 'transcriber',
 ] as const;
 export const DEMO_TRANSCRIBE_FIELDS = ['force'] as const;
-export const DEMO_LINE_FIELDS = ['text'] as const;
+export const DEMO_LINE_FIELDS = ['text', 'discarded'] as const;
 export const DEMO_LINE_KEYS = [
-  'id', 'match_id', 'steamid64', 'name', 'team_key', 'start_ms', 'end_ms', 'tick', 'round', 'text', 'corrected',
+  'id', 'match_id', 'steamid64', 'name', 'team_key', 'start_ms', 'end_ms', 'tick', 'round', 'text', 'corrected', 'original_text', 'discarded',
 ] as const;
 /** One import request: 2 GiB of audio plus 1 MiB of multipart framing, as the orchestrator reads. */
 export const VOICE_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024 + 1024 * 1024;
@@ -189,8 +189,7 @@ export function transcribeDemoVoice(matchId: string): Promise<unknown> {
   return request<unknown>(`${voicePath(matchId)}/demo/transcript`, jsonInit('POST', {}));
 }
 
-/** Corrects a phrase for every later video of the demo. */
-export function correctDemoVoiceLine(target: { matchId: string; lineId: string }, patch: { text: string }): Promise<unknown> {
+export function patchDemoVoiceLine(target: { matchId: string; lineId: string }, patch: { text: string } | { discarded: boolean }): Promise<unknown> {
   return request<unknown>(`${voicePath(target.matchId)}/demo/transcript/lines/${encodeURIComponent(target.lineId)}`, jsonInit('PATCH', patch));
 }
 

@@ -46,18 +46,31 @@ func TestDemoVoiceLinesKeepTheirWords(t *testing.T) {
 			}
 			spread := []library.DemoVoiceWord{{Text: "Stack", StartMS: 64_000, EndMS: 64_714}, {Text: "B,", StartMS: 64_714, EndMS: 65_000}, {Text: "they", StartMS: 65_000, EndMS: 65_571},
 				{Text: "go", StartMS: 65_571, EndMS: 65_857}, {Text: "B", StartMS: 65_857, EndMS: 66_000}}
-			line, err := repo.UpdateDemoVoiceLine(f.ctx, library.DemoVoiceLinePatch{MatchID: m.ID, ID: call.ID, Text: "Stack B, they go B"})
+			fixed := "Stack B, they go B"
+			line, err := repo.UpdateDemoVoiceLine(f.ctx, library.DemoVoiceLinePatch{MatchID: m.ID, ID: call.ID, Text: &fixed})
 			if err != nil || !reflect.DeepEqual(line.Words, spread) {
 				t.Fatalf("corrected words = %+v, %v; want the frase's time shared by word length", line.Words, err)
 			}
 			if got := read(); !reflect.DeepEqual(got[1].Words, spread) {
 				t.Fatalf("stored words after a correction = %+v, want %+v", got[1].Words, spread)
 			}
+			discard := true
+			if line, err = repo.UpdateDemoVoiceLine(f.ctx, library.DemoVoiceLinePatch{MatchID: m.ID, ID: old.ID, Discarded: &discard}); err != nil || len(line.Words) != 0 {
+				t.Fatalf("words of a frase discarded without a correction = %+v, %v; want them untouched", line.Words, err)
+			}
+			call.Words = stored
+			again := []library.DemoVoiceLine{call, old}
+			if err := repo.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: ready, Lines: &again}); err != nil {
+				t.Fatal(err)
+			}
+			if got := read(); got[1].Text != fixed || !reflect.DeepEqual(got[1].Words, spread) {
+				t.Fatalf("after transcribing again = %q with words %+v; want the correction kept with its own words", got[1].Text, got[1].Words)
+			}
 		})
 	}
 }
 
-func TestMigrateV33KeepsTheFrasesStoredBeforeWordTimings(t *testing.T) {
+func TestMigrateV34KeepsTheFrasesStoredBeforeWordTimings(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "jobs.db")
 	db, err := openSQLite(path)
 	if err != nil {
@@ -69,7 +82,7 @@ func TestMigrateV33KeepsTheFrasesStoredBeforeWordTimings(t *testing.T) {
 	if err := f.repo.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: library.DemoVoiceTranscript{State: library.TranscriptReady}, Lines: &lines}); err != nil {
 		t.Fatal(err)
 	}
-	for _, stmt := range []string{`ALTER TABLE library_demo_voice_lines DROP COLUMN words`, `PRAGMA user_version = 32`} {
+	for _, stmt := range []string{`ALTER TABLE library_demo_voice_lines DROP COLUMN words`, `PRAGMA user_version = 33`} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatalf("%s: %v", stmt, err)
 		}

@@ -15,7 +15,7 @@ import (
 
 const demoVoiceColumns = `SELECT match_id, state, model, error, updated_at FROM library_demo_voice`
 
-const demoVoiceLineColumns = `SELECT id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, corrected, words
+const demoVoiceLineColumns = `SELECT id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, corrected, original_text, discarded, words
 	FROM library_demo_voice_lines`
 
 func encodeDemoVoiceWords(words []library.DemoVoiceWord) (string, error) {
@@ -42,7 +42,7 @@ func scanDemoVoice(row interface{ Scan(...any) error }) (library.DemoVoiceTransc
 func scanDemoVoiceLine(row interface{ Scan(...any) error }) (library.DemoVoiceLine, error) {
 	var l library.DemoVoiceLine
 	var id, matchID, words string
-	if err := row.Scan(&id, &matchID, &l.SteamID64, &l.Name, &l.TeamKey, &l.StartMS, &l.EndMS, &l.Tick, &l.Round, &l.Text, &l.Corrected, &words); err != nil {
+	if err := row.Scan(&id, &matchID, &l.SteamID64, &l.Name, &l.TeamKey, &l.StartMS, &l.EndMS, &l.Tick, &l.Round, &l.Text, &l.Corrected, &l.OriginalText, &l.Discarded, &words); err != nil {
 		return l, err
 	}
 	if words != "" {
@@ -85,23 +85,47 @@ func (r *SQLiteLibraryRepository) SetDemoVoice(ctx context.Context, update libra
 		if update.Lines == nil {
 			return nil
 		}
+		prev, err := editedDemoVoiceLines(ctx, tx, id)
+		if err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM library_demo_voice_lines WHERE match_id = ?`, id); err != nil {
 			return err
 		}
 		for _, l := range *update.Lines {
+			if old, ok := prev[l.ID]; ok {
+				l = keepDemoVoiceEdits(old, l)
+			}
 			words, err := encodeDemoVoiceWords(l.Words)
 			if err != nil {
 				return fmt.Errorf("encode demo voice words: %w", err)
 			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO library_demo_voice_lines
-				(id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, text_key, corrected, words)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				l.ID.String(), id, l.SteamID64, l.Name, l.TeamKey, l.StartMS, l.EndMS, l.Tick, l.Round, l.Text, voiceLineKey(l.Text), l.Corrected, words); err != nil {
+				(id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, text_key, corrected, original_text, discarded, words)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				l.ID.String(), id, l.SteamID64, l.Name, l.TeamKey, l.StartMS, l.EndMS, l.Tick, l.Round, l.Text, voiceLineKey(l.Text), l.Corrected, l.OriginalText, l.Discarded, words); err != nil {
 				return fmt.Errorf("store demo voice line: %w", err)
 			}
 		}
 		return nil
 	})
+}
+
+func editedDemoVoiceLines(ctx context.Context, tx *sql.Tx, matchID string) (map[uuid.UUID]library.DemoVoiceLine, error) {
+	rows, err := tx.QueryContext(ctx, demoVoiceLineColumns+` WHERE match_id = ? AND (corrected = 1 OR discarded = 1)`, matchID)
+	if err != nil {
+		return nil, fmt.Errorf("list edited demo voice lines: %w", err)
+	}
+	defer rows.Close()
+	out := map[uuid.UUID]library.DemoVoiceLine{}
+	for rows.Next() {
+		l, err := scanDemoVoiceLine(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[l.ID] = l
+	}
+	return out, rows.Err()
 }
 
 func (r *SQLiteLibraryRepository) ListDemoVoiceLines(ctx context.Context, filter library.DemoVoiceLineFilter) ([]library.DemoVoiceLine, error) {
@@ -140,23 +164,20 @@ func (r *SQLiteLibraryRepository) ListDemoVoiceLines(ctx context.Context, filter
 func (r *SQLiteLibraryRepository) UpdateDemoVoiceLine(ctx context.Context, patch library.DemoVoiceLinePatch) (library.DemoVoiceLine, error) {
 	var out library.DemoVoiceLine
 	err := r.inTx(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `UPDATE library_demo_voice_lines SET text = ?, text_key = ?, corrected = 1 WHERE match_id = ? AND id = ?`,
-			patch.Text, voiceLineKey(patch.Text), patch.MatchID.String(), patch.ID.String())
+		cur, err := scanDemoVoiceLine(tx.QueryRowContext(ctx, demoVoiceLineColumns+` WHERE match_id = ? AND id = ?`, patch.MatchID.String(), patch.ID.String()))
+		if errors.Is(err, sql.ErrNoRows) {
+			return library.ErrNotFound
+		}
 		if err != nil {
 			return err
 		}
-		if n, err := res.RowsAffected(); err != nil || n == 0 {
-			return errors.Join(err, library.ErrNotFound)
-		}
-		if out, err = scanDemoVoiceLine(tx.QueryRowContext(ctx, demoVoiceLineColumns+` WHERE id = ?`, patch.ID.String())); err != nil {
-			return err
-		}
-		out.Words = library.SpreadVoiceWords(library.VoiceWordSpread{Text: out.Text, StartMS: out.StartMS, EndMS: out.EndMS})
+		out = patchDemoVoiceLine(cur, patch)
 		words, err := encodeDemoVoiceWords(out.Words)
 		if err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE library_demo_voice_lines SET words = ? WHERE id = ?`, words, patch.ID.String())
+		_, err = tx.ExecContext(ctx, `UPDATE library_demo_voice_lines SET text = ?, text_key = ?, corrected = ?, original_text = ?, discarded = ?, words = ? WHERE id = ?`,
+			out.Text, voiceLineKey(out.Text), out.Corrected, out.OriginalText, out.Discarded, words, patch.ID.String())
 		return err
 	})
 	return out, err
