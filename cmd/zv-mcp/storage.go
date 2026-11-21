@@ -20,6 +20,7 @@ const (
 	defaultStorageFiles = 50
 	maxStorageFiles     = 500
 	maxPathRunes        = 1024
+	maxEstimateSeconds  = 24 * 60 * 60
 )
 
 // storageKindLabels names each file kind the way the Almacenamiento screen does.
@@ -38,6 +39,14 @@ type storageUsageOut struct {
 	FreeableCaptures []freeableCaptures `json:"freeable_captures" jsonschema:"kept Full Demo captures delete_captures can free, largest first"`
 	CaptureRetention int                `json:"capture_retention" jsonschema:"how many of the newest rendered Full Demos keep their captures; set_capture_retention changes it"`
 	KeepsAllCaptures bool               `json:"keeps_all_captures,omitempty" jsonschema:"Studio started with ZV_KEEP_FULL_DEMO_CAPTURES, which keeps every capture"`
+	FreeBytes        *uint64            `json:"free_bytes,omitempty" jsonschema:"free space on the disk that holds the jobs; absent when Studio cannot read it"`
+	NeededBytes      uint64             `json:"needed_bytes,omitempty" jsonschema:"estimated disk a capture and render of the given seconds need"`
+	Short            bool               `json:"short,omitempty" jsonschema:"true when needed_bytes is more than free_bytes: Studio warns before the capture but does not block it"`
+}
+
+type storageUsageIn struct {
+	CaptureSeconds float64 `json:"capture_seconds,omitempty" jsonschema:"seconds of CS2 capture planned, to estimate needed_bytes as the low disk warning does"`
+	RenderSeconds  float64 `json:"render_seconds,omitempty" jsonschema:"seconds of video to render"`
 }
 
 type freeableCaptures struct {
@@ -100,8 +109,12 @@ func registerStorageTools(server *mcp.Server, s *studio) {
 	destructive := &mcp.ToolAnnotations{DestructiveHint: new(true)}
 
 	mcp.AddTool(server, &mcp.Tool{Name: "storage_usage", Annotations: readOnly,
-		Description: "Disk used by Studio's jobs, the Full Demo captures Studio keeps so an edit only renders again, and how many it keeps, as Almacenamiento shows."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, storageUsageOut, error) {
+		Description: "Disk used by Studio's jobs, the Full Demo captures Studio keeps so an edit only renders again, and how many it keeps, as Almacenamiento shows. " +
+			"Also the free disk space; with capture_seconds or render_seconds it estimates what that work needs, as the low disk warning of the Short and Full Demo editors does."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in storageUsageIn) (*mcp.CallToolResult, storageUsageOut, error) {
+			if in.CaptureSeconds < 0 || in.RenderSeconds < 0 || in.CaptureSeconds > maxEstimateSeconds || in.RenderSeconds > maxEstimateSeconds {
+				return nil, storageUsageOut{}, fmt.Errorf("capture_seconds and render_seconds must be 0 to %d", maxEstimateSeconds)
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, storageUsageOut{}, toolError(err)
@@ -110,7 +123,15 @@ func registerStorageTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, storageUsageOut{}, toolError(err)
 			}
-			return nil, describeStorageUsage(usage), nil
+			space, err := c.StorageSpace(ctx, in.CaptureSeconds, in.RenderSeconds)
+			if err != nil {
+				return nil, storageUsageOut{}, toolError(err)
+			}
+			out := describeStorageUsage(usage)
+			if space != nil {
+				out.FreeBytes, out.NeededBytes, out.Short = &space.FreeBytes, space.NeededBytes, space.Short
+			}
+			return nil, out, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "delete_captures", Annotations: destructive,

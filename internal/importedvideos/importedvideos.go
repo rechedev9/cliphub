@@ -201,9 +201,13 @@ func removeLegacy(clientPath string) {
 
 // fileOf builds the path of a kept video. The id must be a UUID and the name a
 // plain MP4 name, so a request can never reach outside the results folder.
+func ValidName(name string) bool {
+	return videoNamePattern.MatchString(name)
+}
+
 func (s *Store) fileOf(cloudJobID, name string) (string, error) {
 	id, err := uuid.Parse(cloudJobID)
-	if err != nil || id.String() != cloudJobID || !videoNamePattern.MatchString(name) {
+	if err != nil || id.String() != cloudJobID || !ValidName(name) {
 		return "", ErrNotFound
 	}
 	return filepath.Join(s.resultsDir, cloudJobID, name), nil

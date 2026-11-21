@@ -1,5 +1,6 @@
 import { LibraryApiError } from './library.ts';
 import { SHARE_PACKAGE_EXTENSION, type SharePackageImport } from '../library/share.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 export type ShareTarget = { kind: 'report'; id: string };
 export type SharePackageFile = { blob: Blob; fileName: string };
@@ -19,7 +20,7 @@ async function failure(res: Response): Promise<LibraryApiError> {
 
 /** Builds the .cliphub package of a report. */
 export async function exportSharePackage(target: ShareTarget, notes: string): Promise<SharePackageFile> {
-  const res = await fetch(`/api/library/reports/${encodeURIComponent(target.id)}/export`, {
+  const res = await apiFetch(`/api/library/reports/${encodeURIComponent(target.id)}/export`, {
     method: 'POST',
     cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
@@ -34,7 +35,7 @@ export async function exportSharePackage(target: ShareTarget, notes: string): Pr
 export async function importSharePackage(file: File): Promise<SharePackageImport> {
   const form = new FormData();
   form.append('package', file, file.name);
-  const res = await fetch('/api/library/import-package', { method: 'POST', cache: 'no-store', body: form });
+  const res = await apiFetch('/api/library/import-package', { method: 'POST', cache: 'no-store', body: form });
   if (!res.ok) throw await failure(res);
   const body: SharePackageImport = await res.json();
   return body;

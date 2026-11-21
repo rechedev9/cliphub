@@ -1,4 +1,5 @@
 import type { EditConfig } from './api/types.ts';
+import { apiFetch } from './api/edition-fetch.ts';
 
 /** The three independent card slots of a one-player 9:16 Short. */
 export const PLAYER_CARD_SLOTS = [
@@ -91,7 +92,7 @@ async function failure(response: Response, fallback: string): Promise<Error> {
 }
 
 export async function fetchPlayerCardInfo(jobId: string, signal?: AbortSignal): Promise<PlayerCardInfo> {
-  const response = await fetch(cardApi(jobId), { cache: 'no-store', signal });
+  const response = await apiFetch(cardApi(jobId), { cache: 'no-store', signal });
   if (!response.ok) throw await failure(response, 'No se pudieron leer las cartas de jugador.');
   const info = parsePlayerCardInfo(await response.json());
   if (info === null) throw new Error('Studio devolvió unas cartas de jugador ilegibles.');
@@ -104,11 +105,11 @@ export async function uploadPlayerCardImage(jobId: string, file: File): Promise<
   if (file.size === 0 || file.size > 10 * 1024 * 1024) throw new Error('La imagen debe ocupar entre 1 byte y 10 MB.');
   const form = new FormData();
   form.set('image', file);
-  const response = await fetch(cardApi(jobId, '/image'), { method: 'POST', body: form });
+  const response = await apiFetch(cardApi(jobId, '/image'), { method: 'POST', body: form });
   if (!response.ok) throw await failure(response, 'No se pudo subir la imagen.');
 }
 
 export async function removePlayerCardImage(jobId: string): Promise<void> {
-  const response = await fetch(cardApi(jobId, '/image'), { method: 'DELETE' });
+  const response = await apiFetch(cardApi(jobId, '/image'), { method: 'DELETE' });
   if (!response.ok) throw await failure(response, 'No se pudo quitar la imagen.');
 }

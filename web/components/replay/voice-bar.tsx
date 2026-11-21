@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AudioLines, Check, Info, Mic, Radio, RotateCcw, Upload, Volume2, VolumeX, Wand2, X } from 'lucide-react';
 import { MAX_VOICE_OFFSET_MS } from '@/lib/api/voice';
 import type { MatchVoice } from '@/lib/api/voice';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { ADJUST_RANGE_MS, NUDGE_STEPS_MS, clampOffset, deltaLabel, formatVoiceMs } from '@/lib/replay/voice-sync';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';

@@ -6,6 +6,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { StatusTag } from '@/components/studio/status-tag';
 import { SettingsSection } from './settings-section';
+import { apiFetch } from '@/lib/api/edition-fetch';
 
 interface Status {
   connected: boolean;
@@ -44,7 +45,7 @@ function readStatus(value: unknown): Status | undefined {
 
 async function call(path: string, method: string, body?: unknown): Promise<{ status?: Status; error?: string }> {
   try {
-    const response = await fetch(`/api/clipmind/${path}`, {
+    const response = await apiFetch(`/api/clipmind/${path}`, {
       method,
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),

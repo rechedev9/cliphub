@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RESULTS_HREF } from './clips/routes.ts';
-import { currentEdition, homePathFor, isPathAvailable, navSectionsFor } from './edition.ts';
+import { homePathFor, navSectionsFor } from './edition.ts';
+import { currentEdition, isPathAvailable } from './edition-routes.ts';
 import { NAV_SECTIONS } from './nav.ts';
 
 function withEdition(value: string | undefined, run: () => void): void {

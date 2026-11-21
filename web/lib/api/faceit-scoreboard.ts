@@ -1,3 +1,5 @@
+import { apiFetch } from './edition-fetch.ts';
+
 /**
  * FACEIT room scoreboard for a demo downloaded from FACEIT. The orchestrator
  * resolves the match from the demo file name and checks it against the parsed
@@ -130,7 +132,7 @@ export function parseFaceitScoreboard(raw: unknown): FaceitScoreboard | null {
 /** The FACEIT scoreboard of a scanned job, or null for a non-FACEIT demo or any failure. */
 export async function getFaceitScoreboard(jobId: string, signal?: AbortSignal): Promise<FaceitScoreboard | null> {
   try {
-    const res = await fetch(`/api/demos/${encodeURIComponent(jobId)}/faceit-scoreboard`, { cache: 'no-store', signal });
+    const res = await apiFetch(`/api/demos/${encodeURIComponent(jobId)}/faceit-scoreboard`, { cache: 'no-store', signal });
     if (!res.ok) return null;
     // The proxy already whitelisted and reshaped the upstream body.
     const board = asRecord(asRecord(await res.json())?.scoreboard);

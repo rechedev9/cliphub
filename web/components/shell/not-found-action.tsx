@@ -4,7 +4,8 @@ import type { ReactElement } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { currentEdition, editionSectionForPath, homeLabelFor, homePathFor } from '@/lib/edition';
+import { editionSectionForPath, homeLabelFor, homePathFor } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 
 /** The way out of a 404: back to the section the address belongs to, else the edition's home. */
 export function NotFoundAction(): ReactElement {

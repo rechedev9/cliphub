@@ -2,7 +2,8 @@
 
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { currentEdition, navSectionsFor } from '@/lib/edition';
+import { navSectionsFor } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { previewModelContext, registerWebTools, waitForWebState } from '@/lib/webmcp';
 
 const SECTIONS = navSectionsFor(currentEdition());

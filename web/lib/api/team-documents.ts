@@ -1,3 +1,5 @@
+import { apiFetch } from './edition-fetch.ts';
+
 /** A team's HTML document (an anti-strat or prep report) and how the browser reads, uploads and shows it. */
 export interface TeamDocument {
   id: string;
@@ -70,7 +72,7 @@ async function errorMessage(res: Response, fallback: string): Promise<string> {
 }
 
 export async function listTeamDocuments(teamId: string, signal?: AbortSignal): Promise<TeamDocument[]> {
-  const res = await fetch(`/api/library/documents?team_id=${encodeURIComponent(teamId)}&limit=200`, { signal, cache: 'no-store' });
+  const res = await apiFetch(`/api/library/documents?team_id=${encodeURIComponent(teamId)}&limit=200`, { signal, cache: 'no-store' });
   if (!res.ok) throw new Error(await errorMessage(res, 'No se pudieron leer los documentos.'));
   const body: unknown = await res.json();
   const documents: unknown = body !== null && typeof body === 'object' ? Reflect.get(body, 'documents') : undefined;
@@ -82,7 +84,7 @@ export async function uploadTeamDocument(input: { teamId: string; title: string;
   form.append('team_id', input.teamId);
   if (input.title.trim() !== '') form.append('title', input.title.trim());
   form.append('file', input.file, input.file.name);
-  const res = await fetch('/api/library/document-uploads', { method: 'POST', body: form });
+  const res = await apiFetch('/api/library/document-uploads', { method: 'POST', body: form });
   if (!res.ok) throw new Error(await errorMessage(res, 'No se pudo subir el documento.'));
   const body: unknown = await res.json();
   if (!isTeamDocument(body)) throw new Error('El servidor devolvió una respuesta inesperada.');
@@ -90,7 +92,7 @@ export async function uploadTeamDocument(input: { teamId: string; title: string;
 }
 
 export async function deleteTeamDocument(id: string): Promise<void> {
-  const res = await fetch(`/api/library/documents/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/library/documents/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!res.ok && res.status !== 404) throw new Error(await errorMessage(res, 'No se pudo borrar el documento.'));
 }
 

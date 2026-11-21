@@ -2,7 +2,7 @@
 
 import { Fragment, useId, type ReactNode } from 'react';
 import { ListFilter, Search, X } from 'lucide-react';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import {
   KIND_LABEL,
   LIBRARY_VIEWS,

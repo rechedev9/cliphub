@@ -3,6 +3,8 @@ package tuiclient
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -88,4 +90,21 @@ func (c *Client) DeleteStorageFile(ctx context.Context, path string) (int64, err
 // RevealStorageFile opens File Explorer on a file the last list returned.
 func (c *Client) RevealStorageFile(ctx context.Context, path string) error {
 	return c.doJSON(ctx, http.MethodPost, "/api/storage/files/reveal", map[string]string{"path": path}, nil)
+}
+
+type StorageSpace struct {
+	FreeBytes   uint64 `json:"free_bytes"`
+	NeededBytes uint64 `json:"needed_bytes"`
+	Short       bool   `json:"short"`
+}
+
+func (c *Client) StorageSpace(ctx context.Context, captureSeconds, renderSeconds float64) (*StorageSpace, error) {
+	q := url.Values{}
+	q.Set("capture_seconds", strconv.FormatFloat(captureSeconds, 'f', -1, 64))
+	q.Set("render_seconds", strconv.FormatFloat(renderSeconds, 'f', -1, 64))
+	var out struct {
+		Space *StorageSpace `json:"space"`
+	}
+	err := c.getJSON(ctx, "/api/storage/space?"+q.Encode(), &out)
+	return out.Space, err
 }

@@ -1,6 +1,7 @@
 // Auto-Shorts: one Short per great play, chosen by the orchestrator (GET /api/jobs/{id}/shorts-batch).
 import { dataPlane } from './dataplane.ts';
 import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 /** Mirrors internal/moments: the default bar and limit, and the hard cap. */
 export const AUTO_SHORTS_DEFAULT_MIN_SCORE = 0.6;
@@ -43,7 +44,7 @@ export function shortsBatchUrl(jobId: string, options: AutoShortsOptions): strin
 }
 
 export async function fetchShortsBatch(jobId: string, options: AutoShortsOptions & { signal?: AbortSignal }): Promise<AutoShortsBatch> {
-  const response = await fetch(shortsBatchUrl(jobId, options), { cache: 'no-store', signal: options.signal });
+  const response = await apiFetch(shortsBatchUrl(jobId, options), { cache: 'no-store', signal: options.signal });
   if (!response.ok) throw new Error(`shorts-batch ${response.status}`);
   const batch = parseShortsBatch(await response.json());
   if (batch === null) throw new Error('shorts-batch: unexpected answer');

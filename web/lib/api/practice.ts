@@ -1,4 +1,5 @@
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 export const PRACTICE_LAUNCH_ENDPOINT = '/api/practice/launch';
 export const PRACTICE_MAX_SPOTS = 20;
@@ -152,7 +153,7 @@ function errorMessage(body: unknown, status: number): string {
 export async function launchPractice(input: PracticeLaunchInput): Promise<PracticeLaunchOutcome> {
   let res: Response;
   try {
-    res = await fetch(PRACTICE_LAUNCH_ENDPOINT, {
+    res = await apiFetch(PRACTICE_LAUNCH_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),

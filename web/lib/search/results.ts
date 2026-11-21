@@ -3,7 +3,8 @@ import { GRENADE_KIND_LABEL } from '../analysis/grenade-patterns.ts';
 import { isLineupGrenade } from '../api/lineups.ts';
 import { isLibretaStatus } from '../api/libreta.ts';
 import { LIBRETA_TABS, libretaTabHref, lineupHref, matchHref, playerHref, playHref, teamHref } from '../clips/routes.ts';
-import { currentEdition, navSectionsFor } from '../edition.ts';
+import { navSectionsFor } from '../edition.ts';
+import { currentEdition } from '../edition-routes.ts';
 import { STATUS_LABEL } from '../libreta/status.ts';
 import { playKindLabel } from '../stratbook/plays.ts';
 

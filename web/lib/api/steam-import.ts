@@ -1,4 +1,5 @@
 import { SERVICE_UNAVAILABLE_CODE, STEAM_CODES } from './types.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 export const STEAM_IMPORT_ENDPOINT = '/api/steam/import';
 
@@ -36,7 +37,7 @@ export async function importShareCode(
   }
   let res: Response;
   try {
-    res = await fetch(STEAM_IMPORT_ENDPOINT, {
+    res = await apiFetch(STEAM_IMPORT_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),

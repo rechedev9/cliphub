@@ -1,3 +1,5 @@
+import { apiFetch } from './edition-fetch.ts';
+
 /**
  * Map geometry for the Replay (`internal/mapgeo`), read at runtime from the user's own CS2
  * install: `physics` is the decimated collision (walls, floors, props that stop players and
@@ -111,7 +113,7 @@ export async function getMapGeometry(
 ): Promise<MapGeometry> {
   if (!MAP_GEOMETRY_NAME_RE.test(map)) throw new MapGeometryError(`invalid map name: ${map}`, 400, 'invalid_request');
   const query = options.source === undefined ? '' : `?source=${options.source}`;
-  const res = await fetch(`/api/maps/${encodeURIComponent(map)}/geometry${query}`, { signal: options.signal });
+  const res = await apiFetch(`/api/maps/${encodeURIComponent(map)}/geometry${query}`, { signal: options.signal });
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok) {
     const message = isRecord(body) && typeof body.error === 'string' ? body.error : `map geometry failed (${res.status})`;

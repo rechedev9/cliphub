@@ -1,6 +1,7 @@
 // Auto-POV: the players and plays of a summary, picked by the orchestrator (GET /api/jobs/{id}/auto-pov).
 
 import { DEFAULT_PRE_ROLL_SECONDS, type PreRollSeconds } from '../api/types.ts';
+import { apiFetch } from '../api/edition-fetch.ts';
 
 /** Mirrors internal/moments: the longest edit time one play may add, such as a victim replay. */
 export const AUTO_POV_MAX_EXTRA_SECONDS = 15;
@@ -70,7 +71,7 @@ export function autoPovUrl(jobId: string, options: AutoPovOptions): string {
 }
 
 export async function fetchAutoPov(jobId: string, options: AutoPovOptions & { signal?: AbortSignal }): Promise<AutoPovDirection> {
-  const response = await fetch(autoPovUrl(jobId, options), { cache: 'no-store', signal: options.signal });
+  const response = await apiFetch(autoPovUrl(jobId, options), { cache: 'no-store', signal: options.signal });
   if (!response.ok) throw new Error(`auto-pov ${response.status}`);
   const direction = parseAutoPov(await response.json());
   if (direction === null) throw new Error('auto-pov: unexpected answer');

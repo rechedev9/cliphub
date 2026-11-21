@@ -55,11 +55,12 @@ type failedCaptureOut struct {
 }
 
 type listAllVideosOut struct {
-	Videos       []libraryVideoOut  `json:"videos" jsonschema:"finished videos, newest job first"`
-	OtherRenders []libraryRenderOut `json:"other_renders,omitempty" jsonschema:"renders still queued or rendering, and failed ones retry_video may fix"`
-	FailedJobs   []failedCaptureOut `json:"failed_jobs,omitempty" jsonschema:"jobs whose parse or CS2 capture failed; generate_short records again"`
-	StreamVideos []libraryStreamOut `json:"stream_videos" jsonschema:"rendered stream moments, newest stream first; list_stream_videos also has a stream's 16:9 summary"`
-	Note         string             `json:"note,omitempty"`
+	Videos         []libraryVideoOut  `json:"videos" jsonschema:"finished videos, newest job first"`
+	OtherRenders   []libraryRenderOut `json:"other_renders,omitempty" jsonschema:"renders still queued or rendering, and failed ones retry_video may fix"`
+	FailedJobs     []failedCaptureOut `json:"failed_jobs,omitempty" jsonschema:"jobs whose parse or CS2 capture failed; generate_short records again"`
+	StreamVideos   []libraryStreamOut `json:"stream_videos" jsonschema:"rendered stream moments, newest stream first; list_stream_videos also has a stream's 16:9 summary"`
+	ImportedVideos []importedVideoOut `json:"imported_videos" jsonschema:"Shorts imported from the old ClipHub cloud; delete_imported_video removes one"`
+	Note           string             `json:"note,omitempty"`
 }
 
 type libraryStreamOut struct {
@@ -82,7 +83,7 @@ type changeMusicIn struct {
 
 func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "list_all_videos", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-		Description: "List the demo videos of every recent job, as Mis vídeos does: finished ones with a URL that plays the MP4, renders still running, " +
+		Description: "List the demo videos of every recent job, as Mis vídeos does: finished ones and the Shorts imported from the old cloud, each with a URL that plays the MP4, renders still running, " +
 			"failed renders (retry_video) and jobs that failed before a video existed. The URL only works while ClipHub Studio is open."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listAllVideosIn) (*mcp.CallToolResult, listAllVideosOut, error) {
 			limit := cmp.Or(in.Jobs, defaultVideoJobs)
@@ -101,14 +102,20 @@ func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, listAllVideosOut{}, toolError(err)
 			}
+			imported, importedErr := c.ListImportedVideos(ctx)
 			origin, originErr := s.webOrigin()
 			out := describeVideoLibrary(rows, failed, origin)
 			out.StreamVideos = describeStreamLibrary(streams, origin, originErr == nil)
 			if originErr != nil {
 				out.Note = "No playable URL: " + originErr.Error()
+				origin = ""
 				for i := range out.Videos {
 					out.Videos[i].URL = ""
 				}
+			}
+			out.ImportedVideos = describeImportedVideos(imported, origin)
+			if importedErr != nil {
+				out.Note = strings.TrimSpace(out.Note + " Imported Shorts not listed: " + cleanText(importedErr.Error(), maxErrorRunes))
 			}
 			return nil, out, nil
 		})

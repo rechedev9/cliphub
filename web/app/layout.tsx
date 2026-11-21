@@ -11,7 +11,7 @@ import { DesktopPerformance } from '@/components/shell/desktop-performance';
 import { DesktopErrors } from '@/components/shell/desktop-errors';
 import { WebMCPNavigation } from '@/components/shell/webmcp-navigation';
 import { DemoBanner } from '@/components/clipmind/demo-banner';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 
 // Saira is the UI face (EDGE's wide technical sans); Plex Sans stays for figures.
 const saira = Saira({

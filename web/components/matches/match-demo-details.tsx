@@ -17,7 +17,7 @@ import { DEMO_DETAILS_ID } from '@/lib/library/rounds';
 import { PARSE_STATE_LABEL, SOURCE_LABEL, demoErrorLabel, withoutDemo, withoutDemoReason } from '@/lib/library/partidas';
 import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import {
   Dialog,
   DialogContent,

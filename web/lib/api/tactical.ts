@@ -1,6 +1,7 @@
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 import type { TacticalEquipment, TacticalInventoryItem } from '../tactical-equipment.ts';
 import { withTeamSlots } from './tactical-teams.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 /**
  * Browser-side contract for the deterministic tactical analysis of a demo.
@@ -938,12 +939,12 @@ export async function startTacticalAnalysis(jobId: string, sampleHz?: number): P
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ [TACTICAL_SAMPLE_HZ_FIELD]: sampleHz }),
         };
-  return readJson<TacticalStatus>(await fetch(tacticalStartUrl(jobId), init));
+  return readJson<TacticalStatus>(await apiFetch(tacticalStartUrl(jobId), init));
 }
 
 /** GET — the analysis lifecycle state, cheap enough to poll. */
 export async function fetchTacticalStatus(jobId: string): Promise<TacticalStatus> {
-  return readJson<TacticalStatus>(await fetch(tacticalStatusUrl(jobId), { cache: 'no-store' }));
+  return readJson<TacticalStatus>(await apiFetch(tacticalStatusUrl(jobId), { cache: 'no-store' }));
 }
 
 /**
@@ -952,7 +953,7 @@ export async function fetchTacticalStatus(jobId: string): Promise<TacticalStatus
  */
 export async function fetchTacticalDocument(source: TacticalSource): Promise<TacticalDocument> {
   const doc = await readJson<TacticalDocument>(
-    await fetch(sourceBase(source), { cache: 'no-store' }),
+    await apiFetch(sourceBase(source), { cache: 'no-store' }),
   );
   if (!isSupportedTacticalSchema(doc.schema_version)) {
     throw new Error(
@@ -968,7 +969,7 @@ export async function fetchTacticalTendencies(
   filter: TacticalFilter = {},
 ): Promise<TacticalTendencies> {
   return readJson<TacticalTendencies>(
-    await fetch(tacticalAggregateUrl(source, filter), { cache: 'no-store' }),
+    await apiFetch(tacticalAggregateUrl(source, filter), { cache: 'no-store' }),
   );
 }
 
@@ -983,7 +984,7 @@ export async function fetchTacticalPositions(
 ): Promise<ArrayBuffer> {
   const headers: Record<string, string> = {};
   if (range) headers.Range = `bytes=${range.start}-${range.endInclusive}`;
-  const res = await fetch(tacticalPositionsUrl(source), { cache: 'no-store', headers });
+  const res = await apiFetch(tacticalPositionsUrl(source), { cache: 'no-store', headers });
   if (!res.ok) await throwResponseError(res);
   return res.arrayBuffer();
 }

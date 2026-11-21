@@ -1,5 +1,6 @@
 import { createExtractorFromData } from 'node-unrar-js';
 import { archiveEntryBaseName, isDemoFileName, isIgnoredArchivePath } from './demo-names.ts';
+import { apiFetch } from '../api/edition-fetch.ts';
 
 const UNRAR_WASM_PATH = '/unrar.wasm';
 const OCTET_STREAM = 'application/octet-stream';
@@ -38,7 +39,7 @@ function fileFromBytes(name: string, data: Uint8Array): File {
 
 async function loadUnrarWasm(): Promise<ArrayBuffer | undefined> {
   if (typeof window === 'undefined') return undefined;
-  const res = await fetch(UNRAR_WASM_PATH);
+  const res = await apiFetch(UNRAR_WASM_PATH);
   if (!res.ok) throw new Error(`failed to load unrar wasm (${res.status})`);
   return res.arrayBuffer();
 }

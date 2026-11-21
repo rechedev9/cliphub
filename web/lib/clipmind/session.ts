@@ -1,3 +1,5 @@
+import { apiFetch } from '../api/edition-fetch.ts';
+
 // The web edition keeps the sign-in in two HttpOnly cookies. The proxy refreshes
 // the short access token from the long refresh token and hands the fresh one to
 // route handlers in a request header, so the browser never holds a token in JS.
@@ -75,7 +77,7 @@ export function refreshTokens(refresh: string, workspaceId?: string): Promise<To
 
 async function exchange(refresh: string, workspaceId?: string): Promise<TokenSet | undefined> {
   try {
-    const response = await fetch(`${clipMindUrl()}/auth/refresh`, {
+    const response = await apiFetch(`${clipMindUrl()}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refresh, workspace_id: workspaceId ?? '' }),

@@ -1,4 +1,5 @@
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 export const STEAM_ACCOUNT_ENDPOINT = '/api/steam/account';
 const STEAM_SYNC_ENDPOINT = '/api/steam/matches/sync';
@@ -237,7 +238,7 @@ export function steamAccountFailure(
 export async function loadSteamAccount(): Promise<SteamAccountResult> {
   let res: Response;
   try {
-    res = await fetch(STEAM_ACCOUNT_ENDPOINT, { cache: 'no-store' });
+    res = await apiFetch(STEAM_ACCOUNT_ENDPOINT, { cache: 'no-store' });
   } catch (err) {
     return { kind: 'failed', message: `no se pudo contactar con el servicio local: ${String(err)}`, code: STEAM_NETWORK_ERROR_CODE };
   }
@@ -249,7 +250,7 @@ export async function loadSteamAccount(): Promise<SteamAccountResult> {
 export async function saveSteamAccount(input: SteamAccountInput): Promise<SteamAccountResult> {
   let res: Response;
   try {
-    res = await fetch(STEAM_ACCOUNT_ENDPOINT, {
+    res = await apiFetch(STEAM_ACCOUNT_ENDPOINT, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
@@ -266,7 +267,7 @@ export async function saveSteamAccount(input: SteamAccountInput): Promise<SteamA
 export async function clearSteamAccount(): Promise<SteamAccountResult> {
   let res: Response;
   try {
-    res = await fetch(STEAM_ACCOUNT_ENDPOINT, { method: 'DELETE', cache: 'no-store' });
+    res = await apiFetch(STEAM_ACCOUNT_ENDPOINT, { method: 'DELETE', cache: 'no-store' });
   } catch (err) {
     return { kind: 'failed', message: `no se pudo contactar con el servicio local: ${String(err)}`, code: STEAM_NETWORK_ERROR_CODE };
   }
@@ -278,7 +279,7 @@ export async function clearSteamAccount(): Promise<SteamAccountResult> {
 export async function syncSteamMatches(): Promise<SteamAccountResult> {
   let res: Response;
   try {
-    res = await fetch(STEAM_SYNC_ENDPOINT, { method: 'POST', cache: 'no-store' });
+    res = await apiFetch(STEAM_SYNC_ENDPOINT, { method: 'POST', cache: 'no-store' });
   } catch (err) {
     return { kind: 'failed', message: `no se pudo contactar con el servicio local: ${String(err)}`, code: STEAM_NETWORK_ERROR_CODE };
   }

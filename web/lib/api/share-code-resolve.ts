@@ -1,4 +1,5 @@
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 /** Proxy/orchestrator code for a share code that fails to decode. */
 export const INVALID_SHARE_CODE = 'invalid_share_code';
@@ -26,7 +27,7 @@ type ShareCodeResponse = {
 export async function resolveShareCode(code: string): Promise<ShareCodeResolution> {
   let res: Response;
   try {
-    res = await fetch(SHARE_CODE_ENDPOINT, {
+    res = await apiFetch(SHARE_CODE_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ code }),

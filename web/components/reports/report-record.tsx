@@ -30,7 +30,7 @@ import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import {
   Dialog,
   DialogContent,

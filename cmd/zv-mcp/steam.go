@@ -28,18 +28,26 @@ type steamMatchOut struct {
 }
 
 type shareCodeIn struct {
-	Code string `json:"code" jsonschema:"a CS2 share code, such as CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK, from steam_matches or the user"`
+	Code      string `json:"code" jsonschema:"a CS2 share code, such as CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK, from steam_matches or the user"`
+	CheckOnly bool   `json:"check_only,omitempty" jsonschema:"only check the code as the share code field does, without downloading or starting a job: status resolved means Valve still has the demo"`
 }
 
 type steamImportOut struct {
-	JobID   string `json:"job_id" jsonschema:"follow with wait_for_job"`
-	Status  string `json:"status"`
+	JobID   string `json:"job_id,omitempty" jsonschema:"follow with wait_for_job; empty with check_only"`
+	Status  string `json:"status" jsonschema:"with check_only: resolved when Valve named the demo, decoded when the code is valid but Studio could not ask Valve"`
 	MatchID string `json:"match_id"`
 }
 
 type jobPlayersOut struct {
 	Map     string            `json:"map,omitempty"`
 	Players []rosterPlayerOut `json:"players"`
+	Faceit  *faceitRoomOut    `json:"faceit,omitempty" jsonschema:"for a demo downloaded from FACEIT: the room scoreboard the POV picker shows, with level, ELO, ADR and HS%"`
+	Note    string            `json:"note,omitempty"`
+}
+
+type jobPlayersIn struct {
+	ID         string `json:"id"`
+	FaceitRoom bool   `json:"faceit_room,omitempty" jsonschema:"also read the FACEIT room scoreboard of a demo downloaded from FACEIT, as the POV picker shows it; this asks FACEIT; default false"`
 }
 
 type rosterPlayerOut struct {
@@ -102,6 +110,17 @@ func registerSteamTools(server *mcp.Server, s *studio) {
 			if !ok {
 				return nil, steamImportOut{}, errors.New("code must be a CS2 share code, such as CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK")
 			}
+			if in.CheckOnly {
+				c, err := s.client(ctx)
+				if err != nil {
+					return nil, steamImportOut{}, toolError(err)
+				}
+				res, err := c.CheckShareCode(ctx, code)
+				if err != nil {
+					return nil, steamImportOut{}, toolError(err)
+				}
+				return nil, steamImportOut{Status: cleanName(res.Status), MatchID: cleanName(res.MatchID)}, nil
+			}
 			c, err := s.uploadClient(ctx)
 			if err != nil {
 				return nil, steamImportOut{}, toolError(err)
@@ -120,8 +139,9 @@ func registerSteamTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "job_players", Annotations: readOnly,
-		Description: "List the players of a job that import_share_code made, once wait_for_job reports \"scanned\", to pick whose point of view the video uses."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in idIn) (*mcp.CallToolResult, jobPlayersOut, error) {
+		Description: "List the players of a scanned job, such as one import_share_code made once wait_for_job reports \"scanned\", to pick whose point of view the video uses. " +
+			"With faceit_room, a demo downloaded from FACEIT also gets the FACEIT room scoreboard, as the POV picker shows it."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in jobPlayersIn) (*mcp.CallToolResult, jobPlayersOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, jobPlayersOut{}, err
 			}
@@ -137,6 +157,9 @@ func registerSteamTools(server *mcp.Server, s *studio) {
 			for _, p := range roster.Players {
 				out.Players = append(out.Players, rosterPlayerOut{SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Team: cleanName(p.Team),
 					Kills: p.Kills, Deaths: p.Deaths, Assists: p.Assists})
+			}
+			if in.FaceitRoom {
+				out.Faceit, out.Note = faceitRoom(ctx, c, in.ID)
 			}
 			return nil, out, nil
 		})

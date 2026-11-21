@@ -848,7 +848,7 @@
   "lib/desktop-settings.test.ts": 2,
   "lib/desktop-settings.ts": 21,
   "lib/desktop-telemetry.ts": 2,
-  "lib/edition.ts": 3,
+  "lib/edition.ts": 1,
   "lib/faceit-ranking.test.ts": 1,
   "lib/faceit-ranking.ts": 13,
   "lib/followed-players.test.ts": 2,

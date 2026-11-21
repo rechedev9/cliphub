@@ -24,7 +24,7 @@ import { levelForAltitude } from '@/lib/tactical-transform';
 import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practice-launch';
 import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProLoadProblem } from './lineup-maps';

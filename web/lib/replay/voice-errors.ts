@@ -1,4 +1,4 @@
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 
 /** What the Replay says for each team voice error code; the server's own text stays in studio.log. */
 const VOICE_ERRORS: Readonly<Record<string, string>> = {

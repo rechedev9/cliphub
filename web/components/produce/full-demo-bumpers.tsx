@@ -13,6 +13,7 @@ import { fullDemoOrder, type FullDemoBumperSlot } from '@/lib/produce/full-demo-
 import { FULL_DEMO_BUMPERS_TITLE } from '@/lib/produce/full-demo-brief';
 import { FullDemoMediaPreview } from './full-demo-media-preview';
 import styles from './full-demo-bumpers.module.css';
+import { apiFetch } from '@/lib/api/edition-fetch';
 
 type Props = {
   options: FullDemoOptions; document: FullDemoDocument | null; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void;
@@ -103,7 +104,7 @@ function BumperUpload({ slot, asset, savedName, inputRef, onBusy, onChange }: {
   useEffect(() => {
     if (!asset || name) return;
     const controller = new AbortController();
-    void fetch(`/api/editor/assets/${asset.id}`, { signal: controller.signal }).then(async (response) => {
+    void apiFetch(`/api/editor/assets/${asset.id}`, { signal: controller.signal }).then(async (response) => {
       if (!response.ok) return;
       const value: unknown = await response.json();
       if (!controller.signal.aborted && typeof value === 'object' && value !== null && 'file_name' in value && typeof value.file_name === 'string') {

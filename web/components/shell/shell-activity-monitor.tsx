@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { api } from '@/lib/api';
 import { streamsApi } from '@/lib/api/streams';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { startPollLoop } from '@/lib/poll-loop';
 import {
   CAPTURE_ACTIVE_ATTRIBUTE,

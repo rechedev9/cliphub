@@ -58,3 +58,14 @@ func (c *Client) ImportShareCode(ctx context.Context, code string) (SteamImport,
 	err := c.doJSON(ctx, http.MethodPost, "/api/steam/import", map[string]string{"code": code}, &out)
 	return out, err
 }
+
+type ShareCodeCheck struct {
+	Status  string `json:"status"`
+	MatchID string `json:"matchId"`
+}
+
+func (c *Client) CheckShareCode(ctx context.Context, code string) (ShareCodeCheck, error) {
+	var out ShareCodeCheck
+	err := c.doJSON(ctx, http.MethodPost, "/api/steam/sharecode", map[string]string{"code": code}, &out)
+	return out, err
+}

@@ -1,6 +1,7 @@
 import { currentFullDemoOptions, responseJSON, type FullDemoOptions } from '../full-demo-plan.ts';
 import type { CaptureCheck, SpaceCheck } from '../produce/edit-capture.ts';
 import { projectHorizontalDraft, type HorizontalDraft } from '../produce/horizontal.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 /** One finished render of a video (Versiones in Mis vídeos); `videos` are MP4 names without the extension. */
 export type VideoVersion = {
@@ -83,19 +84,19 @@ function versionsUrl(jobId: string, variant: string): string {
 type VersionRef = { jobId: string; variant: string };
 
 export async function listVideoVersions({ jobId, variant, signal }: VersionRef & { signal?: AbortSignal }): Promise<VideoVersion[]> {
-  return projectVideoVersions(await responseJSON(await fetch(versionsUrl(jobId, variant), { cache: 'no-store', signal })));
+  return projectVideoVersions(await responseJSON(await apiFetch(versionsUrl(jobId, variant), { cache: 'no-store', signal })));
 }
 
 /** Crear horizontal: the 16:9 summary of a Short's current version; it saves nothing. */
 export async function fetchHorizontalDraft({ jobId, variant, signal }: VersionRef & { signal?: AbortSignal }): Promise<HorizontalDraft | null> {
   if (!UUID.test(jobId) || !VARIANT.test(variant)) throw new Error('Vídeo desconocido.');
-  return projectHorizontalDraft(await responseJSON(await fetch(`/api/demos/${jobId}/renders/${variant}/horizontal`, { cache: 'no-store', signal })));
+  return projectHorizontalDraft(await responseJSON(await apiFetch(`/api/demos/${jobId}/renders/${variant}/horizontal`, { cache: 'no-store', signal })));
 }
 
 /** The current version cannot be deleted alone: the server answers 409 `version_current`. */
 export async function deleteVideoVersion({ jobId, variant, revision }: VersionRef & { revision: string }): Promise<void> {
   if (!UUID.test(revision)) throw new Error('Versión desconocida.');
-  await responseJSON(await fetch(`${versionsUrl(jobId, variant)}/${revision}`, { method: 'DELETE' }));
+  await responseJSON(await apiFetch(`${versionsUrl(jobId, variant)}/${revision}`, { method: 'DELETE' }));
 }
 
 /** The MP4 of one version, pinned to its revision. */
@@ -106,7 +107,7 @@ export function versionVideoUrl({ jobId, variant, revision, name }: VersionRef &
 /** Plans the options without saving them and says which rounds the edit would record. */
 export async function checkFullDemoCapture({ jobId, options, signal }: { jobId: string; options: FullDemoOptions; signal?: AbortSignal }): Promise<CaptureCheck | null> {
   if (!UUID.test(jobId)) throw new Error('Partida desconocida.');
-  const response = await fetch(`/api/demos/${jobId}/full-demo/capture-check`, {
+  const response = await apiFetch(`/api/demos/${jobId}/full-demo/capture-check`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ options: currentFullDemoOptions(options) }),
@@ -118,12 +119,12 @@ export async function checkFullDemoCapture({ jobId, options, signal }: { jobId: 
 /** Free space against a capture and render of this length; null when Studio cannot read the disk. */
 export async function fetchStorageSpace({ captureSeconds, renderSeconds, signal }: { captureSeconds: number; renderSeconds: number; signal?: AbortSignal }): Promise<SpaceCheck | null> {
   const params = new URLSearchParams({ capture_seconds: String(Math.max(0, Math.round(captureSeconds))), render_seconds: String(Math.max(0, Math.round(renderSeconds))) });
-  return projectSpace(field(await responseJSON(await fetch(`/api/demos/storage/space?${params.toString()}`, { cache: 'no-store', signal })), 'space'));
+  return projectSpace(field(await responseJSON(await apiFetch(`/api/demos/storage/space?${params.toString()}`, { cache: 'no-store', signal })), 'space'));
 }
 
 /** Sets how many rendered Full Demos keep their captures; returns the bytes freed from the older ones. */
 export async function setCaptureRetention(keep: number): Promise<number> {
-  const response = await fetch('/api/demos/storage/capture-retention', {
+  const response = await apiFetch('/api/demos/storage/capture-retention', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ keep }),

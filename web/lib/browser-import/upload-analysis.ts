@@ -1,5 +1,6 @@
 import type { PauseReason } from './import-queue.ts';
 import type { ScanSuccess } from './scan-messages.ts';
+import { apiFetch, assertEditionServes } from '../api/edition-fetch.ts';
 
 export type UploadOutcome =
   | { ok: true; matchId: string; created: boolean }
@@ -66,7 +67,7 @@ export function workspaceOf(body: unknown): string | undefined {
 
 /** The session's workspace, or undefined when ClipMind cannot say. Reading it also renews the sign-in. */
 export async function currentWorkspace(signal?: AbortSignal): Promise<string | undefined> {
-  const answer = await fetch('/api/cm/auth/me', { cache: 'no-store', signal }).catch(() => undefined);
+  const answer = await apiFetch('/api/cm/auth/me', { cache: 'no-store', signal }).catch(() => undefined);
   signal?.throwIfAborted();
   return answer?.ok === true ? workspaceOf(await answer.json().catch(() => undefined)) : undefined;
 }
@@ -75,6 +76,7 @@ export async function currentWorkspace(signal?: AbortSignal): Promise<string | u
 export function uploadAnalysis(input: UploadInput): Promise<UploadOutcome> {
   const form = analysisForm(input);
   return new Promise<UploadOutcome>((resolve, reject) => {
+    assertEditionServes('/api/library/uploads');
     const request = new XMLHttpRequest();
     const onAbort = (): void => request.abort();
     request.open('POST', '/api/library/uploads');

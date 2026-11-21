@@ -74,6 +74,12 @@ func (c *Client) GetPlan(ctx context.Context, id string) (Plan, error) {
 	return plan, err
 }
 
+func (c *Client) GetRecapPlan(ctx context.Context, id string) (Plan, error) {
+	var plan Plan
+	err := c.getJSON(ctx, jobPath(id)+"/recap-plan", &plan)
+	return plan, err
+}
+
 // GetRoster returns the roster scan, or a 409 APIError if the scan
 // has not finished.
 func (c *Client) GetRoster(ctx context.Context, id string) (RosterResult, error) {

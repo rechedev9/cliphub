@@ -4,6 +4,7 @@ import { fullDemoTransitionPreset } from './full-demo-transitions.ts';
 import { isHudOptions, isHudStyle, isHudTeamNames, type HudOptions, type HudTeamNames } from './hud-themes.ts';
 import { uploadForm, type UploadProgress } from './api/upload.ts';
 import { isBrandOverlay, type BrandOverlay } from './brand-kit.ts';
+import { apiFetch } from './api/edition-fetch.ts';
 
 export const FULL_DEMO_PROFILE = 'full-demo-pov-chill-v1';
 export const FULL_DEMO_CAPTURE_VARIANT = 'gameplay-pov-60';
@@ -368,12 +369,12 @@ const captureShape = object({ needed: boolean, missing_rounds: array(integer, 10
 const envelopeShape = object({ document: nullable(documentShape), defaults: isFullDemoOptions, pro_players: array(proPlayer, 500), compatibility: oneOf('legacy-until-planned-and-approved', 'editorial-v1'), capture: captureShape }, ['pro_players', 'capture']);
 export type FullDemoPlanEnvelope = Guarded<typeof envelopeShape>;
 export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Promise<FullDemoPlanEnvelope> {
-  return envelopeFrom(await fetch(planURL(jobId), { cache: 'no-store', signal }));
+  return envelopeFrom(await apiFetch(planURL(jobId), { cache: 'no-store', signal }));
 }
 /** The plan a finished version rendered, for Editar in Mis vídeos. */
 export async function loadFullDemoPlanVersion({ jobId, planId, signal }: { jobId: string; planId: string; signal?: AbortSignal }): Promise<FullDemoPlanEnvelope> {
   if (!UUID.test(planId)) throw new Error('Plan desconocido.');
-  return envelopeFrom(await fetch(planURL(jobId, planId), { cache: 'no-store', signal }));
+  return envelopeFrom(await apiFetch(planURL(jobId, planId), { cache: 'no-store', signal }));
 }
 async function envelopeFrom(response: Response): Promise<FullDemoPlanEnvelope> {
   const value = await responseJSON(response);
@@ -383,7 +384,7 @@ async function envelopeFrom(response: Response): Promise<FullDemoPlanEnvelope> {
 export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions, signal?: AbortSignal): Promise<FullDemoDocument> {
   options = currentFullDemoOptions(options);
   if (!isFullDemoOptions(options)) throw new Error('Revisa los valores de captura, transiciones, audio y vídeos añadidos.');
-  const value = await responseJSON(await fetch(planURL(jobId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ options }), signal }));
+  const value = await responseJSON(await apiFetch(planURL(jobId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ options }), signal }));
   if (!documentShape(value)) throw new Error('El servidor devolvió un plan de demo completa incompatible.');
   return value;
 }
@@ -424,7 +425,7 @@ export async function uploadFullDemoPortrait(file: File, signal?: AbortSignal): 
   if (file.size === 0 || file.size > 10 * 1024 * 1024) throw new Error('El retrato debe ocupar entre 1 byte y 10 MB.');
   const form = new FormData();
   form.set('image', file);
-  const value = await responseJSON(await fetch('/api/full-demo/overlay-images', { method: 'POST', body: form, signal }));
+  const value = await responseJSON(await apiFetch('/api/full-demo/overlay-images', { method: 'POST', body: form, signal }));
   if (!record(value)) throw new Error('No se pudo verificar el retrato.');
   const ref = { id: value.id, sha256: value.sha256 };
   if (!assetRef(ref)) throw new Error('Referencia de retrato inválida.');

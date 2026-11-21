@@ -9,7 +9,7 @@ import type { Video } from '@/lib/api/types';
 import type { LibraryDemo, LibraryMatch } from '@/lib/api/library';
 import { MATCHES_HREF, librarySeriesHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { SOURCE_LABEL, matchTitle, scoreline } from '@/lib/library/partidas';
 import { LEGACY_REPLAY_TAB, MATCH_REPLAY_TAB, MATCH_SUMMARY_TAB } from '@/lib/library/rounds';
 import { useRecordTab } from '@/hooks/use-record-tab';

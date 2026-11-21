@@ -1,6 +1,7 @@
 import type { AffiliateFamily, KeyDropStyle } from './types.ts';
 import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
 import { uploadForm, type UploadProgress } from './upload.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 /** Stream-jobs client; separate from the demo /api/jobs surface. */
 
@@ -306,7 +307,7 @@ export class RealStreamsApiClient implements StreamsApiClient {
 
   async createFromUrl(input: StreamImportInput & { sourceUrl: string }): Promise<StreamJob> {
     return readJson<StreamJob>(
-      await fetch('/api/streams', {
+      await apiFetch('/api/streams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source_url: input.sourceUrl, title: input.title, source_kind: input.sourceKind }),
@@ -323,7 +324,7 @@ export class RealStreamsApiClient implements StreamsApiClient {
 
   async listJobs(): Promise<StreamJob[]> {
     const cache = this.jobsListCache;
-    const res = await fetch('/api/streams', ifNoneMatchInit(cache?.etag));
+    const res = await apiFetch('/api/streams', ifNoneMatchInit(cache?.etag));
     const next = await readConditionalJSON(res, cache, async (response) => {
       const data = await readJson<{ jobs?: StreamJob[] } | StreamJob[]>(response);
       return Array.isArray(data) ? data : (data.jobs ?? []);
@@ -333,18 +334,18 @@ export class RealStreamsApiClient implements StreamsApiClient {
   }
 
   async getJob(id: string): Promise<StreamJob | null> {
-    const res = await fetch(`/api/streams/${id}`, { cache: 'no-store' });
+    const res = await apiFetch(`/api/streams/${id}`, { cache: 'no-store' });
     if (res.status === 404) return null;
     return readJson<StreamJob>(res);
   }
 
   async deleteJob(id: string): Promise<void> {
-    const res = await fetch(`/api/streams/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/streams/${id}`, { method: 'DELETE' });
     if (res.status !== 404 && !res.ok) await throwResponseError(res);
   }
 
   async deleteVideo(id: string, variant: string, clipId: string): Promise<void> {
-    const res = await fetch(`/api/streams/${id}/renders/${variant}/videos/${clipId}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/streams/${id}/renders/${variant}/videos/${clipId}`, { method: 'DELETE' });
     if (res.status !== 404 && !res.ok) await throwResponseError(res);
   }
 
@@ -353,12 +354,12 @@ export class RealStreamsApiClient implements StreamsApiClient {
   }
 
   async getEditPlan(id: string): Promise<StreamEditPlan> {
-    return readJson<StreamEditPlan>(await fetch(`/api/streams/${id}/edit-plan`, { cache: 'no-store' }));
+    return readJson<StreamEditPlan>(await apiFetch(`/api/streams/${id}/edit-plan`, { cache: 'no-store' }));
   }
 
   async putEditPlan(id: string, plan: StreamEditPlan): Promise<StreamEditPlan> {
     return readJson<StreamEditPlan>(
-      await fetch(`/api/streams/${id}/edit-plan`, {
+      await apiFetch(`/api/streams/${id}/edit-plan`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(plan),
@@ -368,7 +369,7 @@ export class RealStreamsApiClient implements StreamsApiClient {
 
   async startRender(id: string, variant: StreamVariant, expectedEditPlanUpdatedAt: string): Promise<StreamRenderState> {
     return readJson<StreamRenderState>(
-      await fetch(`/api/streams/${id}/renders/${variant}`, {
+      await apiFetch(`/api/streams/${id}/renders/${variant}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expected_edit_plan_updated_at: expectedEditPlanUpdatedAt }),
@@ -377,18 +378,18 @@ export class RealStreamsApiClient implements StreamsApiClient {
   }
 
   async getRenderState(id: string, variant: StreamVariant): Promise<StreamRenderState> {
-    const res = await fetch(`/api/streams/${id}/renders/${variant}`, { cache: 'no-store' });
+    const res = await apiFetch(`/api/streams/${id}/renders/${variant}`, { cache: 'no-store' });
     if (res.status === 404) return { status: 'none', videos: [] };
     return readJson<StreamRenderState>(res);
   }
 
   async getPlays(id: string): Promise<StreamPlayScan> {
-    return readJson<StreamPlayScan>(await fetch(`/api/streams/${id}/plays`, { cache: 'no-store' }));
+    return readJson<StreamPlayScan>(await apiFetch(`/api/streams/${id}/plays`, { cache: 'no-store' }));
   }
 
   async startPlayScan(id: string, voice: StreamVoiceSettings): Promise<StreamPlayScan> {
     return readJson<StreamPlayScan>(
-      await fetch(`/api/streams/${id}/plays`, {
+      await apiFetch(`/api/streams/${id}/plays`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voice: voice.enabled, voice_sensitivity: voice.sensitivity }),
@@ -397,12 +398,12 @@ export class RealStreamsApiClient implements StreamsApiClient {
   }
 
   async getSummary(id: string): Promise<StreamSummary> {
-    return readJson<StreamSummary>(await fetch(`/api/streams/${id}/summary`, { cache: 'no-store' }));
+    return readJson<StreamSummary>(await apiFetch(`/api/streams/${id}/summary`, { cache: 'no-store' }));
   }
 
   async startSummary(id: string, playIds: readonly string[]): Promise<StreamSummary> {
     return readJson<StreamSummary>(
-      await fetch(`/api/streams/${id}/summary`, {
+      await apiFetch(`/api/streams/${id}/summary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ play_ids: playIds }),

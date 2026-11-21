@@ -22,7 +22,7 @@ import { RoundTable, type ChanceStatus, type VisiblePick } from '@/components/ma
 import { useMatchRoundRows } from '@/components/matches/use-match-round-rows';
 import { useWinTimelines, type WinTimelines } from '@/components/replay/use-win-timelines';
 import { Button } from '@/components/ui/button';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type MatchRoundsProps = { match: LibraryMatch; pathname: string; onOpenRound: () => void };

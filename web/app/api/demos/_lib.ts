@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server.js';
 import { SERVICE_UNAVAILABLE_CODE, NOT_CONFIGURED_CODE } from '../../../lib/api/types.ts';
 import { DEMO_COOKIE, DEMO_UPSTREAM_HEADER, demoHome } from '../../../lib/clipmind/demo.ts';
 import { ACCESS_COOKIE, ACCESS_HEADER, accessExpiry, clipMindUrl } from '../../../lib/clipmind/session.ts';
-import { currentEdition } from '../../../lib/edition.ts';
+import { currentEdition } from '../../../lib/edition-routes.ts';
 
 /** Server-side orchestrator base; local-first default. */
 export function orchestratorUrl(): string {

@@ -1,4 +1,5 @@
 import { isFullDemoBumperOptions, type FullDemoAssetRef, type FullDemoBumperOptions, type FullDemoOptions } from '../full-demo-plan.ts';
+import { apiFetch } from '../api/edition-fetch.ts';
 
 /**
  * The intro, sponsor and outro clips last chosen in any Full Demo, kept in the
@@ -41,7 +42,7 @@ export function recallFullDemoBumpers(storage: Storage = localStorage): FullDemo
  * block. A clip whose check fails for any other reason is kept: the planner
  * still verifies it.
  */
-export async function availableFullDemoBumpers(bumpers: FullDemoBumperOptions | undefined, signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<FullDemoBumperOptions | undefined> {
+export async function availableFullDemoBumpers(bumpers: FullDemoBumperOptions | undefined, signal?: AbortSignal, fetcher: typeof apiFetch = apiFetch): Promise<FullDemoBumperOptions | undefined> {
   if (!bumpers) return undefined;
   const available = async (video: FullDemoAssetRef | null): Promise<boolean> => {
     if (!video) return false;

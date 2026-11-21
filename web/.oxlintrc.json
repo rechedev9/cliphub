@@ -72,6 +72,20 @@
     "typeAware": true
   },
   "overrides": [
-    { "files": ["lib/api/real.ts"], "rules": { "max-lines": ["error", { "max": 1374 }] } }
+    { "files": ["lib/api/real.ts"], "rules": { "max-lines": ["error", { "max": 1370 }] } },
+    {
+      "files": ["app/**", "components/**", "hooks/**", "lib/**"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          { "name": "fetch", "message": "Call apiFetch from web/lib/api/edition-fetch.ts: it refuses an API the running edition does not serve (web/lib/edition-routes.ts)." },
+          { "name": "XMLHttpRequest", "message": "Call apiFetch from web/lib/api/edition-fetch.ts, or assertEditionServes before an upload that needs progress." }
+        ]
+      }
+    },
+    {
+      "files": ["app/api/**", "lib/api/edition-fetch.ts", "lib/api/upload.ts", "lib/browser-import/upload-analysis.ts", "**/*.test.ts", "**/*.test.tsx"],
+      "rules": { "no-restricted-globals": "off" }
+    }
   ]
 }

@@ -8,7 +8,7 @@ import { createJobFromLibraryDemo, type LibraryDemo } from '@/lib/api/library';
 import { MATCH_STATUS_FAILED } from '@/lib/api/types';
 import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
 import { flowHref, type ProduceFormat } from '@/lib/clips/routes';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { crearHandoffError } from '@/lib/produce/crear-handoff-error';
 import { Button } from '@/components/ui/button';
 

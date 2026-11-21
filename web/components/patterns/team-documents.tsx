@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { FileText, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { formatShortDate } from '@/lib/format';
 import {
   defaultTeamDocumentTitle,

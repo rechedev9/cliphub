@@ -1,3 +1,5 @@
+import { apiFetch } from '../api/edition-fetch.ts';
+
 // Browser-side calls to the account API (`/api/cm`). Tokens stay in HttpOnly
 // cookies; this module only sees JSON.
 
@@ -81,7 +83,7 @@ function failure(status: number, body: unknown): CmResult<never> {
 /** One call to the account API; never throws. */
 export async function cm<T>(path: string, init: { method?: string; body?: unknown; parse: (value: unknown) => T }): Promise<CmResult<T>> {
   try {
-    const response = await fetch(`/api/cm/${path}`, {
+    const response = await apiFetch(`/api/cm/${path}`, {
       method: init.method ?? 'GET',
       headers: init.body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),

@@ -1,4 +1,4 @@
-import { currentEdition } from '../edition.ts';
+import { currentEdition } from '../edition-routes.ts';
 
 const ALLOWED_FETCH_SITES = new Set(['none', 'same-origin']);
 

@@ -1,4 +1,5 @@
 import { FACEIT_NOT_CONFIGURED_CODE, SERVICE_UNAVAILABLE_CODE } from './types.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 export const FACEIT_CODES = {
   notConfigured: FACEIT_NOT_CONFIGURED_CODE,
@@ -163,7 +164,7 @@ export async function listFaceitCountries(): Promise<string[]> {
 
 async function request(url: string, init?: RequestInit): Promise<Response> {
   try {
-    return await fetch(url, { cache: 'no-store', ...init });
+    return await apiFetch(url, { cache: 'no-store', ...init });
   } catch (err) {
     throw new FaceitServiceError(`servicio local inaccesible: ${String(err)}`, SERVICE_UNAVAILABLE_CODE, 503);
   }

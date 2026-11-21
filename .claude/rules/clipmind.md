@@ -17,7 +17,7 @@ Studio is local. ClipMind is the web edition of the same analysis. Both build fr
 ## Two editions of one UI
 
 - `NEXT_PUBLIC_CLIPHUB_EDITION=web` is read at build time, so the web edition is its own `web` build. Without it the build is the desktop edition.
-- `web/lib/edition.ts` lists the desktop-only pages and API prefixes and the web-only account pages. `TestEveryLibraryRouteHasAnEdition` (`internal/httpapi`) fails when a new library, map or team route is tagged neither analysis nor desktop-only.
+- `web/lib/edition-routes.ts` lists the desktop-only pages and API prefixes and the web-only account pages. UI code calls an API only through `apiFetch` (`web/lib/api/edition-fetch.ts`), which refuses a route the running edition lacks before the network; oxlint `no-restricted-globals` fails a bare `fetch` or `XMLHttpRequest`. A shared component still has to gate a Studio-only call on `currentEdition()`: the refusal shows up only when the web edition runs. `TestEveryLibraryRouteHasAnEdition` (`internal/httpapi`) fails when a new library, map or team route is tagged neither analysis nor desktop-only.
 - In the web edition `web/proxy.ts` authenticates with the session cookie (`web/lib/clipmind/session.ts`) instead of the loopback host check and capability cookie. The same `localAPIRequestError` guard still rejects cross-site requests there. The route handlers call the ClipMind server at `CLIPMIND_URL`.
 - `cmd/clipmind-server` (`internal/clipmind`) serves `httpapi.AnalysisRoutes()` with one SQLite library per workspace. Its environment and operator commands are at the top of `cmd/clipmind-server/main.go`.
 - The browser parses demos with the Go scanner compiled to WebAssembly (`cmd/zv-scan-wasm`), so a demo never leaves the user's PC.
