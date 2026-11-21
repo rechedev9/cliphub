@@ -1,14 +1,18 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Flag, Play } from 'lucide-react';
 import type { StreamClipRange, StreamEditPlan, StreamJob, StreamPlay } from '@/lib/api/streams';
 import { momentLengthLabel, momentsInOrder } from '@/lib/streams/moments';
+import { MOMENTS_KEY, momentsShortcutLegend } from '@/lib/streams/moments-keys';
 import { fullVideoMoment } from '@/lib/streams/mark-moment';
 import { clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
+import { orderPlays, type PlayOrder } from '@/lib/streams/plays';
 import { cn } from '@/lib/utils';
 import { StreamClipEditor } from '@/components/streams/clip-editor';
 import { StreamDetectedPlays } from '@/components/streams/detected-plays';
+import { Kbd } from '@/components/streams/kbd';
+import { focusPlayRow, useMomentsShortcuts } from '@/components/streams/use-moments-shortcuts';
 import type { StreamMoments } from '@/components/streams/use-stream-moments';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { Button } from '@/components/ui/button';
@@ -112,6 +116,21 @@ function ShortSourcePanel({
   );
 }
 
+function ShortcutLegend({ vod }: { vod: boolean }): ReactNode {
+  return (
+    <ul aria-label="Atajos de teclado" className="mt-2 flex flex-wrap gap-x-4 gap-y-1 px-1 text-meta text-fg-3">
+      {momentsShortcutLegend({ vod }).map(({ keys, label }) => (
+        <li key={label} className="flex items-center gap-1">
+          {keys.map((key) => (
+            <Kbd key={key}>{key}</Kbd>
+          ))}
+          <span>{label}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function StreamMomentsStep({
   job,
   plan,
@@ -128,6 +147,7 @@ export function StreamMomentsStep({
   onPlayMoment,
   onPlayAll,
   onPlaySelected,
+  onTogglePlay,
   onPlaysShown,
 }: {
   job: StreamJob;
@@ -145,9 +165,32 @@ export function StreamMomentsStep({
   onPlayMoment: (clip: StreamClipRange) => void;
   onPlayAll: () => void;
   onPlaySelected: () => void;
+  onTogglePlay: () => void;
   onPlaysShown: (plays: readonly StreamPlay[]) => void;
 }): ReactNode {
   const isVod = job.source_kind === 'vod';
+  const [order, setOrder] = useState<PlayOrder>('best');
+  const canMark = !busy && sourceDuration > 0;
+  useMomentsShortcuts({
+    state: {
+      plays: isVod ? orderPlays(plays, order) : [],
+      clips: plan.clips,
+      selectedPlayId: activePlayId,
+      selectedClipId,
+      canMark,
+      busy,
+    },
+    onAction: (action) => {
+      if (action.kind === 'toggle-play') onTogglePlay();
+      else if (action.kind === 'watch-play') {
+        onWatchPlay(action.play);
+        focusPlayRow(action.play.id);
+      } else if (action.kind === 'add-play') moments.addPlays([action.play]);
+      else if (action.kind === 'jump') moments.selectClip(action.clip);
+      else if (action.kind === 'remove') moments.removeClip(action.clip);
+      else moments.markHere(playheadSeconds);
+    },
+  });
   return (
     <div className="grid min-w-0 grid-cols-1 gap-4 p-4 @[48rem]/content:grid-cols-[minmax(0,1fr)_minmax(20rem,27rem)]">
       <div className="min-w-0 @[48rem]/content:col-start-1 @[48rem]/content:row-start-1">{player}</div>
@@ -156,11 +199,13 @@ export function StreamMomentsStep({
         <Button
           variant="outline"
           className="self-start"
-          disabled={busy || sourceDuration <= 0}
+          disabled={!canMark}
+          aria-keyshortcuts="M"
           onClick={() => moments.markHere(playheadSeconds)}
         >
           <Flag aria-hidden />
           Marcar momento aquí
+          <Kbd>{MOMENTS_KEY.mark}</Kbd>
         </Button>
         {timeline}
         <StreamClipEditor
@@ -198,6 +243,8 @@ export function StreamMomentsStep({
               clips={plan.clips}
               disabled={busy}
               activePlayId={activePlayId}
+              order={order}
+              onOrderChange={setOrder}
               onAdd={moments.addPlays}
               onWatch={onWatchPlay}
               onJump={moments.selectClip}
@@ -211,6 +258,7 @@ export function StreamMomentsStep({
               onUseFull={moments.addFullVideo}
             />
           )}
+          <ShortcutLegend vod={isVod} />
         </div>
       </div>
     </div>

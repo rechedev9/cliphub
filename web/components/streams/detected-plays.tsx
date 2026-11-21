@@ -8,7 +8,9 @@ import { bulkAddLabel, bulkAddPlays, playRowAction, playTimeLabel, topPlayIds } 
 import { errorMessage, formatStreamClock } from '@/lib/streams/plan';
 import { playNumbers } from '@/lib/streams/timeline';
 import { isVoiceOnly, orderPlays, playMoment, rankPlays, type PlayOrder } from '@/lib/streams/plays';
+import { MOMENTS_KEY } from '@/lib/streams/moments-keys';
 import { cn } from '@/lib/utils';
+import { Kbd } from '@/components/streams/kbd';
 import { useSeen } from '@/components/streams/use-seen';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -134,6 +136,7 @@ function PlayRow({
       <button
         type="button"
         aria-pressed={active}
+        data-play-row={play.id}
         aria-label={`Ver jugada ${number}: ${play.label}, ${formatStreamClock(play.start_seconds)}`}
         className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded text-left hover:text-fg-1"
         onClick={() => onWatch(play)}
@@ -158,13 +161,15 @@ function PlayRow({
         </span>
       </button>
       {action.kind === 'jump' ? (
-        <Button variant="ghost" size="sm" disabled={disabled} className="shrink-0 text-success" onClick={() => onJump(action.clip)}>
+        <Button variant="ghost" size="sm" disabled={disabled} className="shrink-0 text-success" aria-keyshortcuts={active ? 'Enter' : undefined} onClick={() => onJump(action.clip)}>
           <Check aria-hidden />
           En tus momentos
+          {active ? <Kbd>{MOMENTS_KEY.add}</Kbd> : null}
         </Button>
       ) : (
-        <Button variant="outline" size="sm" disabled={disabled} className="shrink-0" onClick={() => onAdd([play])}>
+        <Button variant="outline" size="sm" disabled={disabled} className="shrink-0" aria-keyshortcuts={active ? 'Enter' : undefined} onClick={() => onAdd([play])}>
           Añadir
+          {active ? <Kbd>{MOMENTS_KEY.add}</Kbd> : null}
         </Button>
       )}
     </li>
@@ -182,6 +187,8 @@ export function StreamDetectedPlays({
   clips,
   disabled,
   activePlayId,
+  order,
+  onOrderChange,
   onAdd,
   onWatch,
   onJump,
@@ -192,6 +199,8 @@ export function StreamDetectedPlays({
   clips: readonly StreamClipRange[];
   disabled: boolean;
   activePlayId: string | null;
+  order: PlayOrder;
+  onOrderChange: (order: PlayOrder) => void;
   onAdd: (plays: StreamPlay[]) => void;
   onWatch: (play: StreamPlay) => void;
   onJump: (clip: StreamClipRange) => void;
@@ -200,7 +209,6 @@ export function StreamDetectedPlays({
   const [scan, setScan] = useState<StreamPlayScan | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [voice, setVoice] = useState<StreamVoiceSettings>(DEFAULT_VOICE);
-  const [order, setOrder] = useState<PlayOrder>('best');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const voiceSynced = useRef(false);
   const running = scan?.status === 'running';
@@ -319,7 +327,7 @@ export function StreamDetectedPlays({
           {ranked.length > 1 ? (
             <>
               <span className="text-body-sm text-fg-3">Orden</span>
-              <Segmented label="Orden de las jugadas" value={order} options={ORDER_OPTIONS} onChange={setOrder} />
+              <Segmented label="Orden de las jugadas" value={order} options={ORDER_OPTIONS} onChange={onOrderChange} />
             </>
           ) : null}
           <span className="ml-auto">{settingsButton}</span>
