@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RESULTS_HREF } from './clips/routes.ts';
+import { RESULTS_HREF, streamSummaryHref } from './clips/routes.ts';
 import { homePathFor, navSectionsFor } from './edition.ts';
 import { currentEdition, isPathAvailable } from './edition-routes.ts';
 import { NAV_SECTIONS } from './nav.ts';
@@ -41,6 +41,11 @@ test('edition: desktop pages hide their nested paths but not lookalike prefixes'
   assert.equal(isPathAvailable('/shortsx', 'web'), true);
   assert.equal(isPathAvailable('/descargar', 'web'), true);
   assert.equal(isPathAvailable('/shorts', 'desktop'), true);
+});
+
+test('edition: the resumen screen of a stream is a Studio page', () => {
+  assert.equal(isPathAvailable(streamSummaryHref('job-1'), 'desktop'), true);
+  assert.equal(isPathAvailable(streamSummaryHref('job-1'), 'web'), false);
 });
 
 test('edition: player analysis stays while Jugadores FACEIT is desktop only', () => {

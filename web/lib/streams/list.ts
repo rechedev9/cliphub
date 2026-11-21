@@ -1,6 +1,7 @@
 import type { StreamJob } from '../api/streams.ts';
 import type { PollCadence } from '../poll-loop.ts';
 import { streamPlanShorts } from './groups.ts';
+import { streamFailureKind } from './plan.ts';
 
 export type StreamJobTagTone = 'neutral' | 'success' | 'stream' | 'danger';
 
@@ -66,4 +67,24 @@ export function streamCutMarks(job: Pick<StreamJob, 'edit_plan' | 'probe'>): Str
     const leftPercent = percent(clip.start_seconds);
     return { id: clip.id, leftPercent, widthPercent: Math.max(0, percent(clip.end_seconds) - leftPercent) };
   });
+}
+
+const SHORTS_ACTION_LABELS = {
+  acquiring: 'Ver progreso',
+  uploaded: 'Hacer Shorts',
+  ready: 'Hacer Shorts',
+  rendering: 'Ver progreso',
+  rendered: 'Ver Shorts',
+  failed: 'Revisar proyecto',
+} as const satisfies Record<StreamJob['status'], string>;
+
+export function streamHasSource(job: Pick<StreamJob, 'status' | 'probe'>): boolean {
+  if (job.status === 'acquiring') return false;
+  return job.status !== 'failed' || streamFailureKind(job) === 'render';
+}
+
+export type StreamProjectActions = { shortsLabel: string; summary: boolean };
+
+export function streamProjectActions(job: StreamJob): StreamProjectActions {
+  return { shortsLabel: SHORTS_ACTION_LABELS[job.status], summary: job.source_kind === 'vod' && streamHasSource(job) };
 }
