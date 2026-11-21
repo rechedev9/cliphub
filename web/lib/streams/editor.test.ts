@@ -138,4 +138,6 @@ test('the timeline heading follows the monitor mode and names the Short out of a
   assert.equal(streamTimelineLabel({ mode: 'selected', shorts, clipId: null }), 'Recorrer el vídeo original');
   const joined = streamPlanShorts(joinStreamMoments(plan(), ['c1', 'c2']));
   assert.equal(streamTimelineLabel({ mode: 'selected', shorts: joined, clipId: 'c2' }), 'Short seleccionado · Short 1 de 1');
+  assert.match(streamTimelineLabel({ mode: 'selected', shorts: joined, clipId: 'c2', moments: joined[0].clips }), /omento 2 de 2/);
+  assert.match(streamTimelineLabel({ mode: 'sequence', shorts: joined, clipId: 'c1', moments: joined[0].clips }), /momento 1 de 2/);
 });

@@ -397,6 +397,7 @@ export function StreamEditor({
         mode: playbackMode,
         shorts,
         clipId: timelineClipId,
+        moments: cutsStep ? plan.clips : undefined,
       })}
       sourceDuration={sourceDuration}
       selectedClipIds={selectedShort?.clips.map((clip) => clip.id) ?? []}

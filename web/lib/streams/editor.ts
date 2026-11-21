@@ -1,8 +1,8 @@
-import { STREAM_VARIANTS, type StreamEditPlan, type StreamRenderState } from '../api/streams.ts';
+import { STREAM_VARIANTS, type StreamClipRange, type StreamEditPlan, type StreamRenderState } from '../api/streams.ts';
 import { CREATE_FLOW_STEPS } from '../produce/create-flow.ts';
 import { formatStreamClock } from './plan.ts';
 import { momentsWord, streamPlanShorts, streamShortCount, type StreamShort } from './groups.ts';
-import { momentsFooterHint, momentsFooterText, momentsRangeIssue } from './moments.ts';
+import { momentsFooterHint, momentsFooterText, momentsInOrder, momentsRangeIssue } from './moments.ts';
 import type { StreamPlaybackMode } from '../stream-playback.ts';
 
 export const STREAM_STEP = { cuts: 'cuts', layout: 'layout', review: 'review', results: 'results' } as const;
@@ -174,13 +174,20 @@ export function streamTimelineLabel({
   mode,
   shorts,
   clipId,
+  moments,
 }: {
   mode: StreamPlaybackMode;
   shorts: readonly StreamShort[];
   clipId: string | null;
+  moments?: readonly StreamClipRange[];
 }): string {
-  const index = shorts.findIndex((short) => short.clips.some((clip) => clip.id === clipId));
+  const units = moments ? momentsInOrder(moments).map((moment) => [moment.clip]) : shorts.map((short) => short.clips);
+  const index = units.findIndex((clips) => clips.some((clip) => clip.id === clipId));
   if (mode === 'source' || index < 0) return 'Recorrer el vídeo original';
-  const position = `Short ${index + 1} de ${shorts.length}`;
+  if (moments) {
+    const position = `momento ${index + 1} de ${units.length}`;
+    return mode === 'sequence' ? `Todos los momentos · ahora el ${position}` : `Momento seleccionado · ${position}`;
+  }
+  const position = `Short ${index + 1} de ${units.length}`;
   return mode === 'sequence' ? `Todos los Shorts · ahora el ${position}` : `Short seleccionado · ${position}`;
 }
