@@ -310,12 +310,15 @@ func cloneJob(j job.Job) job.Job {
 // so the streamer-clips flow, including acquisition-by-URL, works without
 // Postgres.
 type MemoryStreamJobRepository struct {
-	mu   sync.RWMutex
-	jobs map[uuid.UUID]streamclips.Job
+	mu        sync.RWMutex
+	jobs      map[uuid.UUID]streamclips.Job
+	voices    map[uuid.UUID]memoryStreamVoice
+	subtitles map[uuid.UUID]streamclips.Subtitles
 }
 
 func NewMemoryStreamJobRepository() *MemoryStreamJobRepository {
-	return &MemoryStreamJobRepository{jobs: map[uuid.UUID]streamclips.Job{}}
+	return &MemoryStreamJobRepository{jobs: map[uuid.UUID]streamclips.Job{}, voices: map[uuid.UUID]memoryStreamVoice{},
+		subtitles: map[uuid.UUID]streamclips.Subtitles{}}
 }
 
 func (r *MemoryStreamJobRepository) Create(ctx context.Context, j *streamclips.Job) error {
@@ -507,6 +510,8 @@ func (r *MemoryStreamJobRepository) Delete(ctx context.Context, id uuid.UUID) er
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.jobs, id)
+	delete(r.voices, id)
+	delete(r.subtitles, id)
 	return nil
 }
 

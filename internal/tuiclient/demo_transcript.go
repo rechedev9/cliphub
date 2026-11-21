@@ -18,6 +18,21 @@ type DemoVoiceLine struct {
 	Round     int    `json:"round"`
 	Text      string `json:"text"`
 	Corrected bool   `json:"corrected"`
+
+	OriginalText string `json:"original_text,omitempty"`
+	Discarded    bool   `json:"discarded"`
+}
+
+type DemoLineDiscard struct {
+	MatchID   string `json:"-"`
+	LineID    string `json:"-"`
+	Discarded bool   `json:"discarded"`
+}
+
+func (c *Client) DiscardDemoVoiceLine(ctx context.Context, edit DemoLineDiscard) (DemoVoiceLine, error) {
+	var out DemoVoiceLine
+	err := c.doJSON(ctx, http.MethodPatch, demoTranscriptPath(edit.MatchID)+"/lines/"+url.PathEscape(edit.LineID), edit, &out)
+	return out, err
 }
 
 // DemoTranscript is a demo's voice transcript and the local install it needs.

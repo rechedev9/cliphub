@@ -100,7 +100,7 @@ type streamRenderOut struct {
 	Percent  int      `json:"percent,omitempty"`
 	Progress string   `json:"progress,omitempty" jsonschema:"while rendering: the video being encoded, such as video 2 of 3"`
 	Error    string   `json:"error,omitempty" jsonschema:"untrusted text"`
-	Warnings []string `json:"warnings,omitempty"`
+	Warnings []string `json:"warnings,omitempty" jsonschema:"untrusted text; one says when the videos rendered without their subtitles and why"`
 	Note     string   `json:"note,omitempty"`
 }
 
@@ -334,7 +334,8 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_stream_render", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}, Meta: appToolMeta(jobProgressAppURI),
-		Description: "Wait for a stream render or the 16:9 summary to finish. Reports progress; call again while running is true. Then list_stream_videos has the videos."},
+		Description: "Wait for a stream render or the 16:9 summary to finish. Reports progress; call again while running is true. Then list_stream_videos has the videos. " +
+			"With subtitles on, the render first waits up to 5 minutes for the transcript of its stretches; warnings says when the videos rendered without subtitles."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in waitStreamRenderIn) (*mcp.CallToolResult, streamRenderOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, streamRenderOut{}, err
@@ -765,6 +766,9 @@ func clock(seconds float64) string {
 func describeSummaryRender(id string, sum tuiclient.StreamSummary) streamRenderOut {
 	out := streamRenderOut{StreamID: id, Variant: summaryVariant, Status: cleanName(sum.Status), Running: sum.Status == playScanRunning,
 		Error: cleanText(sum.Error, maxErrorRunes)}
+	if sum.SubtitlesNotice != "" {
+		out.Warnings = []string{cleanText(sum.SubtitlesNotice, maxErrorRunes)}
+	}
 	switch sum.Status {
 	case playScanRunning:
 		out.Percent = int(sum.Progress * 100)

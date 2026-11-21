@@ -14,6 +14,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/radarmap"
 	"github.com/rechedev9/cliphub/internal/radaroverlay"
 	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/subtitles"
 )
 
 const (
@@ -140,9 +141,7 @@ func writeRadarOverlay(short *ShortEdit) error {
 		return nil
 	}
 	width, height := outputDimensions(*short)
-	box := radaroverlay.Place(radaroverlay.Placement{
-		Position: r.Position, Size: r.Size, Width: width, Height: height, Avoid: radarAvoidRects(*short, height),
-	})
+	box := radarBox(*short)
 	opacity := radaroverlay.EffectiveOpacity(r.Opacity)
 	script, err := radaroverlay.Script(radaroverlay.Layout{
 		Width: width, Height: height, TickRate: track.TickRate, Calibration: track.Calibration, Box: box, Opacity: opacity,
@@ -214,6 +213,17 @@ func radarPlateGroups(spans []radaroverlay.Span) []radarPlateGroup {
 		out = append(out, radarPlateGroup{level: s.Level, from: s.From, until: s.Until})
 	}
 	return out
+}
+
+func radarBox(short ShortEdit) radaroverlay.Rect {
+	width, height := outputDimensions(short)
+	avoid := radarAvoidRects(short, height)
+	if short.SubtitlesASS != "" && height > width {
+		block := subtitles.PlacementOf(width, height).Box
+		avoid = append(avoid, radaroverlay.Rect{X: block.Left, Y: block.Top, W: block.Right - block.Left, H: block.Bottom - block.Top})
+	}
+	r := short.Overlays.Radar
+	return radaroverlay.Place(radaroverlay.Placement{Position: r.Position, Size: r.Size, Width: width, Height: height, Avoid: avoid})
 }
 
 // radarAvoidRects are the brand watermark, the sponsor banner and the affiliate plate, which keep their place.

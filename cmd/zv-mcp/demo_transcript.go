@@ -15,7 +15,7 @@ const maxDemoPhrases = 300
 
 type transcribeDemoVoiceIn struct {
 	MatchID string `json:"match_id" jsonschema:"library match id"`
-	Force   bool   `json:"force,omitempty" jsonschema:"transcribe again a demo already transcribed; corrections are lost"`
+	Force   bool   `json:"force,omitempty" jsonschema:"transcribe again a demo already transcribed; a phrase heard again with the same words keeps its correction and its discard"`
 }
 
 type demoTranscriptIn struct {
@@ -29,15 +29,23 @@ type correctDemoPhraseIn struct {
 	Text     string `json:"text" jsonschema:"the corrected phrase, 1 to 2000 characters"`
 }
 
+type discardDemoPhraseIn struct {
+	MatchID  string `json:"match_id" jsonschema:"library match id"`
+	PhraseID string `json:"phrase_id" jsonschema:"phrase id from demo_transcript"`
+	Restore  bool   `json:"restore,omitempty" jsonschema:"bring a discarded phrase back"`
+}
+
 type demoPhraseOut struct {
-	ID         string `json:"id"`
-	Speaker    string `json:"speaker"`
-	SteamID64  string `json:"steamid64"`
-	Round      int    `json:"round"`
-	Tick       int    `json:"tick"`
-	Text       string `json:"text"`
-	Corrected  bool   `json:"corrected,omitempty"`
-	StudioPath string `json:"studio_path" jsonschema:"opens the Replay at the moment the phrase was said"`
+	ID           string `json:"id"`
+	Speaker      string `json:"speaker"`
+	SteamID64    string `json:"steamid64"`
+	Round        int    `json:"round"`
+	Tick         int    `json:"tick"`
+	Text         string `json:"text" jsonschema:"what a video draws: the correction when corrected"`
+	Corrected    bool   `json:"corrected,omitempty"`
+	OriginalText string `json:"original_text,omitempty" jsonschema:"what the transcriber heard, on a corrected phrase"`
+	Discarded    bool   `json:"discarded,omitempty" jsonschema:"drawn in no video of the demo"`
+	StudioPath   string `json:"studio_path" jsonschema:"opens the Replay at the moment the phrase was said"`
 }
 
 type demoTranscriptOut struct {
@@ -54,6 +62,7 @@ type demoTranscriptOut struct {
 func demoPhraseOf(matchID string, l tuiclient.DemoVoiceLine) demoPhraseOut {
 	return demoPhraseOut{ID: l.ID, Speaker: cleanName(l.Name), SteamID64: l.SteamID64, Round: l.Round, Tick: l.Tick,
 		Text: cleanText(l.Text, maxCommsTextRunes), Corrected: l.Corrected,
+		OriginalText: cleanText(l.OriginalText, maxCommsTextRunes), Discarded: l.Discarded,
 		StudioPath: "/replay?r=" + matchID + ":" + strconv.Itoa(max(l.Round, 1)) + ":" + strconv.Itoa(l.Tick)}
 }
 
@@ -93,7 +102,8 @@ func registerDemoTranscriptTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "demo_transcript", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-		Description: "Read the transcript of the team voices a demo recorded: each phrase, in the language it was said, with its id, speaker, round and text. Pass an id to correct_demo_phrase, " +
+		Description: "Read the transcript of the team voices a demo recorded: each phrase, in the language it was said, with its id, speaker, round and text, the original_text the transcriber heard when a person corrected it, and discarded when no video draws it. " +
+			"Pass an id to correct_demo_phrase or discard_demo_phrase, " +
 			"or to subtitles_hidden of generate_short or plan_full_demo to leave it out of one video."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in demoTranscriptIn) (*mcp.CallToolResult, demoTranscriptOut, error) {
 			if err := checkUUID("match_id", in.MatchID); err != nil {
@@ -114,7 +124,7 @@ func registerDemoTranscriptTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "correct_demo_phrase", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Correct a phrase of a demo transcript, as the Subtítulos panel does. The correction is kept for every later video of the demo and for the comms tools."},
+		Description: "Correct a phrase of a demo transcript, as the Subtítulos panel does. The correction is kept for every later video of the demo and for the comms tools, with what the transcriber heard beside it as original_text; sending the original text again undoes it."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in correctDemoPhraseIn) (*mcp.CallToolResult, demoPhraseOut, error) {
 			for field, id := range map[string]string{"match_id": in.MatchID, "phrase_id": in.PhraseID} {
 				if err := checkUUID(field, id); err != nil {
@@ -129,6 +139,26 @@ func registerDemoTranscriptTools(server *mcp.Server, s *studio) {
 				return nil, demoPhraseOut{}, toolError(err)
 			}
 			l, err := c.CorrectDemoVoiceLine(ctx, tuiclient.DemoLineEdit{MatchID: in.MatchID, LineID: in.PhraseID, Text: in.Text})
+			if err != nil {
+				return nil, demoPhraseOut{}, toolError(err)
+			}
+			return nil, demoPhraseOf(in.MatchID, l), nil
+		})
+
+	mcp.AddTool(server, &mcp.Tool{Name: "discard_demo_phrase", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
+		Description: "Discard a phrase the transcriber invented, as the Subtítulos panel does: no video of the demo draws it, and transcribing again keeps it discarded. " +
+			"The phrase keeps its text in demo_transcript; restore brings it back. To leave a real phrase out of one video, use subtitles_hidden instead."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in discardDemoPhraseIn) (*mcp.CallToolResult, demoPhraseOut, error) {
+			for field, id := range map[string]string{"match_id": in.MatchID, "phrase_id": in.PhraseID} {
+				if err := checkUUID(field, id); err != nil {
+					return nil, demoPhraseOut{}, err
+				}
+			}
+			c, err := s.client(ctx)
+			if err != nil {
+				return nil, demoPhraseOut{}, toolError(err)
+			}
+			l, err := c.DiscardDemoVoiceLine(ctx, tuiclient.DemoLineDiscard{MatchID: in.MatchID, LineID: in.PhraseID, Discarded: !in.Restore})
 			if err != nil {
 				return nil, demoPhraseOut{}, toolError(err)
 			}

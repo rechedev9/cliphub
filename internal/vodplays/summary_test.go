@@ -70,3 +70,23 @@ func TestRenderSummaryNeedsAPlay(t *testing.T) {
 		t.Fatal("RenderSummary with no showable play succeeded")
 	}
 }
+
+func TestSummaryDrawsThePlaySubtitlesUnderItsFades(t *testing.T) {
+	play := Play{ID: "play-001", StartSeconds: 10, EndSeconds: 20}
+	video := func(filters map[string]string) string {
+		args := segmentArgs(SummaryOptions{Input: "vod.mp4", SubtitleFilters: filters}, play, "part.mp4")
+		for i, arg := range args {
+			if arg == "-vf" {
+				return args[i+1]
+			}
+		}
+		t.Fatalf("no video filter in %v", args)
+		return ""
+	}
+	if got := video(map[string]string{"play-001": "ass=filename=a.ass"}); !strings.Contains(got, "format=yuv420p,ass=filename=a.ass,fade=t=in") {
+		t.Fatalf("video filter = %s; want the subtitles on the 1080p frame, before the fades", got)
+	}
+	if got := video(map[string]string{"play-002": "ass=filename=b.ass"}); strings.Contains(got, "ass=") {
+		t.Fatalf("video filter = %s; want no subtitles on a play without frases", got)
+	}
+}

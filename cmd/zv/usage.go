@@ -23,6 +23,7 @@ Usage:
   zv full-demo inspect --plan <plan.json> [--format text|json]
   zv full-demo execute --job <uuid> --plan <plan.json> --approve <plan-hash> --allow-safe-tail-trim=true [--dry-run] [--format text|json]
   zv full-demo lab-bundle --job <uuid> [--variant gameplay-pov-60] [--dry-run] [--format text|json]
+  zv transcript measure --library <jobs.db> [--format text|json]
   zv utility audit [zv-parser utility-audit flags]
   zv record [zv-recorder flags]
   zv compose final [zv-composer flags]
@@ -154,6 +155,30 @@ Print the local pipeline counters in Prometheus text format. --reset clears them
 const errorsUsage = `usage: zv errors [--obs-dir <dir>] [--tail <n>] [--json] [--clear]
 
 Summarize the local error journal. --clear truncates it (use between fix-loop runs).
+`
+
+const transcriptUsage = `usage: zv transcript measure --library <jobs.db> [--format text|json]
+`
+
+const transcriptMeasureUsage = `usage: zv transcript measure --library <jobs.db> [--format text|json]
+
+Development command. Say how far the transcriber's text is from what a person
+corrected, for each transcripción of a Studio library with a corrected or
+discarded frase: the demos (source demo) and the streams (source stream).
+It opens the library read-only and writes nothing.
+
+Flags:
+  --library <jobs.db>    Studio library to read; required
+  --format <text|json>   output format (default text)
+
+Columns:
+  words               words the transcriber wrote in the frases that were kept
+  corrected_words     words a person replaced, added or removed (word edit
+                      distance; capitals and punctuation do not count)
+  corrected_share     corrected_words / words
+  discarded           frases a person discarded
+  speech_min          minutes of the frases that were kept
+  discarded_per_min   discarded / speech_min
 `
 
 const demoUsage = `usage: zv demo parse [zv-parser parse flags] | zv demo players [zv-demo-players flags] | zv demo moments [flags] | zv demo select [flags] | zv demo probe [flags] | zv demo voice [flags]

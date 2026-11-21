@@ -253,6 +253,7 @@ export type StreamSummary = {
   duration_seconds?: number;
   error?: string;
   rendered_at?: string;
+  subtitles_notice?: string;
 };
 
 type StreamImportInput = { title?: string; sourceKind: StreamSourceKind };

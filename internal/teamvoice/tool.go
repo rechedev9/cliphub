@@ -85,7 +85,7 @@ const vcRuntimeHint = "Instala Microsoft Visual C++ Redistributable 2015-2022 (x
 
 // Decoder reads a recording as the 16 kHz mono s16le PCM the local programs take.
 type Decoder interface {
-	RawPCM(ctx context.Context, src, dst string) error
+	RawPCM(ctx context.Context, job PCMJob) error
 }
 
 // TranscriberOptions configures a local speech program; CLI and Model override the fetched install.

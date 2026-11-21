@@ -2,16 +2,17 @@ package main
 
 func groupUsageTexts() map[string]string {
 	return map[string]string{
-		"faceit":    faceitUsage,
-		"demo":      demoUsage,
-		"utility":   utilityUsage,
-		"compose":   composeUsage,
-		"shorts":    shortsUsage,
-		"music":     musicUsage,
-		"analysis":  analysisUsage,
-		"gallery":   galleryUsage,
-		"check":     checkUsage,
-		"workflows": workflowsUsage,
+		"faceit":     faceitUsage,
+		"demo":       demoUsage,
+		"transcript": transcriptUsage,
+		"utility":    utilityUsage,
+		"compose":    composeUsage,
+		"shorts":     shortsUsage,
+		"music":      musicUsage,
+		"analysis":   analysisUsage,
+		"gallery":    galleryUsage,
+		"check":      checkUsage,
+		"workflows":  workflowsUsage,
 	}
 }
 

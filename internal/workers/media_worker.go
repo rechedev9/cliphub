@@ -1138,11 +1138,12 @@ func (w *RenderWorker) UseGenerateIntentStore(store *generateintent.Store) {
 
 // StreamRenderWorker handles "render:stream-clip" tasks.
 type StreamRenderWorker struct {
-	repo     StreamRenderRepository
-	storage  storage.Storage
-	cfg      StreamRenderWorkerConfig
-	runner   commandRunner
-	jobLocks *streamclips.JobLocks
+	repo      StreamRenderRepository
+	storage   storage.Storage
+	cfg       StreamRenderWorkerConfig
+	runner    commandRunner
+	jobLocks  *streamclips.JobLocks
+	subtitles StreamSubtitleSource
 }
 
 func NewStreamRenderWorker(repo StreamRenderRepository, store storage.Storage, cfg StreamRenderWorkerConfig) *StreamRenderWorker {
@@ -1389,6 +1390,7 @@ func (w *StreamRenderWorker) render(
 		}
 	}
 
+	subs := w.streamSubtitles(ctx, streamSubtitleJob{jobID: j.ID, plan: plan, workDir: workDir})
 	runCtx, cancel := context.WithTimeout(ctx, cfg.timeoutDuration())
 	defer cancel()
 	revisionID := uuid.New()
@@ -1408,7 +1410,7 @@ func (w *StreamRenderWorker) render(
 	var videos []streamclips.VideoEntry
 	var delivery []streamclips.DeliveryEntry
 	var publishArtifacts []streamPublishArtifact
-	var warnings []string
+	warnings := subs.warnings
 	firstRenderedVideo := ""
 	musicPath := ""
 	if plan.Music.Key != "" {
@@ -1442,7 +1444,7 @@ func (w *StreamRenderWorker) render(
 				SourcePath: sourcePath, OutputPath: outPath, MusicPath: musicPath, BannerFontPath: bannerFontPath,
 				KeyDropImagePath: keyDropImagePath, SourceHasAudio: j.Probe.AudioCodec != "", TextOverlayPaths: textPaths,
 				KillFeed: killFeed, SourceWidth: j.Probe.Width, SourceHeight: j.Probe.Height,
-				MusicOffsetSeconds: placements[clip.ID].MusicOffsetSeconds, JoinedPart: placements[clip.ID].Joined,
+				MusicOffsetSeconds: placements[clip.ID].MusicOffsetSeconds, JoinedPart: placements[clip.ID].Joined, SubtitlesFilter: subs.filters[clip.ID],
 			}})
 		if err != nil {
 			return fmt.Errorf("render clip %s: %w", clip.ID, err)
@@ -1545,7 +1547,7 @@ func (w *StreamRenderWorker) render(
 	if err != nil {
 		return err
 	}
-	result.Warnings = warnings
+	result.Warnings, result.SubtitlesFingerprint = warnings, subs.fingerprint
 	resultKey, err := streamclips.RenderRevisionResultKey(j.ID, variant, revisionID)
 	if err != nil {
 		return err
@@ -1610,28 +1612,6 @@ func (w *StreamRenderWorker) render(
 		)
 	}
 
-	return nil
-}
-
-func (w *StreamRenderWorker) writeStreamCover(ctx context.Context, ffmpegPath, videoPath, filename string) error {
-	if strings.TrimSpace(videoPath) == "" {
-		return errors.New("rendered video is required for cover generation")
-	}
-	_, err := w.runner.Run(ctx, ffmpegPath,
-		"-hide_banner", "-loglevel", "error", "-y",
-		"-i", videoPath,
-		"-frames:v", "1", "-vf", "scale=720:-2", "-q:v", "2", filename,
-	)
-	if err != nil {
-		return err
-	}
-	info, err := os.Stat(filename)
-	if err != nil {
-		return fmt.Errorf("verify cover output: %w", err)
-	}
-	if info.Size() == 0 {
-		return errors.New("cover output is empty")
-	}
 	return nil
 }
 

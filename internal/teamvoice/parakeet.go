@@ -38,6 +38,23 @@ type TranscribeJob struct {
 	Audio    string
 	Speech   []library.VoiceSpan
 	Progress func(share float64)
+	Track    int
+	Clip     *library.VoiceSpan
+}
+
+func (j TranscribeJob) inSourceTime(lines []Line) []Line {
+	if j.Clip == nil {
+		return lines
+	}
+	for i := range lines {
+		lines[i].StartMS += j.Clip.StartMS
+		lines[i].EndMS += j.Clip.StartMS
+		for w := range lines[i].Words {
+			lines[i].Words[w].StartMS += j.Clip.StartMS
+			lines[i].Words[w].EndMS += j.Clip.StartMS
+		}
+	}
+	return lines
 }
 
 // Line is one transcribed phrase in audio time.
@@ -45,6 +62,13 @@ type Line struct {
 	StartMS int64
 	EndMS   int64
 	Text    string
+	Words   []Word
+}
+
+type Word struct {
+	Text    string
+	StartMS int64
+	EndMS   int64
 }
 
 // Transcribe returns the phrases of one track. Only stretches with detected speech are read,
@@ -59,7 +83,7 @@ func (t *Transcriber) Transcribe(ctx context.Context, job TranscribeJob) ([]Line
 		return nil, err
 	}
 	defer os.RemoveAll(dir)
-	audio, err := decodeTrack(ctx, t.opts.Media, job.Audio, dir)
+	audio, err := decodeTrack(ctx, t.opts.Media, job, dir)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +107,7 @@ func (t *Transcriber) Transcribe(ctx context.Context, job TranscribeJob) ([]Line
 			job.Progress(float64(from+len(batch)) / float64(len(regions)))
 		}
 	}
-	return keepSpoken(lines, speech), nil
+	return job.inSourceTime(keepSpoken(lines, speech)), nil
 }
 
 type nemoBatch struct {
@@ -163,12 +187,13 @@ func nemoPhrases(doc nemoOutput, region library.VoiceSpan) []Line {
 	at := func(seconds float64) int64 { return region.StartMS + int64(seconds*1000+0.5) }
 	var out []Line
 	var words []string
+	var timed []Word
 	var start, end float64
 	flush := func() {
 		if len(words) > 0 {
-			out = append(out, Line{StartMS: at(start), EndMS: at(end), Text: strings.Join(words, " ")})
+			out = append(out, Line{StartMS: at(start), EndMS: at(end), Text: strings.Join(words, " "), Words: timed})
 		}
-		words = nil
+		words, timed = nil, nil
 	}
 	for _, w := range doc.Words {
 		if len(words) > 0 && (w.Start-end >= phraseGapSeconds || w.End-start > phraseMaxSeconds) {
@@ -178,6 +203,7 @@ func nemoPhrases(doc nemoOutput, region library.VoiceSpan) []Line {
 			start = w.Start
 		}
 		words, end = append(words, w.Word), max(end, w.End)
+		timed = append(timed, Word{Text: w.Word, StartMS: at(w.Start), EndMS: at(w.End)})
 	}
 	flush()
 	return spoken(out)
