@@ -2,9 +2,11 @@
 
 import type { ReactNode } from 'react';
 import { Trash2 } from 'lucide-react';
+import { Kbd } from '@/components/streams/kbd';
 import { MomentEdgesEditor } from '@/components/streams/moment-edges-editor';
 import type { StreamClipRange, StreamPlay } from '@/lib/api/streams';
 import { suggestedCut, type MomentEdge } from '@/lib/streams/moment-edges';
+import { MOMENTS_KEY } from '@/lib/streams/moments-keys';
 import { clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -138,9 +140,10 @@ function ClipCard({
             </span>
           </span>
         </button>
-        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={onRemove} aria-label={`Quitar momento ${number}`}>
+        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={onRemove} aria-label={`Quitar momento ${number}`} aria-keyshortcuts="Delete">
           <Trash2 aria-hidden />
           Quitar
+          <Kbd>{MOMENTS_KEY.remove}</Kbd>
         </Button>
       </div>
 

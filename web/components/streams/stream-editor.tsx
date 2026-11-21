@@ -53,6 +53,7 @@ import { StreamResultsStep, StreamResultVideo } from '@/components/streams/strea
 import { StreamReviewStep } from '@/components/streams/stream-review-step';
 import { useStreamMoments } from '@/components/streams/use-stream-moments';
 import { momentZoomWindow } from '@/lib/streams/moment-edges';
+import { MOMENTS_KEY } from '@/lib/streams/moments-keys';
 
 /** Guided stream editor: moments, appearance, review, then finished videos. */
 export function StreamEditor({
@@ -326,6 +327,12 @@ export function StreamEditor({
   if (previewing) watchingLabel = `Jugada · ${previewing.play.label}`;
   else if (sessionMode === STREAM_PLAYBACK_MODE.sequence) watchingLabel = 'Todos tus momentos seguidos';
   else if (sessionMode === STREAM_PLAYBACK_MODE.selected && selectedClip) watchingLabel = selectedClip.title?.trim() || 'Tu momento';
+  const canPlay = !busy && sourceDuration > 0 && (playbackMode === STREAM_PLAYBACK_MODE.source || streamPlaybackIndex(playbackClips, sessionClipId) >= 0);
+  const togglePlay = () => {
+    if (!canPlay) return;
+    setPreviewError(null);
+    setPreviewPlaying((current) => !current);
+  };
   const monitor = (
     <StreamMonitor
       cropEditor={cropEditor}
@@ -357,7 +364,7 @@ export function StreamEditor({
       playbackDuration={playbackClock.duration}
       playing={previewPlaying}
       status={playbackStatus}
-      canPlay={!busy && sourceDuration > 0 && (playbackMode === STREAM_PLAYBACK_MODE.source || streamPlaybackIndex(playbackClips, sessionClipId) >= 0)}
+      canPlay={canPlay}
       mode={playbackMode}
       hasSelection={!!selectedClip}
       clipCount={plan.clips.length}
@@ -370,15 +377,13 @@ export function StreamEditor({
       loop={playbackLoop}
       onLoopChange={setPlaybackLoop}
       previewError={previewError}
-      onTogglePlay={() => {
-        setPreviewError(null);
-        setPreviewPlaying((current) => !current);
-      }}
+      onTogglePlay={togglePlay}
       onRetry={() => {
         setPreviewError(null);
         setPreviewReload((current) => current + 1);
       }}
       watching={cutsStep ? watchingLabel : undefined}
+      playShortcut={cutsStep ? MOMENTS_KEY.play : undefined}
     />
   );
   const timeline = (
@@ -451,6 +456,7 @@ export function StreamEditor({
         onPlayMoment={playMoment}
         onPlayAll={playAllMoments}
         onPlaySelected={playSelected}
+        onTogglePlay={togglePlay}
         onPlaysShown={setFoundPlays}
       />
     );

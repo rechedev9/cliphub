@@ -9,6 +9,7 @@ import { formatStreamClock } from '@/lib/streams/plan';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { CropPicker } from '@/components/streams/crop-picker';
+import { Kbd } from '@/components/streams/kbd';
 import { StreamPreview } from '@/components/streams/stream-preview';
 import { StreamFrameCanvas, useStreamFrame } from '@/components/streams/stream-frame-session';
 
@@ -37,6 +38,7 @@ export function StreamMonitor({
   hasSelection,
   clipCount,
   watching,
+  playShortcut,
 }: {
   preview: ComponentProps<typeof StreamPreview>;
   cropEditor?: StreamCropEditor;
@@ -55,6 +57,7 @@ export function StreamMonitor({
   hasSelection: boolean;
   clipCount: number;
   watching?: string;
+  playShortcut?: string;
 }): ReactNode {
   const { hasFrame } = useStreamFrame();
   const sizeId = useId();
@@ -165,9 +168,10 @@ export function StreamMonitor({
         ) : null}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
-        <Button variant="outline" disabled={!canPlay} onClick={onTogglePlay}>
+        <Button variant="outline" disabled={!canPlay} aria-keyshortcuts={playShortcut ? 'Space' : undefined} onClick={onTogglePlay}>
           {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
           {playing ? 'Pausar' : playLabel}
+          {playShortcut ? <Kbd>{playShortcut}</Kbd> : null}
         </Button>
         <Button variant={loop ? 'secondary' : 'ghost'} size="icon" aria-label="Repetir reproducción" aria-pressed={loop} onClick={() => onLoopChange(!loop)}>
           <Repeat aria-hidden />
