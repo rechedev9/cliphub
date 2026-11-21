@@ -32,7 +32,7 @@ Not a term inside the editor. It survives only in the section name "Clips de str
 ### Voz y subtítulos
 
 **Transcripción**:
-Everything the voices of a demo or a stream said, as text.
+Everything said in a match's team voice or in a stream, as text.
 _Avoid_: Subtítulos as a name for the text, captions
 
 **Frase**:

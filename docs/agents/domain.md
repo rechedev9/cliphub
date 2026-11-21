@@ -21,7 +21,7 @@ This repo is single-context: one glossary and one ADR folder for Studio, ClipMin
     └── 0001-<slug>.md
 ```
 
-`docs/adr/` does not exist until the first ADR is written.
+A new ADR takes the number after the highest one in `docs/adr/`.
 
 ## Use the glossary's vocabulary
 
