@@ -310,7 +310,7 @@ export function StreamDetectedPlays({
 
       {scan?.status === 'done' && ranked.length === 0 ? (
         <p className="text-body-sm text-fg-2">
-          No hemos detectado kills en la kill feed (debe verse arriba a la derecha) ni picos de voz. Puedes marcar tus momentos a mano con «Nuevo momento».
+          No hemos detectado kills en la kill feed (debe verse arriba a la derecha) ni picos de voz. Puedes marcar tus momentos a mano con «Marcar momento aquí».
         </p>
       ) : null}
 

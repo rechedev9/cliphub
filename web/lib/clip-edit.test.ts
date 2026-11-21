@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   clipEditIssue,
   streamRangeIssue,
-  streamRangeOverlapIssue,
   streamRangesIssue,
   withoutEmptyTextOverlays,
 } from './clip-edit.ts';
@@ -91,19 +90,6 @@ test('streamRangesIssue reports overlapping cuts', () => {
       assert.equal(issue, null, name);
     }
   }
-});
-
-test('streamRangeOverlapIssue flags the card that overlaps another cut', () => {
-  const clips: StreamClipRange[] = [
-    { id: 'c1', start_seconds: 0, end_seconds: 6, title: 'Ace' },
-    { id: 'c2', start_seconds: 5, end_seconds: 10 },
-  ];
-  assert.match(streamRangeOverlapIssue(clips, 0) ?? '', /Se solapa con Momento 2/);
-  assert.match(streamRangeOverlapIssue(clips, 1) ?? '', /Se solapa con Ace/);
-  assert.equal(
-    streamRangeOverlapIssue([{ id: 'c1', start_seconds: 0, end_seconds: 5 }, { id: 'c2', start_seconds: 5, end_seconds: 10 }], 0),
-    null,
-  );
 });
 
 test('withoutEmptyTextOverlays drops blank-text overlays but keeps the rest', () => {

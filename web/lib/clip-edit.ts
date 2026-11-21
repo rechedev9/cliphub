@@ -58,20 +58,6 @@ export function streamRangesIssue(clips: StreamClipRange[], durationSeconds: num
   return null;
 }
 
-/** Per-card overlap warning for the cut at `index`, or null when it does not overlap another. */
-export function streamRangeOverlapIssue(clips: readonly StreamClipRange[], index: number): string | null {
-  const clip = clips[index];
-  if (!clip) return null;
-  for (const [otherIndex, other] of clips.entries()) {
-    if (otherIndex === index) continue;
-    if (clip.start_seconds < other.end_seconds && other.start_seconds < clip.end_seconds) {
-      const label = other.title?.trim() || `Momento ${otherIndex + 1}`;
-      return `Se solapa con ${label} en el vídeo original.`;
-    }
-  }
-  return null;
-}
-
 /**
  * Overlays with blank text are rejected server-side ("text overlay text is
  * required"); drop them before a text-overlay list is written into the plan

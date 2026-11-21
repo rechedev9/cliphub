@@ -820,7 +820,7 @@
   "lib/browser-import/scan-messages.ts": 3,
   "lib/browser-import/upload-analysis.ts": 6,
   "lib/clip-edit.test.ts": 1,
-  "lib/clip-edit.ts": 20,
+  "lib/clip-edit.ts": 19,
   "lib/clipboard-write.ts": 1,
   "lib/clipmind/client.ts": 7,
   "lib/clipmind/demo.ts": 8,

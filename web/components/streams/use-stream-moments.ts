@@ -1,15 +1,13 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { toast } from 'sonner';
 import type { StreamClipRange, StreamEditPlan, StreamJob, StreamPlay } from '@/lib/api/streams';
-import { streamRangeIssue, streamRangeOverlapIssue } from '@/lib/clip-edit';
 import { pruneStreamGroups } from '@/lib/streams/groups';
+import { fullVideoMoment, markMomentAt } from '@/lib/streams/mark-moment';
 import { moveMomentEdge, nudgeMomentEdge, suggestedCut, withMomentRange, type MomentEdge } from '@/lib/streams/moment-edges';
 import { removeMoments, undoRemoval, withoutMoments } from '@/lib/streams/moments';
 import { formatStreamClock, insertClipSorted, nextClipId } from '@/lib/streams/plan';
 import { clipsWithPlays } from '@/lib/streams/plays';
 import { streamTitle } from '@/lib/streams/title';
-
-type MomentRangeValue = { start_seconds: number; end_seconds: number };
 
 export function useStreamMoments({
   job,
@@ -18,7 +16,6 @@ export function useStreamMoments({
   onPlanChange,
   focusClip,
   clearSelection,
-  showDraft,
   showEdge,
   showWholeVideo,
 }: {
@@ -28,41 +25,49 @@ export function useStreamMoments({
   onPlanChange: (plan: StreamEditPlan) => void;
   focusClip: (clip: StreamClipRange) => void;
   clearSelection: () => void;
-  showDraft: () => void;
   showEdge: (seconds: number) => void;
   showWholeVideo: () => void;
 }) {
-  const [draftRange, setDraftRange] = useState<MomentRangeValue>({
-    start_seconds: 0,
-    end_seconds: Math.min(sourceDuration, 30),
-  });
-  const [creatingMoment, setCreatingMoment] = useState(plan.clips.length === 0);
   const latestPlanRef = useRef(plan);
   latestPlanRef.current = plan;
 
   const setClips = (clips: StreamClipRange[]) => onPlanChange(pruneStreamGroups({ ...plan, clips }));
-  const selectClip = (clip: StreamClipRange) => {
-    setCreatingMoment(false);
-    focusClip(clip);
-  };
-  const draftClip: StreamClipRange = { id: 'draft', ...draftRange };
-  const draftCandidates = insertClipSorted(plan.clips, draftClip);
-  const draftIndex = draftCandidates.findIndex((c) => c.id === 'draft');
-  const draftIssue =
-    streamRangeIssue(draftClip, sourceDuration, draftIndex) ?? streamRangeOverlapIssue(draftCandidates, draftIndex);
-  const addMoment = (range = draftRange) => {
+  const selectClip = focusClip;
+  const createMoment = ({ range, message }: { range: { start_seconds: number; end_seconds: number }; message: string }) => {
+    const { clips } = latestPlanRef.current;
     const sourceTitle = streamTitle(job);
-    const title = plan.clips.length ? `${sourceTitle} ${plan.clips.length + 1}` : sourceTitle;
+    const title = clips.length ? `${sourceTitle} ${clips.length + 1}` : sourceTitle;
     const clip: StreamClipRange = { id: nextClipId(), ...range, title };
-    const next = insertClipSorted(plan.clips, clip);
-    const index = next.findIndex((c) => c.id === clip.id);
-    const issue = streamRangeIssue(clip, sourceDuration, index) ?? streamRangeOverlapIssue(next, index);
-    if (issue) {
-      toast.error(issue);
-      return;
-    }
-    setClips(next);
+    const next = pruneStreamGroups({ ...latestPlanRef.current, clips: insertClipSorted(clips, clip) });
+    latestPlanRef.current = next;
+    onPlanChange(next);
     selectClip(clip);
+    toast(message, {
+      position: 'top-right',
+      action: {
+        label: 'Deshacer',
+        onClick: () => {
+          const current = latestPlanRef.current;
+          onPlanChange(pruneStreamGroups({ ...current, clips: withoutMoments(current.clips, [clip.id]) }));
+          showWholeVideo();
+        },
+      },
+    });
+  };
+  const markHere = (seconds: number) => {
+    const outcome = markMomentAt({ clips: latestPlanRef.current.clips, seconds, sourceDuration });
+    if (outcome.kind === 'inside') {
+      selectClip(outcome.clip);
+      toast('Aquí ya hay un momento. Ajusta sus bordes.', { position: 'top-right' });
+    } else if (outcome.kind === 'no-room') {
+      toast('No queda hueco aquí para otro momento. Muévete a una parte libre del vídeo.', { position: 'top-right' });
+    } else {
+      createMoment({ range: outcome.range, message: 'Momento creado. Arrastra los bordes para ajustarlo.' });
+    }
+  };
+  const addFullVideo = () => {
+    const range = fullVideoMoment({ clips: latestPlanRef.current.clips, sourceDuration });
+    if (range) createMoment({ range, message: 'Vas a usar el vídeo completo' });
   };
   const addPlays = (plays: StreamPlay[]) => {
     const next = clipsWithPlays(plan.clips, plays, nextClipId);
@@ -89,10 +94,7 @@ export function useStreamMoments({
     onPlanChange(removal.plan);
     const [next] = removal.plan.clips;
     if (next) selectClip(next);
-    else {
-      setCreatingMoment(true);
-      clearSelection();
-    }
+    else clearSelection();
     showWholeVideo();
     toast(removed.length === 1 ? `Quitado: ${clip.title?.trim() || 'momento'}` : `${removed.length} momentos quitados`, {
       position: 'top-right',
@@ -137,38 +139,16 @@ export function useStreamMoments({
     });
   };
   const removeClip = (clip: StreamClipRange) => removeClips([clip]);
-  const startNewMoment = (playheadSeconds: number) => {
-    setDraftRange({
-      start_seconds: Math.min(playheadSeconds, Math.max(0, sourceDuration - 1)),
-      end_seconds: Math.min(sourceDuration, playheadSeconds + 10),
-    });
-    setCreatingMoment(true);
-    showDraft();
-  };
-  const patchDraft = (patch: Partial<MomentRangeValue>) => setDraftRange((current) => ({ ...current, ...patch }));
-  const nudgeDraft = ({ edge, delta }: { edge: MomentEdge; delta: number }) =>
-    setDraftRange((current) => {
-      const [moved] = nudgeMomentEdge({ clips: [{ id: 'draft', ...current }], clipId: 'draft', edge, delta, sourceDuration });
-      return moved ? { start_seconds: moved.start_seconds, end_seconds: moved.end_seconds } : current;
-    });
-  const cancelDraft = () => setCreatingMoment(false);
-
   return {
-    creatingMoment,
-    draftRange,
-    draftIssue,
-    patchDraft,
-    cancelDraft,
     setClips,
     selectClip,
-    addMoment,
+    markHere,
+    addFullVideo,
     addPlays,
     removeClip,
     moveEdge,
     nudgeEdge,
     restoreSuggestedCut,
-    startNewMoment,
-    nudgeDraft,
   };
 }
 
