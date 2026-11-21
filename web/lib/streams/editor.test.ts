@@ -7,7 +7,9 @@ import {
   STREAM_WORKFLOW_STEPS,
   streamCtaLabel,
   streamEditorSteps,
+  streamFooterLabels,
   streamOutputSummary,
+  type StreamStep,
   streamPlanBlocker,
   streamTimelineLabel,
 } from './editor.ts';
@@ -61,6 +63,30 @@ test('the editor shows every step; saving opens only once there is an export', (
   assert.equal(streamEditorSteps(rendered).at(-1)?.done, true);
   assert.equal(streamEditorSteps({ ...rendered, stale: true }).at(-1)?.done, false);
 });
+test('the rail counts momentos in Momentos and Shorts only from Revisar on', () => {
+  const joined = joinStreamMoments(plan(), ['c1', 'c2']);
+  const detail = (key: string) =>
+    streamEditorSteps({ plan: joined, renderState: null, stale: false }).find((s) => s.key === key)?.detail;
+  assert.equal(detail('cuts'), '2 momentos');
+  assert.equal(detail('review'), '1 Short');
+});
+test('the footer counts momentos until Aspecto and Shorts from Revisar on', () => {
+  const joined = joinStreamMoments(plan(), ['c1', 'c2']);
+  const footer = (step: StreamStep) => streamFooterLabels({ step, plan: joined, stale: false, sourceDuration: 600 });
+  assert.equal(footer('cuts').count, '2 momentos · 0:36 en total');
+  assert.equal(footer('layout').count, '2 momentos · 0:36 en total');
+  assert.doesNotMatch(footer('layout').summary, /\d/);
+  assert.equal(footer('review').count, '1 Short');
+  assert.equal(footer('results').summary, '01 · 0:36');
+});
+test('in Momentos the footer names the momento to fix in place of the hint while one does not fit', () => {
+  const broken = plan({ clips: [{ id: 'a', start_seconds: 10, end_seconds: 40 }, { id: 'b', start_seconds: 590, end_seconds: 640 }] });
+  const fine = streamFooterLabels({ step: 'cuts', plan: plan(), stale: false, sourceDuration: 600 }).summary;
+  const issue = streamFooterLabels({ step: 'cuts', plan: broken, stale: false, sourceDuration: 600 }).summary;
+  assert.match(issue, /momento 2\b/);
+  assert.notEqual(issue, fine);
+  assert.doesNotMatch(fine, /momento \d/);
+});
 test('moments must exist before camera confirmation, and no-camera layouts skip it', () => {
   assert.equal(streamPlanBlocker(plan({ clips: [], face_crop_reviewed: false })), 'cuts');
   assert.equal(streamPlanBlocker(plan({ face_crop_reviewed: false })), 'layout');
@@ -101,7 +127,7 @@ test('an export says it is queued until a worker claims the render', () => {
 test('the summary shows output durations, including speed, and unsaved exports', () => {
   assert.equal(streamOutputSummary(plan(), false), '01 · 0:17, 02 · 0:19');
   assert.match(streamOutputSummary(plan(), true), /Cambios sin exportar/);
-  assert.match(streamOutputSummary(plan({ clips: [] }), false), /Marca el inicio y el final/);
+  assert.match(streamOutputSummary(plan({ clips: [] }), false), /elige tu primer momento/);
 });
 
 test('the timeline heading follows the monitor mode and names the Short out of all of them', () => {
@@ -112,4 +138,6 @@ test('the timeline heading follows the monitor mode and names the Short out of a
   assert.equal(streamTimelineLabel({ mode: 'selected', shorts, clipId: null }), 'Recorrer el vídeo original');
   const joined = streamPlanShorts(joinStreamMoments(plan(), ['c1', 'c2']));
   assert.equal(streamTimelineLabel({ mode: 'selected', shorts: joined, clipId: 'c2' }), 'Short seleccionado · Short 1 de 1');
+  assert.match(streamTimelineLabel({ mode: 'selected', shorts: joined, clipId: 'c2', moments: joined[0].clips }), /omento 2 de 2/);
+  assert.match(streamTimelineLabel({ mode: 'sequence', shorts: joined, clipId: 'c1', moments: joined[0].clips }), /momento 1 de 2/);
 });

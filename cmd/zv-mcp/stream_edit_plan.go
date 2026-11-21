@@ -22,8 +22,8 @@ type cropOut struct {
 type textOverlayArg struct {
 	Text         string   `json:"text" jsonschema:"one line burned into the video, at most 120 characters"`
 	PositionY    float64  `json:"position_y" jsonschema:"vertical center of the line, from 0.025 (top) to 0.975 (bottom)"`
-	StartSeconds *float64 `json:"start_seconds,omitempty" jsonschema:"seconds from the clip start when the line appears; empty is the clip start"`
-	EndSeconds   *float64 `json:"end_seconds,omitempty" jsonschema:"seconds from the clip start when the line goes; empty is the clip end"`
+	StartSeconds *float64 `json:"start_seconds,omitempty" jsonschema:"seconds from the moment's start when the line appears; empty is the moment's start"`
+	EndSeconds   *float64 `json:"end_seconds,omitempty" jsonschema:"seconds from the moment's start when the line goes; empty is the moment's end"`
 	FontSize     int      `json:"font_size,omitempty" jsonschema:"24 to 120 output pixels; empty is 64"`
 }
 
@@ -138,7 +138,7 @@ func registerStreamPlanTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "edit_stream_plan",
 		Description: "Change a stream's edit plan without rendering, as the stream editor in Studio does: add, remove, trim, retitle or reorder the moments " +
-			"and set each moment's speed, audio, fades and text; join two or more moments into one Short with groups, or separate them; set the streamer banner, the affiliate banner, the music, the kill feed and the effects. " +
+			"and set each moment's speed, audio, fades and text (Revisar in Studio, for each moment of the selected Short); join two or more moments into one Short with groups, or separate them; set the streamer banner, the affiliate banner, the music, the kill feed and the effects. " +
 			"Each field given replaces that part of the plan; fields left out stay as saved. Call get_stream_edit_plan first and pass its updated_at as expected_updated_at: " +
 			"the save fails if the plan changed since, so read it again and redo the change. render_stream then renders the saved plan. Returns the saved plan."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in editStreamPlanIn) (*mcp.CallToolResult, streamPlanOut, error) {

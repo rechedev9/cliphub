@@ -327,7 +327,7 @@ the streamer raising their voice; voice and voice_sensitivity 1 to 5 set the sca
 hour are kept, and a marked one is a shout far over the streamer's own level, rare, and is always listed, past limit). Voice play ids start with voice-. render_stream_summary
 makes one 16:9 video of the plays (all, or play_ids); render_stream makes one video per moment in a
 layout from list_stream_variants (9:16 Shorts or 16:9), or one per group. To edit before rendering, get_stream_edit_plan
-reads the moments and their speed, audio, fades and text, the groups, the banners, music, kill feed and effects;
+reads the moments and their speed, audio, fades and text (set in Revisar, per moment of each Short), the groups, the banners, music, kill feed and effects;
 kill_feed centered cuts the stream's own kill feed live, with feathered edges, and lays it centered below the scoreboard
 while the streamer's kills are on screen. edit_stream_plan changes them with expected_updated_at set to the updated_at it read (read again if
 the save fails). A group (edit_stream_plan groups) joins 2 or more moments into one Short in its clip_ids
@@ -335,6 +335,9 @@ order, with the same look and music running on; groups [] separates them. shorts
 render_stream makes; warn the user when a joined Short passes 3 minutes, the YouTube Shorts limit. Both renders return a variant for wait_for_stream_render, which reports the percent
 and, for render_stream, the video being encoded (video 2 of 3); then list_stream_videos for the
 videos and extra files. list_streams shows the streams already in Studio.
+Use Studio's words with the user: a play is a jugada (a voice-only one is a pico de voz), a moment is a momento,
+a 9:16 render_stream video is a Short (one momento or several joined), and the render_stream_summary video is the resumen
+(Hacer resumen on a VOD's project card). Do not call a momento a clip or a corte.
 The library: list_matches reads Partidas as the Studio shows it (kind, has_pov, has_voice, sort, team, opponent and event are its controls; every match says has_voice and voice_sync (auto, manual or unsynced, with voice_note when a recording gave a reason), and sync_voice with auto true is the row's Volver a sincronizar voz; a match in a
 series carries its format, event, veto and whether its map was a pick or the decider; kind is scrim, oficial (tournament demos and series with an
 event) or importada, and update_demo's source moves a match between them); import_demo takes tags; update_demo changes a demo's source,

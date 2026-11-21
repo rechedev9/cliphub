@@ -8,6 +8,12 @@ import { MATCH_REPLAY_TAB, MATCH_TAB_QUERY } from '../library/rounds.ts';
 
 export const SHORTS_HREF = '/shorts' as const;
 export const STREAMS_HREF = '/streams' as const;
+export function streamEditorHref(jobId: string): string {
+  return `${STREAMS_HREF}/${encodeURIComponent(jobId)}`;
+}
+export function streamSummaryHref(jobId: string): string {
+  return `${streamEditorHref(jobId)}/resumen`;
+}
 export const LONG_VIDEOS_HREF = '/videos-largos' as const;
 export const RESULTS_HREF = '/mis-videos' as const;
 export const MATCHES_HREF = '/partidas' as const;

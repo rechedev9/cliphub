@@ -1,7 +1,8 @@
-import { STREAM_VARIANTS, type StreamEditPlan, type StreamRenderState } from '../api/streams.ts';
+import { STREAM_VARIANTS, type StreamClipRange, type StreamEditPlan, type StreamRenderState } from '../api/streams.ts';
 import { CREATE_FLOW_STEPS } from '../produce/create-flow.ts';
 import { formatStreamClock } from './plan.ts';
-import { streamMomentsLabel, streamPlanShorts, streamShortCount, type StreamShort } from './groups.ts';
+import { momentsWord, streamPlanShorts, streamShortCount, type StreamShort } from './groups.ts';
+import { momentsFooterHint, momentsFooterText, momentsInOrder, momentsRangeIssue } from './moments.ts';
 import type { StreamPlaybackMode } from '../stream-playback.ts';
 
 export const STREAM_STEP = { cuts: 'cuts', layout: 'layout', review: 'review', results: 'results' } as const;
@@ -63,7 +64,7 @@ export function streamEditorSteps({
     {
       key: 'cuts',
       ...workflowEntry('cuts'),
-      detail: streamMomentsLabel(plan.clips.length, streamShortCount(plan)),
+      detail: momentsWord(plan.clips.length),
       done: plan.clips.length > 0,
       optional: false,
       disabled: false,
@@ -79,7 +80,7 @@ export function streamEditorSteps({
     {
       key: 'review',
       ...workflowEntry('review'),
-      detail: 'Un vídeo por Short',
+      detail: shortsWord(streamShortCount(plan)),
       done: videoCount > 0 && !stale,
       optional: false,
       disabled: false,
@@ -102,12 +103,32 @@ export function streamEditorSteps({
   return steps;
 }
 export function streamOutputSummary(plan: StreamEditPlan, stale: boolean): string {
-  if (!plan.clips.length) return 'Marca el inicio y el final de tu primer momento';
+  if (!plan.clips.length) return 'Vuelve a Momentos y elige tu primer momento';
   return (
     streamPlanShorts(plan)
       .map((short, index) => `${String(index + 1).padStart(2, '0')} · ${formatStreamClock(short.durationSeconds)}`)
       .join(', ') + (stale ? ' · Cambios sin exportar' : '')
   );
+}
+export function streamFooterLabels({
+  step,
+  plan,
+  stale,
+  sourceDuration,
+}: {
+  step: StreamStep;
+  plan: StreamEditPlan;
+  stale: boolean;
+  sourceDuration: number;
+}): { count: string; summary: string } {
+  if (step === STREAM_STEP.cuts) {
+    const issue = momentsRangeIssue({ clips: plan.clips, sourceDuration });
+    return { count: momentsFooterText(plan.clips), summary: issue ?? momentsFooterHint(plan.clips.length) };
+  }
+  if (step === STREAM_STEP.layout) {
+    return { count: momentsFooterText(plan.clips), summary: 'En el siguiente paso revisas tus Shorts antes de exportar.' };
+  }
+  return { count: shortsWord(streamShortCount(plan)), summary: streamOutputSummary(plan, stale) };
 }
 export type StreamBlocker = 'cuts' | 'layout';
 export function streamPlanBlocker(plan: StreamEditPlan): StreamBlocker | null {
@@ -153,13 +174,20 @@ export function streamTimelineLabel({
   mode,
   shorts,
   clipId,
+  moments,
 }: {
   mode: StreamPlaybackMode;
   shorts: readonly StreamShort[];
   clipId: string | null;
+  moments?: readonly StreamClipRange[];
 }): string {
-  const index = shorts.findIndex((short) => short.clips.some((clip) => clip.id === clipId));
+  const units = moments ? momentsInOrder(moments).map((moment) => [moment.clip]) : shorts.map((short) => short.clips);
+  const index = units.findIndex((clips) => clips.some((clip) => clip.id === clipId));
   if (mode === 'source' || index < 0) return 'Recorrer el vídeo original';
-  const position = `Short ${index + 1} de ${shorts.length}`;
+  if (moments) {
+    const position = `momento ${index + 1} de ${units.length}`;
+    return mode === 'sequence' ? `Todos los momentos · ahora el ${position}` : `Momento seleccionado · ${position}`;
+  }
+  const position = `Short ${index + 1} de ${units.length}`;
   return mode === 'sequence' ? `Todos los Shorts · ahora el ${position}` : `Short seleccionado · ${position}`;
 }

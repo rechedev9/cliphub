@@ -141,9 +141,9 @@ func findStreamPlaysSchema() *jsonschema.Schema {
 
 func registerStreamRenderTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "find_stream_plays", InputSchema: findStreamPlaysSchema(),
-		Description: "Find the streamer's kills in a ready stream (the kill feed highlight of CS2) and list each run of kills as a play, best first: the Jugadas list of a stream in Studio. " +
-			"It also finds voice peaks, where the streamer raises their voice over their own usual level (a reaction, or a shout on purpose to mark a clip): a peak next to a kill raises that play's score, and one alone is a play of kind voice_peak. " +
-			"voice and voice_sensitivity are the Studio's switch and slider. The first call starts the scan; call again while status is running."},
+		Description: "Find the streamer's kills in a ready stream (the red mark CS2's kill feed puts on their own kills) and list each run of kills as a play (a jugada), best first: the Jugadas list of a stream in Studio. " +
+			"It also finds voice peaks (picos de voz), where the streamer raises their voice over their own usual level (a reaction, or a shout on purpose to mark a play): a peak next to a kill raises that play's score, and one alone is a play of kind voice_peak. " +
+			"voice and voice_sensitivity are the Studio's Ajustes de detección: Incluir picos de voz, and Cuánto tienes que gritar (Poco is 5, Normal 3, Mucho 1). The first call starts the scan; call again while status is running."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in findStreamPlaysIn) (*mcp.CallToolResult, streamPlaysOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, streamPlaysOut{}, err
@@ -182,7 +182,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "render_stream_summary", Meta: appToolMeta(jobProgressAppURI),
-		Description: "Render one 16:9 video with the plays find_stream_plays found, in video order: the Resumen horizontal of a VOD in Studio. " +
+		Description: "Render one 16:9 video with the plays find_stream_plays found, in video order: the resumen of a VOD in Studio, opened with Hacer resumen on its project card. It is made from plays, never from the saved moments. " +
 			"play_ids picks some of them, as the Jugadas del resumen list does; empty uses every play. " +
 			"It encodes for minutes, so the user must approve it. If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
 			"Follow with wait_for_stream_render and variant summary."},
@@ -241,7 +241,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "render_stream", Meta: appToolMeta(jobProgressAppURI),
-		Description: "Render a stream's moments as videos in one layout from list_stream_variants, one MP4 per moment, or per group of moments joined with edit_stream_plan: vertical 9:16 Shorts or 16:9. " +
+		Description: "Render a stream's moments (the momentos of Studio) as videos in one layout from list_stream_variants, one MP4 per moment, or per group of moments joined with edit_stream_plan: vertical 9:16 Shorts or 16:9. " +
 			"play_ids from find_stream_plays are added to the moments the user saved in Studio, as the Añadir button does: a play that overlaps a saved moment is skipped. Empty renders the saved moments. " +
 			"A facecam layout needs the facecam crop checked once in Studio first. It encodes for minutes, so the user must approve it: " +
 			"if the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
@@ -439,7 +439,7 @@ func voiceNote(p tuiclient.StreamPlay) string {
 		note += ", loud enough to be on purpose"
 	}
 	if len(p.KillSeconds) == 0 {
-		return note + "; a reaction clip with no kill."
+		return note + "; a reaction with no kill."
 	}
 	return note + " next to the kills, which raised the score."
 }

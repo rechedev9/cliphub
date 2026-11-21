@@ -5,7 +5,7 @@ export function streamTitle(job: Pick<StreamJob, 'title' | 'source_url' | 'edit_
   const title = readableTitle(job.title);
   if (title) return title;
   const clipTitle = job.edit_plan?.clips.map((clip) => readableTitle(clip.title)).find(Boolean);
-  return clipTitle || 'Clip de stream';
+  return clipTitle || 'Stream sin título';
 }
 
 /** Browser tab title for one stream project; follows the root `%s · ClipHub` template. */

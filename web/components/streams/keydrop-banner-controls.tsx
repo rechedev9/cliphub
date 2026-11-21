@@ -155,7 +155,7 @@ export function StreamKeyDropBannerControls({
 
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label className="text-label text-fg-2">Visible en el clip</Label>
+              <Label className="text-label text-fg-2">Visible en cada momento</Label>
               <output className="text-label tabular-nums text-fg-1">
                 {formatDecimal(startSeconds, 1)} s → {formatDecimal(endSeconds, 1)} s
               </output>
@@ -199,7 +199,7 @@ export function StreamKeyDropBannerControls({
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="keydrop-window-start" className="sr-only">
-                Inicio del banner en el clip
+                Inicio del banner en cada momento
               </Label>
               <input
                 id="keydrop-window-start"

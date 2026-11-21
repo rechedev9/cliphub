@@ -451,7 +451,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
         icon={Film}
         accent="magenta"
         title="Ese stream ya no está"
-        description="El trabajo no existe o se ha borrado. Vuelve a la lista para traer otro clip."
+        description="El trabajo no existe o se ha borrado. Vuelve a la lista para traer otro vídeo."
         actions={
           <Button asChild>
             <Link href={STREAMS_HREF}>Volver a Clips de stream</Link>
@@ -491,7 +491,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           Trayendo el vídeo
         </span>
         <h1 className="font-display text-title font-bold text-fg-1">
-          {job?.title?.trim() || 'Clip de stream'}
+          {job?.title?.trim() || 'Stream sin título'}
         </h1>
         <p className="text-body text-fg-2">
           Descargando el vídeo en este PC. El editor se abre solo en cuanto termine; puedes esperar aquí o volver más tarde.

@@ -19,11 +19,11 @@ export type StreamImportError = { source: 'url' | 'file'; message: string };
 const KIND_COPY: Record<StreamSourceKind, { placeholder: string; result: string }> = {
   clip: {
     placeholder: 'Pega el enlace de un clip de Twitch, YouTube o Kick',
-    result: 'Un momento corto: lo pasas a vertical, ajustas la cámara y lo exportas como un Short.',
+    result: 'Un vídeo corto: lo pasas a vertical, ajustas la cámara y lo exportas como un Short.',
   },
   vod: {
     placeholder: 'Pega el enlace del VOD de Twitch, YouTube o Kick',
-    result: 'Un directo entero: detectamos tus kills para sacar Shorts verticales y, si quieres, un resumen horizontal con las que elijas.',
+    result: 'Un directo entero: buscamos tus jugadas, eliges tus momentos para los Shorts verticales y, si quieres, haces un resumen horizontal.',
   },
 };
 
@@ -91,7 +91,7 @@ export function StreamSourcePanel({
             De tu directo a Shorts
           </h1>
           <p className="measure-read text-body text-fg-2">
-            Pega el enlace de un VOD o de un clip, o sube tu grabación. Cada momento que elijas sale como un Short vertical, y de un VOD completo también puedes sacar un resumen horizontal.
+            Pega el enlace de un VOD o de un clip, o sube tu grabación. Elige tus mejores momentos y conviértelos en Shorts verticales. De un VOD completo también puedes sacar un resumen horizontal.
           </p>
         </div>
         <span id="stream-kind-label" className="sr-only">Qué vas a importar</span>

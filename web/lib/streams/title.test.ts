@@ -4,7 +4,7 @@ import { streamDocumentTitle, streamTitle } from './title.ts';
 
 test('stream titles retain Unicode and do not invent characters lost in older imports', () => {
   assert.equal(streamTitle({ title: ' dale niño ! 🎯 ' }), 'dale niño ! 🎯');
-  assert.equal(streamTitle({ title: 'dale ni\uFFFDo !' }), 'Clip de stream');
+  assert.equal(streamTitle({ title: 'dale ni\uFFFDo !' }), 'Stream sin título');
 });
 
 test('the editor tab is named after the project', () => {

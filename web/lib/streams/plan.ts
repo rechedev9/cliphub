@@ -295,39 +295,6 @@ export function clipOutputDuration(clip: StreamClipRange): number {
   return speed > 0 ? clipSourceDuration(clip) / speed : 0;
 }
 
-export type ClipTimelineGeometry = {
-  /** Where the clip starts on the source timeline, as a 0..100 percentage. */
-  startPercent: number;
-  /** How much of the source timeline the clip covers, as a 0..100 percentage. */
-  widthPercent: number;
-  /** Fade-in width as a percentage OF THE CLIP, 0 when there is no fade. */
-  fadeInPercent: number;
-  fadeOutPercent: number;
-};
-
-/** Clip band on the source timeline; null until the probe reports a duration. */
-export function clipTimelineGeometry(
-  clip: StreamClipRange,
-  sourceDuration: number,
-): ClipTimelineGeometry | null {
-  if (!Number.isFinite(sourceDuration) || sourceDuration <= 0) return null;
-  const span = clipSourceDuration(clip);
-  if (span <= 0) return null;
-  const start = Math.min(Math.max(clip.start_seconds, 0), sourceDuration);
-  const width = Math.min(span, sourceDuration - start);
-  const outputSeconds = clipOutputDuration(clip);
-  const fadeShare = (seconds: number | undefined): number => {
-    if (!seconds || seconds <= 0 || outputSeconds <= 0) return 0;
-    return Math.min(100, (seconds / outputSeconds) * 100);
-  };
-  return {
-    startPercent: (start / sourceDuration) * 100,
-    widthPercent: Math.max(0, (width / sourceDuration) * 100),
-    fadeInPercent: fadeShare(clip.edit?.fade_in_seconds),
-    fadeOutPercent: fadeShare(clip.edit?.fade_out_seconds),
-  };
-}
-
 /** `m:ss` (or `h:mm:ss`) clock for rails, rulers and cut cards. */
 export function formatStreamClock(seconds: number): string {
   // Round to the nearest second instead of truncating, so 7.9 s reads 0:08.

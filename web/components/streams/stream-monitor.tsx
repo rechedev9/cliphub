@@ -9,6 +9,7 @@ import { formatStreamClock } from '@/lib/streams/plan';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { CropPicker } from '@/components/streams/crop-picker';
+import { Kbd } from '@/components/streams/kbd';
 import { StreamPreview } from '@/components/streams/stream-preview';
 import { StreamFrameCanvas, useStreamFrame } from '@/components/streams/stream-frame-session';
 
@@ -36,6 +37,8 @@ export function StreamMonitor({
   onRetry,
   hasSelection,
   clipCount,
+  watching,
+  playShortcut,
 }: {
   preview: ComponentProps<typeof StreamPreview>;
   cropEditor?: StreamCropEditor;
@@ -53,6 +56,8 @@ export function StreamMonitor({
   onRetry: () => void;
   hasSelection: boolean;
   clipCount: number;
+  watching?: string;
+  playShortcut?: string;
 }): ReactNode {
   const { hasFrame } = useStreamFrame();
   const sizeId = useId();
@@ -80,6 +85,45 @@ export function StreamMonitor({
     [PLAYBACK_STATUS.seeking]: 'Buscando posición…',
   };
   const statusLabel = statusLabels[status];
+  const notices = (
+    <>
+      {statusLabel ? <p role="status" className="shrink-0 text-label text-fg-3">{statusLabel}</p> : null}
+      {previewError ? (
+        <div role="alert" className="shrink-0 text-body-sm text-destructive">
+          <p>{previewError}</p>
+          <Button variant="outline" size="sm" onClick={onRetry}>Reintentar</Button>
+        </div>
+      ) : null}
+    </>
+  );
+
+  if (watching !== undefined) {
+    return (
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="relative aspect-video max-h-[60dvh] w-full overflow-hidden rounded-md bg-black ring-2 ring-format-stream/65">
+          <StreamFrameCanvas mode="contain" className="size-full" />
+          {!hasFrame ? (
+            <div role={previewError ? 'alert' : 'status'} className="absolute inset-0 z-10 flex items-center justify-center bg-surface-1 px-4 text-center text-body-sm text-fg-2">
+              {previewError ? 'Vista previa no disponible. Usa Reintentar para cargarla.' : 'Cargando el primer fotograma…'}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Button variant="stream" disabled={!canPlay} onClick={onTogglePlay}>
+            {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
+            {playing ? 'Pausar' : 'Reproducir'}
+          </Button>
+          <p className="min-w-0 truncate text-body-sm text-fg-2">
+            Estás viendo: <strong className="text-fg-1">{watching}</strong>
+          </p>
+          <output aria-label="Tiempo de reproducción" className="ml-auto text-label tabular-nums text-fg-2">
+            {formatStreamClock(elapsedSeconds)} / {formatStreamClock(playbackDuration)}
+          </output>
+        </div>
+        {notices}
+      </div>
+    );
+  }
 
   return (
     // `contents`: the rows are items of the Monitor column, which lets the views shrink.
@@ -124,9 +168,10 @@ export function StreamMonitor({
         ) : null}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
-        <Button variant="outline" disabled={!canPlay} onClick={onTogglePlay}>
+        <Button variant="outline" disabled={!canPlay} aria-keyshortcuts={playShortcut ? 'Space' : undefined} onClick={onTogglePlay}>
           {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
           {playing ? 'Pausar' : playLabel}
+          {playShortcut ? <Kbd>{playShortcut}</Kbd> : null}
         </Button>
         <Button variant={loop ? 'secondary' : 'ghost'} size="icon" aria-label="Repetir reproducción" aria-pressed={loop} onClick={() => onLoopChange(!loop)}>
           <Repeat aria-hidden />
@@ -152,13 +197,7 @@ export function StreamMonitor({
           <input id={sizeId} type="range" min={280} max={640} step={20} value={monitorHeight ?? fittedHeight} onChange={(event) => setMonitorHeight(Number(event.target.value))} className="w-24 accent-stream" />
         </label>
       </div>
-      {statusLabel ? <p role="status" className="shrink-0 text-label text-fg-3">{statusLabel}</p> : null}
-      {previewError ? (
-        <div role="alert" className="shrink-0 text-body-sm text-destructive">
-          <p>{previewError}</p>
-          <Button variant="outline" size="sm" onClick={onRetry}>Reintentar</Button>
-        </div>
-      ) : null}
+      {notices}
     </div>
   );
 }

@@ -145,7 +145,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     points: [
       {
         term: 'Elegir momentos',
-        text: 'Marca cada corte que quieras. Cada momento se convierte en su propio Short.',
+        text: 'Añade las jugadas que ClipHub encuentra o marca tus momentos a mano. En Revisar decides qué momentos van juntos en un Short.',
       },
       {
         term: 'Ajustar aspecto',
