@@ -192,7 +192,8 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 				return nil, fullDemoPlanOut{}, err
 			}
 			options := state.Defaults
-			if in.fullDemoExtrasIn != (fullDemoExtrasIn{}) {
+			// The added clips change only the render, so a check does not upload them.
+			if in.fullDemoExtrasIn != (fullDemoExtrasIn{}) && !in.CheckOnly {
 				uploader, err := s.uploadClient(ctx)
 				if err != nil {
 					return nil, fullDemoPlanOut{}, toolError(err)

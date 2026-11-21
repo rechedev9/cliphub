@@ -125,7 +125,8 @@ Editing a finished video keeps every version: list_video_versions lists them wit
 delete_video_version deletes an older one. To edit a Full Demo, call plan_full_demo with the changed options:
 needs_capture says whether render_full_demo opens CS2 (only missing_rounds are recorded) or only renders again; HUD
 design, style, names, portrait, brand kit, transitions, overlays, sound and clips never need a capture. plan_full_demo
-check_only answers needs_capture without saving the plan; get_full_demo_plan reads the current plan or, with a plan_id
+check_only answers needs_capture without saving the plan or uploading clips; full_demo_rounds lists the rounds a Full
+Demo records with their seconds, to pick rounds and see the length before planning; get_full_demo_plan reads the current plan or, with a plan_id
 from list_video_versions, the plan an older version rendered. Studio keeps the
 captures of the newest rendered Full Demos (storage_usage capture_retention, set_capture_retention, default 3).
 To edit a Short, call generate_short with a version's segment_ids and the changed options: its recorded plays are
@@ -243,7 +244,7 @@ FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_fol
 follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account). faceit_ranking is the ranking
 selector of Jugadores FACEIT: the top 100 of a country (ISO code), a region (EU, NA, SA, OCE, SEA) or a zone (cis, latam), by pages;
 rank is the place in that list, stale says FACEIT failed and the stored copy of fetched_at answered;
-faceit_ranking_countries lists the countries it offers. job_players of a FACEIT demo adds the room scoreboard (faceit).
+faceit_ranking_countries lists the countries it offers. job_players faceit_room adds the room scoreboard of a FACEIT demo (faceit).
 Lineups pro are grenades pros repeat in pro matches, served by the ClipHub community server:
 list_pro_lineup_maps, find_pro_lineups (kind, side, landing and throw callouts, insta, video for lineups with a recorded clip), get_pro_lineup
 (setpos, teams, partners, examples, and clip_url: the recorded throw with the thrower's keys, once one is

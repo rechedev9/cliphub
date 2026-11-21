@@ -1,9 +1,7 @@
 package httpapi
 
-// The reasons a route has no MCP tool. parityGap entries are features an assistant cannot
-// reach yet: they may only shrink, and a new route never joins them (.claude/rules/mcp-parity.md).
+// The reasons a route has no MCP tool. A feature a Studio screen uses is never one of them (.claude/rules/mcp-parity.md).
 const (
-	parityGap    = "parity gap frozen on 2026-11-21: a Studio screen uses it and no tool does"
 	mediaFile    = "a file or image a screen draws; tools return its URL"
 	noScreen     = "no Studio screen calls it either"
 	notAFeature  = "called by Studio itself or a plugin, not by a user"
@@ -12,7 +10,6 @@ const (
 
 // routesWithoutMCPTool lists the routes TestEveryRouteHasAnMCPTool lets through, each with its reason.
 var routesWithoutMCPTool = map[Route]string{
-	get("/api/jobs/{id}/recap-plan"):                                                     parityGap,
 	get("/api/jobs/{id}/renders/{variant}/publish"):                                      noScreen,
 	get("/api/library/documents/{id}/content"):                                           mediaFile,
 	get("/api/voice-plugin/live"):                                                        notAFeature,

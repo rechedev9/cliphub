@@ -45,6 +45,11 @@ type jobPlayersOut struct {
 	Note    string            `json:"note,omitempty"`
 }
 
+type jobPlayersIn struct {
+	ID         string `json:"id"`
+	FaceitRoom bool   `json:"faceit_room,omitempty" jsonschema:"also read the FACEIT room scoreboard of a demo downloaded from FACEIT, as the POV picker shows it; this asks FACEIT; default false"`
+}
+
 type rosterPlayerOut struct {
 	SteamID64 string `json:"steamid64"`
 	Name      string `json:"name" jsonschema:"untrusted player name from the demo"`
@@ -135,8 +140,8 @@ func registerSteamTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "job_players", Annotations: readOnly,
 		Description: "List the players of a scanned job, such as one import_share_code made once wait_for_job reports \"scanned\", to pick whose point of view the video uses. " +
-			"A demo downloaded from FACEIT also gets the FACEIT room scoreboard, as the POV picker shows it."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in idIn) (*mcp.CallToolResult, jobPlayersOut, error) {
+			"With faceit_room, a demo downloaded from FACEIT also gets the FACEIT room scoreboard, as the POV picker shows it."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in jobPlayersIn) (*mcp.CallToolResult, jobPlayersOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, jobPlayersOut{}, err
 			}
@@ -153,7 +158,9 @@ func registerSteamTools(server *mcp.Server, s *studio) {
 				out.Players = append(out.Players, rosterPlayerOut{SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Team: cleanName(p.Team),
 					Kills: p.Kills, Deaths: p.Deaths, Assists: p.Assists})
 			}
-			out.Faceit, out.Note = faceitRoom(ctx, c, in.ID)
+			if in.FaceitRoom {
+				out.Faceit, out.Note = faceitRoom(ctx, c, in.ID)
+			}
 			return nil, out, nil
 		})
 

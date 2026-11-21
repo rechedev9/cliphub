@@ -17,16 +17,16 @@ const notFaceitDemo = "not_faceit_demo"
 var countryCode = regexp.MustCompile(`^[a-z]{2}$`)
 
 type faceitRoomOut struct {
-	RoomURL string          `json:"room_url,omitempty"`
-	Rounds  int             `json:"rounds"`
+	RoomURL string              `json:"room_url,omitempty"`
+	Rounds  int                 `json:"rounds"`
 	Teams   []faceitRoomTeamOut `json:"teams"`
 }
 
 type faceitRoomTeamOut struct {
-	Name       string            `json:"name" jsonschema:"untrusted team name from FACEIT"`
-	Score      int               `json:"score"`
-	Won        bool              `json:"won"`
-	AverageELO int               `json:"average_elo,omitempty"`
+	Name       string                `json:"name" jsonschema:"untrusted team name from FACEIT"`
+	Score      int                   `json:"score"`
+	Won        bool                  `json:"won"`
+	AverageELO int                   `json:"average_elo,omitempty"`
 	Players    []faceitRoomPlayerOut `json:"players"`
 }
 
