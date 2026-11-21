@@ -1,0 +1,7 @@
+{
+  "scripts/build.mjs": 4,
+  "src/bridge.ts": 4,
+  "src/job-progress/app.tsx": 5,
+  "src/job-progress/progress.ts": 13,
+  "src/json.ts": 1
+}
