@@ -201,7 +201,6 @@ func removeLegacy(clientPath string) {
 
 // fileOf builds the path of a kept video. The id must be a UUID and the name a
 // plain MP4 name, so a request can never reach outside the results folder.
-// ValidName reports whether name is a video file name the store serves.
 func ValidName(name string) bool {
 	return videoNamePattern.MatchString(name)
 }

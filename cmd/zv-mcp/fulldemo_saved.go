@@ -30,7 +30,6 @@ type fullDemoRoundsOut struct {
 	TotalSeconds int                `json:"total_seconds" jsonschema:"length of every round together, before intro, clips and outro"`
 }
 
-// describeFullDemoRounds is the round list and length the Full Demo editor shows from the recap plan.
 func describeFullDemoRounds(jobID string, plan tuiclient.Plan) fullDemoRoundsOut {
 	tickrate := plan.Demo.Tickrate
 	if tickrate <= 0 {
@@ -47,7 +46,6 @@ func describeFullDemoRounds(jobID string, plan tuiclient.Plan) fullDemoRoundsOut
 	return out
 }
 
-// checkFullDemoCapture answers plan_full_demo check_only from POST /full-demo/capture-check.
 func checkFullDemoCapture(ctx context.Context, c *tuiclient.Client, jobID string, options json.RawMessage) (*mcp.CallToolResult, fullDemoPlanOut, error) {
 	raw, err := c.CheckFullDemoCapture(ctx, jobID, options)
 	if err != nil {

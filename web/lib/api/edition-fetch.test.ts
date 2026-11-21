@@ -20,7 +20,6 @@ afterEach(() => {
   requested.length = 0;
 });
 
-// The calls #513 removed by hand: the web edition polled these after sign-in and each answered 404.
 test('the web edition refuses Studio-only APIs before the network', async () => {
   useEdition('web');
   for (const path of ['/api/demos/jobs', '/api/imported-videos', '/api/streams', '/api/presets', '/api/demos/batch-status?ids=a']) {

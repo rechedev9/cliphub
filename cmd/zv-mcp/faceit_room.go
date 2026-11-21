@@ -11,7 +11,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
-// notFaceitDemo is the orchestrator's code for a demo that does not come from a FACEIT room.
 const notFaceitDemo = "not_faceit_demo"
 
 var countryCode = regexp.MustCompile(`^[a-z]{2}$`)
@@ -47,7 +46,6 @@ type faceitCountriesOut struct {
 	Countries []string `json:"countries" jsonschema:"ISO 3166-1 alpha-2 codes, lower case, for faceit_ranking with kind country"`
 }
 
-// faceitRoom reads the room scoreboard; a demo that is not from FACEIT, or a failed read, has none.
 func faceitRoom(ctx context.Context, c *tuiclient.Client, jobID string) (*faceitRoomOut, string) {
 	board, err := c.FaceitScoreboard(ctx, jobID)
 	switch {
@@ -59,7 +57,6 @@ func faceitRoom(ctx context.Context, c *tuiclient.Client, jobID string) (*faceit
 	return describeFaceitRoom(board), ""
 }
 
-// faceitRoomURL keeps only a link to a FACEIT room page.
 func faceitRoomURL(raw string) string {
 	if !strings.HasPrefix(raw, "https://www.faceit.com/") {
 		return ""

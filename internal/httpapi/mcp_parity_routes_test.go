@@ -1,6 +1,5 @@
 package httpapi
 
-// The reasons a route has no MCP tool. A feature a Studio screen uses is never one of them (.claude/rules/mcp-parity.md).
 const (
 	mediaFile    = "a file or image a screen draws; tools return its URL"
 	noScreen     = "no Studio screen calls it either"
@@ -8,7 +7,6 @@ const (
 	webEditionIO = "the web edition's own upload path; Studio imports through import_demo"
 )
 
-// routesWithoutMCPTool lists the routes TestEveryRouteHasAnMCPTool lets through, each with its reason.
 var routesWithoutMCPTool = map[Route]string{
 	get("/api/jobs/{id}/renders/{variant}/publish"):                                      noScreen,
 	get("/api/library/documents/{id}/content"):                                           mediaFile,

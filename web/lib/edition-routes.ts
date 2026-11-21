@@ -47,7 +47,6 @@ const WEB_ONLY_PAGE_ROUTES = [
   '/api/cm',
 ] as const;
 
-/** Reachable without a sign-in in the web edition; everything else asks for one. */
 const PUBLIC_WEB_ROUTES: readonly string[] = [
   '/iniciar-sesion',
   '/crear-cuenta',
@@ -72,7 +71,6 @@ const DESKTOP_ONLY_PREFIXES: readonly string[] = [
   ...DESKTOP_API_PREFIXES,
 ];
 
-/** Desktop is the default so existing Electron builds keep every route. */
 export function currentEdition(): Edition {
   return process.env.NEXT_PUBLIC_CLIPHUB_EDITION === 'web' ? 'web' : 'desktop';
 }

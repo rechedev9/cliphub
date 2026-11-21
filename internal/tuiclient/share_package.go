@@ -2,7 +2,6 @@ package tuiclient
 
 import "context"
 
-// SharePackageImport is what POST /api/library/import-package stored from a .cliphub package.
 type SharePackageImport struct {
 	Kind            string `json:"kind"`
 	Title           string `json:"title"`
@@ -14,7 +13,6 @@ type SharePackageImport struct {
 	Annotations     int    `json:"annotations"`
 }
 
-// ImportSharePackage uploads a .cliphub package from this PC into the library.
 func (c *Client) ImportSharePackage(ctx context.Context, filePath string) (SharePackageImport, error) {
 	var out SharePackageImport
 	err := c.uploadMultipart(ctx, upload{Path: "/api/library/import-package", FileField: "package", FilePath: filePath}, &out)

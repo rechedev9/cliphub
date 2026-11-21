@@ -20,8 +20,7 @@ const (
 	defaultStorageFiles = 50
 	maxStorageFiles     = 500
 	maxPathRunes        = 1024
-	// maxEstimateSeconds is the cap GET /api/storage/space accepts.
-	maxEstimateSeconds = 24 * 60 * 60
+	maxEstimateSeconds  = 24 * 60 * 60
 )
 
 // storageKindLabels names each file kind the way the Almacenamiento screen does.

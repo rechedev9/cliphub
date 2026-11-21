@@ -28,7 +28,6 @@ type deleteImportedVideoIn struct {
 	Approve    string `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
 }
 
-// describeImportedVideos keeps the videos whose ids Studio would serve, with a playable URL when the web UI is up.
 func describeImportedVideos(videos []tuiclient.ImportedVideo, origin string) []importedVideoOut {
 	out := []importedVideoOut{}
 	for _, v := range videos {

@@ -192,7 +192,6 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 				return nil, fullDemoPlanOut{}, err
 			}
 			options := state.Defaults
-			// The added clips change only the render, so a check does not upload them.
 			if in.fullDemoExtrasIn != (fullDemoExtrasIn{}) && !in.CheckOnly {
 				uploader, err := s.uploadClient(ctx)
 				if err != nil {
@@ -326,7 +325,6 @@ func loadFullDemoState(ctx context.Context, c *tuiclient.Client, jobID string) (
 	return decodeFullDemoState(raw)
 }
 
-// decodeFullDemoState reads a GET /full-demo/plan or /full-demo/plans/{planID} answer.
 func decodeFullDemoState(raw json.RawMessage) (fullDemoState, error) {
 	var wire struct {
 		Document json.RawMessage  `json:"document"`

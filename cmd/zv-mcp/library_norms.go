@@ -37,7 +37,6 @@ func registerLibraryNormsTool(server *mcp.Server, s *studio) {
 				return nil, libraryNormsOut{}, err
 			}
 			if !to.IsZero() {
-				// parseDateRange ends the day at the next midnight; the library's to bound is inclusive.
 				to = to.Add(-time.Second)
 			}
 			c, err := s.client(ctx)

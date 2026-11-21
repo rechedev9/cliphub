@@ -17,7 +17,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/store"
 )
 
-// mcpSourceDirs hold the code a Studio MCP tool runs: the tools and the orchestrator client they call.
 var mcpSourceDirs = []string{"../../cmd/zv-mcp", "../tuiclient"}
 
 var (
@@ -25,7 +24,6 @@ var (
 	literalSplit = regexp.MustCompile(`[/?=&.]`)
 )
 
-// mcpPathWords is every path word that a string literal in the MCP sources holds.
 func mcpPathWords(t *testing.T) map[string]bool {
 	t.Helper()
 	words := map[string]bool{}
@@ -60,8 +58,6 @@ func mcpPathWords(t *testing.T) map[string]bool {
 	return words
 }
 
-// TestEveryRouteHasAnMCPTool fails when a new orchestrator route has a path word that no
-// cmd/zv-mcp tool or internal/tuiclient call names: the UI gained a feature the assistants lack.
 func TestEveryRouteHasAnMCPTool(t *testing.T) {
 	words := mcpPathWords(t)
 	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{},

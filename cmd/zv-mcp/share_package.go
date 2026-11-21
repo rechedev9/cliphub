@@ -12,7 +12,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
-// codeShareDemoPending is the orchestrator's answer when a shared match's demo is in the library but not analyzed.
 const codeShareDemoPending = "share_demo_pending"
 
 type importSharePackageIn struct {

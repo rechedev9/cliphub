@@ -74,7 +74,6 @@ func (c *Client) GetPlan(ctx context.Context, id string) (Plan, error) {
 	return plan, err
 }
 
-// GetRecapPlan returns the full-round plan a Full Demo records, or a 409 APIError until it is built.
 func (c *Client) GetRecapPlan(ctx context.Context, id string) (Plan, error) {
 	var plan Plan
 	err := c.getJSON(ctx, jobPath(id)+"/recap-plan", &plan)

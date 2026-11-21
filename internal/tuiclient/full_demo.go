@@ -42,7 +42,6 @@ func (c *Client) GetFullDemoPlan(ctx context.Context, id string) (json.RawMessag
 	return result, err
 }
 
-// GetFullDemoPlanVersion reads the saved plan planID of a job, as an older Full Demo version rendered it.
 func (c *Client) GetFullDemoPlanVersion(ctx context.Context, id, planID string) (json.RawMessage, error) {
 	root, err := fullDemoJobPath(id)
 	if err != nil {
@@ -53,7 +52,6 @@ func (c *Client) GetFullDemoPlanVersion(ctx context.Context, id, planID string) 
 	return result, err
 }
 
-// CheckFullDemoCapture plans options without saving them and says what the capture would need.
 func (c *Client) CheckFullDemoCapture(ctx context.Context, id string, options json.RawMessage) (json.RawMessage, error) {
 	root, err := fullDemoJobPath(id)
 	if err != nil {

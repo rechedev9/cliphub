@@ -2,7 +2,6 @@ package tuiclient
 
 import "context"
 
-// FaceitScoreboard is GET /api/jobs/{id}/faceit-scoreboard: the FACEIT room's numbers for a FACEIT demo.
 type FaceitScoreboard struct {
 	MatchID string                 `json:"match_id"`
 	RoomURL string                 `json:"room_url"`
@@ -11,7 +10,6 @@ type FaceitScoreboard struct {
 	Teams   []FaceitScoreboardTeam `json:"teams"`
 }
 
-// FaceitScoreboardTeam is one side of the room scoreboard.
 type FaceitScoreboardTeam struct {
 	Name       string                   `json:"name"`
 	Score      int                      `json:"score"`
@@ -20,7 +18,6 @@ type FaceitScoreboardTeam struct {
 	Players    []FaceitScoreboardPlayer `json:"players"`
 }
 
-// FaceitScoreboardPlayer is one row of the room scoreboard.
 type FaceitScoreboardPlayer struct {
 	Nickname   string  `json:"nickname"`
 	SteamID64  string  `json:"steam_id64,omitempty"`
@@ -34,7 +31,6 @@ type FaceitScoreboardPlayer struct {
 	MVPs       int     `json:"mvps"`
 }
 
-// FaceitScoreboard reads the FACEIT room scoreboard of a job; ErrorCode is not_faceit_demo for any other demo.
 func (c *Client) FaceitScoreboard(ctx context.Context, jobID string) (FaceitScoreboard, error) {
 	var out struct {
 		Scoreboard FaceitScoreboard `json:"scoreboard"`
@@ -43,7 +39,6 @@ func (c *Client) FaceitScoreboard(ctx context.Context, jobID string) (FaceitScor
 	return out.Scoreboard, err
 }
 
-// FaceitCountries lists the country codes the FACEIT ranking selector offers.
 func (c *Client) FaceitCountries(ctx context.Context) ([]string, error) {
 	var out struct {
 		Countries []string `json:"countries"`
