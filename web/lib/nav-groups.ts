@@ -1,4 +1,4 @@
-import { isPathAvailable, type Edition } from './edition.ts';
+import { isPathAvailable, type Edition } from './edition-routes.ts';
 import { sectionForPath } from './nav.ts';
 
 export type SidebarEntryId =

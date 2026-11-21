@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Upload } from 'lucide-react';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { DemoImport } from '@/components/matches/demo-import';
 import { Button } from '@/components/ui/button';
 

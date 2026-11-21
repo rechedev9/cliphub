@@ -4,7 +4,7 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { Copy, Crosshair } from 'lucide-react';
 import { launchPractice, type PracticeLaunchOutcome, type PracticeSpot } from '@/lib/api/practice';
 import { Button } from '@/components/ui/button';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { cn } from '@/lib/utils';
 
 export type PracticeState = { kind: 'idle' } | { kind: 'busy' } | { kind: 'done'; outcome: PracticeLaunchOutcome };

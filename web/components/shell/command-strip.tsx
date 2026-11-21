@@ -12,7 +12,8 @@ import { JobTransport } from '@/components/shell/job-transport';
 import { ThemeMenu } from '@/components/shell/theme-menu';
 import { useCurrentRouteTitle } from '@/components/shell/route-title';
 import { FULL_SERIES_SEGMENT, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
-import { currentEdition, editionSectionForPath } from '@/lib/edition';
+import { editionSectionForPath } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { prettyMapName } from '@/lib/format';
 import { isToolPage, type NavSection } from '@/lib/nav';
 

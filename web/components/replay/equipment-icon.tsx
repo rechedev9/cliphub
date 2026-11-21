@@ -6,12 +6,13 @@ import type { EquipmentIconName } from '@/lib/api/game-assets';
 import { equipmentItem } from '@/lib/replay/equipment';
 import type { EquipmentCategory } from '@/lib/replay/equipment';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api/edition-fetch';
 
 /** Probed once per session: the game's icons load, or every icon stays a drawn silhouette. */
 let iconsProbe: Promise<boolean> | null = null;
 
 function probeIcons(): Promise<boolean> {
-  iconsProbe ??= fetch(equipmentIconUrl('ak47'))
+  iconsProbe ??= apiFetch(equipmentIconUrl('ak47'))
     .then((res) => res.ok && (res.headers.get('content-type') ?? '').startsWith('image/'))
     .catch(() => false);
   return iconsProbe;

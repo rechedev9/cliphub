@@ -1,4 +1,5 @@
 import { formatBytes } from '../storage.ts';
+import { apiFetch, assertEditionServes } from './edition-fetch.ts';
 
 /** Bytes the browser has handed to the local server so far. */
 export type UploadProgress = { loaded: number; total: number; percent: number };
@@ -49,8 +50,9 @@ function abortError(signal: AbortSignal): unknown {
  */
 export function uploadForm(options: UploadFormOptions): Promise<Response> {
   const { url, body, headers = {}, signal, onProgress } = options;
-  if (typeof XMLHttpRequest === 'undefined') return fetch(url, { method: 'POST', body, headers, signal });
+  if (typeof XMLHttpRequest === 'undefined') return apiFetch(url, { method: 'POST', body, headers, signal });
   return new Promise<Response>((resolve, reject) => {
+    assertEditionServes(url);
     if (signal?.aborted) {
       reject(abortError(signal));
       return;

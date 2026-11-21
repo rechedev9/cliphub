@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { demoVoiceAudioUrl, voiceTrackAudioUrl } from '@/lib/api/voice';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { ReplayClock } from '@/lib/replay/clock';
 import { demoMsOfTick, silentOutsideFreeze } from '@/lib/replay/voice-sync';

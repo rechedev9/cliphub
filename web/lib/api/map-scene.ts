@@ -1,4 +1,5 @@
 import { MapGeometryError } from './map-geometry.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 /**
  * The map's render scene (`internal/mapgeo/scenefile.go`): "CHMS", a uint32 version, a uint32
@@ -331,7 +332,7 @@ export function parseMapScene(buffer: ArrayBuffer): MapScene {
 
 /** Fetches the map's scene from the local CS2 install; `onProgress` gets the share read, 0 to 1. */
 export async function getMapScene(map: string, onProgress?: (share: number) => void): Promise<MapScene> {
-  const res = await fetch(`/api/maps/${encodeURIComponent(map)}/scene`, { cache: 'no-store' });
+  const res = await apiFetch(`/api/maps/${encodeURIComponent(map)}/scene`, { cache: 'no-store' });
   if (!res.ok) {
     let code: string | undefined;
     try {

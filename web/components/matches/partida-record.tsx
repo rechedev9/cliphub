@@ -25,7 +25,7 @@ import { MatchRecord } from '@/components/matches/match-record';
 import { ProMatchNotice } from '@/components/pro-matches/pro-match-notice';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
 import { Button } from '@/components/ui/button';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 
 type Resolved =
   | { kind: 'loading' }

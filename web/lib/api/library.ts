@@ -21,6 +21,7 @@ import type { Baseline, BaselineQuery, Leaderboard, LeaderboardQuery } from './b
 import type { LibraryNorms, LibraryNormsQuery } from './norms.ts';
 import type { TeamPlaybook, TeamPlaybookQuery, TeamPrep, TeamPrepQuery } from './playbook.ts';
 import type { TeamSideStats } from './side-stats.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 /**
  * Browser-side contract of the shared demo library (`internal/library`). Every
@@ -216,7 +217,7 @@ export function isLibraryNotFound(error: unknown): boolean {
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${LIBRARY_API_BASE}${path}`, { cache: 'no-store', ...init });
+  const res = await apiFetch(`${LIBRARY_API_BASE}${path}`, { cache: 'no-store', ...init });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: unknown; code?: unknown } | null;
     const message = body && typeof body.error === 'string' ? body.error : `library request failed (${res.status})`;

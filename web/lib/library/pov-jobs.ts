@@ -1,3 +1,5 @@
+import { apiFetch } from '../api/edition-fetch.ts';
+
 /**
  * Which of the library's jobs have a finished video, for the POV chip and "Con POV".
  * It reads the batch status of each job and preset, the same rows the MCP reads, and
@@ -33,7 +35,7 @@ export function readyVideoJobs(rows: readonly unknown[]): Set<string> {
 }
 
 async function readJson(path: string): Promise<unknown> {
-  const res = await fetch(path, { cache: 'no-store' });
+  const res = await apiFetch(path, { cache: 'no-store' });
   if (!res.ok) throw new Error(`${path} answered ${res.status}`);
   return res.json();
 }

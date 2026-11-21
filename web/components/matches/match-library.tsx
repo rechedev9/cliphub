@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { Link2, MonitorPlay, PlugZap, Swords, TriangleAlert } from 'lucide-react';
 import {
   LIBRARY_PARSE_STATES,

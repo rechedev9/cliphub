@@ -45,7 +45,8 @@ import { Button } from '@/components/ui/button';
 import { BrandMark, Wordmark } from '@/components/brand/wordmark';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
 import { SidebarDemoImport } from '@/components/shell/sidebar-demo-import';
-import { currentEdition, homeLabelFor, homePathFor } from '@/lib/edition';
+import { homeLabelFor, homePathFor } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import {
   VOICE_HREF,
   activeEntryId,

@@ -34,7 +34,7 @@ the paths in their frontmatter. Skills (recipes and checklists) live in `.claude
   and command build targets.
 - Web edition: `web/` built with `NEXT_PUBLIC_CLIPHUB_EDITION=web` talks to `cmd/clipmind-server`
   (`internal/clipmind`), which serves the same `httpapi.AnalysisRoutes()` with one SQLite library per
-  workspace. `web/lib/edition.ts` decides which pages and APIs each edition has.
+  workspace. `web/lib/edition-routes.ts` decides which pages and APIs each edition has.
 - On the VPS (SSH alias `openclaw`), never in the installer: ClipMind, the community API
   (`services/community`), telemetry (`services/telemetry`) and the landing (`landing/`).
 
@@ -52,18 +52,21 @@ the paths in their frontmatter. Skills (recipes and checklists) live in `.claude
 
 ## Golden rules
 
-Each rule has a check or a longer page behind it. Follow the link before you work around one.
+Each rule names what enforces it. "Review only" means nothing fails when an agent skips it: those are the next to turn into a check. Follow the link before you work around one.
 
-- Source files stay at or under 1000 lines. Files already past it are frozen: they shrink, never grow, and no max is raised (`TestGoFileLength` in `cmd/zv`, oxlint `max-lines`). [Split a file](.claude/skills/split-file/SKILL.md).
-- Code has no comments and no `eslint-*` or `oxlint-*` directives; only `//go:build`, `//go:embed`, a generated-code header, `/// <reference` and a shebang are allowed. Files that had comments before the rule are frozen in a `comment-baseline.json` that only shrinks: never raise a count or add a file (`TestNoComments` and `TestCommentBaselinesOnlyShrink` in `cmd/zv`; oxlint `cliphub/no-comments` from `tools/oxlint-no-comments` in web, desktop, landing and mcp-apps). A lint exception goes in the package's `.oxlintrc.json` `overrides`. After you delete comments, lower the baseline with `go test ./cmd/zv -run TestNoComments -shrink-comment-baseline` or `node ../tools/oxlint-no-comments/shrink-baseline.mjs` in the package.
-- No production function that only tests call: delete it or move it to a `_test.go` file. A helper that only `_windows.go` code calls lives in a `_windows.go` file. `TestNoDeadCode` in `cmd/zv` runs pinned `deadcode` and `staticcheck -checks U1000` for `GOOS=windows` and `GOOS=linux`; `-short` skips it.
-- A UI feature lands with its `cmd/zv-mcp` tool, `serverInstructions` and `docs/studio-mcp.md` row. [MCP parity](.claude/rules/mcp-parity.md).
-- A store method lands in SQLite and memory with a shared contract test. [SQLite store](.claude/rules/store-sqlite.md).
-- No e2e suites, verification scripts, evidence folders or reports; the `internal/pipeline` golden test is the one exception. Unit tests are welcome where they test real logic. [Render and the editor](.claude/rules/render-editor.md).
-- No CI on pushes or pull requests. Run the checks for what you touched; the full Go suite before a PR and before a release. [Release](.claude/rules/release.md).
-- After a code change, invoke `/post-work-review` with the Skill tool before every commit and fix what it finds; do not swap it for a self-review. Before opening a PR, also run `/code-review high --fix`. `.githooks/pre-commit` refuses an agent's commit whose staged tree the review did not record; a `SessionStart` hook in `.claude/settings.json` sets `core.hooksPath`. [Post-work review](.claude/skills/post-work-review/SKILL.md).
-- Check a user-visible change by hand in a throwaway Studio profile, never the real `%APPDATA%\cliphub-studio` and never through the session's `cliphub-studio` MCP. Delete the profile when the check is done. [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md).
-- The repository is public: write `<user>` and `%APPDATA%`, never tokens, keys, support codes or `agent-session.json` contents.
+| Rule | Enforced by |
+|---|---|
+| Source files stay at or under 1000 lines. Files already past it are frozen: they shrink, never grow, and no max is raised. [Split a file](.claude/skills/split-file/SKILL.md) | `TestGoFileLength` (`cmd/zv`), oxlint `max-lines` |
+| Code has no comments and no `eslint-*` or `oxlint-*` directives; only `//go:build`, `//go:embed`, a generated-code header, `/// <reference` and a shebang are allowed. Files that had comments before the rule are frozen in a `comment-baseline.json` that only shrinks: never raise a count or add a file. A lint exception goes in the package's `.oxlintrc.json` `overrides`. After you delete comments, lower the baseline with `go test ./cmd/zv -run TestNoComments -shrink-comment-baseline` or `node ../tools/oxlint-no-comments/shrink-baseline.mjs` in the package | `TestNoComments` and `TestCommentBaselinesOnlyShrink` (`cmd/zv`); oxlint `cliphub/no-comments` (`tools/oxlint-no-comments`) in web, desktop, landing and mcp-apps |
+| No production function that only tests call; a helper that only `_windows.go` code calls lives in a `_windows.go` file | `TestNoDeadCode` (`cmd/zv`, pinned `deadcode` and `staticcheck U1000` for Windows and Linux). `-short` skips it, so a `-short` run proves nothing about dead code |
+| UI code calls an API only through `apiFetch` (`web/lib/api/edition-fetch.ts`), and a shared component gates a Studio-only call on `currentEdition()`. [ClipMind and the VPS](.claude/rules/clipmind.md) | oxlint `no-restricted-globals` (bare `fetch`, `XMLHttpRequest`); `apiFetch` refuses a route the edition lacks (`web/lib/api/edition-fetch.test.ts`). The gate itself is review only |
+| A UI feature lands with its `cmd/zv-mcp` tool, `serverInstructions` and `docs/studio-mcp.md` row. [MCP parity](.claude/rules/mcp-parity.md) | Review only |
+| A store method lands in SQLite and memory with a shared contract test. [SQLite store](.claude/rules/store-sqlite.md) | Contract tests in `internal/store` |
+| No e2e suites, verification scripts, evidence folders or reports; the `internal/pipeline` golden test is the one exception. [Render and the editor](.claude/rules/render-editor.md) | Review only |
+| No CI on pushes or pull requests; the full Go suite runs locally before a PR and a release. [Release](.claude/rules/release.md) | Review only |
+| `/post-work-review` (Skill tool) before every commit, `/code-review high --fix` before a PR. [Post-work review](.claude/skills/post-work-review/SKILL.md) | `.githooks/pre-commit` refuses an agent's commit whose staged tree the review did not record (`core.hooksPath` set by the `SessionStart` hook) |
+| A user-visible change is checked by hand in a throwaway Studio profile, never the real `%APPDATA%\cliphub-studio` or the session's `cliphub-studio` MCP; the profile is deleted after. [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md) | Review only |
+| The repository is public: `<user>` and `%APPDATA%`, never tokens, keys, support codes or `agent-session.json` contents | Review only |
 
 ## Index
 
@@ -101,6 +104,7 @@ Keep both in step with the PR body sections and with what `studio_status` return
 ## Maintenance
 
 - When agents repeat a mistake, add a test or lint first. Write a rule only for what a check cannot catch.
+- A correction for a rule already in the Golden rules table, marked "Review only", is a repeat: turn it into a check in the same change. Drop a row once its mistake can no longer be written.
 - A rule states the invariant and names the test, linter or `docs/incidents.md` section behind it. It does not copy counts, lists or messages from the code.
 - A rule changes in the same PR as the code it describes. [Diff review](.claude/skills/diff-review/SKILL.md) checks it, and [Release check](.claude/skills/release-check/SKILL.md) rereads the rules before each release.
 - Each fact lives in one file; the others link to it.

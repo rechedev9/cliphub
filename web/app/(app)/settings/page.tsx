@@ -9,7 +9,7 @@ import { TelemetrySettings } from '@/components/settings/telemetry-settings';
 import { TeamSpeakSettings } from '@/components/settings/teamspeak-settings';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
 import { PlaybackDiagnostics } from '@/components/settings/playback-diagnostics';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 
 /** The web has no PC to prepare: only the look; the account and team have their own pages. */
 function WebSettings(): ReactNode {

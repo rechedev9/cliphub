@@ -7,7 +7,7 @@ import type { LibraryDemo } from '@/lib/api/library';
 import { PRODUCE_FORMAT, flowHref, type ProduceFormat } from '@/lib/clips/routes';
 import { withoutDemo, withoutDemoReason } from '@/lib/library/partidas';
 import { crearJobFor, toastCrearHandoffError } from '@/components/matches/open-in-crear-button';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { Button } from '@/components/ui/button';
 
 /** "Crear Short" and "Demo completa" for a partida: the analysis area hands the demo to Crear. */

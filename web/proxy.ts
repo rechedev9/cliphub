@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server.js';
 import { localAPIRequestError } from './lib/api/local-request-guard.ts';
 import { clearedCookies, resolveSession, sessionCookies, ACCESS_COOKIE, ACCESS_HEADER, REFRESH_COOKIE, type CookieSpec } from './lib/clipmind/session.ts';
 import { DEMO_COOKIE, DEMO_PATH, demoCookieOptions, demoDecision, demoHome } from './lib/clipmind/demo.ts';
-import { currentEdition, isPathAvailable, isPublicWebPath } from './lib/edition.ts';
+import { currentEdition, isPathAvailable, isPublicWebPath } from './lib/edition-routes.ts';
 
 /** The API routes this proxy guards; the rest check the guard in-handler. */
 const PROXY_GUARD_SCOPE = /^\/api\/(?!(?:demos\/scan\/?|library\/demos\/?|library\/uploads\/?|library\/import-package\/?|library\/matches\/[^/]+\/voice\/?|library\/matches\/[^/]+\/replay-video\/?|streams\/?|editor\/assets\/?|full-demo\/overlay-images\/?|demos\/[^/]+\/player-card\/image\/?|session\/bootstrap\/?|voice-plugin\/gamestate\/?)$).*/;

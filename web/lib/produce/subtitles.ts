@@ -2,6 +2,7 @@ import type { EditConfig, Play } from '../api/types.ts';
 import type { FullDemoOptions } from '../full-demo-plan.ts';
 import type { TranscriberState, VoiceTranscriber, VoiceTranscriptState } from '../api/voice.ts';
 import { fullDemoVoiceStatus } from './full-demo-brief.ts';
+import { apiFetch } from '../api/edition-fetch.ts';
 
 /** One phrase of the voices a demo recorded (`library.DemoVoiceLine` in Go); `start_ms` is demo time. */
 export type DemoVoiceLine = {
@@ -181,7 +182,7 @@ export function parseJobSubtitles(value: unknown): JobSubtitles | null {
 }
 
 export async function fetchJobSubtitles(jobId: string, signal?: AbortSignal): Promise<JobSubtitles> {
-  const response = await fetch(`/api/demos/${encodeURIComponent(jobId)}/subtitles`, { cache: 'no-store', signal });
+  const response = await apiFetch(`/api/demos/${encodeURIComponent(jobId)}/subtitles`, { cache: 'no-store', signal });
   if (!response.ok) throw new Error(`subtitles ${response.status}`);
   const subs = parseJobSubtitles(await response.json());
   if (subs === null) throw new Error('subtitles: unexpected answer');

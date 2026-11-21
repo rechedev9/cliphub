@@ -13,7 +13,7 @@ import { ScoutView } from '@/components/reports/scout-view';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
 import { groupEvidenceByMatch, type VideoSource } from '@/lib/library/analysis-video';
 import { Button } from '@/components/ui/button';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 

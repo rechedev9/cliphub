@@ -1,4 +1,5 @@
 import type { KillPlan } from '../api/map.ts';
+import { apiFetch } from '../api/edition-fetch.ts';
 
 /** The players a parsed plan films, anchor first; empty when the plan names no target. */
 export function planPick(plan: KillPlan): string[] {
@@ -22,7 +23,7 @@ export function isSamePick(a: readonly string[], b: readonly string[]): boolean 
 /** The pick of a parsed job, or null when its plan cannot be read. */
 export async function getOriginPick(jobId: string, signal?: AbortSignal): Promise<string[] | null> {
   try {
-    const res = await fetch(`/api/demos/${encodeURIComponent(jobId)}/plan`, { cache: 'no-store', signal });
+    const res = await apiFetch(`/api/demos/${encodeURIComponent(jobId)}/plan`, { cache: 'no-store', signal });
     if (!res.ok) return null;
     const plan: KillPlan = await res.json();
     const pick = planPick(plan);

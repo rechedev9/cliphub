@@ -6,7 +6,7 @@ import { DENSITY_OPTIONS, parseDensity } from '@/lib/density';
 import { setDensity, useDensity } from '@/components/shell/density';
 import { THEME_OPTIONS } from '@/components/shell/theme-menu';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { SettingsSection } from './settings-section';
 
 export function AppearanceSettings(): ReactNode {

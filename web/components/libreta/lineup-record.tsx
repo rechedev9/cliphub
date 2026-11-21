@@ -16,7 +16,7 @@ import { RecordHeader } from '@/components/records/record-header';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practice-launch';
 import { Button } from '@/components/ui/button';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';

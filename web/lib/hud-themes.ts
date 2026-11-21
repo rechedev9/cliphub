@@ -1,4 +1,5 @@
 import { customHudTheme } from './custom-hud.ts';
+import { apiFetch } from './api/edition-fetch.ts';
 
 /** Mirrors hudthemes.Style: a nil radius keeps the base design's shape. */
 export type HudStyle = { name: string; ct: string; t: string; background: string; radius?: number };
@@ -93,7 +94,7 @@ export function verticalHudPreviewUrl(base: string): string {
 }
 
 async function call(path: string, init?: RequestInit): Promise<unknown> {
-  const response = await fetch(path, { cache: 'no-store', ...init });
+  const response = await apiFetch(path, { cache: 'no-store', ...init });
   const body: unknown = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
     if (record(body) && body.code === 'hud_theme_limit') throw new Error('Ya tienes 10 temas, el máximo. Borra uno para crear otro.');

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Download, ExternalLink } from 'lucide-react';
-import { currentEdition } from '@/lib/edition';
+import { currentEdition } from '@/lib/edition-routes';
 import { formatShortDate } from '@/lib/format';
 import { formatDocumentSize, teamDocumentContentHref, TEAM_DOCUMENT_SANDBOX, type TeamDocument } from '@/lib/api/team-documents';
 import { Button } from '@/components/ui/button';

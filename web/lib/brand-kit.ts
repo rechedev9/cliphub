@@ -1,4 +1,5 @@
 import type { EditConfig } from './api/types.ts';
+import { apiFetch } from './api/edition-fetch.ts';
 
 /** Mirrors brandkit.ImageRef: an uploaded overlay image by id and content hash. */
 export type BrandImage = { id: string; sha256: string };
@@ -134,7 +135,7 @@ export function brandImageUrl(image: BrandImage): string {
 }
 
 async function call(init?: RequestInit): Promise<BrandKit> {
-  const response = await fetch(BRAND_KIT_API, { cache: 'no-store', ...init });
+  const response = await apiFetch(BRAND_KIT_API, { cache: 'no-store', ...init });
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) throw new Error(record(body) && typeof body.error === 'string' ? body.error : 'No se pudo leer el kit de marca.');
   const kit = parseBrandKit(body);
@@ -158,7 +159,7 @@ export async function uploadBrandImage(file: File, signal?: AbortSignal): Promis
   if (file.size === 0 || file.size > MAX_BRAND_IMAGE_BYTES) throw new Error('La imagen debe ocupar entre 1 byte y 10 MB.');
   const form = new FormData();
   form.set('image', file);
-  const response = await fetch(OVERLAY_IMAGES_API, { method: 'POST', body: form, signal });
+  const response = await apiFetch(OVERLAY_IMAGES_API, { method: 'POST', body: form, signal });
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) throw new Error(record(body) && typeof body.error === 'string' ? body.error : 'No se pudo subir la imagen.');
   const ref = record(body) ? { id: body.id, sha256: body.sha256 } : null;

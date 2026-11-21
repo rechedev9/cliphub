@@ -1,11 +1,6 @@
 import type { ApiClient, ScanDemoOptions } from './client.ts';
 import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.ts';
-import {
-  applyMusicChoice,
-  musicChoicesEqual,
-  titleWithMusicSuffix,
-  type MusicChoice,
-} from './reel-music.ts';
+import { applyMusicChoice, musicChoicesEqual, titleWithMusicSuffix, type MusicChoice } from './reel-music.ts';
 import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, ScannedDemo, SeriesDemo, JobStatusView } from './types.ts';
 import { JOB_WAIT_TIMEOUT_CODE, MATCH_STATUS_FAILED, PLAN_READY_STATUSES, ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from './types.ts';
 import { deathMomentsToPlays, planToMatch, planToPlays, type DeathMoments, type KillPlan } from './map.ts';
@@ -44,6 +39,7 @@ import type { StorageFiles, StorageUsage } from './storage.ts';
 import { batchItemError, parseRenderView, parseStatusView, type RawRenderView, type RawStatusView, type RenderView } from './status-view.ts';
 import { playsSelectionLabel } from '../format.ts';
 import { constrainEditConfig, isLandscapeRecap } from '../reel-brief.ts';
+import { apiFetch } from './edition-fetch.ts';
 
 /** Server roster row as returned by /api/demos/{jobId}/roster (steamid64). */
 type RosterPlayer = {
@@ -227,7 +223,7 @@ export class RealApiClient implements ApiClient {
     const { url, init } = build(dp);
     if (init?.method !== undefined && init.method !== 'GET') this.jobsRead.drop();
     const headers = { ...dp.headers, ...((init?.headers as Record<string, string> | undefined) ?? {}) };
-    return fetch(url, { ...init, headers });
+    return apiFetch(url, { ...init, headers });
   }
 
   /** Reads a job's roster scan (players + optional match context) from the proxy. */
@@ -1264,7 +1260,7 @@ export class RealApiClient implements ApiClient {
   /** Real music catalog from the orchestrator; offline reads as an empty catalog, never fixtures. */
   async listSongs(): Promise<Song[]> {
     try {
-      const res = await fetch('/api/songs', { cache: 'no-store' });
+      const res = await apiFetch('/api/songs', { cache: 'no-store' });
       const data = await readJson<{
         songs: Array<{ id: string; title: string; artist?: string; genre?: string; durationSec?: number; license?: string; audioUrl: string }>;
       }>(res);
@@ -1285,7 +1281,7 @@ export class RealApiClient implements ApiClient {
   /** Real preset registry from the orchestrator; offline reads as an empty registry, never fixtures. */
   async listPresets(): Promise<Preset[]> {
     try {
-      const res = await fetch('/api/presets', { cache: 'no-store' });
+      const res = await apiFetch('/api/presets', { cache: 'no-store' });
       const data = await readJson<{
         default?: string;
         presets: Array<{

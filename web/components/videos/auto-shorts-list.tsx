@@ -10,6 +10,7 @@ import type { Video } from '@/lib/api/types';
 import { downloadPublishMP4 } from '@/lib/publish-actions';
 import { Button } from '@/components/ui/button';
 import { MediaPlayer } from '@/components/studio/media-player';
+import { apiFetch } from '@/lib/api/edition-fetch';
 
 type ListView = { status: 'loading' } | { status: 'failed' } | ({ status: 'ready' } & AutoShortsFiles);
 
@@ -25,7 +26,7 @@ export function AutoShortsList({ video }: { video: Video }): ReactNode {
   useEffect(() => {
     if (!batch) return;
     const controller = new AbortController();
-    fetch(dataPlane().renderUrl(jobId, variant), { cache: 'no-store', signal: controller.signal })
+    apiFetch(dataPlane().renderUrl(jobId, variant), { cache: 'no-store', signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`render ${response.status}`);
         setView({ status: 'ready', ...autoShortsFiles(await response.json(), { jobId, variant, artifactPrefix: video.reviewArtifactPrefix }) });
