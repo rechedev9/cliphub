@@ -67,7 +67,7 @@ export function StreamClipEditor({
     return (
       <p className="border border-dashed border-border-subtle p-3.5 text-center text-body-sm text-fg-2">
         {sourceDuration > 0
-          ? 'Reproduce el vídeo y marca el inicio y el final de lo que quieras quedarte.'
+          ? 'Muévete por la línea de tiempo y pulsa «Marcar momento aquí» para quedarte con esa parte.'
           : 'Espera a que cargue el vídeo original antes de añadir momentos.'}
       </p>
     );

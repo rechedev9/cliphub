@@ -260,13 +260,6 @@ export function StreamEditor({
       setPlaybackMode('source');
       setPreviewPlaying(false);
     },
-    showDraft: () => {
-      setZoomed(false);
-      setPreviewPlay(null);
-      setPlaybackMode('source');
-      setPreviewPlaying(false);
-      panelRef.current?.scrollTo(0, 0);
-    },
     showEdge: (seconds: number) => {
       setPreviewPlay(null);
       setPreviewPlaying(false);
@@ -275,7 +268,7 @@ export function StreamEditor({
     },
     showWholeVideo: () => setZoomed(false),
   });
-  const zoomClip = cutsStep && zoomed && !moments.creatingMoment ? selectedClip : undefined;
+  const zoomClip = cutsStep && zoomed ? selectedClip : undefined;
   const selectClip = moments.selectClip;
   const playMoment = (clip: StreamClipRange) => {
     selectClip(clip);

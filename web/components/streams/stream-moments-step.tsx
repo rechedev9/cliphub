@@ -1,14 +1,14 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Play } from 'lucide-react';
+import { Flag, Play } from 'lucide-react';
 import type { StreamClipRange, StreamEditPlan, StreamJob, StreamPlay } from '@/lib/api/streams';
 import { momentLengthLabel, momentsInOrder } from '@/lib/streams/moments';
-import { FULL_SOURCE_MOMENT_MAX_SECONDS, clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
+import { fullVideoMoment } from '@/lib/streams/mark-moment';
+import { clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
 import { cn } from '@/lib/utils';
 import { StreamClipEditor } from '@/components/streams/clip-editor';
 import { StreamDetectedPlays } from '@/components/streams/detected-plays';
-import { MomentEdgesEditor } from '@/components/streams/moment-edges-editor';
 import type { StreamMoments } from '@/components/streams/use-stream-moments';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { Button } from '@/components/ui/button';
@@ -96,18 +96,18 @@ function ShortSourcePanel({
   busy: boolean;
   onUseFull: () => void;
 }): ReactNode {
-  const canUseFull = !plan.clips.length && sourceDuration > 0 && sourceDuration <= FULL_SOURCE_MOMENT_MAX_SECONDS;
+  const canUseFull = fullVideoMoment({ clips: plan.clips, sourceDuration }) !== null;
   return (
     <section aria-label="Vídeo corto" className="flex flex-col gap-3 rounded-md border border-border-subtle bg-surface-1 p-3">
       <h3 className="font-semibold">Vídeo corto</h3>
       {sourceDuration > 0 ? <p className="text-body-sm text-fg-2">Dura {formatStreamClock(sourceDuration)}.</p> : null}
-      <p className="text-body-sm text-fg-2">En un vídeo corto no buscamos jugadas. Puedes usarlo entero o quedarte con un trozo.</p>
+      <p className="text-body-sm text-fg-2">En un vídeo corto no buscamos jugadas. Lo normal es usarlo entero.</p>
       {canUseFull ? (
         <Button variant="stream" disabled={busy} onClick={onUseFull}>
           Usar vídeo completo
         </Button>
       ) : null}
-      <p className="text-body-sm text-fg-3">Para quedarte con un trozo, pulsa «Nuevo momento» debajo de la línea de tiempo.</p>
+      <p className="text-body-sm text-fg-3">O quédate solo con un trozo: muévete por la línea de tiempo y pulsa «Marcar momento aquí».</p>
     </section>
   );
 }
@@ -148,59 +148,34 @@ export function StreamMomentsStep({
   onPlaysShown: (plays: readonly StreamPlay[]) => void;
 }): ReactNode {
   const isVod = job.source_kind === 'vod';
-  const { draftRange, draftIssue } = moments;
   return (
     <div className="grid min-w-0 grid-cols-1 gap-4 p-4 @[48rem]/content:grid-cols-[minmax(0,1fr)_minmax(20rem,27rem)]">
       <div className="min-w-0 @[48rem]/content:col-start-1 @[48rem]/content:row-start-1">{player}</div>
 
       <section aria-label="Línea de tiempo y momento" className="flex min-w-0 flex-col gap-3 @[48rem]/content:col-span-2 @[48rem]/content:row-start-2">
+        <Button
+          variant="outline"
+          className="self-start"
+          disabled={busy || sourceDuration <= 0}
+          onClick={() => moments.markHere(playheadSeconds)}
+        >
+          <Flag aria-hidden />
+          Marcar momento aquí
+        </Button>
         {timeline}
-        {moments.creatingMoment ? (
-          <section aria-label="Nuevo momento" className="flex flex-col gap-3 rounded-md border border-stream/40 p-3">
-            <h3 className="font-semibold">Nuevo momento</h3>
-            <MomentEdgesEditor start={draftRange.start_seconds} end={draftRange.end_seconds} disabled={busy} onNudge={moments.nudgeDraft} />
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" disabled={busy} title="Pon el inicio donde va el vídeo original" onClick={() => moments.patchDraft({ start_seconds: playheadSeconds })}>
-                Marcar inicio
-              </Button>
-              <Button variant="outline" size="sm" disabled={busy} title="Pon el final donde va el vídeo original" onClick={() => moments.patchDraft({ end_seconds: playheadSeconds })}>
-                Marcar final
-              </Button>
-            </div>
-            {draftIssue ? (
-              <p role="alert" className="text-body-sm text-destructive">
-                {draftIssue}
-              </p>
-            ) : null}
-            <Button variant="stream" disabled={busy || draftIssue !== null} onClick={() => moments.addMoment()}>
-              Añadir este momento
-            </Button>
-            {plan.clips.length ? (
-              <Button variant="ghost" onClick={moments.cancelDraft}>
-                Cancelar nuevo momento
-              </Button>
-            ) : null}
-          </section>
-        ) : (
-          <>
-            <StreamClipEditor
-              clips={plan.clips}
-              plays={plays}
-              sourceDuration={sourceDuration}
-              selectedClipId={selectedClipId}
-              onChange={moments.setClips}
-              onSelect={moments.selectClip}
-              onRemove={moments.removeClip}
-              onNudgeEdge={moments.nudgeEdge}
-              onSuggest={(clip) => moments.restoreSuggestedCut(clip, plays)}
-              disabled={busy}
-              onPlay={onPlaySelected}
-            />
-            <Button variant="outline" className="self-start" disabled={busy} onClick={() => moments.startNewMoment(playheadSeconds)}>
-              Nuevo momento
-            </Button>
-          </>
-        )}
+        <StreamClipEditor
+          clips={plan.clips}
+          plays={plays}
+          sourceDuration={sourceDuration}
+          selectedClipId={selectedClipId}
+          onChange={moments.setClips}
+          onSelect={moments.selectClip}
+          onRemove={moments.removeClip}
+          onNudgeEdge={moments.nudgeEdge}
+          onSuggest={(clip) => moments.restoreSuggestedCut(clip, plays)}
+          disabled={busy}
+          onPlay={onPlaySelected}
+        />
       </section>
 
       <div className="min-w-0 @[48rem]/content:col-span-2 @[48rem]/content:row-start-3">
@@ -233,7 +208,7 @@ export function StreamMomentsStep({
               plan={plan}
               sourceDuration={sourceDuration}
               busy={busy}
-              onUseFull={() => moments.addMoment({ start_seconds: 0, end_seconds: sourceDuration })}
+              onUseFull={moments.addFullVideo}
             />
           )}
         </div>
