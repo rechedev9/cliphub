@@ -380,9 +380,13 @@ func writeSubtitleTrack(t *testing.T, work string, plan recording.RecordingPlan,
 	}
 	track := subtitles.Track{Hidden: []string{"hidden"}, Phrases: []subtitles.Phrase{
 		{ID: "before", Speaker: fixture.Teammate.Target.NameInDemo, Text: "eco esta ronda", StartTick: 1, EndTick: rate},
-		{ID: "call", Speaker: fixture.Target.NameInDemo, Text: call, StartTick: starts[0] + rate, EndTick: starts[0] + 4*rate, Words: words},
-		{ID: "hidden", Speaker: fixture.Target.NameInDemo, Text: "esto no sale", StartTick: starts[0] + 4*rate, EndTick: starts[0] + 5*rate},
+		{ID: "call", Speaker: fixture.Target.NameInDemo, Slot: 2, Text: call, StartTick: starts[0] + rate, EndTick: starts[0] + 4*rate, Words: words},
+		{ID: "with", Speaker: fixture.Teammate.Target.NameInDemo, Text: "voy contigo por rampa", StartTick: starts[0] + 3*rate/2, EndTick: starts[0] + 7*rate/2},
+		{ID: "third", Speaker: "third", Slot: 1, Text: "cuidado con el de sitio", StartTick: starts[0] + 2*rate, EndTick: starts[0] + 4*rate},
+		{ID: "fourth", Speaker: "fourth", Slot: 4, Text: "tengo humo para ventana", StartTick: starts[0] + 5*rate/2, EndTick: starts[0] + 5*rate},
+		{ID: "hidden", Speaker: fixture.Target.NameInDemo, Slot: 2, Text: "esto no sale", StartTick: starts[0] + 4*rate, EndTick: starts[0] + 5*rate},
 		{ID: "reply", Speaker: fixture.Teammate.Target.NameInDemo, Text: "voy con flash por la derecha y entro contigo", StartTick: starts[1] + rate/2, EndTick: starts[1] + 3*rate},
+		{ID: "cover", Speaker: fixture.Target.NameInDemo, Slot: 2, Text: "vale, te cubro desde atrás", StartTick: starts[1] + rate, EndTick: starts[1] + 3*rate},
 	}}
 	path := filepath.Join(work, "subtitles.json")
 	writeJSON(t, path, track)

@@ -54,6 +54,10 @@ func TestSplitBreaksLinesWhereTheSentenceAllows(t *testing.T) {
 		{"before a conjunction", "voy a entrar y tiras la flash", 0, portrait, [][]string{{"voy a entrar", "y tiras la flash"}}},
 		{"never between an article and its noun", "tiro la granada ya", 0, Format{LineRunes: 10}, [][]string{{"tiro", "la granada"}, {"ya"}}},
 		{"a name that fills the first line stands alone", "vamos B", 18, portrait, [][]string{{"", "vamos B"}}},
+		{"a short name shares the first line with 20 characters", "en la ventana y otro", 8, FormatOf(1080, 1920), [][]string{{"en la ventana y otro"}}},
+		{"a short name shares the first line with 42 characters", "dos en B, uno con AWP en la ventana y otro", 14, FormatOf(1920, 1080), [][]string{{"dos en B, uno con AWP en la ventana y otro"}}},
+		{"a long name takes room from the first line", "en la ventana y otro", 14, FormatOf(1080, 1920), [][]string{{"en la ventana", "y otro"}}},
+		{"a name longer than the line stands alone", "vamos B", 30, FormatOf(1080, 1920), [][]string{{"", "vamos B"}}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			got := linesOf(Split(SplitInput{Text: c.text, StartSeconds: 1, EndSeconds: 3, LeadRunes: c.lead, Format: c.format}))
@@ -131,4 +135,19 @@ func TestSplitCapsHowLongASubtituloStays(t *testing.T) {
 	slow := []Word{{Text: "uno", StartSeconds: 0, EndSeconds: 1}, {Text: "dos", StartSeconds: 9, EndSeconds: 10}}
 	apart := Split(SplitInput{Text: "uno dos", Words: slow, StartSeconds: 0, EndSeconds: 10, Format: landscape})
 	assertWindows(t, apart, [][2]float64{{0, 1.2}, {9, 10.2}})
+}
+
+func TestSentenceCaseStartsAFraseWithACapitalAndKeepsTheRest(t *testing.T) {
+	for text, want := range map[string]string{
+		"dos en B, uno con AWP":    "Dos en B, uno con AWP",
+		"¿están en A? creo que sí": "¿Están en A? creo que sí",
+		"  ojo ":                   "Ojo",
+		"Rush B":                   "Rush B",
+		"3 en medio":               "3 en medio",
+		"":                         "",
+	} {
+		if got := SentenceCase(text); got != want {
+			t.Errorf("SentenceCase(%q) = %q, want %q", text, got, want)
+		}
+	}
 }

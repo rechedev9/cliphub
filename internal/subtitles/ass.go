@@ -19,6 +19,8 @@ const (
 type Cue struct {
 	ID           string
 	Speaker      string
+	Slot         int
+	POV          bool
 	Lines        []string
 	StartSeconds float64
 	EndSeconds   float64
@@ -64,7 +66,7 @@ func ASS(s Script) (string, error) {
 		mediafont.FamilyName, l.fontSize, max(2, l.fontSize/14), l.marginSide, l.marginSide, l.marginBottom)
 	b.WriteString("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
 	for _, c := range timed(s) {
-		fmt.Fprintf(&b, "Dialogue: 0,%s,%s,Subtitle,,0,0,0,,{\\c&H4FD7FF&}%s:{\\c&HFFFFFF&}%s\n", clock(c.StartSeconds), clock(c.EndSeconds), escape(c.Speaker), drawn(c.Lines))
+		fmt.Fprintf(&b, "Dialogue: 0,%s,%s,Subtitle,,0,0,0,,{\\c&H%s&}%s:%s\n", clock(c.StartSeconds), clock(c.EndSeconds), colourOf(c), escape(c.Speaker), drawn(c.Lines))
 	}
 	return b.String(), nil
 }
@@ -87,7 +89,8 @@ func timed(s Script) []Cue {
 		}
 		c.EndSeconds = min(c.EndSeconds, s.DurationSeconds)
 	}
-	return slices.DeleteFunc(cues, func(c Cue) bool { return c.EndSeconds-c.StartSeconds < 0.05 })
+	cues = slices.DeleteFunc(cues, func(c Cue) bool { return c.EndSeconds-c.StartSeconds < 0.05 })
+	return capped(cues, FormatOf(s.Width, s.Height).AtOnce)
 }
 
 func compare(a, b float64) int {

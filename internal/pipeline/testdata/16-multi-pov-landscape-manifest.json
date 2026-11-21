@@ -631,6 +631,7 @@
             {
               "id": "call",
               "speaker": "target",
+              "slot": 2,
               "text": "dos en B, uno con AWP en la ventana y otro rotando por medio",
               "start_tick": 5600,
               "end_tick": 5792,
@@ -708,8 +709,32 @@
               ]
             },
             {
+              "id": "with",
+              "speaker": "teammate",
+              "text": "voy contigo por rampa",
+              "start_tick": 5632,
+              "end_tick": 5760
+            },
+            {
+              "id": "third",
+              "speaker": "third",
+              "slot": 1,
+              "text": "cuidado con el de sitio",
+              "start_tick": 5664,
+              "end_tick": 5792
+            },
+            {
+              "id": "fourth",
+              "speaker": "fourth",
+              "slot": 4,
+              "text": "tengo humo para ventana",
+              "start_tick": 5696,
+              "end_tick": 5856
+            },
+            {
               "id": "hidden",
               "speaker": "target",
+              "slot": 2,
               "text": "esto no sale",
               "start_tick": 5792,
               "end_tick": 5856
@@ -719,6 +744,14 @@
               "speaker": "teammate",
               "text": "voy con flash por la derecha y entro contigo",
               "start_tick": 22792,
+              "end_tick": 22952
+            },
+            {
+              "id": "cover",
+              "speaker": "target",
+              "slot": 2,
+              "text": "vale, te cubro desde atrás",
+              "start_tick": 22824,
               "end_tick": 22952
             }
           ],

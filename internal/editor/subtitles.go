@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,7 +41,7 @@ func subtitleCues(short ShortEdit) []subtitles.Cue {
 		}
 		captureStart, _ := captureTicks(part)
 		from := part.TimelineStartSeconds
-		cues = append(cues, windowCues(track, cueWindow{startTick: captureStart, rate: float64(rate), base: from,
+		cues = append(cues, windowCues(track, cueWindow{startTick: captureStart, rate: float64(rate), base: from, pov: cmp.Or(part.Player, short.Player),
 			lo: max(from, floor), hi: min(from+partSyncDuration(part, rate), ceiling), format: format})...)
 	}
 	return cues
@@ -52,6 +53,7 @@ type cueWindow struct {
 	startTick    int
 	rate         float64
 	base, lo, hi float64
+	pov          string
 	format       subtitles.Format
 }
 
@@ -63,11 +65,12 @@ func windowCues(track *subtitles.Track, w cueWindow) []subtitles.Cue {
 		for _, word := range p.Words {
 			words = append(words, subtitles.Word{Text: word.Text, StartSeconds: at(word.StartTick), EndSeconds: at(word.EndTick)})
 		}
-		for _, b := range subtitles.Split(subtitles.SplitInput{Text: p.Text, Words: words, StartSeconds: at(p.StartTick), EndSeconds: at(p.EndTick),
+		pov := w.pov != "" && (p.Speaker == w.pov || p.SteamID64 == w.pov)
+		for _, b := range subtitles.Split(subtitles.SplitInput{Text: subtitles.SentenceCase(p.Text), Words: words, StartSeconds: at(p.StartTick), EndSeconds: at(p.EndTick),
 			LeadRunes: utf8.RuneCountInString(p.Speaker) + 2, Format: w.format}) {
 			start, end := max(b.StartSeconds, w.lo), min(b.EndSeconds, w.hi)
 			if end-start >= 0.05 {
-				cues = append(cues, subtitles.Cue{ID: p.ID, Speaker: p.Speaker, Lines: b.Lines, StartSeconds: start, EndSeconds: end})
+				cues = append(cues, subtitles.Cue{ID: p.ID, Speaker: p.Speaker, Slot: p.Slot, POV: pov, Lines: b.Lines, StartSeconds: start, EndSeconds: end})
 			}
 		}
 	}
@@ -120,7 +123,7 @@ func fullDemoSubtitlesFilter(short ShortEdit, item recapplan.TimelineItem, outpu
 	track := short.fullDemo.execution.Subtitles
 	duration := float64(item.EndFrame-item.StartFrame) / 60
 	width, height := outputDimensions(short)
-	cues := windowCues(track, cueWindow{startTick: item.SourceStartTick, rate: float64(rate), base: -float64(item.SourceOffsetFrames) / 60, hi: duration,
+	cues := windowCues(track, cueWindow{startTick: item.SourceStartTick, rate: float64(rate), base: -float64(item.SourceOffsetFrames) / 60, hi: duration, pov: short.Player,
 		format: subtitles.FormatOf(width, height)})
 	if len(cues) == 0 {
 		return "", nil

@@ -11,5 +11,9 @@ Style: Subtitle,Montserrat ExtraBold,46,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:24.94,0:00:28.34,Subtitle,,0,0,0,,{\c&H4FD7FF&}target:{\c&HFFFFFF&} dos en B, uno con AWP\Nen la ventana y otro rotando por medio
-Dialogue: 0,0:00:42.13,0:00:44.83,Subtitle,,0,0,0,,{\c&H4FD7FF&}teammate:{\c&HFFFFFF&} voy con flash\Npor la derecha y entro contigo
+Dialogue: 0,0:00:24.94,0:00:28.34,Subtitle,,0,0,0,,{\c&H87E76E&}target: Dos en B, uno con AWP\Nen la ventana y otro rotando por medio
+Dialogue: 0,0:00:25.44,0:00:27.44,Subtitle,,0,0,0,,{\c&HFFFFFF&}teammate: Voy contigo por rampa
+Dialogue: 0,0:00:25.94,0:00:27.94,Subtitle,,0,0,0,,{\c&HFFC85C&}third: Cuidado con el de sitio
+Dialogue: 0,0:00:27.44,0:00:28.94,Subtitle,,0,0,0,,{\c&HD08FFF&}fourth: Tengo humo para ventana
+Dialogue: 0,0:00:42.13,0:00:44.83,Subtitle,,0,0,0,,{\c&H4FD7FF&}teammate: Voy con flash\Npor la derecha y entro contigo
+Dialogue: 0,0:00:42.63,0:00:44.63,Subtitle,,0,0,0,,{\c&HFFFFFF&}target: Vale, te cubro desde atrás

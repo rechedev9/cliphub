@@ -12,6 +12,8 @@ import (
 type Phrase struct {
 	ID        string       `json:"id"`
 	Speaker   string       `json:"speaker"`
+	SteamID64 string       `json:"steamid64,omitempty"`
+	Slot      int          `json:"slot,omitempty"`
 	Text      string       `json:"text"`
 	StartTick int          `json:"start_tick"`
 	EndTick   int          `json:"end_tick"`
