@@ -2,8 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamClipRange, StreamEditPlan } from '../api/streams.ts';
 import {
-  clipOutputDuration,
-  clipTimelineGeometry,
   errorMessage,
   fitPlanToSourceDuration,
   FULL_SOURCE_MOMENT_MAX_SECONDS,
@@ -229,26 +227,6 @@ test('the fingerprint moves when any KeyDrop plate field that burns into the Sho
     planFingerprint(base),
     planFingerprint({ ...base, keydrop_banner: { ...base.keydrop_banner, code: '  zackcsgo  ' } }),
   );
-});
-
-test('the clip band is positioned against the probed duration and skipped without one', () => {
-  const geometry = clipTimelineGeometry(clip({ start_seconds: 25, end_seconds: 50 }), 100);
-  assert.deepEqual(
-    geometry && { start: geometry.startPercent, width: geometry.widthPercent },
-    { start: 25, width: 25 },
-  );
-  assert.equal(clipTimelineGeometry(clip(), 0), null);
-  assert.equal(clipTimelineGeometry(clip({ end_seconds: 5 }), 100), null);
-});
-
-test('fade wedges are measured against the output duration, so speed shrinks them', () => {
-  const fast = clipTimelineGeometry(
-    clip({ start_seconds: 0, end_seconds: 20, edit: { speed: 2, fade_in_seconds: 1 } }),
-    100,
-  );
-  // 20 source seconds at 2x is 10 output seconds; a 1s fade is 10% of the clip.
-  assert.equal(fast?.fadeInPercent, 10);
-  assert.equal(clipOutputDuration(clip({ start_seconds: 0, end_seconds: 20, edit: { speed: 2 } })), 10);
 });
 
 test('the clock rounds to the nearest second and adds hours only past sixty minutes', () => {

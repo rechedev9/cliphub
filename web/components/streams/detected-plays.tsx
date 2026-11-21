@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, Crosshair, Mic } from 'lucide-react';
+import { Check, Crosshair, Mic, SlidersHorizontal } from 'lucide-react';
 import { streamsApi, type StreamClipRange, type StreamPlay, type StreamPlayScan, type StreamVoiceSettings } from '@/lib/api/streams';
+import { detectionNote, detectionSettingsChanged, shoutOptions } from '@/lib/streams/detection';
 import { bulkAddLabel, bulkAddPlays, playRowAction, playTimeLabel, topPlayIds } from '@/lib/streams/moments';
 import { errorMessage, formatStreamClock } from '@/lib/streams/plan';
+import { playNumbers } from '@/lib/streams/timeline';
 import { isVoiceOnly, orderPlays, playMoment, rankPlays, type PlayOrder } from '@/lib/streams/plays';
 import { cn } from '@/lib/utils';
 import { useSeen } from '@/components/streams/use-seen';
@@ -14,52 +16,35 @@ import { Segmented } from '@/components/ui/segmented';
 import { Switch } from '@/components/ui/switch';
 
 const POLL_MS = 2000;
+const NO_PLAYS: readonly StreamPlay[] = [];
 const DEFAULT_VOICE: StreamVoiceSettings = { enabled: true, sensitivity: 3 };
-const PRESETS = [
-  { value: '1', label: 'Baja' },
-  { value: '3', label: 'Media' },
-  { value: '5', label: 'Alta' },
-];
 const ORDER_OPTIONS: readonly { value: PlayOrder; label: string }[] = [
   { value: 'best', label: 'Mejores primero' },
   { value: 'time', label: 'Por tiempo' },
 ];
+const SETTINGS_ID = 'stream-detection-settings';
 
-/** The presets, plus the level itself when the assistant set a 2 or a 4. */
-function sensitivityOptions(sensitivity: number): { value: string; label: string }[] {
-  if (PRESETS.some((preset) => preset.value === String(sensitivity))) return PRESETS;
-  return [...PRESETS, { value: String(sensitivity), label: `Nivel ${sensitivity}` }].sort((a, b) => Number(a.value) - Number(b.value));
-}
-
-function voiceNote(scan: StreamPlayScan): string | null {
-  switch (scan.voice?.status) {
-    case 'no_audio':
-      return 'El vídeo no tiene audio, así que no hemos buscado picos de voz.';
-    case 'no_voice':
-      return 'No hemos oído voz en el audio, así que no hay picos de voz.';
-    case 'failed':
-      return 'No pudimos leer el audio para buscar picos de voz.';
-    case 'done':
-      return scan.voice.mix ? 'Sin pista de micro: se usa la mezcla. La detección de picos de voz es menos precisa.' : null;
-    default:
-      return null;
-  }
-}
-
-function VoiceSettingsRow({
+function DetectionSettings({
   value,
+  note,
   disabled,
   onChange,
+  children,
 }: {
   value: StreamVoiceSettings;
+  note: string | null;
   disabled: boolean;
   onChange: (next: StreamVoiceSettings) => void;
+  children?: ReactNode;
 }): ReactNode {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <span id="voice-peaks-label" className="text-body-sm text-fg-2">
-          Picos de voz: marca cuando subes la voz por encima de lo normal
+    <div id={SETTINGS_ID} className="flex flex-col gap-3 rounded-md border border-border-subtle bg-surface-2 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex flex-col gap-0.5">
+          <span id="voice-peaks-label" className="text-body-sm font-semibold">
+            Incluir picos de voz
+          </span>
+          <span className="text-meta text-fg-3">Momentos en los que gritas, aunque no haya kill.</span>
         </span>
         <Switch
           tone="stream"
@@ -70,21 +55,29 @@ function VoiceSettingsRow({
         />
       </div>
       {value.enabled ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-body-sm text-fg-3">Sensibilidad</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="flex flex-col gap-0.5">
+            <span className="text-body-sm font-semibold">Cuánto tienes que gritar</span>
+            <span className="text-meta text-fg-3">Con «Poco» salen más picos de voz.</span>
+          </span>
           <Segmented
-            label="Sensibilidad de los picos de voz"
+            label="Cuánto tienes que gritar"
             value={String(value.sensitivity)}
-            options={sensitivityOptions(value.sensitivity)}
+            options={shoutOptions(value.sensitivity)}
             onChange={(next) => onChange({ ...value, sensitivity: Number(next) })}
           />
         </div>
       ) : null}
+      {note ? <p className="text-body-sm text-fg-3">{note}</p> : null}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-meta text-fg-3">Cambiar esto no toca los momentos que ya has elegido.</span>
+        {children}
+      </div>
     </div>
   );
 }
 
-function PlayThumb({ jobId, play }: { jobId: string; play: StreamPlay }): ReactNode {
+function PlayThumb({ jobId, play, number }: { jobId: string; play: StreamPlay; number: number }): ReactNode {
   const { ref, seen } = useSeen<HTMLSpanElement>();
   const Icon = isVoiceOnly(play) ? Mic : Crosshair;
   return (
@@ -99,8 +92,9 @@ function PlayThumb({ jobId, play }: { jobId: string; play: StreamPlay }): ReactN
           className="size-full object-cover"
         />
       ) : null}
-      <span aria-hidden className="absolute bottom-1 left-1 grid size-5 place-items-center rounded-sm bg-surface-0/75 text-fg-1">
+      <span aria-hidden className="absolute bottom-1 left-1 flex h-5 items-center gap-0.5 rounded-sm bg-surface-0/75 px-1 text-meta font-semibold tabular-nums text-fg-1">
         <Icon className="size-3" />
+        {number}
       </span>
     </span>
   );
@@ -109,6 +103,7 @@ function PlayThumb({ jobId, play }: { jobId: string; play: StreamPlay }): ReactN
 function PlayRow({
   jobId,
   play,
+  number,
   clips,
   top,
   active,
@@ -119,6 +114,7 @@ function PlayRow({
 }: {
   jobId: string;
   play: StreamPlay;
+  number: number;
   clips: readonly StreamClipRange[];
   top: boolean;
   active: boolean;
@@ -129,16 +125,20 @@ function PlayRow({
 }): ReactNode {
   const action = playRowAction(clips, play);
   const loud = !isVoiceOnly(play) && (play.voice_seconds?.length ?? 0) > 0;
+  const rowRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (active) rowRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
   return (
-    <li className={cn('flex items-center gap-2 px-1 py-1.5', active && 'bg-surface-3')}>
+    <li ref={rowRef} className={cn('flex items-center gap-2 px-1 py-1.5', active && 'bg-surface-3')}>
       <button
         type="button"
         aria-pressed={active}
-        aria-label={`Ver jugada: ${play.label}, ${formatStreamClock(play.start_seconds)}`}
+        aria-label={`Ver jugada ${number}: ${play.label}, ${formatStreamClock(play.start_seconds)}`}
         className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded text-left hover:text-fg-1"
         onClick={() => onWatch(play)}
       >
-        <PlayThumb jobId={jobId} play={play} />
+        <PlayThumb jobId={jobId} play={play} number={number} />
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-1.5 text-body-sm font-semibold">
             <span className="truncate">{play.label}</span>
@@ -185,6 +185,7 @@ export function StreamDetectedPlays({
   onAdd,
   onWatch,
   onJump,
+  onPlaysShown,
 }: {
   jobId: string;
   vod: boolean;
@@ -194,11 +195,13 @@ export function StreamDetectedPlays({
   onAdd: (plays: StreamPlay[]) => void;
   onWatch: (play: StreamPlay) => void;
   onJump: (clip: StreamClipRange) => void;
+  onPlaysShown: (plays: readonly StreamPlay[]) => void;
 }): ReactNode {
   const [scan, setScan] = useState<StreamPlayScan | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [voice, setVoice] = useState<StreamVoiceSettings>(DEFAULT_VOICE);
   const [order, setOrder] = useState<PlayOrder>('best');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const voiceSynced = useRef(false);
   const running = scan?.status === 'running';
   const autoStarted = useRef(false);
@@ -242,14 +245,28 @@ export function StreamDetectedPlays({
     void start();
   });
 
+  const shownPlays = scan?.status === 'done' ? scan.plays : NO_PLAYS;
+  useEffect(() => onPlaysShown(shownPlays), [shownPlays, onPlaysShown]);
+
   const ranked = orderPlays(scan?.plays ?? [], order);
+  const numbers = playNumbers(ranked);
   const tops = topPlayIds(ranked);
   const open = bulkAddPlays(clips, rankPlays(ranked));
   const hasKills = ranked.some((play) => !isVoiceOnly(play));
-  const scanned = scan?.voice;
-  // A scan saved before voice peaks has no settings, so it can always be redone with them.
-  const voiceChanged = scanned === undefined || scanned.enabled !== voice.enabled || (voice.enabled && scanned.sensitivity !== voice.sensitivity);
-  const note = scan ? voiceNote(scan) : null;
+  const voiceChanged = detectionSettingsChanged(scan?.voice, voice);
+  const note = detectionNote(scan?.voice);
+  const settingsButton = (
+    <Button
+      variant="ghost"
+      size="sm"
+      aria-expanded={settingsOpen}
+      aria-controls={SETTINGS_ID}
+      onClick={() => setSettingsOpen((open) => !open)}
+    >
+      <SlidersHorizontal aria-hidden />
+      Ajustes de detección
+    </Button>
+  );
 
   return (
     <section aria-label="Jugadas" className="flex min-h-0 min-w-0 flex-col gap-3 rounded-md border border-border-subtle bg-surface-1 p-3">
@@ -271,22 +288,13 @@ export function StreamDetectedPlays({
           <p className="text-body-sm text-fg-2">
             Busca tus kills en el kill feed de CS2 y los momentos en que subes la voz, y crea un momento por cada jugada.
           </p>
-          <VoiceSettingsRow value={voice} disabled={disabled} onChange={setVoice} />
-          <Button variant="outline" disabled={disabled} onClick={() => void start()}>
-            Buscar jugadas
-          </Button>
-        </>
-      ) : null}
-
-      {scan?.status === 'done' ? (
-        <>
-          <VoiceSettingsRow value={voice} disabled={disabled} onChange={setVoice} />
-          {voiceChanged ? (
-            <Button variant="outline" size="sm" disabled={disabled} onClick={() => void start()}>
-              Buscar con estos ajustes
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" disabled={disabled} onClick={() => void start()}>
+              Buscar jugadas
             </Button>
-          ) : null}
-          {note ? <p className="text-body-sm text-fg-3">{note}</p> : null}
+            {settingsButton}
+          </div>
+          {settingsOpen ? <DetectionSettings value={voice} note={null} disabled={disabled} onChange={setVoice} /> : null}
         </>
       ) : null}
 
@@ -306,11 +314,26 @@ export function StreamDetectedPlays({
         </p>
       ) : null}
 
-      {scan?.status === 'done' && ranked.length > 1 ? (
+      {scan?.status === 'done' ? (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-body-sm text-fg-3">Orden</span>
-          <Segmented label="Orden de las jugadas" value={order} options={ORDER_OPTIONS} onChange={setOrder} />
+          {ranked.length > 1 ? (
+            <>
+              <span className="text-body-sm text-fg-3">Orden</span>
+              <Segmented label="Orden de las jugadas" value={order} options={ORDER_OPTIONS} onChange={setOrder} />
+            </>
+          ) : null}
+          <span className="ml-auto">{settingsButton}</span>
         </div>
+      ) : null}
+
+      {scan?.status === 'done' && settingsOpen ? (
+        <DetectionSettings value={voice} note={note} disabled={disabled} onChange={setVoice}>
+          {voiceChanged ? (
+            <Button variant="outline" size="sm" disabled={disabled} onClick={() => void start()}>
+              Volver a buscar
+            </Button>
+          ) : null}
+        </DetectionSettings>
       ) : null}
 
       {scan?.status === 'done' && ranked.length > 0 ? (
@@ -320,6 +343,7 @@ export function StreamDetectedPlays({
               key={play.id}
               jobId={jobId}
               play={play}
+              number={numbers.get(play.id) ?? 0}
               clips={clips}
               top={tops.has(play.id)}
               active={play.id === activePlayId}
