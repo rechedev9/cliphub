@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamEditPlan, StreamJob } from '../api/streams.ts';
-import { sortStreamJobs, streamClipCount, streamCutMarks, streamJobShortCount, streamJobTag, streamListCadence } from './list.ts';
+import { sortStreamJobs, streamClipCount, streamCutMarks, streamJobShortCount, streamJobTag, streamListCadence, streamProjectActions } from './list.ts';
 
 function job(status: StreamJob['status'], created = '2026-09-01T10:00:00Z'): StreamJob {
   return { id: `job-${status}-${created}`, status, created_at: created };
@@ -73,4 +73,19 @@ test('streamCutMarks places each cut in the source and needs the plan and the le
   ]);
   assert.equal(streamCutMarks({ probe: { duration_seconds: 300 } }), null);
   assert.equal(streamCutMarks({ edit_plan: editPlan }), null);
+});
+
+test('a VOD project card offers the Shorts and the resumen; a short clip only the Shorts', () => {
+  const vod: StreamJob = { ...job('ready'), source_kind: 'vod', probe: { duration_seconds: 3600 } };
+  assert.deepEqual(streamProjectActions(vod), { shortsLabel: 'Hacer Shorts', summary: true });
+  assert.deepEqual(streamProjectActions({ ...vod, source_kind: 'clip' }), { shortsLabel: 'Hacer Shorts', summary: false });
+  assert.deepEqual(streamProjectActions({ ...vod, source_kind: undefined }), { shortsLabel: 'Hacer Shorts', summary: false });
+  assert.deepEqual(streamProjectActions({ ...vod, status: 'rendered' }), { shortsLabel: 'Ver Shorts', summary: true });
+});
+
+test('a VOD whose video is not on this PC offers no resumen', () => {
+  const vod: StreamJob = { ...job('acquiring'), source_kind: 'vod' };
+  assert.deepEqual(streamProjectActions(vod), { shortsLabel: 'Ver progreso', summary: false });
+  assert.deepEqual(streamProjectActions({ ...vod, status: 'failed' }), { shortsLabel: 'Revisar proyecto', summary: false });
+  assert.equal(streamProjectActions({ ...vod, status: 'failed', probe: { duration_seconds: 3600 } }).summary, true);
 });

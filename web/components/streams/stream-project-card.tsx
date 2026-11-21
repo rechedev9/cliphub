@@ -1,9 +1,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { ArrowRight, Film } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, Clapperboard, Film } from 'lucide-react';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
-import { streamClipCount, streamCutMarks, streamJobShortCount, streamJobTag, type StreamJobTagTone } from '@/lib/streams/list';
+import { streamSummaryHref } from '@/lib/clips/routes';
+import { streamClipCount, streamCutMarks, streamJobShortCount, streamJobTag, streamProjectActions, type StreamJobTagTone } from '@/lib/streams/list';
 import { streamMomentsLabel } from '@/lib/streams/groups';
 import { formatStreamClock, streamSourceLabel } from '@/lib/streams/plan';
 import { streamRenderProgressView } from '@/lib/streams/render-progress';
@@ -12,21 +14,12 @@ import { useSeen } from '@/components/streams/use-seen';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { MediaFrame } from '@/components/studio/media-frame';
-import { Button, FOCUS_RING } from '@/components/ui/button';
+import { Button, FOCUS_RING, buttonVariants } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
 /** Frame 0 of a stream clip is usually black; a media fragment seeks past it at metadata cost only. */
 const POSTER_FRAGMENT = '#t=1';
-
-const PROJECT_ACTION_LABELS = {
-  acquiring: 'Ver progreso',
-  uploaded: 'Continuar edición',
-  ready: 'Continuar edición',
-  rendering: 'Ver progreso',
-  rendered: 'Ver Shorts',
-  failed: 'Revisar proyecto',
-} as const satisfies Record<StreamJob['status'], string>;
 
 const STATUS_PILL_CLASS = {
   neutral: 'bg-surface-5 text-fg-1',
@@ -46,7 +39,8 @@ export function StreamProjectCard({ job, onOpen, onDeleted }: { job: StreamJob; 
   const title = streamTitle(job);
   const kind = job.source_kind === 'vod' ? 'VOD completo' : 'Clip';
   const meta = `${kind} · ${streamSourceLabel(job.source_url) ?? 'Archivo local'} · ${streamMomentsLabel(streamClipCount(job), streamJobShortCount(job))}`;
-  const actionLabel = PROJECT_ACTION_LABELS[job.status];
+  const actions = streamProjectActions(job);
+  const actionLabel = actions.shortsLabel;
   const renderPercent = job.status === 'rendering' ? streamRenderProgressView(job.render_progress)?.percent : undefined;
 
   return (
@@ -115,9 +109,21 @@ export function StreamProjectCard({ job, onOpen, onDeleted }: { job: StreamJob; 
           />
         ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onOpen} aria-label={`${actionLabel}: ${title}`} className="bg-surface-2">
-            {actionLabel}<ArrowRight aria-hidden />
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onOpen} aria-label={`${actionLabel}: ${title}`} className="bg-surface-2">
+              {actionLabel}<ArrowRight aria-hidden />
+            </Button>
+            {actions.summary ? (
+              <Link
+                href={streamSummaryHref(job.id)}
+                aria-label={`Hacer resumen: ${title}`}
+                className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'bg-surface-2')}
+              >
+                <Clapperboard aria-hidden />
+                Hacer resumen
+              </Link>
+            ) : null}
+          </div>
           <DeleteMatchButton label={title} onConfirm={() => streamsApi.deleteJob(job.id)} onDeleted={onDeleted} messageBelow />
         </div>
       </div>

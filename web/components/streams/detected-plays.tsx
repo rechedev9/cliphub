@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Segmented } from '@/components/ui/segmented';
 import { Switch } from '@/components/ui/switch';
-import { StreamSummaryCard } from '@/components/streams/stream-summary';
 
 const POLL_MS = 2000;
 const NO_PLAYS: readonly StreamPlay[] = [];
@@ -175,8 +174,7 @@ function PlayRow({
 /**
  * Finds the streamer's kills in the source (the red kill-feed highlight of
  * CS2) and, from the mic, the moments the streamer raises their voice. Each
- * one is offered as a moment. A full VOD scans on its own and also offers a
- * landscape summary of the plays the user picks.
+ * one is offered as a moment. A full VOD scans on its own.
  */
 export function StreamDetectedPlays({
   jobId,
@@ -314,10 +312,6 @@ export function StreamDetectedPlays({
         <p className="text-body-sm text-fg-2">
           No hemos detectado kills en la kill feed (debe verse arriba a la derecha) ni picos de voz. Puedes marcar tus momentos a mano con «Nuevo momento».
         </p>
-      ) : null}
-
-      {vod && scan?.status === 'done' && ranked.length > 0 ? (
-        <StreamSummaryCard jobId={jobId} plays={scan.plays} disabled={disabled} />
       ) : null}
 
       {scan?.status === 'done' ? (
