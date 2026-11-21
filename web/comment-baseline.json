@@ -508,7 +508,7 @@
   "components/streams/banner-controls.tsx": 6,
   "components/streams/clip-editor.tsx": 20,
   "components/streams/crop-picker.tsx": 5,
-  "components/streams/detected-plays.tsx": 8,
+  "components/streams/detected-plays.tsx": 6,
   "components/streams/kill-feed-controls.tsx": 2,
   "components/streams/layout-glyph.tsx": 13,
   "components/streams/music-card.tsx": 6,

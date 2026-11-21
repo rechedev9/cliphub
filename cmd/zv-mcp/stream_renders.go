@@ -143,7 +143,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "find_stream_plays", InputSchema: findStreamPlaysSchema(),
 		Description: "Find the streamer's kills in a ready stream (the kill feed highlight of CS2) and list each run of kills as a play, best first: the Jugadas list of a stream in Studio. " +
 			"It also finds voice peaks, where the streamer raises their voice over their own usual level (a reaction, or a shout on purpose to mark a clip): a peak next to a kill raises that play's score, and one alone is a play of kind voice_peak. " +
-			"voice and voice_sensitivity are the Studio's switch and slider. The first call starts the scan; call again while status is running."},
+			"voice and voice_sensitivity are the Studio's Ajustes de detección: Incluir picos de voz, and Cuánto tienes que gritar (Poco is 5, Normal 3, Mucho 1). The first call starts the scan; call again while status is running."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in findStreamPlaysIn) (*mcp.CallToolResult, streamPlaysOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, streamPlaysOut{}, err
