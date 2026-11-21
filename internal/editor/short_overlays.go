@@ -3,7 +3,9 @@ package editor
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
@@ -167,21 +169,46 @@ func generatedPlayBadgeEffects(short ShortEdit) []Effect {
 // badge) when the Short allows it.
 func statsCardWindow(short ShortEdit) (float64, float64, bool) {
 	end := short.DurationSeconds
-	if (short.Overlays.StatsCard == nil && endPlayerCard(short) == "") || short.OutputFormat != OutputFormatShort9x16 || short.MultiPOV() || end < statsCardMinSeconds {
+	if !closingCardShown(short) || end < statsCardMinSeconds {
 		return 0, 0, false
 	}
-	afterKill := statsCardAfterKill
-	if short.Overlays.PlayBadges {
-		afterKill = playBadgeSeconds + 0.1
-	}
-	start := end - statsCardSeconds
-	for _, kill := range short.Kills {
-		start = max(start, kill.TimeSeconds+afterKill)
-	}
+	start := max(end-statsCardSeconds, closingCardEarliestStart(short))
 	if end-start < statsCardMinSeconds {
 		start = end - statsCardMinSeconds
 	}
 	return max(start, 0), end, true
+}
+
+func closingCardShown(short ShortEdit) bool {
+	return (short.Overlays.StatsCard != nil || endPlayerCard(short) != "") && short.OutputFormat == OutputFormatShort9x16 && !short.MultiPOV()
+}
+
+func closingCardEarliestStart(short ShortEdit) float64 {
+	afterKill := statsCardAfterKill
+	if short.Overlays.PlayBadges {
+		afterKill = playBadgeSeconds + 0.1
+	}
+	start := 0.0
+	for _, kill := range short.Kills {
+		start = max(start, kill.TimeSeconds+afterKill)
+	}
+	return start
+}
+
+func withEndCardHold(short ShortEdit) ShortEdit {
+	if len(short.Parts) == 0 || len(short.Kills) == 0 || !closingCardShown(short) {
+		return short
+	}
+	fps := float64(outputFPS(short))
+	holdFrames := math.Ceil((closingCardEarliestStart(short)+statsCardMinSeconds-short.DurationSeconds)*fps - 1e-6)
+	if holdFrames <= 0 {
+		return short
+	}
+	hold := holdFrames / fps
+	short.Parts = slices.Clone(short.Parts)
+	short.Parts[len(short.Parts)-1].HoldAfterSeconds = hold
+	short.DurationSeconds = roundMillis(short.DurationSeconds + hold)
+	return short
 }
 
 // statsCardLines are the card rows in order; rows without data are left out.

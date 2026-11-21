@@ -158,3 +158,19 @@ func TestVerticalHUDEndsBeforeTheStatsCard(t *testing.T) {
 		t.Fatalf("filters before the script is written = %v", filters)
 	}
 }
+
+func TestVerticalHUDIsDrawnOnceAfterTheConcat(t *testing.T) {
+	t.Parallel()
+	short := ShortEdit{
+		OutputFormat: OutputFormatShort9x16, OutputFPS: 60, DurationSeconds: 12, Transition: TransitionZoomWhip,
+		VerticalHUDASS: "hud.ass", VerticalHUDFontsDir: "fonts",
+		Parts: []ShortPart{{Input: "a.mp4", DurationSeconds: 6}, {Input: "b.mp4", DurationSeconds: 6, TimelineStartSeconds: 6}},
+	}
+	filter := CompilationFilter(short)
+	if got := strings.Count(filter, "hud.ass"); got != 1 {
+		t.Fatalf("the HUD script is drawn %d times, want once:\n%s", got, filter)
+	}
+	if strings.Index(filter, "hud.ass") < strings.Index(filter, "concat=") {
+		t.Errorf("the HUD is drawn before the concat:\n%s", filter)
+	}
+}

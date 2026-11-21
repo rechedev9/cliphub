@@ -165,7 +165,7 @@ func legacyKillfeedCropFilter(effect Effect, short ShortEdit, sampleSeconds floa
 	if short.DurationSeconds > 0 {
 		filters = append(filters, fmt.Sprintf("trim=duration=%.3f", short.DurationSeconds))
 	}
-	filters = append(filters, gradeFilters(short.Effects)...)
+	filters = append(filters, gradeFilters(short.Effects, short.DurationSeconds)...)
 	filters = append(filters, "curves=all='0/0 0.35/0.08 1/1'")
 	filters = append(filters, "format=rgba")
 	return strings.Join(filters, ",")

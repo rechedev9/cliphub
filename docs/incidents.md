@@ -836,3 +836,11 @@ first open and clears the file stamps, so its first `pro-matches` run rereads ev
   recap and a Full Demo get no world overlay.
 - A missing demo or a failed read renders the Short without the overlay and logs
   why; a track of another demo or tick rate fails the render.
+
+## Short grade and closing card (`internal/editor`, 2026-11-21)
+
+### Incident: a velocity Short came out neon, its end card hid the last kill and its HUD showed twice (Studio 5.28.0, 2026-11-21)
+
+- `gradeFilters` wrote each `EffectGrade` as an `eq` with no `enable` window, so the velocity kill effect's grade (one per kill, about 0.44 s each) graded the whole video and the grades compounded: 8 kills were about 3.8x saturation. A grade with a window now runs only inside it (`TestVelocityGradesOnlyAroundEachKill`); a grade with no window or a whole-Short one, like a preset's `on_segment` grade, keeps the ungated `eq`.
+- The closing card (`end_card` or `stats_card`) never shrinks below `statsCardMinSeconds`, so a kill closer to the end than that was drawn over. `withEndCardHold` now freezes the last frame of a compiled Short, with silence, until the card fits after the last kill and its badge (`TestEndCardHoldsTheLastFrameInsteadOfCoveringTheLastKill`). The per-segment path, which has no parts, is unchanged.
+- With `vertical_hud`, `CompilationFilter` left `VerticalHUDASS` on each part, so every part burned the HUD in on its own clock (the first play's score and time) and the post-concat zoom of a transition or kill effect scaled that stale copy above the real board. The HUD, like the centered kill feed and the subtitles, is drawn once after the concat (`TestVerticalHUDIsDrawnOnceAfterTheConcat`).

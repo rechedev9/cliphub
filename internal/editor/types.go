@@ -464,6 +464,7 @@ type ShortPart struct {
 	Player string `json:"player,omitempty"`
 	// Speed below 1 plays the part in slow motion (the victim replay).
 	Speed float64 `json:"speed,omitempty"`
+	HoldAfterSeconds float64 `json:"hold_after_seconds,omitempty"`
 }
 
 type KillCue struct {

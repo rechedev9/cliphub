@@ -562,7 +562,7 @@ func appendTransitionFlashFilters(filters []string, short ShortEdit) []string {
 
 func appendEffectFilters(filters []string, short ShortEdit, singleCrop bool) []string {
 	effects := short.Effects
-	filters = append(filters, gradeFilters(effects)...)
+	filters = append(filters, gradeFilters(effects, short.DurationSeconds)...)
 	filters = appendMotionCropFilters(filters, effects, short, singleCrop)
 	filters = append(filters, chromaShiftFilters(effects)...)
 	for _, effect := range effects {
@@ -816,27 +816,26 @@ func chromaShiftFilters(effects []Effect) []string {
 	return filters
 }
 
-func gradeFilters(effects []Effect) []string {
+func gradeFilters(effects []Effect, duration float64) []string {
 	filters := []string{}
 	for _, effect := range effects {
 		if effect.Type != EffectGrade {
 			continue
 		}
-		contrast := effect.Contrast
-		if contrast == 0 {
-			contrast = 1
+		filter := fmt.Sprintf("eq=contrast=%.3f:saturation=%.3f:gamma=%.3f", unitDefault(effect.Contrast), unitDefault(effect.Saturation), unitDefault(effect.Gamma))
+		if effect.EndSeconds > effect.StartSeconds && (effect.StartSeconds > 0 || effect.EndSeconds < duration-0.0005) {
+			filter += fmt.Sprintf(":enable='%s'", betweenExpression(effect.StartSeconds, effect.EndSeconds))
 		}
-		saturation := effect.Saturation
-		if saturation == 0 {
-			saturation = 1
-		}
-		gamma := effect.Gamma
-		if gamma == 0 {
-			gamma = 1
-		}
-		filters = append(filters, fmt.Sprintf("eq=contrast=%.3f:saturation=%.3f:gamma=%.3f", contrast, saturation, gamma))
+		filters = append(filters, filter)
 	}
 	return filters
+}
+
+func unitDefault(v float64) float64 {
+	if v == 0 {
+		return 1
+	}
+	return v
 }
 
 // drawTextEffect renders a text effect as a drawtext filter. BoxColor "none"
