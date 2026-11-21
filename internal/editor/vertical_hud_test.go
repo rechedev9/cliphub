@@ -167,7 +167,6 @@ func TestVerticalHUDIsDrawnOnceAfterTheConcat(t *testing.T) {
 		Parts: []ShortPart{{Input: "a.mp4", DurationSeconds: 6}, {Input: "b.mp4", DurationSeconds: 6, TimelineStartSeconds: 6}},
 	}
 	filter := CompilationFilter(short)
-	// A part that burns the HUD in shows its own clock from 0, and the post-concat zoom scales that stale copy.
 	if got := strings.Count(filter, "hud.ass"); got != 1 {
 		t.Fatalf("the HUD script is drawn %d times, want once:\n%s", got, filter)
 	}

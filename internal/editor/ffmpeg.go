@@ -377,7 +377,6 @@ func CompilationFilter(short ShortEdit) string {
 	return strings.Join(clauses, ";")
 }
 
-// partHoldFilters clone the part's last frame and pad its audio with silence for HoldAfterSeconds.
 func partHoldFilters(part ShortPart, fps int) (string, string, int) {
 	frames := int(math.Round(part.HoldAfterSeconds * float64(fps)))
 	if frames <= 0 {

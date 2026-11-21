@@ -183,7 +183,6 @@ func closingCardShown(short ShortEdit) bool {
 	return (short.Overlays.StatsCard != nil || endPlayerCard(short) != "") && short.OutputFormat == OutputFormatShort9x16 && !short.MultiPOV()
 }
 
-// closingCardEarliestStart is the first moment the closing card may cover: after the last kill and its badge.
 func closingCardEarliestStart(short ShortEdit) float64 {
 	afterKill := statsCardAfterKill
 	if short.Overlays.PlayBadges {
@@ -196,7 +195,6 @@ func closingCardEarliestStart(short ShortEdit) float64 {
 	return start
 }
 
-// withEndCardHold holds the last frame of a compiled Short long enough that its closing card never covers a kill.
 func withEndCardHold(short ShortEdit) ShortEdit {
 	if len(short.Parts) == 0 || len(short.Kills) == 0 || !closingCardShown(short) {
 		return short

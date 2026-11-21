@@ -823,7 +823,6 @@ func gradeFilters(effects []Effect, duration float64) []string {
 			continue
 		}
 		filter := fmt.Sprintf("eq=contrast=%.3f:saturation=%.3f:gamma=%.3f", unitDefault(effect.Contrast), unitDefault(effect.Saturation), unitDefault(effect.Gamma))
-		// Grades stack, so each stays inside its window; an unset or whole-Short window needs no gate.
 		if effect.EndSeconds > effect.StartSeconds && (effect.StartSeconds > 0 || effect.EndSeconds < duration-0.0005) {
 			filter += fmt.Sprintf(":enable='%s'", betweenExpression(effect.StartSeconds, effect.EndSeconds))
 		}
