@@ -24,6 +24,8 @@ export type StreamSubtitlesPanelProps = {
   video: StreamSubtitlesVideo | null;
   stretches: readonly Stretch[];
   disabled?: boolean;
+  renderKey?: string;
+  onStale?: (stale: boolean) => void;
 };
 
 export function clipStretch(clip: { start_seconds: number; end_seconds: number }): Stretch {
@@ -34,7 +36,7 @@ function errorCode(error: unknown): string | undefined {
   return error instanceof StreamSubtitlesError ? error.code : undefined;
 }
 
-export function StreamSubtitlesPanel({ jobId, kind, video, stretches, disabled = false }: StreamSubtitlesPanelProps): ReactNode {
+export function StreamSubtitlesPanel({ jobId, kind, video, stretches, disabled = false, renderKey = '', onStale }: StreamSubtitlesPanelProps): ReactNode {
   const [transcript, setTranscript] = useState<StreamTranscript | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,7 +53,13 @@ export function StreamSubtitlesPanel({ jobId, kind, video, stretches, disabled =
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, renderKey]);
+
+  const reportStale = useRef(onStale);
+  reportStale.current = onStale;
+  useEffect(() => {
+    if (transcript !== null) reportStale.current?.(transcript.stale[kind]);
+  }, [transcript, kind]);
 
   const waiting = transcript !== null && (['queued', 'running'].includes(transcript.state) || transcript.transcriber.state === 'installing');
   useEffect(() => {

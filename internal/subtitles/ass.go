@@ -52,7 +52,11 @@ func ASS(s Script) (string, error) {
 		mediafont.FamilyName, placed.FontSize, max(2, placed.FontSize/14), placed.Box.Left, s.Width-placed.Box.Right, s.Height-placed.Box.Bottom)
 	b.WriteString("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
 	for _, c := range timed(s) {
-		fmt.Fprintf(&b, "Dialogue: 0,%s,%s,Subtitle,,0,0,0,,{\\c&H%s&}%s:%s\n", clock(c.StartSeconds), clock(c.EndSeconds), colourOf(c), escape(c.Speaker), drawn(c.Lines))
+		text := strings.TrimPrefix(drawn(c.Lines), " ")
+		if c.Speaker != "" {
+			text = fmt.Sprintf("{\\c&H%s&}%s:%s", colourOf(c), escape(c.Speaker), drawn(c.Lines))
+		}
+		fmt.Fprintf(&b, "Dialogue: 0,%s,%s,Subtitle,,0,0,0,,%s\n", clock(c.StartSeconds), clock(c.EndSeconds), text)
 	}
 	return b.String(), nil
 }

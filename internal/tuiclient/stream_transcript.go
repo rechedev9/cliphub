@@ -28,16 +28,22 @@ type StreamSubtitles struct {
 }
 
 type StreamTranscript struct {
-	JobID        string            `json:"job_id"`
-	State        string            `json:"state"`
-	Error        string            `json:"error,omitempty"`
-	Progress     float64           `json:"progress,omitempty"`
-	Availability string            `json:"availability"`
-	Spans        []StreamVoiceSpan `json:"spans"`
-	Pending      []StreamVoiceSpan `json:"pending"`
-	Lines        []StreamVoiceLine `json:"lines"`
-	Transcriber  VoiceTranscriber  `json:"transcriber"`
-	Subtitles    StreamSubtitles   `json:"subtitles"`
+	JobID        string               `json:"job_id"`
+	State        string               `json:"state"`
+	Error        string               `json:"error,omitempty"`
+	Progress     float64              `json:"progress,omitempty"`
+	Availability string               `json:"availability"`
+	Spans        []StreamVoiceSpan    `json:"spans"`
+	Pending      []StreamVoiceSpan    `json:"pending"`
+	Lines        []StreamVoiceLine    `json:"lines"`
+	Transcriber  VoiceTranscriber     `json:"transcriber"`
+	Subtitles    StreamSubtitles      `json:"subtitles"`
+	Stale        StreamSubtitlesStale `json:"stale"`
+}
+
+type StreamSubtitlesStale struct {
+	Shorts  bool `json:"shorts"`
+	Summary bool `json:"summary"`
 }
 
 type StreamStretch struct {

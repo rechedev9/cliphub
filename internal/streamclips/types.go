@@ -331,13 +331,14 @@ type DeliveryEntry struct {
 }
 
 type RenderResult struct {
-	SchemaVersion string       `json:"schema_version"`
-	JobID         uuid.UUID    `json:"job_id"`
-	Variant       string       `json:"variant"`
-	Clips         []VideoEntry `json:"clips"`
-	Warnings      []string     `json:"warnings,omitempty"`
-	Error         string       `json:"error,omitempty"`
-	RenderedAt    time.Time    `json:"rendered_at"`
+	SchemaVersion        string       `json:"schema_version"`
+	JobID                uuid.UUID    `json:"job_id"`
+	Variant              string       `json:"variant"`
+	Clips                []VideoEntry `json:"clips"`
+	Warnings             []string     `json:"warnings,omitempty"`
+	SubtitlesFingerprint string       `json:"subtitles_fingerprint,omitempty"`
+	Error                string       `json:"error,omitempty"`
+	RenderedAt           time.Time    `json:"rendered_at"`
 }
 
 // VideoPerformance is a content-free local measurement of one stream encode.

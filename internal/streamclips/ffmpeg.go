@@ -62,7 +62,8 @@ type FFmpegInputs struct {
 	MusicOffsetSeconds float64
 	// JoinedPart marks one part of a joined Short: the stream-copy join needs
 	// every part to carry the same streams, so a silent probe maps no audio.
-	JoinedPart bool
+	JoinedPart      bool
+	SubtitlesFilter string
 }
 
 // AACBitrate is the audio bitrate of every stream render, joined Shorts included.
@@ -124,7 +125,7 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 
 	filter, err := buildStandardFilterGraph(layout, plan, clip, graphExtras{
 		fontPath: in.BannerFontPath, textPaths: in.TextOverlayPaths, duration: duration,
-		keyDropInput: keyDropInput, killFeed: killFeed,
+		keyDropInput: keyDropInput, killFeed: killFeed, subtitles: in.SubtitlesFilter,
 	})
 	if err != nil {
 		return nil, err
@@ -222,15 +223,20 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 // banner overlay: text overlays and the speed change first (both in
 // source time up to setpts), then boundary fades in output time, then the
 // grade and the output format. An unedited clip keeps the pre-edit chain.
-func videoTail(plan EditPlan, clip ClipRange, fontPath string, textPaths []string) string {
+func videoTail(plan EditPlan, clip ClipRange, extras graphExtras) string {
 	var parts []string
 	if clip.Edit != nil {
 		for i, overlay := range clip.Edit.TextOverlays {
-			parts = append(parts, textOverlayFilter(overlay, fontPath, textPaths[i]))
+			parts = append(parts, textOverlayFilter(overlay, extras.fontPath, extras.textPaths[i]))
 		}
 		if speed := clip.Edit.speed(); speed != 1 {
 			parts = append(parts, "setpts=PTS/"+floatArg(speed))
 		}
+	}
+	if extras.subtitles != "" {
+		parts = append(parts, extras.subtitles)
+	}
+	if clip.Edit != nil {
 		if fades := boundaryFades(clip.Edit, clip.OutputDurationSeconds(), "fade"); fades != "" {
 			parts = append(parts, fades)
 		}
@@ -319,11 +325,12 @@ type graphExtras struct {
 	duration     float64
 	keyDropInput int
 	killFeed     *killFeedGraph
+	subtitles    string
 }
 
 func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRange, extras graphExtras) (string, error) {
 	bannerFontPath, duration, keyDropInput := extras.fontPath, extras.duration, extras.keyDropInput
-	tail := videoTail(plan, clip, bannerFontPath, extras.textPaths)
+	tail := videoTail(plan, clip, extras)
 	needsNamedContent := plan.StreamerBanner.Nick != "" || plan.KeyDropBanner.Enabled() || extras.killFeed != nil
 
 	outputLabel := ""

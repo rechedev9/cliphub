@@ -341,8 +341,13 @@ that go into a video (spans: the momentos of the plan for Shorts, the jugadas fo
 install_transcriber; stream_transcript reads the phrases (no speaker names, in the language spoken, never translated) and says
 mixed_track for a stream with only the mix of voice and game, which has no subtitles yet. correct_stream_phrase and
 discard_stream_phrase count for every video of the stream; set_stream_subtitles turns subtitles on for the Shorts or the resumen
-and hides a phrase in one video (a momento or group id, or summary). No review is needed before a render, and stream videos do
-not draw the subtitles yet: Studio stores the transcript and the choices.
+and hides a phrase in one video (a momento or group id, or summary). No review is needed before a render. With the switch on,
+render_stream draws them on each Short (9:16: 2 to 4 words at a time in uppercase, the spoken word highlighted, inside the
+platforms' safe zone; a 16:9 layout draws them like the resumen) and render_stream_summary on the resumen (white lines, no
+speaker name), without hidden and discarded phrases. The render waits up to 5 minutes for the transcript of its stretches; when
+it fails, is not installed or runs out of time, the videos render without subtitles and wait_for_stream_render warnings says
+why: tell the user. One style per format, no options. stream_transcript stale says which rendered videos drew other subtitles
+than the current ones and must be rendered again.
 Use Studio's words with the user: a play is a jugada (a voice-only one is a pico de voz), a moment is a momento,
 a 9:16 render_stream video is a Short (one momento or several joined), and the render_stream_summary video is the resumen
 (Hacer resumen on a VOD's project card). Do not call a momento a clip or a corte.

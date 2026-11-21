@@ -22,11 +22,15 @@ export function StreamLookStep({
   songs,
   busy,
   subtitlesVideo,
+  renderKey,
+  onSubtitlesStale,
   onPlanChange,
 }: {
   job: StreamJob;
   plan: StreamEditPlan;
   subtitlesVideo: StreamSubtitlesVideo | null;
+  renderKey: string;
+  onSubtitlesStale: (stale: boolean) => void;
   banners: StreamBannerActions;
   songs: Song[] | null;
   busy: boolean;
@@ -123,7 +127,8 @@ export function StreamLookStep({
       <details className="rounded-md border border-border-subtle p-3">
         <DisclosureSummary className="font-semibold text-body-sm">Subtítulos · opcional</DisclosureSummary>
         <div className="mt-3">
-          <StreamSubtitlesPanel jobId={job.id} kind="shorts" video={subtitlesVideo} stretches={stretches} disabled={busy} />
+          <StreamSubtitlesPanel jobId={job.id} kind="shorts" video={subtitlesVideo} stretches={stretches} disabled={busy}
+            renderKey={renderKey} onStale={onSubtitlesStale} />
         </div>
       </details>
     </>

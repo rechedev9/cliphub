@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -128,4 +129,26 @@ func streamJoinArgs(listPath string, parts []string, hasAudio bool, outPath stri
 	fmt.Fprintf(&filter, "concat=n=%d:v=0:a=1[a]", len(parts))
 	return append(args, "-filter_complex", filter.String(), "-map", "0:v", "-map", "[a]",
 		"-c:v", "copy", "-c:a", "aac", "-b:a", streamclips.AACBitrate, "-movflags", "+faststart", outPath)
+}
+
+func (w *StreamRenderWorker) writeStreamCover(ctx context.Context, ffmpegPath, videoPath, filename string) error {
+	if strings.TrimSpace(videoPath) == "" {
+		return errors.New("rendered video is required for cover generation")
+	}
+	_, err := w.runner.Run(ctx, ffmpegPath,
+		"-hide_banner", "-loglevel", "error", "-y",
+		"-i", videoPath,
+		"-frames:v", "1", "-vf", "scale=720:-2", "-q:v", "2", filename,
+	)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(filename)
+	if err != nil {
+		return fmt.Errorf("verify cover output: %w", err)
+	}
+	if info.Size() == 0 {
+		return errors.New("cover output is empty")
+	}
+	return nil
 }

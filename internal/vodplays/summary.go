@@ -16,8 +16,8 @@ import (
 // The summary is a 1080p landscape video, so a 4:3 or vertical source is
 // letterboxed rather than cropped and no kill feed is lost.
 const (
-	summaryWidth        = 1920
-	summaryHeight       = 1080
+	SummaryWidth        = 1920
+	SummaryHeight       = 1080
 	summaryFadeSeconds  = 0.3
 	minSegmentSeconds   = 1
 	summaryVideoQuality = "20"
@@ -28,9 +28,10 @@ type SummaryOptions struct {
 	Input  string
 	Output string
 	// WorkDir holds the per-play segments; it must exist and is not removed.
-	WorkDir  string
-	Plays    []Play
-	HasAudio bool
+	WorkDir         string
+	Plays           []Play
+	HasAudio        bool
+	SubtitleFilters map[string]string
 	// OnProgress receives the share of the summary encoded, from 0 to 1.
 	OnProgress func(float64)
 }
@@ -39,7 +40,7 @@ type SummaryOptions struct {
 // play is encoded on its own with the same settings and the parts are joined
 // without re-encoding, so memory stays flat however many plays there are.
 func RenderSummary(ctx context.Context, opts SummaryOptions) error {
-	segments := summarySegments(opts.Plays)
+	segments := SummarySegments(opts.Plays)
 	if len(segments) == 0 {
 		return errors.New("no plays to summarize")
 	}
@@ -71,8 +72,8 @@ func RenderSummary(ctx context.Context, opts SummaryOptions) error {
 	})
 }
 
-// summarySegments keeps the plays long enough to show, in source order.
-func summarySegments(plays []Play) []Play {
+// SummarySegments keeps the plays long enough to show, in source order.
+func SummarySegments(plays []Play) []Play {
 	var out []Play
 	for _, p := range plays {
 		if p.EndSeconds-p.StartSeconds >= minSegmentSeconds {
@@ -87,9 +88,13 @@ func segmentArgs(opts SummaryOptions, s Play, output string) []string {
 	duration := s.EndSeconds - s.StartSeconds
 	fadeOut := strconv.FormatFloat(duration-summaryFadeSeconds, 'f', 3, 64)
 	fade := strconv.FormatFloat(summaryFadeSeconds, 'f', 3, 64)
+	subtitles := ""
+	if filter := opts.SubtitleFilters[s.ID]; filter != "" {
+		subtitles = "," + filter
+	}
 	video := fmt.Sprintf(
-		"scale=%d:%d:force_original_aspect_ratio=decrease:flags=lanczos,pad=%d:%d:-1:-1:color=black,setsar=1,format=yuv420p,fade=t=in:st=0:d=%s,fade=t=out:st=%s:d=%s",
-		summaryWidth, summaryHeight, summaryWidth, summaryHeight, fade, fadeOut, fade,
+		"scale=%d:%d:force_original_aspect_ratio=decrease:flags=lanczos,pad=%d:%d:-1:-1:color=black,setsar=1,format=yuv420p%s,fade=t=in:st=0:d=%s,fade=t=out:st=%s:d=%s",
+		SummaryWidth, SummaryHeight, SummaryWidth, SummaryHeight, subtitles, fade, fadeOut, fade,
 	)
 	args := []string{
 		"-hide_banner", "-nostdin", "-loglevel", "error", "-y",

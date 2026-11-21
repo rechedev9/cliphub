@@ -21,13 +21,15 @@ import (
 
 // streamSummary is the state of the landscape summary of a VOD's plays.
 type streamSummary struct {
-	Status          string     `json:"status"`
-	Progress        float64    `json:"progress"`
-	PlayCount       int        `json:"play_count,omitempty"`
-	PlayIDs         []string   `json:"play_ids,omitempty"`
-	DurationSeconds float64    `json:"duration_seconds,omitempty"`
-	Error           string     `json:"error,omitempty"`
-	RenderedAt      *time.Time `json:"rendered_at,omitempty"`
+	Status               string     `json:"status"`
+	Progress             float64    `json:"progress"`
+	PlayCount            int        `json:"play_count,omitempty"`
+	PlayIDs              []string   `json:"play_ids,omitempty"`
+	DurationSeconds      float64    `json:"duration_seconds,omitempty"`
+	Error                string     `json:"error,omitempty"`
+	RenderedAt           *time.Time `json:"rendered_at,omitempty"`
+	SubtitlesNotice      string     `json:"subtitles_notice,omitempty"`
+	SubtitlesFingerprint string     `json:"subtitles_fingerprint,omitempty"`
 }
 
 // streamSummaries holds the summaries that are running or failed since
@@ -197,14 +199,16 @@ func (h *Handlers) runStreamSummary(id uuid.UUID, source string, plays []vodplay
 	}
 	defer func() { _ = os.RemoveAll(workDir) }()
 	output := filepath.Join(workDir, "summary.mp4")
+	subs := h.summarySubtitles(summarySubtitleJob{id: id, plays: plays, workDir: workDir})
 	lastReport := 0.0
 	err = vodplays.RenderSummary(context.Background(), vodplays.SummaryOptions{
-		FFmpeg:   h.streamFFmpeg,
-		Input:    source,
-		Output:   output,
-		WorkDir:  workDir,
-		Plays:    plays,
-		HasAudio: hasAudio,
+		FFmpeg:          h.streamFFmpeg,
+		Input:           source,
+		Output:          output,
+		WorkDir:         workDir,
+		Plays:           plays,
+		HasAudio:        hasAudio,
+		SubtitleFilters: subs.filters,
 		OnProgress: func(share float64) {
 			if share-lastReport >= 0.01 {
 				lastReport = share
@@ -216,14 +220,22 @@ func (h *Handlers) runStreamSummary(id uuid.UUID, source string, plays []vodplay
 		fail("render", err, "No pudimos crear el resumen.")
 		return
 	}
-	if err := h.publishStreamSummary(id, output, plays); err != nil {
+	if err := h.publishStreamSummary(summaryPublish{id: id, output: output, plays: plays, subtitles: subs}); err != nil {
 		fail("publish", err, "No pudimos guardar el resumen.")
 		return
 	}
 	h.summaries.clear(id)
 }
 
-func (h *Handlers) publishStreamSummary(id uuid.UUID, output string, plays []vodplays.Play) error {
+type summaryPublish struct {
+	id        uuid.UUID
+	output    string
+	plays     []vodplays.Play
+	subtitles summarySubtitles
+}
+
+func (h *Handlers) publishStreamSummary(in summaryPublish) error {
+	id, output, plays := in.id, in.output, in.plays
 	// The job may have been deleted while the summary rendered; do not recreate it.
 	if _, err := h.streamRepo.Get(context.Background(), id); err != nil {
 		return err
@@ -243,6 +255,7 @@ func (h *Handlers) publishStreamSummary(id uuid.UUID, output string, plays []vod
 	now := time.Now().UTC()
 	body, err := json.MarshalIndent(streamSummary{
 		Status: playScanDone, Progress: 1, PlayCount: len(plays), PlayIDs: playIDs(plays), DurationSeconds: duration, RenderedAt: &now,
+		SubtitlesNotice: in.subtitles.notice, SubtitlesFingerprint: in.subtitles.fingerprint,
 	}, "", "  ")
 	if err != nil {
 		return err

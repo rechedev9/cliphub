@@ -50,6 +50,7 @@ export function StreamSummaryCard({ jobId, plays }: { jobId: string; plays: read
   const [summary, setSummary] = useState<StreamSummary | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [chosen, setChosen] = useState<ReadonlySet<string> | null>(null);
+  const [subtitlesStale, setSubtitlesStale] = useState(false);
   const running = summary?.status === 'running';
 
   useEffect(() => {
@@ -94,7 +95,7 @@ export function StreamSummaryCard({ jobId, plays }: { jobId: string; plays: read
   };
 
   const done = summary?.status === 'done';
-  const stale = done && (covered === null || !sameIds(covered, selectedPlays.map((play) => play.id)));
+  const stale = done && (covered === null || !sameIds(covered, selectedPlays.map((play) => play.id)) || subtitlesStale);
   const videoUrl = done ? streamsApi.summaryVideoUrl(jobId, summary.rendered_at) : null;
   const canStart = !running && selectedPlays.length > 0;
   const stretches = selectedPlays.map(clipStretch);
@@ -116,6 +117,8 @@ export function StreamSummaryCard({ jobId, plays }: { jobId: string; plays: read
                 Guardar resumen
               </a>
             </div>
+            {summary.subtitles_notice ? <p role="status" className="text-body-sm text-warning">{summary.subtitles_notice}</p> : null}
+            {subtitlesStale ? <p role="status" className="text-body-sm text-warning">Los subtítulos han cambiado desde que creaste el resumen. Rehazlo para aplicarlos.</p> : null}
           </>
         ) : null}
 
@@ -182,7 +185,8 @@ export function StreamSummaryCard({ jobId, plays }: { jobId: string; plays: read
         <details className="rounded-md border border-border-subtle p-3">
           <DisclosureSummary className="font-semibold text-body-sm">Subtítulos · opcional</DisclosureSummary>
           <div className="mt-3">
-            <StreamSubtitlesPanel jobId={jobId} kind="summary" video={{ id: SUMMARY_VIDEO, windows: stretches }} stretches={stretches} disabled={running} />
+            <StreamSubtitlesPanel jobId={jobId} kind="summary" video={{ id: SUMMARY_VIDEO, windows: stretches }} stretches={stretches} disabled={running}
+              renderKey={summary?.rendered_at ?? ''} onStale={setSubtitlesStale} />
           </div>
         </details>
       </section>

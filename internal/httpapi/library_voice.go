@@ -76,11 +76,12 @@ type voiceJob struct {
 }
 
 type voiceService struct {
-	deps     VoiceDeps
-	queue    chan voiceJob
-	mu       sync.Mutex
-	streamMu sync.Mutex
-	progress map[uuid.UUID]float64
+	deps       VoiceDeps
+	queue      chan voiceJob
+	mu         sync.Mutex
+	streamMu   sync.Mutex
+	streamWait time.Duration
+	progress   map[uuid.UUID]float64
 	// demoJobs is the extraction state of each demo's in-game voice while it runs or after it failed.
 	demoJobs map[uuid.UUID]string
 	// installCtx outlives the request that asked for an install or a demo voice extraction.

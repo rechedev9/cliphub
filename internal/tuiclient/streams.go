@@ -145,6 +145,7 @@ type StreamSummary struct {
 	DurationSeconds float64 `json:"duration_seconds,omitempty"`
 	Error           string  `json:"error,omitempty"`
 	RenderedAt      string  `json:"rendered_at,omitempty"`
+	SubtitlesNotice string  `json:"subtitles_notice,omitempty"`
 }
 
 // StreamVariant is one stream layout from GET /api/stream-variants.

@@ -77,7 +77,13 @@ type streamTranscriptOut struct {
 	Transcribed  []streamSpanIn     `json:"transcribed" jsonschema:"the stretches already transcribed; the rest of the stream has no phrases"`
 	Phrases      []streamPhraseOut  `json:"phrases"`
 	Subtitles    streamSubtitlesOut `json:"subtitles"`
+	Stale        streamStaleOut     `json:"stale" jsonschema:"videos rendered before their subtitles changed: render them again to draw the current ones"`
 	Truncated    bool               `json:"truncated,omitempty"`
+}
+
+type streamStaleOut struct {
+	Shorts  bool `json:"shorts" jsonschema:"the rendered Shorts of the saved plan's layout"`
+	Summary bool `json:"summary" jsonschema:"the rendered resumen"`
 }
 
 func streamPhraseOf(l tuiclient.StreamVoiceLine) streamPhraseOut {
@@ -97,7 +103,7 @@ func streamSubtitlesOf(s tuiclient.StreamSubtitles) streamSubtitlesOut {
 func streamTranscriptOf(t tuiclient.StreamTranscript) streamTranscriptOut {
 	out := streamTranscriptOut{ID: t.JobID, State: t.State, Error: cleanText(t.Error, maxErrorRunes), Progress: t.Progress,
 		Availability: t.Availability, Transcriber: t.Transcriber.State, Transcribed: []streamSpanIn{}, Phrases: []streamPhraseOut{},
-		Subtitles: streamSubtitlesOf(t.Subtitles)}
+		Subtitles: streamSubtitlesOf(t.Subtitles), Stale: streamStaleOut{Shorts: t.Stale.Shorts, Summary: t.Stale.Summary}}
 	for _, s := range t.Spans {
 		out.Transcribed = append(out.Transcribed, streamSpanIn{StartSeconds: float64(s.StartMS) / 1000, EndSeconds: float64(s.EndMS) / 1000})
 	}
@@ -208,7 +214,8 @@ func registerStreamTranscriptTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "set_stream_subtitles", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
 		Description: "Turn the subtitles of a stream on or off, as the switch of its Subtítulos panel does (shorts for the Shorts, summary for the resumen), " +
-			"or hide a phrase in one video only (video, phrase_id and hidden). Studio stores the choice; stream videos do not draw subtitles yet."},
+			"or hide a phrase in one video only (video, phrase_id and hidden). The next render_stream or render_stream_summary draws them; " +
+			"stream_transcript stale says which videos already rendered must be rendered again."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in setStreamSubtitlesIn) (*mcp.CallToolResult, streamSubtitlesOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, streamSubtitlesOut{}, err

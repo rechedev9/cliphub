@@ -252,8 +252,9 @@ func run() error {
 		labBundles = renderWorker
 		log.Printf("worker: render enabled")
 	}
+	var streamWorker *workers.StreamRenderWorker
 	if cfg.streamRenderWorkerEnabled() && streamRepo != nil {
-		streamWorker := workers.NewStreamRenderWorker(streamRepo, files, workers.StreamRenderWorkerConfig{
+		streamWorker = workers.NewStreamRenderWorker(streamRepo, files, workers.StreamRenderWorkerConfig{
 			WorkDir:    cfg.MediaWorkDir,
 			FFmpegPath: cfg.FFmpegPath,
 			Timeout:    cfg.RenderTimeout,
@@ -392,6 +393,9 @@ func run() error {
 	handlers.StartVoice(ctx)
 	if renderWorker != nil {
 		renderWorker.UseSubtitles(handlers)
+	}
+	if streamWorker != nil {
+		streamWorker.UseSubtitles(handlers)
 	}
 	handlers.StartPatternDetection(ctx)
 	handlers.StartReplayVideoSweep(ctx)

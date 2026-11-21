@@ -19,6 +19,8 @@ type streamTranscriber struct {
 	mu    sync.Mutex
 	state string
 	jobs  []teamvoice.TranscribeJob
+	hold  chan struct{}
+	err   error
 }
 
 func (f *streamTranscriber) Status() teamvoice.TranscriberStatus {
@@ -34,7 +36,20 @@ func (f *streamTranscriber) Install(context.Context) error {
 	return nil
 }
 
-func (f *streamTranscriber) Transcribe(_ context.Context, job teamvoice.TranscribeJob) ([]teamvoice.Line, error) {
+func (f *streamTranscriber) Transcribe(ctx context.Context, job teamvoice.TranscribeJob) ([]teamvoice.Line, error) {
+	f.mu.Lock()
+	hold, err := f.hold, f.err
+	f.mu.Unlock()
+	if hold != nil {
+		select {
+		case <-hold:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.jobs = append(f.jobs, job)
@@ -166,7 +181,9 @@ func TestStreamTranscriptLivesWithItsVideos(t *testing.T) {
 
 	moment.Force = true
 	env.json(http.MethodPost, base+"/transcript", moment, http.StatusAccepted, nil)
-	again := env.await(base, func(s streamTranscript) bool { return s.State == library.TranscriptReady && len(env.transcriber.clips()) == 3 })
+	again := env.await(base, func(s streamTranscript) bool {
+		return s.State == library.TranscriptReady && len(env.transcriber.clips()) == 3
+	})
 	if len(again.Lines) != 2 || again.Lines[0].ID != got.Lines[0].ID || again.Lines[0].Text != "vaya tiro, tío" || again.Lines[0].OriginalText != "vaya tiro" || !again.Lines[1].Discarded {
 		t.Fatalf("lines after transcribing again = %+v; want the correction and the discard kept", again.Lines)
 	}

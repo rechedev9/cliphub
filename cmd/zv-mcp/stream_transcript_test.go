@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 const testPhraseID = "6f1c2d3e-4a5b-4c6d-8e7f-90a1b2c3d4e5"
@@ -25,7 +27,7 @@ func TestStreamTranscriptToolsSpeakTheStreamRoutes(t *testing.T) {
 	}
 	transcript := `{"job_id":"` + testStreamID + `","state":"ready","availability":"available","spans":[{"start_ms":60000,"end_ms":80000}],"pending":[],
 		"lines":[{"id":"` + testPhraseID + `","start_ms":61000,"end_ms":62500,"text":"vaya tiro, tío","corrected":true,"original_text":"vaya tiro","discarded":false}],
-		"transcriber":{"state":"installed"},"subtitles":{"shorts":true,"summary":false,"hidden":{"clip-1":["` + testPhraseID + `"]}}}`
+		"transcriber":{"state":"installed"},"subtitles":{"shorts":true,"summary":false,"hidden":{"clip-1":["` + testPhraseID + `"]}},"stale":{"shorts":true,"summary":false}}`
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	mux.HandleFunc("/api/stream-jobs/"+testStreamID+"/transcript", func(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +64,7 @@ func TestStreamTranscriptToolsSpeakTheStreamRoutes(t *testing.T) {
 	var out streamTranscriptOut
 	callTool(t, cs, "stream_transcript", map[string]any{"id": testStreamID}, &out)
 	if out.State != "ready" || out.Availability != "available" || len(out.Phrases) != 1 || out.Phrases[0].StartSeconds != 61 || out.Phrases[0].OriginalText != "vaya tiro" ||
-		!out.Subtitles.Shorts || len(out.Subtitles.Hidden["clip-1"]) != 1 {
+		!out.Subtitles.Shorts || len(out.Subtitles.Hidden["clip-1"]) != 1 || !out.Stale.Shorts || out.Stale.Summary {
 		t.Fatalf("stream_transcript = %+v", out)
 	}
 	callTool(t, cs, "transcribe_stream", map[string]any{"id": testStreamID, "spans": []map[string]float64{{"start_seconds": 62, "end_seconds": 75}}, "force": true}, &out)
@@ -87,5 +89,16 @@ func TestStreamTranscriptToolsSpeakTheStreamRoutes(t *testing.T) {
 	defer mu.Unlock()
 	if strings.Join(calls, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("requests:\n%s\nwant:\n%s", strings.Join(calls, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestAResumenRenderedWithoutSubtitlesSaysSo(t *testing.T) {
+	notice := "El resumen ha salido sin subtítulos: la transcripción no está instalada en este PC."
+	out := describeSummaryRender(testStreamID, tuiclient.StreamSummary{Status: playScanDone, Progress: 1, SubtitlesNotice: notice})
+	if len(out.Warnings) != 1 || out.Warnings[0] != notice || out.Running {
+		t.Fatalf("summary render = %+v; want the notice in warnings", out)
+	}
+	if plain := describeSummaryRender(testStreamID, tuiclient.StreamSummary{Status: playScanDone, Progress: 1}); len(plain.Warnings) != 0 {
+		t.Fatalf("summary render = %+v; want no warning", plain)
 	}
 }

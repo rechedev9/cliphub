@@ -28,7 +28,9 @@ export function InstallPrompt({ what, credit, install, busy, onInstall }: { what
   }
   return <div className="flex flex-col gap-1.5">
     <div className="flex flex-wrap items-center gap-2">
-      <Button variant="secondary" size="sm" disabled={busy} onClick={onInstall}>Instalar la {what} (unos {megabytes(install.download_bytes)} MB)</Button>
+      <Button variant="secondary" size="sm" className="h-auto min-h-7 max-w-full shrink py-1 text-left whitespace-normal" disabled={busy} onClick={onInstall}>
+        Instalar la {what} (unos {megabytes(install.download_bytes)} MB)
+      </Button>
       {install.state === 'failed' ? <span className="text-body-sm text-warning">{voiceErrorText(install.error_code, 'La instalación falló.')}</span> : null}
     </div>
     <p className="text-meta text-fg-3">Se descarga una vez y funciona sin conexión. {credit}</p>

@@ -427,7 +427,7 @@ func (h *Handlers) streamRenderedOutputs(j streamclips.Job) ([]streamRenderedOut
 		if err != nil {
 			return nil, err
 		}
-		stale := h.publishedStreamPlanIsStale(j, state)
+		stale := h.publishedStreamPlanIsStale(j, state) || h.publishedStreamSubtitlesChanged(context.Background(), j, result)
 		warnings := append([]string(nil), result.Warnings...)
 		coverURL := ""
 		for _, artifact := range state.Delivery {

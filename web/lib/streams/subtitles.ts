@@ -17,6 +17,8 @@ export type StreamVoiceSpan = { start_ms: number; end_ms: number };
 
 export type StreamSubtitles = { shorts: boolean; summary: boolean; hidden: Record<string, string[]> };
 
+export type StreamSubtitlesStale = { shorts: boolean; summary: boolean };
+
 export type StreamTranscript = {
   state: VoiceTranscriptState;
   error?: string;
@@ -27,6 +29,7 @@ export type StreamTranscript = {
   lines: StreamVoiceLine[];
   transcriber: VoiceTranscriber;
   subtitles: StreamSubtitles;
+  stale: StreamSubtitlesStale;
 };
 
 export type StreamSubtitlesKind = 'shorts' | 'summary';
@@ -108,6 +111,11 @@ export function parseStreamSubtitles(value: unknown): StreamSubtitles | null {
   return { shorts: value.shorts, summary: value.summary, hidden: value.hidden };
 }
 
+function parseStale(value: unknown): StreamSubtitlesStale | null {
+  if (!isRecord(value) || typeof value.shorts !== 'boolean' || typeof value.summary !== 'boolean') return null;
+  return { shorts: value.shorts, summary: value.summary };
+}
+
 export function parseStreamTranscript(value: unknown): StreamTranscript | null {
   if (!isRecord(value) || !isTranscriptState(value.state) || typeof value.availability !== 'string' || !optionalString(value.error)) return null;
   const { state, availability, error, progress, spans, pending, lines, transcriber } = value;
@@ -115,9 +123,10 @@ export function parseStreamTranscript(value: unknown): StreamTranscript | null {
   if (!Array.isArray(spans) || !spans.every(isSpan) || !Array.isArray(pending) || !pending.every(isSpan)) return null;
   if (!Array.isArray(lines) || !lines.every(isLine) || !isInstall(transcriber)) return null;
   const subtitles = parseStreamSubtitles(value.subtitles);
-  if (subtitles === null) return null;
+  const stale = parseStale(value.stale);
+  if (subtitles === null || stale === null) return null;
   return {
-    state, availability, spans, pending, lines, transcriber, subtitles,
+    state, availability, spans, pending, lines, transcriber, subtitles, stale,
     ...(error === undefined ? {} : { error }),
     ...(progress === undefined ? {} : { progress }),
   };

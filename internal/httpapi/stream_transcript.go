@@ -48,6 +48,7 @@ type streamTranscript struct {
 	Lines        []streamclips.VoiceLine     `json:"lines"`
 	Transcriber  teamvoice.TranscriberStatus `json:"transcriber"`
 	Subtitles    streamclips.Subtitles       `json:"subtitles"`
+	Stale        streamSubtitlesStale        `json:"stale"`
 }
 
 func streamVoiceTrack(probe streamclips.SourceProbe) (int, string) {
@@ -104,7 +105,7 @@ func (h *Handlers) streamTranscriptOf(ctx context.Context, repo store.StreamVoic
 	}
 	t.Spans, t.Pending = append([]library.VoiceSpan{}, t.Spans...), append([]library.VoiceSpan{}, t.Pending...)
 	_, availability := streamVoiceTrack(j.Probe)
-	out := streamTranscript{VoiceTranscript: t, Availability: availability, Lines: lines, Transcriber: h.transcriberStatus(), Subtitles: subtitles}
+	out := streamTranscript{VoiceTranscript: t, Availability: availability, Lines: lines, Transcriber: h.transcriberStatus(), Subtitles: subtitles, Stale: h.streamSubtitlesStaleOf(ctx, j)}
 	if busyTranscript(t.State) && h.voice != nil {
 		out.Progress = h.voice.progressOf(j.ID)
 	}

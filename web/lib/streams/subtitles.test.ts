@@ -14,6 +14,7 @@ function transcript(extra: Partial<StreamTranscript> = {}): StreamTranscript {
     state: 'ready', availability: 'available', lines: [], spans: [], pending: [],
     transcriber: { state: 'installed', version: '0.3.0', model: 'parakeet', download_bytes: 700 << 20 },
     subtitles: { shorts: false, summary: false, hidden: {} },
+    stale: { shorts: false, summary: false },
     ...extra,
   };
 }
@@ -48,8 +49,9 @@ test('the same stretches in another order are the same request', () => {
 });
 
 test('an answer this build does not understand is refused', () => {
-  const good = transcript({ lines: [line('a', 1000)], subtitles: { shorts: true, summary: false, hidden: { 'clip-1': ['a'] } } });
+  const good = transcript({ lines: [line('a', 1000)], subtitles: { shorts: true, summary: false, hidden: { 'clip-1': ['a'] } }, stale: { shorts: true, summary: false } });
   assert.deepEqual(parseStreamTranscript(JSON.parse(JSON.stringify({ ...good, job_id: 'x', updated_at: 'now' }))), good);
   assert.equal(parseStreamTranscript({ ...good, lines: [{ id: 'a' }] }), null);
   assert.equal(parseStreamTranscript({ ...good, availability: 7 }), null);
+  assert.equal(parseStreamTranscript({ ...good, stale: { shorts: true } }), null);
 });

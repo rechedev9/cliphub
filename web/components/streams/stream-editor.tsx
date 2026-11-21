@@ -2,7 +2,7 @@
 
 import { streamTitle } from '@/lib/streams/title';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   STREAM_VARIANTS,
   streamsApi,
@@ -48,6 +48,7 @@ import { streamMusicOffsets, streamPlanShorts, type StreamShort } from '@/lib/st
 import { recordRendererError } from '@/lib/desktop-telemetry';
 import { streamBannerActions } from '@/components/streams/stream-banner-actions';
 import { StreamLookStep } from '@/components/streams/stream-look-step';
+import { fetchStreamTranscript } from '@/lib/streams/subtitles';
 import { clipStretch } from '@/components/streams/stream-subtitles-panel';
 import { StreamMomentsStep } from '@/components/streams/stream-moments-step';
 import { StreamResultsStep, StreamResultVideo } from '@/components/streams/stream-results-step';
@@ -85,10 +86,29 @@ export function StreamEditor({
 }): ReactNode {
   const videoSrc = streamsApi.sourceUrl(job.id);
   const variantMeta = STREAM_VARIANTS.find((v) => v.value === plan.variant) ?? STREAM_VARIANTS[0];
-  const stale = useMemo(
+  const planStale = useMemo(
     () => renderedPlan !== null && planFingerprint(renderedPlan) !== planFingerprint(plan),
     [renderedPlan, plan],
   );
+  const renderKey = renderState?.videos?.[0]?.key ?? '';
+  const [subtitlesStale, setSubtitlesStale] = useState({ renderKey, stale: false });
+  const reportSubtitlesStale = useCallback(
+    (next: boolean) => setSubtitlesStale((current) => (current.renderKey === renderKey && current.stale === next ? current : { renderKey, stale: next })),
+    [renderKey],
+  );
+  useEffect(() => {
+    let active = true;
+    fetchStreamTranscript(job.id).then(
+      (transcript) => {
+        if (active) reportSubtitlesStale(transcript.stale.shorts);
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [job.id, reportSubtitlesStale]);
+  const stale = planStale || (renderedPlan !== null && subtitlesStale.renderKey === renderKey && subtitlesStale.stale);
   const hasRender = renderedPlan !== null && (stage === 'rendered' || renderState?.published === true);
 
   const probedDuration = job.probe?.duration_seconds ?? 0;
@@ -436,6 +456,7 @@ export function StreamEditor({
   if (activeStep === STREAM_STEP.layout) {
     stepContent = (
       <StreamLookStep job={job} plan={plan} banners={banners} songs={songs} busy={busy} onPlanChange={onPlanChange}
+        renderKey={renderKey} onSubtitlesStale={reportSubtitlesStale}
         subtitlesVideo={selectedShort ? { id: selectedShort.id, windows: selectedShort.clips.map(clipStretch) } : null} />
     );
   } else if (activeStep === STREAM_STEP.cuts) {
