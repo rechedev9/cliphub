@@ -11,5 +11,9 @@ Style: Subtitle,Montserrat ExtraBold,56,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:24.94,0:00:26.94,Subtitle,,0,0,0,,{\c&H4FD7FF&}target:{\c&HFFFFFF&} dos en B, uno con AWP
-Dialogue: 0,0:00:42.13,0:00:43.63,Subtitle,,0,0,0,,{\c&H4FD7FF&}teammate:{\c&HFFFFFF&} voy con flash
+Dialogue: 0,0:00:24.94,0:00:26.53,Subtitle,,0,0,0,,{\c&H4FD7FF&}target:{\c&HFFFFFF&} dos en B,\Nuno con AWP
+Dialogue: 0,0:00:26.53,0:00:27.98,Subtitle,,0,0,0,,{\c&H4FD7FF&}target:{\c&HFFFFFF&}\Nen la ventana y otro
+Dialogue: 0,0:00:27.98,0:00:29.23,Subtitle,,0,0,0,,{\c&H4FD7FF&}target:{\c&HFFFFFF&} rotando\Npor medio
+Dialogue: 0,0:00:42.13,0:00:43.33,Subtitle,,0,0,0,,{\c&H4FD7FF&}teammate:{\c&HFFFFFF&} voy\Ncon flash
+Dialogue: 0,0:00:43.33,0:00:44.58,Subtitle,,0,0,0,,{\c&H4FD7FF&}teammate:{\c&HFFFFFF&}\Npor la derecha
+Dialogue: 0,0:00:44.58,0:00:45.88,Subtitle,,0,0,0,,{\c&H4FD7FF&}teammate:{\c&HFFFFFF&}\Ny entro contigo

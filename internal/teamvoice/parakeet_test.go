@@ -24,7 +24,10 @@ func TestTranscribeReadsSpeechRegionsAndDropsWhatHasNoSpeech(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Line{{StartMS: 1050, EndMS: 1800, Text: "Dos en B."}, {StartMS: 2450, EndMS: 2700, Text: "Rotad"}}
+	want := []Line{
+		{StartMS: 1050, EndMS: 1800, Text: "Dos en B.", Words: []Word{{Text: "Dos", StartMS: 1050, EndMS: 1300}, {Text: "en", StartMS: 1350, EndMS: 1500}, {Text: "B.", StartMS: 1550, EndMS: 1800}}},
+		{StartMS: 2450, EndMS: 2700, Text: "Rotad", Words: []Word{{Text: "Rotad", StartMS: 2450, EndMS: 2700}}},
+	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("lines = %+v, want %+v: a pause splits a phrase, a word over silence and bare punctuation go", lines, want)
 	}

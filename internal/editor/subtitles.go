@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"unicode/utf8"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/mediafont"
@@ -32,6 +33,7 @@ func subtitleCues(short ShortEdit) []subtitles.Cue {
 		ceiling = cardStart
 	}
 	var cues []subtitles.Cue
+	format := subtitles.FormatOf(outputDimensions(short))
 	for _, part := range short.Parts {
 		if isVictimReplayPart(part) || isSlowMotion(part) {
 			continue
@@ -39,7 +41,7 @@ func subtitleCues(short ShortEdit) []subtitles.Cue {
 		captureStart, _ := captureTicks(part)
 		from := part.TimelineStartSeconds
 		cues = append(cues, windowCues(track, cueWindow{startTick: captureStart, rate: float64(rate), base: from,
-			lo: max(from, floor), hi: min(from+partSyncDuration(part, rate), ceiling)})...)
+			lo: max(from, floor), hi: min(from+partSyncDuration(part, rate), ceiling), format: format})...)
 	}
 	return cues
 }
@@ -50,15 +52,23 @@ type cueWindow struct {
 	startTick    int
 	rate         float64
 	base, lo, hi float64
+	format       subtitles.Format
 }
 
 func windowCues(track *subtitles.Track, w cueWindow) []subtitles.Cue {
 	var cues []subtitles.Cue
+	at := func(tick int) float64 { return w.base + float64(tick-w.startTick)/w.rate }
 	for _, p := range track.Phrases {
-		start := max(w.base+float64(p.StartTick-w.startTick)/w.rate, w.lo)
-		end := min(w.base+float64(p.EndTick-w.startTick)/w.rate, w.hi)
-		if end-start >= 0.05 {
-			cues = append(cues, subtitles.Cue{ID: p.ID, Speaker: p.Speaker, Text: p.Text, StartSeconds: start, EndSeconds: end})
+		words := make([]subtitles.Word, 0, len(p.Words))
+		for _, word := range p.Words {
+			words = append(words, subtitles.Word{Text: word.Text, StartSeconds: at(word.StartTick), EndSeconds: at(word.EndTick)})
+		}
+		for _, b := range subtitles.Split(subtitles.SplitInput{Text: p.Text, Words: words, StartSeconds: at(p.StartTick), EndSeconds: at(p.EndTick),
+			LeadRunes: utf8.RuneCountInString(p.Speaker) + 2, Format: w.format}) {
+			start, end := max(b.StartSeconds, w.lo), min(b.EndSeconds, w.hi)
+			if end-start >= 0.05 {
+				cues = append(cues, subtitles.Cue{ID: p.ID, Speaker: p.Speaker, Lines: b.Lines, StartSeconds: start, EndSeconds: end})
+			}
 		}
 	}
 	return cues
@@ -109,11 +119,12 @@ func fullDemoSubtitlesFilter(short ShortEdit, item recapplan.TimelineItem, outpu
 	}
 	track := short.fullDemo.execution.Subtitles
 	duration := float64(item.EndFrame-item.StartFrame) / 60
-	cues := windowCues(track, cueWindow{startTick: item.SourceStartTick, rate: float64(rate), base: -float64(item.SourceOffsetFrames) / 60, hi: duration})
+	width, height := outputDimensions(short)
+	cues := windowCues(track, cueWindow{startTick: item.SourceStartTick, rate: float64(rate), base: -float64(item.SourceOffsetFrames) / 60, hi: duration,
+		format: subtitles.FormatOf(width, height)})
 	if len(cues) == 0 {
 		return "", nil
 	}
-	width, height := outputDimensions(short)
 	script, err := subtitles.ASS(subtitles.Script{Width: width, Height: height, DurationSeconds: duration, Cues: cues, Hidden: track.Hidden})
 	if err != nil {
 		return "", err

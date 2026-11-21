@@ -631,9 +631,81 @@
             {
               "id": "call",
               "speaker": "target",
-              "text": "dos en B, uno con AWP",
+              "text": "dos en B, uno con AWP en la ventana y otro rotando por medio",
               "start_tick": 5600,
-              "end_tick": 5728
+              "end_tick": 5792,
+              "words": [
+                {
+                  "text": "dos",
+                  "start_tick": 5600,
+                  "end_tick": 5612
+                },
+                {
+                  "text": "en",
+                  "start_tick": 5612,
+                  "end_tick": 5619
+                },
+                {
+                  "text": "B,",
+                  "start_tick": 5619,
+                  "end_tick": 5638
+                },
+                {
+                  "text": "uno",
+                  "start_tick": 5651,
+                  "end_tick": 5664
+                },
+                {
+                  "text": "con",
+                  "start_tick": 5664,
+                  "end_tick": 5676
+                },
+                {
+                  "text": "AWP",
+                  "start_tick": 5676,
+                  "end_tick": 5696
+                },
+                {
+                  "text": "en",
+                  "start_tick": 5702,
+                  "end_tick": 5708
+                },
+                {
+                  "text": "la",
+                  "start_tick": 5708,
+                  "end_tick": 5715
+                },
+                {
+                  "text": "ventana",
+                  "start_tick": 5715,
+                  "end_tick": 5740
+                },
+                {
+                  "text": "y",
+                  "start_tick": 5744,
+                  "end_tick": 5750
+                },
+                {
+                  "text": "otro",
+                  "start_tick": 5750,
+                  "end_tick": 5763
+                },
+                {
+                  "text": "rotando",
+                  "start_tick": 5763,
+                  "end_tick": 5779
+                },
+                {
+                  "text": "por",
+                  "start_tick": 5779,
+                  "end_tick": 5785
+                },
+                {
+                  "text": "medio",
+                  "start_tick": 5785,
+                  "end_tick": 5792
+                }
+              ]
             },
             {
               "id": "hidden",
@@ -645,9 +717,9 @@
             {
               "id": "reply",
               "speaker": "teammate",
-              "text": "voy con flash",
+              "text": "voy con flash por la derecha y entro contigo",
               "start_tick": 22792,
-              "end_tick": 22888
+              "end_tick": 22952
             }
           ],
           "hidden": [

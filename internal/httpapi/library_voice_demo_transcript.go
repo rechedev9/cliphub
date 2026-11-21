@@ -286,8 +286,12 @@ func (h *Handlers) transcribeDemoTracks(ctx context.Context, in demoTracks) (lib
 		}
 		for _, l := range got {
 			at := teamvoice.Locate(teamvoice.LocateInput{Timeline: timeline, AudioMS: l.StartMS, SteamID64: t.SteamID64})
+			words := make([]library.DemoVoiceWord, 0, len(l.Words))
+			for _, w := range l.Words {
+				words = append(words, library.DemoVoiceWord{Text: w.Text, StartMS: w.StartMS, EndMS: w.EndMS})
+			}
 			lines = append(lines, library.DemoVoiceLine{ID: ids.next(fmt.Sprintf("%s|%d|%s", t.SteamID64, l.StartMS, l.Text)), SteamID64: t.SteamID64, Name: t.Name, TeamKey: t.TeamKey,
-				StartMS: l.StartMS, EndMS: l.EndMS, Tick: at.Tick, Round: at.Round, Text: l.Text})
+				StartMS: l.StartMS, EndMS: l.EndMS, Tick: at.Tick, Round: at.Round, Text: l.Text, Words: words})
 		}
 	}
 	state.State, state.Error = library.TranscriptReady, ""

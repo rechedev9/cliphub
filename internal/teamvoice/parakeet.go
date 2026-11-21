@@ -45,6 +45,13 @@ type Line struct {
 	StartMS int64
 	EndMS   int64
 	Text    string
+	Words   []Word
+}
+
+type Word struct {
+	Text    string
+	StartMS int64
+	EndMS   int64
 }
 
 // Transcribe returns the phrases of one track. Only stretches with detected speech are read,
@@ -163,12 +170,13 @@ func nemoPhrases(doc nemoOutput, region library.VoiceSpan) []Line {
 	at := func(seconds float64) int64 { return region.StartMS + int64(seconds*1000+0.5) }
 	var out []Line
 	var words []string
+	var timed []Word
 	var start, end float64
 	flush := func() {
 		if len(words) > 0 {
-			out = append(out, Line{StartMS: at(start), EndMS: at(end), Text: strings.Join(words, " ")})
+			out = append(out, Line{StartMS: at(start), EndMS: at(end), Text: strings.Join(words, " "), Words: timed})
 		}
-		words = nil
+		words, timed = nil, nil
 	}
 	for _, w := range doc.Words {
 		if len(words) > 0 && (w.Start-end >= phraseGapSeconds || w.End-start > phraseMaxSeconds) {
@@ -178,6 +186,7 @@ func nemoPhrases(doc nemoOutput, region library.VoiceSpan) []Line {
 			start = w.Start
 		}
 		words, end = append(words, w.Word), max(end, w.End)
+		timed = append(timed, Word{Text: w.Word, StartMS: at(w.Start), EndMS: at(w.End)})
 	}
 	flush()
 	return spoken(out)

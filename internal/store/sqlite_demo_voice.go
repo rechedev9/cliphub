@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,8 +15,16 @@ import (
 
 const demoVoiceColumns = `SELECT match_id, state, model, error, updated_at FROM library_demo_voice`
 
-const demoVoiceLineColumns = `SELECT id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, corrected
+const demoVoiceLineColumns = `SELECT id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, corrected, words
 	FROM library_demo_voice_lines`
+
+func encodeDemoVoiceWords(words []library.DemoVoiceWord) (string, error) {
+	if len(words) == 0 {
+		return "", nil
+	}
+	raw, err := json.Marshal(words)
+	return string(raw), err
+}
 
 func scanDemoVoice(row interface{ Scan(...any) error }) (library.DemoVoiceTranscript, error) {
 	var t library.DemoVoiceTranscript
@@ -32,9 +41,14 @@ func scanDemoVoice(row interface{ Scan(...any) error }) (library.DemoVoiceTransc
 
 func scanDemoVoiceLine(row interface{ Scan(...any) error }) (library.DemoVoiceLine, error) {
 	var l library.DemoVoiceLine
-	var id, matchID string
-	if err := row.Scan(&id, &matchID, &l.SteamID64, &l.Name, &l.TeamKey, &l.StartMS, &l.EndMS, &l.Tick, &l.Round, &l.Text, &l.Corrected); err != nil {
+	var id, matchID, words string
+	if err := row.Scan(&id, &matchID, &l.SteamID64, &l.Name, &l.TeamKey, &l.StartMS, &l.EndMS, &l.Tick, &l.Round, &l.Text, &l.Corrected, &words); err != nil {
 		return l, err
+	}
+	if words != "" {
+		if err := json.Unmarshal([]byte(words), &l.Words); err != nil {
+			return l, fmt.Errorf("decode demo voice words: %w", err)
+		}
 	}
 	var err error
 	if l.ID, err = uuid.Parse(id); err != nil {
@@ -75,10 +89,14 @@ func (r *SQLiteLibraryRepository) SetDemoVoice(ctx context.Context, update libra
 			return err
 		}
 		for _, l := range *update.Lines {
+			words, err := encodeDemoVoiceWords(l.Words)
+			if err != nil {
+				return fmt.Errorf("encode demo voice words: %w", err)
+			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO library_demo_voice_lines
-				(id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, text_key, corrected)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				l.ID.String(), id, l.SteamID64, l.Name, l.TeamKey, l.StartMS, l.EndMS, l.Tick, l.Round, l.Text, voiceLineKey(l.Text), l.Corrected); err != nil {
+				(id, match_id, steamid64, name, team_key, start_ms, end_ms, tick, round, text, text_key, corrected, words)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				l.ID.String(), id, l.SteamID64, l.Name, l.TeamKey, l.StartMS, l.EndMS, l.Tick, l.Round, l.Text, voiceLineKey(l.Text), l.Corrected, words); err != nil {
 				return fmt.Errorf("store demo voice line: %w", err)
 			}
 		}
@@ -130,7 +148,15 @@ func (r *SQLiteLibraryRepository) UpdateDemoVoiceLine(ctx context.Context, patch
 		if n, err := res.RowsAffected(); err != nil || n == 0 {
 			return errors.Join(err, library.ErrNotFound)
 		}
-		out, err = scanDemoVoiceLine(tx.QueryRowContext(ctx, demoVoiceLineColumns+` WHERE id = ?`, patch.ID.String()))
+		if out, err = scanDemoVoiceLine(tx.QueryRowContext(ctx, demoVoiceLineColumns+` WHERE id = ?`, patch.ID.String())); err != nil {
+			return err
+		}
+		out.Words = library.SpreadVoiceWords(library.VoiceWordSpread{Text: out.Text, StartMS: out.StartMS, EndMS: out.EndMS})
+		words, err := encodeDemoVoiceWords(out.Words)
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE library_demo_voice_lines SET words = ? WHERE id = ?`, words, patch.ID.String())
 		return err
 	})
 	return out, err

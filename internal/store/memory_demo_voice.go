@@ -42,7 +42,7 @@ func (r *MemoryLibraryRepository) SetDemoVoice(ctx context.Context, update libra
 	if update.Lines != nil {
 		v.lines = make([]library.DemoVoiceLine, 0, len(*update.Lines))
 		for _, l := range *update.Lines {
-			l.MatchID = update.MatchID
+			l.MatchID, l.Words = update.MatchID, slices.Clone(l.Words)
 			v.lines = append(v.lines, l)
 		}
 		slices.SortStableFunc(v.lines, demoVoiceLineCompare)
@@ -61,6 +61,7 @@ func (r *MemoryLibraryRepository) ListDemoVoiceLines(ctx context.Context, filter
 	for _, v := range r.demoVoices {
 		for _, l := range v.lines {
 			if demoVoiceLineMatches(l, filter) {
+				l.Words = slices.Clone(l.Words)
 				out = append(out, l)
 			}
 		}
@@ -88,8 +89,11 @@ func (r *MemoryLibraryRepository) UpdateDemoVoiceLine(ctx context.Context, patch
 	}
 	v.lines = slices.Clone(v.lines)
 	v.lines[i].Text, v.lines[i].Corrected = patch.Text, true
+	v.lines[i].Words = library.SpreadVoiceWords(library.VoiceWordSpread{Text: patch.Text, StartMS: v.lines[i].StartMS, EndMS: v.lines[i].EndMS})
 	r.demoVoices[patch.MatchID] = v
-	return v.lines[i], nil
+	out := v.lines[i]
+	out.Words = slices.Clone(out.Words)
+	return out, nil
 }
 
 func (r *MemoryLibraryRepository) ListDemoVoices(ctx context.Context, states []string) ([]library.DemoVoiceTranscript, error) {

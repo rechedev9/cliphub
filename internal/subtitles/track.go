@@ -10,8 +10,15 @@ import (
 
 // Phrase is one transcribed phrase on the demo's tick clock, as the render worker hands it over.
 type Phrase struct {
-	ID        string `json:"id"`
-	Speaker   string `json:"speaker"`
+	ID        string       `json:"id"`
+	Speaker   string       `json:"speaker"`
+	Text      string       `json:"text"`
+	StartTick int          `json:"start_tick"`
+	EndTick   int          `json:"end_tick"`
+	Words     []PhraseWord `json:"words,omitempty"`
+}
+
+type PhraseWord struct {
 	Text      string `json:"text"`
 	StartTick int    `json:"start_tick"`
 	EndTick   int    `json:"end_tick"`

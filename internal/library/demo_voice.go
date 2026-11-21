@@ -1,7 +1,9 @@
 package library
 
 import (
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -28,7 +30,36 @@ type DemoVoiceLine struct {
 	Round     int       `json:"round"`
 	Text      string    `json:"text"`
 	// Corrected marks text a person fixed; a new transcription replaces it.
-	Corrected bool `json:"corrected"`
+	Corrected bool            `json:"corrected"`
+	Words     []DemoVoiceWord `json:"-"`
+}
+
+type DemoVoiceWord struct {
+	Text    string `json:"text"`
+	StartMS int64  `json:"start_ms"`
+	EndMS   int64  `json:"end_ms"`
+}
+
+type VoiceWordSpread struct {
+	Text    string
+	StartMS int64
+	EndMS   int64
+}
+
+func SpreadVoiceWords(in VoiceWordSpread) []DemoVoiceWord {
+	tokens := strings.Fields(in.Text)
+	total := int64(0)
+	for _, token := range tokens {
+		total += int64(utf8.RuneCountInString(token))
+	}
+	words := make([]DemoVoiceWord, 0, len(tokens))
+	span, done := max(0, in.EndMS-in.StartMS), int64(0)
+	for _, token := range tokens {
+		start := in.StartMS + span*done/total
+		done += int64(utf8.RuneCountInString(token))
+		words = append(words, DemoVoiceWord{Text: token, StartMS: start, EndMS: in.StartMS + span*done/total})
+	}
+	return words
 }
 
 // DemoVoiceUpdate sets a demo's transcript state; non-nil Lines replaces every line.

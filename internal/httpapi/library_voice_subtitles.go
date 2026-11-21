@@ -45,8 +45,12 @@ func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subti
 		if l.TeamKey != team || l.Text == "" {
 			continue
 		}
-		end := l.Tick + int(math.Round(float64(l.EndMS-l.StartMS)*rate/1000))
-		track.Phrases = append(track.Phrases, subtitles.Phrase{ID: l.ID.String(), Speaker: l.Name, Text: l.Text, StartTick: l.Tick, EndTick: end})
+		tick := func(ms int64) int { return l.Tick + int(math.Round(float64(ms-l.StartMS)*rate/1000)) }
+		phrase := subtitles.Phrase{ID: l.ID.String(), Speaker: l.Name, Text: l.Text, StartTick: l.Tick, EndTick: tick(l.EndMS)}
+		for _, w := range l.Words {
+			phrase.Words = append(phrase.Words, subtitles.PhraseWord{Text: w.Text, StartTick: tick(w.StartMS), EndTick: tick(w.EndMS)})
+		}
+		track.Phrases = append(track.Phrases, phrase)
 	}
 	return track, nil
 }

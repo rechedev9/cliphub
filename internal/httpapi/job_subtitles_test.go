@@ -113,6 +113,11 @@ func TestSubtitlesNeverHoldTheRender(t *testing.T) {
 	if err != nil || len(track.Phrases) != 1 || track.Phrases[0].Text != "Rotamos a B ya" {
 		t.Fatalf("subtitles once transcribed = %+v, %v; want the team's phrase", track, err)
 	}
+	p := track.Phrases[0]
+	if len(p.Words) != 4 || p.Words[0].Text != "Rotamos" || p.Words[0].StartTick != p.StartTick || p.Words[3].Text != "ya" || p.Words[3].EndTick != p.EndTick ||
+		p.Words[2].EndTick >= p.Words[3].StartTick {
+		t.Fatalf("words = %+v of a frase from tick %d to %d; want the four words the transcriber timed, with the pause before the last", p.Words, p.StartTick, p.EndTick)
+	}
 }
 
 // Creating a Short with subtitles starts the transcription, so it runs while CS2 records.

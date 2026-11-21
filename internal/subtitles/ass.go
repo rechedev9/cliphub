@@ -11,18 +11,15 @@ import (
 	"github.com/rechedev9/cliphub/internal/mediafont"
 )
 
-// A phrase stays on screen at least MinSeconds, so a short callout can be read, and at most MaxSeconds.
 const (
 	MinSeconds = 1.2
-	MaxSeconds = 6.0
-	maxRunes   = 160
+	MaxSeconds = 7.0
 )
 
-// Cue is one phrase placed on the video's timeline.
 type Cue struct {
 	ID           string
 	Speaker      string
-	Text         string
+	Lines        []string
 	StartSeconds float64
 	EndSeconds   float64
 }
@@ -67,7 +64,7 @@ func ASS(s Script) (string, error) {
 		mediafont.FamilyName, l.fontSize, max(2, l.fontSize/14), l.marginSide, l.marginSide, l.marginBottom)
 	b.WriteString("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
 	for _, c := range timed(s) {
-		fmt.Fprintf(&b, "Dialogue: 0,%s,%s,Subtitle,,0,0,0,,{\\c&H4FD7FF&}%s:{\\c&HFFFFFF&} %s\n", clock(c.StartSeconds), clock(c.EndSeconds), escape(c.Speaker), escape(clip(c.Text)))
+		fmt.Fprintf(&b, "Dialogue: 0,%s,%s,Subtitle,,0,0,0,,{\\c&H4FD7FF&}%s:{\\c&HFFFFFF&}%s\n", clock(c.StartSeconds), clock(c.EndSeconds), escape(c.Speaker), drawn(c.Lines))
 	}
 	return b.String(), nil
 }
@@ -75,7 +72,7 @@ func ASS(s Script) (string, error) {
 // timed keeps the visible phrases in time order with their final display window.
 func timed(s Script) []Cue {
 	cues := slices.DeleteFunc(slices.Clone(s.Cues), func(c Cue) bool {
-		return slices.Contains(s.Hidden, c.ID) || strings.TrimSpace(c.Text) == "" || c.EndSeconds < c.StartSeconds
+		return slices.Contains(s.Hidden, c.ID) || strings.TrimSpace(strings.Join(c.Lines, "")) == "" || c.EndSeconds < c.StartSeconds
 	})
 	slices.SortStableFunc(cues, func(a, b Cue) int { return compare(a.StartSeconds, b.StartSeconds) })
 	for i := range cues {
@@ -108,12 +105,18 @@ func clock(seconds float64) string {
 	return fmt.Sprintf("%d:%02d:%02d.%02d", cs/360000, cs/6000%60, cs/100%60, cs%100)
 }
 
-func clip(text string) string {
-	text = strings.Join(strings.Fields(text), " ")
-	if runes := []rune(text); len(runes) > maxRunes {
-		return strings.TrimSpace(string(runes[:maxRunes-1])) + "…"
+func drawn(lines []string) string {
+	var b strings.Builder
+	for i, line := range lines {
+		switch {
+		case i > 0:
+			b.WriteString(`\N`)
+		case line != "":
+			b.WriteString(" ")
+		}
+		b.WriteString(escape(line))
 	}
-	return text
+	return b.String()
 }
 
 // escape keeps a phrase literal: ASS has no escape for override braces, so they become full-width forms.
