@@ -7,7 +7,7 @@ paths:
 
 Production state is SQLite (`store.OpenSQLite`). `ZV_DATABASE_URL=memory` and most handler tests use `store.NewMemory`. Both are built in `internal/store/store.go`. A behavioral difference between them is a bug the rest of the suite cannot see.
 
-A tool that only reads a library opens it with `store.OpenSQLiteLibraryReadOnly`: it never migrates or creates the file, refuses another schema version, and gives the library repository alone (`internal/store/sqlite_readonly_test.go`).
+A tool that only reads a library opens it with `store.OpenSQLiteLibraryReadOnly`: it never migrates or creates the file, refuses another schema version, and gives only the library and stream repositories (`internal/store/sqlite_readonly_test.go`).
 
 ## Migrations
 

@@ -27,7 +27,8 @@ type transcribeStreamIn struct {
 }
 
 type streamTranscriptIn struct {
-	ID string `json:"id" jsonschema:"stream id from list_streams or import_stream"`
+	ID          string  `json:"id" jsonschema:"stream id from list_streams or import_stream"`
+	FromSeconds float64 `json:"from_seconds,omitempty" jsonschema:"list only the phrases that start at this second of the stream or later; for the next page when truncated is true, pass the start_seconds of the last phrase listed"`
 }
 
 type correctStreamPhraseIn struct {
@@ -78,7 +79,7 @@ type streamTranscriptOut struct {
 	Phrases      []streamPhraseOut  `json:"phrases"`
 	Subtitles    streamSubtitlesOut `json:"subtitles"`
 	Stale        streamStaleOut     `json:"stale" jsonschema:"videos rendered before their subtitles changed: render them again to draw the current ones"`
-	Truncated    bool               `json:"truncated,omitempty"`
+	Truncated    bool               `json:"truncated,omitempty" jsonschema:"true when the stream has more phrases than the 300 listed; call again with from_seconds"`
 }
 
 type streamStaleOut struct {
@@ -100,7 +101,7 @@ func streamSubtitlesOf(s tuiclient.StreamSubtitles) streamSubtitlesOut {
 	return out
 }
 
-func streamTranscriptOf(t tuiclient.StreamTranscript) streamTranscriptOut {
+func streamTranscriptOf(t tuiclient.StreamTranscript, fromSeconds float64) streamTranscriptOut {
 	out := streamTranscriptOut{ID: t.JobID, State: t.State, Error: cleanText(t.Error, maxErrorRunes), Progress: t.Progress,
 		Availability: t.Availability, Transcriber: t.Transcriber.State, Transcribed: []streamSpanIn{}, Phrases: []streamPhraseOut{},
 		Subtitles: streamSubtitlesOf(t.Subtitles), Stale: streamStaleOut{Shorts: t.Stale.Shorts, Summary: t.Stale.Summary}}
@@ -108,6 +109,9 @@ func streamTranscriptOf(t tuiclient.StreamTranscript) streamTranscriptOut {
 		out.Transcribed = append(out.Transcribed, streamSpanIn{StartSeconds: float64(s.StartMS) / 1000, EndSeconds: float64(s.EndMS) / 1000})
 	}
 	for _, l := range t.Lines {
+		if float64(l.StartMS)/1000 < fromSeconds {
+			continue
+		}
 		if len(out.Phrases) == maxStreamPhrases {
 			out.Truncated = true
 			break
@@ -151,13 +155,13 @@ func registerStreamTranscriptTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, streamTranscriptOut{}, toolError(err)
 			}
-			return nil, streamTranscriptOf(t), nil
+			return nil, streamTranscriptOf(t, 0), nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "stream_transcript", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Read the transcript of a stream: each phrase the streamer said in the transcribed stretches, in the language it was said, with no speaker names, " +
 			"with the original_text the transcriber heard when a person corrected it and discarded when no video draws it, plus the subtitles switches and the phrases hidden in one video. " +
-			"Pass a phrase id to correct_stream_phrase, discard_stream_phrase or set_stream_subtitles."},
+			"Pass a phrase id to correct_stream_phrase, discard_stream_phrase or set_stream_subtitles. It lists 300 phrases at most: when truncated is true, call again with from_seconds."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in streamTranscriptIn) (*mcp.CallToolResult, streamTranscriptOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, streamTranscriptOut{}, err
@@ -170,7 +174,7 @@ func registerStreamTranscriptTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, streamTranscriptOut{}, toolError(err)
 			}
-			return nil, streamTranscriptOf(t), nil
+			return nil, streamTranscriptOf(t, in.FromSeconds), nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "correct_stream_phrase", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},

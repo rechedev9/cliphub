@@ -164,7 +164,8 @@ const transcriptMeasureUsage = `usage: zv transcript measure --library <jobs.db>
 
 Development command. Say how far the transcriber's text is from what a person
 corrected, for each transcripción of a Studio library with a corrected or
-discarded frase. It opens the library read-only and writes nothing.
+discarded frase: the demos (source demo) and the streams (source stream).
+It opens the library read-only and writes nothing.
 
 Flags:
   --library <jobs.db>    Studio library to read; required

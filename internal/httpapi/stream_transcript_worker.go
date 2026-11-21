@@ -25,7 +25,10 @@ func (h *Handlers) requeueStreamTranscripts(ctx context.Context) {
 		return
 	}
 	for _, t := range pending {
-		h.enqueueTranscript(voiceJob{matchID: t.JobID, stream: true})
+		if !h.enqueueTranscript(voiceJob{matchID: t.JobID, stream: true}) {
+			log.Printf("httpapi: no room to queue the transcript of stream %s again", t.JobID)
+			h.failStreamTranscript(ctx, streamVoiceRun{repo: repo, jobID: t.JobID})
+		}
 	}
 }
 
@@ -44,16 +47,22 @@ func (h *Handlers) transcribeStream(ctx context.Context, jobID uuid.UUID) {
 	defer h.voice.setProgress(jobID, -1)
 	run := streamVoiceRun{repo: repo, jobID: jobID}
 	for ctx.Err() == nil {
-		span, leftMS, ok := h.nextStreamSpan(ctx, run)
-		if !ok {
+		turn, ok, err := h.nextStreamSpan(ctx, run)
+		if err != nil && ctx.Err() == nil {
+			log.Printf("httpapi: read the transcript of stream %s: %v", jobID, err)
+			h.failStreamTranscript(context.WithoutCancel(ctx), run)
+		}
+		if err != nil || !ok {
 			return
 		}
+		span, leftMS := turn.span, turn.leftMS
 		length := span.EndMS - span.StartMS
-		lines, err := h.transcribeStreamSpan(ctx, streamSpanJob{jobID: jobID, span: span, progress: func(p float64) {
+		var lines []streamclips.VoiceLine
+		lines, err = h.transcribeStreamSpan(ctx, streamSpanJob{jobID: jobID, span: span, progress: func(p float64) {
 			h.voice.setProgress(jobID, (float64(run.doneMS)+p*float64(length))/float64(run.doneMS+leftMS))
 		}})
 		if err == nil {
-			err = h.storeStreamSpan(ctx, run, span, lines)
+			err = h.storeStreamSpan(ctx, run, streamSpanResult{span: span, lines: lines})
 		}
 		if ctx.Err() != nil {
 			return
@@ -67,25 +76,30 @@ func (h *Handlers) transcribeStream(ctx context.Context, jobID uuid.UUID) {
 	}
 }
 
-func (h *Handlers) nextStreamSpan(ctx context.Context, run streamVoiceRun) (library.VoiceSpan, int64, bool) {
+type streamTurn struct {
+	span   library.VoiceSpan
+	leftMS int64
+}
+
+func (h *Handlers) nextStreamSpan(ctx context.Context, run streamVoiceRun) (streamTurn, bool, error) {
 	h.voice.streamMu.Lock()
 	defer h.voice.streamMu.Unlock()
 	t, err := run.repo.GetStreamVoice(ctx, run.jobID)
 	if err != nil || !busyTranscript(t.State) {
-		return library.VoiceSpan{}, 0, false
+		return streamTurn{}, false, err
 	}
 	t.State = library.TranscriptReady
 	if len(t.Pending) > 0 {
 		t.State = library.TranscriptRunning
 	}
 	if err := run.repo.SetStreamVoice(ctx, streamclips.VoiceUpdate{JobID: run.jobID, Transcript: t}); err != nil || len(t.Pending) == 0 {
-		return library.VoiceSpan{}, 0, false
+		return streamTurn{}, false, err
 	}
-	var leftMS int64
+	turn := streamTurn{span: t.Pending[0]}
 	for _, s := range t.Pending {
-		leftMS += s.EndMS - s.StartMS
+		turn.leftMS += s.EndMS - s.StartMS
 	}
-	return t.Pending[0], leftMS, true
+	return turn, true, nil
 }
 
 type streamSpanJob struct {
@@ -130,17 +144,22 @@ func (h *Handlers) transcribeStreamSpan(ctx context.Context, in streamSpanJob) (
 	return lines, nil
 }
 
-func (h *Handlers) storeStreamSpan(ctx context.Context, run streamVoiceRun, span library.VoiceSpan, lines []streamclips.VoiceLine) error {
+type streamSpanResult struct {
+	span  library.VoiceSpan
+	lines []streamclips.VoiceLine
+}
+
+func (h *Handlers) storeStreamSpan(ctx context.Context, run streamVoiceRun, in streamSpanResult) error {
 	h.voice.streamMu.Lock()
 	defer h.voice.streamMu.Unlock()
 	t, err := run.repo.GetStreamVoice(ctx, run.jobID)
 	if err != nil {
 		return err
 	}
-	done := []library.VoiceSpan{span}
+	done := []library.VoiceSpan{in.span}
 	t.Pending = streamclips.MissingVoiceSpans(t.Pending, done)
-	t.Spans = streamclips.MergeVoiceSpans(append(t.Spans, span))
-	return run.repo.SetStreamVoice(ctx, streamclips.VoiceUpdate{JobID: run.jobID, Transcript: t, Replaced: done, Lines: &lines})
+	t.Spans = streamclips.MergeVoiceSpans(append(t.Spans, in.span))
+	return run.repo.SetStreamVoice(ctx, streamclips.VoiceUpdate{JobID: run.jobID, Transcript: t, Replaced: done, Lines: &in.lines})
 }
 
 func (h *Handlers) failStreamTranscript(ctx context.Context, run streamVoiceRun) {

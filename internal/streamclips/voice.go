@@ -56,10 +56,6 @@ type Subtitles struct {
 	Hidden  map[string][]uuid.UUID `json:"hidden"`
 }
 
-func (s Subtitles) HiddenIn(video string) []uuid.UUID {
-	return s.Hidden[video]
-}
-
 func MergeVoiceSpans(spans []library.VoiceSpan) []library.VoiceSpan {
 	sorted := make([]library.VoiceSpan, 0, len(spans))
 	for _, s := range spans {

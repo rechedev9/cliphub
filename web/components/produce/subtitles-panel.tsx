@@ -94,7 +94,7 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
   };
 
   return <div className="flex min-w-0 flex-col gap-3">
-    <p className="text-body-sm text-fg-2">Cada frase de las voces del equipo, con el nombre de quien habla. Se transcriben en este PC una vez por demo. Una corrección vale para todos los vídeos de la demo y guarda lo que oyó el transcriptor; descarta las frases que nadie dijo.</p>
+    <p className="text-body-sm text-fg-2">Cada frase de las voces del equipo, con el nombre de quien habla y un color fijo por jugador; el jugador que se ve sale en blanco. Si hablan varios a la vez, se ven como mucho 2 subtítulos en vertical y 3 en horizontal. Se transcriben en este PC una vez por demo. Una corrección vale para todos los vídeos de la demo y guarda lo que oyó el transcriptor; descarta las frases que nadie dijo.</p>
     {onVoicesChange ? <SubtitleToggle label={voicesLabel} checked={voices} disabled={disabled} onChange={onVoicesChange} /> : null}
     <SubtitleToggle label={SUBTITLES_LABEL} checked={value.enabled && availability.enabled} disabled={locked || !availability.enabled}
       onChange={(enabled) => onChange({ ...value, enabled })} />

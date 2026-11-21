@@ -137,7 +137,7 @@ func TestStreamSubtitlesRepositoryContract(t *testing.T) {
 			}
 			hidden["clip-1"][0] = uuid.New()
 			got, err := repo.GetStreamSubtitles(ctx, id)
-			if err != nil || !got.Shorts || got.Summary || !reflect.DeepEqual(got.HiddenIn("clip-1"), []uuid.UUID{frase}) || len(got.HiddenIn(streamclips.SummaryVideo)) != 0 {
+			if err != nil || !got.Shorts || got.Summary || !reflect.DeepEqual(got.Hidden["clip-1"], []uuid.UUID{frase}) || len(got.Hidden[streamclips.SummaryVideo]) != 0 {
 				t.Fatalf("GetStreamSubtitles = %+v, %v; want Shorts on and the frase hidden in its video only", got, err)
 			}
 			if err := repo.SetStreamSubtitles(ctx, streamclips.Subtitles{JobID: id, Summary: true}); err != nil {

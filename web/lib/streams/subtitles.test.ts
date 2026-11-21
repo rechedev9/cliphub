@@ -20,9 +20,13 @@ function transcript(extra: Partial<StreamTranscript> = {}): StreamTranscript {
 }
 
 test('a video lists the frases said inside its stretches, in the order they were said', () => {
-  const lines = [line('late', 125_000), line('out', 90_000), line('early', 61_000, { corrected: true, original_text: 'frase erly' })];
+  const lines = [
+    line('late', 125_000), line('out', 90_000), line('before', 58_500), line('across', 59_400),
+    line('early', 61_000, { corrected: true, original_text: 'frase erly' }),
+  ];
   const rows = streamSubtitleRows({ lines, windows: [{ start: 120, end: 130 }, { start: 60, end: 75 }], hidden: ['late'] });
   assert.deepEqual(rows.map((row) => [row.id, row.clock, row.hidden, row.original]), [
+    ['across', '0:59', false, null],
     ['early', '1:01', false, 'frase erly'],
     ['late', '2:05', true, null],
   ]);

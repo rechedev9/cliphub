@@ -92,6 +92,22 @@ func TestStreamTranscriptToolsSpeakTheStreamRoutes(t *testing.T) {
 	}
 }
 
+func TestStreamTranscriptPagesByFromSeconds(t *testing.T) {
+	long := tuiclient.StreamTranscript{JobID: testStreamID}
+	for i := range maxStreamPhrases + 2 {
+		long.Lines = append(long.Lines, tuiclient.StreamVoiceLine{ID: testPhraseID, StartMS: int64(i) * 1000, EndMS: int64(i)*1000 + 900, Text: "frase"})
+	}
+	first := streamTranscriptOf(long, 0)
+	if len(first.Phrases) != maxStreamPhrases || !first.Truncated {
+		t.Fatalf("first page = %d phrases, truncated %v; want %d and truncated", len(first.Phrases), first.Truncated, maxStreamPhrases)
+	}
+	last := first.Phrases[len(first.Phrases)-1].StartSeconds
+	rest := streamTranscriptOf(long, last)
+	if len(rest.Phrases) != 3 || rest.Truncated || rest.Phrases[0].StartSeconds != last {
+		t.Fatalf("next page = %+v; want the last phrase listed and the two after it", rest.Phrases)
+	}
+}
+
 func TestAResumenRenderedWithoutSubtitlesSaysSo(t *testing.T) {
 	notice := "El resumen ha salido sin subtítulos: la transcripción no está instalada en este PC."
 	out := describeSummaryRender(testStreamID, tuiclient.StreamSummary{Status: playScanDone, Progress: 1, SubtitlesNotice: notice})

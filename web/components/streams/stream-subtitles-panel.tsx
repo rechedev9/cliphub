@@ -8,7 +8,7 @@ import { voiceErrorText } from '@/lib/replay/voice-errors';
 import {
   StreamSubtitlesError, fetchStreamTranscript, patchStreamSubtitles, patchStreamVoiceLine, streamSubtitleNote, streamSubtitleRows,
   streamSubtitlesStatus, stretchesKey, transcribeStream,
-  type StreamSubtitlesKind, type StreamTranscript, type Stretch,
+  type StreamSubtitleRow, type StreamSubtitlesKind, type StreamTranscript, type Stretch,
 } from '@/lib/streams/subtitles';
 import { InstallPrompt, PhraseRow, SubtitleToggle, TRANSCRIBER_CREDIT } from '@/components/produce/subtitle-parts';
 import { Button } from '@/components/ui/button';
@@ -101,10 +101,10 @@ export function StreamSubtitlesPanel({ jobId, kind, video, stretches, disabled =
   const hidden = video === null ? [] : transcript?.subtitles.hidden[video.id] ?? [];
   const rows = transcript === null || video === null ? [] : streamSubtitleRows({ lines: transcript.lines, windows: video.windows, hidden });
   const note = transcript === null || !enabled ? null : streamSubtitleNote(transcript);
-  const correct = (id: string, text: string, before: string): void => {
+  const correct = (row: StreamSubtitleRow, text: string): void => {
     const clean = text.trim();
-    if (clean === '' || clean === before) return;
-    void run(() => patchStreamVoiceLine({ jobId, lineId: id }, { text: clean }), 'No se pudo guardar la corrección.');
+    if (clean === '' || clean === row.text) return;
+    void run(() => patchStreamVoiceLine({ jobId, lineId: row.id }, { text: clean }), 'No se pudo guardar la corrección.');
   };
   const discard = (id: string, discarded: boolean): void => {
     void run(() => patchStreamVoiceLine({ jobId, lineId: id }, { discarded }), discarded ? 'No se pudo descartar la frase.' : 'No se pudo recuperar la frase.');
@@ -139,7 +139,7 @@ export function StreamSubtitlesPanel({ jobId, kind, video, stretches, disabled =
             heading={<span className="font-semibold text-fg-1 tabular-nums">{row.clock}</span>}
             inputLabel={`Frase del minuto ${row.clock}`} discardedNote="No sale en ningún vídeo de este stream."
             onHide={(next) => hide(row.id, next)} onDiscard={(discarded) => discard(row.id, discarded)}
-            onCorrect={(text) => correct(row.id, text, row.text)} />)}
+            onCorrect={(text) => correct(row, text)} />)}
         </ul> : null}
         {rows.length === 0 && installed && transcript.state === 'ready' && stretches.length > 0
           ? <p className="text-body-sm text-fg-2">{video === null ? 'Elige un vídeo para ver sus frases.' : 'No se oye a nadie hablar en lo que muestra este vídeo.'}</p> : null}

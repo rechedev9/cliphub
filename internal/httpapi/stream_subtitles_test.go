@@ -54,6 +54,13 @@ func TestAStreamRenderWaitsForTheTranscripcionOfItsStretches(t *testing.T) {
 	if len(env.transcriber.clips()) != 1 || len(again.Hidden["clip-1"]) != 1 || again.Hidden["clip-1"][0] != got.Lines[0].ID {
 		t.Fatalf("a second render ran %d transcriptions and got hidden %+v; want the stored frases and the hidden one", len(env.transcriber.clips()), again.Hidden)
 	}
+
+	env.transcriber.mu.Lock()
+	env.transcriber.state = teamvoice.TranscriberMissing
+	env.transcriber.mu.Unlock()
+	if kept := env.h.StreamSubtitles(context.Background(), req); kept.Notice != "" || len(kept.Lines) != 1 {
+		t.Fatalf("a render without the transcriber got %+v; want the frases already stored", kept)
+	}
 }
 
 func TestAStreamRenderGoesWithoutSubtitulosAndSaysWhy(t *testing.T) {

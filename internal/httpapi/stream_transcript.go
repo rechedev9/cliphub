@@ -27,6 +27,7 @@ const (
 	streamSpanPadMS       = 1000
 	streamSpanGridMS      = 10_000
 	maxStreamSpans        = 500
+	maxStreamSpanSeconds  = 7 * 24 * 60 * 60
 	maxStreamVideoRunes   = 200
 )
 
@@ -63,12 +64,9 @@ func streamVoiceTrack(probe streamclips.SourceProbe) (int, string) {
 }
 
 func streamVoiceSpans(spans []streamSpan, durationSeconds float64) ([]library.VoiceSpan, bool) {
-	if len(spans) == 0 || len(spans) > maxStreamSpans {
-		return nil, false
-	}
 	out := make([]library.VoiceSpan, 0, len(spans))
 	for _, s := range spans {
-		if math.IsNaN(s.StartSeconds) || math.IsInf(s.EndSeconds, 0) || s.StartSeconds < 0 || s.EndSeconds <= s.StartSeconds {
+		if math.IsNaN(s.StartSeconds) || math.IsNaN(s.EndSeconds) || s.StartSeconds < 0 || s.EndSeconds <= s.StartSeconds || s.EndSeconds > maxStreamSpanSeconds {
 			return nil, false
 		}
 		start := max(0, int64(s.StartSeconds*1000)-streamSpanPadMS) / streamSpanGridMS * streamSpanGridMS
@@ -153,7 +151,7 @@ func (h *Handlers) TranscribeStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	spans, ok := streamVoiceSpans(req.Spans, j.Probe.DurationSeconds)
-	if !ok {
+	if !ok || len(req.Spans) > maxStreamSpans {
 		writeError(w, http.StatusBadRequest, "spans takes 1 to 500 stretches, each with start_seconds before end_seconds")
 		return
 	}

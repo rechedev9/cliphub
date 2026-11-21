@@ -3,6 +3,7 @@ package editor
 import (
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/brandkit"
 	"github.com/rechedev9/cliphub/internal/radaroverlay"
 	"github.com/rechedev9/cliphub/internal/subtitles"
 )
@@ -28,5 +29,38 @@ func TestPortraitSubtitulosKeepClearOfTheOtherOverlays(t *testing.T) {
 				t.Errorf("block %+v overlaps the %s radar at %s %+v", box, size, position, radar)
 			}
 		}
+	}
+}
+
+func TestAPushedUpPortraitRadarStaysClearOfTheSubtitulos(t *testing.T) {
+	const width, height = 1080, 1920
+	block := subtitles.PlacementOf(width, height).Box
+	lifted := 0
+	inCorner := map[string]string{radaroverlay.PositionBottomLeft: brandkit.CornerBottomLeft, radaroverlay.PositionBottomRight: brandkit.CornerBottomRight}
+	for position, corner := range inCorner {
+		for _, size := range radaroverlay.Sizes {
+			short := ShortEdit{OutputFormat: OutputFormatShort9x16, DurationSeconds: 20, SubtitlesASS: "short.subtitles.ass"}
+			short.Overlays.Radar = &RadarOverlay{Position: position, Size: size}
+			short.Overlays.Watermark = &BrandWatermark{Path: "logo.png", Corner: corner, Width: 400, Height: 250}
+			short.Overlays.Banner = &SponsorBanner{Path: "banner.png", Width: 864, Height: 230}
+			short.Effects = generatedBrandEffects(short)
+			if len(short.Effects) != 2 {
+				t.Fatalf("brand effects = %+v, want the watermark and the banner", short.Effects)
+			}
+			radar := radarBox(short)
+			if radar.X < block.Right && block.Left < radar.X+radar.W && radar.Y < block.Bottom && block.Top < radar.Y+radar.H {
+				t.Errorf("block %+v overlaps the %s radar at %s %+v, pushed up by the watermark and the banner", block, size, position, radar)
+			}
+			if radar.Y < centeredKillfeedTop {
+				t.Errorf("the %s radar at %s %+v rose into the hook title and the vertical HUD", size, position, radar)
+			}
+			short.SubtitlesASS = ""
+			if plain := radarBox(short); plain.Y > radar.Y {
+				lifted++
+			}
+		}
+	}
+	if lifted == 0 {
+		t.Error("no radar had to rise above the block; the case no longer pushes one into it")
 	}
 }

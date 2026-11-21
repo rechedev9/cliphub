@@ -58,7 +58,7 @@ export function streamSubtitlesStatus(availability: string): { enabled: boolean;
 
 export function streamSubtitleRows(input: { lines: readonly StreamVoiceLine[]; windows: readonly Stretch[]; hidden: readonly string[] }): StreamSubtitleRow[] {
   return input.lines
-    .filter((line) => input.windows.some((window) => line.start_ms >= window.start * 1000 && line.start_ms < window.end * 1000))
+    .filter((line) => input.windows.some((window) => line.end_ms > window.start * 1000 && line.start_ms < window.end * 1000))
     .toSorted((a, b) => a.start_ms - b.start_ms)
     .map((line) => ({
       id: line.id,

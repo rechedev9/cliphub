@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
 func TestOpenSQLiteLibraryReadOnlyReadsAndRefusesWrites(t *testing.T) {
@@ -28,6 +29,16 @@ func TestOpenSQLiteLibraryReadOnlyReadsAndRefusesWrites(t *testing.T) {
 	if err := repos.Library.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: library.DemoVoiceTranscript{State: library.TranscriptReady}, Lines: &lines}); err != nil {
 		t.Fatal(err)
 	}
+	stream := &streamclips.Job{Status: streamclips.StatusReady, SourcePath: "streams/source.mkv", SourceSHA256: uuid.NewString()}
+	if err := repos.Streams.Create(f.ctx, stream); err != nil {
+		t.Fatal(err)
+	}
+	said := []streamclips.VoiceLine{{ID: uuid.New(), EndMS: 2_000, Text: "vaya tiro"}}
+	span := []library.VoiceSpan{{EndMS: 10_000}}
+	writer, _ := repos.Streams.(StreamVoiceRepository)
+	if err := writer.SetStreamVoice(f.ctx, streamclips.VoiceUpdate{JobID: stream.ID, Transcript: streamclips.VoiceTranscript{State: library.TranscriptReady, Spans: span}, Replaced: span, Lines: &said}); err != nil {
+		t.Fatal(err)
+	}
 	if err := repos.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -37,6 +48,18 @@ func TestOpenSQLiteLibraryReadOnlyReadsAndRefusesWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer readOnly.Close()
+	streams, ok := readOnly.Streams.(StreamVoiceRepository)
+	if !ok {
+		t.Fatal("the read-only library has no stream transcripts")
+	}
+	heard, err := streams.ListStreamVoiceLines(f.ctx, stream.ID)
+	if err != nil || len(heard) != 1 || heard[0].Text != "vaya tiro" {
+		t.Fatalf("stream lines through the read-only library = %+v, %v; want the stored frase", heard, err)
+	}
+	discarded := true
+	if _, err := streams.UpdateStreamVoiceLine(f.ctx, streamclips.VoiceLinePatch{JobID: stream.ID, ID: said[0].ID, Discarded: &discarded}); err == nil {
+		t.Fatal("a discard through the read-only library succeeded, want it refused")
+	}
 	got, err := readOnly.Library.ListDemoVoiceLines(f.ctx, library.DemoVoiceLineFilter{All: true})
 	if err != nil || len(got) != 1 || got[0].Text != "eco" {
 		t.Fatalf("lines through the read-only library = %+v, %v; want the stored frase", got, err)

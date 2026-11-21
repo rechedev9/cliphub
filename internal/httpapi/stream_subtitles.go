@@ -89,6 +89,13 @@ func (h *Handlers) awaitStreamFrases(ctx context.Context, repo store.StreamVoice
 	if !ok {
 		return nil, errors.New("the video has no stretch to transcribe")
 	}
+	stored, err := repo.GetStreamVoice(ctx, req.JobID)
+	if err != nil {
+		return nil, err
+	}
+	if len(streamclips.MissingVoiceSpans(spans, stored.Spans)) == 0 {
+		return repo.ListStreamVoiceLines(ctx, req.JobID)
+	}
 	if _, err := h.queueStreamTranscript(ctx, streamTranscribe{repo: repo, job: j, spans: spans}); err != nil {
 		return nil, err
 	}

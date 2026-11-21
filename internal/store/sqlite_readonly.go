@@ -31,5 +31,5 @@ func OpenSQLiteLibraryReadOnly(path string) (*Repositories, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("jobs.db schema version %d is not the one this build reads (%d); open the library with this build's Studio first", version, len(migrations))
 	}
-	return &Repositories{Library: NewSQLiteLibraryRepository(db), db: db}, nil
+	return &Repositories{Library: NewSQLiteLibraryRepository(db), Streams: &SQLiteStreamJobRepository{db: db}, db: db}, nil
 }

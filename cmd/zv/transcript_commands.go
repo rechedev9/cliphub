@@ -12,6 +12,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/store"
+	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/transcriptmeasure"
 )
 
@@ -100,6 +101,11 @@ func measureLibraryTranscripts(ctx context.Context, libraryPath string) (transcr
 	if err != nil {
 		return result, err
 	}
+	streams, err := editedStreamTranscripts(ctx, repos.Streams)
+	if err != nil {
+		return result, err
+	}
+	edited = append(edited, streams...)
 	var all []transcriptmeasure.Frase
 	for _, transcript := range edited {
 		result.Transcripts = append(result.Transcripts, measuredTranscript{
@@ -144,6 +150,55 @@ func editedDemoTranscripts(ctx context.Context, repo store.LibraryRepository) ([
 		out = append(out, editedTranscript{source: "demo", id: matchID.String(), name: name, frases: frases})
 	}
 	return out, nil
+}
+
+func editedStreamTranscripts(ctx context.Context, jobs store.StreamJobRepository) ([]editedTranscript, error) {
+	repo, ok := jobs.(store.StreamVoiceRepository)
+	if !ok {
+		return nil, nil
+	}
+	transcripts, err := repo.ListStreamVoices(ctx, []string{library.TranscriptQueued, library.TranscriptRunning, library.TranscriptReady, library.TranscriptFailed})
+	if err != nil {
+		return nil, err
+	}
+	var out []editedTranscript
+	for _, transcript := range transcripts {
+		lines, err := repo.ListStreamVoiceLines(ctx, transcript.JobID)
+		if err != nil {
+			return nil, err
+		}
+		edited := false
+		frases := make([]transcriptmeasure.Frase, 0, len(lines))
+		for _, line := range lines {
+			heard := line.Text
+			if line.Corrected {
+				heard = line.OriginalText
+			}
+			edited = edited || line.Corrected || line.Discarded
+			frases = append(frases, transcriptmeasure.Frase{
+				Heard: heard, Text: line.Text, Discarded: line.Discarded, StartMS: line.StartMS, EndMS: line.EndMS,
+			})
+		}
+		if !edited {
+			continue
+		}
+		job, err := jobs.Get(ctx, transcript.JobID)
+		if err != nil {
+			return nil, fmt.Errorf("read stream %s: %w", transcript.JobID, err)
+		}
+		out = append(out, editedTranscript{source: "stream", id: transcript.JobID.String(), name: streamTranscriptName(job), frases: frases})
+	}
+	return out, nil
+}
+
+func streamTranscriptName(job streamclips.Job) string {
+	if title := strings.TrimSpace(job.Title); title != "" {
+		return title
+	}
+	if job.PublicSourceURL != "" {
+		return job.PublicSourceURL
+	}
+	return filepath.Base(filepath.FromSlash(job.SourcePath))
 }
 
 func demoTranscriptName(ctx context.Context, repo store.LibraryRepository, matchID uuid.UUID) (string, error) {

@@ -174,7 +174,7 @@ func TestStreamTranscriptLivesWithItsVideos(t *testing.T) {
 	env.json(http.MethodPatch, base+"/subtitles", map[string]bool{"shorts": true}, http.StatusOK, &subs)
 	hide := map[string]any{"video": "clip-1", "line_id": got.Lines[0].ID, "hidden": true}
 	env.json(http.MethodPatch, base+"/subtitles", hide, http.StatusOK, &subs)
-	if !subs.Shorts || subs.Summary || len(subs.HiddenIn("clip-1")) != 1 || subs.HiddenIn("clip-1")[0] != got.Lines[0].ID || len(subs.HiddenIn(streamclips.SummaryVideo)) != 0 {
+	if !subs.Shorts || subs.Summary || len(subs.Hidden["clip-1"]) != 1 || subs.Hidden["clip-1"][0] != got.Lines[0].ID || len(subs.Hidden[streamclips.SummaryVideo]) != 0 {
 		t.Fatalf("subtitles = %+v; want Shorts on and the frase hidden in its video only", subs)
 	}
 	env.json(http.MethodPatch, base+"/subtitles", map[string]any{"video": "clip-1"}, http.StatusBadRequest, nil)
@@ -187,12 +187,12 @@ func TestStreamTranscriptLivesWithItsVideos(t *testing.T) {
 	if len(again.Lines) != 2 || again.Lines[0].ID != got.Lines[0].ID || again.Lines[0].Text != "vaya tiro, tío" || again.Lines[0].OriginalText != "vaya tiro" || !again.Lines[1].Discarded {
 		t.Fatalf("lines after transcribing again = %+v; want the correction and the discard kept", again.Lines)
 	}
-	if !again.Subtitles.Shorts || len(again.Subtitles.HiddenIn("clip-1")) != 1 {
+	if !again.Subtitles.Shorts || len(again.Subtitles.Hidden["clip-1"]) != 1 {
 		t.Fatalf("subtitles after transcribing again = %+v; want them kept", again.Subtitles)
 	}
 	var shown streamclips.Subtitles
 	env.json(http.MethodPatch, base+"/subtitles", map[string]any{"video": "clip-1", "line_id": got.Lines[0].ID, "hidden": false}, http.StatusOK, &shown)
-	if !shown.Shorts || len(shown.HiddenIn("clip-1")) != 0 {
+	if !shown.Shorts || len(shown.Hidden["clip-1"]) != 0 {
 		t.Fatalf("subtitles after showing the frase again = %+v", shown)
 	}
 }
