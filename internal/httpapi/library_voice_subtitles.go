@@ -42,7 +42,7 @@ func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subti
 	}
 	track := &subtitles.Track{Phrases: []subtitles.Phrase{}, Hidden: req.Hidden}
 	for _, l := range lines {
-		if l.TeamKey != team || l.Text == "" {
+		if l.TeamKey != team || l.Text == "" || l.Discarded {
 			continue
 		}
 		end := l.Tick + int(math.Round(float64(l.EndMS-l.StartMS)*rate/1000))

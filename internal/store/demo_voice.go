@@ -18,7 +18,6 @@ type DemoVoiceRepository interface {
 	SetDemoVoice(ctx context.Context, update library.DemoVoiceUpdate) error
 	// ListDemoVoiceLines returns phrases by match, then demo time.
 	ListDemoVoiceLines(ctx context.Context, filter library.DemoVoiceLineFilter) ([]library.DemoVoiceLine, error)
-	// UpdateDemoVoiceLine corrects one phrase of the match; a phrase of another match is ErrNotFound.
 	UpdateDemoVoiceLine(ctx context.Context, patch library.DemoVoiceLinePatch) (library.DemoVoiceLine, error)
 	// ListDemoVoices returns the transcripts whose state is one of states, by match id.
 	ListDemoVoices(ctx context.Context, states []string) ([]library.DemoVoiceTranscript, error)

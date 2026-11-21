@@ -3,7 +3,7 @@ import test from 'node:test';
 import { parseJobSubtitles, playScope, subtitleAvailability, subtitleNote, subtitleRows, toggleHiddenPhrase, type DemoVoiceLine, type JobSubtitles } from './subtitles.ts';
 
 const line = (id: string, patch: Partial<DemoVoiceLine>): DemoVoiceLine => ({
-  id, match_id: 'm', steamid64: '7656', name: 'ropz', team_key: 'ct-start', start_ms: 0, end_ms: 1500, tick: 0, round: 1, text: 'uno en B', corrected: false, ...patch,
+  id, match_id: 'm', steamid64: '7656', name: 'ropz', team_key: 'ct-start', start_ms: 0, end_ms: 1500, tick: 0, round: 1, text: 'uno en B', corrected: false, discarded: false, ...patch,
 });
 const installed = { state: 'installed', version: '0.3.0', model: 'parakeet', download_bytes: 700 << 20 } as const;
 const subs = (patch: Partial<JobSubtitles>): JobSubtitles => ({
@@ -33,6 +33,18 @@ test('the panel lists the phrases inside the chosen plays or rounds, in order, w
   assert.deepEqual(rows.map((row) => [row.id, row.text, row.hidden]), [['a', 'uno en B', false], ['b', 'rotad', true]]);
   assert.deepEqual(subtitleRows(lines, { kind: 'rounds', rounds: [5] }, { enabled: true, hidden: [] }).map((row) => row.id), ['c']);
   assert.equal(subtitleRows(lines, { kind: 'rounds', rounds: null }, { enabled: true, hidden: [] }).length, 3);
+});
+
+test('a row carries what the transcriber heard beside the correction, and whether the phrase is discarded', () => {
+  const lines = [
+    line('a', { start_ms: 1000, text: 'rotamos a B', corrected: true, original_text: 'rotamos a ve' }),
+    line('b', { start_ms: 2000, text: 'gracias por ver', discarded: true }),
+  ];
+  const rows = subtitleRows(lines, { kind: 'rounds', rounds: null }, { enabled: true, hidden: [] });
+  assert.deepEqual(rows.map((row) => [row.text, row.original, row.discarded]), [['rotamos a B', 'rotamos a ve', false], ['gracias por ver', null, true]]);
+  const wire = subs({ lines });
+  assert.deepEqual(parseJobSubtitles(JSON.parse(JSON.stringify(wire))), wire);
+  assert.equal(parseJobSubtitles({ ...wire, lines: [{ ...lines[0], discarded: undefined }] }), null);
 });
 
 test('the chosen plays scope the panel by their demo seconds, or by round when an old analysis lacks them', () => {

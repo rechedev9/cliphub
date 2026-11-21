@@ -807,7 +807,7 @@
   "lib/api/veto.ts": 15,
   "lib/api/video-edit.ts": 9,
   "lib/api/voice-plugin.ts": 7,
-  "lib/api/voice.ts": 19,
+  "lib/api/voice.ts": 18,
   "lib/app-tour-state.ts": 23,
   "lib/app-tour.ts": 11,
   "lib/bootstrap-fragment.ts": 4,

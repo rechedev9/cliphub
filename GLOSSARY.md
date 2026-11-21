@@ -36,7 +36,7 @@ Everything said in a match's team voice or in a stream, as text.
 _Avoid_: Subtítulos as a name for the text, captions
 
 **Frase**:
-What one speaker says in one go. It is the unit a person corrects or hides.
+What one speaker says in one go. It is the unit a person corrects, hides or discards.
 _Avoid_: Línea, cue, subtítulo
 
 **Subtítulo**:

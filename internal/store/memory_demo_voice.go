@@ -40,9 +40,16 @@ func (r *MemoryLibraryRepository) SetDemoVoice(ctx context.Context, update libra
 	v.transcript = update.Transcript
 	v.transcript.MatchID, v.transcript.UpdatedAt = update.MatchID, libraryNow()
 	if update.Lines != nil {
+		prev := make(map[uuid.UUID]library.DemoVoiceLine, len(v.lines))
+		for _, l := range v.lines {
+			prev[l.ID] = l
+		}
 		v.lines = make([]library.DemoVoiceLine, 0, len(*update.Lines))
 		for _, l := range *update.Lines {
 			l.MatchID = update.MatchID
+			if old, ok := prev[l.ID]; ok {
+				l = keepDemoVoiceEdits(old, l)
+			}
 			v.lines = append(v.lines, l)
 		}
 		slices.SortStableFunc(v.lines, demoVoiceLineCompare)
@@ -87,7 +94,7 @@ func (r *MemoryLibraryRepository) UpdateDemoVoiceLine(ctx context.Context, patch
 		return library.DemoVoiceLine{}, library.ErrNotFound
 	}
 	v.lines = slices.Clone(v.lines)
-	v.lines[i].Text, v.lines[i].Corrected = patch.Text, true
+	v.lines[i] = patchDemoVoiceLine(v.lines[i], patch)
 	r.demoVoices[patch.MatchID] = v
 	return v.lines[i], nil
 }

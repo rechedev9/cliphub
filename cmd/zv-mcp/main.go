@@ -312,8 +312,9 @@ demo_voice reads the demo's own in-game voice (extract true, then call again unt
 Subtitles of the team voices a demo recorded: generate_short (Short or 16:9 summary, with voice_comms) and plan_full_demo
 (with team_voices) take subtitles and subtitles_hidden, in the language the voices speak; they change only the render. Creating the
 video queues the demo's one transcription when it has none (transcribe_demo_voice does it ahead); the render never waits
-for it, so a video rendered before it is ready goes without subtitles. demo_transcript lists the phrases with their ids; correct_demo_phrase fixes one for every later video, and
-subtitles_hidden leaves one out of that video only.
+for it, so a video rendered before it is ready goes without subtitles. demo_transcript lists the phrases with their ids; correct_demo_phrase fixes one for every later video
+and keeps what the transcriber heard as original_text, discard_demo_phrase takes a phrase the transcriber invented out of every video of the demo
+(restore brings it back), and subtitles_hidden leaves one out of that video only. Transcribing again keeps the corrections and discards of the phrases heard the same.
 get_round_comms gives one round's talk time by phase and phrases, match_talk_time every round's talk time, and
 search_comms finds a phrase by team, dates and period (round phase); each phrase has a studio_path to its moment.
 The TeamSpeak plugin (Instalar plugin de TeamSpeak in Ajustes) records one track per person while CS2 says a match is live;

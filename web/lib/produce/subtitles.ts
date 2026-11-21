@@ -17,6 +17,8 @@ export type DemoVoiceLine = {
   round: number;
   text: string;
   corrected: boolean;
+  original_text?: string;
+  discarded: boolean;
 };
 
 /** GET /api/demos/{jobId}/subtitles: the demo transcript with the phrases of the player's team only. */
@@ -39,7 +41,9 @@ export type PhraseScope =
   | { kind: 'seconds'; windows: readonly { start: number; end: number }[] }
   | { kind: 'rounds'; rounds: readonly number[] | null };
 
-export type SubtitleRow = { id: string; speaker: string; round: number; text: string; corrected: boolean; hidden: boolean };
+export type SubtitleRow = {
+  id: string; speaker: string; round: number; text: string; corrected: boolean; original: string | null; discarded: boolean; hidden: boolean;
+};
 
 export type SubtitleAvailability = { enabled: boolean; reason: string | null };
 
@@ -68,6 +72,8 @@ export function subtitleRows(lines: readonly DemoVoiceLine[], scope: PhraseScope
       round: line.round,
       text: line.text,
       corrected: line.corrected,
+      original: line.corrected && line.original_text ? line.original_text : null,
+      discarded: line.discarded,
       hidden: choice.hidden.includes(line.id),
     }));
 }
@@ -160,7 +166,7 @@ function isLine(value: unknown): value is DemoVoiceLine {
   const strings = [value.id, value.match_id, value.steamid64, value.name, value.team_key, value.text];
   const numbers = [value.start_ms, value.end_ms, value.tick, value.round];
   return strings.every((field) => typeof field === 'string') && numbers.every((field) => typeof field === 'number')
-    && typeof value.corrected === 'boolean';
+    && typeof value.corrected === 'boolean' && typeof value.discarded === 'boolean' && optionalString(value.original_text);
 }
 
 function isJobSubtitles(value: unknown): value is JobSubtitles {

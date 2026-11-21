@@ -150,11 +150,10 @@ func (h *Handlers) queueDemoTranscript(ctx context.Context, m library.Match, req
 }
 
 type demoLinePatch struct {
-	Text *string `json:"text"`
+	Text      *string `json:"text"`
+	Discarded *bool   `json:"discarded"`
 }
 
-// PatchLibraryMatchDemoTranscriptLine handles PATCH /api/library/matches/{id}/voice/demo/transcript/lines/{line}:
-// corrects a phrase for every later video of the demo.
 func (h *Handlers) PatchLibraryMatchDemoTranscriptLine(w http.ResponseWriter, r *http.Request) {
 	m, ok := h.voiceMatch(w, r)
 	if !ok {
@@ -165,16 +164,20 @@ func (h *Handlers) PatchLibraryMatchDemoTranscriptLine(w http.ResponseWriter, r 
 		return
 	}
 	var req demoLinePatch
-	if err := decodeSingleJSONBody(w, r, &req, true); err != nil || req.Text == nil {
-		writeError(w, http.StatusBadRequest, "send text")
+	if err := decodeSingleJSONBody(w, r, &req, true); err != nil || (req.Text == nil && req.Discarded == nil) {
+		writeError(w, http.StatusBadRequest, "send text, discarded or both")
 		return
 	}
-	text := strings.Join(strings.Fields(*req.Text), " ")
-	if text == "" || len([]rune(text)) > library.MaxVoiceLineRunes {
-		writeError(w, http.StatusBadRequest, "a phrase takes 1 to 2000 characters")
-		return
+	patch := library.DemoVoiceLinePatch{MatchID: m.ID, ID: lineID, Discarded: req.Discarded}
+	if req.Text != nil {
+		text := strings.Join(strings.Fields(*req.Text), " ")
+		if text == "" || len([]rune(text)) > library.MaxVoiceLineRunes {
+			writeError(w, http.StatusBadRequest, "a phrase takes 1 to 2000 characters")
+			return
+		}
+		patch.Text = &text
 	}
-	line, err := h.libraryRepo.UpdateDemoVoiceLine(r.Context(), library.DemoVoiceLinePatch{MatchID: m.ID, ID: lineID, Text: text})
+	line, err := h.libraryRepo.UpdateDemoVoiceLine(r.Context(), patch)
 	if err != nil {
 		writeLibraryError(w, "correct demo transcript line", err)
 		return
