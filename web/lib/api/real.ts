@@ -8,7 +8,7 @@ import { readMomentScores, withMomentScores } from './moment-scores.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
 import { reelStyleLabel } from './reel-style-label.ts';
-import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForLatch, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
+import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForLatch, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, videoFromIntent, withAdmissionFailure, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type AdmissionFailure, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
 import { autoShortsTitle, reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict } from './reel-identity.ts';
@@ -40,6 +40,7 @@ import { batchItemError, parseRenderView, parseStatusView, type RawRenderView, t
 import { playsSelectionLabel } from '../format.ts';
 import { constrainEditConfig, isLandscapeRecap } from '../reel-brief.ts';
 import { apiFetch } from './edition-fetch.ts';
+import { loteVideoNames } from './auto-shorts.ts';
 
 /** Server roster row as returned by /api/demos/{jobId}/roster (steamid64). */
 type RosterPlayer = {
@@ -760,27 +761,30 @@ export class RealApiClient implements ApiClient {
     const intent = this.intents.get(id);
     const recovered = this.recovered.get(id);
     if (!intent && recovered) {
-      // A recovered render has no intent; deleting its MP4 is what removes it for good.
-      const res = await this.send((dp) => ({ url: dp.videoUrl(recovered.jobId, recovered.variant, recovered.videoName), init: { method: 'DELETE' } }));
-      if (res.status !== 404 && !res.ok) await readJson<unknown>(res);
+      const lote = recovered.video.editConfig?.separateShorts === true;
+      const names = lote ? loteVideoNames(await this.fetchRenderStatus(recovered.jobId, recovered.variant), { jobId: recovered.jobId, id }) : [recovered.videoName];
+      await this.deleteRenderVideos(recovered.jobId, recovered.variant, names);
       this.recovered.delete(id);
       return;
     }
     if (!intent) return;
-    // Keep the intent unless the MP4 is really gone: render recovery would
-    // otherwise list a leftover MP4 again as a video the user deleted.
     const variant = variantOf(intent);
-    const name = await this.resolveArtifactName(intent, variant);
-    // Nothing rendered yet: drop the local intent below.
-    if (name) {
-      const res = await this.send((dp) => ({ url: dp.videoUrl(intent.jobId, variant, name), init: { method: 'DELETE' } }));
-      if (res.status !== 404 && !res.ok) await readJson<unknown>(res);
-    }
+    const names = intent.editConfig.separateShorts
+      ? loteVideoNames(await this.fetchRenderStatus(intent.jobId, variant), { jobId: intent.jobId, id })
+      : [await this.resolveArtifactName(intent, variant)].filter((name): name is string => name !== undefined);
+    await this.deleteRenderVideos(intent.jobId, variant, names);
     this.artifactNames.delete(id);
     this.intents.delete(id);
     this.reels.delete(id);
     this.forgetDriveState(id);
     saveReelIntents(Array.from(this.intents.values()));
+  }
+
+  private async deleteRenderVideos(jobId: string, variant: string, names: readonly string[]): Promise<void> {
+    for (const name of names) {
+      const res = await this.send((dp) => ({ url: dp.videoUrl(jobId, variant, name), init: { method: 'DELETE' } }));
+      if (res.status !== 404 && !res.ok) await readJson<unknown>(res);
+    }
   }
 
   /** Delete the job and its artifacts; 404 is success, 409/503 throw. */
@@ -1163,21 +1167,7 @@ export class RealApiClient implements ApiClient {
   }
 
   /** Render-variant state; 'none' until started. Artifact names arrive when ready. */
-  private async fetchRenderStatus(
-    jobId: string,
-    variant: string,
-  ): Promise<{
-    status: RenderStatus;
-    failureReason?: string;
-    warnings?: string[];
-    videoName?: string;
-    coverName?: string;
-    coverNames?: string[];
-    artifactPrefix?: string;
-    segmentIds?: string[];
-    editConfig?: EditConfig;
-    effectiveMusic?: EffectiveRenderMusic;
-  }> {
+  private async fetchRenderStatus(jobId: string, variant: string): Promise<RenderView> {
     const res = await this.send((dp) => ({ url: dp.renderUrl(jobId, variant) }));
     if (res.status === 404) return { status: 'none' };
     if (!res.ok) await readJson<never>(res);

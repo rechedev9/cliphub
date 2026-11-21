@@ -48,6 +48,7 @@ export type RenderView = {
   failureReason?: string;
   warnings?: string[];
   videoName?: string;
+  videoNames?: string[];
   coverName?: string;
   coverNames?: string[];
   artifactPrefix?: string;
@@ -76,11 +77,15 @@ export function parseRenderView(data: RawRenderView): RenderView {
   const segmentIds = Array.isArray(data.segment_ids)
     ? data.segment_ids.filter((id): id is string => typeof id === 'string' && id.length > 0)
     : undefined;
+  const videoNames = Array.isArray(data.videos)
+    ? data.videos.filter((name): name is string => typeof name === 'string' && name.length > 0)
+    : undefined;
   return {
     status,
     failureReason: data.error,
     warnings: data.warnings,
     videoName: data.videos?.[0],
+    videoNames,
     coverName: coverNames?.[0],
     coverNames,
     artifactPrefix: data.artifact_prefix,

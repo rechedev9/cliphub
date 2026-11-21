@@ -2,6 +2,8 @@
 import { dataPlane } from './dataplane.ts';
 import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.ts';
 import { apiFetch } from './edition-fetch.ts';
+import { reelPlaysSuffix } from './reel-identity.ts';
+import type { RenderView } from './status-view.ts';
 
 /** Mirrors internal/moments: the default bar and limit, and the hard cap. */
 export const AUTO_SHORTS_DEFAULT_MIN_SCORE = 0.6;
@@ -56,6 +58,12 @@ export type AutoShortsFile = { name: string; url: string };
 
 /** A batch render's Shorts; replaced when the style's newest render is another video's. */
 export type AutoShortsFiles = { files: AutoShortsFile[]; replaced: boolean };
+
+export function loteVideoNames(render: RenderView, lote: { jobId: string; id: string }): string[] {
+  if (render.status !== 'ready' || render.editConfig?.separateShorts !== true || !render.segmentIds) return [];
+  const current = `${lote.jobId}__${reelPlaysSuffix(render.segmentIds, render.editConfig)}`;
+  return current === lote.id ? (render.videoNames ?? []) : [];
+}
 
 /** Reads the Shorts of a batch from its GET /renders/{variant} state; none while it is not ready. */
 export function autoShortsFiles(raw: unknown, target: { jobId: string; variant: string; artifactPrefix?: string }): AutoShortsFiles {
