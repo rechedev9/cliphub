@@ -83,7 +83,7 @@ type changeMusicIn struct {
 
 func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "list_all_videos", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-		Description: "List the demo videos of every recent job, as Mis vídeos does: finished ones, Shorts imported from the old cloud with a URL that plays the MP4, renders still running, " +
+		Description: "List the demo videos of every recent job, as Mis vídeos does: finished ones and the Shorts imported from the old cloud, each with a URL that plays the MP4, renders still running, " +
 			"failed renders (retry_video) and jobs that failed before a video existed. The URL only works while ClipHub Studio is open."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listAllVideosIn) (*mcp.CallToolResult, listAllVideosOut, error) {
 			limit := cmp.Or(in.Jobs, defaultVideoJobs)
@@ -102,10 +102,7 @@ func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, listAllVideosOut{}, toolError(err)
 			}
-			imported, err := c.ListImportedVideos(ctx)
-			if err != nil {
-				return nil, listAllVideosOut{}, toolError(err)
-			}
+			imported, importedErr := c.ListImportedVideos(ctx)
 			origin, originErr := s.webOrigin()
 			out := describeVideoLibrary(rows, failed, origin)
 			out.StreamVideos = describeStreamLibrary(streams, origin, originErr == nil)
@@ -117,6 +114,9 @@ func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 				}
 			}
 			out.ImportedVideos = describeImportedVideos(imported, origin)
+			if importedErr != nil {
+				out.Note = strings.TrimSpace(out.Note + " Imported Shorts not listed: " + cleanText(importedErr.Error(), maxErrorRunes))
+			}
 			return nil, out, nil
 		})
 
