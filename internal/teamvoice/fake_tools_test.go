@@ -70,8 +70,8 @@ func fakeNemo(words string) int {
 // fakeDecoder hands over fixed PCM for any recording.
 type fakeDecoder []byte
 
-func (d fakeDecoder) RawPCM(_ context.Context, _, dst string) error {
-	return os.WriteFile(dst, d, 0o600)
+func (d fakeDecoder) RawPCM(_ context.Context, job PCMJob) error {
+	return os.WriteFile(job.Dst, d, 0o600)
 }
 
 func fakeTool(t *testing.T) (cli, model string) {

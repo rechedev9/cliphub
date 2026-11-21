@@ -136,14 +136,14 @@ export function subtitleNote(subs: JobSubtitles): string | null {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 const TRANSCRIPT_STATES: readonly string[] = ['none', 'queued', 'running', 'ready', 'failed'];
 const INSTALL_STATES: readonly string[] = ['not_installed', 'installing', 'installed', 'failed', 'unsupported'];
 
-function isTranscriptState(value: unknown): value is VoiceTranscriptState {
+export function isTranscriptState(value: unknown): value is VoiceTranscriptState {
   return typeof value === 'string' && TRANSCRIPT_STATES.includes(value);
 }
 
@@ -151,11 +151,11 @@ function isInstallState(value: unknown): value is TranscriberState {
   return typeof value === 'string' && INSTALL_STATES.includes(value);
 }
 
-function optionalString(value: unknown): value is string | undefined {
+export function optionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === 'string';
 }
 
-function isInstall(value: unknown): value is VoiceTranscriber {
+export function isInstall(value: unknown): value is VoiceTranscriber {
   return isRecord(value) && isInstallState(value.state) && typeof value.version === 'string' && typeof value.model === 'string'
     && typeof value.download_bytes === 'number' && (value.done_bytes === undefined || typeof value.done_bytes === 'number')
     && optionalString(value.error_code) && optionalString(value.error);

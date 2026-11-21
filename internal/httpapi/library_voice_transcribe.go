@@ -28,14 +28,18 @@ func (h *Handlers) StartVoice(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case job := <-h.voice.queue:
-				if job.demo {
+				switch {
+				case job.stream:
+					h.transcribeStream(ctx, job.matchID)
+				case job.demo:
 					h.transcribeDemo(ctx, job.matchID)
-				} else {
+				default:
 					h.transcribeMatch(ctx, job)
 				}
 			}
 		}
 	}()
+	h.requeueStreamTranscripts(ctx)
 	pending, err := h.libraryRepo.ListVoicesByTranscript(ctx, []string{library.TranscriptQueued, library.TranscriptRunning})
 	if err != nil {
 		log.Printf("httpapi: list pending transcripts: %v", err)

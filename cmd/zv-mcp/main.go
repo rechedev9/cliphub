@@ -336,6 +336,13 @@ order, with the same look and music running on; groups [] separates them. shorts
 render_stream makes; warn the user when a joined Short passes 3 minutes, the YouTube Shorts limit. Both renders return a variant for wait_for_stream_render, which reports the percent
 and, for render_stream, the video being encoded (video 2 of 3); then list_stream_videos for the
 videos and extra files. list_streams shows the streams already in Studio.
+Subtitles of a stream (the Subtítulos panel of Clips de stream): transcribe_stream transcribes on this PC only the stretches
+that go into a video (spans: the momentos of the plan for Shorts, the jugadas for the resumen), from the mic track, with
+install_transcriber; stream_transcript reads the phrases (no speaker names, in the language spoken, never translated) and says
+mixed_track for a stream with only the mix of voice and game, which has no subtitles yet. correct_stream_phrase and
+discard_stream_phrase count for every video of the stream; set_stream_subtitles turns subtitles on for the Shorts or the resumen
+and hides a phrase in one video (a momento or group id, or summary). No review is needed before a render, and stream videos do
+not draw the subtitles yet: Studio stores the transcript and the choices.
 Use Studio's words with the user: a play is a jugada (a voice-only one is a pico de voz), a moment is a momento,
 a 9:16 render_stream video is a Short (one momento or several joined), and the render_stream_summary video is the resumen
 (Hacer resumen on a VOD's project card). Do not call a momento a clip or a corte.

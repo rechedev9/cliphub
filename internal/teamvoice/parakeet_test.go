@@ -52,3 +52,34 @@ func TestTranscribeReportsAFailedRun(t *testing.T) {
 		t.Fatalf("a failed run = %v, want its output in the error", err)
 	}
 }
+
+type recordingDecoder struct {
+	pcm []byte
+	job PCMJob
+}
+
+func (d *recordingDecoder) RawPCM(ctx context.Context, job PCMJob) error {
+	d.job = job
+	return fakeDecoder(d.pcm).RawPCM(ctx, job)
+}
+
+func TestTranscribeOfAStretchReadsOneTrackAndAnswersInSourceTime(t *testing.T) {
+	cli, model := fakeTool(t)
+	speech := []library.VoiceSpan{{StartMS: 1000, EndMS: 2600}}
+	words, _ := json.Marshal([][]fakeWord{{{"Vaya", 0.25, 0.5}, {"tiro", 0.55, 0.9}}})
+	t.Setenv(fakeNemoEnv, string(words))
+	media := &recordingDecoder{pcm: pcm(12_000, speech)}
+	tr := NewTranscriber(TranscriberOptions{CLI: cli, Model: model, Media: media})
+	clip := library.VoiceSpan{StartMS: 60_000, EndMS: 72_000}
+	lines, err := tr.Transcribe(context.Background(), TranscribeJob{Audio: "stream.mkv", Speech: speech, Track: 1, Clip: &clip})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Line{{StartMS: 61_050, EndMS: 61_700, Text: "Vaya tiro", Words: []Word{{Text: "Vaya", StartMS: 61_050, EndMS: 61_300}, {Text: "tiro", StartMS: 61_350, EndMS: 61_700}}}}
+	if !reflect.DeepEqual(lines, want) {
+		t.Fatalf("lines = %+v, want %+v on the clock of the source", lines, want)
+	}
+	if media.job.Src != "stream.mkv" || media.job.Track != 1 || media.job.Clip == nil || *media.job.Clip != clip {
+		t.Fatalf("decoded %+v, want track 1 and only the stretch", media.job)
+	}
+}

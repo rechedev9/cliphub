@@ -6,8 +6,11 @@ import { streamsApi, type StreamPlay, type StreamSummary } from '@/lib/api/strea
 import { errorMessage, formatStreamClock } from '@/lib/streams/plan';
 import { isVoiceOnly, orderPlays, sameIds, summaryPlayIds } from '@/lib/streams/plays';
 import { playTimeLabel } from '@/lib/streams/moments';
+import { SUMMARY_VIDEO } from '@/lib/streams/subtitles';
 import { summaryBulkChoice, summaryChoiceText, summaryDefaultIds } from '@/lib/streams/summary';
+import { clipStretch, StreamSubtitlesPanel } from '@/components/streams/stream-subtitles-panel';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 import { Progress } from '@/components/ui/progress';
 
 const POLL_MS = 2000;
@@ -94,6 +97,7 @@ export function StreamSummaryCard({ jobId, plays }: { jobId: string; plays: read
   const stale = done && (covered === null || !sameIds(covered, selectedPlays.map((play) => play.id)));
   const videoUrl = done ? streamsApi.summaryVideoUrl(jobId, summary.rendered_at) : null;
   const canStart = !running && selectedPlays.length > 0;
+  const stretches = selectedPlays.map(clipStretch);
 
   return (
     <div className="grid gap-5 @[56rem]/content:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)]">
@@ -175,6 +179,12 @@ export function StreamSummaryCard({ jobId, plays }: { jobId: string; plays: read
             </Button>
           </>
         ) : null}
+        <details className="rounded-md border border-border-subtle p-3">
+          <DisclosureSummary className="font-semibold text-body-sm">Subtítulos · opcional</DisclosureSummary>
+          <div className="mt-3">
+            <StreamSubtitlesPanel jobId={jobId} kind="summary" video={{ id: SUMMARY_VIDEO, windows: stretches }} stretches={stretches} disabled={running} />
+          </div>
+        </details>
       </section>
     </div>
   );

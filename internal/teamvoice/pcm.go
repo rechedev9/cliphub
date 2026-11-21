@@ -19,12 +19,19 @@ type pcmFile struct {
 	size int64
 }
 
-func decodeTrack(ctx context.Context, media Decoder, src, dir string) (*pcmFile, error) {
+type PCMJob struct {
+	Src   string
+	Dst   string
+	Track int
+	Clip  *library.VoiceSpan
+}
+
+func decodeTrack(ctx context.Context, media Decoder, job TranscribeJob, dir string) (*pcmFile, error) {
 	if media == nil {
 		return nil, ErrNoFFmpeg
 	}
 	dst := filepath.Join(dir, "track.pcm")
-	if err := media.RawPCM(ctx, src, dst); err != nil {
+	if err := media.RawPCM(ctx, PCMJob{Src: job.Audio, Dst: dst, Track: job.Track, Clip: job.Clip}); err != nil {
 		return nil, err
 	}
 	f, err := os.Open(dst) // #nosec G304 -- the file this run decoded.
