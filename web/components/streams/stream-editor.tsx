@@ -127,6 +127,7 @@ export function StreamEditor({
   const previewGroup = activeStep === STREAM_STEP.review && selectedShort?.groupId ? selectedShort : undefined;
   const groupPlaying = previewGroup && playbackMode === STREAM_PLAYBACK_MODE.selected ? previewGroup : undefined;
   const [previewPlay, setPreviewPlay] = useState<{ play: StreamPlay; range: StreamClipRange } | null>(null);
+  const [foundPlays, setFoundPlays] = useState<readonly StreamPlay[]>([]);
   const cutsStep = activeStep === STREAM_STEP.cuts;
   const previewing = cutsStep && playbackMode === STREAM_PLAYBACK_MODE.selected ? previewPlay : null;
   const groupClips = groupPlaying?.clips;
@@ -377,6 +378,9 @@ export function StreamEditor({
   const timeline = (
     <StreamSourceTimeline
       clips={plan.clips}
+      plays={cutsStep && job.source_kind === 'vod' ? foundPlays : []}
+      activePlayId={previewing?.play.id ?? null}
+      onWatchPlay={watchPlay}
       label={streamTimelineLabel({
         mode: playbackMode,
         shorts,
@@ -430,6 +434,7 @@ export function StreamEditor({
         onPlayMoment={playMoment}
         onPlayAll={playAllMoments}
         onPlaySelected={playSelected}
+        onPlaysShown={setFoundPlays}
       />
     );
   } else if (activeStep === STREAM_STEP.review) {

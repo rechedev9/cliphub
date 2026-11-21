@@ -5,6 +5,7 @@ import { Check, Crosshair, Mic } from 'lucide-react';
 import { streamsApi, type StreamClipRange, type StreamPlay, type StreamPlayScan, type StreamVoiceSettings } from '@/lib/api/streams';
 import { bulkAddLabel, bulkAddPlays, playRowAction, playTimeLabel, topPlayIds } from '@/lib/streams/moments';
 import { errorMessage, formatStreamClock } from '@/lib/streams/plan';
+import { playNumbers } from '@/lib/streams/timeline';
 import { isVoiceOnly, orderPlays, playMoment, rankPlays, type PlayOrder } from '@/lib/streams/plays';
 import { cn } from '@/lib/utils';
 import { useSeen } from '@/components/streams/use-seen';
@@ -15,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { StreamSummaryCard } from '@/components/streams/stream-summary';
 
 const POLL_MS = 2000;
+const NO_PLAYS: readonly StreamPlay[] = [];
 const DEFAULT_VOICE: StreamVoiceSettings = { enabled: true, sensitivity: 3 };
 const PRESETS = [
   { value: '1', label: 'Baja' },
@@ -85,7 +87,7 @@ function VoiceSettingsRow({
   );
 }
 
-function PlayThumb({ jobId, play }: { jobId: string; play: StreamPlay }): ReactNode {
+function PlayThumb({ jobId, play, number }: { jobId: string; play: StreamPlay; number: number }): ReactNode {
   const { ref, seen } = useSeen<HTMLSpanElement>();
   const Icon = isVoiceOnly(play) ? Mic : Crosshair;
   return (
@@ -100,8 +102,9 @@ function PlayThumb({ jobId, play }: { jobId: string; play: StreamPlay }): ReactN
           className="size-full object-cover"
         />
       ) : null}
-      <span aria-hidden className="absolute bottom-1 left-1 grid size-5 place-items-center rounded-sm bg-surface-0/75 text-fg-1">
+      <span aria-hidden className="absolute bottom-1 left-1 flex h-5 items-center gap-0.5 rounded-sm bg-surface-0/75 px-1 text-meta font-semibold tabular-nums text-fg-1">
         <Icon className="size-3" />
+        {number}
       </span>
     </span>
   );
@@ -110,6 +113,7 @@ function PlayThumb({ jobId, play }: { jobId: string; play: StreamPlay }): ReactN
 function PlayRow({
   jobId,
   play,
+  number,
   clips,
   top,
   active,
@@ -120,6 +124,7 @@ function PlayRow({
 }: {
   jobId: string;
   play: StreamPlay;
+  number: number;
   clips: readonly StreamClipRange[];
   top: boolean;
   active: boolean;
@@ -130,16 +135,20 @@ function PlayRow({
 }): ReactNode {
   const action = playRowAction(clips, play);
   const loud = !isVoiceOnly(play) && (play.voice_seconds?.length ?? 0) > 0;
+  const rowRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (active) rowRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
   return (
-    <li className={cn('flex items-center gap-2 px-1 py-1.5', active && 'bg-surface-3')}>
+    <li ref={rowRef} className={cn('flex items-center gap-2 px-1 py-1.5', active && 'bg-surface-3')}>
       <button
         type="button"
         aria-pressed={active}
-        aria-label={`Ver jugada: ${play.label}, ${formatStreamClock(play.start_seconds)}`}
+        aria-label={`Ver jugada ${number}: ${play.label}, ${formatStreamClock(play.start_seconds)}`}
         className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded text-left hover:text-fg-1"
         onClick={() => onWatch(play)}
       >
-        <PlayThumb jobId={jobId} play={play} />
+        <PlayThumb jobId={jobId} play={play} number={number} />
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-1.5 text-body-sm font-semibold">
             <span className="truncate">{play.label}</span>
@@ -187,6 +196,7 @@ export function StreamDetectedPlays({
   onAdd,
   onWatch,
   onJump,
+  onPlaysShown,
 }: {
   jobId: string;
   vod: boolean;
@@ -196,6 +206,7 @@ export function StreamDetectedPlays({
   onAdd: (plays: StreamPlay[]) => void;
   onWatch: (play: StreamPlay) => void;
   onJump: (clip: StreamClipRange) => void;
+  onPlaysShown: (plays: readonly StreamPlay[]) => void;
 }): ReactNode {
   const [scan, setScan] = useState<StreamPlayScan | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -244,7 +255,11 @@ export function StreamDetectedPlays({
     void start();
   });
 
+  const shownPlays = scan?.status === 'done' ? scan.plays : NO_PLAYS;
+  useEffect(() => onPlaysShown(shownPlays), [shownPlays, onPlaysShown]);
+
   const ranked = orderPlays(scan?.plays ?? [], order);
+  const numbers = playNumbers(ranked);
   const tops = topPlayIds(ranked);
   const open = bulkAddPlays(clips, rankPlays(ranked));
   const hasKills = ranked.some((play) => !isVoiceOnly(play));
@@ -326,6 +341,7 @@ export function StreamDetectedPlays({
               key={play.id}
               jobId={jobId}
               play={play}
+              number={numbers.get(play.id) ?? 0}
               clips={clips}
               top={tops.has(play.id)}
               active={play.id === activePlayId}

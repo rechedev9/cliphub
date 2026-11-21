@@ -127,6 +127,7 @@ export function StreamMomentsStep({
   onPlayMoment,
   onPlayAll,
   onPlaySelected,
+  onPlaysShown,
 }: {
   job: StreamJob;
   plan: StreamEditPlan;
@@ -142,6 +143,7 @@ export function StreamMomentsStep({
   onPlayMoment: (clip: StreamClipRange) => void;
   onPlayAll: () => void;
   onPlaySelected: () => void;
+  onPlaysShown: (plays: readonly StreamPlay[]) => void;
 }): ReactNode {
   const isVod = job.source_kind === 'vod';
   const { draftRange, draftIssue } = moments;
@@ -221,6 +223,7 @@ export function StreamMomentsStep({
               onAdd={moments.addPlays}
               onWatch={onWatchPlay}
               onJump={moments.selectClip}
+              onPlaysShown={onPlaysShown}
             />
           ) : (
             <ShortSourcePanel
