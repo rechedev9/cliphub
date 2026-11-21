@@ -29,6 +29,7 @@ export type VisorQueueInput = {
 export type VisorQueue = {
   entries: VisorEntry[];
   start: VisorEntry | null;
+  fellBack: boolean;
 };
 
 const EVERY_SHORT: VisorFilter = { format: LIBRARY_FILTER.all, stage: LIBRARY_STAGE.all };
@@ -37,15 +38,21 @@ function entryOf(item: MediaPlaybackItem | null, title: string): VisorEntry[] {
   return item === null || item.format !== '9:16' ? [] : [{ id: item.id, title, item }];
 }
 
+function demoEntryOf(clip: HubModel['clips'][number]): VisorEntry[] {
+  if (clip.state !== OUTPUT_STATE.ready || videoKind(clip.video) !== OUTPUT_TYPE.short) return [];
+  const title = videoDisplayTitle(clip.video, clip.match?.player ?? clip.video.targetName);
+  return entryOf(demoPlaybackItem(clip.video), title);
+}
+
+export function visorEntryId(clip: HubModel['clips'][number]): string | null {
+  return demoEntryOf(clip)[0]?.id ?? null;
+}
+
 export function buildVisorQueue({ clips, streams, filter, requestedId }: VisorQueueInput): VisorQueue {
   const { format, stage } = filter ?? EVERY_SHORT;
-  if (stage === LIBRARY_STAGE.working) return { entries: [], start: null };
+  if (stage === LIBRARY_STAGE.working) return { entries: [], start: null, fellBack: false };
   const demoEntries = matchesFormat(OUTPUT_TYPE.short, format)
-    ? clips.flatMap((clip): VisorEntry[] => {
-      if (clip.state !== OUTPUT_STATE.ready || videoKind(clip.video) !== OUTPUT_TYPE.short) return [];
-      const title = videoDisplayTitle(clip.video, clip.match?.player ?? clip.video.targetName);
-      return entryOf(demoPlaybackItem(clip.video), title);
-    })
+    ? clips.flatMap(demoEntryOf)
     : [];
   const streamEntries = matchesFormat(LIBRARY_FILTER.stream, format)
     ? streams.flatMap((job) =>
@@ -57,5 +64,6 @@ export function buildVisorQueue({ clips, streams, filter, requestedId }: VisorQu
     : [];
   const entries = [...demoEntries, ...streamEntries];
   const requested = entries.find((entry) => entry.id === requestedId);
-  return { entries, start: requested ?? entries[0] ?? null };
+  const start = requested ?? entries[0] ?? null;
+  return { entries, start, fellBack: requestedId !== null && requested === undefined && start !== null };
 }

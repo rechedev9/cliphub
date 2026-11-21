@@ -31,7 +31,7 @@ import {
   publishHref,
   visorHref,
 } from '@/lib/clips/routes';
-import { buildVisorQueue, type VisorFilter } from '@/lib/clips/visor-queue';
+import { buildVisorQueue, visorEntryId, type VisorFilter } from '@/lib/clips/visor-queue';
 import { createCoalescedCall } from '@/lib/coalesced-call';
 import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { prettyMapName } from '@/lib/format';
@@ -66,6 +66,9 @@ const NEW_VIDEO_OPTIONS = [
 ] as const satisfies ReadonlyArray<{ tone: FormatTone; label: string; href: string }>;
 
 type LoadError = { offline: boolean };
+
+const EVERY_SHORT: VisorFilter = { format: LIBRARY_FILTER.all, stage: LIBRARY_STAGE.all };
+const VISOR_FALLBACK_TOAST_ID = 'visor-fallback';
 
 async function fetchSnapshot(prev: HubSnapshot | null): Promise<HubSnapshot> {
   return settleHubSnapshot(
@@ -119,20 +122,34 @@ function ResultsView(): ReactNode {
   // not be dropped, and the poll must not publish the list it started with.
   const loadSnapshot = useRef(createCoalescedCall(() => fetchSnapshot(snapshotRef.current)));
 
+  const openVisorOn = useCallback((entryId: string, origin: VisorFilter) => {
+    if (new URLSearchParams(window.location.search).has(VISOR_QUERY)) {
+      setListOrigin((was) => (was === null ? null : origin));
+      window.history.replaceState(null, '', visorHref(entryId));
+      return;
+    }
+    setListOrigin(origin);
+    window.history.pushState(null, '', visorHref(entryId));
+  }, []);
+
   const announceReady = useCallback(
     (prev: HubModel, next: HubModel) => {
       for (const clip of hubTransitions(prev, next).ready) {
+        const entryId = visorEntryId(clip);
         toast(`${clip.title} listo`, {
           description: `${prettyMapName(clip.video.map)} · Revisa el vídeo y descárgalo`,
           action: {
             label: 'Abrir',
             // The publishing page also previews and downloads outputs whose demo was deleted.
-            onClick: () => router.push(publishHref(clip.match?.id ?? ORPHAN_MATCH_SEGMENT, clip.id)),
+            onClick: () => {
+              if (entryId !== null) openVisorOn(entryId, EVERY_SHORT);
+              else router.push(publishHref(clip.match?.id ?? ORPHAN_MATCH_SEGMENT, clip.id));
+            },
           },
         });
       }
     },
-    [router],
+    [router, openVisorOn],
   );
 
   const accept = useCallback((snapshot: HubSnapshot) => {
@@ -196,6 +213,23 @@ function ResultsView(): ReactNode {
     else window.history.replaceState(null, '', RESULTS_HREF);
   }, [listOrigin]);
 
+  const visorQueue = model === null || visorId === null
+    ? null
+    : buildVisorQueue({ clips: model.clips, streams, filter: listOrigin, requestedId: visorId });
+  const settled = visorQueue !== null && loadError === null;
+  const fallbackId = settled && visorQueue.fellBack ? visorQueue.start?.id ?? null : null;
+  const nothingToShow = settled && visorQueue.start === null && listOrigin === null;
+
+  useEffect(() => {
+    if (fallbackId === null) return;
+    toast('No encontramos ese Short', { id: VISOR_FALLBACK_TOAST_ID, description: 'Te mostramos el primero de la lista.' });
+    window.history.replaceState(null, '', visorHref(fallbackId));
+  }, [fallbackId]);
+
+  useEffect(() => {
+    if (nothingToShow) window.history.replaceState(null, '', RESULTS_HREF);
+  }, [nothingToShow]);
+
   const banner = loadError === null ? null : <HubBanner offline={loadError.offline} onRetry={onChange} />;
 
   if (model === null) {
@@ -237,12 +271,7 @@ function ResultsView(): ReactNode {
   }
 
   const listQueue = buildVisorQueue({ clips: model.clips, streams, filter, requestedId: null });
-  const visorQueue = visorId === null ? null : buildVisorQueue({ clips: model.clips, streams, filter: listOrigin, requestedId: visorId });
-  const openVisor = (): void => {
-    if (listQueue.start === null) return;
-    setListOrigin(filter);
-    window.history.pushState(null, '', visorHref(listQueue.start.id));
-  };
+  const openVisor = (entryId: string): void => openVisorOn(entryId, filter);
 
   return (
     <div className="measure-list flex flex-col gap-8">
@@ -250,7 +279,7 @@ function ResultsView(): ReactNode {
         summary={summary}
         live
         visorAction={listQueue.start === null ? null : (
-          <Button type="button" variant="outline" onClick={openVisor}>
+          <Button type="button" variant="outline" onClick={() => { if (listQueue.start !== null) openVisor(listQueue.start.id); }}>
             <Smartphone aria-hidden />
             Ver como en el móvil
           </Button>
@@ -258,7 +287,7 @@ function ResultsView(): ReactNode {
       />
       {banner}
       <div aria-busy={loadError !== null || undefined}>
-        <ClipsLens clips={model.clips} streams={streams} filter={filter} onFilterChange={setFilter} onChange={onChange} />
+        <ClipsLens clips={model.clips} streams={streams} filter={filter} onFilterChange={setFilter} onChange={onChange} onOpenVisor={openVisor} />
       </div>
       {visorQueue === null || visorQueue.start === null ? null : (
         <Visor entries={visorQueue.entries} currentId={visorQueue.start.id} onMove={moveVisor} onClose={closeVisor} />

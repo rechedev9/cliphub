@@ -4,7 +4,7 @@ import type { StreamJob, StreamRenderedOutput } from '../api/streams.ts';
 import type { EditConfig, Video } from '../api/types.ts';
 import { FULL_DEMO_EDIT } from '../full-demo.ts';
 import { buildHubModel } from './hub.ts';
-import { buildVisorQueue } from './visor-queue.ts';
+import { buildVisorQueue, visorEntryId } from './visor-queue.ts';
 
 function demoVideo(id: string, overrides: Partial<Video> = {}): Video {
   return {
@@ -130,9 +130,9 @@ test('the queue starts on the requested Short, or on the first one when it is no
   assert.equal(start('demo:short', { format: 'stream', stage: 'all' }), 'stream:s1:stream-short:rev1:c1');
 });
 
-test('an empty queue has no start', () => {
+test('an empty queue has no start and no fallback, so the Visor does not open', () => {
   const queue = buildVisorQueue({ clips: clipsOf(demoVideo('busy', { status: 'composing' })), streams: [], filter: null, requestedId: 'demo:busy' });
-  assert.deepEqual(queue, { entries: [], start: null });
+  assert.deepEqual(queue, { entries: [], start: null, fellBack: false });
 });
 
 test('a Short that becomes ready keeps the requested one as the start', () => {
@@ -145,6 +145,7 @@ test('a Short that becomes ready keeps the requested one as the start', () => {
   });
   assert.equal(before.start?.id, 'demo:short');
   assert.equal(after.start?.id, 'demo:short');
+  assert.equal(after.fellBack, false);
   assert.deepEqual(after.entries.map((entry) => entry.id), ['demo:fresh', 'demo:short', 'stream:s1:stream-short:rev1:c1']);
 });
 
@@ -156,4 +157,31 @@ test('each entry carries the title the list shows', () => {
     requestedId: null,
   });
   assert.deepEqual(queue.entries.map((entry) => entry.title), ['Short · Mirage · ropz', 'Ace en B']);
+});
+
+test('a requested Short that is missing, unfinished or filtered out falls back to the first one and says so', () => {
+  const clips = clipsOf(demoVideo('short', { createdAt: 2000 }), demoVideo('busy', { status: 'composing' }));
+  const fellBack = (requestedId: string | null, filter: Parameters<typeof buildVisorQueue>[0]['filter'] = null) => {
+    const queue = buildVisorQueue({ clips, streams: MIXED.streams, filter, requestedId });
+    return { start: queue.start?.id ?? null, fellBack: queue.fellBack };
+  };
+  assert.deepEqual(fellBack('demo:gone'), { start: 'demo:short', fellBack: true });
+  assert.deepEqual(fellBack('demo:busy'), { start: 'demo:short', fellBack: true });
+  assert.deepEqual(fellBack('demo:short', { format: 'stream', stage: 'all' }), { start: 'stream:s1:stream-short:rev1:c1', fellBack: true });
+  assert.deepEqual(fellBack('demo:short'), { start: 'demo:short', fellBack: false });
+  assert.deepEqual(fellBack(null), { start: 'demo:short', fellBack: false });
+});
+
+test('a finished demo Short has the Visor entry that its card and its listo notice open; a 16:9 video has none', () => {
+  const entryOf = (video: Video) => {
+    const [clip] = clipsOf(video);
+    assert.ok(clip);
+    return visorEntryId(clip);
+  };
+  assert.equal(entryOf(demoVideo('short')), 'demo:short');
+  assert.equal(entryOf(demoVideo('job7__auto__seg-001_seg-004', { jobId: 'job7' })), 'demo:job7__auto__seg-001_seg-004');
+  assert.equal(entryOf(demoVideo('full', { editConfig: FULL_DEMO_EDIT })), null);
+  assert.equal(entryOf(demoVideo('summary', { editConfig: LANDSCAPE })), null);
+  assert.equal(entryOf(demoVideo('busy', { status: 'composing' })), null);
+  assert.equal(entryOf(demoVideo('no-file', { downloadUrl: undefined })), null);
 });

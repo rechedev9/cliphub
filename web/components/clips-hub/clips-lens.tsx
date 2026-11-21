@@ -18,6 +18,7 @@ import {
   type LibraryItem,
   type LibraryStage,
 } from '@/lib/clips/results';
+import { visorEntryId } from '@/lib/clips/visor-queue';
 import { cn } from '@/lib/utils';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { MediaPlayer } from '@/components/studio/media-player';
@@ -71,6 +72,7 @@ export type ClipsLensProps = {
   filter: { format: LibraryFilter; stage: LibraryStage };
   onFilterChange: (filter: { format: LibraryFilter; stage: LibraryStage }) => void;
   onChange: () => void;
+  onOpenVisor: (entryId: string) => void;
 };
 
 /** An unpressed chip with nothing behind it reads quieter than its siblings. */
@@ -80,7 +82,7 @@ function chipClass(active: boolean, count: number): string {
 }
 
 /** Every video recorded on this PC: what is in progress on top, the ready ones as a filtered grid. */
-export function ClipsLens({ clips, streams, filter, onFilterChange, onChange }: ClipsLensProps): ReactNode {
+export function ClipsLens({ clips, streams, filter, onFilterChange, onChange, onOpenVisor }: ClipsLensProps): ReactNode {
   const { format, stage } = filter;
   const setFormat = (next: LibraryFilter): void => onFilterChange({ format: next, stage });
   const setStage = (next: LibraryStage): void => onFilterChange({ format, stage: next });
@@ -205,11 +207,28 @@ export function ClipsLens({ clips, streams, filter, onFilterChange, onChange }: 
             </p>
           ) : (
             <div className={cn('grid', GRID_CLASS[size])}>
-              {visible.map((clip) => (
-                <ClipCard key={clip.id} clip={clip} size={size} onChange={onChange} onPlay={(item, button) => play(item.id, button)} />
-              ))}
+              {visible.map((clip) => {
+                const entryId = visorEntryId(clip);
+                return (
+                  <ClipCard
+                    key={clip.id}
+                    clip={clip}
+                    size={size}
+                    onChange={onChange}
+                    onPlay={(item, button) => play(item.id, button)}
+                    onOpenVisor={entryId === null ? null : () => onOpenVisor(entryId)}
+                  />
+                );
+              })}
               {visibleStreams.map((item) => (
-                <StreamClipCard key={item.id} item={item} size={size} onChange={onChange} onPlay={(button) => play(item.id, button)} />
+                <StreamClipCard
+                  key={item.id}
+                  item={item}
+                  size={size}
+                  onChange={onChange}
+                  onPlay={(button) => play(item.id, button)}
+                  onOpenVisor={item.format === '9:16' ? () => onOpenVisor(item.id) : null}
+                />
               ))}
             </div>
           )}

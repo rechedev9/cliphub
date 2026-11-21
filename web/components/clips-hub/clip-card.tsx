@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Download, Ellipsis, FolderOpen, History, Music, Pencil, Play, RectangleHorizontal, UploadCloud } from 'lucide-react';
+import { Download, Ellipsis, FolderOpen, History, Music, Pencil, Play, RectangleHorizontal, Smartphone, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { CHANGE_NOT_APPLIED_REASON } from '@/lib/api/failure-reason';
@@ -144,6 +144,15 @@ function actionRowClass(size: ClipSize): string {
   return cn('flex flex-wrap items-center gap-1.5', size === CLIP_SIZE.s ? 'px-3 pt-2.5 pb-3' : 'px-4 pt-3 pb-4');
 }
 
+function VisorButton({ title, onOpen }: { title: string; onOpen: (() => void) | null }): ReactNode {
+  if (onOpen === null) return null;
+  return (
+    <Button type="button" size="icon-sm" variant="outline" aria-label={`Ver ${title} como en el móvil`} title="Ver como en el móvil" onClick={onOpen}>
+      <Smartphone aria-hidden />
+    </Button>
+  );
+}
+
 /** Opens File Explorer on the render's MP4, found in the Almacenamiento list that the reveal route accepts. */
 async function revealVideoFile(item: MediaPlaybackItem): Promise<void> {
   try {
@@ -164,10 +173,11 @@ export type ClipCardProps = {
   size: ClipSize;
   onChange: () => void;
   onPlay: (item: MediaPlaybackItem, button: HTMLElement) => void;
+  onOpenVisor: (() => void) | null;
 };
 
 /** A ready demo video: Publicar and MP4 up front, the rest behind the "Más acciones" menu. */
-export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): ReactNode {
+export function ClipCard({ clip, size, onChange, onPlay, onOpenVisor }: ClipCardProps): ReactNode {
   const { video } = clip;
   const kind = videoKind(video);
   const isShort = clip.type === OUTPUT_TYPE.short;
@@ -237,6 +247,7 @@ export function ClipCard({ clip, size, onChange, onPlay }: ClipCardProps): React
           <Download aria-hidden />
           {iconOnly ? null : 'MP4'}
         </Button>
+        <VisorButton title={title} onOpen={onOpenVisor} />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" size="icon-sm" variant="ghost" className="ml-auto" aria-label={`Más acciones de ${title}`}>
@@ -321,10 +332,11 @@ export type StreamClipCardProps = {
   size: ClipSize;
   onChange: () => void;
   onPlay: (button: HTMLElement) => void;
+  onOpenVisor: (() => void) | null;
 };
 
 /** A rendered stream moment: Reproducir and MP4 up front, the project and Borrar behind "Más acciones". */
-export function StreamClipCard({ item, size, onChange, onPlay }: StreamClipCardProps): ReactNode {
+export function StreamClipCard({ item, size, onChange, onPlay, onOpenVisor }: StreamClipCardProps): ReactNode {
   const warning = item.review === PLAYBACK_REVIEW.stale;
   const isShort = item.format === '9:16';
   const iconOnly = size === CLIP_SIZE.s;
@@ -368,6 +380,7 @@ export function StreamClipCard({ item, size, onChange, onPlay }: StreamClipCardP
           <Download aria-hidden />
           {iconOnly ? null : 'MP4'}
         </Button>
+        <VisorButton title={item.title} onOpen={onOpenVisor} />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" size="icon-sm" variant="ghost" className="ml-auto" aria-label={`Más acciones de ${item.title}`}>
