@@ -1,5 +1,6 @@
-import type { StreamClipRange, StreamPlay } from '../api/streams.ts';
-import { clipOutputDuration, formatStreamClock } from './plan.ts';
+import type { StreamClipGroup, StreamClipRange, StreamEditPlan, StreamPlay } from '../api/streams.ts';
+import { pruneStreamGroups, restoreStreamGroup } from './groups.ts';
+import { clipOutputDuration, formatStreamClock, insertClipSorted } from './plan.ts';
 import { isVoiceOnly, playCoveringClips, playIsCovered, rankPlays } from './plays.ts';
 
 export type PlayRowAction = { kind: 'add' } | { kind: 'jump'; clip: StreamClipRange };
@@ -63,4 +64,27 @@ export function playTimeLabel(play: StreamPlay): string {
 export function withoutMoments(clips: readonly StreamClipRange[], ids: readonly string[]): StreamClipRange[] {
   const removed = new Set(ids);
   return clips.filter((clip) => !removed.has(clip.id));
+}
+
+export type MomentRemoval = { plan: StreamEditPlan; removed: StreamClipRange[]; groups: StreamClipGroup[] };
+
+export function removeMoments(plan: StreamEditPlan, ids: readonly string[]): MomentRemoval {
+  const gone = new Set(ids);
+  return {
+    plan: pruneStreamGroups({ ...plan, clips: withoutMoments(plan.clips, ids) }),
+    removed: plan.clips.filter((clip) => gone.has(clip.id)),
+    groups: plan.groups?.filter((group) => group.clip_ids.some((id) => gone.has(id))) ?? [],
+  };
+}
+
+function overlapsAny(clips: readonly StreamClipRange[], clip: StreamClipRange): boolean {
+  return clips.some((other) => other.id === clip.id || (other.start_seconds < clip.end_seconds && clip.start_seconds < other.end_seconds));
+}
+
+export function undoRemoval(current: StreamEditPlan, removal: MomentRemoval): StreamEditPlan {
+  const clips = removal.removed.reduce(
+    (next, clip) => (overlapsAny(next, clip) ? next : insertClipSorted(next, clip)),
+    current.clips,
+  );
+  return removal.groups.reduce(restoreStreamGroup, { ...current, clips });
 }

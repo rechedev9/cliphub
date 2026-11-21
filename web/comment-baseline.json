@@ -506,7 +506,7 @@
   "components/stratbook/play-roles.tsx": 1,
   "components/stratbook/play-tables.tsx": 2,
   "components/streams/banner-controls.tsx": 6,
-  "components/streams/clip-editor.tsx": 20,
+  "components/streams/clip-editor.tsx": 18,
   "components/streams/crop-picker.tsx": 5,
   "components/streams/detected-plays.tsx": 6,
   "components/streams/kill-feed-controls.tsx": 2,

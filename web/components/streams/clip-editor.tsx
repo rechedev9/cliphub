@@ -3,18 +3,17 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { NumberField } from '@/components/streams/number-field';
-import { MomentRange } from '@/components/streams/moment-range';
-import type { StreamClipEdit, StreamClipRange, StreamTextOverlay } from '@/lib/api/streams';
+import { MomentEdgesEditor } from '@/components/streams/moment-edges-editor';
+import type { StreamClipEdit, StreamClipRange, StreamPlay, StreamTextOverlay } from '@/lib/api/streams';
 import {
   CLIP_SPEEDS,
   DEFAULT_OVERLAY_FONT_SIZE,
   MAX_OVERLAY_FONT_SIZE,
   MAX_TEXT_OVERLAYS,
   MIN_OVERLAY_FONT_SIZE,
-  streamRangeIssue,
-  streamRangeOverlapIssue,
   withoutEmptyTextOverlays,
 } from '@/lib/clip-edit';
+import { suggestedCut, type MomentEdge } from '@/lib/streams/moment-edges';
 import { STREAMER_BANNER_MAX_POSITION, STREAMER_BANNER_MIN_POSITION } from '@/lib/stream-preview';
 import { clipOutputDuration, formatStreamClock, pruneClipEdit } from '@/lib/streams/plan';
 import { Button } from '@/components/ui/button';
@@ -36,31 +35,31 @@ const CHIP_FADE_SECONDS = 0.5;
  */
 export function StreamClipEditor({
   clips,
+  plays,
   sourceDuration,
   selectedClipId,
   onChange,
   onSelect,
   onRemove,
+  onNudgeEdge,
+  onSuggest,
   disabled,
-  playheadSeconds,
   onPlay,
 }: {
   clips: StreamClipRange[];
+  plays: readonly StreamPlay[];
   sourceDuration: number;
   selectedClipId: string | null;
   onChange: (clips: StreamClipRange[]) => void;
   onSelect: (clip: StreamClipRange) => void;
-  /** Owned by the editor so removing a cut also clears the monitor selection. */
   onRemove: (clip: StreamClipRange) => void;
+  onNudgeEdge: (change: { clipId: string; edge: MomentEdge; delta: number }) => void;
+  onSuggest: (clip: StreamClipRange) => void;
   disabled: boolean;
-  playheadSeconds: number;
   onPlay: () => void;
 }): ReactNode {
-  const updateClip = (id: string, patch: Partial<StreamClipRange>) => {
-    const next = clips.map((c) => (c.id === id ? { ...c, ...patch } : c));
-    // A moved start must keep cuts in source order, same comparator as insertClipSorted.
-    onChange(patch.start_seconds !== undefined ? [...next].sort((a, b) => a.start_seconds - b.start_seconds) : next);
-  };
+  const updateClip = (id: string, patch: Partial<StreamClipRange>) =>
+    onChange(clips.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   const updateEdit = (id: string, patch: Partial<StreamClipEdit>) =>
     onChange(clips.map((c) => (c.id === id ? { ...c, edit: pruneClipEdit({ ...c.edit, ...patch }) } : c)));
 
@@ -86,15 +85,15 @@ export function StreamClipEditor({
           key={clip.id}
           clip={clip}
           index={index}
-          sourceDuration={sourceDuration}
-          overlapIssue={streamRangeOverlapIssue(clips, index)}
+          canSuggest={suggestedCut({ clips, clipId: clip.id, plays, sourceDuration }) !== null}
           selected={clip.id === selectedClipId}
           disabled={disabled}
           onSelect={() => onSelect(clip)}
           onRemove={() => onRemove(clip)}
           onClipChange={(patch) => updateClip(clip.id, patch)}
           onEditChange={(patch) => updateEdit(clip.id, patch)}
-          playheadSeconds={playheadSeconds}
+          onNudge={(change) => onNudgeEdge({ clipId: clip.id, ...change })}
+          onSuggest={() => onSuggest(clip)}
           onPlay={onPlay}
         />
       </ul>
@@ -105,31 +104,30 @@ export function StreamClipEditor({
 function ClipCard({
   clip,
   index,
-  sourceDuration,
-  overlapIssue,
+  canSuggest,
   selected,
   disabled,
   onSelect,
   onRemove,
   onClipChange,
   onEditChange,
-  playheadSeconds,
+  onNudge,
+  onSuggest,
   onPlay,
 }: {
   clip: StreamClipRange;
   index: number;
-  sourceDuration: number;
-  overlapIssue: string | null;
+  canSuggest: boolean;
   selected: boolean;
   disabled: boolean;
   onSelect: () => void;
   onRemove: () => void;
   onClipChange: (patch: Partial<StreamClipRange>) => void;
   onEditChange: (patch: Partial<StreamClipEdit>) => void;
-  playheadSeconds: number;
+  onNudge: (change: { edge: MomentEdge; delta: number }) => void;
+  onSuggest: () => void;
   onPlay: () => void;
 }): ReactNode {
-  const rangeIssue = streamRangeIssue(clip, sourceDuration, index) ?? overlapIssue;
   const speed = clip.edit?.speed ?? 1;
   const sourceVolume = clip.edit?.source_volume ?? 1;
   const fadeIn = clip.edit?.fade_in_seconds ?? 0;
@@ -151,15 +149,11 @@ function ClipCard({
     previousVolumeRef.current = sourceVolume;
     onEditChange({ source_volume: 0 });
   };
-  let cardClass = 'border-border bg-surface-2';
-  if (rangeIssue !== null) cardClass = 'border-destructive/50';
-  else if (selected) cardClass = 'border-stream/45 bg-surface-3';
-
   return (
     <li
       className={cn(
         'flex flex-col gap-2.5 border p-3.5 transition-colors duration-(--dur-fast) ease-standard',
-        cardClass,
+        selected ? 'border-stream/45 bg-surface-3' : 'border-border bg-surface-2',
       )}
     >
       <div className="flex items-center gap-2.5">
@@ -192,51 +186,39 @@ function ClipCard({
             </span>
           </span>
         </button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          disabled={disabled}
-          onClick={onRemove}
-          aria-label={`Quitar momento ${number}`}
-        >
+        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={onRemove} aria-label={`Quitar momento ${number}`}>
           <Trash2 aria-hidden />
+          Quitar
         </Button>
       </div>
 
-      <Input
-        id={`${clip.id}-title`}
-        aria-label={`Título del momento ${number}`}
-        value={clip.title ?? ''}
-        disabled={disabled}
-        onChange={(e) => onClipChange({ title: e.target.value })}
-        placeholder={`Momento ${index + 1}`}
-        className="h-9"
-      />
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`${clip.id}-title`} className="text-label text-fg-2">
+          Nombre del momento
+        </Label>
+        <Input
+          id={`${clip.id}-title`}
+          value={clip.title ?? ''}
+          disabled={disabled}
+          onChange={(e) => onClipChange({ title: e.target.value })}
+          placeholder={`Momento ${index + 1}`}
+          className="h-9"
+        />
+      </div>
 
-      {rangeIssue ? (
-        <p role="alert" className="text-body-sm text-destructive">
-          {rangeIssue}
-        </p>
-      ) : null}
-
-      <MomentRange
-        id={clip.id}
-        start={clip.start_seconds}
-        end={clip.end_seconds}
-        duration={sourceDuration}
-        playhead={playheadSeconds}
-        disabled={disabled}
-        invalid={rangeIssue !== null}
-        onChange={onClipChange}
-      />
-      <Button variant="outline" disabled={disabled || rangeIssue !== null} onClick={onPlay}>
-        Ver este momento
-      </Button>
+      <MomentEdgesEditor start={clip.start_seconds} end={clip.end_seconds} disabled={disabled} onNudge={onNudge} />
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" disabled={disabled} onClick={onPlay}>
+          Ver este momento
+        </Button>
+        {canSuggest ? (
+          <Button variant="outline" size="sm" disabled={disabled} onClick={onSuggest}>
+            Volver al corte sugerido
+          </Button>
+        ) : null}
+      </div>
       <details className="flex flex-col gap-3">
-        <DisclosureSummary className="min-h-10 py-2 text-body-sm text-fg-2">
-          Texto, velocidad y audio · opcional
-        </DisclosureSummary>
+        <DisclosureSummary className="min-h-10 py-2 text-body-sm text-fg-2">Más ajustes</DisclosureSummary>
         <div className="grid grid-cols-2 gap-1.5">
           <Select
             value={String(speed)}

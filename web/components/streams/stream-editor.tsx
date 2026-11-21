@@ -54,6 +54,7 @@ import { StreamResultsStep, StreamResultVideo } from '@/components/streams/strea
 import { StreamReviewStep } from '@/components/streams/stream-review-step';
 import { useStreamMoments } from '@/components/streams/use-stream-moments';
 import { momentsFooterHint, momentsFooterText } from '@/lib/streams/moments';
+import { momentZoomWindow } from '@/lib/streams/moment-edges';
 
 /** Guided stream editor: moments, appearance, review, then finished videos. */
 export function StreamEditor({
@@ -128,6 +129,7 @@ export function StreamEditor({
   const groupPlaying = previewGroup && playbackMode === STREAM_PLAYBACK_MODE.selected ? previewGroup : undefined;
   const [previewPlay, setPreviewPlay] = useState<{ play: StreamPlay; range: StreamClipRange } | null>(null);
   const [foundPlays, setFoundPlays] = useState<readonly StreamPlay[]>([]);
+  const [zoomed, setZoomed] = useState(false);
   const cutsStep = activeStep === STREAM_STEP.cuts;
   const previewing = cutsStep && playbackMode === STREAM_PLAYBACK_MODE.selected ? previewPlay : null;
   const groupClips = groupPlaying?.clips;
@@ -212,6 +214,7 @@ export function StreamEditor({
     setPreviewPlaying(true);
   }
   function watchPlay(play: StreamPlay) {
+    setZoomed(false);
     setPreviewPlay({ play, range: { id: `play:${play.id}`, start_seconds: play.start_seconds, end_seconds: play.end_seconds } });
     setPlaybackMode(STREAM_PLAYBACK_MODE.selected);
     setPreviewError(null);
@@ -221,6 +224,7 @@ export function StreamEditor({
   function playAllMoments() {
     const [first] = plan.clips;
     if (!first) return;
+    setZoomed(false);
     setPreviewPlay(null);
     setSelectedClipId(first.id);
     setPlaybackMode(STREAM_PLAYBACK_MODE.sequence);
@@ -244,6 +248,7 @@ export function StreamEditor({
     onPlanChange,
     focusClip: (clip: StreamClipRange) => {
       setPreviewPlay(null);
+      setZoomed(true);
       setSelectedClipId(clip.id);
       setPlaybackMode(STREAM_PLAYBACK_MODE.selected);
       seek(clip.start_seconds);
@@ -256,12 +261,21 @@ export function StreamEditor({
       setPreviewPlaying(false);
     },
     showDraft: () => {
+      setZoomed(false);
       setPreviewPlay(null);
       setPlaybackMode('source');
       setPreviewPlaying(false);
       panelRef.current?.scrollTo(0, 0);
     },
+    showEdge: (seconds: number) => {
+      setPreviewPlay(null);
+      setPreviewPlaying(false);
+      setPlaybackMode(STREAM_PLAYBACK_MODE.source);
+      seek(seconds);
+    },
+    showWholeVideo: () => setZoomed(false),
   });
+  const zoomClip = cutsStep && zoomed && !moments.creatingMoment ? selectedClip : undefined;
   const selectClip = moments.selectClip;
   const playMoment = (clip: StreamClipRange) => {
     selectClip(clip);
@@ -390,6 +404,16 @@ export function StreamEditor({
       selectedClipIds={selectedShort?.clips.map((clip) => clip.id) ?? []}
       playheadSeconds={previewSeconds}
       disabled={busy}
+      zoom={
+        zoomClip
+          ? {
+              clipId: zoomClip.id,
+              window: momentZoomWindow(zoomClip, sourceDuration),
+              onEdgeDrag: ({ edge, seconds }) => moments.moveEdge({ clipId: zoomClip.id, edge, seconds }),
+              onShowAll: () => setZoomed(false),
+            }
+          : undefined
+      }
       onSeek={(seconds) => {
         // Scrubbing inside a Short being previewed keeps that mode; anywhere else is the original.
         const insideSelected =
@@ -426,6 +450,7 @@ export function StreamEditor({
         sourceDuration={sourceDuration}
         playheadSeconds={previewSeconds}
         selectedClipId={selectedClip?.id ?? null}
+        plays={foundPlays}
         activePlayId={previewing?.play.id ?? null}
         busy={busy}
         player={monitor}

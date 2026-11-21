@@ -2,8 +2,9 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { StreamClipRange, StreamEditPlan, StreamJob, StreamPlay } from '@/lib/api/streams';
 import { streamRangeIssue, streamRangeOverlapIssue } from '@/lib/clip-edit';
-import { pruneStreamGroups, restoreStreamGroup } from '@/lib/streams/groups';
-import { withoutMoments } from '@/lib/streams/moments';
+import { pruneStreamGroups } from '@/lib/streams/groups';
+import { moveMomentEdge, nudgeMomentEdge, suggestedCut, withMomentRange, type MomentEdge } from '@/lib/streams/moment-edges';
+import { removeMoments, undoRemoval, withoutMoments } from '@/lib/streams/moments';
 import { formatStreamClock, insertClipSorted, nextClipId } from '@/lib/streams/plan';
 import { clipsWithPlays } from '@/lib/streams/plays';
 import { streamTitle } from '@/lib/streams/title';
@@ -18,6 +19,8 @@ export function useStreamMoments({
   focusClip,
   clearSelection,
   showDraft,
+  showEdge,
+  showWholeVideo,
 }: {
   job: StreamJob;
   plan: StreamEditPlan;
@@ -26,6 +29,8 @@ export function useStreamMoments({
   focusClip: (clip: StreamClipRange) => void;
   clearSelection: () => void;
   showDraft: () => void;
+  showEdge: (seconds: number) => void;
+  showWholeVideo: () => void;
 }) {
   const [draftRange, setDraftRange] = useState<MomentRangeValue>({
     start_seconds: 0,
@@ -80,27 +85,53 @@ export function useStreamMoments({
   const removeClips = (removed: readonly StreamClipRange[]) => {
     const [clip] = removed;
     if (!clip) return;
-    const ids = new Set(removed.map((c) => c.id));
-    const groups = plan.groups?.filter((g) => g.clip_ids.some((id) => ids.has(id))) ?? [];
-    const next = plan.clips.filter((c) => !ids.has(c.id));
-    setClips(next);
-    if (next.length) selectClip(next[0]);
+    const removal = removeMoments(plan, removed.map((c) => c.id));
+    onPlanChange(removal.plan);
+    const [next] = removal.plan.clips;
+    if (next) selectClip(next);
     else {
       setCreatingMoment(true);
       clearSelection();
     }
-    toast(removed.length === 1 ? 'Momento quitado' : `${removed.length} momentos quitados`, {
+    showWholeVideo();
+    toast(removed.length === 1 ? `Quitado: ${clip.title?.trim() || 'momento'}` : `${removed.length} momentos quitados`, {
+      position: 'top-right',
+      action: {
+        label: 'Deshacer',
+        onClick: () => {
+          const restored = undoRemoval(latestPlanRef.current, removal);
+          onPlanChange(restored);
+          if (restored.clips.some((c) => c.id === clip.id)) selectClip(clip);
+        },
+      },
+    });
+  };
+  const applyEdge = ({ clips, clipId, edge }: { clips: StreamClipRange[]; clipId: string; edge: MomentEdge }) => {
+    const next = { ...latestPlanRef.current, clips };
+    latestPlanRef.current = next;
+    onPlanChange(next);
+    const clip = clips.find((c) => c.id === clipId);
+    if (clip) showEdge(edge === 'start' ? clip.start_seconds : clip.end_seconds);
+  };
+  const moveEdge = ({ clipId, edge, seconds }: { clipId: string; edge: MomentEdge; seconds: number }) =>
+    applyEdge({ clips: moveMomentEdge({ clips: latestPlanRef.current.clips, clipId, edge, seconds, sourceDuration }), clipId, edge });
+  const nudgeEdge = ({ clipId, edge, delta }: { clipId: string; edge: MomentEdge; delta: number }) =>
+    applyEdge({ clips: nudgeMomentEdge({ clips: latestPlanRef.current.clips, clipId, edge, delta, sourceDuration }), clipId, edge });
+  const restoreSuggestedCut = (clip: StreamClipRange, plays: readonly StreamPlay[]) => {
+    const cut = suggestedCut({ clips: plan.clips, clipId: clip.id, plays, sourceDuration });
+    const next = cut && withMomentRange({ clips: plan.clips, clipId: clip.id, range: cut });
+    if (!cut || !next) return;
+    const previous = { start_seconds: clip.start_seconds, end_seconds: clip.end_seconds };
+    onPlanChange({ ...plan, clips: next });
+    showEdge(cut.start_seconds);
+    toast('Corte sugerido recuperado', {
       position: 'top-right',
       action: {
         label: 'Deshacer',
         onClick: () => {
           const current = latestPlanRef.current;
-          const missing = removed.filter((r) => !current.clips.some((c) => c.id === r.id));
-          if (missing.length) {
-            const restored: StreamEditPlan = { ...current, clips: missing.reduce(insertClipSorted, current.clips) };
-            onPlanChange(groups.reduce(restoreStreamGroup, restored));
-          }
-          selectClip(clip);
+          const undone = withMomentRange({ clips: current.clips, clipId: clip.id, range: previous });
+          if (undone) onPlanChange({ ...current, clips: undone });
         },
       },
     });
@@ -115,6 +146,11 @@ export function useStreamMoments({
     showDraft();
   };
   const patchDraft = (patch: Partial<MomentRangeValue>) => setDraftRange((current) => ({ ...current, ...patch }));
+  const nudgeDraft = ({ edge, delta }: { edge: MomentEdge; delta: number }) =>
+    setDraftRange((current) => {
+      const [moved] = nudgeMomentEdge({ clips: [{ id: 'draft', ...current }], clipId: 'draft', edge, delta, sourceDuration });
+      return moved ? { start_seconds: moved.start_seconds, end_seconds: moved.end_seconds } : current;
+    });
   const cancelDraft = () => setCreatingMoment(false);
 
   return {
@@ -128,7 +164,11 @@ export function useStreamMoments({
     addMoment,
     addPlays,
     removeClip,
+    moveEdge,
+    nudgeEdge,
+    restoreSuggestedCut,
     startNewMoment,
+    nudgeDraft,
   };
 }
 

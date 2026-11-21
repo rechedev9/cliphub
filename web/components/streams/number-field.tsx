@@ -7,7 +7,6 @@ export function NumberField({
   label,
   value,
   max,
-  invalid,
   disabled,
   onChange,
 }: {
@@ -15,7 +14,6 @@ export function NumberField({
   label: string;
   value: number;
   max?: number;
-  invalid?: boolean;
   disabled: boolean;
   onChange: (value: number) => void;
 }): ReactNode {
@@ -49,7 +47,6 @@ export function NumberField({
         step="0.1"
         value={text}
         disabled={disabled}
-        aria-invalid={invalid}
         onFocus={() => setFocused(true)}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {

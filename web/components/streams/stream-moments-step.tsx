@@ -8,7 +8,7 @@ import { FULL_SOURCE_MOMENT_MAX_SECONDS, clipOutputDuration, formatStreamClock }
 import { cn } from '@/lib/utils';
 import { StreamClipEditor } from '@/components/streams/clip-editor';
 import { StreamDetectedPlays } from '@/components/streams/detected-plays';
-import { MomentRange } from '@/components/streams/moment-range';
+import { MomentEdgesEditor } from '@/components/streams/moment-edges-editor';
 import type { StreamMoments } from '@/components/streams/use-stream-moments';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { Button } from '@/components/ui/button';
@@ -119,6 +119,7 @@ export function StreamMomentsStep({
   sourceDuration,
   playheadSeconds,
   selectedClipId,
+  plays,
   activePlayId,
   busy,
   player,
@@ -135,6 +136,7 @@ export function StreamMomentsStep({
   sourceDuration: number;
   playheadSeconds: number;
   selectedClipId: string | null;
+  plays: readonly StreamPlay[];
   activePlayId: string | null;
   busy: boolean;
   player: ReactNode;
@@ -156,16 +158,15 @@ export function StreamMomentsStep({
         {moments.creatingMoment ? (
           <section aria-label="Nuevo momento" className="flex flex-col gap-3 rounded-md border border-stream/40 p-3">
             <h3 className="font-semibold">Nuevo momento</h3>
-            <MomentRange
-              id="draft"
-              start={draftRange.start_seconds}
-              end={draftRange.end_seconds}
-              duration={sourceDuration}
-              playhead={playheadSeconds}
-              disabled={busy}
-              invalid={draftIssue !== null}
-              onChange={moments.patchDraft}
-            />
+            <MomentEdgesEditor start={draftRange.start_seconds} end={draftRange.end_seconds} disabled={busy} onNudge={moments.nudgeDraft} />
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" disabled={busy} title="Pon el inicio donde va el vídeo original" onClick={() => moments.patchDraft({ start_seconds: playheadSeconds })}>
+                Marcar inicio
+              </Button>
+              <Button variant="outline" size="sm" disabled={busy} title="Pon el final donde va el vídeo original" onClick={() => moments.patchDraft({ end_seconds: playheadSeconds })}>
+                Marcar final
+              </Button>
+            </div>
             {draftIssue ? (
               <p role="alert" className="text-body-sm text-destructive">
                 {draftIssue}
@@ -184,13 +185,15 @@ export function StreamMomentsStep({
           <>
             <StreamClipEditor
               clips={plan.clips}
+              plays={plays}
               sourceDuration={sourceDuration}
               selectedClipId={selectedClipId}
               onChange={moments.setClips}
               onSelect={moments.selectClip}
               onRemove={moments.removeClip}
+              onNudgeEdge={moments.nudgeEdge}
+              onSuggest={(clip) => moments.restoreSuggestedCut(clip, plays)}
               disabled={busy}
-              playheadSeconds={playheadSeconds}
               onPlay={onPlaySelected}
             />
             <Button variant="outline" className="self-start" disabled={busy} onClick={() => moments.startNewMoment(playheadSeconds)}>

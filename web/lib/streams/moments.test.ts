@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { StreamClipRange, StreamPlay } from '../api/streams.ts';
+import type { StreamClipRange, StreamEditPlan, StreamPlay } from '../api/streams.ts';
 import { clipsWithPlays } from './plays.ts';
-import { bulkAddLabel, bulkAddPlays, momentsFooterText, momentsInOrder, playRowAction, playTimeLabel, topPlayIds, withoutMoments } from './moments.ts';
+import { bulkAddLabel, bulkAddPlays, momentsFooterText, momentsInOrder, playRowAction, playTimeLabel, removeMoments, topPlayIds, undoRemoval, withoutMoments } from './moments.ts';
 
 function play(id: string, start: number, end: number, score = 50): StreamPlay {
   return { id, label: id, start_seconds: start, end_seconds: end, kill_seconds: [start + 2], score };
@@ -68,4 +68,35 @@ test('a jugada row reads its start as m:ss and its length in seconds, or m:ss pa
 test('undoing an add takes back only the momentos it created', () => {
   const clips = [moment('mine', 0, 10), moment('added', 20, 30), moment('later', 40, 50)];
   assert.deepEqual(withoutMoments(clips, ['added', 'gone']).map((c) => c.id), ['mine', 'later']);
+});
+
+const basePlan: StreamEditPlan = { schema_version: '1', variant: 'streamer-fullframe-nocam', clips: [] };
+
+test('removing a momento drops it and leaves a joined Short of one as a single momento', () => {
+  const plan: StreamEditPlan = {
+    ...basePlan,
+    clips: [moment('a', 0, 10), moment('b', 20, 30), moment('c', 40, 50)],
+    groups: [{ id: 'g1', clip_ids: ['a', 'b'] }],
+  };
+  const { plan: next } = removeMoments(plan, ['b']);
+  assert.deepEqual(next.clips.map((c) => c.id), ['a', 'c']);
+  assert.equal(next.groups, undefined);
+});
+
+test('undoing a removal puts the momento and its joined Short back', () => {
+  const plan: StreamEditPlan = {
+    ...basePlan,
+    clips: [moment('a', 0, 10), moment('b', 20, 30)],
+    groups: [{ id: 'g1', clip_ids: ['a', 'b'] }],
+  };
+  const removal = removeMoments(plan, ['b']);
+  const undone = undoRemoval(removal.plan, removal);
+  assert.deepEqual(undone.clips.map((c) => c.id), ['a', 'b']);
+  assert.deepEqual(undone.groups, [{ id: 'g1', clip_ids: ['a', 'b'] }]);
+});
+
+test('undoing a removal skips a momento whose place a newer momento took', () => {
+  const removal = removeMoments({ ...basePlan, clips: [moment('a', 0, 10), moment('b', 20, 30)] }, ['b']);
+  const later: StreamEditPlan = { ...removal.plan, clips: [...removal.plan.clips, moment('new', 25, 35)] };
+  assert.deepEqual(undoRemoval(later, removal).clips.map((c) => c.id), ['a', 'new']);
 });
