@@ -7,6 +7,7 @@ import type { VisorEntry } from '@/lib/clips/visor-queue';
 import { claimMediaPlayback } from '@/lib/media-playback-owner';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { PlatformLayerPicker, PlatformLayerShapes, usePlatformLayer } from './visor-platform-layer';
 
 const MUTED_STORAGE_KEY = 'cliphub-visor-muted';
 const WHEEL_STEP_PX = 40;
@@ -54,6 +55,7 @@ export function Visor({ entries, currentId, onMove, onClose }: VisorProps): Reac
   const [dragOffset, setDragOffset] = useState<number | null>(null);
   const [muted, setMuted] = useState(readMuted);
   const [paused, setPaused] = useState(false);
+  const [layer, setLayer] = usePlatformLayer();
 
   const step = useCallback((delta: 1 | -1): void => {
     const next = entries[index + delta];
@@ -184,6 +186,7 @@ export function Visor({ entries, currentId, onMove, onClose }: VisorProps): Reac
                 )}
               </div>
             ))}
+            <PlatformLayerShapes layer={layer} />
           </div>
 
           <div className="flex items-center gap-2">
@@ -210,6 +213,7 @@ export function Visor({ entries, currentId, onMove, onClose }: VisorProps): Reac
             >
               {muted ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
             </Button>
+            <PlatformLayerPicker value={layer} onChange={setLayer} />
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
