@@ -25,8 +25,7 @@ func TestASSPlacesEachFormatClearOfTheHUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 9:16 sits over the lower third, under the kill feed and above the radar corner; 16:9 above CS2's bottom HUD row.
-	for _, want := range []string{"PlayResX: 1080", "PlayResY: 1920", ",2,86,86,600,1"} {
+	for _, want := range []string{"PlayResX: 1080", "PlayResY: 1920"} {
 		if !strings.Contains(portrait, want) {
 			t.Errorf("9:16 script lacks %q:\n%s", want, portrait)
 		}

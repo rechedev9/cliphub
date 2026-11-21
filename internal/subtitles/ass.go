@@ -35,20 +35,6 @@ type Script struct {
 	Hidden          []string
 }
 
-// layout is the subtitle block of one format, on a 1080 px wide 9:16 or a 1920 px wide 16:9 frame.
-type layout struct {
-	fontSize, marginSide, marginBottom int
-}
-
-// The 9:16 block sits over the lower third, under the centered kill feed and above the radar
-// corner; the 16:9 block sits above CS2's health and ammo row, between the radar and kill feed columns.
-func layoutOf(width, height int) layout {
-	if height > width {
-		return layout{fontSize: scale(56, width, 1080), marginSide: scale(86, width, 1080), marginBottom: scale(600, height, 1920)}
-	}
-	return layout{fontSize: scale(46, height, 1080), marginSide: scale(230, width, 1920), marginBottom: scale(150, height, 1080)}
-}
-
 func scale(value, size, reference int) int {
 	return int(math.Round(float64(value) * float64(size) / float64(reference)))
 }
@@ -58,12 +44,12 @@ func ASS(s Script) (string, error) {
 	if s.Width < 320 || s.Height < 320 || s.DurationSeconds <= 0 {
 		return "", fmt.Errorf("invalid subtitle frame")
 	}
-	l := layoutOf(s.Width, s.Height)
+	placed := PlacementOf(s.Width, s.Height)
 	var b strings.Builder
 	fmt.Fprintf(&b, "[Script Info]\nScriptType: v4.00+\nPlayResX: %d\nPlayResY: %d\nScaledBorderAndShadow: yes\nWrapStyle: 0\n\n", s.Width, s.Height)
 	b.WriteString("[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n")
 	fmt.Fprintf(&b, "Style: Subtitle,%s,%d,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,%d,1,2,%d,%d,%d,1\n\n",
-		mediafont.FamilyName, l.fontSize, max(2, l.fontSize/14), l.marginSide, l.marginSide, l.marginBottom)
+		mediafont.FamilyName, placed.FontSize, max(2, placed.FontSize/14), placed.Box.Left, s.Width-placed.Box.Right, s.Height-placed.Box.Bottom)
 	b.WriteString("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
 	for _, c := range timed(s) {
 		fmt.Fprintf(&b, "Dialogue: 0,%s,%s,Subtitle,,0,0,0,,{\\c&H%s&}%s:%s\n", clock(c.StartSeconds), clock(c.EndSeconds), colourOf(c), escape(c.Speaker), drawn(c.Lines))
