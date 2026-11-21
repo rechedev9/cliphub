@@ -728,8 +728,10 @@ because the unit tests wrote the delta into the unknown fields themselves.
 - The delta is read from the declared field (`decodeMovementCommand`), and the
   tests build each command from wire bytes, so they follow whatever the parser
   declares (`TestMovementCommandFullDeltaAndSourceClock`).
-- HUD telemetry is cached per job. A job whose telemetry was extracted while
-  the keys were missing keeps it until `customhud.TelemetryVersion` changes.
+- HUD telemetry is cached per job under `customhud.TelemetryVersion`, which
+  moved to `broadcast-hud-v8` so a job extracted while the keys were missing
+  is extracted again on its next render. A video already rendered keeps its
+  picture.
 
 ### Incident: subtitles locked because a repeated demo kept a lost library copy (Studio 5.26.0, 2026-11-19)
 

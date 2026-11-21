@@ -11,7 +11,7 @@ import (
 )
 
 const Version = "broadcast-hud-v10"
-const TelemetryVersion = "broadcast-hud-v7"
+const TelemetryVersion = "broadcast-hud-v8"
 const CaptureProfile = "broadcast-clean-v2"
 const LegacyCaptureProfile = "broadcast-clean"
 

@@ -26,8 +26,8 @@ func movementMessage(slot, number, tick int32, full, delta []byte) *msg.CSVCMsg_
 	if full != nil {
 		wire = append(wire, movementBytes(1, full)...)
 	}
-	for field, value := range map[protowire.Number]int32{2: number, 3: slot, 4: tick} {
-		wire = protowire.AppendVarint(protowire.AppendTag(wire, field, protowire.VarintType), uint64(int64(value)))
+	for i, value := range []int32{number, slot, tick} {
+		wire = protowire.AppendVarint(protowire.AppendTag(wire, protowire.Number(i+2), protowire.VarintType), uint64(int64(value)))
 	}
 	if delta != nil {
 		wire = append(wire, movementBytes(6, delta)...)
