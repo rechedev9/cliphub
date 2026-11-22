@@ -71,6 +71,40 @@ func TestDemoVoiceLineKeepsWhatTheCorrectorWrote(t *testing.T) {
 	}
 }
 
+func TestDemoVoiceLineUndoSurvivesANewCorrectorChange(t *testing.T) {
+	for name, repo := range libraryRepositoriesUnderTest(t) {
+		t.Run(name, func(t *testing.T) {
+			f := libraryFixture{t: t, ctx: context.Background(), repo: repo}
+			m := f.analyze(f.demo("demo-voice-undo-new", 0), "de_mirage", side{clan: "FUT", score: 13}, side{clan: "OG", score: 8})
+			id, heard, first := uuid.New(), "A V P don't take", "A V Plant take"
+			set := func(vocabText string) {
+				t.Helper()
+				l := library.DemoVoiceLine{ID: id, SteamID64: "76561198000000001", Name: "ropz", TeamKey: "t-start", StartMS: 1_000, EndMS: 2_000, Text: heard}
+				if vocabText != "" {
+					l.Text, l.OriginalText, l.VocabText = vocabText, heard, vocabText
+				}
+				lines := []library.DemoVoiceLine{l}
+				if err := repo.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: library.DemoVoiceTranscript{State: library.TranscriptReady}, Lines: &lines}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			set(first)
+			undone := heard
+			if _, err := repo.UpdateDemoVoiceLine(f.ctx, library.DemoVoiceLinePatch{MatchID: m.ID, ID: id, Text: &undone}); err != nil {
+				t.Fatal(err)
+			}
+			set("A V P don't took")
+			got, err := repo.ListDemoVoiceCorrections(f.ctx)
+			if err != nil || len(got) != 1 {
+				t.Fatalf("corrections = %+v, %v", got, err)
+			}
+			if c := got[0]; c.Heard != heard || c.Vocab != first || c.Text != heard {
+				t.Fatalf("an undo after a new corrector change = %+v; want it still the undo of %q", c, first)
+			}
+		})
+	}
+}
+
 func TestDemoVoiceLineStaysAPersonsCorrectionWhenATranscriptionAgreesWithIt(t *testing.T) {
 	for name, repo := range libraryRepositoriesUnderTest(t) {
 		t.Run(name, func(t *testing.T) {

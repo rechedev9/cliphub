@@ -36,9 +36,7 @@ func keepDemoVoiceEdits(prev, next library.DemoVoiceLine) library.DemoVoiceLine 
 	if !prev.Corrected || next.Corrected {
 		return next
 	}
-	if machineText(next) == prev.Text {
-		next.VocabText = prev.VocabText
-	}
+	next.VocabText = prev.VocabText
 	if prev.Text != next.Text {
 		next.Words = library.SpreadVoiceWords(library.VoiceWordSpread{Text: prev.Text, StartMS: next.StartMS, EndMS: next.EndMS})
 	}
