@@ -103,14 +103,14 @@ func TestDemoTranscriptCorrectsTheCalloutsOfTheMapAndTheNicksOfTheMatch(t *testi
 	env.h.voice.deps.VocabCorrector = true
 	on := env.transcribe(true)
 	call := callOf(t, on)
-	want := "moly under Palace, ZywOo tetres banana sandwich"
+	want := "molly under Palace, ZywOo tetres banana sandwich"
 	if call.Text != want || call.VocabText != want || call.OriginalText != heard || call.Corrected {
 		t.Fatalf("with the corrector on = %+v; want %q with the heard text kept", call.DemoVoiceLine, want)
 	}
 	if call.ID != off.ID {
 		t.Fatalf("the corrected frase changed id from %s to %s; a hidden frase would show again", off.ID, call.ID)
 	}
-	changes := []vocab.Change{{Heard: "Palas,", Written: "Palace,"}, {Heard: "Zaywoo", Written: "ZywOo"}, {Heard: "sanwich", Written: "sandwich"}}
+	changes := []vocab.Change{{Heard: "moly", Written: "molly"}, {Heard: "Palas,", Written: "Palace,"}, {Heard: "Zaywoo", Written: "ZywOo"}, {Heard: "sanwich", Written: "sandwich"}}
 	if len(call.VocabChanges) != len(changes) {
 		t.Fatalf("changes = %+v; want %+v", call.VocabChanges, changes)
 	}
@@ -143,8 +143,8 @@ func TestDemoTranscriptCorrectorNeverOverwritesAPersonsCorrection(t *testing.T) 
 	if undone.Text != heard || !undone.Corrected {
 		t.Fatalf("undo of the corrector = %+v; want the heard text as a person's correction", undone)
 	}
-	if again := callOf(t, env.transcribe(true)); again.Text != heard || !again.Corrected || again.VocabText == "" {
-		t.Fatalf("transcribed again after an undo = %+v; want the person's text kept", again.DemoVoiceLine)
+	if again := callOf(t, env.transcribe(true)); again.Text != heard || again.VocabText != "" {
+		t.Fatalf("transcribed again after an undo = %+v; want the person's text kept and the undone changes not made again", again.DemoVoiceLine)
 	}
 
 	own := "molly under palace, ZywOo"
@@ -158,5 +158,47 @@ func TestDemoTranscriptCorrectorNeverOverwritesAPersonsCorrection(t *testing.T) 
 	env.json(http.MethodPatch, path, map[string]string{"text": again.VocabText}, http.StatusOK, &machine)
 	if machine.Corrected || machine.OriginalText != heard {
 		t.Fatalf("back to the corrector's text = %+v; want it not a person's correction", machine)
+	}
+}
+
+func (e demoTranscriptEnv) setMap(name string) {
+	e.t.Helper()
+	doc, err := e.h.readLibraryDocument(e.match.DemoID)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	doc.Demo.Map = name
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	if err := e.storage.Put(artifacts.LibraryTacticalIndexKey(e.match.DemoID), bytes.NewReader(raw)); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
+func TestDemoTranscriptCorrectsTheCS2LexiconAndOnlyTheCommunityCalloutsOfTheDemosMap(t *testing.T) {
+	env := newMirageVocabEnv(t)
+	env.h.voice.deps.VocabCorrector = true
+	heard := "Go kontakt, moly jungel coffens flesh"
+	env.transcriber.heard = []teamvoice.Line{{StartMS: 1000, EndMS: 3000, Text: heard}}
+
+	if got := callOf(t, env.transcribe(false)); got.Text != "Go contact, molly jungle coffens flesh" || got.OriginalText != heard {
+		t.Fatalf("on Mirage = %+v; want the calls, the grenades and the Mirage callouts written, an Inferno callout and a common word left", got.DemoVoiceLine)
+	}
+
+	env.setMap("de_inferno")
+	if got := callOf(t, env.transcribe(true)); got.Text != "Go contact, molly jungel coffins flesh" || got.OriginalText != heard {
+		t.Fatalf("on Inferno = %+v; want the Inferno callouts written and a Mirage callout left", got.DemoVoiceLine)
+	}
+}
+
+func TestDemoTranscriptLeavesEnglishWordsThatSoundLikeACS2Term(t *testing.T) {
+	env := newMirageVocabEnv(t)
+	env.h.voice.deps.VocabCorrector = true
+	heard := "safe clock planned famous ego tread lot"
+	env.transcriber.heard = []teamvoice.Line{{StartMS: 1000, EndMS: 3000, Text: heard}}
+	if got := callOf(t, env.transcribe(false)); got.Text != heard || got.VocabText != "" {
+		t.Fatalf("English words = %+v; want them as heard", got.DemoVoiceLine)
 	}
 }
