@@ -259,7 +259,7 @@ func TestTranscriptMeasureReplaysTheCorrectorWithTheVocabularyOfTheLibrary(t *te
 	if err := os.WriteFile(tactical, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	lines := f.frases(m, "moly under Palas", "tetras clear")
+	lines := f.frases(m, "moly under Palas", "pizza clear")
 	fixed := "molly under palace"
 	f.edit(library.DemoVoiceLinePatch{MatchID: m.ID, ID: lines[0].ID, Text: &fixed})
 	if err := repos.Close(); err != nil {
@@ -267,29 +267,29 @@ func TestTranscriptMeasureReplaysTheCorrectorWithTheVocabularyOfTheLibrary(t *te
 	}
 
 	got := measureJSON(t, path).Total
-	if got.Words != 5 || got.CorrectedWords != 2 || got.VocabCorrectedWords != 1 || got.VocabFixedWords != 1 || got.VocabBrokenWords != 0 {
-		t.Fatalf("total = %+v; want the corrector to fix Palas and leave the rest", got)
+	if got.Words != 5 || got.CorrectedWords != 2 || got.VocabCorrectedWords != 0 || got.VocabFixedWords != 2 || got.VocabBrokenWords != 0 {
+		t.Fatalf("total = %+v; want the corrector to fix moly and Palas and leave the rest", got)
 	}
 
 	repos, err = store.OpenSQLite(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := repos.Library.SetCalloutName(context.Background(), &library.CalloutName{Map: "de_mirage", Token: "TRamp", Name: "Tetris"}); err != nil {
+	if err := repos.Library.SetCalloutName(context.Background(), &library.CalloutName{Map: "de_mirage", Token: "TRamp", Name: "Piza"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := repos.Close(); err != nil {
 		t.Fatal(err)
 	}
 	got = measureJSON(t, path).Total
-	if got.VocabCorrectedWords != 2 || got.VocabFixedWords != 1 || got.VocabBrokenWords != 1 || math.Abs(got.VocabCorrectedShare-0.4) > 1e-9 {
-		t.Fatalf("total after a team name the corrector misuses = %+v; want the right word tetras counted as broken", got)
+	if got.VocabCorrectedWords != 1 || got.VocabFixedWords != 2 || got.VocabBrokenWords != 1 || math.Abs(got.VocabCorrectedShare-0.2) > 1e-9 {
+		t.Fatalf("total after a team name the corrector misuses = %+v; want the right word pizza counted as broken", got)
 	}
 	var stdout, stderr strings.Builder
 	if code := Run([]string{"zv", "transcript", "measure", "--library", path}, &stdout, &stderr, strings.NewReader(""), nil); code != exitSuccess {
 		t.Fatalf("text code = %d; stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "vocab_fixed\tvocab_broken\n") || !strings.Contains(stdout.String(), "\t2\t40.0%\t1\t1\n") {
+	if !strings.Contains(stdout.String(), "vocab_fixed\tvocab_broken\n") || !strings.Contains(stdout.String(), "\t1\t20.0%\t2\t1\n") {
 		t.Fatalf("text output = %q; want the corrector's words, share, fixed and broken words", stdout.String())
 	}
 	if before, err := os.ReadFile(tactical); err != nil || string(before) != string(raw) {

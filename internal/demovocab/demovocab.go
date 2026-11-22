@@ -39,5 +39,6 @@ func Build(ctx context.Context, in Sources) vocab.Vocabulary {
 	for _, p := range doc.Players {
 		v.Terms = append(v.Terms, vocab.Term{Text: p.Name, KeepCase: true})
 	}
+	v.Terms = append(v.Terms, vocab.Lexicon(doc.Demo.Map)...)
 	return v
 }
