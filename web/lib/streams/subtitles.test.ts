@@ -32,6 +32,23 @@ test('a video lists the frases said inside its stretches, in the order they were
   ]);
 });
 
+test('a frase Studio changed marks the changed words and the undo leaves no mark', () => {
+  const vocab = { vocab_text: 'molly to the conector', vocab_changes: [{ heard: 'moly', written: 'molly' }] };
+  const lines = [
+    line('changed', 61_000, { text: 'molly to the conector', original_text: 'moly to the conector', ...vocab }),
+    line('undone', 62_000, { text: 'moly to the conector', corrected: true, ...vocab }),
+  ];
+  const [changed, undone] = streamSubtitleRows({ lines, windows: [{ start: 60, end: 75 }], hidden: [] });
+  assert.equal(changed?.original, null, 'a change by Studio is not a correction of the user');
+  assert.deepEqual(changed?.vocab, {
+    heard: 'moly to the conector', parts: [{ text: 'molly', heard: 'moly' }, { text: ' to the conector', heard: null }],
+  });
+  assert.equal(undone?.vocab, null);
+  const good = transcript({ lines });
+  assert.deepEqual(parseStreamTranscript(JSON.parse(JSON.stringify(good))), good);
+  assert.equal(parseStreamTranscript({ ...good, lines: [{ ...lines[0], vocab_changes: [{ heard: 'moly' }] }] }), null);
+});
+
 test('a stream with only a mixed track says subtítulos are not available for it yet', () => {
   const status = streamSubtitlesStatus('mixed_track');
   assert.equal(status.enabled, false);

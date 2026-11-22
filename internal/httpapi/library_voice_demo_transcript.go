@@ -13,8 +13,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/demovocab"
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/teamvoice"
+	"github.com/rechedev9/cliphub/internal/vocab"
 )
 
 // demoTranscript is the transcript of the voices a demo recorded, as the producer and the MCP read it.
@@ -22,7 +24,7 @@ type demoTranscript struct {
 	library.DemoVoiceTranscript
 	Progress    float64                     `json:"progress,omitempty"`
 	Voice       string                      `json:"voice"`
-	Lines       []library.DemoVoiceLine     `json:"lines"`
+	Lines       []demoTranscriptLine        `json:"lines"`
 	Transcriber teamvoice.TranscriberStatus `json:"transcriber"`
 }
 
@@ -48,7 +50,7 @@ func (h *Handlers) demoTranscriptOf(ctx context.Context, m library.Match) (demoT
 	if err != nil {
 		return demoTranscript{}, err
 	}
-	out := demoTranscript{DemoVoiceTranscript: t, Voice: h.demoVoiceStatusOf(ctx, m).State, Lines: lines, Transcriber: h.transcriberStatus()}
+	out := demoTranscript{DemoVoiceTranscript: t, Voice: h.demoVoiceStatusOf(ctx, m).State, Lines: demoTranscriptLines(lines), Transcriber: h.transcriberStatus()}
 	if busyTranscript(t.State) {
 		out.Progress = h.voice.progressOf(m.DemoID)
 	}
@@ -271,8 +273,13 @@ func (h *Handlers) transcribeDemoTracks(ctx context.Context, in demoTracks) (lib
 	}
 	started := time.Now()
 	timeline := teamvoice.Timeline{}
+	var corrector *vocab.Vocabulary
 	if doc, err := h.readLibraryDocument(m.DemoID); err == nil {
 		timeline = teamvoice.TimelineOf(doc)
+		if h.voice.deps.VocabCorrector {
+			v := demovocab.Build(ctx, demovocab.Sources{Document: doc, Names: h.libraryRepo, Corrections: h.libraryRepo})
+			corrector = &v
+		}
 	}
 	lines := []library.DemoVoiceLine{}
 	ids := demoLineIDs{match: m.ID, seen: map[uuid.UUID]int{}}
@@ -293,8 +300,8 @@ func (h *Handlers) transcribeDemoTracks(ctx context.Context, in demoTracks) (lib
 			for _, w := range l.Words {
 				words = append(words, library.DemoVoiceWord{Text: w.Text, StartMS: w.StartMS, EndMS: w.EndMS})
 			}
-			lines = append(lines, library.DemoVoiceLine{ID: ids.next(fmt.Sprintf("%s|%d|%s", t.SteamID64, l.StartMS, l.Text)), SteamID64: t.SteamID64, Name: t.Name, TeamKey: t.TeamKey,
-				StartMS: l.StartMS, EndMS: l.EndMS, Tick: at.Tick, Round: at.Round, Text: l.Text, Words: words})
+			lines = append(lines, correctDemoLine(library.DemoVoiceLine{ID: ids.next(fmt.Sprintf("%s|%d|%s", t.SteamID64, l.StartMS, l.Text)), SteamID64: t.SteamID64, Name: t.Name, TeamKey: t.TeamKey,
+				StartMS: l.StartMS, EndMS: l.EndMS, Tick: at.Tick, Round: at.Round, Text: l.Text, Words: words}, corrector))
 		}
 	}
 	state.State, state.Error = library.TranscriptReady, ""

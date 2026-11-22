@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"math"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,9 +12,11 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 	"github.com/rechedev9/cliphub/internal/transcriptmeasure"
 )
 
@@ -100,7 +104,7 @@ func TestTranscriptMeasureReportsEachCorrectedMatch(t *testing.T) {
 	}
 	want := transcriptmeasure.Result{
 		Frases: 3, CorrectedFrases: 1, DiscardedFrases: 1, Words: 5, CorrectedWords: 1,
-		CorrectedShare: 0.2, SpeechMS: 120_000, DiscardedPerMinute: 0.5,
+		CorrectedShare: 0.2, SpeechMS: 120_000, DiscardedPerMinute: 0.5, VocabCorrectedWords: 1, VocabCorrectedShare: 0.2,
 	}
 	if len(got.Transcripts) != 1 {
 		t.Fatalf("transcripts = %+v; want only the match a person corrected", got.Transcripts)
@@ -121,7 +125,7 @@ func TestTranscriptMeasureTextShowsShareAndDiscardRate(t *testing.T) {
 	if code != exitSuccess {
 		t.Fatalf("code = %d; stderr=%s", code, stderr.String())
 	}
-	wantRow := "demo\t" + reviewed.ID.String() + "\tde_mirage FUT 13-8 OG\t5\t1\t20.0%\t3\t1\t2.00\t0.50"
+	wantRow := "demo\t" + reviewed.ID.String() + "\tde_mirage FUT 13-8 OG\t5\t1\t20.0%\t3\t1\t2.00\t0.50\t1\t20.0%\t0\t0"
 	if !strings.Contains(stdout.String(), wantRow+"\n") {
 		t.Fatalf("text output = %q; want the row %q", stdout.String(), wantRow)
 	}
@@ -197,7 +201,7 @@ func TestTranscriptMeasureReportsEachCorrectedStream(t *testing.T) {
 	}
 	want := transcriptmeasure.Result{
 		Frases: 3, CorrectedFrases: 1, DiscardedFrases: 1, Words: 5, CorrectedWords: 1,
-		CorrectedShare: 0.2, SpeechMS: 60_000, DiscardedPerMinute: 1,
+		CorrectedShare: 0.2, SpeechMS: 60_000, DiscardedPerMinute: 1, VocabCorrectedWords: 1, VocabCorrectedShare: 0.2,
 	}
 	row := got.Transcripts[1]
 	if row.ID != reviewed.String() || row.Name != "Directo del lunes" || row.Result != want {
@@ -205,7 +209,7 @@ func TestTranscriptMeasureReportsEachCorrectedStream(t *testing.T) {
 	}
 	total := transcriptmeasure.Result{
 		Frases: 4, CorrectedFrases: 2, DiscardedFrases: 1, Words: 9, CorrectedWords: 2,
-		CorrectedShare: 2.0 / 9, SpeechMS: 120_000, DiscardedPerMinute: 0.5,
+		CorrectedShare: 2.0 / 9, SpeechMS: 120_000, DiscardedPerMinute: 0.5, VocabCorrectedWords: 2, VocabCorrectedShare: 2.0 / 9,
 	}
 	if got.Total != total {
 		t.Fatalf("total = %+v, want the demo and the stream together %+v", got.Total, total)
@@ -215,9 +219,81 @@ func TestTranscriptMeasureReportsEachCorrectedStream(t *testing.T) {
 	if code := Run([]string{"zv", "transcript", "measure", "--library", path}, &stdout, &stderr, strings.NewReader(""), nil); code != exitSuccess {
 		t.Fatalf("text code = %d; stderr=%s", code, stderr.String())
 	}
-	wantRow := "stream\t" + reviewed.String() + "\tDirecto del lunes\t5\t1\t20.0%\t3\t1\t1.00\t1.00\n"
+	wantRow := "stream\t" + reviewed.String() + "\tDirecto del lunes\t5\t1\t20.0%\t3\t1\t1.00\t1.00\t1\t20.0%\t0\t0\n"
 	if !strings.Contains(stdout.String(), wantRow) || strings.Contains(stdout.String(), "Directo sin revisar") {
 		t.Fatalf("text output = %q; want the row %q and no stream nobody corrected", stdout.String(), wantRow)
+	}
+}
+
+func measureJSON(t *testing.T, path string) transcriptMeasureResult {
+	t.Helper()
+	var stdout, stderr strings.Builder
+	code := Run([]string{"zv", "transcript", "measure", "--library", path, "--format", "json"}, &stdout, &stderr, strings.NewReader(""), nil)
+	if code != exitSuccess {
+		t.Fatalf("code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	var got transcriptMeasureResult
+	if err := json.Unmarshal([]byte(stdout.String()), &got); err != nil {
+		t.Fatalf("decode: %v\n%s", err, stdout.String())
+	}
+	return got
+}
+
+func TestTranscriptMeasureReplaysTheCorrectorWithTheVocabularyOfTheLibrary(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "jobs.db")
+	repos, err := store.OpenSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := transcriptLibraryFixture{t: t, ctx: context.Background(), repo: repos.Library}
+	m := f.match("mirage", "de_mirage")
+	doc := tacticalplan.Document{Demo: tacticalplan.Demo{Map: "de_mirage"}, Geometry: tacticalplan.MapGeometry{Callouts: []tacticalplan.Callout{{Name: "Palace", Samples: 40}}}}
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tactical := filepath.Join(filepath.Dir(path), filepath.FromSlash(artifacts.LibraryTacticalIndexKey(m.DemoID)))
+	if err := os.MkdirAll(filepath.Dir(tactical), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tactical, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	lines := f.frases(m, "moly under Palas", "yolo clear")
+	fixed := "molly under palace"
+	f.edit(library.DemoVoiceLinePatch{MatchID: m.ID, ID: lines[0].ID, Text: &fixed})
+	if err := repos.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	got := measureJSON(t, path).Total
+	if got.Words != 5 || got.CorrectedWords != 2 || got.VocabCorrectedWords != 0 || got.VocabFixedWords != 2 || got.VocabBrokenWords != 0 {
+		t.Fatalf("total = %+v; want the corrector to fix moly and Palas and leave the rest", got)
+	}
+
+	repos, err = store.OpenSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repos.Library.SetCalloutName(context.Background(), &library.CalloutName{Map: "de_mirage", Token: "TRamp", Name: "Yolu"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repos.Close(); err != nil {
+		t.Fatal(err)
+	}
+	got = measureJSON(t, path).Total
+	if got.VocabCorrectedWords != 1 || got.VocabFixedWords != 2 || got.VocabBrokenWords != 1 || math.Abs(got.VocabCorrectedShare-0.2) > 1e-9 {
+		t.Fatalf("total after a team name the corrector misuses = %+v; want the right word yolo counted as broken", got)
+	}
+	var stdout, stderr strings.Builder
+	if code := Run([]string{"zv", "transcript", "measure", "--library", path}, &stdout, &stderr, strings.NewReader(""), nil); code != exitSuccess {
+		t.Fatalf("text code = %d; stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "vocab_fixed\tvocab_broken\n") || !strings.Contains(stdout.String(), "\t1\t20.0%\t2\t1\n") {
+		t.Fatalf("text output = %q; want the corrector's words, share, fixed and broken words", stdout.String())
+	}
+	if before, err := os.ReadFile(tactical); err != nil || string(before) != string(raw) {
+		t.Fatalf("the tactical document changed or went missing: %v", err)
 	}
 }
 

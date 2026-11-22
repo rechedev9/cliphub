@@ -21,6 +21,7 @@ type streamTranscriber struct {
 	jobs  []teamvoice.TranscribeJob
 	hold  chan struct{}
 	err   error
+	heard string
 }
 
 func (f *streamTranscriber) Status() teamvoice.TranscriberStatus {
@@ -54,6 +55,9 @@ func (f *streamTranscriber) Transcribe(ctx context.Context, job teamvoice.Transc
 	defer f.mu.Unlock()
 	f.jobs = append(f.jobs, job)
 	at := job.Clip.StartMS + 1000
+	if f.heard != "" {
+		return []teamvoice.Line{heardLine(at, f.heard)}, nil
+	}
 	return []teamvoice.Line{{StartMS: at, EndMS: at + 1000, Text: "vaya tiro", Words: []teamvoice.Word{
 		{Text: "vaya", StartMS: at, EndMS: at + 400}, {Text: "tiro", StartMS: at + 500, EndMS: at + 1000},
 	}}}, nil

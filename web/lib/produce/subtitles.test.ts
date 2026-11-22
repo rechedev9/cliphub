@@ -76,3 +76,50 @@ test('only a well-formed answer of the server is read', () => {
   assert.equal(parseJobSubtitles({ ...wire, lines: [{ id: 1 }] }), null);
   assert.equal(parseJobSubtitles(null), null);
 });
+
+test('a phrase Studio changed marks the changed words with what was heard', () => {
+  const changed = line('a', {
+    text: 'molly under palace', original_text: 'moly under Palas', vocab_text: 'molly under palace',
+    vocab_changes: [{ heard: 'moly', written: 'molly' }, { heard: 'Palas', written: 'palace' }],
+  });
+  const [row] = subtitleRows([changed], { kind: 'rounds', rounds: null }, { enabled: true, hidden: [] });
+  assert.equal(row?.original, null, 'a change by Studio is not a correction of the user');
+  assert.deepEqual(row?.vocab, {
+    heard: 'moly under Palas',
+    parts: [{ text: 'molly', heard: 'moly' }, { text: ' under ', heard: null }, { text: 'palace', heard: 'Palas' }],
+  });
+  const wire = subs({ lines: [changed] });
+  assert.deepEqual(parseJobSubtitles(JSON.parse(JSON.stringify(wire))), wire);
+  assert.equal(parseJobSubtitles({ ...wire, lines: [{ ...changed, vocab_changes: [{ heard: 'moly' }] }] }), null);
+});
+
+test('several heard words written as one are marked as that one word', () => {
+  const changed = line('a', {
+    text: 'two in stairs now', original_text: 'two in wers sirs now', vocab_text: 'two in stairs now',
+    vocab_changes: [{ heard: 'wers sirs', written: 'stairs' }],
+  });
+  const [row] = subtitleRows([changed], { kind: 'rounds', rounds: null }, { enabled: true, hidden: [] });
+  assert.deepEqual(row?.vocab?.parts, [{ text: 'two in ', heard: null }, { text: 'stairs', heard: 'wers sirs' }, { text: ' now', heard: null }]);
+});
+
+test('a changed word next to punctuation is marked without the punctuation', () => {
+  const changed = line('a', {
+    text: '¡Palace, molly!', original_text: '¡Palas, moly!', vocab_text: '¡Palace, molly!',
+    vocab_changes: [{ heard: 'Palas', written: 'Palace' }, { heard: 'moly', written: 'molly' }],
+  });
+  const [row] = subtitleRows([changed], { kind: 'rounds', rounds: null }, { enabled: true, hidden: [] });
+  assert.deepEqual(row?.vocab?.parts, [
+    { text: '¡', heard: null }, { text: 'Palace', heard: 'Palas' }, { text: ', ', heard: null }, { text: 'molly', heard: 'moly' }, { text: '!', heard: null },
+  ]);
+});
+
+test('after the undo or a correction by hand the phrase shows no change by Studio', () => {
+  const vocab = { vocab_text: 'molly under palace', vocab_changes: [{ heard: 'moly', written: 'molly' }] };
+  const undone = line('a', { text: 'moly under Palas', corrected: true, ...vocab });
+  const edited = line('b', { start_ms: 1, text: 'molly under palacio', corrected: true, original_text: 'moly under Palas', ...vocab });
+  const rows = subtitleRows([undone, edited], { kind: 'rounds', rounds: null }, { enabled: true, hidden: [] });
+  assert.deepEqual(rows.map((row) => [row.text, row.original, row.vocab]), [
+    ['moly under Palas', null, null],
+    ['molly under palacio', 'moly under Palas', null],
+  ]);
+});

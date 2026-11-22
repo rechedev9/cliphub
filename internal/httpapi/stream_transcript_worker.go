@@ -12,6 +12,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/teamvoice"
+	"github.com/rechedev9/cliphub/internal/vocab"
 )
 
 func (h *Handlers) requeueStreamTranscripts(ctx context.Context) {
@@ -46,6 +47,7 @@ func (h *Handlers) transcribeStream(ctx context.Context, jobID uuid.UUID) {
 	h.voice.setProgress(jobID, 0)
 	defer h.voice.setProgress(jobID, -1)
 	run := streamVoiceRun{repo: repo, jobID: jobID}
+	corrector := h.streamVocabulary(ctx, repo)
 	for ctx.Err() == nil {
 		turn, ok, err := h.nextStreamSpan(ctx, run)
 		if err != nil && ctx.Err() == nil {
@@ -58,7 +60,7 @@ func (h *Handlers) transcribeStream(ctx context.Context, jobID uuid.UUID) {
 		span, leftMS := turn.span, turn.leftMS
 		length := span.EndMS - span.StartMS
 		var lines []streamclips.VoiceLine
-		lines, err = h.transcribeStreamSpan(ctx, streamSpanJob{jobID: jobID, span: span, progress: func(p float64) {
+		lines, err = h.transcribeStreamSpan(ctx, streamSpanJob{jobID: jobID, span: span, vocab: corrector, progress: func(p float64) {
 			h.voice.setProgress(jobID, (float64(run.doneMS)+p*float64(length))/float64(run.doneMS+leftMS))
 		}})
 		if err == nil {
@@ -105,6 +107,7 @@ func (h *Handlers) nextStreamSpan(ctx context.Context, run streamVoiceRun) (stre
 type streamSpanJob struct {
 	jobID    uuid.UUID
 	span     library.VoiceSpan
+	vocab    *vocab.Vocabulary
 	progress func(float64)
 }
 
@@ -139,7 +142,7 @@ func (h *Handlers) transcribeStreamSpan(ctx context.Context, in streamSpanJob) (
 		for _, w := range l.Words {
 			words = append(words, library.DemoVoiceWord{Text: w.Text, StartMS: w.StartMS, EndMS: w.EndMS})
 		}
-		lines = append(lines, streamclips.VoiceLine{ID: ids.next(fmt.Sprintf("%d|%s", l.StartMS, l.Text)), StartMS: l.StartMS, EndMS: l.EndMS, Text: l.Text, Words: words})
+		lines = append(lines, correctStreamLine(streamclips.VoiceLine{ID: ids.next(fmt.Sprintf("%d|%s", l.StartMS, l.Text)), StartMS: l.StartMS, EndMS: l.EndMS, Text: l.Text, Words: words}, in.vocab))
 	}
 	return lines, nil
 }

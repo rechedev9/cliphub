@@ -2,18 +2,25 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/demovocab"
 	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 	"github.com/rechedev9/cliphub/internal/transcriptmeasure"
+	"github.com/rechedev9/cliphub/internal/vocab"
 )
 
 type measuredTranscript struct {
@@ -97,11 +104,15 @@ func measureLibraryTranscripts(ctx context.Context, libraryPath string) (transcr
 		return result, err
 	}
 	defer repos.Close()
-	edited, err := editedDemoTranscripts(ctx, repos.Library)
+	files, err := storage.NewLocal(filepath.Dir(libraryPath))
 	if err != nil {
 		return result, err
 	}
-	streams, err := editedStreamTranscripts(ctx, repos.Streams)
+	edited, err := editedDemoTranscripts(ctx, demoLibrary{repo: repos.Library, files: files})
+	if err != nil {
+		return result, err
+	}
+	streams, err := editedStreamTranscripts(ctx, streamLibrary{jobs: repos.Streams, demos: repos.Library})
 	if err != nil {
 		return result, err
 	}
@@ -118,7 +129,13 @@ func measureLibraryTranscripts(ctx context.Context, libraryPath string) (transcr
 	return result, nil
 }
 
-func editedDemoTranscripts(ctx context.Context, repo store.LibraryRepository) ([]editedTranscript, error) {
+type demoLibrary struct {
+	repo  store.LibraryRepository
+	files *storage.Local
+}
+
+func editedDemoTranscripts(ctx context.Context, lib demoLibrary) ([]editedTranscript, error) {
+	repo := lib.repo
 	lines, err := repo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{All: true})
 	if err != nil {
 		return nil, err
@@ -129,10 +146,7 @@ func editedDemoTranscripts(ctx context.Context, repo store.LibraryRepository) ([
 		frases := []transcriptmeasure.Frase{}
 		for ; end < len(lines) && lines[end].MatchID == lines[start].MatchID; end++ {
 			line := lines[end]
-			heard := line.Text
-			if line.Corrected {
-				heard = line.OriginalText
-			}
+			heard := line.HeardText()
 			edited = edited || line.Corrected || line.Discarded
 			frases = append(frases, transcriptmeasure.Frase{
 				Heard: heard, Text: line.Text, Discarded: line.Discarded, StartMS: line.StartMS, EndMS: line.EndMS,
@@ -143,16 +157,27 @@ func editedDemoTranscripts(ctx context.Context, repo store.LibraryRepository) ([
 		if !edited {
 			continue
 		}
-		name, err := demoTranscriptName(ctx, repo, matchID)
+		m, err := repo.GetMatch(ctx, matchID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read match %s: %w", matchID, err)
 		}
-		out = append(out, editedTranscript{source: "demo", id: matchID.String(), name: name, frases: frases})
+		if v, ok := lib.vocabulary(ctx, m); ok {
+			for i := range frases {
+				frases[i].Vocab = vocab.Correct(vocab.Phrase{Text: frases[i].Heard}, v).Text
+			}
+		}
+		out = append(out, editedTranscript{source: "demo", id: matchID.String(), name: demoTranscriptName(m), frases: frases})
 	}
 	return out, nil
 }
 
-func editedStreamTranscripts(ctx context.Context, jobs store.StreamJobRepository) ([]editedTranscript, error) {
+type streamLibrary struct {
+	jobs  store.StreamJobRepository
+	demos store.LibraryRepository
+}
+
+func editedStreamTranscripts(ctx context.Context, lib streamLibrary) ([]editedTranscript, error) {
+	jobs := lib.jobs
 	repo, ok := jobs.(store.StreamVoiceRepository)
 	if !ok {
 		return nil, nil
@@ -170,10 +195,7 @@ func editedStreamTranscripts(ctx context.Context, jobs store.StreamJobRepository
 		edited := false
 		frases := make([]transcriptmeasure.Frase, 0, len(lines))
 		for _, line := range lines {
-			heard := line.Text
-			if line.Corrected {
-				heard = line.OriginalText
-			}
+			heard := line.HeardText()
 			edited = edited || line.Corrected || line.Discarded
 			frases = append(frases, transcriptmeasure.Frase{
 				Heard: heard, Text: line.Text, Discarded: line.Discarded, StartMS: line.StartMS, EndMS: line.EndMS,
@@ -185,6 +207,10 @@ func editedStreamTranscripts(ctx context.Context, jobs store.StreamJobRepository
 		job, err := jobs.Get(ctx, transcript.JobID)
 		if err != nil {
 			return nil, fmt.Errorf("read stream %s: %w", transcript.JobID, err)
+		}
+		v := demovocab.BuildStream(ctx, demovocab.StreamSources{Demos: lib.demos, Streams: otherStreamFrases{repo: repo, skip: transcript.JobID}})
+		for i := range frases {
+			frases[i].Vocab = vocab.Correct(vocab.Phrase{Text: frases[i].Heard}, v).Text
 		}
 		out = append(out, editedTranscript{source: "stream", id: transcript.JobID.String(), name: streamTranscriptName(job), frases: frases})
 	}
@@ -201,18 +227,47 @@ func streamTranscriptName(job streamclips.Job) string {
 	return filepath.Base(filepath.FromSlash(job.SourcePath))
 }
 
-func demoTranscriptName(ctx context.Context, repo store.LibraryRepository, matchID uuid.UUID) (string, error) {
-	m, err := repo.GetMatch(ctx, matchID)
+func (lib demoLibrary) vocabulary(ctx context.Context, m library.Match) (vocab.Vocabulary, bool) {
+	rc, err := lib.files.Open(artifacts.LibraryTacticalIndexKey(m.DemoID))
 	if err != nil {
-		return "", fmt.Errorf("read match %s: %w", matchID, err)
+		return vocab.Vocabulary{}, false
 	}
+	defer rc.Close()
+	var doc tacticalplan.Document
+	if err := json.NewDecoder(rc).Decode(&doc); err != nil {
+		return vocab.Vocabulary{}, false
+	}
+	return demovocab.Build(ctx, demovocab.Sources{Document: doc, Names: lib.repo, Corrections: otherMatchFrases{repo: lib.repo, skip: m.ID}}), true
+}
+
+type otherMatchFrases struct {
+	repo store.LibraryRepository
+	skip uuid.UUID
+}
+
+func (o otherMatchFrases) ListDemoVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error) {
+	corrections, err := o.repo.ListDemoVoiceCorrections(ctx)
+	return slices.DeleteFunc(corrections, func(c library.VoiceCorrection) bool { return c.SourceID == o.skip }), err
+}
+
+type otherStreamFrases struct {
+	repo store.StreamVoiceRepository
+	skip uuid.UUID
+}
+
+func (o otherStreamFrases) ListStreamVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error) {
+	corrections, err := o.repo.ListStreamVoiceCorrections(ctx)
+	return slices.DeleteFunc(corrections, func(c library.VoiceCorrection) bool { return c.SourceID == o.skip }), err
+}
+
+func demoTranscriptName(m library.Match) string {
 	if title := strings.TrimSpace(m.DemoTitle); title != "" {
-		return title, nil
+		return title
 	}
 	if len(m.Teams) != 2 {
-		return m.Map, nil
+		return m.Map
 	}
-	return fmt.Sprintf("%s %s %d-%d %s", m.Map, teamLabel(m.Teams[0]), m.Teams[0].Score, m.Teams[1].Score, teamLabel(m.Teams[1])), nil
+	return fmt.Sprintf("%s %s %d-%d %s", m.Map, teamLabel(m.Teams[0]), m.Teams[0].Score, m.Teams[1].Score, teamLabel(m.Teams[1]))
 }
 
 func teamLabel(team library.MatchTeam) string {
@@ -230,7 +285,7 @@ func writeTranscriptMeasureText(w io.Writer, result transcriptMeasureResult) {
 		fmt.Fprintf(w, "no corrected or discarded frases in %s\n", result.Library)
 		return
 	}
-	fmt.Fprintln(w, "source\tid\tname\twords\tcorrected_words\tcorrected_share\tfrases\tdiscarded\tspeech_min\tdiscarded_per_min")
+	fmt.Fprintln(w, "source\tid\tname\twords\tcorrected_words\tcorrected_share\tfrases\tdiscarded\tspeech_min\tdiscarded_per_min\tvocab_corrected_words\tvocab_corrected_share\tvocab_fixed\tvocab_broken")
 	for _, transcript := range result.Transcripts {
 		writeTranscriptMeasureRow(w, []string{transcript.Source, transcript.ID, transcript.Name}, transcript.Result)
 	}
@@ -238,6 +293,7 @@ func writeTranscriptMeasureText(w io.Writer, result transcriptMeasureResult) {
 }
 
 func writeTranscriptMeasureRow(w io.Writer, labels []string, r transcriptmeasure.Result) {
-	fmt.Fprintf(w, "%s\t%d\t%d\t%.1f%%\t%d\t%d\t%.2f\t%.2f\n", strings.Join(labels, "\t"),
-		r.Words, r.CorrectedWords, r.CorrectedShare*100, r.Frases, r.DiscardedFrases, float64(r.SpeechMS)/60_000, r.DiscardedPerMinute)
+	fmt.Fprintf(w, "%s\t%d\t%d\t%.1f%%\t%d\t%d\t%.2f\t%.2f\t%d\t%.1f%%\t%d\t%d\n", strings.Join(labels, "\t"),
+		r.Words, r.CorrectedWords, r.CorrectedShare*100, r.Frases, r.DiscardedFrases, float64(r.SpeechMS)/60_000, r.DiscardedPerMinute,
+		r.VocabCorrectedWords, r.VocabCorrectedShare*100, r.VocabFixedWords, r.VocabBrokenWords)
 }

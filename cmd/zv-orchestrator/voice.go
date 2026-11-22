@@ -31,7 +31,8 @@ func voiceDeps(cfg config) httpapi.VoiceDeps {
 			Model: os.Getenv("ZV_PARAKEET_MODEL"),
 		}),
 		// The plugin finds this folder from the profile; the desktop passes the web server CS2 posts to.
-		Plugin: httpapi.VoicePluginDeps{Dir: voiceplugin.Dir(filepath.Join(cfg.DataDir, "voice-plugin")), WebOrigin: os.Getenv("ZV_WEB_ORIGIN"), Media: media},
+		Plugin:         httpapi.VoicePluginDeps{Dir: voiceplugin.Dir(filepath.Join(cfg.DataDir, "voice-plugin")), WebOrigin: os.Getenv("ZV_WEB_ORIGIN"), Media: media},
+		VocabCorrector: os.Getenv("ZV_VOCAB_CORRECTOR") == "1",
 	}
 }
 

@@ -55,7 +55,8 @@ type fakeTranscriber struct {
 	state string
 	calls atomic.Int32
 	// gate, when set, holds every transcription until it closes.
-	gate chan struct{}
+	gate  chan struct{}
+	heard []teamvoice.Line
 }
 
 func (f *fakeTranscriber) Status() teamvoice.TranscriberStatus {
@@ -72,6 +73,9 @@ func (f *fakeTranscriber) Transcribe(context.Context, teamvoice.TranscribeJob) (
 		<-f.gate
 	}
 	f.calls.Add(1)
+	if f.heard != nil {
+		return f.heard, nil
+	}
 	return []teamvoice.Line{{StartMS: 1000, EndMS: 2000, Text: "Rotamos a B ya", Words: []teamvoice.Word{
 		{Text: "Rotamos", StartMS: 1000, EndMS: 1300}, {Text: "a", StartMS: 1300, EndMS: 1400}, {Text: "B", StartMS: 1400, EndMS: 1600}, {Text: "ya", StartMS: 1700, EndMS: 2000},
 	}}}, nil

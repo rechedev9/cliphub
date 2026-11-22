@@ -36,16 +36,23 @@ type discardDemoPhraseIn struct {
 }
 
 type demoPhraseOut struct {
-	ID           string `json:"id"`
-	Speaker      string `json:"speaker"`
-	SteamID64    string `json:"steamid64"`
-	Round        int    `json:"round"`
-	Tick         int    `json:"tick"`
-	Text         string `json:"text" jsonschema:"what a video draws: the correction when corrected"`
-	Corrected    bool   `json:"corrected,omitempty"`
-	OriginalText string `json:"original_text,omitempty" jsonschema:"what the transcriber heard, on a corrected phrase"`
-	Discarded    bool   `json:"discarded,omitempty" jsonschema:"drawn in no video of the demo"`
-	StudioPath   string `json:"studio_path" jsonschema:"opens the Replay at the moment the phrase was said"`
+	ID           string               `json:"id"`
+	Speaker      string               `json:"speaker"`
+	SteamID64    string               `json:"steamid64"`
+	Round        int                  `json:"round"`
+	Tick         int                  `json:"tick"`
+	Text         string               `json:"text" jsonschema:"what a video draws: the correction when corrected"`
+	Corrected    bool                 `json:"corrected,omitempty"`
+	OriginalText string               `json:"original_text,omitempty" jsonschema:"what the transcriber heard, when the text differs from it"`
+	VocabText    string               `json:"vocab_text,omitempty" jsonschema:"what Studio's CS2 vocabulary corrector wrote over the heard text; empty when it changed nothing"`
+	VocabChanges []demoVocabChangeOut `json:"vocab_changes,omitempty" jsonschema:"the words the corrector changed: heard and written"`
+	Discarded    bool                 `json:"discarded,omitempty" jsonschema:"drawn in no video of the demo"`
+	StudioPath   string               `json:"studio_path" jsonschema:"opens the Replay at the moment the phrase was said"`
+}
+
+type demoVocabChangeOut struct {
+	Heard   string `json:"heard"`
+	Written string `json:"written"`
 }
 
 type demoTranscriptOut struct {
@@ -62,8 +69,17 @@ type demoTranscriptOut struct {
 func demoPhraseOf(matchID string, l tuiclient.DemoVoiceLine) demoPhraseOut {
 	return demoPhraseOut{ID: l.ID, Speaker: cleanName(l.Name), SteamID64: l.SteamID64, Round: l.Round, Tick: l.Tick,
 		Text: cleanText(l.Text, maxCommsTextRunes), Corrected: l.Corrected,
-		OriginalText: cleanText(l.OriginalText, maxCommsTextRunes), Discarded: l.Discarded,
+		OriginalText: cleanText(l.OriginalText, maxCommsTextRunes), VocabText: cleanText(l.VocabText, maxCommsTextRunes),
+		VocabChanges: vocabChangesOf(l.VocabChanges), Discarded: l.Discarded,
 		StudioPath: "/replay?r=" + matchID + ":" + strconv.Itoa(max(l.Round, 1)) + ":" + strconv.Itoa(l.Tick)}
+}
+
+func vocabChangesOf(changes []tuiclient.DemoVocabChange) []demoVocabChangeOut {
+	var out []demoVocabChangeOut
+	for _, c := range changes {
+		out = append(out, demoVocabChangeOut{Heard: cleanText(c.Heard, maxCommsTextRunes), Written: cleanText(c.Written, maxCommsTextRunes)})
+	}
+	return out
 }
 
 func demoTranscriptOf(t tuiclient.DemoTranscript, round int) demoTranscriptOut {
@@ -102,7 +118,7 @@ func registerDemoTranscriptTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "demo_transcript", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-		Description: "Read the transcript of the team voices a demo recorded: each phrase, in the language it was said, with its id, speaker, round and text, the original_text the transcriber heard when a person corrected it, and discarded when no video draws it. " +
+		Description: "Read the transcript of the team voices a demo recorded: each phrase, in the language it was said, with its id, speaker, round and text, the original_text the transcriber heard when the text differs from it, vocab_text and vocab_changes when Studio's CS2 vocabulary corrector changed words (sending original_text to correct_demo_phrase undoes them), and discarded when no video draws it. " +
 			"Pass an id to correct_demo_phrase or discard_demo_phrase, " +
 			"or to subtitles_hidden of generate_short or plan_full_demo to leave it out of one video."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in demoTranscriptIn) (*mcp.CallToolResult, demoTranscriptOut, error) {

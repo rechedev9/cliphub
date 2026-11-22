@@ -131,7 +131,7 @@ export const DEMO_TRANSCRIPT_KEYS = [
 export const DEMO_TRANSCRIBE_FIELDS = ['force'] as const;
 export const DEMO_LINE_FIELDS = ['text', 'discarded'] as const;
 export const DEMO_LINE_KEYS = [
-  'id', 'match_id', 'steamid64', 'name', 'team_key', 'start_ms', 'end_ms', 'tick', 'round', 'text', 'corrected', 'original_text', 'discarded',
+  'id', 'match_id', 'steamid64', 'name', 'team_key', 'start_ms', 'end_ms', 'tick', 'round', 'text', 'corrected', 'original_text', 'vocab_text', 'discarded',
 ] as const;
 /** One import request: 2 GiB of audio plus 1 MiB of multipart framing, as the orchestrator reads. */
 export const VOICE_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024 + 1024 * 1024;

@@ -324,7 +324,7 @@ Subtitles of the team voices a demo recorded: generate_short (Short or 16:9 summ
 (with team_voices) take subtitles and subtitles_hidden, in the language the voices speak; they change only the render. Creating the
 video queues the demo's one transcription when it has none (transcribe_demo_voice does it ahead); the render never waits
 for it, so a video rendered before it is ready goes without subtitles. demo_transcript lists the phrases with their ids; correct_demo_phrase fixes one for every later video
-and keeps what the transcriber heard as original_text, discard_demo_phrase takes a phrase the transcriber invented out of every video of the demo
+and keeps what the transcriber heard as original_text (a phrase the CS2 vocabulary corrector changed also has vocab_text and vocab_changes, and correcting it back to original_text undoes them and stops those changes in later transcriptions; a word change made by hand in two or more phrases is applied by later ones), discard_demo_phrase takes a phrase the transcriber invented out of every video of the demo
 (restore brings it back), and subtitles_hidden leaves one out of that video only. Transcribing again keeps the corrections and discards of the phrases heard the same.
 get_round_comms gives one round's talk time by phase and phrases, match_talk_time every round's talk time, and
 search_comms finds a phrase by team, dates and period (round phase); each phrase has a studio_path to its moment.
@@ -350,7 +350,9 @@ videos and extra files. list_streams shows the streams already in Studio.
 Subtitles of a stream (the Subtítulos panel of Clips de stream): transcribe_stream transcribes on this PC only the stretches
 that go into a video (spans: the momentos of the plan for Shorts, the jugadas for the resumen), from the mic track, with
 install_transcriber; stream_transcript reads the phrases (no speaker names, in the language spoken, never translated) and says
-mixed_track for a stream with only the mix of voice and game, which has no subtitles yet. correct_stream_phrase and
+mixed_track for a stream with only the mix of voice and game, which has no subtitles yet. A phrase the CS2 vocabulary corrector
+changed has vocab_text and vocab_changes, as in demo_transcript but with the CS2 lexicon and the corrections learned from demos
+and streams only (a stream has no map, so no callouts or nicks); correcting it back to original_text undoes them. correct_stream_phrase and
 discard_stream_phrase count for every video of the stream; set_stream_subtitles turns subtitles on for the Shorts or the resumen
 and hides a phrase in one video (a momento or group id, or summary). No review is needed before a render. With the switch on,
 render_stream draws them on each Short (9:16: 2 to 4 words at a time in uppercase, the spoken word highlighted, inside the

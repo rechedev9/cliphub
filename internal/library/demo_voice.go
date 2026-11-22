@@ -31,8 +31,23 @@ type DemoVoiceLine struct {
 	Text         string          `json:"text"`
 	Corrected    bool            `json:"corrected"`
 	OriginalText string          `json:"original_text,omitempty"`
+	VocabText    string          `json:"vocab_text,omitempty"`
 	Discarded    bool            `json:"discarded"`
 	Words        []DemoVoiceWord `json:"-"`
+}
+
+func (l DemoVoiceLine) HeardText() string {
+	if l.OriginalText != "" {
+		return l.OriginalText
+	}
+	return l.Text
+}
+
+type VoiceCorrection struct {
+	SourceID uuid.UUID
+	Heard    string
+	Vocab    string
+	Text     string
 }
 
 type DemoVoiceWord struct {
