@@ -193,6 +193,30 @@ func TestDemoTranscriptCorrectsTheCS2LexiconAndOnlyTheCommunityCalloutsOfTheDemo
 	}
 }
 
+func TestDemoTranscriptLeavesRightWordsAndStillWritesTheCallsAndCallouts(t *testing.T) {
+	env := newMirageVocabEnv(t)
+	env.h.voice.deps.VocabCorrector = true
+	doc, err := env.h.readLibraryDocument(env.match.DemoID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.Demo.Map = "de_ancient"
+	doc.Geometry.Callouts = []tacticalplan.Callout{{Name: "Palace", Samples: 40}, {Name: "Stairs", Samples: 30}}
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := env.storage.Put(artifacts.LibraryTacticalIndexKey(env.match.DemoID), bytes.NewReader(raw)); err != nil {
+		t.Fatal(err)
+	}
+	heard := "he starts in the cove, asp vamos, moly under Palas, Go kontakt"
+	env.transcriber.heard = []teamvoice.Line{{StartMS: 1000, EndMS: 3000, Text: heard}}
+	want := "he starts in the cove, asp vamos, molly under Palace, Go contact"
+	if got := callOf(t, env.transcribe(false)); got.Text != want || got.OriginalText != heard {
+		t.Fatalf("frase = %+v; want %q: right English and Spanish words left, the calls and callouts written", got.DemoVoiceLine, want)
+	}
+}
+
 func TestDemoTranscriptLeavesEnglishWordsThatSoundLikeACS2Term(t *testing.T) {
 	env := newMirageVocabEnv(t)
 	env.h.voice.deps.VocabCorrector = true

@@ -259,7 +259,7 @@ func TestTranscriptMeasureReplaysTheCorrectorWithTheVocabularyOfTheLibrary(t *te
 	if err := os.WriteFile(tactical, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	lines := f.frases(m, "moly under Palas", "pizza clear")
+	lines := f.frases(m, "moly under Palas", "yolo clear")
 	fixed := "molly under palace"
 	f.edit(library.DemoVoiceLinePatch{MatchID: m.ID, ID: lines[0].ID, Text: &fixed})
 	if err := repos.Close(); err != nil {
@@ -275,7 +275,7 @@ func TestTranscriptMeasureReplaysTheCorrectorWithTheVocabularyOfTheLibrary(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := repos.Library.SetCalloutName(context.Background(), &library.CalloutName{Map: "de_mirage", Token: "TRamp", Name: "Piza"}); err != nil {
+	if err := repos.Library.SetCalloutName(context.Background(), &library.CalloutName{Map: "de_mirage", Token: "TRamp", Name: "Yolu"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := repos.Close(); err != nil {
@@ -283,7 +283,7 @@ func TestTranscriptMeasureReplaysTheCorrectorWithTheVocabularyOfTheLibrary(t *te
 	}
 	got = measureJSON(t, path).Total
 	if got.VocabCorrectedWords != 1 || got.VocabFixedWords != 2 || got.VocabBrokenWords != 1 || math.Abs(got.VocabCorrectedShare-0.2) > 1e-9 {
-		t.Fatalf("total after a team name the corrector misuses = %+v; want the right word pizza counted as broken", got)
+		t.Fatalf("total after a team name the corrector misuses = %+v; want the right word yolo counted as broken", got)
 	}
 	var stdout, stderr strings.Builder
 	if code := Run([]string{"zv", "transcript", "measure", "--library", path}, &stdout, &stderr, strings.NewReader(""), nil); code != exitSuccess {
