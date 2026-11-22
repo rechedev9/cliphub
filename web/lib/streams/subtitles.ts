@@ -1,6 +1,7 @@
 import { apiFetch } from '../api/edition-fetch.ts';
 import type { VoiceTranscriber, VoiceTranscriptState } from '../api/voice.ts';
 import { isInstall, isRecord, isTranscriptState, optionalString } from '../produce/subtitles.ts';
+import { isVocabChange, vocabMark, type VocabChange, type VocabMark } from '../produce/vocab-marks.ts';
 import { formatStreamClock } from './plan.ts';
 
 export type StreamVoiceLine = {
@@ -10,6 +11,8 @@ export type StreamVoiceLine = {
   text: string;
   corrected: boolean;
   original_text?: string;
+  vocab_text?: string;
+  vocab_changes?: VocabChange[];
   discarded: boolean;
 };
 
@@ -38,6 +41,7 @@ export type Stretch = { start: number; end: number };
 
 export type StreamSubtitleRow = {
   id: string; clock: string; text: string; corrected: boolean; original: string | null; discarded: boolean; hidden: boolean;
+  vocab: VocabMark | null;
 };
 
 export const SUMMARY_VIDEO = 'summary';
@@ -68,6 +72,9 @@ export function streamSubtitleRows(input: { lines: readonly StreamVoiceLine[]; w
       original: line.corrected && line.original_text ? line.original_text : null,
       discarded: line.discarded,
       hidden: input.hidden.includes(line.id),
+      vocab: vocabMark({
+        text: line.text, heard: line.original_text || line.text, vocabText: line.vocab_text, changes: line.vocab_changes, corrected: line.corrected,
+      }),
     }));
 }
 
@@ -90,7 +97,9 @@ export function streamSubtitleNote(transcript: StreamTranscript): string | null 
 
 function isLine(value: unknown): value is StreamVoiceLine {
   return isRecord(value) && typeof value.id === 'string' && typeof value.start_ms === 'number' && typeof value.end_ms === 'number'
-    && typeof value.text === 'string' && typeof value.corrected === 'boolean' && typeof value.discarded === 'boolean' && optionalString(value.original_text);
+    && typeof value.text === 'string' && typeof value.corrected === 'boolean' && typeof value.discarded === 'boolean' && optionalString(value.original_text)
+    && optionalString(value.vocab_text)
+    && (value.vocab_changes === undefined || (Array.isArray(value.vocab_changes) && value.vocab_changes.every(isVocabChange)));
 }
 
 function isSpan(value: unknown): value is StreamVoiceSpan {

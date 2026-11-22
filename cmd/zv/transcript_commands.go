@@ -112,7 +112,7 @@ func measureLibraryTranscripts(ctx context.Context, libraryPath string) (transcr
 	if err != nil {
 		return result, err
 	}
-	streams, err := editedStreamTranscripts(ctx, repos.Streams)
+	streams, err := editedStreamTranscripts(ctx, streamLibrary{jobs: repos.Streams, demos: repos.Library})
 	if err != nil {
 		return result, err
 	}
@@ -171,7 +171,13 @@ func editedDemoTranscripts(ctx context.Context, lib demoLibrary) ([]editedTransc
 	return out, nil
 }
 
-func editedStreamTranscripts(ctx context.Context, jobs store.StreamJobRepository) ([]editedTranscript, error) {
+type streamLibrary struct {
+	jobs  store.StreamJobRepository
+	demos store.LibraryRepository
+}
+
+func editedStreamTranscripts(ctx context.Context, lib streamLibrary) ([]editedTranscript, error) {
+	jobs := lib.jobs
 	repo, ok := jobs.(store.StreamVoiceRepository)
 	if !ok {
 		return nil, nil
@@ -189,10 +195,7 @@ func editedStreamTranscripts(ctx context.Context, jobs store.StreamJobRepository
 		edited := false
 		frases := make([]transcriptmeasure.Frase, 0, len(lines))
 		for _, line := range lines {
-			heard := line.Text
-			if line.Corrected {
-				heard = line.OriginalText
-			}
+			heard := line.HeardText()
 			edited = edited || line.Corrected || line.Discarded
 			frases = append(frases, transcriptmeasure.Frase{
 				Heard: heard, Text: line.Text, Discarded: line.Discarded, StartMS: line.StartMS, EndMS: line.EndMS,
@@ -204,6 +207,10 @@ func editedStreamTranscripts(ctx context.Context, jobs store.StreamJobRepository
 		job, err := jobs.Get(ctx, transcript.JobID)
 		if err != nil {
 			return nil, fmt.Errorf("read stream %s: %w", transcript.JobID, err)
+		}
+		v := demovocab.BuildStream(ctx, demovocab.StreamSources{Demos: lib.demos, Streams: otherStreamFrases{repo: repo, skip: transcript.JobID}})
+		for i := range frases {
+			frases[i].Vocab = vocab.Correct(vocab.Phrase{Text: frases[i].Heard}, v).Text
 		}
 		out = append(out, editedTranscript{source: "stream", id: transcript.JobID.String(), name: streamTranscriptName(job), frases: frases})
 	}
@@ -241,6 +248,20 @@ type otherMatchFrases struct {
 func (o otherMatchFrases) ListDemoVoiceLines(ctx context.Context, filter library.DemoVoiceLineFilter) ([]library.DemoVoiceLine, error) {
 	lines, err := o.repo.ListDemoVoiceLines(ctx, filter)
 	return slices.DeleteFunc(lines, func(l library.DemoVoiceLine) bool { return l.MatchID == o.skip }), err
+}
+
+type otherStreamFrases struct {
+	repo store.StreamVoiceRepository
+	skip uuid.UUID
+}
+
+func (o otherStreamFrases) ListStreamVoices(ctx context.Context, states []string) ([]streamclips.VoiceTranscript, error) {
+	voices, err := o.repo.ListStreamVoices(ctx, states)
+	return slices.DeleteFunc(voices, func(t streamclips.VoiceTranscript) bool { return t.JobID == o.skip }), err
+}
+
+func (o otherStreamFrases) ListStreamVoiceLines(ctx context.Context, jobID uuid.UUID) ([]streamclips.VoiceLine, error) {
+	return o.repo.ListStreamVoiceLines(ctx, jobID)
 }
 
 func demoTranscriptName(m library.Match) string {

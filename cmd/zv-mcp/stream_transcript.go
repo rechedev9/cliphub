@@ -53,13 +53,15 @@ type setStreamSubtitlesIn struct {
 }
 
 type streamPhraseOut struct {
-	ID           string  `json:"id"`
-	StartSeconds float64 `json:"start_seconds" jsonschema:"when it was said, in seconds of the stream"`
-	EndSeconds   float64 `json:"end_seconds"`
-	Text         string  `json:"text" jsonschema:"what a video draws: the correction when corrected"`
-	Corrected    bool    `json:"corrected,omitempty"`
-	OriginalText string  `json:"original_text,omitempty" jsonschema:"what the transcriber heard, on a corrected phrase"`
-	Discarded    bool    `json:"discarded,omitempty" jsonschema:"drawn in no video of the stream"`
+	ID           string               `json:"id"`
+	StartSeconds float64              `json:"start_seconds" jsonschema:"when it was said, in seconds of the stream"`
+	EndSeconds   float64              `json:"end_seconds"`
+	Text         string               `json:"text" jsonschema:"what a video draws: the correction when corrected"`
+	Corrected    bool                 `json:"corrected,omitempty"`
+	OriginalText string               `json:"original_text,omitempty" jsonschema:"what the transcriber heard, when the text differs from it"`
+	VocabText    string               `json:"vocab_text,omitempty" jsonschema:"what Studio's CS2 vocabulary corrector wrote over the heard text; empty when it changed nothing"`
+	VocabChanges []demoVocabChangeOut `json:"vocab_changes,omitempty" jsonschema:"the words the corrector changed: heard and written"`
+	Discarded    bool                 `json:"discarded,omitempty" jsonschema:"drawn in no video of the stream"`
 }
 
 type streamSubtitlesOut struct {
@@ -90,7 +92,8 @@ type streamStaleOut struct {
 func streamPhraseOf(l tuiclient.StreamVoiceLine) streamPhraseOut {
 	return streamPhraseOut{ID: l.ID, StartSeconds: float64(l.StartMS) / 1000, EndSeconds: float64(l.EndMS) / 1000,
 		Text: cleanText(l.Text, maxCommsTextRunes), Corrected: l.Corrected,
-		OriginalText: cleanText(l.OriginalText, maxCommsTextRunes), Discarded: l.Discarded}
+		OriginalText: cleanText(l.OriginalText, maxCommsTextRunes), VocabText: cleanText(l.VocabText, maxCommsTextRunes),
+		VocabChanges: vocabChangesOf(l.VocabChanges), Discarded: l.Discarded}
 }
 
 func streamSubtitlesOf(s tuiclient.StreamSubtitles) streamSubtitlesOut {
@@ -160,7 +163,7 @@ func registerStreamTranscriptTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "stream_transcript", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Read the transcript of a stream: each phrase the streamer said in the transcribed stretches, in the language it was said, with no speaker names, " +
-			"with the original_text the transcriber heard when a person corrected it and discarded when no video draws it, plus the subtitles switches and the phrases hidden in one video. " +
+			"with the original_text the transcriber heard when the text differs from it, vocab_text and vocab_changes when Studio's CS2 vocabulary corrector changed words (sending original_text to correct_stream_phrase undoes them), and discarded when no video draws it, plus the subtitles switches and the phrases hidden in one video. " +
 			"Pass a phrase id to correct_stream_phrase, discard_stream_phrase or set_stream_subtitles. It lists 300 phrases at most: when truncated is true, call again with from_seconds."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in streamTranscriptIn) (*mcp.CallToolResult, streamTranscriptOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
