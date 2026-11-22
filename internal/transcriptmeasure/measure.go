@@ -39,7 +39,7 @@ func Measure(frases []Frase) Result {
 		}
 		heard, text := words(f.Heard), words(f.Text)
 		changed := wordDistance(heard, text)
-		r.measureCorrector(heard, f.Vocab, text)
+		r.measureCorrector(correctorFrase{heard: heard, vocab: f.Vocab, text: text})
 		r.Words += len(heard)
 		r.CorrectedWords += changed
 		if changed > 0 {
@@ -59,20 +59,32 @@ func Measure(frases []Frase) Result {
 	return r
 }
 
-func (r *Result) measureCorrector(heard []string, vocabText string, text []string) {
-	written := heard
-	if vocabText != "" {
-		written = words(vocabText)
-	}
-	r.VocabCorrectedWords += wordDistance(written, text)
-	r.VocabFixedWords += count(changedAndKept(written, heard, text))
-	r.VocabBrokenWords += count(changedAndKept(heard, written, text))
+type correctorFrase struct {
+	heard []string
+	vocab string
+	text  []string
 }
 
-func changedAndKept(ws, other, text []string) []bool {
-	unchanged, kept := common(ws, other), common(ws, text)
-	out := make([]bool, len(ws))
-	for i := range ws {
+type wordCheck struct {
+	words []string
+	other []string
+	text  []string
+}
+
+func (r *Result) measureCorrector(f correctorFrase) {
+	written := f.heard
+	if f.vocab != "" {
+		written = words(f.vocab)
+	}
+	r.VocabCorrectedWords += wordDistance(written, f.text)
+	r.VocabFixedWords += count(changedAndKept(wordCheck{words: written, other: f.heard, text: f.text}))
+	r.VocabBrokenWords += count(changedAndKept(wordCheck{words: f.heard, other: written, text: f.text}))
+}
+
+func changedAndKept(c wordCheck) []bool {
+	unchanged, kept := common(c.words, c.other), common(c.words, c.text)
+	out := make([]bool, len(c.words))
+	for i := range c.words {
 		out[i] = !unchanged[i] && kept[i]
 	}
 	return out

@@ -33,9 +33,14 @@ func patchDemoVoiceLine(l library.DemoVoiceLine, patch library.DemoVoiceLinePatc
 
 func keepDemoVoiceEdits(prev, next library.DemoVoiceLine) library.DemoVoiceLine {
 	next.Discarded = next.Discarded || prev.Discarded
-	if prev.Corrected && !next.Corrected && prev.Text != next.Text {
-		next = setDemoVoiceText(next, prev.Text)
-		next.Words = library.SpreadVoiceWords(library.VoiceWordSpread{Text: next.Text, StartMS: next.StartMS, EndMS: next.EndMS})
+	if !prev.Corrected || next.Corrected {
+		return next
 	}
-	return next
+	if machineText(next) == prev.Text {
+		next.VocabText = prev.VocabText
+	}
+	if prev.Text != next.Text {
+		next.Words = library.SpreadVoiceWords(library.VoiceWordSpread{Text: prev.Text, StartMS: next.StartMS, EndMS: next.EndMS})
+	}
+	return setDemoVoiceText(next, prev.Text)
 }

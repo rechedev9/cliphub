@@ -17,60 +17,94 @@ type Learned struct {
 	Blocked []Change
 }
 
-const minLearnedFrases = 2
+const (
+	minLearnedFrases  = 2
+	maxLearnedChanges = 2
+	minLearnedLetters = 3
+)
 
-func Learn(edits []Edit) Learned {
-	counts := map[Change]int{}
-	shown := map[Change]string{}
-	blocked := map[Change]bool{}
-	for _, e := range edits {
-		machine := cmp.Or(e.Machine, e.Heard)
-		if e.Written == "" || e.Written == machine {
-			continue
-		}
-		made := map[Change]bool{}
-		for _, c := range Changes(e.Heard, machine) {
-			made[learnKey(c)] = true
-		}
-		mine, touched := map[Change]bool{}, map[string]bool{}
-		for _, c := range Changes(e.Heard, e.Written) {
-			k := learnKey(c)
-			touched[k.Heard] = true
-			if !made[k] && k.Heard != "" && k.Written != "" && k.Heard != k.Written {
-				mine[k] = true
-				shown[k] = cmp.Or(shown[k], cores(c.Written))
-			}
-		}
-		for k := range mine {
-			counts[k]++
-		}
-		for k := range made {
-			if !touched[k.Heard] {
-				blocked[k] = true
-			}
-		}
-	}
-	return Learned{Rules: pickRules(counts, shown, blocked), Blocked: sortedChanges(blocked)}
+type tally struct {
+	counts  map[Change]int
+	shown   map[Change]string
+	blocked map[Change]bool
+	terms   map[string]bool
 }
 
-func pickRules(counts map[Change]int, shown map[Change]string, blocked map[Change]bool) []Change {
+func Learn(edits []Edit, terms []Term) Learned {
+	_, known := prepareTerms(Vocabulary{Terms: terms})
+	t := tally{counts: map[Change]int{}, shown: map[Change]string{}, blocked: map[Change]bool{}, terms: known}
+	for _, e := range edits {
+		t.add(e)
+	}
+	return Learned{Rules: t.rules(), Blocked: sortedChanges(t.blocked)}
+}
+
+func (t tally) add(e Edit) {
+	machine := cmp.Or(e.Machine, e.Heard)
+	if e.Written == "" || e.Written == machine {
+		return
+	}
+	made := map[Change]bool{}
+	for _, c := range Changes(e.Heard, machine) {
+		made[learnKey(c)] = true
+	}
+	mine, touched := map[Change]string{}, map[string]bool{}
+	for _, c := range Changes(e.Heard, e.Written) {
+		k := learnKey(c)
+		touched[k.Heard] = true
+		if !made[k] && k.Heard != k.Written {
+			mine[k] = c.Written
+		}
+	}
+	for k := range made {
+		if !touched[k.Heard] {
+			t.blocked[k] = true
+		}
+	}
+	if len(mine) > maxLearnedChanges {
+		return
+	}
+	for k, written := range mine {
+		if t.learnable(k) {
+			t.counts[k]++
+			t.shown[k] = cmp.Or(t.shown[k], written)
+		}
+	}
+}
+
+func (t tally) learnable(k Change) bool {
+	heard, written := strings.Fields(k.Heard), strings.Fields(k.Written)
+	if len(heard) == 0 || len(written) == 0 || len(heard) > maxRun || len(written) > len(heard) {
+		return false
+	}
+	if len([]rune(strings.Join(heard, ""))) < minLearnedLetters {
+		return false
+	}
+	return !allIn(heard, common) || allIn(written, t.terms)
+}
+
+func allIn(words []string, set map[string]bool) bool {
+	return !slices.ContainsFunc(words, func(w string) bool { return !set[w] })
+}
+
+func (t tally) rules() []Change {
 	best, tied := map[string]Change{}, map[string]bool{}
-	for k, n := range counts {
-		if n < minLearnedFrases || blocked[k] || len(strings.Fields(k.Heard)) > maxRun || len(strings.Fields(k.Written)) > len(strings.Fields(k.Heard)) {
+	for k, n := range t.counts {
+		if n < minLearnedFrases || t.blocked[k] {
 			continue
 		}
 		cur, seen := best[k.Heard]
 		switch {
-		case !seen || n > counts[cur]:
+		case !seen || n > t.counts[cur]:
 			best[k.Heard], tied[k.Heard] = k, false
-		case n == counts[cur]:
+		case n == t.counts[cur]:
 			tied[k.Heard] = true
 		}
 	}
 	out := []Change{}
 	for heard, k := range best {
 		if !tied[heard] {
-			out = append(out, Change{Heard: heard, Written: shown[k]})
+			out = append(out, Change{Heard: heard, Written: t.shown[k]})
 		}
 	}
 	slices.SortFunc(out, func(a, b Change) int { return strings.Compare(a.Heard, b.Heard) })

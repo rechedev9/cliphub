@@ -102,6 +102,17 @@ test('several heard words written as one are marked as that one word', () => {
   assert.deepEqual(row?.vocab?.parts, [{ text: 'two in ', heard: null }, { text: 'stairs', heard: 'wers sirs' }, { text: ' now', heard: null }]);
 });
 
+test('a changed word next to punctuation is marked without the punctuation', () => {
+  const changed = line('a', {
+    text: '¡Palace, molly!', original_text: '¡Palas, moly!', vocab_text: '¡Palace, molly!',
+    vocab_changes: [{ heard: 'Palas', written: 'Palace' }, { heard: 'moly', written: 'molly' }],
+  });
+  const [row] = subtitleRows([changed], { kind: 'rounds', rounds: null }, { enabled: true, hidden: [] });
+  assert.deepEqual(row?.vocab?.parts, [
+    { text: '¡', heard: null }, { text: 'Palace', heard: 'Palas' }, { text: ', ', heard: null }, { text: 'molly', heard: 'moly' }, { text: '!', heard: null },
+  ]);
+});
+
 test('after the undo or a correction by hand the phrase shows no change by Studio', () => {
   const vocab = { vocab_text: 'molly under palace', vocab_changes: [{ heard: 'moly', written: 'molly' }] };
   const undone = line('a', { text: 'moly under Palas', corrected: true, ...vocab });

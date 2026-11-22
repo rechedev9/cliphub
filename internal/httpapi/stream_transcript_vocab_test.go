@@ -99,6 +99,18 @@ func TestStreamSpanLearnsFromStreamAndDemoCorrections(t *testing.T) {
 	}
 }
 
+func TestStreamSpanKeepsAnUndoAfterTheStreamIsTranscribedAgain(t *testing.T) {
+	env := newStreamVocabEnv(t)
+	base := env.stream(micStream)
+	env.correctStream(base, streamLineAt(t, env.transcribeAt(base, 62, "moly now"), 61_000), "moly now")
+	if again := streamLineAt(t, env.transcribeAt(base, 62, "moly now"), 61_000); again.Text != "moly now" || !again.Corrected {
+		t.Fatalf("transcribed again after the undo = %+v; want the undo kept as the person's correction", again.VoiceLine)
+	}
+	if got := streamLineAt(t, env.transcribeAt(env.stream(micStream), 202, "moly here"), 201_000); got.Text != "moly here" {
+		t.Fatalf("next stream = %+v; want the undone change still not made", got.VoiceLine)
+	}
+}
+
 func TestStreamSpanKeepsTheCorrectionOfAPerson(t *testing.T) {
 	env := newStreamVocabEnv(t)
 	base := env.stream(micStream)

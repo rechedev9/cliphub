@@ -110,7 +110,7 @@ func TestDemoTranscriptCorrectsTheCalloutsOfTheMapAndTheNicksOfTheMatch(t *testi
 	if call.ID != off.ID {
 		t.Fatalf("the corrected frase changed id from %s to %s; a hidden frase would show again", off.ID, call.ID)
 	}
-	changes := []vocab.Change{{Heard: "moly", Written: "molly"}, {Heard: "Palas,", Written: "Palace,"}, {Heard: "Zaywoo", Written: "ZywOo"}, {Heard: "sanwich", Written: "sandwich"}}
+	changes := []vocab.Change{{Heard: "moly", Written: "molly"}, {Heard: "Palas", Written: "Palace"}, {Heard: "Zaywoo", Written: "ZywOo"}, {Heard: "sanwich", Written: "sandwich"}}
 	if len(call.VocabChanges) != len(changes) {
 		t.Fatalf("changes = %+v; want %+v", call.VocabChanges, changes)
 	}
@@ -143,8 +143,8 @@ func TestDemoTranscriptCorrectorNeverOverwritesAPersonsCorrection(t *testing.T) 
 	if undone.Text != heard || !undone.Corrected {
 		t.Fatalf("undo of the corrector = %+v; want the heard text as a person's correction", undone)
 	}
-	if again := callOf(t, env.transcribe(true)); again.Text != heard || again.VocabText != "" {
-		t.Fatalf("transcribed again after an undo = %+v; want the person's text kept and the undone changes not made again", again.DemoVoiceLine)
+	if again := callOf(t, env.transcribe(true)); again.Text != heard || !again.Corrected || again.VocabText != undone.VocabText {
+		t.Fatalf("transcribed again after an undo = %+v; want the undo kept as the person's correction of what the corrector wrote", again.DemoVoiceLine)
 	}
 
 	own := "molly under palace, ZywOo"
@@ -190,6 +190,30 @@ func TestDemoTranscriptCorrectsTheCS2LexiconAndOnlyTheCommunityCalloutsOfTheDemo
 	env.setMap("de_inferno")
 	if got := callOf(t, env.transcribe(true)); got.Text != "Go contact, molly jungel coffins flesh" || got.OriginalText != heard {
 		t.Fatalf("on Inferno = %+v; want the Inferno callouts written and a Mirage callout left", got.DemoVoiceLine)
+	}
+}
+
+func TestDemoTranscriptLeavesRightWordsAndStillWritesTheCallsAndCallouts(t *testing.T) {
+	env := newMirageVocabEnv(t)
+	env.h.voice.deps.VocabCorrector = true
+	doc, err := env.h.readLibraryDocument(env.match.DemoID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.Demo.Map = "de_ancient"
+	doc.Geometry.Callouts = []tacticalplan.Callout{{Name: "Palace", Samples: 40}, {Name: "Stairs", Samples: 30}}
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := env.storage.Put(artifacts.LibraryTacticalIndexKey(env.match.DemoID), bytes.NewReader(raw)); err != nil {
+		t.Fatal(err)
+	}
+	heard := "he starts in the cove, asp vamos, moly under Palas, Go kontakt"
+	env.transcriber.heard = []teamvoice.Line{{StartMS: 1000, EndMS: 3000, Text: heard}}
+	want := "he starts in the cove, asp vamos, molly under Palace, Go contact"
+	if got := callOf(t, env.transcribe(false)); got.Text != want || got.OriginalText != heard {
+		t.Fatalf("frase = %+v; want %q: right English and Spanish words left, the calls and callouts written", got.DemoVoiceLine, want)
 	}
 }
 

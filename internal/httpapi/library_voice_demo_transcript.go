@@ -277,7 +277,7 @@ func (h *Handlers) transcribeDemoTracks(ctx context.Context, in demoTracks) (lib
 	if doc, err := h.readLibraryDocument(m.DemoID); err == nil {
 		timeline = teamvoice.TimelineOf(doc)
 		if h.voice.deps.VocabCorrector {
-			v := demovocab.Build(ctx, demovocab.Sources{Document: doc, Names: h.libraryRepo, Frases: h.libraryRepo})
+			v := demovocab.Build(ctx, demovocab.Sources{Document: doc, Names: h.libraryRepo, Corrections: h.libraryRepo})
 			corrector = &v
 		}
 	}

@@ -23,15 +23,20 @@ func Changes(heard, written string) []Change {
 		}
 	}
 	out := []Change{}
+	add := func(heard, written string) {
+		if c := (Change{Heard: cores(heard), Written: cores(written)}); c.Heard != c.Written {
+			out = append(out, c)
+		}
+	}
 	i, j, fromA, fromB := 0, 0, 0, 0
 	flush := func() {
 		switch {
 		case i-fromA > 1 && i-fromA == j-fromB:
 			for k := range i - fromA {
-				out = append(out, Change{Heard: a[fromA+k], Written: b[fromB+k]})
+				add(a[fromA+k], b[fromB+k])
 			}
 		case i > fromA || j > fromB:
-			out = append(out, Change{Heard: strings.Join(a[fromA:i], " "), Written: strings.Join(b[fromB:j], " ")})
+			add(strings.Join(a[fromA:i], " "), strings.Join(b[fromB:j], " "))
 		}
 	}
 	for i < len(a) || j < len(b) {

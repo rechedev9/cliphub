@@ -16,6 +16,7 @@ type StreamVoiceRepository interface {
 	ListStreamVoiceLines(ctx context.Context, jobID uuid.UUID) ([]streamclips.VoiceLine, error)
 	UpdateStreamVoiceLine(ctx context.Context, patch streamclips.VoiceLinePatch) (streamclips.VoiceLine, error)
 	ListStreamVoices(ctx context.Context, states []string) ([]streamclips.VoiceTranscript, error)
+	ListStreamVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error)
 	GetStreamSubtitles(ctx context.Context, jobID uuid.UUID) (streamclips.Subtitles, error)
 	SetStreamSubtitles(ctx context.Context, subtitles streamclips.Subtitles) error
 }
@@ -26,7 +27,7 @@ func streamLineAsDemo(l streamclips.VoiceLine) library.DemoVoiceLine {
 }
 
 func withDemoEdits(l streamclips.VoiceLine, edited library.DemoVoiceLine) streamclips.VoiceLine {
-	l.Text, l.Corrected, l.OriginalText, l.Discarded, l.Words = edited.Text, edited.Corrected, edited.OriginalText, edited.Discarded, edited.Words
+	l.Text, l.Corrected, l.OriginalText, l.VocabText, l.Discarded, l.Words = edited.Text, edited.Corrected, edited.OriginalText, edited.VocabText, edited.Discarded, edited.Words
 	return l
 }
 

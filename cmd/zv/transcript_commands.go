@@ -237,7 +237,7 @@ func (lib demoLibrary) vocabulary(ctx context.Context, m library.Match) (vocab.V
 	if err := json.NewDecoder(rc).Decode(&doc); err != nil {
 		return vocab.Vocabulary{}, false
 	}
-	return demovocab.Build(ctx, demovocab.Sources{Document: doc, Names: lib.repo, Frases: otherMatchFrases{repo: lib.repo, skip: m.ID}}), true
+	return demovocab.Build(ctx, demovocab.Sources{Document: doc, Names: lib.repo, Corrections: otherMatchFrases{repo: lib.repo, skip: m.ID}}), true
 }
 
 type otherMatchFrases struct {
@@ -245,9 +245,9 @@ type otherMatchFrases struct {
 	skip uuid.UUID
 }
 
-func (o otherMatchFrases) ListDemoVoiceLines(ctx context.Context, filter library.DemoVoiceLineFilter) ([]library.DemoVoiceLine, error) {
-	lines, err := o.repo.ListDemoVoiceLines(ctx, filter)
-	return slices.DeleteFunc(lines, func(l library.DemoVoiceLine) bool { return l.MatchID == o.skip }), err
+func (o otherMatchFrases) ListDemoVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error) {
+	corrections, err := o.repo.ListDemoVoiceCorrections(ctx)
+	return slices.DeleteFunc(corrections, func(c library.VoiceCorrection) bool { return c.SourceID == o.skip }), err
 }
 
 type otherStreamFrases struct {
@@ -255,13 +255,9 @@ type otherStreamFrases struct {
 	skip uuid.UUID
 }
 
-func (o otherStreamFrases) ListStreamVoices(ctx context.Context, states []string) ([]streamclips.VoiceTranscript, error) {
-	voices, err := o.repo.ListStreamVoices(ctx, states)
-	return slices.DeleteFunc(voices, func(t streamclips.VoiceTranscript) bool { return t.JobID == o.skip }), err
-}
-
-func (o otherStreamFrases) ListStreamVoiceLines(ctx context.Context, jobID uuid.UUID) ([]streamclips.VoiceLine, error) {
-	return o.repo.ListStreamVoiceLines(ctx, jobID)
+func (o otherStreamFrases) ListStreamVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error) {
+	corrections, err := o.repo.ListStreamVoiceCorrections(ctx)
+	return slices.DeleteFunc(corrections, func(c library.VoiceCorrection) bool { return c.SourceID == o.skip }), err
 }
 
 func demoTranscriptName(m library.Match) string {

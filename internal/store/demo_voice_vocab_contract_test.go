@@ -70,3 +70,49 @@ func TestDemoVoiceLineKeepsWhatTheCorrectorWrote(t *testing.T) {
 		})
 	}
 }
+
+func TestDemoVoiceLineStaysAPersonsCorrectionWhenATranscriptionAgreesWithIt(t *testing.T) {
+	for name, repo := range libraryRepositoriesUnderTest(t) {
+		t.Run(name, func(t *testing.T) {
+			f := libraryFixture{t: t, ctx: context.Background(), repo: repo}
+			m := f.analyze(f.demo("demo-voice-agrees", 0), "de_mirage", side{clan: "FUT", score: 13}, side{clan: "OG", score: 8})
+			words := []library.DemoVoiceWord{{Text: "moly", StartMS: 1_000, EndMS: 1_300}, {Text: "under", StartMS: 1_300, EndMS: 1_600}, {Text: "Palas", StartMS: 1_600, EndMS: 2_000}}
+			undoID, learnedID := uuid.New(), uuid.New()
+			set := func(lines ...library.DemoVoiceLine) {
+				t.Helper()
+				if err := repo.SetDemoVoice(f.ctx, library.DemoVoiceUpdate{MatchID: m.ID, Transcript: library.DemoVoiceTranscript{State: library.TranscriptReady}, Lines: &lines}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			line := func(id uuid.UUID, startMS int64, text string) library.DemoVoiceLine {
+				return library.DemoVoiceLine{ID: id, SteamID64: "76561198000000001", Name: "ropz", TeamKey: "ct-start", StartMS: startMS, EndMS: startMS + 1_000, Text: text}
+			}
+			undo := line(undoID, 1_000, "moly under Palace")
+			undo.OriginalText, undo.VocabText, undo.Words = "moly under Palas", "moly under Palace", words
+			set(undo, line(learnedID, 3_000, "flesh now"))
+			undone, fixed := "moly under Palas", "flash now"
+			for _, p := range []library.DemoVoiceLinePatch{{ID: undoID, Text: &undone}, {ID: learnedID, Text: &fixed}} {
+				p.MatchID = m.ID
+				if _, err := repo.UpdateDemoVoiceLine(f.ctx, p); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			heard := line(undoID, 1_000, "moly under Palas")
+			heard.Words = words
+			learned := line(learnedID, 3_000, "flash now")
+			learned.OriginalText, learned.VocabText = "flesh now", "flash now"
+			set(heard, learned)
+			got, err := repo.ListDemoVoiceLines(f.ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}, All: true})
+			if err != nil || len(got) != 2 {
+				t.Fatalf("lines = %+v, %v", got, err)
+			}
+			if u := got[0]; u.Text != "moly under Palas" || !u.Corrected || u.VocabText != "moly under Palace" || len(u.Words) != 3 || u.Words[2] != words[2] {
+				t.Fatalf("an undo the new transcription agrees with = %+v; want it kept as the person's correction of the corrector's text, timings kept", u)
+			}
+			if l := got[1]; l.Text != "flash now" || !l.Corrected || l.OriginalText != "flesh now" || l.VocabText != "" {
+				t.Fatalf("a correction a learned rule now writes = %+v; want it kept as the person's correction of the heard text", l)
+			}
+		})
+	}
+}

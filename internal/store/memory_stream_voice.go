@@ -104,6 +104,28 @@ func (r *MemoryStreamJobRepository) ListStreamVoices(ctx context.Context, states
 	return out, nil
 }
 
+func (r *MemoryStreamJobRepository) ListStreamVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	jobs := make([]uuid.UUID, 0, len(r.voices))
+	for id := range r.voices {
+		jobs = append(jobs, id)
+	}
+	slices.SortFunc(jobs, compareUUID)
+	out := []library.VoiceCorrection{}
+	for _, id := range jobs {
+		for _, l := range r.voices[id].lines {
+			if l.Corrected {
+				out = append(out, voiceCorrection(id, streamLineAsDemo(l)))
+			}
+		}
+	}
+	return out, nil
+}
+
 func (r *MemoryStreamJobRepository) GetStreamSubtitles(ctx context.Context, jobID uuid.UUID) (streamclips.Subtitles, error) {
 	if err := ctx.Err(); err != nil {
 		return streamclips.Subtitles{}, err

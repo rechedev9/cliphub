@@ -21,6 +21,11 @@ type DemoVoiceRepository interface {
 	UpdateDemoVoiceLine(ctx context.Context, patch library.DemoVoiceLinePatch) (library.DemoVoiceLine, error)
 	// ListDemoVoices returns the transcripts whose state is one of states, by match id.
 	ListDemoVoices(ctx context.Context, states []string) ([]library.DemoVoiceTranscript, error)
+	ListDemoVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error)
+}
+
+func voiceCorrection(source uuid.UUID, l library.DemoVoiceLine) library.VoiceCorrection {
+	return library.VoiceCorrection{SourceID: source, Heard: l.HeardText(), Vocab: l.VocabText, Text: l.Text}
 }
 
 func demoVoiceLineMatches(l library.DemoVoiceLine, f library.DemoVoiceLineFilter) bool {
