@@ -26,7 +26,7 @@ func streamLineAsDemo(l streamclips.VoiceLine) library.DemoVoiceLine {
 }
 
 func withDemoEdits(l streamclips.VoiceLine, edited library.DemoVoiceLine) streamclips.VoiceLine {
-	l.Text, l.Corrected, l.OriginalText, l.Discarded, l.Words = edited.Text, edited.Corrected, edited.OriginalText, edited.Discarded, edited.Words
+	l.Text, l.Corrected, l.OriginalText, l.VocabText, l.Discarded, l.Words = edited.Text, edited.Corrected, edited.OriginalText, edited.VocabText, edited.Discarded, edited.Words
 	return l
 }
 

@@ -111,3 +111,42 @@ func TestDemoTranscriptAppliesACorrectionMadeByHandInTwoFrases(t *testing.T) {
 		t.Fatalf("next demo = %+v; want a correction made in one frase not applied", once.DemoVoiceLine)
 	}
 }
+
+func TestDemoTranscriptKeepsAnUndoAfterTheDemoIsTranscribedAgain(t *testing.T) {
+	env := newLearningEnv(t)
+	env.transcriber.heard = []teamvoice.Line{heardLine(1000, "moly under Palas")}
+	first := env.transcribe(false)
+	env.correct(first, func(l demoTranscriptLine) bool { return l.SteamID64 == first.Lines[0].SteamID64 }, "molly under Palas")
+	again := lineAt(t, env.transcribe(true), 1000)
+	if again.Text != "molly under Palas" || !again.Corrected {
+		t.Fatalf("transcribed again after the undo = %+v; want the undo kept as the person's correction", again.DemoVoiceLine)
+	}
+
+	next := env.withMatch("next-demo").onMirage()
+	next.transcriber.heard = []teamvoice.Line{heardLine(1000, "Palas or underpas")}
+	if call := lineAt(t, next.transcribe(false), 1000); call.Text != "Palas or underpass" {
+		t.Fatalf("next demo = %+v; want the undone change still not made", call.DemoVoiceLine)
+	}
+}
+
+func TestDemoTranscriptKeepsALearnedCorrectionAfterTheDemoIsTranscribedAgain(t *testing.T) {
+	a := newLearningEnv(t)
+	a.transcriber.heard = []teamvoice.Line{heardLine(1000, "vesty here")}
+	first := a.transcribe(false)
+	a.correct(first, func(l demoTranscriptLine) bool { return l.SteamID64 == first.Lines[0].SteamID64 }, "vest here")
+	b := a.withMatch("second-demo").onMirage()
+	b.transcriber.heard = []teamvoice.Line{heardLine(1000, "vesty now")}
+	second := b.transcribe(false)
+	b.correct(second, func(l demoTranscriptLine) bool { return l.SteamID64 == second.Lines[0].SteamID64 }, "vest now")
+
+	a.transcriber.heard = []teamvoice.Line{heardLine(1000, "vesty here")}
+	if again := lineAt(t, a.transcribe(true), 1000); again.Text != "vest here" || !again.Corrected || again.OriginalText != "vesty here" {
+		t.Fatalf("transcribed again = %+v; want the person's correction kept as a correction", again.DemoVoiceLine)
+	}
+
+	c := a.withMatch("third-demo").onMirage()
+	c.transcriber.heard = []teamvoice.Line{heardLine(1000, "vesty go")}
+	if call := lineAt(t, c.transcribe(false), 1000); call.Text != "vest go" {
+		t.Fatalf("third demo = %+v; want the correction made in two demos still applied", call.DemoVoiceLine)
+	}
+}
