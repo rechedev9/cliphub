@@ -143,8 +143,8 @@ func TestDemoTranscriptCorrectorNeverOverwritesAPersonsCorrection(t *testing.T) 
 	if undone.Text != heard || !undone.Corrected {
 		t.Fatalf("undo of the corrector = %+v; want the heard text as a person's correction", undone)
 	}
-	if again := callOf(t, env.transcribe(true)); again.Text != heard || !again.Corrected || again.VocabText == "" {
-		t.Fatalf("transcribed again after an undo = %+v; want the person's text kept", again.DemoVoiceLine)
+	if again := callOf(t, env.transcribe(true)); again.Text != heard || again.VocabText != "" {
+		t.Fatalf("transcribed again after an undo = %+v; want the person's text kept and the undone changes not made again", again.DemoVoiceLine)
 	}
 
 	own := "molly under palace, ZywOo"

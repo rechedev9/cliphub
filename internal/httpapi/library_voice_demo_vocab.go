@@ -46,7 +46,23 @@ func (h *Handlers) demoVocabulary(ctx context.Context, doc tacticalplan.Document
 	for _, p := range doc.Players {
 		v.Terms = append(v.Terms, vocab.Term{Text: p.Name, KeepCase: true})
 	}
+	v.Learned = h.learnedCorrections(ctx)
 	return v
+}
+
+func (h *Handlers) learnedCorrections(ctx context.Context) vocab.Learned {
+	lines, err := h.libraryRepo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{All: true})
+	if err != nil {
+		log.Printf("httpapi: read the library frases for the learned corrections: %v", err)
+		return vocab.Learned{}
+	}
+	edits := []vocab.Edit{}
+	for _, l := range lines {
+		if l.Corrected {
+			edits = append(edits, vocab.Edit{Heard: l.HeardText(), Machine: l.VocabText, Written: l.Text})
+		}
+	}
+	return vocab.Learn(edits)
 }
 
 func correctDemoLine(line library.DemoVoiceLine, v *vocab.Vocabulary) library.DemoVoiceLine {
