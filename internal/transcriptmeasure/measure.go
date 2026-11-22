@@ -7,6 +7,7 @@ import (
 
 type Frase struct {
 	Heard     string
+	Vocab     string
 	Text      string
 	Discarded bool
 	StartMS   int64
@@ -14,14 +15,18 @@ type Frase struct {
 }
 
 type Result struct {
-	Frases             int     `json:"frases"`
-	CorrectedFrases    int     `json:"corrected_frases"`
-	DiscardedFrases    int     `json:"discarded_frases"`
-	Words              int     `json:"words"`
-	CorrectedWords     int     `json:"corrected_words"`
-	CorrectedShare     float64 `json:"corrected_share"`
-	SpeechMS           int64   `json:"speech_ms"`
-	DiscardedPerMinute float64 `json:"discarded_per_minute"`
+	Frases              int     `json:"frases"`
+	CorrectedFrases     int     `json:"corrected_frases"`
+	DiscardedFrases     int     `json:"discarded_frases"`
+	Words               int     `json:"words"`
+	CorrectedWords      int     `json:"corrected_words"`
+	CorrectedShare      float64 `json:"corrected_share"`
+	SpeechMS            int64   `json:"speech_ms"`
+	DiscardedPerMinute  float64 `json:"discarded_per_minute"`
+	VocabCorrectedWords int     `json:"vocab_corrected_words"`
+	VocabCorrectedShare float64 `json:"vocab_corrected_share"`
+	VocabFixedWords     int     `json:"vocab_fixed_words"`
+	VocabBrokenWords    int     `json:"vocab_broken_words"`
 }
 
 func Measure(frases []Frase) Result {
@@ -32,8 +37,9 @@ func Measure(frases []Frase) Result {
 			r.DiscardedFrases++
 			continue
 		}
-		heard := words(f.Heard)
-		changed := wordDistance(heard, words(f.Text))
+		heard, text := words(f.Heard), words(f.Text)
+		changed := wordDistance(heard, text)
+		r.measureCorrector(heard, f.Vocab, text)
 		r.Words += len(heard)
 		r.CorrectedWords += changed
 		if changed > 0 {
@@ -45,11 +51,70 @@ func Measure(frases []Frase) Result {
 	}
 	if r.Words > 0 {
 		r.CorrectedShare = float64(r.CorrectedWords) / float64(r.Words)
+		r.VocabCorrectedShare = float64(r.VocabCorrectedWords) / float64(r.Words)
 	}
 	if r.SpeechMS > 0 {
 		r.DiscardedPerMinute = float64(r.DiscardedFrases) * 60_000 / float64(r.SpeechMS)
 	}
 	return r
+}
+
+func (r *Result) measureCorrector(heard []string, vocabText string, text []string) {
+	written := heard
+	if vocabText != "" {
+		written = words(vocabText)
+	}
+	r.VocabCorrectedWords += wordDistance(written, text)
+	r.VocabFixedWords += count(changedAndKept(written, heard, text))
+	r.VocabBrokenWords += count(changedAndKept(heard, written, text))
+}
+
+func changedAndKept(ws, other, text []string) []bool {
+	unchanged, kept := common(ws, other), common(ws, text)
+	out := make([]bool, len(ws))
+	for i := range ws {
+		out[i] = !unchanged[i] && kept[i]
+	}
+	return out
+}
+
+func common(a, b []string) []bool {
+	lcs := make([][]int, len(a)+1)
+	for i := range lcs {
+		lcs[i] = make([]int, len(b)+1)
+	}
+	for i := len(a) - 1; i >= 0; i-- {
+		for j := len(b) - 1; j >= 0; j-- {
+			if a[i] == b[j] {
+				lcs[i][j] = lcs[i+1][j+1] + 1
+			} else {
+				lcs[i][j] = max(lcs[i+1][j], lcs[i][j+1])
+			}
+		}
+	}
+	out := make([]bool, len(a))
+	for i, j := 0, 0; i < len(a) && j < len(b); {
+		switch {
+		case a[i] == b[j]:
+			out[i] = true
+			i, j = i+1, j+1
+		case lcs[i+1][j] >= lcs[i][j+1]:
+			i++
+		default:
+			j++
+		}
+	}
+	return out
+}
+
+func count(flags []bool) int {
+	n := 0
+	for _, f := range flags {
+		if f {
+			n++
+		}
+	}
+	return n
 }
 
 func words(text string) []string {
