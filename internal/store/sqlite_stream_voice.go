@@ -15,7 +15,7 @@ import (
 
 const streamVoiceColumns = `SELECT job_id, state, model, error, spans, pending, updated_at FROM stream_voice`
 
-const streamVoiceLineColumns = `SELECT id, job_id, start_ms, end_ms, text, corrected, original_text, discarded, words FROM stream_voice_lines`
+const streamVoiceLineColumns = `SELECT id, job_id, start_ms, end_ms, text, corrected, original_text, vocab_text, discarded, words FROM stream_voice_lines`
 
 type streamVoiceQuerier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
@@ -67,7 +67,7 @@ func scanStreamVoice(row sqlScanner) (streamclips.VoiceTranscript, error) {
 func scanStreamVoiceLine(row sqlScanner) (streamclips.VoiceLine, error) {
 	var l streamclips.VoiceLine
 	var id, jobID, words string
-	if err := row.Scan(&id, &jobID, &l.StartMS, &l.EndMS, &l.Text, &l.Corrected, &l.OriginalText, &l.Discarded, &words); err != nil {
+	if err := row.Scan(&id, &jobID, &l.StartMS, &l.EndMS, &l.Text, &l.Corrected, &l.OriginalText, &l.VocabText, &l.Discarded, &words); err != nil {
 		return l, err
 	}
 	if words != "" {
@@ -146,8 +146,8 @@ func (r *SQLiteStreamJobRepository) SetStreamVoice(ctx context.Context, update s
 			if err != nil {
 				return fmt.Errorf("encode stream voice words: %w", err)
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO stream_voice_lines (id, job_id, start_ms, end_ms, text, corrected, original_text, discarded, words)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, l.ID.String(), id, l.StartMS, l.EndMS, l.Text, l.Corrected, l.OriginalText, l.Discarded, words); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO stream_voice_lines (id, job_id, start_ms, end_ms, text, corrected, original_text, vocab_text, discarded, words)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, l.ID.String(), id, l.StartMS, l.EndMS, l.Text, l.Corrected, l.OriginalText, l.VocabText, l.Discarded, words); err != nil {
 				return fmt.Errorf("store stream voice line: %w", err)
 			}
 		}

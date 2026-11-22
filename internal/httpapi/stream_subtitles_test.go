@@ -177,7 +177,10 @@ func TestSubtitulosChangedSinceARenderMarkItsVideosStale(t *testing.T) {
 		t.Fatalf("stale = %+v; want the videos rendered before their subtítulos marked to render again", ready.Stale)
 	}
 
-	track := streamclips.SubtitleTrack{Lines: ready.Lines}
+	track := streamclips.SubtitleTrack{}
+	for _, l := range ready.Lines {
+		track.Lines = append(track.Lines, l.VoiceLine)
+	}
 	shorts, err := streamclips.NewSubtitleScripts(plan.SubtitleVideos(), track)
 	if err != nil {
 		t.Fatal(err)

@@ -12,13 +12,15 @@ type StreamVoiceSpan struct {
 }
 
 type StreamVoiceLine struct {
-	ID           string `json:"id"`
-	StartMS      int64  `json:"start_ms"`
-	EndMS        int64  `json:"end_ms"`
-	Text         string `json:"text"`
-	Corrected    bool   `json:"corrected"`
-	OriginalText string `json:"original_text,omitempty"`
-	Discarded    bool   `json:"discarded"`
+	ID           string            `json:"id"`
+	StartMS      int64             `json:"start_ms"`
+	EndMS        int64             `json:"end_ms"`
+	Text         string            `json:"text"`
+	Corrected    bool              `json:"corrected"`
+	OriginalText string            `json:"original_text,omitempty"`
+	VocabText    string            `json:"vocab_text,omitempty"`
+	VocabChanges []DemoVocabChange `json:"vocab_changes,omitempty"`
+	Discarded    bool              `json:"discarded"`
 }
 
 type StreamSubtitles struct {
