@@ -53,11 +53,12 @@ type VoiceTranscriber interface {
 
 // VoiceDeps enables team voice: Dir holds each match's tracks under the profile's data folder.
 type VoiceDeps struct {
-	Dir         string
-	Media       VoiceMedia
-	Transcriber VoiceTranscriber
-	DemoVoice   DemoVoiceExtractor
-	Plugin      VoicePluginDeps
+	Dir            string
+	Media          VoiceMedia
+	Transcriber    VoiceTranscriber
+	DemoVoice      DemoVoiceExtractor
+	Plugin         VoicePluginDeps
+	VocabCorrector bool
 }
 
 // WithVoice enables the team voice routes of the library.
