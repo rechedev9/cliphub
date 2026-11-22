@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import type { VoiceTranscriber } from '@/lib/api/voice';
+import type { VocabMark } from '@/lib/produce/vocab-marks';
 import { voiceErrorText } from '@/lib/replay/voice-errors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,7 +38,24 @@ export function InstallPrompt({ what, credit, install, busy, onInstall }: { what
   </div>;
 }
 
-export type PhraseRowData = { id: string; text: string; corrected: boolean; original: string | null; discarded: boolean; hidden: boolean };
+export type PhraseRowData = {
+  id: string; text: string; corrected: boolean; original: string | null; discarded: boolean; hidden: boolean; vocab?: VocabMark | null;
+};
+
+function VocabNote({ mark, locked, onUndo }: { mark: VocabMark; locked: boolean; onUndo: () => void }): ReactNode {
+  const changed = mark.parts.filter((part) => part.heard !== null).length;
+  return <div className="flex flex-col gap-1 text-meta text-fg-2">
+    <p>
+      {changed === 1 ? 'Studio cambió la palabra marcada: ' : 'Studio cambió las palabras marcadas: '}
+      {mark.parts.map((part, index) => part.heard === null ? <span key={index}>{part.text}</span>
+        : <mark key={index} title={`Se oyó «${part.heard}»`} className="rounded-sm bg-primary/15 px-0.5 font-semibold text-fg-1">{part.text}</mark>)}
+    </p>
+    <div className="flex flex-wrap items-center justify-between gap-2 text-fg-3">
+      <span>El transcriptor oyó: «{mark.heard}»</span>
+      <Button variant="ghost" size="sm" disabled={locked} onClick={onUndo}>Deshacer el cambio</Button>
+    </div>
+  </div>;
+}
 
 export type PhraseRowProps = {
   row: PhraseRowData;
@@ -65,6 +83,7 @@ export function PhraseRow({ row, heading, inputLabel, discardedNote, locked, onH
     </div>
     <Input key={`${row.id}:${row.text}`} defaultValue={row.text} disabled={locked || row.hidden || row.discarded} maxLength={2000}
       aria-label={inputLabel} onBlur={(event) => onCorrect(event.target.value)} />
+    {row.vocab && !row.discarded ? <VocabNote mark={row.vocab} locked={locked || row.hidden} onUndo={() => onCorrect(row.vocab?.heard ?? row.text)} /> : null}
     {row.original === null ? null : <div className="flex flex-wrap items-center justify-between gap-2 text-meta text-fg-3">
       <span>El transcriptor oyó: «{row.original}»</span>
       <Button variant="ghost" size="sm" disabled={locked || row.discarded} onClick={() => onCorrect(row.original ?? '')}>Volver al original</Button>

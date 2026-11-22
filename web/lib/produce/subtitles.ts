@@ -3,6 +3,7 @@ import type { FullDemoOptions } from '../full-demo-plan.ts';
 import type { TranscriberState, VoiceTranscriber, VoiceTranscriptState } from '../api/voice.ts';
 import { fullDemoVoiceStatus } from './full-demo-brief.ts';
 import { apiFetch } from '../api/edition-fetch.ts';
+import { isVocabChange, vocabMark, type VocabChange, type VocabMark } from './vocab-marks.ts';
 
 /** One phrase of the voices a demo recorded (`library.DemoVoiceLine` in Go); `start_ms` is demo time. */
 export type DemoVoiceLine = {
@@ -18,6 +19,8 @@ export type DemoVoiceLine = {
   text: string;
   corrected: boolean;
   original_text?: string;
+  vocab_text?: string;
+  vocab_changes?: VocabChange[];
   discarded: boolean;
 };
 
@@ -43,6 +46,7 @@ export type PhraseScope =
 
 export type SubtitleRow = {
   id: string; speaker: string; round: number; text: string; corrected: boolean; original: string | null; discarded: boolean; hidden: boolean;
+  vocab: VocabMark | null;
 };
 
 export type SubtitleAvailability = { enabled: boolean; reason: string | null };
@@ -75,6 +79,9 @@ export function subtitleRows(lines: readonly DemoVoiceLine[], scope: PhraseScope
       original: line.corrected && line.original_text ? line.original_text : null,
       discarded: line.discarded,
       hidden: choice.hidden.includes(line.id),
+      vocab: vocabMark({
+        text: line.text, heard: line.original_text || line.text, vocabText: line.vocab_text, changes: line.vocab_changes, corrected: line.corrected,
+      }),
     }));
 }
 
@@ -166,7 +173,9 @@ function isLine(value: unknown): value is DemoVoiceLine {
   const strings = [value.id, value.match_id, value.steamid64, value.name, value.team_key, value.text];
   const numbers = [value.start_ms, value.end_ms, value.tick, value.round];
   return strings.every((field) => typeof field === 'string') && numbers.every((field) => typeof field === 'number')
-    && typeof value.corrected === 'boolean' && typeof value.discarded === 'boolean' && optionalString(value.original_text);
+    && typeof value.corrected === 'boolean' && typeof value.discarded === 'boolean' && optionalString(value.original_text)
+    && optionalString(value.vocab_text)
+    && (value.vocab_changes === undefined || (Array.isArray(value.vocab_changes) && value.vocab_changes.every(isVocabChange)));
 }
 
 function isJobSubtitles(value: unknown): value is JobSubtitles {
