@@ -46,6 +46,7 @@ func (h *Handlers) demoVocabulary(ctx context.Context, doc tacticalplan.Document
 	for _, p := range doc.Players {
 		v.Terms = append(v.Terms, vocab.Term{Text: p.Name, KeepCase: true})
 	}
+	v.Terms = append(v.Terms, vocab.Lexicon(doc.Demo.Map)...)
 	return v
 }
 
