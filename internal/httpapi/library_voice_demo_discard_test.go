@@ -19,9 +19,9 @@ func TestDemoVoiceTranscriptKeepsTheOriginalAndDiscardsAcrossTranscriptions(t *t
 	var corrected, discarded library.DemoVoiceLine
 	for _, l := range first.Lines {
 		if l.SteamID64 == j.TargetSteamID {
-			discarded = l
+			discarded = l.DemoVoiceLine
 		} else {
-			corrected = l
+			corrected = l.DemoVoiceLine
 		}
 	}
 	correctedPath, discardedPath := env.base+"/lines/"+corrected.ID.String(), env.base+"/lines/"+discarded.ID.String()

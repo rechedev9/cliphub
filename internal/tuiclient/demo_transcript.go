@@ -19,8 +19,15 @@ type DemoVoiceLine struct {
 	Text      string `json:"text"`
 	Corrected bool   `json:"corrected"`
 
-	OriginalText string `json:"original_text,omitempty"`
-	Discarded    bool   `json:"discarded"`
+	OriginalText string            `json:"original_text,omitempty"`
+	VocabText    string            `json:"vocab_text,omitempty"`
+	VocabChanges []DemoVocabChange `json:"vocab_changes,omitempty"`
+	Discarded    bool              `json:"discarded"`
+}
+
+type DemoVocabChange struct {
+	Heard   string `json:"heard"`
+	Written string `json:"written"`
 }
 
 type DemoLineDiscard struct {

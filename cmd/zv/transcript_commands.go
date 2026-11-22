@@ -129,10 +129,7 @@ func editedDemoTranscripts(ctx context.Context, repo store.LibraryRepository) ([
 		frases := []transcriptmeasure.Frase{}
 		for ; end < len(lines) && lines[end].MatchID == lines[start].MatchID; end++ {
 			line := lines[end]
-			heard := line.Text
-			if line.Corrected {
-				heard = line.OriginalText
-			}
+			heard := line.HeardText()
 			edited = edited || line.Corrected || line.Discarded
 			frases = append(frases, transcriptmeasure.Frase{
 				Heard: heard, Text: line.Text, Discarded: line.Discarded, StartMS: line.StartMS, EndMS: line.EndMS,
