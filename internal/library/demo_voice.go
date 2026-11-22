@@ -43,6 +43,13 @@ func (l DemoVoiceLine) HeardText() string {
 	return l.Text
 }
 
+type VoiceCorrection struct {
+	SourceID uuid.UUID
+	Heard    string
+	Vocab    string
+	Text     string
+}
+
 type DemoVoiceWord struct {
 	Text    string `json:"text"`
 	StartMS int64  `json:"start_ms"`

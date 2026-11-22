@@ -118,6 +118,28 @@ func (r *MemoryLibraryRepository) ListDemoVoices(ctx context.Context, states []s
 	return out, nil
 }
 
+func (r *MemoryLibraryRepository) ListDemoVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	matches := make([]uuid.UUID, 0, len(r.demoVoices))
+	for id := range r.demoVoices {
+		matches = append(matches, id)
+	}
+	slices.SortFunc(matches, compareUUID)
+	out := []library.VoiceCorrection{}
+	for _, id := range matches {
+		for _, l := range r.demoVoices[id].lines {
+			if l.Corrected {
+				out = append(out, voiceCorrection(id, l))
+			}
+		}
+	}
+	return out, nil
+}
+
 func compareUUID(a, b uuid.UUID) int {
 	switch as, bs := a.String(), b.String(); {
 	case as < bs:

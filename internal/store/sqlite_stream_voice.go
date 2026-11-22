@@ -181,6 +181,15 @@ func (r *SQLiteStreamJobRepository) UpdateStreamVoiceLine(ctx context.Context, p
 	return out, err
 }
 
+func (r *SQLiteStreamJobRepository) ListStreamVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT job_id, text, original_text, vocab_text FROM stream_voice_lines
+		WHERE corrected = 1 ORDER BY job_id, start_ms, rowid`)
+	if err != nil {
+		return nil, fmt.Errorf("list stream voice corrections: %w", err)
+	}
+	return scanVoiceCorrections(rows)
+}
+
 func (r *SQLiteStreamJobRepository) ListStreamVoices(ctx context.Context, states []string) ([]streamclips.VoiceTranscript, error) {
 	out := []streamclips.VoiceTranscript{}
 	if len(states) == 0 {

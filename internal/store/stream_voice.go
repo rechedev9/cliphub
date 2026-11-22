@@ -16,6 +16,7 @@ type StreamVoiceRepository interface {
 	ListStreamVoiceLines(ctx context.Context, jobID uuid.UUID) ([]streamclips.VoiceLine, error)
 	UpdateStreamVoiceLine(ctx context.Context, patch streamclips.VoiceLinePatch) (streamclips.VoiceLine, error)
 	ListStreamVoices(ctx context.Context, states []string) ([]streamclips.VoiceTranscript, error)
+	ListStreamVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error)
 	GetStreamSubtitles(ctx context.Context, jobID uuid.UUID) (streamclips.Subtitles, error)
 	SetStreamSubtitles(ctx context.Context, subtitles streamclips.Subtitles) error
 }
