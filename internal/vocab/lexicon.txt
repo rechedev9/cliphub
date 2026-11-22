@@ -1,6 +1,8 @@
 [all]
 smoke
 smokes
+flash
+flashes
 flashbang
 flashbangs
 molly

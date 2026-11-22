@@ -35,9 +35,10 @@ const maxRun = 3
 
 type term struct {
 	Term
-	words []string
-	norm  string
-	key   string
+	words     []string
+	norm      string
+	key       string
+	asWritten bool
 }
 
 type token struct {
@@ -110,7 +111,7 @@ func prepare(v Vocabulary) matcher {
 		for _, w := range ws {
 			m.known[normalize(w)] = true
 		}
-		m.rules[normWords(r.Heard)] = term{Term: Term{Text: r.Written}, words: ws}
+		m.rules[normWords(r.Heard)] = term{Term: Term{Text: r.Written}, words: ws, asWritten: true}
 	}
 	for _, b := range v.Learned.Blocked {
 		m.blocked[[2]string{normalize(b.Heard), normalize(b.Written)}] = true
@@ -246,7 +247,7 @@ func cased(t term, first token) string {
 	words := make([]string, len(t.words))
 	for i, w := range t.words {
 		words[i] = w
-		if !t.KeepCase && !ownCase(w) {
+		if !t.KeepCase && !t.asWritten && !ownCase(w) {
 			words[i] = strings.ToLower(w)
 		}
 	}

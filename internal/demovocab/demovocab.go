@@ -82,7 +82,8 @@ func BuildStream(ctx context.Context, in StreamSources) vocab.Vocabulary {
 	if in.Streams != nil {
 		edits = append(edits, StreamEdits(ctx, in.Streams)...)
 	}
-	return vocab.Vocabulary{Terms: vocab.Lexicon(""), Learned: vocab.Learn(edits)}
+	terms := vocab.Lexicon("")
+	return vocab.Vocabulary{Terms: terms, Learned: vocab.Learn(edits, terms)}
 }
 
 func Build(ctx context.Context, in Sources) vocab.Vocabulary {
@@ -107,7 +108,7 @@ func Build(ctx context.Context, in Sources) vocab.Vocabulary {
 	}
 	v.Terms = append(v.Terms, vocab.Lexicon(doc.Demo.Map)...)
 	if in.Frases != nil {
-		v.Learned = vocab.Learn(DemoEdits(ctx, in.Frases))
+		v.Learned = vocab.Learn(DemoEdits(ctx, in.Frases), v.Terms)
 	}
 	return v
 }
