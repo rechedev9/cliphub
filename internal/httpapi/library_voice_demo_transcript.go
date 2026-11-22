@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/demovocab"
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/teamvoice"
 	"github.com/rechedev9/cliphub/internal/vocab"
@@ -276,7 +277,7 @@ func (h *Handlers) transcribeDemoTracks(ctx context.Context, in demoTracks) (lib
 	if doc, err := h.readLibraryDocument(m.DemoID); err == nil {
 		timeline = teamvoice.TimelineOf(doc)
 		if h.voice.deps.VocabCorrector {
-			v := h.demoVocabulary(ctx, doc)
+			v := demovocab.Build(ctx, demovocab.Sources{Document: doc, Names: h.libraryRepo})
 			corrector = &v
 		}
 	}
