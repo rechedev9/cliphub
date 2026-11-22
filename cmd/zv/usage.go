@@ -182,8 +182,9 @@ Columns:
 
 The corrector columns replay the current CS2 vocabulary corrector over the
 heard text, with the vocabulary rebuilt from the library (callouts of the
-map, the team's callout names, the nicks of the match). No transcription
-runs and the corrector does not have to be on.
+map, the team's callout names, the nicks of the match, and the corrections
+learned from the frases of the other demos, never from the demo measured).
+No transcription runs and the corrector does not have to be on.
   vocab_corrected_words  words a person would still correct after the corrector
   vocab_corrected_share  vocab_corrected_words / words
   vocab_fixed            words the corrector wrote that the person kept

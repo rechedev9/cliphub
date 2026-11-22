@@ -22,7 +22,8 @@ type Term struct {
 }
 
 type Vocabulary struct {
-	Terms []Term
+	Terms   []Term
+	Learned Learned
 }
 
 type Result struct {
@@ -50,8 +51,8 @@ func Correct(p Phrase, v Vocabulary) Result {
 	if len(fields) == 0 || !latinOnly(p.Text) || (len(p.Words) > 0 && len(p.Words) != len(fields)) {
 		return unchanged
 	}
-	terms, known := prepare(v)
-	if len(terms) == 0 {
+	m := prepare(v)
+	if len(m.terms) == 0 && len(m.rules) == 0 {
 		return unchanged
 	}
 	tokens := make([]token, len(fields))
@@ -60,7 +61,10 @@ func Correct(p Phrase, v Vocabulary) Result {
 	}
 	out, words, changed := []string{}, []Word{}, false
 	for i := 0; i < len(tokens); {
-		n, t, ok := best(tokens[i:], terms, known)
+		n, t, ok := m.learned(tokens[i:])
+		if !ok {
+			n, t, ok = m.best(tokens[i:])
+		}
 		if !ok {
 			out = append(out, fields[i])
 			if len(p.Words) > 0 {
@@ -88,7 +92,67 @@ func Correct(p Phrase, v Vocabulary) Result {
 	return Result{Text: strings.Join(out, " "), Words: words}
 }
 
-func prepare(v Vocabulary) ([]term, map[string]bool) {
+type matcher struct {
+	terms   []term
+	known   map[string]bool
+	rules   map[string]term
+	blocked map[[2]string]bool
+}
+
+func prepare(v Vocabulary) matcher {
+	terms, known := prepareTerms(v)
+	m := matcher{terms: terms, known: known, rules: map[string]term{}, blocked: map[[2]string]bool{}}
+	for _, r := range v.Learned.Rules {
+		ws := strings.Fields(r.Written)
+		if len(ws) == 0 || !latinOnly(r.Written) {
+			continue
+		}
+		for _, w := range ws {
+			m.known[normalize(w)] = true
+		}
+		m.rules[normWords(r.Heard)] = term{Term: Term{Text: r.Written}, words: ws}
+	}
+	for _, b := range v.Learned.Blocked {
+		m.blocked[[2]string{normalize(b.Heard), normalize(b.Written)}] = true
+	}
+	return m
+}
+
+func (m matcher) learned(tokens []token) (int, term, bool) {
+	for n := min(maxRun, len(tokens)); n >= 1; n-- {
+		parts := make([]string, 0, n)
+		for i, t := range tokens[:n] {
+			if t.norm == "" || (i < n-1 && t.trail != "") || (i > 0 && t.lead != "") {
+				break
+			}
+			parts = append(parts, t.norm)
+		}
+		if len(parts) < n {
+			continue
+		}
+		if t, ok := m.rules[strings.Join(parts, " ")]; ok && len(t.words) <= n {
+			return n, t, true
+		}
+	}
+	return 0, term{}, false
+}
+
+func (m matcher) best(tokens []token) (int, term, bool) {
+	bestN, bestCost, found := 0, 0, term{}
+	for n := 1; n <= min(maxRun, len(tokens)); n++ {
+		norm, ok := candidate(tokens[:n], m.known)
+		if !ok {
+			continue
+		}
+		t, cost, ok := closest(norm, n, m.terms)
+		if ok && !m.blocked[[2]string{norm, t.norm}] && (bestN == 0 || cost < bestCost) {
+			bestN, bestCost, found = n, cost, t
+		}
+	}
+	return bestN, found, bestN > 0
+}
+
+func prepareTerms(v Vocabulary) ([]term, map[string]bool) {
 	known := map[string]bool{}
 	byNorm := map[string]term{}
 	order := []string{}
@@ -113,21 +177,6 @@ func prepare(v Vocabulary) ([]term, map[string]bool) {
 		out = append(out, byNorm[n])
 	}
 	return out, known
-}
-
-func best(tokens []token, terms []term, known map[string]bool) (int, term, bool) {
-	bestN, bestCost, found := 0, 0, term{}
-	for n := 1; n <= min(maxRun, len(tokens)); n++ {
-		norm, ok := candidate(tokens[:n], known)
-		if !ok {
-			continue
-		}
-		t, cost, ok := closest(norm, n, terms)
-		if ok && (bestN == 0 || cost < bestCost) {
-			bestN, bestCost, found = n, cost, t
-		}
-	}
-	return bestN, found, bestN > 0
 }
 
 func candidate(run []token, known map[string]bool) (string, bool) {

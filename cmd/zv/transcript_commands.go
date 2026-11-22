@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/demovocab"
@@ -227,7 +230,17 @@ func (lib demoLibrary) vocabulary(ctx context.Context, m library.Match) (vocab.V
 	if err := json.NewDecoder(rc).Decode(&doc); err != nil {
 		return vocab.Vocabulary{}, false
 	}
-	return demovocab.Build(ctx, demovocab.Sources{Document: doc, Names: lib.repo}), true
+	return demovocab.Build(ctx, demovocab.Sources{Document: doc, Names: lib.repo, Frases: otherMatchFrases{repo: lib.repo, skip: m.ID}}), true
+}
+
+type otherMatchFrases struct {
+	repo store.LibraryRepository
+	skip uuid.UUID
+}
+
+func (o otherMatchFrases) ListDemoVoiceLines(ctx context.Context, filter library.DemoVoiceLineFilter) ([]library.DemoVoiceLine, error) {
+	lines, err := o.repo.ListDemoVoiceLines(ctx, filter)
+	return slices.DeleteFunc(lines, func(l library.DemoVoiceLine) bool { return l.MatchID == o.skip }), err
 }
 
 func demoTranscriptName(m library.Match) string {

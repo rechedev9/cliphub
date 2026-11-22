@@ -19,6 +19,7 @@ type demoTranscriptEnv struct {
 	match       library.Match
 	base        string
 	transcriber *fakeTranscriber
+	files       localFakeStorage
 }
 
 func newDemoTranscriptEnv(t *testing.T) demoTranscriptEnv {
@@ -33,27 +34,32 @@ func newDemoTranscriptEnv(t *testing.T) demoTranscriptEnv {
 	t.Cleanup(cancel)
 	h.StartVoice(ctx)
 	env := libraryTestEnv{t: t, repo: repo, storage: files.fakeStorage, queue: &fakeQueue{}, h: h, router: Routes(h)}
-	m := env.seedLibraryMatch("demo-transcript", "Alpha", "Bravo")
-	d, err := repo.GetDemo(ctx, m.DemoID)
+	return demoTranscriptEnv{libraryTestEnv: env, jobs: jobs, transcriber: tr, files: files}.withMatch("demo-transcript")
+}
+
+func (e demoTranscriptEnv) withMatch(sha string) demoTranscriptEnv {
+	e.t.Helper()
+	m := e.seedLibraryMatch(sha, "Alpha", "Bravo")
+	d, err := e.repo.GetDemo(context.Background(), m.DemoID)
 	if err != nil {
-		t.Fatal(err)
+		e.t.Fatal(err)
 	}
-	demoPath, _ := files.ResolvePath(d.Path)
+	demoPath, _ := e.files.ResolvePath(d.Path)
 	if err := os.MkdirAll(filepath.Dir(demoPath), 0o750); err != nil {
-		t.Fatal(err)
+		e.t.Fatal(err)
 	}
 	if err := os.WriteFile(demoPath, []byte("demo"), 0o600); err != nil {
-		t.Fatal(err)
+		e.t.Fatal(err)
 	}
-	return demoTranscriptEnv{libraryTestEnv: env, jobs: jobs, match: m, base: "/api/library/matches/" + m.ID.String() + "/voice/demo/transcript",
-		transcriber: tr}
+	e.match, e.base = m, "/api/library/matches/"+m.ID.String()+"/voice/demo/transcript"
+	return e
 }
 
 // await polls the transcript until done says so.
 func (e demoTranscriptEnv) await(done func(demoTranscript) bool) demoTranscript {
 	e.t.Helper()
-	var got demoTranscript
 	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		var got demoTranscript
 		e.json(http.MethodGet, e.base, nil, http.StatusOK, &got)
 		if done(got) {
 			return got

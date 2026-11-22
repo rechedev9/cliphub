@@ -14,9 +14,29 @@ type CalloutNames interface {
 	ListCalloutNames(ctx context.Context, mapName string) ([]library.CalloutName, error)
 }
 
+type DemoFrases interface {
+	ListDemoVoiceLines(ctx context.Context, filter library.DemoVoiceLineFilter) ([]library.DemoVoiceLine, error)
+}
+
 type Sources struct {
 	Document tacticalplan.Document
 	Names    CalloutNames
+	Frases   DemoFrases
+}
+
+func DemoEdits(ctx context.Context, frases DemoFrases) []vocab.Edit {
+	lines, err := frases.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{All: true})
+	if err != nil {
+		log.Printf("demovocab: read the library frases for the learned corrections: %v", err)
+		return nil
+	}
+	edits := []vocab.Edit{}
+	for _, l := range lines {
+		if l.Corrected {
+			edits = append(edits, vocab.Edit{Heard: l.HeardText(), Machine: l.VocabText, Written: l.Text})
+		}
+	}
+	return edits
 }
 
 func Build(ctx context.Context, in Sources) vocab.Vocabulary {
@@ -40,5 +60,8 @@ func Build(ctx context.Context, in Sources) vocab.Vocabulary {
 		v.Terms = append(v.Terms, vocab.Term{Text: p.Name, KeepCase: true})
 	}
 	v.Terms = append(v.Terms, vocab.Lexicon(doc.Demo.Map)...)
+	if in.Frases != nil {
+		v.Learned = vocab.Learn(DemoEdits(ctx, in.Frases))
+	}
 	return v
 }
