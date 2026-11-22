@@ -12,9 +12,20 @@ type VocabMarkInput = {
   corrected: boolean;
 };
 
-function findWords(tokens: readonly string[], words: readonly string[], from: number): number {
+type WordSearch = { tokens: readonly string[]; words: readonly string[]; from: number };
+
+type SplitToken = { lead: string; core: string; trail: string };
+
+function splitToken(token: string): SplitToken {
+  const lead = token.match(/^[^\p{L}\p{N}]*/u)?.[0] ?? '';
+  const rest = token.slice(lead.length);
+  const trail = rest.match(/[^\p{L}\p{N}]*$/u)?.[0] ?? '';
+  return { lead, core: rest.slice(0, rest.length - trail.length), trail };
+}
+
+function findWords({ tokens, words, from }: WordSearch): number {
   for (let start = from + (from % 2); start + 2 * (words.length - 1) < tokens.length; start += 2) {
-    if (words.every((word, k) => tokens[start + 2 * k] === word)) return start;
+    if (words.every((word, k) => splitToken(tokens[start + 2 * k] ?? '').core === word)) return start;
   }
   return -1;
 }
@@ -22,20 +33,28 @@ function findWords(tokens: readonly string[], words: readonly string[], from: nu
 function vocabParts(text: string, changes: readonly VocabChange[]): VocabPart[] {
   const tokens = text.split(/(\s+)/);
   const parts: VocabPart[] = [];
-  const plain = (chunk: string): void => {
-    if (chunk !== '') parts.push({ text: chunk, heard: null });
+  let pending = '';
+  const flush = (): void => {
+    if (pending !== '') parts.push({ text: pending, heard: null });
+    pending = '';
   };
   let cursor = 0;
   for (const change of changes) {
     const words = change.written.split(/\s+/).filter((word) => word !== '');
-    const start = words.length === 0 ? -1 : findWords(tokens, words, cursor);
+    const start = words.length === 0 ? -1 : findWords({ tokens, words, from: cursor });
     if (start < 0) continue;
     const end = start + 2 * (words.length - 1) + 1;
-    plain(tokens.slice(cursor, start).join(''));
-    parts.push({ text: tokens.slice(start, end).join(''), heard: change.heard });
+    const { lead } = splitToken(tokens[start] ?? '');
+    const { trail } = splitToken(tokens[end - 1] ?? '');
+    const marked = tokens.slice(start, end).join('');
+    pending += tokens.slice(cursor, start).join('') + lead;
+    flush();
+    parts.push({ text: marked.slice(lead.length, marked.length - trail.length), heard: change.heard });
+    pending = trail;
     cursor = end;
   }
-  plain(tokens.slice(cursor).join(''));
+  pending += tokens.slice(cursor).join('');
+  flush();
   return parts;
 }
 

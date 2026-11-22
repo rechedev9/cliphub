@@ -110,7 +110,7 @@ func TestDemoTranscriptCorrectsTheCalloutsOfTheMapAndTheNicksOfTheMatch(t *testi
 	if call.ID != off.ID {
 		t.Fatalf("the corrected frase changed id from %s to %s; a hidden frase would show again", off.ID, call.ID)
 	}
-	changes := []vocab.Change{{Heard: "moly", Written: "molly"}, {Heard: "Palas,", Written: "Palace,"}, {Heard: "Zaywoo", Written: "ZywOo"}, {Heard: "sanwich", Written: "sandwich"}}
+	changes := []vocab.Change{{Heard: "moly", Written: "molly"}, {Heard: "Palas", Written: "Palace"}, {Heard: "Zaywoo", Written: "ZywOo"}, {Heard: "sanwich", Written: "sandwich"}}
 	if len(call.VocabChanges) != len(changes) {
 		t.Fatalf("changes = %+v; want %+v", call.VocabChanges, changes)
 	}

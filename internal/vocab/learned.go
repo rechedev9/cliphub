@@ -53,7 +53,7 @@ func (t tally) add(e Edit) {
 		k := learnKey(c)
 		touched[k.Heard] = true
 		if !made[k] && k.Heard != k.Written {
-			mine[k] = cores(c.Written)
+			mine[k] = c.Written
 		}
 	}
 	for k := range made {
