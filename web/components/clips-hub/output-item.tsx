@@ -154,7 +154,7 @@ export function FailureLine({ output, className }: { output: MatchOutput; classN
 
 /** Saves the MP4 with the video's title as its name and says so in a toast. */
 export function downloadMP4(url: string, title: string): void {
-  downloadPublishMP4(url, title);
+  downloadPublishMP4({ url, title });
   toast(DOWNLOAD_TOAST, { description: title });
 }
 
