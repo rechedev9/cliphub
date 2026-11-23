@@ -409,6 +409,15 @@ Short look and Full Demo HUD:
 | `show_zones` | MCP App `ui://cliphub/zone-map`: the map outline with the zones of a finding marked (lower floor dashed) and its `studio_path`; text fallback without UI |
 | `import_demo`, `wait_for_demo`, `wait_for_job`, `generate_short`, `generate_shorts_batch`, `render_full_demo`, `record_round_pov`, `retry_video`, `change_video_music`, `render_stream`, `render_stream_summary`, `wait_for_stream_render` | MCP App `ui://cliphub/job-progress` (React, `mcp-apps/`): live progress bar that follows the job by itself; nothing shows while a start waits for approval |
 
+Scripts (Code Mode), Studio over stdio only:
+
+| Tool | What it does |
+| --- | --- |
+| `search_api` | TypeScript declarations of the functions `run_script` can call: arguments, the shared `Scope` filters declared once, and the shape of each answer from its output schema. `query` declares the 6 best matches and names the rest, `names` declares up to 10 exact functions, and neither lists every function with one line |
+| `run_script` | Runs one JavaScript async arrow function in goja, inside `zv-mcp`, and returns only its result. `studio.<tool>(args)` calls the same handlers through an in-memory MCP session, so validation and errors match a normal call. Only tools with `readOnlyHint` are there; `wait_for_*`, `choose_*` and the script tools themselves throw. Limits: 60 s, 40 calls, 20 KB of code, a 64 KB result and 256 MiB of heap growth; no file, network or console |
+
+The script tools are not in remote mode: a nested call loses the request's ClipMind key.
+
 `import_demo` accepts only an absolute local-drive path to a `.dem` or `.dem.zst` file (no UNC
 paths), refuses directories and files above the server's 700 MiB per-demo limit, and leaves real
 validation to the orchestrator. Every id argument is validated (UUIDs, `seg-` ids, strict variant

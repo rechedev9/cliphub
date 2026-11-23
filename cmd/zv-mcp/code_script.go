@@ -1,0 +1,218 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"runtime/metrics"
+	"time"
+
+	"github.com/dop251/goja"
+)
+
+const (
+	scriptTimeout      = 60 * time.Second
+	maxScriptCodeBytes = 20_000
+	maxScriptCalls     = 40
+	maxScriptResult    = 64_000
+	maxScriptHeapGrow  = 256 << 20
+	maxScriptStack     = 1024
+	scriptHeapPoll     = 20 * time.Millisecond
+	scriptHeapMetric   = "/memory/classes/heap/objects:bytes"
+)
+
+var errScriptNotFunction = errors.New("code must be a JavaScript async arrow function, such as async () => { const m = await studio.get_match({ id }); return m.map }")
+
+type scriptTool func(ctx context.Context, args map[string]any) (string, error)
+
+type scriptRun struct {
+	Code    string
+	Tools   map[string]scriptTool
+	Refused map[string]string
+}
+
+type scriptResult struct {
+	Value any
+	Calls int
+}
+
+func runScript(ctx context.Context, run scriptRun) (scriptResult, error) {
+	if len(run.Code) > maxScriptCodeBytes {
+		return scriptResult{}, fmt.Errorf("code is %d bytes, over the %d byte limit", len(run.Code), maxScriptCodeBytes)
+	}
+	ctx, cancel := context.WithTimeout(ctx, scriptTimeout)
+	defer cancel()
+	vm := goja.New()
+	vm.SetMaxCallStackSize(maxScriptStack)
+	stop := guardScript(ctx, vm)
+	defer stop()
+
+	calls := 0
+	parse, err := jsonFunc(vm, "parse")
+	if err != nil {
+		return scriptResult{}, err
+	}
+	studio := vm.NewObject()
+	for name, tool := range run.Tools {
+		bind := func(fc goja.FunctionCall) goja.Value {
+			calls++
+			if calls > maxScriptCalls {
+				panic(vm.NewGoError(fmt.Errorf("a script makes at most %d tool calls", maxScriptCalls)))
+			}
+			args, err := scriptArgs(fc.Argument(0))
+			if err != nil {
+				panic(vm.NewTypeError("studio.%s: %v", name, err))
+			}
+			text, err := tool(ctx, args)
+			if err != nil {
+				panic(vm.NewGoError(fmt.Errorf("studio.%s: %w", name, err)))
+			}
+			value, err := parse(goja.Undefined(), vm.ToValue(text))
+			if err != nil {
+				return vm.ToValue(text)
+			}
+			return value
+		}
+		if err := studio.Set(name, bind); err != nil {
+			return scriptResult{}, err
+		}
+	}
+	for name, reason := range run.Refused {
+		refuse := func(goja.FunctionCall) goja.Value {
+			panic(vm.NewTypeError("studio.%s is not available in run_script: %s", name, reason))
+		}
+		if err := studio.Set(name, refuse); err != nil {
+			return scriptResult{}, err
+		}
+	}
+	if err := vm.Set("studio", studio); err != nil {
+		return scriptResult{}, err
+	}
+
+	value, err := evalScript(vm, run.Code)
+	if err != nil {
+		return scriptResult{Calls: calls}, scriptError(ctx, err)
+	}
+	raw, err := scriptJSON(vm, value)
+	if err != nil {
+		return scriptResult{Calls: calls}, err
+	}
+	var out any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return scriptResult{Calls: calls}, fmt.Errorf("the script's result is not JSON: %w", err)
+	}
+	return scriptResult{Value: out, Calls: calls}, nil
+}
+
+func evalScript(vm *goja.Runtime, code string) (goja.Value, error) {
+	fnValue, err := vm.RunString("(" + code + "\n)")
+	if err != nil {
+		return nil, err
+	}
+	fn, ok := goja.AssertFunction(fnValue)
+	if !ok {
+		return nil, errScriptNotFunction
+	}
+	out, err := fn(goja.Undefined())
+	if err != nil {
+		return nil, err
+	}
+	promise, ok := out.Export().(*goja.Promise)
+	if !ok {
+		return out, nil
+	}
+	switch promise.State() {
+	case goja.PromiseStateFulfilled:
+		return promise.Result(), nil
+	case goja.PromiseStateRejected:
+		return nil, fmt.Errorf("script failed: %s", promise.Result().String())
+	default:
+		return nil, errors.New("the script awaited something that never settled")
+	}
+}
+
+func scriptJSON(vm *goja.Runtime, value goja.Value) (json.RawMessage, error) {
+	if value == nil || goja.IsUndefined(value) {
+		return json.RawMessage("null"), nil
+	}
+	stringify, err := jsonFunc(vm, "stringify")
+	if err != nil {
+		return nil, err
+	}
+	text, err := stringify(goja.Undefined(), value)
+	if err != nil {
+		return nil, fmt.Errorf("the script's result is not JSON: %w", err)
+	}
+	if goja.IsUndefined(text) {
+		return json.RawMessage("null"), nil
+	}
+	raw := text.String()
+	if len(raw) > maxScriptResult {
+		return nil, fmt.Errorf("the result is %d bytes, over the %d byte limit; return only the fields the answer needs", len(raw), maxScriptResult)
+	}
+	return json.RawMessage(raw), nil
+}
+
+func jsonFunc(vm *goja.Runtime, name string) (goja.Callable, error) {
+	fn, ok := goja.AssertFunction(vm.Get("JSON").ToObject(vm).Get(name))
+	if !ok {
+		return nil, fmt.Errorf("JSON.%s is missing from the script runtime", name)
+	}
+	return fn, nil
+}
+
+func scriptArgs(v goja.Value) (map[string]any, error) {
+	if v == nil || goja.IsUndefined(v) || goja.IsNull(v) {
+		return map[string]any{}, nil
+	}
+	args, ok := v.Export().(map[string]any)
+	if !ok {
+		return nil, errors.New("pass one object of arguments, such as { match_id }")
+	}
+	return args, nil
+}
+
+func scriptError(ctx context.Context, err error) error {
+	var interrupted *goja.InterruptedError
+	if errors.As(err, &interrupted) {
+		if reason, ok := interrupted.Value().(string); ok {
+			return errors.New(reason)
+		}
+	}
+	if ctx.Err() != nil {
+		return fmt.Errorf("the script stopped after %s", scriptTimeout)
+	}
+	var exception *goja.Exception
+	if errors.As(err, &exception) {
+		return fmt.Errorf("script failed: %s", exception.Value().String())
+	}
+	return err
+}
+
+func guardScript(ctx context.Context, vm *goja.Runtime) func() {
+	done := make(chan struct{})
+	sample := []metrics.Sample{{Name: scriptHeapMetric}}
+	metrics.Read(sample)
+	base := sample[0].Value.Uint64()
+	go func() {
+		tick := time.NewTicker(scriptHeapPoll)
+		defer tick.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				vm.Interrupt(fmt.Sprintf("the script stopped after %s", scriptTimeout))
+				return
+			case <-tick.C:
+				metrics.Read(sample)
+				if sample[0].Value.Uint64() > base+maxScriptHeapGrow {
+					vm.Interrupt(fmt.Sprintf("the script used over %d MiB of memory", maxScriptHeapGrow>>20))
+					return
+				}
+			}
+		}
+	}()
+	return func() { close(done) }
+}
