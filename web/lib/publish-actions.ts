@@ -59,7 +59,7 @@ export function publishMP4FileName(title: string): string {
   return `${safeTitle}.mp4`;
 }
 
-export function downloadPublishMP4(url: string, title: string): void {
+export function downloadPublishMP4({ url, title }: { url: string; title: string }): void {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = publishMP4FileName(title);

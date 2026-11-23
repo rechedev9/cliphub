@@ -64,6 +64,8 @@ const COPY_FAILED: Record<CopyTarget, string> = {
 
 type StepKey = 'download' | 'upload' | 'texts';
 
+type Flash = { target: CopyTarget } | null;
+
 type PublishStepsProps = { video: Video; file: Pick<Video, 'downloadUrl' | 'title'> };
 
 const STEP_ORDER: readonly StepKey[] = ['download', 'upload', 'texts'];
@@ -261,9 +263,9 @@ function ScheduleBody({ assistant }: { assistant: PublishAssistant }): ReactElem
 function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
   const [view, setView] = useState<AssistantView>({ status: 'loading' });
   const [draft, setDraft] = useState<Draft>({ choice: undefined, title: video.title, description: '', tagsText: '' });
-  const [done, setDone] = useState<ReadonlySet<StepKey>>(() => new Set());
+  const [done, setDone] = useState<ReadonlySet<'download' | 'upload'>>(() => new Set());
   const [copiedTargets, setCopiedTargets] = useState<ReadonlySet<CopyTarget>>(() => new Set());
-  const [flash, setFlash] = useState<CopyTarget | null>(null);
+  const [flash, setFlash] = useState<Flash>(null);
   const loadVersion = useRef(0);
 
   const load = useCallback(async (): Promise<void> => {
@@ -291,13 +293,13 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
     return () => clearTimeout(timer);
   }, [flash]);
 
-  function markDone(step: StepKey): void {
+  function markDone(step: 'download' | 'upload'): void {
     setDone((current) => (current.has(step) ? current : new Set([...current, step])));
   }
 
   function download(): void {
     if (!file.downloadUrl) return;
-    downloadPublishMP4(file.downloadUrl, file.title);
+    downloadPublishMP4({ url: file.downloadUrl, title: file.title });
     toast('Descargando MP4', { description: `${publishMP4FileName(file.title)} → Descargas` });
     markDone('download');
   }
@@ -314,13 +316,13 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
       toast(COPY_FAILED[target]);
       return;
     }
-    setFlash(target);
-    const copied = new Set([...copiedTargets, target]);
-    setCopiedTargets(copied);
-    if (target === 'all' || FIELD_TARGETS.every((field) => copied.has(field))) markDone('texts');
+    setFlash({ target });
+    setCopiedTargets((current) => (current.has(target) ? current : new Set([...current, target])));
   }
 
-  const next = STEP_ORDER.find((step) => !done.has(step));
+  const textsDone = copiedTargets.has('all') || FIELD_TARGETS.every((field) => copiedTargets.has(field));
+  const isDone = (step: StepKey): boolean => (step === 'texts' ? textsDone : done.has(step));
+  const next = STEP_ORDER.find((step) => !isDone(step));
   const assistant = view.status === 'ready' ? view.assistant : undefined;
   const recommendation = assistant?.recommendations.find((candidate) => candidate.title === draft.choice);
   const keywords = recommendation?.keywords ?? assistant?.keywords ?? [];
@@ -352,7 +354,7 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
           id="publish-title"
           label="Título"
           counter={`${draft.title.length}/${YOUTUBE_TITLE_MAX_LENGTH}`}
-          copied={flash === 'title'}
+          copied={flash?.target === 'title'}
           onCopy={() => void copy('title', draft.title)}
         >
           <Input
@@ -365,7 +367,7 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
             maxLength={YOUTUBE_TITLE_MAX_LENGTH}
           />
         </FieldRow>
-        <FieldRow id="publish-description" label="Descripción" copied={flash === 'description'} onCopy={() => void copy('description', draft.description)}>
+        <FieldRow id="publish-description" label="Descripción" copied={flash?.target === 'description'} onCopy={() => void copy('description', draft.description)}>
           <Textarea
             id="publish-description"
             value={draft.description}
@@ -377,7 +379,7 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
             className="min-h-40 max-h-[32rem] [field-sizing:content]"
           />
         </FieldRow>
-        <FieldRow id="publish-tags" label="Etiquetas" copied={flash === 'tags'} onCopy={() => void copy('tags', draft.tagsText)}>
+        <FieldRow id="publish-tags" label="Etiquetas" copied={flash?.target === 'tags'} onCopy={() => void copy('tags', draft.tagsText)}>
           <Textarea
             id="publish-tags"
             value={draft.tagsText}
@@ -447,12 +449,12 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
       />
       <Step
         index={3}
-        done={done.has('texts')}
+        done={textsDone}
         title="Copia título, descripción y etiquetas"
         detail="Pégalos en Detalles. Las etiquetas están en Mostrar más."
         action={
           assistant ? (
-            <CopyButton copied={flash === 'all'} onCopy={() => void copy('all', [draft.title, '', draft.description, '', draft.tagsText].join('\n'))}>
+            <CopyButton copied={flash?.target === 'all'} onCopy={() => void copy('all', [draft.title, '', draft.description, '', draft.tagsText].join('\n'))}>
               Copiar todo
             </CopyButton>
           ) : null
@@ -465,7 +467,7 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
       </Step>
     </ol>
     <p className="sr-only" aria-live="polite">
-      {flash === null ? '' : COPIED_ANNOUNCEMENT[flash]}
+      {flash === null ? '' : COPIED_ANNOUNCEMENT[flash.target]}
     </p>
     </>
   );

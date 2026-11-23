@@ -70,7 +70,7 @@ export function AutoShortsList({ video, view }: { video: Video; view: AutoShorts
               </Button>
             ) : null}
             <Button type="button" size="xs" variant="outline" onClick={() => {
-              downloadPublishMP4(file.url, `${video.title} ${index + 1}`);
+              downloadPublishMP4({ url: file.url, title: `${video.title} ${index + 1}` });
               toast('Descargando MP4', { description: `Short ${index + 1} → Descargas` });
             }}>
               <Download aria-hidden />Descargar

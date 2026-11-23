@@ -105,7 +105,7 @@ test('downloads the MP4 with a safe filename and clicks the temporary anchor', (
     },
   });
   try {
-    downloadPublishMP4('/api/reel.mp4', 'Mirage: 4K');
+    downloadPublishMP4({ url: '/api/reel.mp4', title: 'Mirage: 4K' });
   } finally {
     if (previous) Object.defineProperty(globalThis, 'document', previous);
     else Reflect.deleteProperty(globalThis, 'document');
