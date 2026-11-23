@@ -52,11 +52,13 @@ export function streamSubtitlesStatus(availability: string): { enabled: boolean;
       return { enabled: true, note: null };
     case 'no_audio':
       return { enabled: false, note: 'Este vídeo no tiene audio, así que no hay nada que transcribir.' };
-    default:
+    case 'mixed_track':
       return {
         enabled: true,
         note: 'Este stream tiene tu voz y el juego en una sola pista, así que también pueden salir tus compañeros o el anunciador del juego. Descarta las frases que no sean tuyas.',
       };
+    default:
+      return { enabled: false, note: null };
   }
 }
 

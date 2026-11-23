@@ -55,6 +55,7 @@ test('a stream with only a mixed track has subtítulos and warns that other voic
   assert.match(status.note ?? '', /Descarta las frases que no sean tuyas/);
   assert.equal(streamSubtitlesStatus('no_audio').enabled, false);
   assert.deepEqual(streamSubtitlesStatus('available'), { enabled: true, note: null });
+  assert.equal(streamSubtitlesStatus('something_new').enabled, false);
 });
 
 test('the note says what is happening with the transcripción', () => {

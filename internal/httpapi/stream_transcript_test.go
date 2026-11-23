@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -210,7 +211,10 @@ func TestStreamWithOnlyAMixedTrackIsTranscribedFromThatTrack(t *testing.T) {
 	if got.Availability != streamVoiceMixedTrack || len(got.Lines) != 1 || got.Lines[0].Text != "vaya tiro" {
 		t.Fatalf("transcript = %+v; want the frase of the mixed track, still marked mixed_track", got)
 	}
-	if jobs := env.transcriber.jobs; len(jobs) != 1 || jobs[0].Track != 0 {
+	env.transcriber.mu.Lock()
+	jobs := slices.Clone(env.transcriber.jobs)
+	env.transcriber.mu.Unlock()
+	if len(jobs) != 1 || jobs[0].Track != 0 {
 		t.Fatalf("transcribed %+v, want the stream's only audio track", jobs)
 	}
 	silent := env.stream(streamclips.SourceProbe{})
