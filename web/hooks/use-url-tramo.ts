@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { tramoFromQuery, writeTramo, type Tramo } from '@/lib/replay/tramo';
-import type { TramoControl } from '@/components/replay/tramo-bar';
+import { tramoFromQuery, writeTramo, type Tramo, type TramoControl } from '@/lib/replay/tramo';
 
 /** How long a drag rests before the URL catches up. */
 const URL_WRITE_DELAY_MS = 150;

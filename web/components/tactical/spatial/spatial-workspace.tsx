@@ -6,7 +6,7 @@ import type { SpatialResponse } from '@/lib/api/spatial';
 import type { TacticalSide } from '@/lib/api/tactical';
 import type { MapCounts } from '@/lib/analysis/map-counts';
 import { ScopeMapSelect } from '@/components/analysis/scope-map-select';
-import type { TramoControl } from '@/components/replay/tramo-bar';
+import type { TramoControl } from '@/lib/replay/tramo';
 import { HeatmapView } from './heatmap-view';
 import type { HeatControl } from './heatmap-view';
 import { OverlayView } from './overlay-view';

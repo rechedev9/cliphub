@@ -46,7 +46,7 @@ import { Segmented } from '@/components/ui/segmented';
 import { EvidenceChips } from './spatial-controls';
 import { HeatLegend } from './heat-legend';
 import { TramoBar } from '@/components/replay/tramo-bar';
-import type { TramoControl } from '@/components/replay/tramo-bar';
+import type { TramoControl } from '@/lib/replay/tramo';
 import { isWholeRound } from '@/lib/replay/tramo';
 import { SpeedPicker } from '@/components/replay/time-strip';
 import { paintHeatPlayers } from './heat-players';

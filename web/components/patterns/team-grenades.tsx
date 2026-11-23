@@ -15,7 +15,7 @@ import { useMapGeometry } from '@/components/analysis/use-map-geometry';
 import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { TramoControl } from '@/components/replay/tramo-bar';
+import type { TramoControl } from '@/lib/replay/tramo';
 import type { FinderFrame } from './finder-frame';
 import { GrenadeFinder } from './grenade-finder';
 

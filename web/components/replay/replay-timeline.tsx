@@ -14,7 +14,7 @@ import type { RoundTimeline, TimelineEvent } from '@/lib/tactical-timeline';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { TramoBar } from './tramo-bar';
-import type { TramoControl } from './tramo-bar';
+import type { TramoControl } from '@/lib/replay/tramo';
 import { CLOCK_BOX, PLAYING_STRIP, SCRUB_INPUT, SpeedPicker } from './time-strip';
 
 /** Kills in the killer's colour, the bomb in white, grenades as short grey ticks. */

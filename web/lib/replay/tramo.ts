@@ -12,6 +12,8 @@ export const TRAMO_MIN_SECONDS = 5;
 /** `fromPlant` starts the span at each round's plant and ignores `from`; `to` 0 runs to the end of the round. */
 export type Tramo = { from: number; to: number; fromPlant?: boolean };
 
+export type TramoControl = { tramo: Tramo; onChange: (tramo: Tramo) => void };
+
 /** The whole round: nothing is cut. */
 export const WHOLE_ROUND: Tramo = { from: 0, to: 0 };
 

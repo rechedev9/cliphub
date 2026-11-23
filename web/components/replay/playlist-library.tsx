@@ -12,7 +12,7 @@ import { savedPlaylistHref } from '@/lib/replay/saved-playlist';
 import { downloadJson } from '@/components/libreta/play-list';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { DeleteChosenButton } from '@/components/records/delete-chosen-button';
-import { EmptyCell } from '@/components/records/empty-cell';
+import { EmptyCell } from '@/components/ui/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { TableSkeleton } from '@/components/records/table-skeleton';

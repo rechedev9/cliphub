@@ -7,12 +7,6 @@ import { Slot } from "radix-ui"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-// The cookie name is read server-side in app/(app)/layout.tsx, so it cannot be
-// declared in this "use client" module — see components/shell/shell-cookies.ts.
-import {
-  SIDEBAR_COOKIE_MAX_AGE,
-  SIDEBAR_COOKIE_NAME,
-} from "@/components/shell/shell-cookies"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -85,9 +79,6 @@ function SidebarProvider({
       } else {
         _setOpen(openState)
       }
-
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
     },
     [setOpenProp, open]
   )

@@ -10,7 +10,7 @@ import { LIBRETA_TABS, libretaTabHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { lineupSpot, setposCommand } from '@/lib/libreta/lineups';
 import { evidencePath } from '@/lib/reports/scout-sections';
-import { EmptyCell } from '@/components/records/empty-cell';
+import { EmptyCell } from '@/components/ui/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
