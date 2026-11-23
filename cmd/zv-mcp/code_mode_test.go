@@ -103,9 +103,9 @@ func newCodeModeFixture(t *testing.T) codeModeFixture {
 	return codeModeFixture{cs: cs, deletes: deletes}
 }
 
-func (f codeModeFixture) text(t *testing.T, ctx context.Context, name string, args map[string]any) (string, bool) {
+func (f codeModeFixture) text(t *testing.T, params *mcp.CallToolParams) (string, bool) {
 	t.Helper()
-	res, err := f.cs.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+	res, err := f.cs.CallTool(context.Background(), params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ type scriptReply struct {
 
 func (f codeModeFixture) run(t *testing.T, code string) (scriptReply, string) {
 	t.Helper()
-	text, isErr := f.text(t, context.Background(), runScriptName, map[string]any{"code": code})
+	text, isErr := f.text(t, &mcp.CallToolParams{Name: runScriptName, Arguments: map[string]any{"code": code}})
 	if isErr {
 		return scriptReply{}, text
 	}
@@ -209,24 +209,39 @@ func TestRunScriptCapsCallsAndMemory(t *testing.T) {
 }
 
 func TestRunScriptStopsWhenTheCallIsCancelled(t *testing.T) {
-	f := newCodeModeFixture(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	_, _ = f.cs.CallTool(ctx, &mcp.CallToolParams{Name: runScriptName, Arguments: map[string]any{"code": "async () => { for (;;) {} }"}})
-	if elapsed := time.Since(start); elapsed > 5*time.Second {
-		t.Fatalf("the cancelled call took %s", elapsed)
+	_, err := runScript(ctx, scriptRun{Code: "async () => { for (;;) {} }"})
+	if err == nil || !strings.Contains(err.Error(), "cancelled") {
+		t.Fatalf("err = %v, want the cancellation", err)
 	}
-	out, failure := f.run(t, `async () => (await studio.fake_player({ name: "after" })).name`)
-	if failure != "" || string(out.Result) != `"after"` {
-		t.Fatalf("a later script got %s, %q", out.Result, failure)
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("the spinning script ran %s after its call ended", elapsed)
+	}
+}
+
+func TestRunScriptHasNoBuffersOrHugeStrings(t *testing.T) {
+	f := newCodeModeFixture(t)
+	for code, want := range map[string]string{
+		"async () => new Uint8Array(2 ** 31).length": "Uint8Array is not defined",
+		"async () => new ArrayBuffer(2 ** 31)":       "ArrayBuffer is not defined",
+		`async () => "ab".repeat(2 ** 30).length`:    "over 16777216 characters",
+		`async () => "".padEnd(2 ** 30).length`:      "over 16777216 characters",
+	} {
+		if _, failure := f.run(t, code); !strings.Contains(failure, want) {
+			t.Fatalf("code %q: failure = %q, want %q", code, failure, want)
+		}
+	}
+	out, failure := f.run(t, `async () => "ab".repeat(3) + "x".padStart(3, "-")`)
+	if failure != "" || string(out.Result) != `"ababab--x"` {
+		t.Fatalf("small strings got %s, %q", out.Result, failure)
 	}
 }
 
 func TestSearchAPIDeclaresOnlyScriptableTools(t *testing.T) {
 	f := newCodeModeFixture(t)
-	ctx := context.Background()
-	text, isErr := f.text(t, ctx, searchAPIName, map[string]any{"query": "match"})
+	text, isErr := f.text(t, &mcp.CallToolParams{Name: searchAPIName, Arguments: map[string]any{"query": "match"}})
 	if isErr {
 		t.Fatal(text)
 	}
@@ -239,7 +254,7 @@ func TestSearchAPIDeclaresOnlyScriptableTools(t *testing.T) {
 		t.Fatalf("search declared a tool that changes Studio:\n%s", text)
 	}
 
-	text, _ = f.text(t, ctx, searchAPIName, map[string]any{"names": []string{"fake_team_3", "fake_delete", "nope"}})
+	text, _ = f.text(t, &mcp.CallToolParams{Name: searchAPIName, Arguments: map[string]any{"names": []string{"fake_team_3", "fake_delete", "nope"}}})
 	for _, want := range []string{"type Scope = {", "from?: string; // first day of the sample", "team_id: string; // the team", "} & Scope): Promise<", "fake_delete is not available in run_script", "nope is not a Studio function"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("names search lacks %q:\n%s", want, text)
@@ -249,17 +264,17 @@ func TestSearchAPIDeclaresOnlyScriptableTools(t *testing.T) {
 		t.Fatalf("the shared filter is declared more than once:\n%s", text)
 	}
 
-	text, _ = f.text(t, ctx, searchAPIName, map[string]any{"names": []string{"fake_clips"}})
+	text, _ = f.text(t, &mcp.CallToolParams{Name: searchAPIName, Arguments: map[string]any{"names": []string{"fake_clips"}}})
 	if !strings.Contains(text, "from?: string; // first second of the clip") || strings.Contains(text, "Scope") {
 		t.Fatalf("a field that only shares the name became a shared filter:\n%s", text)
 	}
 
-	text, _ = f.text(t, ctx, searchAPIName, map[string]any{"names": []string{"fake_delete"}})
+	text, _ = f.text(t, &mcp.CallToolParams{Name: searchAPIName, Arguments: map[string]any{"names": []string{"fake_delete"}}})
 	if strings.Contains(text, "declare const studio") || !strings.Contains(text, "fake_delete is not available in run_script") {
 		t.Fatalf("a search with only refused names:\n%s", text)
 	}
 
-	text, _ = f.text(t, ctx, searchAPIName, map[string]any{})
+	text, _ = f.text(t, &mcp.CallToolParams{Name: searchAPIName, Arguments: map[string]any{}})
 	if !strings.Contains(text, "fake_player: Read one player.") || strings.Contains(text, "fake_delete") || strings.Contains(text, "wait_for_fake") {
 		t.Fatalf("catalog:\n%s", text)
 	}

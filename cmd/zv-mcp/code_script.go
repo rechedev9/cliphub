@@ -18,9 +18,12 @@ const (
 	maxScriptResult    = 64_000
 	maxScriptHeapGrow  = 256 << 20
 	maxScriptStack     = 1024
+	maxScriptString    = 1 << 24
 	scriptHeapPoll     = 20 * time.Millisecond
 	scriptHeapMetric   = "/memory/classes/heap/objects:bytes"
 )
+
+var errScriptTimeout = fmt.Errorf("the script stopped after %s", scriptTimeout)
 
 var errScriptNotFunction = errors.New("code must be a JavaScript async arrow function, such as async () => { const m = await studio.get_match({ id }); return m.map }")
 
@@ -41,10 +44,13 @@ func runScript(ctx context.Context, run scriptRun) (scriptResult, error) {
 	if len(run.Code) > maxScriptCodeBytes {
 		return scriptResult{}, fmt.Errorf("code is %d bytes, over the %d byte limit", len(run.Code), maxScriptCodeBytes)
 	}
-	ctx, cancel := context.WithTimeout(ctx, scriptTimeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, scriptTimeout, errScriptTimeout)
 	defer cancel()
 	vm := goja.New()
 	vm.SetMaxCallStackSize(maxScriptStack)
+	if err := hardenScriptRuntime(vm); err != nil {
+		return scriptResult{}, err
+	}
 	stop := guardScript(ctx, vm)
 	defer stop()
 
@@ -181,7 +187,7 @@ func scriptError(ctx context.Context, err error) error {
 		}
 	}
 	if ctx.Err() != nil {
-		return fmt.Errorf("the script stopped after %s", scriptTimeout)
+		return errors.New(stopReason(ctx))
 	}
 	var exception *goja.Exception
 	if errors.As(err, &exception) {
@@ -203,7 +209,7 @@ func guardScript(ctx context.Context, vm *goja.Runtime) func() {
 			case <-done:
 				return
 			case <-ctx.Done():
-				vm.Interrupt(fmt.Sprintf("the script stopped after %s", scriptTimeout))
+				vm.Interrupt(stopReason(ctx))
 				return
 			case <-tick.C:
 				metrics.Read(sample)
@@ -215,4 +221,34 @@ func guardScript(ctx context.Context, vm *goja.Runtime) func() {
 		}
 	}()
 	return func() { close(done) }
+}
+
+func stopReason(ctx context.Context) string {
+	if errors.Is(context.Cause(ctx), errScriptTimeout) {
+		return errScriptTimeout.Error()
+	}
+	return "the call was cancelled or ran out of time, so the script stopped"
+}
+
+func hardenScriptRuntime(vm *goja.Runtime) error {
+	for _, name := range []string{"ArrayBuffer", "SharedArrayBuffer", "DataView", "Int8Array", "Uint8Array", "Uint8ClampedArray",
+		"Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array"} {
+		if err := vm.GlobalObject().Delete(name); err != nil {
+			return err
+		}
+	}
+	_, err := vm.RunString(fmt.Sprintf(`(() => {
+		const cap = %d;
+		const guard = (name, length) => {
+			const original = String.prototype[name];
+			Object.defineProperty(String.prototype, name, { writable: false, configurable: false, value: function (...args) {
+				if (length(String(this), args) > cap) throw new RangeError(name + " would build a string over " + cap + " characters");
+				return original.apply(this, args);
+			} });
+		};
+		guard("repeat", (s, args) => s.length * Number(args[0]));
+		guard("padStart", (s, args) => Number(args[0]));
+		guard("padEnd", (s, args) => Number(args[0]));
+	})()`, maxScriptString))
+	return err
 }

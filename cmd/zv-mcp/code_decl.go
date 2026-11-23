@@ -14,6 +14,7 @@ const (
 	declOutputDepth = 4
 	declNoteRunes   = 140
 	declSummaryRune = 220
+	declMinSentence = 12
 )
 
 type declSchema struct {
@@ -99,7 +100,7 @@ func (c declCatalog) declare(tools []declTool) string {
 	if usesScope {
 		b.WriteString("type Scope = {\n")
 		for _, name := range sortedKeys(c.Scope) {
-			writeDeclField(&b, name, c.Scope[name], false)
+			writeDeclField(&b, declField{Name: name, Schema: c.Scope[name]})
 		}
 		b.WriteString("};\n\n")
 	}
@@ -111,7 +112,7 @@ func (c declCatalog) declare(tools []declTool) string {
 				if c.inScope(t, name) {
 					continue
 				}
-				writeDeclField(&b, name, t.Input.Properties[name], slices.Contains(t.Input.Required, name))
+				writeDeclField(&b, declField{Name: name, Schema: t.Input.Properties[name], Required: slices.Contains(t.Input.Required, name)})
 			}
 		}
 		b.WriteString("  }")
@@ -141,14 +142,20 @@ func (c declCatalog) inScope(t declTool, name string) bool {
 	return shared != nil && prop != nil && shared.Description == prop.Description && !slices.Contains(t.Input.Required, name)
 }
 
-func writeDeclField(b *strings.Builder, name string, s *declSchema, required bool) {
+type declField struct {
+	Name     string
+	Schema   *declSchema
+	Required bool
+}
+
+func writeDeclField(b *strings.Builder, f declField) {
 	optional := "?"
-	if required {
+	if f.Required {
 		optional = ""
 	}
-	fmt.Fprintf(b, "    %s%s: %s;", name, optional, declType(s, 1))
-	if s != nil && s.Description != "" {
-		fmt.Fprintf(b, " // %s", clip(s.Description, declNoteRunes))
+	fmt.Fprintf(b, "    %s%s: %s;", f.Name, optional, declType(f.Schema, 1))
+	if f.Schema != nil && f.Schema.Description != "" {
+		fmt.Fprintf(b, " // %s", clip(f.Schema.Description, declNoteRunes))
 	}
 	b.WriteString("\n")
 }
@@ -216,8 +223,20 @@ func declKind(s *declSchema) string {
 }
 
 func firstSentence(text string) string {
-	if i := strings.Index(text, ". "); i >= 0 {
-		text = text[:i+1]
+	if i := strings.IndexByte(text, '\n'); i >= 0 {
+		text = text[:i]
+	}
+	for from := 0; ; {
+		i := strings.Index(text[from:], ". ")
+		if i < 0 {
+			break
+		}
+		end := from + i + 1
+		if end >= declMinSentence {
+			text = text[:end]
+			break
+		}
+		from = end
 	}
 	return clip(text, declSummaryRune)
 }

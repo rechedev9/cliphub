@@ -414,7 +414,7 @@ Scripts (Code Mode), Studio over stdio only:
 | Tool | What it does |
 | --- | --- |
 | `search_api` | TypeScript declarations of the functions `run_script` can call: arguments, the shared `Scope` filters declared once, and the shape of each answer from its output schema. `query` declares the 6 best matches and names the rest, `names` declares up to 10 exact functions, and neither lists every function with one line |
-| `run_script` | Runs one JavaScript async arrow function in goja, inside `zv-mcp`, and returns only its result. `studio.<tool>(args)` calls the same handlers through an in-memory MCP session, so validation and errors match a normal call. Only tools with `readOnlyHint` are there; `wait_for_*`, `choose_*` and the script tools themselves throw. Limits: 60 s, 40 calls, 20 KB of code, a 64 KB result and 256 MiB of heap growth; no file, network or console |
+| `run_script` | Runs one JavaScript async arrow function in goja, inside `zv-mcp`, and returns only its result. `studio.<tool>(args)` calls the same handlers through an in-memory MCP session, so validation and errors match a normal call. Only tools with `readOnlyHint` are there; `wait_for_*`, `choose_*` and the script tools themselves throw. Limits: 60 s, 40 calls, 20 KB of code, a 64 KB result and 256 MiB of heap growth; no file, network, console, ArrayBuffer or typed arrays, and `repeat`, `padStart` and `padEnd` stop at 16M characters, since one such allocation would land before the heap check |
 
 The script tools are not in remote mode: a nested call loses the request's ClipMind key.
 
