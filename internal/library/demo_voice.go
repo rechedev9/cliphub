@@ -19,21 +19,22 @@ type DemoVoiceTranscript struct {
 
 // DemoVoiceLine is one phrase a player said, on the demo's clock: StartMS is demo time, Tick and Round place it.
 type DemoVoiceLine struct {
-	ID           uuid.UUID       `json:"id"`
-	MatchID      uuid.UUID       `json:"match_id"`
-	SteamID64    string          `json:"steamid64"`
-	Name         string          `json:"name"`
-	TeamKey      string          `json:"team_key"`
-	StartMS      int64           `json:"start_ms"`
-	EndMS        int64           `json:"end_ms"`
-	Tick         int             `json:"tick"`
-	Round        int             `json:"round"`
-	Text         string          `json:"text"`
-	Corrected    bool            `json:"corrected"`
-	OriginalText string          `json:"original_text,omitempty"`
-	VocabText    string          `json:"vocab_text,omitempty"`
-	Discarded    bool            `json:"discarded"`
-	Words        []DemoVoiceWord `json:"-"`
+	ID           uuid.UUID        `json:"id"`
+	MatchID      uuid.UUID        `json:"match_id"`
+	SteamID64    string           `json:"steamid64"`
+	Name         string           `json:"name"`
+	TeamKey      string           `json:"team_key"`
+	StartMS      int64            `json:"start_ms"`
+	EndMS        int64            `json:"end_ms"`
+	Tick         int              `json:"tick"`
+	Round        int              `json:"round"`
+	Text         string           `json:"text"`
+	Corrected    bool             `json:"corrected"`
+	CorrectedBy  CorrectionAuthor `json:"corrected_by,omitempty"`
+	OriginalText string           `json:"original_text,omitempty"`
+	VocabText    string           `json:"vocab_text,omitempty"`
+	Discarded    bool             `json:"discarded"`
+	Words        []DemoVoiceWord  `json:"-"`
 }
 
 func (l DemoVoiceLine) HeardText() string {
@@ -41,6 +42,26 @@ func (l DemoVoiceLine) HeardText() string {
 		return l.OriginalText
 	}
 	return l.Text
+}
+
+type CorrectionAuthor string
+
+const (
+	CorrectedByUser      CorrectionAuthor = "user"
+	CorrectedByAssistant CorrectionAuthor = "assistant"
+)
+
+const MaxVoiceCorrections = 300
+
+type VoiceLineText struct {
+	ID   uuid.UUID
+	Text string
+}
+
+type DemoVoiceCorrections struct {
+	MatchID uuid.UUID
+	By      CorrectionAuthor
+	Lines   []VoiceLineText
 }
 
 type VoiceCorrection struct {
@@ -89,6 +110,7 @@ type DemoVoiceLinePatch struct {
 	ID        uuid.UUID
 	Text      *string
 	Discarded *bool
+	By        CorrectionAuthor
 }
 
 // DemoVoiceLineFilter reads phrases; empty MatchIDs means every match, Query matches the text as a phrase.

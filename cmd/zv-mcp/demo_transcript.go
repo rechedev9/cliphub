@@ -43,6 +43,7 @@ type demoPhraseOut struct {
 	Tick         int                  `json:"tick"`
 	Text         string               `json:"text" jsonschema:"what a video draws: the correction when corrected"`
 	Corrected    bool                 `json:"corrected,omitempty"`
+	CorrectedBy  string               `json:"corrected_by,omitempty" jsonschema:"who corrected it: user (by hand) or assistant (correct_demo_phrases)"`
 	OriginalText string               `json:"original_text,omitempty" jsonschema:"what the transcriber heard, when the text differs from it"`
 	VocabText    string               `json:"vocab_text,omitempty" jsonschema:"what Studio's CS2 vocabulary corrector wrote over the heard text; empty when it changed nothing"`
 	VocabChanges []demoVocabChangeOut `json:"vocab_changes,omitempty" jsonschema:"the words the corrector changed: heard and written"`
@@ -68,7 +69,7 @@ type demoTranscriptOut struct {
 
 func demoPhraseOf(matchID string, l tuiclient.DemoVoiceLine) demoPhraseOut {
 	return demoPhraseOut{ID: l.ID, Speaker: cleanName(l.Name), SteamID64: l.SteamID64, Round: l.Round, Tick: l.Tick,
-		Text: cleanText(l.Text, maxCommsTextRunes), Corrected: l.Corrected,
+		Text: cleanText(l.Text, maxCommsTextRunes), Corrected: l.Corrected, CorrectedBy: cleanName(l.CorrectedBy),
 		OriginalText: cleanText(l.OriginalText, maxCommsTextRunes), VocabText: cleanText(l.VocabText, maxCommsTextRunes),
 		VocabChanges: vocabChangesOf(l.VocabChanges), Discarded: l.Discarded,
 		StudioPath: "/replay?r=" + matchID + ":" + strconv.Itoa(max(l.Round, 1)) + ":" + strconv.Itoa(l.Tick)}
@@ -118,7 +119,7 @@ func registerDemoTranscriptTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "demo_transcript", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-		Description: "Read the transcript of the team voices a demo recorded: each phrase, in the language it was said, with its id, speaker, round and text, the original_text the transcriber heard when the text differs from it, vocab_text and vocab_changes when Studio's CS2 vocabulary corrector changed words (sending original_text to correct_demo_phrase undoes them), and discarded when no video draws it. " +
+		Description: "Read the transcript of the team voices a demo recorded: each phrase, in the language it was said, with its id, speaker, round and text, the original_text the transcriber heard when the text differs from it, vocab_text and vocab_changes when Studio's CS2 vocabulary corrector changed words (sending original_text to correct_demo_phrase undoes them), and discarded when no video draws it; a corrected phrase says corrected_by user or assistant. " +
 			"Pass an id to correct_demo_phrase or discard_demo_phrase, " +
 			"or to subtitles_hidden of generate_short or plan_full_demo to leave it out of one video."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in demoTranscriptIn) (*mcp.CallToolResult, demoTranscriptOut, error) {
@@ -140,7 +141,7 @@ func registerDemoTranscriptTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "correct_demo_phrase", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Correct a phrase of a demo transcript, as the Subtítulos panel does. The correction is kept for every later video of the demo and for the comms tools, with what the transcriber heard beside it as original_text; sending the original text again undoes it."},
+		Description: "Correct a phrase of a demo transcript, as the Subtítulos panel does. The correction is kept for every later video of the demo and for the comms tools, with what the transcriber heard beside it as original_text; sending the original text again undoes it. It is a user correction, also over one the assistant made with correct_demo_phrases, and the vocabulary corrector learns from it: use it only for text the user typed or dictated, and correct_demo_phrases for any correction you propose, even of one phrase."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in correctDemoPhraseIn) (*mcp.CallToolResult, demoPhraseOut, error) {
 			for field, id := range map[string]string{"match_id": in.MatchID, "phrase_id": in.PhraseID} {
 				if err := checkUUID(field, id); err != nil {

@@ -34,6 +34,7 @@ var desktopOnlyRoutes = map[Route]string{
 	get("/api/library/matches/{id}/voice/demo/transcript"):                "the demo voices stay on this PC",
 	post("/api/library/matches/{id}/voice/demo/transcript"):               "runs Parakeet on this PC",
 	patch("/api/library/matches/{id}/voice/demo/transcript/lines/{line}"): "the demo voices stay on this PC",
+	post("/api/library/matches/{id}/voice/demo/transcript/corrections"):   "the demo voices stay on this PC",
 	get("/api/library/voice/recordings"):                                  "TeamSpeak recordings on this PC",
 	post("/api/library/voice/recordings/{id}/attach"):                     "TeamSpeak recordings on this PC",
 	del("/api/library/voice/recordings/{id}"):                             "TeamSpeak recordings on this PC",

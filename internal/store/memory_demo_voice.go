@@ -81,24 +81,40 @@ func (r *MemoryLibraryRepository) ListDemoVoiceLines(ctx context.Context, filter
 }
 
 func (r *MemoryLibraryRepository) UpdateDemoVoiceLine(ctx context.Context, patch library.DemoVoiceLinePatch) (library.DemoVoiceLine, error) {
-	if err := ctx.Err(); err != nil {
+	out, err := r.patchDemoVoiceLines(ctx, patch.MatchID, []library.DemoVoiceLinePatch{patch})
+	if err != nil {
 		return library.DemoVoiceLine{}, err
+	}
+	return out[0], nil
+}
+
+func (r *MemoryLibraryRepository) CorrectDemoVoiceLines(ctx context.Context, batch library.DemoVoiceCorrections) ([]library.DemoVoiceLine, error) {
+	return r.patchDemoVoiceLines(ctx, batch.MatchID, correctionPatches(batch.Lines, batch.By))
+}
+
+func (r *MemoryLibraryRepository) patchDemoVoiceLines(ctx context.Context, matchID uuid.UUID, patches []library.DemoVoiceLinePatch) ([]library.DemoVoiceLine, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	v, ok := r.demoVoices[patch.MatchID]
+	v, ok := r.demoVoices[matchID]
 	if !ok {
-		return library.DemoVoiceLine{}, library.ErrNotFound
-	}
-	i := slices.IndexFunc(v.lines, func(l library.DemoVoiceLine) bool { return l.ID == patch.ID })
-	if i < 0 {
-		return library.DemoVoiceLine{}, library.ErrNotFound
+		return nil, library.ErrNotFound
 	}
 	v.lines = slices.Clone(v.lines)
-	v.lines[i] = patchDemoVoiceLine(v.lines[i], patch)
-	r.demoVoices[patch.MatchID] = v
-	out := v.lines[i]
-	out.Words = slices.Clone(out.Words)
+	out := make([]library.DemoVoiceLine, 0, len(patches))
+	for _, patch := range patches {
+		i := slices.IndexFunc(v.lines, func(l library.DemoVoiceLine) bool { return l.ID == patch.ID })
+		if i < 0 {
+			return nil, library.ErrNotFound
+		}
+		v.lines[i] = patchDemoVoiceLine(v.lines[i], patch)
+		line := v.lines[i]
+		line.Words = slices.Clone(line.Words)
+		out = append(out, line)
+	}
+	r.demoVoices[matchID] = v
 	return out, nil
 }
 
@@ -132,7 +148,7 @@ func (r *MemoryLibraryRepository) ListDemoVoiceCorrections(ctx context.Context) 
 	out := []library.VoiceCorrection{}
 	for _, id := range matches {
 		for _, l := range r.demoVoices[id].lines {
-			if l.Corrected {
+			if learnsFrom(l) {
 				out = append(out, voiceCorrection(id, l))
 			}
 		}
