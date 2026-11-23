@@ -1562,14 +1562,11 @@ func (w *StreamRenderWorker) render(
 	if err := w.storage.Put(galleryKey, strings.NewReader(streamclips.RenderGalleryHTML(j, videos))); err != nil {
 		return fmt.Errorf("write stream gallery: %w", err)
 	}
-	state, err := streamclips.NewRenderState(j.ID, variant, streamclips.StatusRendered, warnings, "", videos)
+	state, err := streamclips.NewRenderState(j.ID, variant, streamclips.StatusRendered, nil, "", nil)
 	if err != nil {
 		return err
 	}
-	state.ResultKey = resultKey
-	state.GalleryKey = galleryKey
-	state.ArtifactDir = revisionPrefix
-	state.Delivery = delivery
+	state.Publish(streamclips.PublishedRevision{ResultKey: resultKey, GalleryKey: galleryKey, ArtifactDir: revisionPrefix, Videos: videos, Delivery: delivery, Warnings: warnings, At: time.Now()})
 	if hasIntent {
 		state.AttemptID = intent.AttemptID
 	}
@@ -1848,7 +1845,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 			err = fmt.Errorf("%w; build failed render state: %v", err, stateErr)
 			return
 		}
-		preserveRenderArtifactPointer(&failedState, previousState)
+		failedState.KeepPublishedArtifacts(previousState)
 		if writeErr := w.writeOwnedRenderState(failedState, edit.FullDemo); writeErr != nil {
 			err = fmt.Errorf("%w; write failed render state: %v", err, writeErr)
 		}
@@ -1901,7 +1898,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 			if stateErr != nil {
 				return stateErr
 			}
-			preserveRenderArtifactPointer(&migratedState, previousState)
+			migratedState.KeepPublishedArtifacts(previousState)
 			if stateErr := w.writeOwnedRenderState(migratedState, edit.FullDemo); stateErr != nil {
 				return fmt.Errorf("write migrated cached render state: %w", stateErr)
 			}
@@ -1921,7 +1918,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if err != nil {
 		return err
 	}
-	preserveRenderArtifactPointer(&state, previousState)
+	state.KeepPublishedArtifacts(previousState)
 	if err := w.writeOwnedRenderState(state, edit.FullDemo); err != nil {
 		return fmt.Errorf("write rendering state: %w", err)
 	}
@@ -2046,24 +2043,6 @@ func explicitCoverArgs(loadout renderplan.Loadout, edit renderplan.EditRequest) 
 		"--cover-sheets=" + strconv.FormatBool(loadout.CoverSheets),
 		"--cover-first-frame=" + strconv.FormatBool(edit.CoverFirstFrame),
 		"--covers=" + strconv.FormatBool(edit.CoverStrategy != renderplan.CoverStrategyNone),
-	}
-}
-
-func preserveRenderArtifactPointer(state *renderplan.RenderVariantState, previous *renderplan.RenderVariantState) {
-	if state == nil || previous == nil {
-		return
-	}
-	if previous.Status != renderplan.RenderVariantStatusReady && previous.Status != renderplan.RenderVariantStatusReview {
-		return
-	}
-	state.EditDocumentKey = previous.EditDocumentKey
-	state.EditManifestKey = previous.EditManifestKey
-	state.RenderResultKey = previous.RenderResultKey
-	state.PackManifestKey = previous.PackManifestKey
-	state.GalleryKey = previous.GalleryKey
-	state.PublishSummaryKey = previous.PublishSummaryKey
-	if previous.ArtifactPrefix != "" {
-		state.ArtifactPrefix = previous.ArtifactPrefix
 	}
 }
 

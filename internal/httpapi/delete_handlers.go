@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -64,9 +65,9 @@ func (h *Handlers) DeleteStreamJob(w http.ResponseWriter, r *http.Request) {
 
 // DeleteStreamVideo handles DELETE /api/stream-jobs/{id}/renders/{variant}/videos/{clip_id}:
 // it removes one published stream clip (its MP4 and its upload-ready copy).
-// Startup reconciliation fails a render whose state and result list different
-// clips, so both drop the clip together; the last clip takes the whole render.
-// Idempotent: a clip already gone answers 204.
+// The state drops the clip before the result, and startup reconciliation keeps a
+// state that lists a subset of its result, so a cut write never hides the rest.
+// The last clip takes the whole render. Idempotent: a clip already gone answers 204.
 func (h *Handlers) DeleteStreamVideo(w http.ResponseWriter, r *http.Request) {
 	release := h.lockStreamJobRequest(r)
 	defer release()
@@ -103,14 +104,14 @@ func (h *Handlers) DeleteStreamVideo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "storage backend does not support delete")
 		return
 	}
-	isCopy := func(d streamclips.DeliveryEntry) bool { return d.Kind == "video" && d.Name == clipID+".mp4" }
-	keys := []string{state.Videos[slices.IndexFunc(state.Videos, isClip)].Key}
-	if i := slices.IndexFunc(state.Delivery, isCopy); i >= 0 {
-		keys = append(keys, state.Delivery[i].Key)
-	}
 	result, found, err := h.readPublishedStreamResult(state)
 	if err != nil {
 		internalError(w, "read published stream result", err)
+		return
+	}
+	keys := state.RemoveVideo(clipID, time.Now())
+	if err := h.writeStreamRenderState(state); err != nil {
+		internalError(w, "write stream render state", err)
 		return
 	}
 	if found {
@@ -119,12 +120,6 @@ func (h *Handlers) DeleteStreamVideo(w http.ResponseWriter, r *http.Request) {
 			internalError(w, "write published stream result", err)
 			return
 		}
-	}
-	state.Videos = slices.DeleteFunc(state.Videos, isClip)
-	state.Delivery = slices.DeleteFunc(state.Delivery, isCopy)
-	if err := h.writeStreamRenderState(state); err != nil {
-		internalError(w, "write stream render state", err)
-		return
 	}
 	// Files last: a failure here leaves an orphan file, never a broken render.
 	for _, key := range keys {

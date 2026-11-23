@@ -151,9 +151,7 @@ func sweepInterruptedDemoRenderStates(ctx context.Context, store storage.Storage
 					continue
 				}
 			} else {
-				state.Status = renderplan.RenderVariantStatusFailed
-				state.Error = interruptedDemoRenderReason
-				state.UpdatedAt = now
+				state.Interrupt(interruptedDemoRenderReason, now)
 			}
 			if err := writeSweepJSON(store, key, state); err != nil {
 				writeErr := fmt.Errorf("write failed demo render state %s: %w", key, err)
@@ -435,9 +433,7 @@ func reconcileInterruptedStreamRenderStates(
 				}
 				state.UpdatedAt = now
 			} else {
-				state.Status = streamclips.StatusFailed
-				state.Error = interruptedStreamRender
-				state.UpdatedAt = now
+				state.Interrupt(interruptedStreamRender, now)
 			}
 			if err := writeSweepJSON(store, key, state); err != nil {
 				writeErr := fmt.Errorf("write failed stream render state %s: %w", key, err)
@@ -481,13 +477,8 @@ func validatePublishedStreamRenderArtifacts(store storage.Storage, state streamc
 	if result.JobID != state.JobID || result.Variant != state.Variant {
 		return fmt.Errorf("published stream render result identity does not match state")
 	}
-	if len(state.Videos) == 0 || len(result.Clips) != len(state.Videos) {
+	if !state.ListsVideosOf(result) {
 		return fmt.Errorf("published stream render result videos do not match state")
-	}
-	for i := range state.Videos {
-		if result.Clips[i].ClipID != state.Videos[i].ClipID || result.Clips[i].Key != state.Videos[i].Key {
-			return fmt.Errorf("published stream render result video %d does not match state", i)
-		}
 	}
 	keys := make([]string, 0, 1+len(state.Videos))
 	keys = append(keys, state.GalleryKey)
