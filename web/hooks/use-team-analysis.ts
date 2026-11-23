@@ -18,7 +18,7 @@ import { tacticOptions, type TacticOption } from '@/lib/analysis/scope-tactics';
 
 /** What a team-scoped tool reads once: the team, its matches, its lineups and its profile (null when unreadable). */
 export type TeamAnalysis = { team: LibraryTeam; matches: LibraryMatch[]; lineups: TeamLineups | null; profile: TeamProfile | null };
-export type TeamAnalysisState = { kind: 'loading' } | { kind: 'ready'; data: TeamAnalysis } | { kind: 'missing' } | { kind: 'offline' };
+export type TeamAnalysisState = { kind: 'loading' } | { kind: 'ready'; data: TeamAnalysis } | { kind: 'missing' } | { kind: 'failed'; error: unknown };
 
 /** The team record's own read, for the tools that open on a team outside its record. */
 export function useTeamAnalysis(teamId: string): { state: TeamAnalysisState; reload: () => void } {
@@ -38,7 +38,7 @@ export function useTeamAnalysis(teamId: string): { state: TeamAnalysisState; rel
       })
       .catch((error: unknown) => {
         if (!active) return;
-        setState(isLibraryNotFound(error) && !isLibraryOffline(error) ? { kind: 'missing' } : { kind: 'offline' });
+        setState(isLibraryNotFound(error) && !isLibraryOffline(error) ? { kind: 'missing' } : { kind: 'failed', error });
       });
     return () => {
       active = false;

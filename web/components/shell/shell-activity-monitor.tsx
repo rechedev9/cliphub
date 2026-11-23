@@ -21,6 +21,7 @@ import {
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
 const AFTER_CHANGE_FAST_MS = 30000;
+const CHANGE_REFRESH_GAP_MS = 5000;
 
 function settled<T>(result: PromiseSettledResult<T[]>): T[] {
   return result.status === 'fulfilled' ? result.value : [];
@@ -50,11 +51,15 @@ export function ShellActivityMonitor(): null {
 
     let fastUntil = 0;
     let changed = false;
+    let refreshedAt = Number.NEGATIVE_INFINITY;
+    const changeDue = (now: number): boolean => changed && now - refreshedAt >= CHANGE_REFRESH_GAP_MS;
 
     const stop = startPollLoop({
       tick: async () => {
-        if (changed || shellActivityIsStale(Date.now())) {
+        const now = Date.now();
+        if (changeDue(now) || shellActivityIsStale(now)) {
           changed = false;
+          refreshedAt = now;
           const [videos, matches, streams] = await Promise.allSettled([
             api.listVideos(),
             api.listMatches(),
@@ -86,7 +91,7 @@ export function ShellActivityMonitor(): null {
       wake: (listener) => subscribeToApiMutations(() => {
         changed = true;
         fastUntil = Date.now() + AFTER_CHANGE_FAST_MS;
-        listener();
+        if (changeDue(Date.now())) listener();
       }),
     });
 

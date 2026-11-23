@@ -11,12 +11,13 @@ type Failure = { error: unknown; kind?: never } | { kind: LoadErrorKind; error?:
 export type LoadErrorStateProps = Failure & {
   title: string;
   notFoundTitle?: string;
+  detail?: string;
   onRetry?: () => void;
   actions?: ReactNode;
   className?: string;
 };
 
-export function LoadErrorState({ title, notFoundTitle, onRetry, actions, className, ...failure }: LoadErrorStateProps): ReactNode {
+export function LoadErrorState({ title, notFoundTitle, detail, onRetry, actions, className, ...failure }: LoadErrorStateProps): ReactNode {
   const kind = failure.kind ?? loadErrorKind(failure.error);
   const retry =
     onRetry && kind !== 'not_found' ? (
@@ -45,5 +46,5 @@ export function LoadErrorState({ title, notFoundTitle, onRetry, actions, classNa
       />
     );
   }
-  return <EmptyState role="alert" icon={CircleAlert} title={title} description={RETRY_HINT} actions={buttons} className={className} />;
+  return <EmptyState role="alert" icon={CircleAlert} title={title} description={detail ?? RETRY_HINT} actions={buttons} className={className} />;
 }

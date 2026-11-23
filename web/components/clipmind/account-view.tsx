@@ -9,7 +9,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { LoadingText } from '@/components/ui/loading-text';
 import { FormError } from '@/components/clipmind/auth-forms';
-import { LoadErrorState } from '@/components/records/load-error-state';
+import { CmLoadError } from '@/components/clipmind/cm-load-error';
 import {
   accountLabel,
   cm,
@@ -124,7 +124,7 @@ export function AccountView(): ReactNode {
   }
 
   if (state.kind === 'loading') return <LoadingText spinner>Cargando tu cuenta</LoadingText>;
-  if (state.kind === 'failed') return <LoadErrorState error={state.failure} title="No se pudo leer tu cuenta" onRetry={retry} />;
+  if (state.kind === 'failed') return <CmLoadError failure={state.failure} title="No se pudo leer tu cuenta" onRetry={retry} />;
 
   const { me, sessions, keys } = state.data;
   const who = accountLabel(me.user);
@@ -163,7 +163,7 @@ export function AccountView(): ReactNode {
             Crear clave
           </Button>
         </form>
-        {keys.ok ? null : <LoadErrorState error={keys} title="No se pudieron leer tus claves" onRetry={retry} />}
+        {keys.ok ? null : <CmLoadError failure={keys} title="No se pudieron leer tus claves" onRetry={retry} />}
         {keys.ok && keys.data.length > 0 ? (
           <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
             {keys.data.map((key) => (
@@ -197,7 +197,7 @@ export function AccountView(): ReactNode {
       <div className={section}>
         <h2 className="text-body-lg font-semibold text-fg-1">Sesiones</h2>
         {!sessions.ok ? (
-          <LoadErrorState error={sessions} title="No se pudieron leer tus sesiones" onRetry={retry} />
+          <CmLoadError failure={sessions} title="No se pudieron leer tus sesiones" onRetry={retry} />
         ) : (
           <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
             {sessions.data.map((session) => (

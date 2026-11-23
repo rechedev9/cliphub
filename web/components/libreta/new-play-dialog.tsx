@@ -119,7 +119,7 @@ export function NewPlayDialog({
             </p>
           ) : null}
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => guard.onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={busy || title.trim() === ''} loading={busy}>

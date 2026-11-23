@@ -9,7 +9,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { LoadingText } from '@/components/ui/loading-text';
 import { FormError } from '@/components/clipmind/auth-forms';
-import { LoadErrorState } from '@/components/records/load-error-state';
+import { CmLoadError } from '@/components/clipmind/cm-load-error';
 import {
   accountLabel,
   cm,
@@ -98,7 +98,7 @@ export function TeamView(): ReactNode {
   }
 
   if (state.kind === 'loading') return <LoadingText spinner>Cargando el equipo</LoadingText>;
-  if (state.kind === 'failed') return <LoadErrorState error={state.failure} title="No se pudo leer tu equipo" onRetry={retry} />;
+  if (state.kind === 'failed') return <CmLoadError failure={state.failure} title="No se pudo leer tu equipo" onRetry={retry} />;
 
   const { me, members, invitations } = state.data;
   const workspace: CmWorkspace | null = me.workspace;
@@ -242,7 +242,7 @@ export function TeamView(): ReactNode {
                 })}
               </ul>
             ) : (
-              <LoadErrorState error={members} title="No se pudieron leer los miembros" onRetry={retry} />
+              <CmLoadError failure={members} title="No se pudieron leer los miembros" onRetry={retry} />
             )}
           </div>
 
@@ -256,7 +256,7 @@ export function TeamView(): ReactNode {
                 Enviar invitación
               </Button>
             </form>
-            {invitations.ok ? null : <LoadErrorState error={invitations} title="No se pudieron leer las invitaciones" onRetry={retry} />}
+            {invitations.ok ? null : <CmLoadError failure={invitations} title="No se pudieron leer las invitaciones" onRetry={retry} />}
             {invitations.ok && invitations.data.length > 0 ? (
               <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
                 {invitations.data.map((item) => (

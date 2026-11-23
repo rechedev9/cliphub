@@ -141,7 +141,7 @@ export function CallDialog({ call, onClose, onSaved }: { call?: LibraryCall; onC
               <span aria-hidden />
             )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
-              <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+              <Button type="button" variant="outline" disabled={busy} onClick={() => guard.onOpenChange(false)}>
                 Cancelar
               </Button>
               <Button type="submit" disabled={busy || name.trim() === ''} loading={busy}>

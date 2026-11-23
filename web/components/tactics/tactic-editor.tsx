@@ -59,9 +59,9 @@ function TacticEditorStage({ teamId, teams, onTeam }: { teamId: string; teams: R
       </div>
     );
   }
-  if (state.kind === 'offline') {
+  if (state.kind === 'failed') {
     return (
-      <LoadErrorState kind="offline" title="No se pudo leer el equipo" onRetry={reload} />
+      <LoadErrorState error={state.error} title="No se pudo leer el equipo" onRetry={reload} />
     );
   }
   return <TacticEditorReady analysis={state.data} teams={teams} onTeam={onTeam} />;

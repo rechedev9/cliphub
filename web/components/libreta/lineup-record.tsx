@@ -31,7 +31,7 @@ import { StatusBadge } from './status-badge';
 
 const LINEUPS_HREF = libretaTabHref(LIBRETA_TABS.lineups);
 
-type LoadState = { kind: 'loading' } | { kind: 'ready'; lineup: LibraryLineup } | { kind: 'missing' } | { kind: 'offline' };
+type LoadState = { kind: 'loading' } | { kind: 'ready'; lineup: LibraryLineup } | { kind: 'missing' } | { kind: 'failed'; error: unknown };
 
 /** One saved lineup: where to stand and aim, how to throw it, and a launch into CS2 to practise it. */
 export function LineupRecord({ lineupId }: { lineupId: string }): ReactNode {
@@ -45,7 +45,7 @@ export function LineupRecord({ lineupId }: { lineupId: string }): ReactNode {
         if (active) setState({ kind: 'ready', lineup });
       })
       .catch((error: unknown) => {
-        if (active) setState({ kind: isLibraryNotFound(error) ? 'missing' : 'offline' });
+        if (active) setState(isLibraryNotFound(error) ? { kind: 'missing' } : { kind: 'failed', error });
       });
     return () => {
       active = false;
@@ -76,9 +76,9 @@ export function LineupRecord({ lineupId }: { lineupId: string }): ReactNode {
       />
     );
   }
-  if (state.kind === 'offline') {
+  if (state.kind === 'failed') {
     return (
-      <LoadErrorState kind="offline" title="No se pudo leer el lineup" onRetry={reload} />
+      <LoadErrorState error={state.error} title="No se pudo leer el lineup" onRetry={reload} />
     );
   }
   return <LineupRecordView lineup={state.lineup} onChanged={reload} />;
