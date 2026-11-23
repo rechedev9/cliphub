@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { currentEdition } from '@/lib/edition-routes';
-import { Link2, MonitorPlay, PlugZap, Swords, TriangleAlert } from 'lucide-react';
+import { Link2, MonitorPlay, Swords, TriangleAlert } from 'lucide-react';
 import {
   LIBRARY_PARSE_STATES,
   LIBRARY_SOURCES,
@@ -50,6 +50,7 @@ import {
   matchScoreMargin,
   matchTitle,
   partidaDate,
+  playedRoundCount,
   teamFilterOptions,
   type MapChip,
   type PartidaRow,
@@ -61,9 +62,11 @@ import { FILTER_ANY, SEARCH_FILTER, filterRows, type TableViewState } from '@/li
 import { startPollLoop } from '@/lib/poll-loop';
 import { settleEach, withoutKeys } from '@/lib/settle-each';
 import { cn } from '@/lib/utils';
+import { offlineTitle } from '@/lib/load-error';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { DeleteChosenButton } from '@/components/records/delete-chosen-button';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { SelectionBar } from '@/components/records/selection-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { DemoImport } from '@/components/matches/demo-import';
@@ -149,8 +152,8 @@ function columns({ handlers, voice, ownTeam }: { handlers: RowHandlers; voice: V
     {
       id: 'rounds',
       header: 'Rondas',
-      cell: ({ match }) => (match ? <span className="tabular-nums">{match.round_count}</span> : null),
-      sortValue: ({ match }) => match?.round_count ?? null,
+      cell: ({ match }) => (match ? <span className="tabular-nums">{playedRoundCount(match)}</span> : null),
+      sortValue: ({ match }) => (match ? playedRoundCount(match) : null),
     },
     {
       id: 'voice',
@@ -276,6 +279,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const [listView, setListView] = useState<LibraryListView>(() => parseListView(search));
   const [povJobs, setPovJobs] = useState<ReadonlySet<string>>(new Set());
   const [ownTeamMark, setOwnTeamMark] = useState<string | null>(null);
+  const [ownTeamRead, setOwnTeamRead] = useState<{ attempt: number; failed: boolean }>({ attempt: 0, failed: false });
   const pendingRef = useRef(false);
   const pollRef = useRef<() => void>(() => {});
   // Only the newest read may land, so a slow poll that began before an edit cannot undo it.
@@ -301,13 +305,17 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     let active = true;
     void listLibraryTeams()
       .then((teams) => {
-        if (active) setOwnTeamMark(teams.find((team) => team.own === true)?.id ?? null);
+        if (!active) return;
+        setOwnTeamMark(teams.find((team) => team.own === true)?.id ?? null);
+        setOwnTeamRead((read) => ({ ...read, failed: false }));
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setOwnTeamRead((read) => ({ ...read, failed: true }));
+      });
     return () => {
       active = false;
     };
-  }, []);
+  }, [ownTeamRead.attempt]);
 
   // The jobs of every demo, joined: the POV read repeats only when the set of jobs changes, not on each poll.
   const jobKey = loaded === null ? '' : loaded.rows.flatMap(({ demo }) => demo.job_ids).sort().join(',');
@@ -417,32 +425,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
 
   if (rows.length === 0) {
     let empty: ReactNode;
-    if (readError === 'offline') {
-      empty = (
-        <EmptyState
-          icon={PlugZap}
-          title="Servicio local sin conexión"
-          description="No se pudo leer la biblioteca de partidas. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-          actions={
-            <Button type="button" variant="outline" size="sm" onClick={() => pollRef.current()}>
-              Reintentar
-            </Button>
-          }
-        />
-      );
-    } else if (readError === 'error') {
-      empty = (
-        <EmptyState
-          icon={TriangleAlert}
-          title="No se pudo leer la biblioteca"
-          description="El servicio local respondió con un error al listar las partidas. Vuelve a intentarlo."
-          actions={
-            <Button type="button" variant="outline" size="sm" onClick={() => pollRef.current()}>
-              Reintentar
-            </Button>
-          }
-        />
-      );
+    if (readError !== null) {
+      empty = <LoadErrorState kind={readError} title="No se pudo leer la biblioteca de partidas" onRetry={() => pollRef.current()} />;
     } else {
       empty = (
         <div className="flex flex-col gap-3">
@@ -555,9 +539,24 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
         ) : null}
         {readError !== null ? (
           <p role="alert" className="text-body-sm text-destructive">
-            {readError === 'offline'
-              ? 'Se perdió la conexión con el servicio local; la tabla muestra la última lectura.'
-              : 'El servicio local respondió con un error; la tabla muestra la última lectura.'}
+            {readError === 'offline' ? offlineTitle() : 'No se pudo actualizar la lista'}. La tabla muestra la última lectura.{' '}
+            <Button type="button" variant="link" size="xs" className="h-auto p-0" onClick={() => pollRef.current()}>
+              Reintentar
+            </Button>
+          </p>
+        ) : null}
+        {ownTeamRead.failed ? (
+          <p role="status" className="text-body-sm text-fg-2">
+            No se pudo leer cuál es Mi equipo, así que se adivina por tus scrims.{' '}
+            <Button
+              type="button"
+              variant="link"
+              size="xs"
+              className="h-auto p-0"
+              onClick={() => setOwnTeamRead((read) => ({ attempt: read.attempt + 1, failed: false }))}
+            >
+              Reintentar
+            </Button>
           </p>
         ) : null}
         {chips.length > 1 || selectedMap !== FILTER_ANY ? (
@@ -621,6 +620,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
           }}
           columns={columns({ handlers, voice: { byMatch: voices, onResynced: () => pollRef.current() }, ownTeam })}
           rowKey={(row) => row.demo.id}
+          rowLabel={({ match, demo }) => (match ? [prettyMapName(match.map), demo.title].filter(Boolean).join(' ') : demo.file_name)}
           rowHref={(row) => (row.match ? matchHref(row.match.id) : undefined)}
           view={view}
           empty={<p className="text-body-sm text-fg-2">Ninguna partida cumple estos filtros.</p>}

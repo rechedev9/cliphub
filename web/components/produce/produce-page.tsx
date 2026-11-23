@@ -39,7 +39,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StudioBackLink } from '@/components/studio/back-link';
-import { StudioEmptyState } from '@/components/studio/empty-state';
+import { EmptyState } from '@/components/records/empty-state';
 import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { ShortProducer } from '@/components/produce/short-producer';
@@ -171,7 +171,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
     return (
       <div className="measure-work flex flex-col gap-8">
         <StudioBackLink href={backHref}>{backLabel}</StudioBackLink>
-        <StudioEmptyState
+        <EmptyState
           icon={empty.icon}
           title={empty.title}
           description={empty.description}
@@ -191,11 +191,10 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
   let body: ReactNode;
   if (stage === HUB_ROW_STAGE.unpicked) {
     body = (
-      <StudioEmptyState
+      <EmptyState
         icon={Users}
         title={PRODUCE_MATCH_NO_POV.title}
         description={PRODUCE_MATCH_NO_POV.description}
-        compact
         actions={
           <>
             <Button className={FORMAT_TONE[format].fill} onClick={() => router.push(flowHref(format, { job: id }))}>{PRODUCE_PICK_POV_CTA}</Button>
@@ -206,11 +205,10 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
     );
   } else if (stage === HUB_ROW_STAGE.failed) {
     body = (
-      <StudioEmptyState
+      <EmptyState
         icon={AlertTriangle}
         title={jobFailureTitle(match.failureReason)}
         description={parseFailureReason(match.failureReason, { job: true }).message}
-        compact
         actions={
           <>
             <ExitButton href={backHref} variant="outline">{backLabel}</ExitButton>
@@ -223,7 +221,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
     );
   } else if (stage === HUB_ROW_STAGE.parsing) {
     body = (
-      <StudioEmptyState
+      <EmptyState
         icon={SearchX}
         title={MATCH_PLAYS_ANALYZING_TITLE}
         description={MATCH_PLAYS_ANALYZING_DESCRIPTION}
@@ -233,7 +231,6 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
             Analizando jugadas{match.player ? ` de ${match.player}` : ''}
           </span>
         }
-        compact
         actions={
           <ExitButton href={backHref} variant="outline">{backLabel}</ExitButton>
         }
@@ -250,15 +247,15 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
     body = (
       <>
         {shortUnavailable && onePlayerSummary ? (
-          <StudioEmptyState icon={SearchX} title={PRODUCE_SUMMARY_NO_KILLS.title} description={PRODUCE_SUMMARY_NO_KILLS.description} compact
+          <EmptyState icon={SearchX} title={PRODUCE_SUMMARY_NO_KILLS.title} description={PRODUCE_SUMMARY_NO_KILLS.description}
             actions={<>
               <Button className={FORMAT_TONE[format].fill} onClick={() => chooseKind(LONG_VIDEO_KIND.match)}>{LONG_VIDEO_KIND_LABEL.partida}</Button>
               <ExitButton href={backHref} variant="outline">{backLabel}</ExitButton>
             </>} />
         ) : null}
         {shortUnavailable && !onePlayerSummary ? (
-          <StudioEmptyState icon={SearchX} title={MATCH_PLAYS_EMPTY_TITLE}
-            description={MATCH_PLAYS_EMPTY_DESCRIPTION} compact actions={<ExitButton href={backHref}>{backLabel}</ExitButton>} />
+          <EmptyState icon={SearchX} title={MATCH_PLAYS_EMPTY_TITLE}
+            description={MATCH_PLAYS_EMPTY_DESCRIPTION} actions={<ExitButton href={backHref}>{backLabel}</ExitButton>} />
         ) : null}
         {shortEdit.status === 'failed' ? (
           <p role="alert" className="text-body-sm text-warning">No se pudo abrir esa versión del vídeo: el productor empieza con la selección habitual.</p>

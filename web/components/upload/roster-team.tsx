@@ -75,6 +75,8 @@ function highlightChips(p: DemoPlayer, tone: FormatTone): HighlightChip[] {
 
 export type RosterTeamProps = {
   side: DemoPlayer['team'];
+  name?: string | null;
+  note?: string | null;
   roster: PickerPlayer[];
   /** The side's final score, when the scan has one. */
   score: number | null;
@@ -95,14 +97,18 @@ export type RosterTeamProps = {
 
 /** One side of the scoreboard: a header tinted by the side, then its players as selectable cards. */
 export function RosterTeam(props: RosterTeamProps): ReactNode {
-  const { side, roster, score, onPickTeam } = props;
+  const { side, roster, score, onPickTeam, name = null, note = null } = props;
   const meta = TEAM_META[side];
+  const label = name ?? meta.label;
   const avg = roster.reduce((s, p) => s + p.rating, 0) / roster.length;
   return (
-    <section aria-label={meta.label} className="flex min-w-0 flex-col gap-2">
+    <section aria-label={label} className="flex min-w-0 flex-col gap-2">
       <div className={cn('flex flex-wrap items-center gap-x-2.5 gap-y-2 rounded-xl px-3.5 py-3', meta.tint)}>
-        {side === '' ? null : <span className={cn('inline-flex h-5.5 items-center rounded-md px-1.75 text-meta font-extrabold', meta.chip)}>{side}</span>}
-        <span className="min-w-0 flex-1 truncate font-display text-body font-extrabold text-fg-1">{meta.label}</span>
+        {side === '' || note ? null : <span className={cn('inline-flex h-5.5 items-center rounded-md px-1.75 text-meta font-extrabold', meta.chip)}>{side}</span>}
+        <span className="flex min-w-0 flex-1 items-baseline gap-2">
+          <span className="min-w-0 truncate font-display text-body font-extrabold text-fg-1">{label}</span>
+          {note ? <span className="shrink-0 text-meta text-fg-2">{note}</span> : null}
+        </span>
         <span className="text-meta tabular-nums text-fg-3">media {formatDecimal(avg, 2)}</span>
         {onPickTeam ? (
           <Button type="button" variant="outline" size="xs" onClick={onPickTeam}>

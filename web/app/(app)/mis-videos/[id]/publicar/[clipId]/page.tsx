@@ -21,7 +21,7 @@ import { ReelCover } from '@/components/brand/reel-cover';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { MediaPlayer } from '@/components/studio/media-player';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
-import { StudioEmptyState } from '@/components/studio/empty-state';
+import { EmptyState } from '@/components/records/empty-state';
 import { PublishSteps } from '@/components/videos/publish-steps';
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
 import { FullDemoEvidence } from '@/components/videos/full-demo-evidence';
@@ -97,7 +97,7 @@ export default function PublishPage({ params, searchParams }: PublishPageProps):
 
   if (!video) {
     return (
-      <StudioEmptyState
+      <EmptyState
         icon={loadFailed ? AlertTriangle : SearchX}
         title={loadFailed ? 'No se pudo cargar el vídeo' : 'Vídeo no encontrado'}
         description={

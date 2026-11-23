@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TOUR_CHAPTERS } from './app-tour.ts';
-import { NAV_SECTIONS, RETIRED_ROUTES } from './nav.ts';
+import { NAV_SECTIONS, RETIRED_ROUTES, sectionForPath } from './nav.ts';
+import { SIDEBAR_FOOTER_ENTRIES, SIDEBAR_GROUPS } from './nav-groups.ts';
 
 function linkPath(href: string): string {
   return href.split(/[?#]/)[0] ?? href;
 }
 
 function sectionOf(href: string): (typeof NAV_SECTIONS)[number] | undefined {
-  const path = linkPath(href);
-  return NAV_SECTIONS.find((section) => path === section.href || path.startsWith(`${section.href}/`));
+  return sectionForPath(linkPath(href)) ?? undefined;
 }
 
 test('app tour: every rail section is explained by a chapter wearing its label', () => {
@@ -47,4 +47,12 @@ test('app tour: ids and point terms are unique so React keys stay stable', () =>
     assert.equal(new Set(terms).size, terms.length, chapter.id);
     assert.ok(chapter.points.length > 0, `${chapter.id} has no points`);
   }
+});
+
+test('app tour: the chapters walk the rail in its order and the welcome names every group', () => {
+  const rail = [...SIDEBAR_GROUPS.flatMap((group) => group.entries), ...SIDEBAR_FOOTER_ENTRIES].map((entry) => entry.label);
+  const railed = new Set(rail);
+  assert.deepEqual(TOUR_CHAPTERS.map((chapter) => chapter.kicker).filter((kicker) => railed.has(kicker)), rail);
+  const welcome = TOUR_CHAPTERS[0]?.points.map((point) => point.text).join(' ') ?? '';
+  for (const group of SIDEBAR_GROUPS) assert.ok(welcome.includes(group.label), group.label);
 });

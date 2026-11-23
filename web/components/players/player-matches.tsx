@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronRight, Download, ExternalLink, History, UploadCloud } from 'lucide-react';
 import { listFaceitMatches, type FaceitMatch } from '@/lib/api/faceit';
-import { StudioEmptyState } from '@/components/studio/empty-state';
+import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MatchHistory } from './match-history';
@@ -42,13 +42,13 @@ export function PlayerMatches({ playerID, enabled }: { playerID: string; enabled
   } else if (matches === null && loading) {
     body = <div role="status" aria-label="Cargando partidas"><Skeleton className="h-96 w-full" /></div>;
   } else if (error && matches === null) {
-    body = <StudioEmptyState icon={History} title="No se pudieron cargar las partidas"
+    body = <EmptyState icon={History} title="No se pudieron cargar las partidas"
       description="Vuelve a intentarlo para consultar el historial de FACEIT."
-      actions={<Button variant="outline" onClick={refresh}>Reintentar</Button>} compact />;
+      actions={<Button variant="outline" onClick={refresh}>Reintentar</Button>} />;
   } else if (matches?.length === 0) {
-    body = <StudioEmptyState icon={History} title="Sin partidas recientes"
+    body = <EmptyState icon={History} title="Sin partidas recientes"
       description="Cuando este jugador termine una partida en FACEIT aparecerá aquí."
-      actions={<Button variant="outline" onClick={refresh} loading={loading} loadingText="Actualizando…">Actualizar partidas</Button>} compact />;
+      actions={<Button variant="outline" onClick={refresh} loading={loading} loadingText="Actualizando…">Actualizar partidas</Button>} />;
   } else {
     body = <MatchHistory matches={matches ?? []} refreshing={loading} onRefresh={refresh} />;
   }

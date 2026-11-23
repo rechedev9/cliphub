@@ -248,6 +248,14 @@ export function visibleHalves(halves: readonly RoundHalf[], filter: RoundFilter)
     .filter((half) => half.rows.length > 0);
 }
 
+export function playedRounds<R extends Pick<RoundRow, 'winnerSide'>>(rows: readonly R[]): R[] {
+  return rows.filter((row) => row.winnerSide !== '');
+}
+
+export function endedBySurrender(rows: readonly Pick<RoundRow, 'round'>[]): boolean {
+  return rows.some((row) => row.round.end_reason.endsWith('_surrender'));
+}
+
 /** How many rounds each winner filter keeps, for the chip counts. */
 export function winnerCounts(rows: readonly RoundRow[]): Readonly<Record<RoundWinnerFilter, number>> {
   return {

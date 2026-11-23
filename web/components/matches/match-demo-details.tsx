@@ -18,6 +18,7 @@ import { PARSE_STATE_LABEL, SOURCE_LABEL, demoErrorLabel, withoutDemo, withoutDe
 import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { currentEdition } from '@/lib/edition-routes';
+import { pinInView } from '@/hooks/pin-in-view';
 import {
   Dialog,
   DialogContent,
@@ -87,7 +88,7 @@ export function MatchDemoDetails({ demo, onDemoChange }: { demo: LibraryDemo; on
       >
         <span className="text-body-sm font-semibold text-fg-1">Detalles de la demo</span>
         {demo.state === 'ready' ? null : (
-          <Badge variant={demo.state === 'failed' ? 'danger' : 'secondary'}>{PARSE_STATE_LABEL[demo.state]}</Badge>
+          <Badge variant={demo.state === 'failed' ? 'destructive' : 'secondary'}>{PARSE_STATE_LABEL[demo.state]}</Badge>
         )}
         <span className="min-w-0 grow truncate text-meta text-fg-3">{hint}</span>
         <ChevronDown aria-hidden className="size-4 shrink-0 text-fg-3 transition-transform group-open/demo:rotate-180" />
@@ -197,27 +198,6 @@ export function MatchDemoDetails({ demo, onDemoChange }: { demo: LibraryDemo; on
       </Dialog>
     </details>
   );
-}
-
-const PIN_MS = 2000;
-const USER_SCROLL_EVENTS = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
-
-/**
- * Keeps `element` scrolled into view while the blocks above it finish rendering
- * and grow, until the user scrolls, touches or types, or PIN_MS pass.
- */
-function pinInView(element: HTMLElement): () => void {
-  const content = element.closest('main') ?? document.body;
-  const observer = new ResizeObserver(() => element.scrollIntoView({ block: 'start' }));
-  const stop = (): void => {
-    observer.disconnect();
-    window.clearTimeout(timer);
-    for (const type of USER_SCROLL_EVENTS) window.removeEventListener(type, stop, true);
-  };
-  const timer = window.setTimeout(stop, PIN_MS);
-  observer.observe(content);
-  for (const type of USER_SCROLL_EVENTS) window.addEventListener(type, stop, { capture: true, passive: true });
-  return stop;
 }
 
 function Fact({ label, children }: { label: string; children: ReactNode }): ReactNode {

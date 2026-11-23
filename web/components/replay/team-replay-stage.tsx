@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { PlugZap, Shield } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { sampleNotes } from '@/lib/api/team-insights';
 import { REPLAY_MAX_REFS } from '@/lib/analysis/replay-link';
 import { TEAM_REPLAY_LIMITS, TEAM_REPLAY_STACK_FIELDS } from '@/lib/analysis/team-replay-fields';
@@ -13,15 +13,15 @@ import { entryKey, indexOfKey } from '@/lib/replay/playlist';
 import { TeamChoice } from '@/components/analysis/team-choice';
 import { TeamScopeFilter, type TeamScopeFilterProps } from '@/components/analysis/team-scope-filter';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { useDocumentTitle } from '@/components/shell/route-title';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTeamAnalysis, useTeamList, useTeamTactics, type TeamAnalysis } from '@/hooks/use-team-analysis';
 import { useMapLineup } from '@/hooks/use-map-lineup';
 import { useTeamRounds } from '@/hooks/use-team-rounds';
 import { useTeamScopeControl } from '@/hooks/use-team-scope-control';
 import { preloadMapPlate } from './radar/map-art';
-import { ReplayWorkspace } from './replay-workspace';
+import { LazyReplayWorkspace } from './lazy-replay-workspace';
 
 /** The team's 2D replay: loads the team, then hands over to `TeamReplayReady`. */
 export function TeamReplayStage({ teamId }: { teamId: string }): ReactNode {
@@ -41,18 +41,9 @@ export function TeamReplayStage({ teamId }: { teamId: string }): ReactNode {
       </div>
     );
   }
-  if (state.kind === 'offline') {
+  if (state.kind === 'failed') {
     return (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudo leer el equipo. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={reload}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState error={state.error} title="No se pudo leer el equipo" onRetry={reload} />
     );
   }
   return <TeamReplayReady analysis={state.data} teams={teams} onTeam={onTeam} />;
@@ -130,28 +121,34 @@ function TeamReplayReady({ analysis, teams, onTeam }: { analysis: TeamAnalysis; 
   if (entries.length === 0) {
     let message = 'Ninguna ronda cumple el filtro. Quita alguno para volver a ver rondas.';
     if (scope.map === '') message = 'Este equipo aún no tiene partidas analizadas con las que llenar el replay.';
-    else if (read.failed) message = 'No se pudieron leer las rondas del equipo. Comprueba que ClipHub Studio sigue abierto y cambia un filtro para reintentar.';
+    else if (read.failed) message = 'No se pudieron leer las rondas del equipo. Cambia un filtro para reintentar.';
     else if (read.loading || read.refs === null) message = 'Leyendo las rondas del equipo…';
     return (
-      <section className="studio-panel grid items-start gap-5 p-4 sm:p-5 lg:grid-cols-[18rem_minmax(0,1fr)]" aria-label="Repetición">
-        {stack}
-        <p role="status" className="self-center text-body text-fg-2">
-          {message}
-        </p>
-      </section>
+      <>
+        <h1 className="sr-only">Replay 2D de {team.name}</h1>
+        <section className="studio-panel grid items-start gap-5 p-4 sm:p-5 lg:grid-cols-[18rem_minmax(0,1fr)]" aria-label="Repetición">
+          {stack}
+          <p role="status" className="self-center text-body text-fg-2">
+            {message}
+          </p>
+        </section>
+      </>
     );
   }
 
   return (
-    <ReplayWorkspace
-      source="library"
-      entries={entries}
-      index={index}
-      onIndexChange={(next) => setCurrentKey(entries[next] === undefined ? null : entryKey(entries[next]))}
-      groupLabel={groupLabel}
-      matchDate={matchDate}
-      title={team.name}
-      stack={{ summary: stackSummary, content: stack }}
-    />
+    <>
+      <h1 className="sr-only">Replay 2D de {team.name}</h1>
+      <LazyReplayWorkspace
+        source="library"
+        entries={entries}
+        index={index}
+        onIndexChange={(next) => setCurrentKey(entries[next] === undefined ? null : entryKey(entries[next]))}
+        groupLabel={groupLabel}
+        matchDate={matchDate}
+        title={team.name}
+        stack={{ summary: stackSummary, content: stack }}
+      />
+    </>
   );
 }

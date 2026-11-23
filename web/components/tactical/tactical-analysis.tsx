@@ -19,8 +19,8 @@ import { TACTICAL_FILTER_PARAMS } from '@/lib/api/tactical';
 import { POSITIONS_MISSING_MESSAGE, analysisErrorMessage, loadAnalysis } from '@/lib/replay/loaded-analysis';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { MATCHES_HREF } from '@/lib/clips/routes';
-import { StudioEmptyState } from '@/components/studio/empty-state';
-import { ReplayWorkspace } from '@/components/replay/replay-workspace';
+import { EmptyState } from '@/components/records/empty-state';
+import { LazyReplayWorkspace } from '@/components/replay/lazy-replay-workspace';
 import { TacticalDemoSummary } from '@/components/tactical/tactical-demo-summary';
 import { MatchGrenades } from '@/components/replay/match-grenades';
 import { ReplayPlayers } from '@/components/replay/replay-players';
@@ -248,11 +248,10 @@ export function TacticalAnalysis({
 
   if (loadError !== null) {
     return (
-      <StudioEmptyState
+      <EmptyState
         icon={TriangleAlert}
         title="No se pudo abrir el análisis"
         description={<span className="font-mono text-body-sm break-words text-destructive">{loadError}</span>}
-        compact
       />
     );
   }
@@ -266,7 +265,7 @@ export function TacticalAnalysis({
   const playerList = <ReplayPlayers doc={doc} teamKey={filter.team_key} focus={counted} onChange={setFocus} />;
   let rounded: ReactNode;
   if (loaded === null) {
-    rounded = <StudioEmptyState icon={FileWarning} title="No se puede reproducir esta demo" description={POSITIONS_MISSING_MESSAGE} compact />;
+    rounded = <EmptyState icon={FileWarning} title="No se puede reproducir esta demo" description={POSITIONS_MISSING_MESSAGE} />;
   } else if (form === 'calor') {
     rounded = (
       <>
@@ -290,7 +289,7 @@ export function TacticalAnalysis({
     );
   } else {
     rounded = (
-      <ReplayWorkspace
+      <LazyReplayWorkspace
         source={sourceKind}
         entries={entries}
         index={index}

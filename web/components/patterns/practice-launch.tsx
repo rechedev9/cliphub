@@ -6,6 +6,7 @@ import { launchPractice, type PracticeLaunchOutcome, type PracticeSpot } from '@
 import { Button } from '@/components/ui/button';
 import { currentEdition } from '@/lib/edition-routes';
 import { cn } from '@/lib/utils';
+import { offlineMessage } from '@/lib/load-error';
 
 export type PracticeState = { kind: 'idle' } | { kind: 'busy' } | { kind: 'done'; outcome: PracticeLaunchOutcome };
 
@@ -97,7 +98,7 @@ function OutcomeText({ outcome }: { outcome: PracticeLaunchOutcome }): ReactNode
     case 'cs2_not_found':
       return <p>No se encontró CS2 en este PC. Instálalo desde Steam y vuelve a intentarlo.</p>;
     case 'offline':
-      return <p>El servicio local no responde. Comprueba que ClipHub Studio sigue abierto.</p>;
+      return <p>{offlineMessage()}</p>;
     case 'invalid':
     case 'failed':
       return (

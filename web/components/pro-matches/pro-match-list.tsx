@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CloudOff, PlugZap, Trophy, X } from 'lucide-react';
+import { CloudOff, Trophy, X } from 'lucide-react';
 import { LibraryApiError, isLibraryOffline } from '@/lib/api/library';
 import {
   followProTeam,
@@ -23,6 +23,7 @@ import {
 import { startPollLoop } from '@/lib/poll-loop';
 import { DayHeading } from '@/components/matches/series-block';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
 import { ProMatchCard } from './pro-match-card';
@@ -137,12 +138,7 @@ export function ProMatchList(): ReactNode {
   if (load.kind === 'loading') return <TableSkeleton label="Cargando partidas pro" columns={3} />;
   if (load.kind === 'offline') {
     return (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudieron leer las partidas pro. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={<RetryButton onClick={() => setAttempt((n) => n + 1)} />}
-      />
+      <LoadErrorState kind="offline" title="No se pudieron leer las partidas pro" onRetry={() => setAttempt((n) => n + 1)} />
     );
   }
   const { page } = load;

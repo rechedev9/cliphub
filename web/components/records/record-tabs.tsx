@@ -43,7 +43,7 @@ export function RecordTabs({
       <div className="flex items-end gap-3 border-b border-border">
         <TabsList
           variant="line"
-          className="h-auto min-w-0 flex-1 justify-start gap-5 overflow-x-auto overflow-y-hidden rounded-none p-0 [scrollbar-width:thin]"
+          className="h-auto min-w-0 flex-1 justify-start gap-5 overflow-x-auto overflow-y-hidden rounded-none p-0 pr-8 [mask-image:linear-gradient(to_right,#000_calc(100%_-_2rem),transparent)] [scrollbar-width:thin]"
         >
           {tabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} className="h-9 flex-none rounded-none px-0.5 after:bottom-0! focus-visible:outline-offset-[-2px]">

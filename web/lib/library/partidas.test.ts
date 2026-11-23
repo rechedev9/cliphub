@@ -10,9 +10,11 @@ import {
   mapChips,
   mapPerformance,
   ownFirstScoreline,
+  matchResult,
   matchScoreLabel,
   matchTitle,
   partidaDate,
+  playedRoundCount,
   playerTotals,
   scoreline,
   teamFilterOptions,
@@ -157,4 +159,25 @@ test('a Studio failure is not blamed on the demo, and an unknown code gets the g
   assert.match(demoErrorLabel('tactical_internal'), /error de Studio/);
   assert.equal(demoErrorLabel('demo_incompatible'), 'Esta versión de Studio no entiende el formato de la demo.');
   assert.equal(demoErrorLabel('nope'), 'El análisis de la demo falló.');
+});
+
+test('the rounds of a partida are the rounds someone won, not a round the demo cut short', () => {
+  const m = { ...match('m1', 'de_mirage', side('ct-start', 5, VIT, 'Vitality'), side('t-start', 2, null)), round_count: 8 };
+  assert.equal(playedRoundCount(m), 7);
+});
+
+test('a partida has a winner only once a team closes regulation, an overtime or the rival surrenders', () => {
+  const result = (ct: number, t: number, extra: { maxRounds?: number; surrendered?: boolean } = {}) =>
+    matchResult({ scores: { 'ct-start': ct, 't-start': t }, maxRounds: extra.maxRounds ?? 24, surrendered: extra.surrendered ?? false });
+  assert.deepEqual(result(13, 11), { kind: 'won', winner: 'ct-start' });
+  assert.deepEqual(result(5, 2), { kind: 'unfinished', leader: 'ct-start' });
+  assert.deepEqual(result(0, 0), { kind: 'unfinished', leader: null });
+  assert.deepEqual(result(12, 12), { kind: 'draw' });
+  assert.deepEqual(result(14, 16), { kind: 'won', winner: 't-start' });
+  assert.deepEqual(result(15, 15), { kind: 'unfinished', leader: null });
+  assert.deepEqual(result(18, 15), { kind: 'unfinished', leader: 'ct-start' });
+  assert.deepEqual(result(19, 17), { kind: 'won', winner: 'ct-start' });
+  assert.deepEqual(result(9, 6, { maxRounds: 16 }), { kind: 'won', winner: 'ct-start' });
+  assert.deepEqual(result(0, 0, { maxRounds: 0 }), { kind: 'unfinished', leader: null });
+  assert.deepEqual(result(4, 9, { surrendered: true }), { kind: 'won', winner: 't-start' });
 });

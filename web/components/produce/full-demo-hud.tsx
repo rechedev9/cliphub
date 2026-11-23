@@ -6,6 +6,7 @@ import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_THEMES, NATIVE_HUD_CAPTURE_PROFI
 import { uploadFullDemoPortrait, type FullDemoOptions, type FullDemoAssetRef } from '@/lib/full-demo-plan';
 import { hudPreviewUrl, needsDrawnPreview, type HudOptions, type HudStyle, type HudTeamNames } from '@/lib/hud-themes';
 import { mapShotUrl } from '@/lib/api/game-assets';
+import { humanErrorText } from '@/lib/human-error';
 import { Button } from '@/components/ui/button';
 import { MapCover } from '@/components/brand/map-cover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -57,7 +58,7 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
     try {
       const ref = await uploadFullDemoPortrait(file, controller.signal);
       if (!controller.signal.aborted) { setPortraitName({ id: ref.id, name: file.name }); onChange({ ...options, overlays: { ...options.overlays, hud_portrait: ref } }); }
-    } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'No se pudo subir el retrato.'); }
+    } catch (failure) { if (!controller.signal.aborted) setError(humanErrorText({ error: failure, lead: 'No se pudo subir el retrato.' })); }
     finally {
       if (!controller.signal.aborted) onAssetBusy(false);
       if (request.current === controller) request.current = null;

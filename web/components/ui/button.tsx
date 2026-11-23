@@ -39,7 +39,6 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: `${CAPS} border-primary bg-primary/14 text-primary hover:bg-primary/24 disabled:border-border-strong disabled:bg-transparent disabled:text-fg-3`,
-        hero: `${CAPS} border-primary bg-primary/14 text-primary hover:bg-primary/24 disabled:border-border-strong disabled:bg-transparent disabled:text-fg-3`,
         stream: `${CAPS} border-stream bg-stream/14 text-stream-text hover:bg-stream/24 focus-visible:outline-stream disabled:border-border-strong disabled:bg-transparent disabled:text-fg-3`,
         success: `${CAPS} border-success bg-success/14 text-success hover:bg-success/24 disabled:border-border-strong disabled:bg-transparent disabled:text-fg-3`,
         warning: `${CAPS} border-warning bg-warning/14 text-warning hover:bg-warning/24 disabled:border-border-strong disabled:bg-transparent disabled:text-fg-3`,

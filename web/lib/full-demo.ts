@@ -1,5 +1,6 @@
 import { DEMO_SOURCE, OVERLAY_THEME, SERVICE_UNAVAILABLE_CODE, type EditConfig, type Preset } from './api/types.ts';
 import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES } from './preset-copy.ts';
+import { offlineHint, offlineTitle } from './load-error.ts';
 
 export const FULL_DEMO_VARIANT = 'gameplay-pov-60';
 
@@ -47,8 +48,8 @@ export type FullDemoLoadFailure = 'offline' | 'error' | null;
 
 export const FULL_DEMO_EMPTY = {
   offline: {
-    title: 'Servicio local sin conexión',
-    description: 'Arranca ClipHub y vuelve a abrir esta partida.',
+    title: offlineTitle(),
+    description: offlineHint(),
   },
   error: {
     title: 'No se pudo cargar la demo',

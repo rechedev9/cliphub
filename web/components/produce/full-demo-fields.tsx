@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, type ReactNode } from 'react';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 /** One settings panel of the Demo completa editor; panels are optional and done in any order, so they are not numbered. */
@@ -15,6 +16,21 @@ export function FullDemoGroup({ title, note, children }: { title: string; note?:
   </section>;
 }
 
+export type FullDemoFoldProps = { title: string; value?: string; note?: string; nested?: boolean; children: ReactNode };
+
+export function FullDemoFold({ title, value, note, nested = false, children }: FullDemoFoldProps): ReactNode {
+  return <details className={nested ? 'min-w-0 border-t border-border-subtle pt-1.5' : 'studio-panel min-w-0 rounded-2xl'}>
+    <DisclosureSummary className={nested ? 'min-h-11 gap-2 rounded-md text-body-sm font-semibold text-fg-1' : 'min-h-14 gap-2 rounded-2xl px-4 font-display text-body-lg font-bold text-fg-1'}>
+      <span className="min-w-0 flex-1 truncate">{title}</span>
+      {value ? <span className="min-w-0 max-w-[50%] truncate font-sans text-body-sm font-normal text-fg-2">{value}</span> : null}
+    </DisclosureSummary>
+    <div className={nested ? 'flex min-w-0 flex-col gap-3 pt-1 pb-1.5' : 'flex min-w-0 flex-col gap-3.5 px-4 pb-4'}>
+      {note ? <p className="text-body-sm text-fg-2">{note}</p> : null}
+      {children}
+    </div>
+  </details>;
+}
+
 /** A titled part inside a panel, for settings that share one step. */
 export function FullDemoPart({ title, note, className = '', children }: { title: string; note?: string; className?: string; children: ReactNode }): ReactNode {
   return <div className={`min-w-0 space-y-2 border-t border-border-subtle pt-3.5 first:border-t-0 first:pt-0 ${className}`}>
@@ -24,9 +40,11 @@ export function FullDemoPart({ title, note, className = '', children }: { title:
   </div>;
 }
 
-export function FullDemoToggle({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }): ReactNode {
-  return <label className="flex min-h-10 cursor-pointer items-center gap-3 text-body-sm text-fg-1">
-    <input type="checkbox" className="size-4 accent-format-full" checked={value} onChange={(event) => onChange(event.target.checked)} />{label}
+export type FullDemoToggleProps = { label: string; value: boolean; disabled?: boolean; describedBy?: string; onChange: (value: boolean) => void };
+
+export function FullDemoToggle({ label, value, disabled = false, describedBy, onChange }: FullDemoToggleProps): ReactNode {
+  return <label className="flex min-h-10 cursor-pointer items-center gap-3 text-body-sm text-fg-1 has-[:disabled]:cursor-not-allowed has-[:disabled]:text-fg-3">
+    <input type="checkbox" className="size-4 accent-format-full" checked={value} disabled={disabled} aria-describedby={describedBy} onChange={(event) => onChange(event.target.checked)} />{label}
   </label>;
 }
 

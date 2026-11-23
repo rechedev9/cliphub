@@ -5,7 +5,9 @@ import type { TacticalBuyType, TacticalDocument, TacticalRound, TacticalTeam } f
 import {
   EVERY_ROUND,
   halfScoreText,
+  endedBySurrender,
   keepsRound,
+  playedRounds,
   roundEvidenceHref,
   roundHalves,
   roundRows,
@@ -160,4 +162,13 @@ test('a filtered half keeps the score of the whole half and an empty half is dro
 
 test('an evidence link opens the replay tab on the round and tick', () => {
   assert.equal(roundEvidenceHref('/partidas/abc', 7, 51234), '/partidas/abc?tab=replay&round=7&tick=51234');
+});
+
+test('a round the demo cut short is not a played round, and a surrender ends the partida', () => {
+  const cut = round({ number: 11, half: 4, overtime: 1, winner: '', ct: 6, t: 4 });
+  const rows = roundRows({ ...DOC, rounds: [...ROUNDS, cut] });
+  assert.deepEqual(playedRounds(rows).map((row) => row.number), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.equal(endedBySurrender(rows), false);
+  const gaveUp = roundRows({ ...DOC, rounds: [{ ...round({ number: 1, half: 1, winner: 'CT', ct: 0, t: 0 }), end_reason: 't_surrender' }] });
+  assert.equal(endedBySurrender(gaveUp), true);
 });

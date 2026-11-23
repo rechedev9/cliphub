@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Layers, Plus, PlugZap } from 'lucide-react';
+import { Layers, Plus } from 'lucide-react';
 import { isLibraryOffline, listLibrarySeries } from '@/lib/api/library';
 import type { LibrarySeries } from '@/lib/api/veto';
 import { librarySeriesHref } from '@/lib/clips/routes';
@@ -10,6 +10,7 @@ import { SERIES_FORMAT_LABEL } from '@/lib/library/veto';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { TableSkeleton } from '@/components/records/table-skeleton';
@@ -76,16 +77,7 @@ export function SeriesLibrary(): ReactNode {
     );
   } else if (series.length === 0) {
     body = offline ? (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudieron leer las series. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind="offline" title="No se pudieron leer las series" onRetry={() => setAttempt((n) => n + 1)} />
     ) : (
       <EmptyState
         icon={Layers}

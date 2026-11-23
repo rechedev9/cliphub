@@ -10,6 +10,7 @@ import type { Annotation } from '@/lib/api/spatial';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { loadErrorMessage } from '@/lib/load-error';
 import { TelestratorToolbar } from './telestrator';
 import type { TelestratorDraft } from './telestrator';
 
@@ -43,10 +44,10 @@ export function useAnnotations(matchIds: readonly string[], round?: number): Ann
       .then((list) => {
         if (active) setNotes(list);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (active) {
           setNotes([]);
-          setError('No se pudieron leer las notas. Comprueba que ClipHub Studio sigue abierto.');
+          setError(loadErrorMessage({ error, lead: 'No se pudieron leer las notas.' }));
         }
       });
     return () => {

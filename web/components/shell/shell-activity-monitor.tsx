@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { api } from '@/lib/api';
 import { streamsApi } from '@/lib/api/streams';
+import { subscribeToApiMutations } from '@/lib/api/edition-fetch';
 import { currentEdition } from '@/lib/edition-routes';
 import { startPollLoop } from '@/lib/poll-loop';
 import {
@@ -19,6 +20,8 @@ import {
 // backs off hard once nothing is in flight.
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
+const AFTER_CHANGE_FAST_MS = 30000;
+const CHANGE_REFRESH_GAP_MS = 5000;
 
 function settled<T>(result: PromiseSettledResult<T[]>): T[] {
   return result.status === 'fulfilled' ? result.value : [];
@@ -46,9 +49,17 @@ export function ShellActivityMonitor(): null {
     const unsubscribe = subscribeToShellActivity(mirror);
     mirror();
 
+    let fastUntil = 0;
+    let changed = false;
+    let refreshedAt = Number.NEGATIVE_INFINITY;
+    const changeDue = (now: number): boolean => changed && now - refreshedAt >= CHANGE_REFRESH_GAP_MS;
+
     const stop = startPollLoop({
       tick: async () => {
-        if (shellActivityIsStale(Date.now())) {
+        const now = Date.now();
+        if (changeDue(now) || shellActivityIsStale(now)) {
+          changed = false;
+          refreshedAt = now;
           const [videos, matches, streams] = await Promise.allSettled([
             api.listVideos(),
             api.listMatches(),
@@ -73,10 +84,15 @@ export function ShellActivityMonitor(): null {
             Date.now(),
           );
         }
-        return shellActivitySnapshot().jobs.length > 0 ? 'fast' : 'idle';
+        return shellActivitySnapshot().jobs.length > 0 || Date.now() < fastUntil ? 'fast' : 'idle';
       },
       fastMs: FAST_POLL_MS,
       idleMs: IDLE_POLL_MS,
+      wake: (listener) => subscribeToApiMutations(() => {
+        changed = true;
+        fastUntil = Date.now() + AFTER_CHANGE_FAST_MS;
+        if (changeDue(Date.now())) listener();
+      }),
     });
 
     return () => {

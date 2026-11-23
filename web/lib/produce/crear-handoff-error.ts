@@ -1,6 +1,7 @@
 import { JOB_DEMO_MISSING_CODE, type LibrarySource } from '../api/library.ts';
 import { SERVICE_UNAVAILABLE_CODE } from '../api/types.ts';
 import { withoutDemoReason } from '../library/partidas.ts';
+import { offlineMessage } from '../load-error.ts';
 
 /** `codeSharedMatch` in internal/httpapi: the match came without its .dem. */
 const SHARED_MATCH_CODE = 'shared_match';
@@ -22,7 +23,7 @@ export function crearHandoffError(err: unknown, source?: LibrarySource): CrearHa
   }
   if (code === SHARED_MATCH_CODE) return { title: TITLE, description: withoutDemoReason(source) };
   if (code === SERVICE_UNAVAILABLE_CODE || err instanceof TypeError) {
-    return { title: TITLE, description: 'El servicio local no responde. Comprueba que ClipHub sigue abierto y vuelve a intentarlo.' };
+    return { title: TITLE, description: offlineMessage() };
   }
   if (status === 404) return { title: TITLE, description: 'Esta partida ya no está en la biblioteca. Recarga la lista o vuelve a importar la demo.' };
   return { title: TITLE, description: 'Studio no pudo preparar la demo. Vuelve a intentarlo; si sigue fallando, reanaliza la partida en Partidas.' };

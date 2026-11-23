@@ -57,7 +57,7 @@ function PlayersBody({ data, side }: { data: TeamSideStats | null | 'failed'; si
   if (data === 'failed') {
     return (
       <p role="alert" className="text-body-sm text-destructive">
-        No se pudieron leer los jugadores. Comprueba que ClipHub Studio sigue abierto.
+        No se pudieron leer los jugadores. Vuelve a intentarlo.
       </p>
     );
   }

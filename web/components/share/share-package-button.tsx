@@ -8,6 +8,7 @@ import { SHARE_NOTES_MAX, packageSizeLabel, shareErrorLabel } from '@/lib/librar
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { offlineMessage } from '@/lib/load-error';
 
 type SharePackageButtonProps = {
   target: ShareTarget;
@@ -33,7 +34,7 @@ export function SharePackageButton({ target, summary, disabled = false }: ShareP
       savePackageFile(built);
     } catch (failure) {
       const code = failure instanceof LibraryApiError ? failure.code : undefined;
-      setError(isLibraryOffline(failure) ? 'El servicio local no responde. Vuelve a intentarlo.' : shareErrorLabel(code, 'No se pudo crear el paquete.'));
+      setError(isLibraryOffline(failure) ? offlineMessage() : shareErrorLabel(code, 'No se pudo crear el paquete.'));
     } finally {
       setBusy(false);
     }

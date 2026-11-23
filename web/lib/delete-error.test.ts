@@ -14,14 +14,14 @@ import {
   deleteFeedbackTone,
   DELETE_GENERIC_MESSAGE,
   DELETE_JOB_BUSY_MESSAGE,
-  DELETE_OFFLINE_MESSAGE,
   DELETE_RENDER_BUSY_MESSAGE,
   DELETE_STREAM_BUSY_MESSAGE,
 } from './delete-error.ts';
+import { offlineMessage } from './load-error.ts';
 
 test('offline code maps to the start-your-orchestrator hint', () => {
   const err = Object.assign(new Error('analysis service unavailable'), { code: SERVICE_UNAVAILABLE_CODE });
-  assert.equal(deleteErrorMessage(err), DELETE_OFFLINE_MESSAGE);
+  assert.equal(deleteErrorMessage(err), offlineMessage());
 });
 
 test('a non-offline error surfaces its message verbatim', () => {
@@ -97,7 +97,7 @@ test('a busy-demo wait sentence is a notice, and a real failure stays an error',
     deleteFeedbackTone(deleteErrorMessage(new Error('job is recording; wait for it to settle before deleting'))),
     'notice',
   );
-  assert.equal(deleteFeedbackTone(DELETE_OFFLINE_MESSAGE), 'error');
+  assert.equal(deleteFeedbackTone(offlineMessage()), 'error');
   assert.equal(deleteFeedbackTone(DELETE_GENERIC_MESSAGE), 'error');
   assert.equal(deleteFeedbackTone('job not found'), 'error');
 });
@@ -124,7 +124,7 @@ test('a refused captures delete reads in Spanish and the wait copy is a notice',
 test('a captures delete on an unknown job or offline service gets its own line', () => {
   assert.equal(deleteCapturesErrorMessage(Object.assign(new Error('job not found'), { status: 404 })), CAPTURES_JOB_GONE_MESSAGE);
   const offline = Object.assign(new Error('analysis service unavailable'), { code: SERVICE_UNAVAILABLE_CODE });
-  assert.equal(deleteCapturesErrorMessage(offline), DELETE_OFFLINE_MESSAGE);
+  assert.equal(deleteCapturesErrorMessage(offline), offlineMessage());
   assert.equal(deleteCapturesErrorMessage(new Error('request failed (500)')), DELETE_GENERIC_MESSAGE);
 });
 

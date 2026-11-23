@@ -1,5 +1,6 @@
 import type { EditConfig } from './api/types.ts';
 import { apiFetch } from './api/edition-fetch.ts';
+import { serverError } from './human-error.ts';
 
 /** The three independent card slots of a one-player 9:16 Short. */
 export const PLAYER_CARD_SLOTS = [
@@ -88,7 +89,7 @@ export function playerCardPreviewUrl(jobId: string, templateId: string, version:
 async function failure(response: Response, fallback: string): Promise<Error> {
   const body: unknown = await response.json().catch(() => null);
   const error = typeof body === 'object' && body !== null ? Reflect.get(body, 'error') : undefined;
-  return new Error(typeof error === 'string' && error !== '' ? error : fallback);
+  return serverError(typeof error === 'string' && error !== '' ? error : fallback, response);
 }
 
 export async function fetchPlayerCardInfo(jobId: string, signal?: AbortSignal): Promise<PlayerCardInfo> {

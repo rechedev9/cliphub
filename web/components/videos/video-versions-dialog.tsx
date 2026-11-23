@@ -8,6 +8,7 @@ import { editVideoHref, type ProduceFormat } from '@/lib/clips/routes';
 import { versionDateLabel, versionOptionsLabel } from '@/lib/produce/edit-capture';
 import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { downloadMP4 } from '@/components/clips-hub/output-item';
 
@@ -82,24 +83,18 @@ type VersionRowProps = { version: VideoVersion; title: string; jobId: string; va
 
 function VersionRow({ version, title, jobId, variant, format, onDeleted }: VersionRowProps): ReactNode {
   const [playing, setPlaying] = useState(false);
-  const [armed, setArmed] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const name = version.videos[0];
   const url = name === undefined ? null : versionVideoUrl({ jobId, variant, revision: version.revision, name });
   const date = versionDateLabel(version.createdAt);
 
   const confirm = async (): Promise<void> => {
-    setDeleting(true);
     setError(null);
     try {
       await deleteVideoVersion({ jobId, variant, revision: version.revision });
       onDeleted();
     } catch {
       setError('No se pudo borrar la versión. Espera a que termine lo que Studio esté grabando o montando y prueba de nuevo.');
-      setArmed(false);
-    } finally {
-      setDeleting(false);
     }
   };
 
@@ -128,25 +123,24 @@ function VersionRow({ version, title, jobId, variant, format, onDeleted }: Versi
               Editar
             </Link>
           </Button>
-          {version.current || armed ? null : (
-            <Button type="button" size="sm" variant="ghost" onClick={() => { setError(null); setArmed(true); }} className="hover:bg-destructive/10 hover:text-destructive" aria-label={`Borrar la versión del ${date}`}>
-              <Trash2 aria-hidden />
-              Borrar
-            </Button>
+          {version.current ? null : (
+            <ConfirmDialog
+              title={`¿Borrar la versión del ${date}?`}
+              description="Se borra el MP4 de esta versión. No se puede deshacer."
+              confirmLabel="Borrar versión"
+              pendingLabel="Borrando…"
+              onConfirm={confirm}
+              trigger={
+                <Button type="button" size="sm" variant="ghost" className="hover:bg-destructive/10 hover:text-destructive" aria-label={`Borrar la versión del ${date}`}>
+                  <Trash2 aria-hidden />
+                  Borrar
+                </Button>
+              }
+            />
           )}
         </div>
       </div>
       {playing && url ? <video controls preload="metadata" src={url} className="max-h-80 w-full bg-surface-0" aria-label={`${title}, versión del ${date}`} /> : null}
-      {armed ? (
-        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          <p className="text-body-sm text-fg-2">Se borra el MP4 de esta versión. No se puede deshacer.</p>
-          <Button type="button" variant="destructive" size="sm" autoFocus loading={deleting} loadingText="Borrando…" onClick={() => void confirm()}>
-            <Trash2 aria-hidden />
-            Borrar versión
-          </Button>
-          <Button type="button" variant="outline" size="sm" disabled={deleting} onClick={() => setArmed(false)}>Cancelar</Button>
-        </div>
-      ) : null}
       {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
     </li>
   );

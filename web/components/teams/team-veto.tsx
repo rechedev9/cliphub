@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { RotateCcw } from 'lucide-react';
 import { getLibraryTeamMaps, getLibraryTeamVeto, type LibraryTeam } from '@/lib/api/library';
@@ -29,30 +29,45 @@ const NO_OPPONENT = '';
 
 type Preferences = ReadonlyMap<string, MapPreference>;
 
-/** A team's preference per map; empty when it cannot be read, so the column shows nothing. */
-function usePreferences(teamId: string): Preferences {
-  const [preferences, setPreferences] = useState<Preferences>(new Map());
+type PreferencesState = { kind: 'loading' } | { kind: 'ready'; preferences: Preferences } | { kind: 'failed' };
+
+function usePreferences(teamId: string): { state: PreferencesState; retry: () => void } {
+  const [state, setState] = useState<PreferencesState>({ kind: 'loading' });
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
-    setPreferences(new Map());
+    setState({ kind: 'loading' });
     if (teamId === NO_OPPONENT) return;
     getLibraryTeamMaps(teamId)
       .then((maps) => {
-        if (active) setPreferences(new Map(maps.maps.map((record) => [record.map, record.preference])));
+        if (active) setState({ kind: 'ready', preferences: new Map(maps.maps.map((record) => [record.map, record.preference])) });
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setState({ kind: 'failed' });
+      });
     return () => {
       active = false;
     };
-  }, [teamId]);
-  return preferences;
+  }, [teamId, attempt]);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  return { state, retry };
 }
 
-function PreferenceCell({ preference }: { preference: MapPreference | undefined }): ReactNode {
+function PreferenceCell({ state, map }: { state: PreferencesState; map: string }): ReactNode {
+  if (state.kind === 'loading') return <Skeleton className="h-4 w-12" />;
+  if (state.kind === 'failed') return <span className="text-fg-3">No se pudo cargar</span>;
+  const preference = state.preferences.get(map);
   if (preference === undefined) return <span className="text-fg-3">Sin datos</span>;
   return <MapPreferenceScore preference={preference} withWord={false} />;
 }
-const POOL_CHOICES = [...DEFAULT_MAP_POOL, ...EXTRA_POOL_MAPS];
+function preferencesFailure({ ours, theirs, opponentName }: { ours: boolean; theirs: boolean; opponentName: string }): string | null {
+  if (ours && theirs) return 'No se pudieron cargar las preferencias de mapa.';
+  if (ours) return 'No se pudieron cargar las preferencias de mapa de este equipo.';
+  if (theirs) return `No se pudieron cargar las preferencias de mapa de ${opponentName}.`;
+  return null;
+}
+
+const POOL_CHOICES =[...DEFAULT_MAP_POOL, ...EXTRA_POOL_MAPS];
 
 /**
  * The veto simulator: the team is slot a, the rival slot b. Every open step
@@ -120,6 +135,7 @@ export function TeamVeto({
   const opponentName = teams?.find((team) => team.id === opponent)?.name ?? 'Rival';
   const slotNames: Record<string, string> = { a: 'Nosotros', b: opponentName, '': 'Ninguno' };
   const minPool = { bo1: 2, bo2: 3, bo3: 3, bo5: 5 }[format];
+  const preferencesNote = preferencesFailure({ ours: ours.state.kind === 'failed', theirs: theirs.state.kind === 'failed', opponentName });
   let notice: ReactNode = null;
   if (opponent === NO_OPPONENT) notice = <p className="text-body-sm text-fg-2">Elige un rival en el filtro de arriba para simular el veto.</p>;
   else if (!fits) {
@@ -131,7 +147,7 @@ export function TeamVeto({
   } else if (result === 'failed') {
     notice = (
       <p role="alert" className="text-body-sm text-destructive">
-        No se pudo simular el veto. Comprueba que ClipHub Studio sigue abierto.
+        No se pudo simular el veto. Vuelve a intentarlo.
       </p>
     );
   } else if (plan === null) notice = <Skeleton className="h-64 w-full" />;
@@ -214,6 +230,22 @@ export function TeamVeto({
           <p className="text-body-sm text-fg-1">
             Se jugaría: <span className="font-medium">{plan.played.map(prettyMapName).join(', ')}</span>
           </p>
+          {preferencesNote === null ? null : (
+            <p role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-fg-2">
+              {preferencesNote}
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => {
+                  if (ours.state.kind === 'failed') ours.retry();
+                  if (theirs.state.kind === 'failed') theirs.retry();
+                }}
+              >
+                Reintentar
+              </Button>
+            </p>
+          )}
           <RelatedList title="Mapas del pool" count={plan.maps.length}>
             <div className="overflow-x-auto">
               <table aria-label="Mapas del pool" className="w-full border-collapse text-left text-body-sm">
@@ -246,10 +278,10 @@ export function TeamVeto({
                       <td className="px-2.5 py-1.5 whitespace-nowrap">{rateLabel(map.their_rate)}</td>
                       <td className={cn('px-2.5 py-1.5 whitespace-nowrap', map.edge > 0 && 'text-outcome-win', map.edge < 0 && 'text-outcome-loss')}>{edgeLabel(map.edge)}</td>
                       <td className="px-2.5 py-1.5 whitespace-nowrap">
-                        <PreferenceCell preference={ours.get(map.map)} />
+                        <PreferenceCell state={ours.state} map={map.map} />
                       </td>
                       <td className="px-2.5 py-1.5 whitespace-nowrap">
-                        <PreferenceCell preference={theirs.get(map.map)} />
+                        <PreferenceCell state={theirs.state} map={map.map} />
                       </td>
                       <td className="px-2.5 py-1.5 whitespace-nowrap">{map.their_bans}</td>
                       <td className="px-2.5 py-1.5 whitespace-nowrap">{map.their_picks}</td>

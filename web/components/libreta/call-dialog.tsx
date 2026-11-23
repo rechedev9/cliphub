@@ -16,13 +16,17 @@ import {
 import type { LibretaStatus } from '@/lib/api/libreta';
 import { CALL_SIDE_LABEL } from '@/lib/libreta/calls';
 import { parseTags, tagsText } from '@/lib/libreta/status';
+import { loadErrorMessage } from '@/lib/load-error';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Field } from '@/components/ui/field';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Field, TagsField } from './play-fields';
-import { StatusSelect } from './status-badge';
+import { useDiscardGuard } from './discard-guard';
+import { TagsField } from './play-fields';
+import { StatusField } from './status-badge';
 
 /** Writes a new call, or edits one and can delete it after asking. */
 export function CallDialog({ call, onClose, onSaved }: { call?: LibraryCall; onClose: () => void; onSaved: () => void }): ReactNode {
@@ -32,8 +36,14 @@ export function CallDialog({ call, onClose, onSaved }: { call?: LibraryCall; onC
   const [status, setStatus] = useState<LibretaStatus>(call?.status ?? 'active');
   const [tags, setTags] = useState(tagsText(call?.tags ?? []));
   const [busy, setBusy] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty =
+    name !== (call?.name ?? '') ||
+    side !== (call?.side ?? 'both') ||
+    meaning !== (call?.meaning ?? '') ||
+    status !== (call?.status ?? 'active') ||
+    tags !== tagsText(call?.tags ?? []);
+  const guard = useDiscardGuard({ dirty, busy, onClose });
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -45,28 +55,25 @@ export function CallDialog({ call, onClose, onSaved }: { call?: LibraryCall; onC
       else await createLibraryCall(input);
       onSaved();
       onClose();
-    } catch {
-      setError(call ? 'No se pudo guardar la llamada.' : 'No se pudo crear la llamada.');
+    } catch (cause: unknown) {
+      setError(loadErrorMessage({ error: cause, lead: call ? 'No se pudo guardar la llamada.' : 'No se pudo crear la llamada.' }));
       setBusy(false);
     }
   }
 
   async function remove(target: LibraryCall): Promise<void> {
-    setBusy(true);
     setError(null);
     try {
       await deleteLibraryCall(target.id);
       onSaved();
       onClose();
-    } catch {
-      setError('No se pudo eliminar la llamada.');
-      setConfirming(false);
-      setBusy(false);
+    } catch (cause: unknown) {
+      setError(loadErrorMessage({ error: cause, lead: 'No se pudo borrar la llamada.' }));
     }
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
+    <Dialog open onOpenChange={guard.onOpenChange}>
       <DialogContent className="sm:max-w-lg" showCloseButton={!busy}>
         <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
           <DialogHeader>
@@ -75,36 +82,39 @@ export function CallDialog({ call, onClose, onSaved }: { call?: LibraryCall; onC
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-[1fr_9rem]">
             <Field label="Llamada">
-              <Input value={name} maxLength={MAX_CALL_NAME} placeholder="Rata, Stack B, Todos a A" onChange={(event) => setName(event.target.value)} />
+              {(control) => <Input {...control} value={name} maxLength={MAX_CALL_NAME} placeholder="Rata, Stack B, Todos a A" onChange={(event) => setName(event.target.value)} />}
             </Field>
             <Field label="Lado">
-              <Select value={side} onValueChange={(next) => isCallSide(next) && setSide(next)}>
-                <SelectTrigger aria-label="Lado" className="h-9 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CALL_SIDES.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {CALL_SIDE_LABEL[value]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {(control) => (
+                <Select value={side} onValueChange={(next) => isCallSide(next) && setSide(next)}>
+                  <SelectTrigger {...control} className="h-9 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CALL_SIDES.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {CALL_SIDE_LABEL[value]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </Field>
           </div>
           <Field label="Qué significa">
-            <Textarea
-              value={meaning}
-              maxLength={MAX_CALL_MEANING}
-              rows={4}
-              placeholder="Por ejemplo: uno se queda atrás en medio y entra solo cuando caiga el primero."
-              onChange={(event) => setMeaning(event.target.value)}
-            />
+            {(control) => (
+              <Textarea
+                {...control}
+                value={meaning}
+                maxLength={MAX_CALL_MEANING}
+                rows={4}
+                placeholder="Por ejemplo: uno se queda atrás en medio y entra solo cuando caiga el primero."
+                onChange={(event) => setMeaning(event.target.value)}
+              />
+            )}
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Estado">
-              <StatusSelect value={status} onChange={setStatus} />
-            </Field>
+            <StatusField value={status} onChange={setStatus} />
             <TagsField value={tags} onChange={setTags} />
           </div>
           {error ? (
@@ -112,40 +122,36 @@ export function CallDialog({ call, onClose, onSaved }: { call?: LibraryCall; onC
               {error}
             </p>
           ) : null}
-          {call && confirming ? (
-            <div role="alertdialog" aria-label="Eliminar la llamada" className="flex flex-col gap-2 rounded-md border border-destructive/40 p-3">
-              <p className="text-body-sm text-fg-1">¿Eliminar «{call.name}»? No se puede deshacer. Si solo quieres sacarla de la lista, pásala a Archivo.</p>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setConfirming(false)}>
-                  Cancelar
-                </Button>
-                <Button type="button" variant="destructive" size="sm" disabled={busy} onClick={() => void remove(call)}>
-                  Eliminar
-                </Button>
-              </div>
+          <DialogFooter className="sm:justify-between">
+            {call ? (
+              <ConfirmDialog
+                title={`¿Borrar «${call.name}»?`}
+                description="Se borra de la Libreta y no se puede deshacer. Si solo quieres sacarla de la lista, pásala a Archivo."
+                confirmLabel="Borrar llamada"
+                pendingLabel="Borrando…"
+                onConfirm={() => remove(call)}
+                trigger={
+                  <Button type="button" variant="ghost" disabled={busy}>
+                    <Trash2 aria-hidden />
+                    Borrar
+                  </Button>
+                }
+              />
+            ) : (
+              <span aria-hidden />
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button type="button" variant="outline" disabled={busy} onClick={() => guard.onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={busy || name.trim() === ''} loading={busy}>
+                {call ? 'Guardar' : 'Crear llamada'}
+              </Button>
             </div>
-          ) : (
-            <DialogFooter className="sm:justify-between">
-              {call ? (
-                <Button type="button" variant="ghost" disabled={busy} onClick={() => setConfirming(true)}>
-                  <Trash2 aria-hidden />
-                  Eliminar
-                </Button>
-              ) : (
-                <span aria-hidden />
-              )}
-              <div className="flex flex-col-reverse gap-2 sm:flex-row">
-                <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={busy || name.trim() === ''}>
-                  {call ? 'Guardar' : 'Crear llamada'}
-                </Button>
-              </div>
-            </DialogFooter>
-          )}
+          </DialogFooter>
         </form>
       </DialogContent>
+      {guard.confirm}
     </Dialog>
   );
 }

@@ -6,15 +6,17 @@ const RAIL = [
   ['create', 'Demo completa', '/videos-largos'],
   ['create', 'Short', '/shorts'],
   ['create', 'Clips de stream', '/streams'],
-  ['create', 'Jugadores FACEIT', '/jugadores/faceit'],
   ['create', 'Mis vídeos', '/mis-videos'],
   ['create', 'Consejos', '/ideas'],
   ['analyze', 'Partidas', '/partidas'],
-  ['analyze', 'Replay', '/replay'],
+  ['analyze', 'Replay 2D', '/replay'],
+  ['analyze', 'Buscador de patrones', '/patrones'],
   ['analyze', 'Equipos', '/equipos'],
   ['analyze', 'Jugadores', '/jugadores'],
+  ['analyze', 'Jugadores FACEIT', '/jugadores/faceit'],
   ['analyze', 'Ranking', '/ranking'],
   ['analyze', 'Libreta', '/libreta'],
+  ['analyze', 'Editor de tácticas', '/tacticas/nueva'],
   ['analyze', 'Lineups pro', '/lineups'],
   ['analyze', 'Informes', '/informes'],
   ['chrome', 'Almacenamiento', '/almacenamiento'],
@@ -49,6 +51,8 @@ test('nav: a nested route lights its section, a series lights Short, a player sh
   assert.equal(sectionForPath('/jugadores')?.href, '/jugadores');
   assert.equal(sectionForPath('/jugadores/76561198000000000')?.href, '/jugadores');
   assert.equal(sectionForPath('/jugadores/faceit')?.href, '/jugadores/faceit');
+  assert.equal(sectionForPath('/jugadores/faceit/abc')?.href, '/jugadores/faceit');
+  assert.equal(sectionForPath('/patrones/abc')?.href, '/patrones');
   assert.equal(sectionForPath('/videos-largos/serie/abc')?.href, '/videos-largos');
   assert.equal(sectionForPath('/shortsx'), null);
   assert.equal(sectionForPath('/'), null);

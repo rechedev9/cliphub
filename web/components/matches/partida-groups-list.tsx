@@ -12,15 +12,17 @@ import { SERIES_FORMAT_LABEL } from '@/lib/library/veto';
 import { hasPov, ownOutcome, seriesScore, seriesVeto, type DayGroup, type PartidaGroup, type VetoMark } from '@/lib/library/partida-groups';
 import type { VoiceByMatch } from '@/lib/library/voice-summary';
 import { deleteErrorMessage } from '@/lib/delete-error';
-import { OUTCOME_LABEL, matchTitle, partidaDate, withoutDemo, type Outcome, type PartidaRow } from '@/lib/library/partidas';
+import { OUTCOME_LABEL, matchTitle, ownFirstScoreline, partidaDate, withoutDemo, type Outcome, type PartidaRow } from '@/lib/library/partidas';
 import { DayHeading, MapCell, SeriesStrip, TwoDCell, TwoDLink, mapTag, type MapEdge, type MapTag } from '@/components/matches/series-block';
-import { DemoStatus, OutcomeBadge, RowActions, ScoreStack, removeDemo, type RowHandlers } from '@/components/matches/partida-cells';
+import { DemoStatus, RowActions, ScoreStack, removeDemo, type RowHandlers } from '@/components/matches/partida-cells';
+import { ResultBadge } from '@/components/matches/result-badge';
 import { DemoTitleEditor } from '@/components/matches/demo-title-editor';
 import { PartidaSource } from '@/components/matches/partida-source';
 import { PartidaTags } from '@/components/matches/partida-tags';
 import { PartidaVoice } from '@/components/matches/partida-voice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 /** Groups drawn before "Mostrar más", so a long library does not paint every row at once. */
@@ -58,10 +60,10 @@ type RowMenuProps = { row: PartidaRow; name: string; handlers: RowHandlers; onRe
 /** The row kebab: the record of the partida, its title, a new analysis and the removal, which the row no longer shows. */
 function RowMenu({ row, name, handlers, onRename }: RowMenuProps): ReactNode {
   const { demo, match } = row;
-  const [armed, setArmed] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Renombrar hands focus to the title field, so the closing menu must not take it back to the kebab.
-  const renamingRef = useRef(false);
+  // Renombrar and Borrar hand focus to the title field or the dialog, so the closing menu must not take it back to the kebab.
+  const handOffFocusRef = useRef(false);
   // A failed row already shows Reintentar and its delete inline.
   if (match === null || demo.state === 'failed') return null;
   // A shared or pro match has no .dem on this PC to analyse again.
@@ -76,7 +78,6 @@ function RowMenu({ row, name, handlers, onRename }: RowMenuProps): ReactNode {
       <DropdownMenu
         onOpenChange={(open) => {
           if (open) setError(null);
-          else setArmed(false);
         }}
       >
         <DropdownMenuTrigger asChild>
@@ -87,8 +88,8 @@ function RowMenu({ row, name, handlers, onRename }: RowMenuProps): ReactNode {
         <DropdownMenuContent
           align="end"
           onCloseAutoFocus={(event) => {
-            if (!renamingRef.current) return;
-            renamingRef.current = false;
+            if (!handOffFocusRef.current) return;
+            handOffFocusRef.current = false;
             event.preventDefault();
           }}
         >
@@ -100,7 +101,7 @@ function RowMenu({ row, name, handlers, onRename }: RowMenuProps): ReactNode {
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => {
-              renamingRef.current = true;
+              handOffFocusRef.current = true;
               onRename();
             }}
           >
@@ -116,21 +117,25 @@ function RowMenu({ row, name, handlers, onRename }: RowMenuProps): ReactNode {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
-            onSelect={(event) => {
-              // The first pick arms the item and keeps the menu open; the second deletes.
-              if (!armed) {
-                event.preventDefault();
-                setArmed(true);
-                return;
-              }
-              void removeDemo(demo.id).then(handlers.onRemoved, (reason: unknown) => setError(deleteErrorMessage(reason)));
+            onSelect={() => {
+              handOffFocusRef.current = true;
+              setConfirming(true);
             }}
           >
             <Trash2 aria-hidden />
-            {armed ? '¿Borrar? Pulsa otra vez' : 'Borrar'}
+            Borrar
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`¿Borrar ${name}?`}
+        description="La biblioteca pierde la copia de la demo, el análisis y las correcciones. Los vídeos ya creados se quedan. No se puede deshacer."
+        confirmLabel="Borrar partida"
+        pendingLabel="Borrando…"
+        onConfirm={() => removeDemo(demo.id).then(handlers.onRemoved, (reason: unknown) => setError(deleteErrorMessage(reason)))}
+      />
     </span>
   );
 }
@@ -139,7 +144,7 @@ type RowTitleProps = { demo: LibraryDemo; renaming: boolean; onSaved: (saved: Li
 
 /** The demo's title at the head of the row's details, or its field while Renombrar is open. */
 function RowTitle({ demo, renaming, onSaved, onClose }: RowTitleProps): ReactNode {
-  if (renaming) return <DemoTitleEditor demo={demo} onSaved={onSaved} onClose={onClose} className="w-full max-w-80" />;
+  if (renaming) return <DemoTitleEditor demo={demo} onSaved={onSaved} onClose={onClose} className="relative w-full max-w-80" />;
   if (demo.title === undefined || demo.title === '') return null;
   return (
     <span className="max-w-64 truncate text-body-sm font-semibold text-fg-1" title={demo.title}>
@@ -159,6 +164,7 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
   const ownName = context.ownName.toLowerCase();
   const quietTags = ownName === '' ? [] : demo.tags.filter((tag) => tag.toLowerCase() === ownName);
   const name = match ? prettyMapName(match.map) : demo.file_name;
+  const openLabel = match ? `Abrir ${name}, ${ownFirstScoreline(match, context.ownTeam).map((side) => side.name).join(' contra ')}` : '';
   const failed = demo.state === 'failed' ? <TriangleAlert aria-hidden className="size-4 shrink-0 text-destructive" /> : null;
   const label = (
     <span className="flex items-center gap-1.5">
@@ -168,13 +174,20 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
       </span>
     </span>
   );
-  // Under 40rem of content the row stacks: the map fills the first line, the details take the next and the buttons sit at the right.
+  // Under 40rem of content the row stacks: the map keeps its desktop size, the details take the next line and the buttons sit at the right.
   return (
     <li
       title={edgeLabel}
-      className="group/row relative flex items-stretch border-t border-border-subtle transition-colors first:border-t-0 hover:bg-surface-3 @max-[40rem]/content:flex-wrap @max-[40rem]/content:justify-end"
+      className="group/row relative flex items-stretch border-t border-border-subtle transition-colors first:border-t-0 hover:bg-surface-3 @max-[40rem]/content:flex-wrap"
     >
-      <div className="flex w-8 shrink-0 items-center justify-center">
+      {match ? (
+        <Link
+          href={matchHref(match.id)}
+          aria-label={openLabel}
+          className="absolute inset-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        />
+      ) : null}
+      <div className="relative flex w-8 shrink-0 items-center justify-center">
         <input
           type="checkbox"
           aria-label={`Elegir ${name}`}
@@ -183,37 +196,28 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
           className="size-4 accent-primary"
         />
       </div>
-      {edgeLabel ? <span className="sr-only">{edgeLabel}</span> : null}
       <MapCell
         map={match ? match.map : null}
         day={context.showDay ? dayMonthLabel(partidaDate(row)) : ''}
-        name={
-          match ? (
-            <Link href={matchHref(match.id)} className="block rounded-sm outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring">
-              {label}
-            </Link>
-          ) : (
-            label
-          )
-        }
+        name={label}
         tag={mark ? markTagOf(mark) : undefined}
         edge={outcome === null ? 'none' : EDGE_OF_OUTCOME[outcome]}
-        className="@max-[40rem]/content:grow"
+        className="pointer-events-none"
       />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2 @max-[40rem]/content:basis-full">
         <RowTitle demo={demo} renaming={renaming} onSaved={context.onTitleSaved} onClose={() => setRenaming(false)} />
         {match && demo.state !== 'failed' ? (
           <span className="flex items-center gap-3">
             <ScoreStack match={match} ownTeam={context.ownTeam} />
-            {outcome === null ? null : <OutcomeBadge outcome={outcome} />}
+            {outcome === null ? null : <ResultBadge outcome={outcome} compact />}
           </span>
         ) : (
           <div className="min-w-40">
             {/* A phone has no hover for the tooltip, so the reason wraps there. */}
-            <DemoStatus row={row} className="@max-[40rem]/content:whitespace-normal" />
+            <DemoStatus row={row} className="relative @max-[40rem]/content:whitespace-normal" />
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex flex-wrap items-center gap-2">
           {pov ? (
             <Badge variant="secondary" shape="square">
               <Video aria-hidden />
@@ -225,14 +229,16 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
           <PartidaTags demo={demo} allTags={context.allTags} onChanged={context.onTagsChanged} quietTags={quietTags} />
         </div>
       </div>
-      {match && demo.state === 'ready' ? (
-        <TwoDCell className="@max-[40rem]/content:border-l-0 @max-[40rem]/content:pb-2">
-          <TwoDLink href={matchReplayHref(match.id)} label={`Abrir el replay 2D de ${name}`} />
-        </TwoDCell>
-      ) : null}
-      <div className="flex shrink-0 items-center gap-1 px-2 @max-[40rem]/content:pb-2 @max-[40rem]/content:empty:hidden">
-        <RowActions row={row} handlers={context.handlers} />
-        <RowMenu row={row} name={name} handlers={context.handlers} onRename={() => setRenaming(true)} />
+      <div className="relative flex shrink-0 items-stretch @max-[40rem]/content:ml-auto">
+        {match && demo.state === 'ready' ? (
+          <TwoDCell className="@max-[40rem]/content:border-l-0 @max-[40rem]/content:pb-2">
+            <TwoDLink href={matchReplayHref(match.id)} label={`Abrir el replay 2D de ${name}`} />
+          </TwoDCell>
+        ) : null}
+        <div className="flex shrink-0 items-center gap-1 px-2 @max-[40rem]/content:pb-2 @max-[40rem]/content:empty:hidden">
+          <RowActions row={row} handlers={context.handlers} />
+          <RowMenu row={row} name={name} handlers={context.handlers} onRename={() => setRenaming(true)} />
+        </div>
       </div>
     </li>
   );

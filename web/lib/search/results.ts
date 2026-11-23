@@ -2,14 +2,15 @@ import type { SearchKind, SearchResult } from '../api/search.ts';
 import { GRENADE_KIND_LABEL } from '../analysis/grenade-patterns.ts';
 import { isLineupGrenade } from '../api/lineups.ts';
 import { isLibretaStatus } from '../api/libreta.ts';
-import { LIBRETA_TABS, libretaTabHref, lineupHref, matchHref, playerHref, playHref, teamHref } from '../clips/routes.ts';
+import { LIBRETA_TABS, LONG_VIDEOS_HREF, SHORTS_HREF, libretaTabHref, lineupHref, matchHref, playerHref, playHref, teamHref } from '../clips/routes.ts';
 import { navSectionsFor } from '../edition.ts';
-import { currentEdition } from '../edition-routes.ts';
+import { currentEdition, isPathAvailable, type Edition } from '../edition-routes.ts';
 import { STATUS_LABEL } from '../libreta/status.ts';
 import { playKindLabel } from '../stratbook/plays.ts';
 
 /** The section titles of the result list, in the order they show. */
-export const SEARCH_GROUP_LABEL: Record<SearchKind | 'section', string> = {
+export const SEARCH_GROUP_LABEL: Record<SearchGroup, string> = {
+  action: 'Acciones',
   section: 'Secciones',
   play: 'Jugadas',
   lineup: 'Lineups',
@@ -19,7 +20,9 @@ export const SEARCH_GROUP_LABEL: Record<SearchKind | 'section', string> = {
   match: 'Partidas',
 };
 
-export type SearchRow = { key: string; group: SearchKind | 'section'; title: string; subtitle: string; href: string };
+type SearchGroup = SearchKind | 'section' | 'action';
+
+export type SearchRow = { key: string; group: SearchGroup; title: string; subtitle: string; href: string };
 
 /** Mirrors `library.FoldSearch`: lower case, no accents, "&" read as "y". */
 export function foldSearch(text: string): string {
@@ -33,17 +36,50 @@ export function foldSearch(text: string): string {
     .join(' ');
 }
 
+type SearchAction = { title: string; keywords: string; subtitle: string; href: string; webHref?: string };
+
+const SEARCH_ACTIONS: readonly SearchAction[] = [
+  { title: 'Crear Short', keywords: 'vertical video nuevo', subtitle: '', href: SHORTS_HREF },
+  { title: 'Crear demo completa', keywords: 'video largo partida entera nueva', subtitle: '', href: LONG_VIDEOS_HREF },
+  { title: 'Importar demos', keywords: 'cargar subir demo dem', subtitle: 'Desde Partidas', href: '/partidas', webHref: '/importar' },
+  { title: 'Crear clips de stream', keywords: 'stream twitch youtube kick recortar', subtitle: '', href: '/streams' },
+  { title: 'Abrir ajustes', keywords: 'configuracion settings steam voz', subtitle: '', href: '/settings' },
+];
+
+function matchesWords(text: string, query: string): boolean {
+  const words = foldSearch(query).split(' ').filter((word) => word !== '');
+  const folded = foldSearch(text);
+  return words.every((word) => folded.includes(word));
+}
+
+function actionHref(action: SearchAction, edition: Edition): string {
+  return edition === 'web' && action.webHref !== undefined ? action.webHref : action.href;
+}
+
+export function actionRows(query: string, edition: Edition = currentEdition()): SearchRow[] {
+  return SEARCH_ACTIONS.flatMap((action) => {
+    const href = actionHref(action, edition);
+    if (!isPathAvailable(href, edition) || !matchesWords(`${action.title} ${action.keywords}`, query)) return [];
+    return [{ key: `action:${action.title}`, group: 'action', title: action.title, subtitle: action.subtitle, href }];
+  });
+}
+
 /** The sections of the rail whose name holds every word of the query. */
 export function sectionRows(query: string): SearchRow[] {
-  const words = foldSearch(query).split(' ').filter((word) => word !== '');
-  if (words.length === 0) return [];
-  return navSectionsFor(currentEdition()).filter((section) => words.every((word) => foldSearch(section.label).includes(word))).map((section) => ({
+  if (foldSearch(query) === '') return [];
+  return navSectionsFor(currentEdition()).filter((section) => matchesWords(section.label, query)).map((section) => ({
     key: `section:${section.href}`,
     group: 'section',
     title: section.label,
     subtitle: 'Ir a la sección',
     href: section.href,
   }));
+}
+
+export function localRows(query: string): SearchRow[] {
+  const actions = actionRows(query);
+  const opened = new Set(actions.map((row) => row.href));
+  return [...actions, ...sectionRows(query).filter((row) => !opened.has(row.href))];
 }
 
 function sideLabel(side: string | undefined): string | null {

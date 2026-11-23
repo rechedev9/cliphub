@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	defaultLeaderboardRows = 20
+	defaultLeaderboardRows  = 20
+	proLeaderboardMinRounds = 150
 	// leaderboardDefaultDays is the period a library board reads when it names no dates, as the page does.
 	leaderboardDefaultDays = 90
 	maxLeaderboardRows     = 100
@@ -98,7 +99,7 @@ type leaderboardIn struct {
 	TeamTop   int    `json:"team_top,omitempty" jsonschema:"pro only: only players whose own team is ranked this high or better in HLTV: 5, 15, 30 or 50"`
 	Event     string `json:"event,omitempty" jsonschema:"pro only: only maps of this event, as the answer's events lists it"`
 	Source    string `json:"source,omitempty" jsonschema:"only matches from this kind of demo: valve, faceit, hltv (tournaments) or scrim"`
-	MinRounds int    `json:"min_rounds,omitempty" jsonschema:"rounds a player needs to be ranked; default 50"`
+	MinRounds int    `json:"min_rounds,omitempty" jsonschema:"rounds a player needs to be ranked; default 150 for scope pro and 50 for scope library, like the Ranking page"`
 	Limit     int    `json:"limit,omitempty" jsonschema:"how many players to list, best first; default 20, at most 100"`
 }
 
@@ -355,7 +356,11 @@ func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 	if limit == 0 {
 		limit = defaultLeaderboardRows
 	}
-	return tuiclient.LeaderboardQuery{Metric: metric, Scope: scope, Map: strings.ToLower(in.Map), MinRounds: in.MinRounds, Limit: limit,
+	minRounds := in.MinRounds
+	if minRounds == 0 && pro {
+		minRounds = proLeaderboardMinRounds
+	}
+	return tuiclient.LeaderboardQuery{Metric: metric, Scope: scope, Map: strings.ToLower(in.Map), MinRounds: minRounds, Limit: limit,
 		Side: filter.Side, Role: role, From: filter.From, To: filter.To, Source: source, Days: in.Days, Top: in.Top, TeamTop: in.TeamTop, Event: in.Event, MapRole: in.MapRole}, nil
 }
 

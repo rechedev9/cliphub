@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { FileText, Loader2, Plus, PlugZap, Shield } from 'lucide-react';
-import { createLibraryReport, deleteLibraryReport, isLibraryNotFound, isLibraryOffline, listLibraryMatches, listLibraryReports } from '@/lib/api/library';
+import { FileText, Loader2, Plus, RotateCcw, Shield } from 'lucide-react';
+import { createLibraryReport, deleteLibraryReport, isLibraryNotFound, listLibraryMatches, listLibraryReports } from '@/lib/api/library';
 import type { LibraryReport } from '@/lib/api/scout';
 import { REPORTS_QUERY, TEAMS_HREF, reportHref, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
@@ -13,11 +13,13 @@ import { REPORT_SIDE_LABEL } from '@/lib/reports/scout-sections';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { DocumentPage } from '@/components/records/document-page';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { useTableView, type TableViewControl } from '@/components/records/use-table-view';
 import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { NewReportDialog, type ReportDraft } from './new-report-dialog';
 
 /** A report being written: the row stays on the list, reading "Generando", until the server answers. */
@@ -28,12 +30,37 @@ function rowKey(row: ReportRow): string {
   return row.kind === 'report' ? row.report.id : row.pending.id;
 }
 
+type MapsState = { kind: 'loading' } | { kind: 'ready'; maps: ReadonlyMap<string, string> } | { kind: 'failed' };
+
 function mapsText(report: LibraryReport, mapOfMatch: ReadonlyMap<string, string>): string {
   const maps = [...new Set(report.match_ids.flatMap((id) => mapOfMatch.get(id) ?? []))];
   return maps.map(prettyMapName).join(', ');
 }
 
-function buildColumns(mapOfMatch: ReadonlyMap<string, string>): readonly DataTableColumn<ReportRow>[] {
+function MapsCell({ report, maps }: { report: LibraryReport; maps: { state: MapsState; retry: () => void } }): ReactNode {
+  if (maps.state.kind === 'loading') return <Skeleton className="h-4 w-20" />;
+  if (maps.state.kind === 'ready') return <span className="text-fg-2">{mapsText(report, maps.state.maps)}</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5 text-fg-3">
+      No se pudo cargar
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        aria-label="Reintentar cargar los mapas"
+        onClick={(event) => {
+          event.stopPropagation();
+          maps.retry();
+        }}
+      >
+        <RotateCcw aria-hidden />
+        Reintentar
+      </Button>
+    </span>
+  );
+}
+
+function buildColumns(maps: { state: MapsState; retry: () => void }): readonly DataTableColumn<ReportRow>[] {
   return [
     {
       id: 'team',
@@ -55,7 +82,7 @@ function buildColumns(mapOfMatch: ReadonlyMap<string, string>): readonly DataTab
     {
       id: 'maps',
       header: 'Mapas',
-      cell: (row) => (row.kind === 'report' ? <span className="text-fg-2">{mapsText(row.report, mapOfMatch)}</span> : null),
+      cell: (row) => (row.kind === 'report' ? <MapsCell report={row.report} maps={maps} /> : null),
     },
     {
       id: 'matches',
@@ -127,9 +154,10 @@ export function ReportLibrary(): ReactNode {
   const search = useSearchParams();
   const requestedTeam = search.get(REPORTS_QUERY.team) ?? undefined;
   const [reports, setReports] = useState<LibraryReport[] | null>(null);
-  const [mapOfMatch, setMapOfMatch] = useState<ReadonlyMap<string, string>>(new Map());
-  const [offline, setOffline] = useState(false);
+  const [mapOfMatch, setMapOfMatch] = useState<MapsState>({ kind: 'loading' });
+  const [loadError, setLoadError] = useState<{ error: unknown } | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [mapsAttempt, setMapsAttempt] = useState(0);
   const [creating, setCreating] = useState(requestedTeam !== undefined);
   const [pending, setPending] = useState<PendingReport[]>([]);
   const [failure, setFailure] = useState<string | null>(null);
@@ -149,24 +177,34 @@ export function ReportLibrary(): ReactNode {
       .then((list) => {
         if (!active) return;
         setReports(list);
-        setOffline(false);
+        setLoadError(null);
       })
       .catch((error: unknown) => {
         if (!active) return;
         setReports([]);
-        setOffline(isLibraryOffline(error));
+        setLoadError({ error });
       });
-    listLibraryMatches()
-      .then((matches) => {
-        if (active) setMapOfMatch(new Map(matches.map((match) => [match.id, match.map])));
-      })
-      .catch(() => undefined);
     return () => {
       active = false;
     };
   }, [attempt]);
 
+  useEffect(() => {
+    let active = true;
+    listLibraryMatches()
+      .then((matches) => {
+        if (active) setMapOfMatch({ kind: 'ready', maps: new Map(matches.map((match) => [match.id, match.map])) });
+      })
+      .catch(() => {
+        if (active) setMapOfMatch({ kind: 'failed' });
+      });
+    return () => {
+      active = false;
+    };
+  }, [mapsAttempt]);
+
   const reload = useCallback(() => setAttempt((n) => n + 1), []);
+  const reloadMaps = useCallback(() => setMapsAttempt((n) => n + 1), []);
 
   function setDialog(open: boolean): void {
     setCreating(open);
@@ -193,8 +231,9 @@ export function ReportLibrary(): ReactNode {
           Preparar rival
         </Link>
       </Button>
-      <Button type="button" variant="success" size="icon-sm" aria-label="Nuevo informe" title="Nuevo informe" onClick={() => setCreating(true)}>
+      <Button type="button" variant="success" size="sm" onClick={() => setCreating(true)}>
         <Plus aria-hidden />
+        Nuevo informe
       </Button>
     </span>
   );
@@ -207,7 +246,15 @@ export function ReportLibrary(): ReactNode {
           {failure}
         </p>
       ) : null}
-      <ReportListBody reports={reports} pending={pending} offline={offline} view={view} mapOfMatch={mapOfMatch} onNew={() => setCreating(true)} onReload={reload} />
+      <ReportListBody
+        reports={reports}
+        pending={pending}
+        loadError={loadError}
+        view={view}
+        maps={{ state: mapOfMatch, retry: reloadMaps }}
+        onNew={() => setCreating(true)}
+        onReload={reload}
+      />
       <NewReportDialog open={creating} onOpenChange={setDialog} initialTeamId={requestedTeam} onGenerate={generate} />
     </DocumentPage>
   );
@@ -216,17 +263,17 @@ export function ReportLibrary(): ReactNode {
 function ReportListBody({
   reports,
   pending,
-  offline,
+  loadError,
   view,
-  mapOfMatch,
+  maps,
   onNew,
   onReload,
 }: {
   reports: LibraryReport[] | null;
   pending: readonly PendingReport[];
-  offline: boolean;
+  loadError: { error: unknown } | null;
   view: TableViewControl;
-  mapOfMatch: ReadonlyMap<string, string>;
+  maps: { state: MapsState; retry: () => void };
   onNew: () => void;
   onReload: () => void;
 }): ReactNode {
@@ -235,17 +282,8 @@ function ReportListBody({
   }
 
   if (reports.length === 0 && pending.length === 0) {
-    return offline ? (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudieron leer los informes. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={onReload}>
-            Reintentar
-          </Button>
-        }
-      />
+    return loadError !== null ? (
+      <LoadErrorState error={loadError.error} title="No se pudieron leer los informes" onRetry={onReload} />
     ) : (
       <EmptyState
         icon={FileText}
@@ -296,7 +334,7 @@ function ReportListBody({
       }
       label="Informes"
       rows={rows}
-      columns={[...buildColumns(mapOfMatch), deleteColumn(onReload)]}
+      columns={[...buildColumns(maps), deleteColumn(onReload)]}
       rowKey={rowKey}
       view={view}
       empty={<p className="text-body-sm text-fg-2">Ningún informe cumple esta búsqueda.</p>}

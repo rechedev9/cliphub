@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SIDEBAR_FOOTER_ENTRIES, SIDEBAR_GROUPS, activeEntryId, type SidebarEntry } from './nav-groups.ts';
+import { SIDEBAR_FOOTER_ENTRIES, SIDEBAR_GROUPS, VOICE_HREF, activeEntryId, type SidebarEntry } from './nav-groups.ts';
+import { NAV_SECTIONS } from './nav.ts';
 import { hubTeamHref, scopeTeamId, sidebarHref, withTeam } from './nav-scope.ts';
 
 const ENTRIES = [...SIDEBAR_GROUPS.flatMap((group) => group.entries), ...SIDEBAR_FOOTER_ENTRIES];
@@ -12,37 +13,50 @@ function entry(id: SidebarEntry['id']): SidebarEntry {
   return found;
 }
 
-test('rail: the analysis side holds EDGE\'s eleven tools, and every entry has a real destination', () => {
-  const analysis = SIDEBAR_GROUPS.filter((group) => group.id !== 'crear').flatMap((group) => group.entries);
-  assert.equal(analysis.length, 11);
-  assert.equal(entry('buscador-de-patrones').href, '/patrones');
-  assert.equal(entry('editor-de-tacticas').href, '/tacticas/nueva');
-  assert.equal(entry('estadisticas-de-equipo').href, '/equipos');
-  assert.equal(entry('estadisticas-de-jugador').href, '/jugadores');
+test('rail: every entry wears its section name and opens a real destination', () => {
+  for (const railed of ENTRIES) {
+    const section = NAV_SECTIONS.find((candidate) => candidate.href === railed.href);
+    assert.ok(section, railed.id);
+    assert.equal(railed.label, section.label, railed.id);
+  }
+  assert.deepEqual(ENTRIES.map((railed) => railed.href), NAV_SECTIONS.map((section) => section.href));
+  assert.equal(entry('replay').label, 'Replay 2D');
+  assert.equal(entry('equipos').label, 'Equipos');
+  assert.equal(entry('jugadores').label, 'Jugadores');
 });
 
-test('rail: each page lights exactly one entry, the tools inside a section light their own row', () => {
-  const at = (pathname: string, tab: string | null = null) => activeEntryId({ pathname, tab });
+test('rail: Libreta and Informes have their own rows, and one Equipos row stands for the team tools', () => {
+  assert.equal(entry('libreta').href, '/libreta');
+  assert.equal(entry('informes').href, '/informes');
+  assert.equal(ENTRIES.filter((railed) => railed.href.startsWith('/equipos')).length, 1);
+  const teamGroup = SIDEBAR_GROUPS.find((group) => group.entries.some((railed) => railed.id === 'jugadores'));
+  assert.ok(teamGroup?.entries.some((railed) => railed.id === 'jugadores-faceit'));
+});
+
+test('rail: each page lights exactly one entry', () => {
+  const at = (pathname: string) => activeEntryId({ pathname });
   assert.equal(at('/replay'), 'replay');
   assert.equal(at('/replay/playlists'), 'partidas');
   assert.equal(at('/patrones'), 'buscador-de-patrones');
+  assert.equal(at(`/patrones/${TEAM}`), 'buscador-de-patrones');
   assert.equal(at('/tacticas/nueva'), 'editor-de-tacticas');
-  assert.equal(at('/equipos'), 'estadisticas-de-equipo');
-  assert.equal(at(`/equipos/${TEAM}`), 'estadisticas-de-equipo');
-  assert.equal(at(`/equipos/${TEAM}`, 'replay'), 'estadisticas-de-equipo');
-  assert.equal(at(`/equipos/${TEAM}`, 'playbook'), 'playbook');
-  assert.equal(at(`/equipos/${TEAM}`, 'preparar'), 'preparar-rival');
-  assert.equal(at(`/equipos/${TEAM}`, 'scouting'), 'preparar-rival');
-  assert.equal(at(`/equipos/${TEAM}`, 'veto'), 'simulacion-de-veto');
-  assert.equal(at('/jugadores'), 'estadisticas-de-jugador');
-  assert.equal(at('/jugadores/76561198000000000'), 'estadisticas-de-jugador');
+  assert.equal(at('/equipos'), 'equipos');
+  assert.equal(at(`/equipos/${TEAM}`), 'equipos');
+  assert.equal(at('/jugadores'), 'jugadores');
+  assert.equal(at('/jugadores/76561198000000000'), 'jugadores');
   assert.equal(at('/jugadores/faceit'), 'jugadores-faceit');
   assert.equal(at('/partidas/series'), 'partidas');
-  assert.equal(at('/libreta'), 'playbook');
-  assert.equal(at('/informes/prep'), 'preparar-rival');
+  assert.equal(at('/libreta'), 'libreta');
+  assert.equal(at('/libreta/lineups/abc'), 'libreta');
+  assert.equal(at('/informes/prep'), 'informes');
   assert.equal(at('/lineups/de_nuke'), 'lineups-pro');
+  assert.equal(at('/series/abc'), 'short');
   assert.equal(at('/settings'), 'ajustes');
   assert.equal(at('/nope'), null);
+});
+
+test('voice button: opens the Voz del equipo section of Ajustes', () => {
+  assert.equal(VOICE_HREF, '/settings#voz-del-equipo');
 });
 
 test('scope carry: the team comes from the record path or from `equipo`', () => {
@@ -52,7 +66,7 @@ test('scope carry: the team comes from the record path or from `equipo`', () => 
   assert.equal(scopeTeamId({ pathname: '/partidas', search: 'map=de_nuke' }), null);
 });
 
-test('scope carry: the five team tools keep the team, the map and the rest of the scope', () => {
+test('scope carry: the four team tools keep the team, the map and the rest of the scope', () => {
   const where = { pathname: `/equipos/${TEAM}`, search: `tab=estadisticas&map=de_nuke&side=T&limit=5&buy=full&with=zone%3AMid` };
   const carried = (id: SidebarEntry['id']): URL => new URL(sidebarHref(entry(id), where), 'http://studio.local');
 
@@ -64,25 +78,21 @@ test('scope carry: the five team tools keep the team, the map and the rest of th
   assert.equal(carried('buscador-de-patrones').searchParams.get('map'), 'de_nuke');
   assert.equal(scopeTeamId({ pathname: `/patrones/${TEAM}`, search: '' }), TEAM);
 
-  const stats = carried('estadisticas-de-equipo');
+  const tactics = carried('editor-de-tacticas');
+  assert.equal(tactics.pathname, '/tacticas/nueva');
+  assert.equal(tactics.searchParams.get('equipo'), TEAM);
+
+  const stats = carried('equipos');
   assert.equal(stats.pathname, `/equipos/${TEAM}`);
   assert.equal(stats.searchParams.get('tab'), null);
   assert.equal(stats.searchParams.get('map'), 'de_nuke');
-
-  const playbook = carried('playbook');
-  assert.equal(playbook.searchParams.get('tab'), 'playbook');
-  assert.equal(playbook.searchParams.get('side'), 'T');
-  assert.equal(playbook.searchParams.get('with'), null);
-
-  assert.equal(carried('preparar-rival').searchParams.get('tab'), 'preparar');
-  assert.equal(carried('simulacion-de-veto').searchParams.get('tab'), 'veto');
 });
 
 test('scope carry: with no team in scope an entry opens its own door, and the others never change', () => {
   const where = { pathname: '/partidas', search: 'map=de_nuke' };
   assert.equal(sidebarHref(entry('replay'), where), '/replay');
-  assert.equal(sidebarHref(entry('playbook'), where), '/equipos?tab=playbook');
-  assert.equal(sidebarHref(entry('preparar-rival'), where), '/equipos?tab=preparar');
+  assert.equal(sidebarHref(entry('equipos'), where), '/equipos');
+  assert.equal(sidebarHref(entry('libreta'), where), '/libreta');
   const onTeam = { pathname: `/equipos/${TEAM}`, search: 'map=de_nuke' };
   assert.equal(sidebarHref(entry('ranking'), onTeam), '/ranking');
   assert.equal(sidebarHref(entry('lineups-pro'), onTeam), '/lineups');

@@ -60,7 +60,8 @@ export const RANKING_PARAMS = {
 
 /** The ranking reads three months unless the link says another period, `all` included. */
 export const DEFAULT_PERIOD = { kind: 'preset', preset: '90d' } as const;
-export const DEFAULT_MIN_ROUNDS = 50;
+export const PRO_MIN_ROUNDS = 150;
+export const LIBRARY_MIN_ROUNDS = 50;
 export const MAX_MIN_ROUNDS = 10000;
 /** Below this many rounds a figure moves a lot with one match; the table says so. */
 export const LOW_SAMPLE_ROUNDS = 50;
@@ -110,10 +111,14 @@ function parseSort(value: string | null): RankingSort {
   return LEADERBOARD_METRICS.find((metric) => metric === value) ?? DEFAULT_SORT;
 }
 
-function parseMinRounds(value: string | null): number {
-  if (value === null || !/^\d{1,5}$/.test(value)) return DEFAULT_MIN_ROUNDS;
+export function defaultMinRounds(reference: AnalysisScope['reference']): number {
+  return reference === 'pro' ? PRO_MIN_ROUNDS : LIBRARY_MIN_ROUNDS;
+}
+
+function parseMinRounds(value: string | null, fallback: number): number {
+  if (value === null || !/^\d{1,5}$/.test(value)) return fallback;
   const n = Number(value);
-  return n >= 1 && n <= MAX_MIN_ROUNDS ? n : DEFAULT_MIN_ROUNDS;
+  return n >= 1 && n <= MAX_MIN_ROUNDS ? n : fallback;
 }
 
 function parseMapRole(value: string | null): string {
@@ -153,7 +158,7 @@ export function parseRanking(query: ScopeQuery): RankingState {
     top: pro ? parseTop(query.get(RANKING_PARAMS.top)) : null,
     teamTop: pro ? parseTop(query.get(RANKING_PARAMS.teamTop)) : null,
     event: pro ? parseEvent(query.get(RANKING_PARAMS.event)) : '',
-    minRounds: parseMinRounds(query.get(RANKING_PARAMS.minRounds)),
+    minRounds: parseMinRounds(query.get(RANKING_PARAMS.minRounds), defaultMinRounds(scope.reference)),
     sort: parseSort(query.get(RANKING_PARAMS.sort)),
     dir: dir === 'asc' || dir === 'desc' ? dir : null,
   };
@@ -175,7 +180,7 @@ export function writeRanking(state: RankingState, current: string | URLSearchPar
   if (state.top !== null) params.set(RANKING_PARAMS.top, String(state.top));
   if (state.teamTop !== null) params.set(RANKING_PARAMS.teamTop, String(state.teamTop));
   if (state.event !== '') params.set(RANKING_PARAMS.event, state.event);
-  if (state.minRounds !== DEFAULT_MIN_ROUNDS) params.set(RANKING_PARAMS.minRounds, String(state.minRounds));
+  if (state.minRounds !== defaultMinRounds(state.scope.reference)) params.set(RANKING_PARAMS.minRounds, String(state.minRounds));
   if (state.sort !== DEFAULT_SORT) params.set(RANKING_PARAMS.sort, state.sort);
   if (state.dir !== null) params.set(RANKING_PARAMS.dir, state.dir);
   return params.toString();
@@ -190,7 +195,9 @@ export function patchRanking(state: RankingState, patch: Partial<Omit<RankingSta
   // A position belongs to one map and side, so a change of either drops it.
   const moved = scope.map !== state.scope.map || scope.side !== state.scope.side;
   const mapRole = moved && patch.mapRole === undefined ? '' : next.mapRole;
-  return { ...next, role, mapRole: keepsMapRole(mapRole, scope) ? mapRole : '', scope };
+  const switched = scope.reference !== state.scope.reference && patch.minRounds === undefined && state.minRounds === defaultMinRounds(state.scope.reference);
+  const minRounds = switched ? defaultMinRounds(scope.reference) : next.minRounds;
+  return { ...next, role, minRounds, mapRole: keepsMapRole(mapRole, scope) ? mapRole : '', scope };
 }
 
 /**

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_BRAND_KIT, type BrandKit } from './brand-kit.ts';
 import { createBrandKitStore } from './brand-kit-store.ts';
+import { serverError } from './human-error.ts';
 
 const KIT: BrandKit = { ...DEFAULT_BRAND_KIT };
 
@@ -41,4 +42,11 @@ test('a failed read keeps the kit already shown and reports why', async () => {
   store.subscribe(() => {});
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(store.snapshot(), { kit: KIT, error: 'sin conexión' });
+});
+
+test('a failed server read reports a sentence of ours, not the server text', async () => {
+  const store = createBrandKitStore(async () => { throw serverError('brand kit store: disk full', { status: 500 }); });
+  store.subscribe(() => {});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(store.snapshot().error, 'No se pudo leer el kit de marca. Vuelve a intentarlo.');
 });

@@ -7,6 +7,7 @@ import { teamByKey, teamLabel } from '@/lib/library/partidas';
 import {
   EVERY_ROUND,
   keepsRound,
+  playedRounds,
   roundHalves,
   roundRows,
   visibleHalves,
@@ -81,7 +82,7 @@ function MatchRoundsView({ match, pathname, onOpenRound }: MatchRoundsProps): Re
 
   const { doc } = loaded;
   const chance = chanceStatus(win);
-  const rows = roundRows(doc, win?.kind === 'ready' ? win.timelines : []);
+  const rows = playedRounds(roundRows(doc, win?.kind === 'ready' ? win.timelines : []));
   const halves = visibleHalves(roundHalves(rows), filter);
   const visible = halves.flatMap((half) => half.rows.map((row) => row.number));
   const pickedSet = new Set(picked);
@@ -190,8 +191,8 @@ function RoundTiles({ rows, teamNames }: { rows: readonly RoundRow[]; teamNames:
   return (
     <EdgeTileGrid label="Rondas de la partida">
       <EdgeTile label="Rondas jugadas" value={counts.all} />
-      <EdgeTile label={teamNames['ct-start']} value={counts['ct-start']} note="rondas ganadas" tone={winnerTone(counts['ct-start'], counts['t-start'])} />
-      <EdgeTile label={teamNames['t-start']} value={counts['t-start']} note="rondas ganadas" tone={winnerTone(counts['t-start'], counts['ct-start'])} />
+      <EdgeTile label={teamNames['ct-start']} value={counts['ct-start']} note="rondas ganadas" tone={winnerTone(counts['ct-start'], counts['t-start'])} wrapLabel />
+      <EdgeTile label={teamNames['t-start']} value={counts['t-start']} note="rondas ganadas" tone={winnerTone(counts['t-start'], counts['ct-start'])} wrapLabel />
     </EdgeTileGrid>
   );
 }

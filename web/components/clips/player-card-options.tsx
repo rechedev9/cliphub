@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Upload } from 'lucide-react';
 import type { EditConfig } from '@/lib/api/types';
+import { humanErrorText } from '@/lib/human-error';
 import {
   PLAYER_CARD_SLOTS,
   fetchPlayerCardInfo,
@@ -46,7 +47,7 @@ export function PlayerCardOptions({ value, onChange, disabled = false, jobId, bl
     if (blockedReason) return undefined;
     const controller = new AbortController();
     fetchPlayerCardInfo(jobId, controller.signal).then(setInfo, (failure: unknown) => {
-      if (!controller.signal.aborted) setMessage(failure instanceof Error ? failure.message : 'No se pudieron leer las cartas de jugador.');
+      if (!controller.signal.aborted) setMessage(humanErrorText({ error: failure, lead: 'No se pudieron leer las cartas de jugador.' }));
     });
     return () => controller.abort();
   }, [jobId, blockedReason, version]);
@@ -58,7 +59,7 @@ export function PlayerCardOptions({ value, onChange, disabled = false, jobId, bl
       await change();
       setVersion((current) => current + 1);
     } catch (failure) {
-      setMessage(failure instanceof Error ? failure.message : 'No se pudo cambiar la imagen.');
+      setMessage(humanErrorText({ error: failure, lead: 'No se pudo cambiar la imagen.' }));
     } finally {
       setBusy(false);
     }

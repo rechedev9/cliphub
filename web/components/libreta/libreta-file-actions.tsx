@@ -5,6 +5,7 @@ import { FileDown, FileUp } from 'lucide-react';
 import { exportLibreta } from '@/lib/api/library';
 import { importLibretaText } from '@/lib/libreta/libreta-file';
 import { stratbookFileName } from '@/lib/stratbook/plays';
+import { loadErrorMessage } from '@/lib/load-error';
 import { Button } from '@/components/ui/button';
 import { downloadJson } from './play-list';
 
@@ -21,8 +22,8 @@ export function LibretaFileActions({ onImported }: { onImported: () => void }): 
       const name = stratbookFileName(new Date());
       downloadJson(await exportLibreta(), name);
       setMessage(`Libreta exportada en ${name}.`);
-    } catch {
-      setMessage('No se pudo exportar la Libreta. Comprueba que ClipHub Studio sigue abierto.');
+    } catch (error) {
+      setMessage(loadErrorMessage({ error, lead: 'No se pudo exportar la Libreta.' }));
     } finally {
       setBusy(false);
     }

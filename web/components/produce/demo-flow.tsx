@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, FileVideo, Loader2, SearchX, Unplug, X } from 'lucide-react';
-import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import { formatUploadBytes, uploadProgress, uploadSent, type UploadProgress } from '@/lib/api/upload';
 import { aggregateGroupedSeriesRoster } from '@/lib/api/series-roster';
 import { getFaceitScoreboard, type FaceitScoreboard } from '@/lib/api/faceit-scoreboard';
+import { getLibraryJobDemo, getLibraryMatch, type LibraryMatch } from '@/lib/api/library';
 import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
 import {
   FLOW_QUERY,
@@ -33,6 +33,7 @@ import { ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from '@/lib/api/types';
 import { prettyMapName } from '@/lib/format';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
 import { getOriginPick, isSamePick } from '@/lib/produce/origin-pick';
+import { pickerScore } from '@/lib/produce/picker-teams';
 import { FLOW_HOME_DESCRIPTION, FLOW_HOME_TITLE, FLOW_TITLE, PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
 import { groupSeriesDemos } from '@/lib/series-grouping';
 import { seriesTitle } from '@/lib/series-status';
@@ -48,7 +49,7 @@ import { StudioBackLink } from '@/components/studio/back-link';
 import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
 import { DemoList } from '@/components/produce/demo-list';
 import { StudioDataRow } from '@/components/studio/data-row';
-import { StudioEmptyState } from '@/components/studio/empty-state';
+import { EmptyState } from '@/components/records/empty-state';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DemoDropzone } from '@/components/upload/demo-dropzone';
@@ -91,10 +92,20 @@ const PICK_SHARED_NOTE = {
 
 const SERIES_NOTE = 'En una serie prepararás un vídeo por mapa después del análisis.';
 
-/** "Mirage · 13 : 9 · 22 rondas"; null when the scan has no match line. */
-function matchLine(match: RosterMatch | null): string | null {
-  if (match === null) return null;
-  return `${prettyMapName(match.map)} · ${match.scoreT} : ${match.scoreCt} · ${match.rounds} rondas`;
+/** "Mirage · 13 : 9 · 22 rondas", the team that started CT first when the library knows it; null without a match line. */
+function matchLine(match: RosterMatch | null, library: LibraryMatch | null): string | null {
+  const score = pickerScore({ match, library });
+  if (match === null || score === null) return null;
+  return `${prettyMapName(match.map)} · ${score[0].score} : ${score[1].score} · ${match.rounds} rondas`;
+}
+
+async function readLibraryMatch(jobId: string): Promise<LibraryMatch | null> {
+  try {
+    const demo = await getLibraryJobDemo(jobId);
+    return demo?.match_id === undefined ? null : await getLibraryMatch(demo.match_id);
+  } catch {
+    return null;
+  }
 }
 
 function rowLabel(row: Extract<ScanRow, { status: 'scanned' }>): string {
@@ -193,7 +204,6 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       setStage('parsing');
       try {
         const parsed = await api.parseDemo({ jobId, steamId, teammates });
-        toast(`Demo analizada: ${prettyMapName(parsed.map)}`, parsed.player ? { description: `${teammates.length > 0 ? 'Jugadores' : 'Jugador'}: ${parsed.player}` } : undefined);
         router.push(produceHref(parsed.id, format));
       } catch (err) {
         setStage('picking');
@@ -331,6 +341,22 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       controller.abort();
     };
   }, [stage, seriesMode, jobId]);
+  const [libraryMatch, setLibraryMatch] = useState<{ jobId: string; match: LibraryMatch | null } | null>(null);
+  useEffect(() => {
+    if (stage !== 'picking' || seriesMode || jobId === null) return;
+    let active = true;
+    const settle = (found: LibraryMatch | null) => {
+      if (active) setLibraryMatch((current) => (current?.jobId === jobId ? current : { jobId, match: found }));
+    };
+    const timer = setTimeout(() => settle(null), FACEIT_WAIT_MS);
+    void readLibraryMatch(jobId).then(settle);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [stage, seriesMode, jobId]);
+  const libraryReady = libraryMatch !== null && libraryMatch.jobId === jobId;
+  const libraryShown = libraryReady ? libraryMatch.match : null;
   const faceitReady = faceitBoard !== null && faceitBoard.jobId === jobId;
   const faceitShown = faceitBoard !== null && faceitBoard.jobId === jobId ? faceitBoard.board : null;
 
@@ -405,7 +431,6 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   if (resuming) {
     title = PICK_TITLE;
     if (resumeFailure !== null) description = 'No pudimos recuperar los jugadores de esta partida.';
-    else if (stage === 'scanning') description = 'Cargando los jugadores de la partida…';
     else description = PICK_DESCRIPTION[format];
   } else if (seriesMode) {
     if (stage === 'scanning') {
@@ -436,11 +461,10 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   if (resumeFailure !== null) {
     const empty = resumeEmptyState(resumeFailure);
     body = (
-      <StudioEmptyState
+      <EmptyState
         icon={empty.icon}
         title={empty.title}
         description={empty.description}
-        compact
         actions={<Button onClick={() => router.push(homeHref)}><ChevronLeft aria-hidden />{FLOW_TITLE[format]}</Button>}
       />
     );
@@ -469,13 +493,13 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
     body = <SingleDemoProgress label={resuming ? 'Cargando jugadores…' : 'Buscando jugadores…'} fileName={fileName} upload={upload} />;
   } else if (stage === 'parsing') {
     body = <SingleDemoProgress label="Extrayendo las rondas y jugadas de la partida…" fileName={fileName} />;
-  } else if (!faceitReady || !originReady) {
+  } else if (!faceitReady || !originReady || !libraryReady) {
     body = <SingleDemoProgress label="Cargando la tabla de la partida…" fileName={fileName} />;
   } else {
     body = (
       <div className="flex flex-col gap-3">
         {error ? <ErrorBanner message={error} /> : null}
-        <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} tone={format} allowDestinationSwitch={false} onPick={(steamId) => onPickPlayers([steamId])} onPickMany={onPickPlayers} match={match ?? undefined} onCancel={leave} faceit={faceitShown} initialPick={originShown} />
+        <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} tone={format} allowDestinationSwitch={false} onPick={(steamId) => onPickPlayers([steamId])} onPickMany={onPickPlayers} match={match ?? undefined} onCancel={leave} faceit={faceitShown} initialPick={originShown} library={libraryShown} />
       </div>
     );
   }
@@ -491,13 +515,13 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       ) : (
         <>
           <div className="flex flex-col">
-            <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>
+            {stage === 'picking' ? null : <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>}
             <CreateFlowSteps flow={format} step={progressStep} targets={[{ onSelect: leave }]} />
           </div>
           <header className="flex min-w-0 flex-col gap-2.5">
             <h1 className="text-balance font-display text-display font-extrabold leading-[1.05] tracking-[-0.025em] text-fg-1">{title}</h1>
             <p className="text-body text-fg-2">{description}</p>
-            {stage === 'picking' && !seriesMode && resumeFailure === null ? <ScannedDemoLine fileName={fileName} match={match} withScore={faceitShown !== null} /> : null}
+            {stage === 'picking' && !seriesMode && resumeFailure === null ? <ScannedDemoLine fileName={fileName} match={match} library={libraryShown} withScore={faceitShown !== null} /> : null}
             {stage === 'picking' && !seriesMode && resumeFailure === null ? <p className="text-body-sm text-fg-3">{PICK_SHARED_NOTE[format]}</p> : null}
           </header>
           {seriesMode ? <p className="text-body-sm text-fg-2">{SERIES_NOTE}</p> : null}
@@ -606,8 +630,10 @@ function ErrorBanner({ message }: { message: string }): ReactNode {
 }
 
 /** The scanned demo under the pick guidance. The score shows here only when the picker hides its own match header (FACEIT). */
-function ScannedDemoLine({ fileName, match, withScore }: { fileName: string | null; match: RosterMatch | null; withScore: boolean }): ReactNode {
-  const line = withScore ? matchLine(match) : null;
+type ScannedDemoLineProps = { fileName: string | null; match: RosterMatch | null; library: LibraryMatch | null; withScore: boolean };
+
+function ScannedDemoLine({ fileName, match, library, withScore }: ScannedDemoLineProps): ReactNode {
+  const line = withScore ? matchLine(match, library) : null;
   if (fileName === null && line === null) return null;
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 text-body-sm text-fg-2">

@@ -16,6 +16,7 @@ import { prettyMapName } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { offlineMessage } from '@/lib/load-error';
 
 const PICK = 'pick';
 
@@ -59,7 +60,7 @@ export function PlayPatterns({ play }: { play: LibraryPlay }): ReactNode {
         await updateSavedPattern(pattern.id, on ? { play_id: play.id } : { clear_play: true });
         setVersion((n) => n + 1);
       } catch (error) {
-        toast.error(isLibraryOffline(error) ? 'El servicio local no responde.' : `No se pudo cambiar «${pattern.name}».`);
+        toast.error(isLibraryOffline(error) ? offlineMessage() : `No se pudo cambiar «${pattern.name}».`);
       } finally {
         setBusy(false);
       }
@@ -72,7 +73,7 @@ export function PlayPatterns({ play }: { play: LibraryPlay }): ReactNode {
       if (refs.length === 0) toast.info(`«${pattern.name}» no tiene rondas todavía.`);
       else router.push(replayHref(refs, pattern.name));
     } catch (error) {
-      toast.error(isLibraryOffline(error) ? 'El servicio local no responde.' : `No se pudieron leer las rondas de «${pattern.name}».`);
+      toast.error(isLibraryOffline(error) ? offlineMessage() : `No se pudieron leer las rondas de «${pattern.name}».`);
     }
   };
 

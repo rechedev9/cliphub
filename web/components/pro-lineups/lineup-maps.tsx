@@ -6,6 +6,7 @@ import { CloudOff, MapPinned, PlugZap } from 'lucide-react';
 import { prettyMapName, timeAgo } from '@/lib/format';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProLineupMaps, type ProLoad } from './use-pro-lineups';
@@ -19,7 +20,7 @@ export function ProLoadProblem({ load, onRetry, map }: { load: ProLoad<unknown>;
   );
   switch (load.kind) {
     case 'offline':
-      return <EmptyState icon={PlugZap} title="Servicio local sin conexión" description="Comprueba que ClipHub Studio sigue abierto." actions={retry} />;
+      return <LoadErrorState kind="offline" title="No se pudieron leer los lineups pro" onRetry={onRetry} />;
     case 'server_down':
       return (
         <EmptyState

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createLibraryPlay } from '@/lib/api/library';
 import type { LibraryPlay, PlayInput } from '@/lib/api/stratbook';
 import { playHref } from '@/lib/clips/routes';
+import { loadErrorMessage } from '@/lib/load-error';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -33,8 +34,8 @@ export function SaveGrenadePlayDialog({
     setError(null);
     try {
       setSaved(await createLibraryPlay(play(title)));
-    } catch {
-      setError('No se pudo guardar la jugada. Comprueba que ClipHub Studio sigue abierto.');
+    } catch (error) {
+      setError(loadErrorMessage({ error, lead: 'No se pudo guardar la jugada.' }));
     } finally {
       setBusy(false);
     }
