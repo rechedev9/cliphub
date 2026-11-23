@@ -22,7 +22,7 @@ const (
 
 	noticeShortsWithoutSubtitles  = "Los vídeos han salido sin subtítulos: "
 	noticeSummaryWithoutSubtitles = "El resumen ha salido sin subtítulos: "
-	reasonNoTranscriber           = "la transcripción no está instalada en este PC."
+	reasonNoTranscriber           = "la transcripción no funciona en este PC."
 	reasonNoStreamAudio           = "este stream no tiene audio."
 	reasonTranscriptFailed        = "la transcripción falló en este PC."
 	reasonShortsTranscriptLate    = "la transcripción no terminó a tiempo. Expórtalos de nuevo cuando termine."

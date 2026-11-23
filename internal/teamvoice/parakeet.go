@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/rechedev9/cliphub/internal/library"
@@ -24,6 +26,11 @@ const (
 	phraseMaxSeconds = 5.0
 	// regionBatch is how many regions one run reads, so progress moves on a long demo.
 	regionBatch = 32
+)
+
+const (
+	nemoRunTimeoutBase     = 2 * time.Minute
+	nemoRunTimeoutPerAudio = 2
 )
 
 // Transcriber runs Parakeet on NeMo-Speech.cpp over a recording's speech; the language is detected.
@@ -74,7 +81,7 @@ type Word struct {
 // Transcribe returns the phrases of one track. Only stretches with detected speech are read,
 // and a phrase mostly over silence is dropped: no text is invented over a quiet track.
 func (t *Transcriber) Transcribe(ctx context.Context, job TranscribeJob) ([]Line, error) {
-	cli, model, err := t.ready()
+	progs, err := t.ready(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +105,7 @@ func (t *Transcriber) Transcribe(ctx context.Context, job TranscribeJob) ([]Line
 	lines := []Line{}
 	for from := 0; from < len(regions); from += regionBatch {
 		batch := regions[from:min(len(regions), from+regionBatch)]
-		got, err := t.runBatch(ctx, nemoBatch{cli: cli, model: model, dir: filepath.Join(dir, fmt.Sprintf("b%04d", from)), audio: audio, regions: batch})
+		got, err := t.runBatch(ctx, nemoBatch{progs: progs, dir: filepath.Join(dir, fmt.Sprintf("b%04d", from)), audio: audio, regions: batch})
 		if err != nil {
 			return nil, err
 		}
@@ -111,9 +118,10 @@ func (t *Transcriber) Transcribe(ctx context.Context, job TranscribeJob) ([]Line
 }
 
 type nemoBatch struct {
-	cli, model, dir string
-	audio           *pcmFile
-	regions         []library.VoiceSpan
+	progs   programs
+	dir     string
+	audio   *pcmFile
+	regions []library.VoiceSpan
 }
 
 func (t *Transcriber) runBatch(ctx context.Context, b nemoBatch) ([]Line, error) {
@@ -131,13 +139,8 @@ func (t *Transcriber) runBatch(ctx context.Context, b nemoBatch) ([]Line, error)
 			return nil, err
 		}
 	}
-	// #nosec G204 -- the pinned nemo-speech receives generated local paths.
-	cmd := exec.CommandContext(ctx, b.cli, "transcribe", in, "--model", b.model, "--device", "cpu", "--asr.backend.threads", threads(),
-		"--concurrency", "1", "--format", "json", "--output-dir", out, "--force")
-	cmd.Dir = filepath.Dir(b.cli)
-	cmd.Env = append(os.Environ(), "NO_COLOR=1", "NEMO_SPEECH_MODEL_DIR="+filepath.Dir(b.model))
-	if raw, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("nemo-speech: %w: %s", err, lastChars(string(raw), 400))
+	if err := t.runNemo(ctx, b, nemoRun{model: b.progs.model, in: in, out: out, timeout: nemoRunTimeout(b.regions)}); err != nil {
+		return nil, err
 	}
 	outputs, err := filepath.Glob(filepath.Join(out, "*.json"))
 	if err != nil {
@@ -154,6 +157,54 @@ func (t *Transcriber) runBatch(ctx context.Context, b nemoBatch) ([]Line, error)
 		}
 	}
 	return lines, nil
+}
+
+func (t *Transcriber) runNemo(ctx context.Context, b nemoBatch, run nemoRun) error {
+	if b.progs.gpu != "" && t.gpuUsable() {
+		gpu := run
+		gpu.cli, gpu.device = b.progs.gpu, "vulkan"
+		err := gpu.exec(ctx)
+		if err == nil || ctx.Err() != nil {
+			return err
+		}
+		log.Printf("teamvoice: the Vulkan build failed, transcribing on the CPU from now on: %v", err)
+		t.dropGPU()
+		if err := os.RemoveAll(run.out); err != nil {
+			return err
+		}
+		if err := os.MkdirAll(run.out, 0o750); err != nil {
+			return err
+		}
+	}
+	run.cli, run.device = b.progs.cpu, "cpu"
+	return run.exec(ctx)
+}
+
+type nemoRun struct {
+	cli, device, model, in, out string
+	timeout                     time.Duration
+}
+
+func (r nemoRun) exec(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, r.timeout)
+	defer cancel()
+	// #nosec G204 -- the pinned nemo-speech receives generated local paths.
+	cmd := exec.CommandContext(ctx, r.cli, "transcribe", r.in, "--model", r.model, "--device", r.device, "--asr.backend.threads", threads(),
+		"--concurrency", "1", "--format", "json", "--output-dir", r.out, "--force")
+	cmd.Dir = filepath.Dir(r.cli)
+	cmd.Env = append(os.Environ(), "NO_COLOR=1", "NEMO_SPEECH_MODEL_DIR="+filepath.Dir(r.model))
+	if raw, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("nemo-speech on %s: %w: %s", r.device, err, lastChars(string(raw), 400))
+	}
+	return nil
+}
+
+func nemoRunTimeout(regions []library.VoiceSpan) time.Duration {
+	var audioMS int64
+	for _, r := range regions {
+		audioMS += r.EndMS - r.StartMS
+	}
+	return nemoRunTimeoutBase + nemoRunTimeoutPerAudio*time.Duration(audioMS)*time.Millisecond
 }
 
 type nemoOutput struct {

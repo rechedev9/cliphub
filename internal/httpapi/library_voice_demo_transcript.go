@@ -94,7 +94,7 @@ func (h *Handlers) TranscribeLibraryMatchDemoVoice(w http.ResponseWriter, r *htt
 	queued, err := h.queueDemoTranscript(r.Context(), m, req)
 	switch {
 	case errors.Is(err, errNoTranscriber):
-		writeCodedError(w, http.StatusConflict, codeNoTranscriber, "local transcription is not installed; install it first")
+		writeCodedError(w, http.StatusConflict, codeNoTranscriber, "local transcription cannot run on this PC; install_transcriber says why")
 	case errors.Is(err, errNoDemoVoice):
 		writeCodedError(w, http.StatusNotFound, codeNoVoice, "this demo recorded no team voice")
 	case errors.Is(err, errNoDemoFile):
@@ -112,7 +112,7 @@ func (h *Handlers) TranscribeLibraryMatchDemoVoice(w http.ResponseWriter, r *htt
 
 // Why a demo transcript cannot be queued.
 var (
-	errNoTranscriber = errors.New("local transcription is not installed")
+	errNoTranscriber = errors.New("local transcription cannot run on this PC")
 	errNoDemoVoice   = errors.New("the demo recorded no team voice")
 	errNoDemoFile    = errors.New("the demo file is not on this PC")
 	errQueueFull     = errors.New("the transcription queue is full")
@@ -121,7 +121,7 @@ var (
 // queueDemoTranscript queues the transcription unless one is done and req does not force it, extracting
 // the demo's voices first when needed; queued also covers one already waiting or running.
 func (h *Handlers) queueDemoTranscript(ctx context.Context, m library.Match, req demoTranscribeRequest) (bool, error) {
-	if h.transcriberStatus().State != teamvoice.TranscriberInstalled {
+	if !h.transcriberUsable() {
 		return false, errNoTranscriber
 	}
 	switch voice := h.demoVoiceStatusOf(ctx, m); {

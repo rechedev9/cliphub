@@ -156,7 +156,7 @@ func (h *Handlers) TranscribeStream(w http.ResponseWriter, r *http.Request) {
 	queued, err := h.queueStreamTranscript(r.Context(), streamTranscribe{repo: repo, job: j, spans: spans, force: req.Force})
 	switch {
 	case errors.Is(err, errNoTranscriber):
-		writeCodedError(w, http.StatusConflict, codeNoTranscriber, "local transcription is not installed; install it first")
+		writeCodedError(w, http.StatusConflict, codeNoTranscriber, "local transcription cannot run on this PC; install_transcriber says why")
 	case errors.Is(err, errNoStreamAudio):
 		writeCodedError(w, http.StatusConflict, codeNoVoice, "this stream has no audio")
 	case errors.Is(err, errStreamNotReady):
@@ -180,7 +180,7 @@ type streamTranscribe struct {
 }
 
 func (h *Handlers) queueStreamTranscript(ctx context.Context, in streamTranscribe) (bool, error) {
-	if h.transcriberStatus().State != teamvoice.TranscriberInstalled {
+	if !h.transcriberUsable() {
 		return false, errNoTranscriber
 	}
 	if !streamSourceIsReady(in.job.Status) {

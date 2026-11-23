@@ -22,12 +22,12 @@ import (
 )
 
 type fixedSubtitles struct {
-	track *subtitles.Track
-	err   error
+	lookup subtitles.Lookup
+	err    error
 }
 
-func (f fixedSubtitles) Subtitles(context.Context, subtitles.Request) (*subtitles.Track, error) {
-	return f.track, f.err
+func (f fixedSubtitles) Subtitles(context.Context, subtitles.Request) (subtitles.Lookup, error) {
+	return f.lookup, f.err
 }
 
 var errRenderedAgain = errors.New("rendered again")
@@ -92,15 +92,15 @@ func TestRenderWorkerRendersAgainWhenItsSubtitlesOrCardsCanBeRead(t *testing.T) 
 	subs.VoiceComms, subs.Subtitles = true, true
 	cards := renderplan.DefaultEditRequest()
 	cards.OpeningCard = "ficha"
-	track := &subtitles.Track{Phrases: []subtitles.Phrase{{ID: uuid.NewString(), Speaker: "player", Text: "Rotamos a B", StartTick: 64, EndTick: 128}}}
+	track := subtitles.Track{Phrases: []subtitles.Phrase{{ID: uuid.NewString(), Speaker: "player", Text: "Rotamos a B", StartTick: 64, EndTick: 128}}}
 	for _, tc := range []struct {
 		name   string
 		edit   renderplan.EditRequest
 		source SubtitleSource
 		reused bool
 	}{
-		{name: "the transcript is still not ready", edit: subs, source: fixedSubtitles{err: errors.New("not ready")}, reused: true},
-		{name: "the transcript became ready", edit: subs, source: fixedSubtitles{track: track}},
+		{name: "the transcript cannot be read", edit: subs, source: fixedSubtitles{err: subtitles.ErrTranscriptFailed}, reused: true},
+		{name: "the transcript became ready", edit: subs, source: fixedSubtitles{lookup: subtitles.Ready(track)}},
 		{name: "the player card can be read", edit: cards},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -116,14 +116,15 @@ func TestRenderWorkerRendersAgainWhenAPhraseIsCorrected(t *testing.T) {
 	edit := renderplan.DefaultEditRequest()
 	edit.VoiceComms, edit.Subtitles = true, true
 	id := uuid.NewString()
-	said := func(text string) *subtitles.Track {
-		return &subtitles.Track{Phrases: []subtitles.Phrase{{ID: id, Speaker: "player", Text: text, StartTick: 64, EndTick: 128}}}
+	said := func(text string) subtitles.Track {
+		return subtitles.Track{Phrases: []subtitles.Phrase{{ID: id, Speaker: "player", Text: text, StartTick: 64, EndTick: 128}}}
 	}
-	cached := renderedWith(t, renderExtras{Subtitles: said("Rotamos a B")})
-	if !cachedRender(t, edit, fixedSubtitles{track: said("Rotamos a B")}, cached) {
+	rendered := said("Rotamos a B")
+	cached := renderedWith(t, renderExtras{Subtitles: &rendered})
+	if !cachedRender(t, edit, fixedSubtitles{lookup: subtitles.Ready(said("Rotamos a B"))}, cached) {
 		t.Fatal("the same transcript rendered the video again")
 	}
-	if cachedRender(t, edit, fixedSubtitles{track: said("Rotamos a A")}, cached) {
+	if cachedRender(t, edit, fixedSubtitles{lookup: subtitles.Ready(said("Rotamos a A"))}, cached) {
 		t.Fatal("a corrected phrase kept the cached video")
 	}
 }

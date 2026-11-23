@@ -59,7 +59,10 @@ test('a stream with only a mixed track has subtítulos and warns that other voic
 });
 
 test('the note says what is happening with the transcripción', () => {
-  assert.match(streamSubtitleNote(transcript({ transcriber: { state: 'not_installed', version: '', model: '', download_bytes: 1 } })) ?? '', /Instala la transcripción/);
+  const missing = streamSubtitleNote(transcript({ transcriber: { state: 'not_installed', version: '', model: '', download_bytes: 1 } })) ?? '';
+  assert.match(missing, /se descarga una sola vez/);
+  assert.doesNotMatch(missing, /Instala/);
+  assert.match(streamSubtitleNote(transcript({ transcriber: { state: 'failed', version: '', model: '', download_bytes: 1 } })) ?? '', /sin subtítulos/);
   assert.match(streamSubtitleNote(transcript({ state: 'running', progress: 0.42 })) ?? '', /42 %/);
   assert.match(streamSubtitleNote(transcript({ state: 'failed' })) ?? '', /falló/);
   assert.equal(streamSubtitleNote(transcript()), null);

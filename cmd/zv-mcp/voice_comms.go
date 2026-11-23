@@ -112,13 +112,10 @@ func commsLineOf(matchID string, l tuiclient.VoiceLine) commsLineOut {
 func registerVoiceCommsTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 
-	registerInstallTool(server, s, installTool{Name: "install_transcriber", Label: "Instalar transcripción",
-		What:   "la transcripción local (Parakeet TDT 0.6b v3 sobre NeMo-Speech.cpp %s, unos %d MB)",
-		About:  "local transcription (NVIDIA Parakeet TDT 0.6b v3 on NeMo-Speech.cpp, about 700 MB, fetched once into Studio's folder; it detects the language)",
-		Status: (*tuiclient.Client).VoiceTranscriberStatus, Install: (*tuiclient.Client).InstallVoiceTranscriber})
+	registerInstallTranscriber(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "transcribe_voice",
-		Description: "Transcribe a match's imported TeamSpeak voice on this PC; the language is detected. Needs install_transcriber first. It runs in the background; voice_status shows the progress until the transcript is ready. For the voices a demo recorded, use transcribe_demo_voice."},
+		Description: "Transcribe a match's imported TeamSpeak voice on this PC; the language is detected. Studio downloads the transcription on its own the first time, and the transcript waits for it (install_transcriber reads it). It runs in the background; voice_status shows the progress until the transcript is ready. For the voices a demo recorded, use transcribe_demo_voice."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in transcribeVoiceIn) (*mcp.CallToolResult, voiceOut, error) {
 			if err := checkUUID("match_id", in.MatchID); err != nil {
 				return nil, voiceOut{}, err

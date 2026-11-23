@@ -66,10 +66,7 @@ func (e demoTranscriptEnv) transcribe(force bool) demoTranscript {
 func (e demoTranscriptEnv) callWords() []subtitles.PhraseWord {
 	e.t.Helper()
 	j := e.linkedJob()
-	track, err := e.h.Subtitles(context.Background(), subtitles.Request{JobID: j.ID, Target: j.TargetSteamID})
-	if err != nil {
-		e.t.Fatal(err)
-	}
+	track := readyTrack(e.t)(e.h.Subtitles(context.Background(), subtitles.Request{JobID: j.ID, Target: j.TargetSteamID}))
 	for _, p := range track.Phrases {
 		if len(p.Words) > 2 {
 			return p.Words

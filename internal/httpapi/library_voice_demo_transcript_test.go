@@ -70,9 +70,35 @@ func (e demoTranscriptEnv) await(done func(demoTranscript) bool) demoTranscript 
 	}
 }
 
+func TestDemoVoiceTranscriptInstallsTheTranscriberItNeeds(t *testing.T) {
+	cases := []struct {
+		name, state, afterInstall string
+		code                      int
+		installs                  int32
+	}{
+		{name: "missing", state: teamvoice.TranscriberMissing, code: http.StatusAccepted, installs: 1},
+		{name: "download failed", state: teamvoice.TranscriberFailed, code: http.StatusAccepted, installs: 1},
+		{name: "cannot start", state: teamvoice.TranscriberFailed, afterInstall: teamvoice.TranscriberFailed, code: http.StatusConflict, installs: 1},
+		{name: "installing", state: teamvoice.TranscriberInstalling, code: http.StatusAccepted},
+		{name: "unsupported", state: teamvoice.TranscriberUnsupported, code: http.StatusConflict},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newDemoTranscriptEnv(t)
+			env.transcriber.state, env.transcriber.afterInstall = tc.state, tc.afterInstall
+			env.json(http.MethodPost, env.base, nil, tc.code, nil)
+			if got := env.transcriber.installs.Load(); got != tc.installs {
+				t.Fatalf("installs = %d, want %d", got, tc.installs)
+			}
+			if tc.code == http.StatusAccepted {
+				env.await(func(d demoTranscript) bool { return d.State == library.TranscriptReady })
+			}
+		})
+	}
+}
+
 func TestDemoVoiceTranscriptTranscribesOnceAndCorrects(t *testing.T) {
 	env := newDemoTranscriptEnv(t)
-	env.json(http.MethodPost, env.base, nil, http.StatusConflict, nil)
 	env.transcriber.state = teamvoice.TranscriberInstalled
 
 	env.json(http.MethodPost, env.base, nil, http.StatusAccepted, nil)

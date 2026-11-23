@@ -10,7 +10,6 @@ import {
   getMatchVoice,
   getVoiceComms,
   importMatchVoice,
-  installTranscriber,
   patchVoiceTrack,
   setVoiceOffset,
   transcribeMatchVoice,
@@ -34,7 +33,6 @@ export type MatchVoiceControl = {
   autoSync: () => void;
   nameTrack: (track: number, patch: { label?: string; steamid64?: string }) => void;
   remove: () => void;
-  install: () => void;
   transcribe: () => void;
   /** Gives this match a recording the TeamSpeak plugin left in Studio's inbox. */
   attachRecording: (recordingId: string) => void;
@@ -108,7 +106,6 @@ export function useMatchVoice(matchId: string | null): MatchVoiceControl {
     autoSync: () => void run((id) => autoSyncVoice(id), 'No se pudo sincronizar la voz.'),
     nameTrack: (track, patch) => void run((id) => patchVoiceTrack({ matchId: id, track }, patch), 'No se pudo cambiar la pista.'),
     remove: () => void run((id) => deleteMatchVoice(id), 'No se pudo quitar la voz.'),
-    install: () => void run(() => installTranscriber(), 'No se pudo instalar la transcripción.'),
     transcribe: () => void run((id) => transcribeMatchVoice(id), 'No se pudo empezar la transcripción.'),
     attachRecording: (recordingId) => void run((id) => attachVoiceRecording({ id: recordingId, matchId: id }), 'No se pudo asociar la grabación.'),
   };

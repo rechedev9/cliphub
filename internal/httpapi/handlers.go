@@ -1209,6 +1209,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		writeCodedError(w, http.StatusConflict, captureRequired, "applying this change needs a CS2 capture, which only an explicit request starts")
 		return
 	}
+	h.queueSubtitles(r.Context(), j.ID, intent.Edit)
 	// The task header is the worker's immutable source of truth. The job-scoped
 	// artifact is the latest accepted choice shown by the workbench; duplicate
 	// and rejected admissions must not replace the active choice.
@@ -1273,7 +1274,6 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "enqueue record task", err)
 		return
 	}
-	h.queueSubtitles(r.Context(), j.ID, intent.Edit)
 	writeJSON(w, http.StatusAccepted, map[string]any{"id": j.ID, "task": tasks.TypeRecordDemo, "variant": intent.Variant})
 }
 

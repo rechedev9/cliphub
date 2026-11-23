@@ -14,26 +14,33 @@ import (
 	"github.com/rechedev9/cliphub/internal/subtitles"
 )
 
-// Subtitles gives a render of req.JobID the phrases of the target's team. It never holds the render
-// for a transcription: without a finished one it queues it and the video renders without subtitles.
-func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subtitles.Track, error) {
+func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (subtitles.Lookup, error) {
 	m, err := h.subtitleMatch(ctx, req.JobID)
 	if err != nil {
-		return nil, err
+		return subtitles.Lookup{}, err
 	}
 	t, err := h.demoVoiceState(ctx, m.ID)
 	if err != nil {
-		return nil, err
+		return subtitles.Lookup{}, err
 	}
-	if t.State != library.TranscriptReady {
-		if _, err := h.queueDemoTranscript(ctx, m, demoTranscribeRequest{}); err != nil {
-			return nil, fmt.Errorf("the transcript is not ready and cannot be queued: %w", err)
-		}
-		return nil, errors.New("the transcript is not ready yet")
+	switch t.State {
+	case library.TranscriptReady:
+		return h.subtitleTrack(ctx, m, req)
+	case library.TranscriptQueued, library.TranscriptRunning:
+		return subtitles.Pending(h.voice.progressOf(m.DemoID)), nil
+	case library.TranscriptFailed:
+		return subtitles.Lookup{}, subtitles.ErrTranscriptFailed
 	}
+	if _, err := h.queueDemoTranscript(ctx, m, demoTranscribeRequest{}); err != nil {
+		return subtitles.Lookup{}, fmt.Errorf("the transcript cannot be queued: %w", err)
+	}
+	return subtitles.Pending(0), nil
+}
+
+func (h *Handlers) subtitleTrack(ctx context.Context, m library.Match, req subtitles.Request) (subtitles.Lookup, error) {
 	lines, err := h.libraryRepo.ListDemoVoiceLines(ctx, library.DemoVoiceLineFilter{MatchIDs: []uuid.UUID{m.ID}, All: true})
 	if err != nil {
-		return nil, err
+		return subtitles.Lookup{}, err
 	}
 	team := teamOf(m, req.Target)
 	var roster []string
@@ -46,7 +53,7 @@ func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subti
 	if rate <= 0 {
 		rate = 64
 	}
-	track := &subtitles.Track{Phrases: []subtitles.Phrase{}, Hidden: req.Hidden}
+	track := subtitles.Track{Phrases: []subtitles.Phrase{}, Hidden: req.Hidden}
 	for _, l := range lines {
 		if l.TeamKey != team || l.Text == "" || l.Discarded {
 			continue
@@ -58,7 +65,7 @@ func (h *Handlers) Subtitles(ctx context.Context, req subtitles.Request) (*subti
 		}
 		track.Phrases = append(track.Phrases, phrase)
 	}
-	return track, nil
+	return subtitles.Ready(track), nil
 }
 
 // subtitleMatch is the analysed library match of the job's demo, whose transcript the subtitles read.
@@ -76,8 +83,6 @@ func (h *Handlers) subtitleMatch(ctx context.Context, jobID uuid.UUID) (library.
 	return h.libraryRepo.GetMatch(ctx, *demo.MatchID)
 }
 
-// queueSubtitles starts the transcription a new video's subtitles read, so it runs while CS2 records.
-// It is best effort: a render whose transcript is not ready goes without subtitles.
 func (h *Handlers) queueSubtitles(ctx context.Context, jobID uuid.UUID, edit renderplan.EditRequest) {
 	on := edit.Subtitles
 	if edit.FullDemo != nil {

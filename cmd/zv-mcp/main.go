@@ -318,12 +318,12 @@ where J and K walk its rounds; the notes and drawings drawn there stay with the 
 Team voice (a TeamSpeak recording per library match, played in the Replay): import_voice places it on the demo on its own and
 returns the sync state; while it says unsynced or the user hears it off, sync_voice sets offset_ms (or auto again).
 voice_status reads tracks, sync and transcript; set_voice_track names a track or ties it to a player.
-install_transcriber (about 700 MB, local Parakeet; it detects the language) then transcribe_voice; voice_status follows it.
+transcribe_voice transcribes it on this PC with local Parakeet (it detects the language); Studio downloads Parakeet, about 745 MB, on its own the first time a transcription or subtitles need it, without asking, and the transcript waits for it; it runs on the GPU through Vulkan, and on the CPU once a Vulkan run fails; voice_status follows it, and install_transcriber reads the download or retries a failed one.
 demo_voice reads the demo's own in-game voice (extract true, then call again until ready), which the Replay plays as Voz de la demo.
 Subtitles of the team voices a demo recorded: generate_short (Short or 16:9 summary, with voice_comms) and plan_full_demo
 (with team_voices) take subtitles and subtitles_hidden, in the language the voices speak; they change only the render. Creating the
-video queues the demo's one transcription when it has none (transcribe_demo_voice does it ahead); the render never waits
-for it, so a video rendered before it is ready goes without subtitles. demo_transcript lists the phrases with their ids; correct_demo_phrase fixes one for every later video
+video queues the demo's one transcription when it has none (transcribe_demo_voice does it ahead); the render waits
+for it up to 30 min, and a video that goes without subtitles says why in its warnings. demo_transcript lists the phrases with their ids; correct_demo_phrase fixes one for every later video
 and keeps what the transcriber heard as original_text (a phrase the CS2 vocabulary corrector changed also has vocab_text and vocab_changes, and correcting it back to original_text undoes them and stops those changes in later transcriptions; a word change made by hand in two or more phrases is applied by later ones), discard_demo_phrase takes a phrase the transcriber invented out of every video of the demo
 (restore brings it back), and subtitles_hidden leaves one out of that video only. Transcribing again keeps the corrections and discards of the phrases heard the same.
 get_round_comms gives one round's talk time by phase and phrases, match_talk_time every round's talk time, and
@@ -350,7 +350,7 @@ videos and extra files. list_streams shows the streams already in Studio.
 Subtitles of a stream (the Subtítulos panel of Clips de stream): transcribe_stream transcribes on this PC only the stretches
 that go into a video (spans: the momentos of the plan for Shorts, the jugadas for the resumen), from the mic track or, when
 the stream has only the mix of voice and game (mixed_track), from that track, where teammates and the game announcer can come in,
-with install_transcriber; stream_transcript reads the phrases (no speaker names, in the language spoken, never translated). A phrase the CS2 vocabulary corrector
+downloading the transcription first like transcribe_voice; stream_transcript reads the phrases (no speaker names, in the language spoken, never translated). A phrase the CS2 vocabulary corrector
 changed has vocab_text and vocab_changes, as in demo_transcript but with the CS2 lexicon and the corrections learned from demos
 and streams only (a stream has no map, so no callouts or nicks); correcting it back to original_text undoes them. correct_stream_phrase and
 discard_stream_phrase count for every video of the stream; set_stream_subtitles turns subtitles on for the Shorts or the resumen
@@ -379,7 +379,7 @@ set_capture_retention for how many keep theirs.
 generate_short, generate_shorts_batch, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
 delete_stream_video, delete_imported_video, delete_demo, merge_teams, delete_storage_file, delete_captures, set_capture_retention, retry_video,
 change_video_music, delete_video_version, delete_report, delete_team_document, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
-install_transcriber, launch_practice, launch_bot_replay need the user's approval.
+launch_practice, launch_bot_replay need the user's approval.
 ClipMind (the web edition of ClipHub): clipmind_status says whether Studio is signed in to a ClipMind account, with its workspace and
 the changes waiting; clipmind_sync is Sincronizar ahora and clipmind_disconnect is Desconectar (the library on this PC stays).
 Signing in stays in Studio's Ajustes: never ask the user for a ClipMind password in chat.

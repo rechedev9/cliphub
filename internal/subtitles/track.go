@@ -2,11 +2,15 @@ package subtitles
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"os"
 
 	"github.com/google/uuid"
 )
+
+var ErrTranscriptFailed = errors.New("the transcription of the team voices failed")
 
 // Phrase is one transcribed phrase on the demo's tick clock, as the render worker hands it over.
 type Phrase struct {
@@ -37,6 +41,30 @@ type Request struct {
 	JobID  uuid.UUID
 	Target string
 	Hidden []string
+}
+
+type Lookup struct {
+	track    *Track
+	progress float64
+}
+
+func Ready(track Track) Lookup {
+	return Lookup{track: &track, progress: 1}
+}
+
+func Pending(progress float64) Lookup {
+	if math.IsNaN(progress) {
+		progress = 0
+	}
+	return Lookup{progress: min(1, max(0, progress))}
+}
+
+func (l Lookup) Track() (*Track, bool) {
+	return l.track, l.track != nil
+}
+
+func (l Lookup) Progress() float64 {
+	return l.progress
 }
 
 // Load reads the track the render worker wrote.

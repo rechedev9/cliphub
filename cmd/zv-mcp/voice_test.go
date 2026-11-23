@@ -110,16 +110,12 @@ func TestVoiceCommsToolsRoundTalkAndSearch(t *testing.T) {
 	toolFails(t, cs, "search_comms", map[string]any{"text": ""}, "text must be")
 }
 
-func TestInstallTranscriberWaitsForApproval(t *testing.T) {
+func TestInstallTranscriberRetriesWithoutAsking(t *testing.T) {
 	cs, rec := voiceStudio(t)
 	var out transcriberOut
 	callTool(t, cs, "install_transcriber", map[string]any{}, &out)
-	if !out.NeedsApproval || out.ApprovalCode == "" || !strings.Contains(out.Summary, "189 MB") || rec.get("POST /api/library/voice/transcriber/install") != "" {
-		t.Fatalf("install without approval = %+v", out)
-	}
-	callTool(t, cs, "install_transcriber", map[string]any{"approve": out.ApprovalCode}, &out)
 	if out.State != "installing" || rec.get("POST /api/library/voice/transcriber/install") == "" {
-		t.Fatalf("approved install = %+v", out)
+		t.Fatalf("retry = %+v; want the install started with no approval code", out)
 	}
 }
 func TestDemoVoiceReadsAndStartsTheExtraction(t *testing.T) {

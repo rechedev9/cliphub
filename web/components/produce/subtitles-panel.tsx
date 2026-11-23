@@ -10,7 +10,7 @@ import {
 } from '@/lib/produce/subtitles';
 import { voiceErrorText } from '@/lib/replay/voice-errors';
 import { Button } from '@/components/ui/button';
-import { InstallPrompt, PhraseRow, SubtitleToggle, TRANSCRIBER_CREDIT } from './subtitle-parts';
+import { PhraseRow, SubtitleToggle, TranscriberStatus } from './subtitle-parts';
 
 /** How often a transcription, an install or the reading of the demo voices is read again. */
 const POLL_MS = 3000;
@@ -49,8 +49,16 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
     void load();
   }, [load]);
 
+  const checked = planAvailability !== null && planAvailability !== 'not_requested' ? planAvailability : subs?.availability ?? planAvailability;
+  const availability = subtitleAvailability({ voices, voicesLabel, availability: checked });
+  const missing = value.enabled && availability.enabled && subs?.transcriber.state === 'not_installed';
+  useEffect(() => {
+    if (!missing) return;
+    void installTranscriber().catch(() => undefined).then(load);
+  }, [load, missing]);
+
   const waiting = subs !== null && (['queued', 'running'].includes(subs.state)
-    || subs.transcriber.state === 'installing' || subs.availability === 'extracting');
+    || subs.transcriber.state === 'installing' || missing || subs.availability === 'extracting');
   useEffect(() => {
     if (!waiting) return;
     const timer = window.setInterval(() => void load(), POLL_MS);
@@ -77,9 +85,6 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
     }
   };
 
-  // A plan made with the voices off has not checked them; the library demo may know.
-  const checked = planAvailability !== null && planAvailability !== 'not_requested' ? planAvailability : subs?.availability ?? planAvailability;
-  const availability = subtitleAvailability({ voices, voicesLabel, availability: checked });
   const rows = subs === null ? [] : subtitleRows(subs.lines, scope, value);
   const note = subs === null || !value.enabled ? null : subtitleNote(subs);
   const locked = disabled || busy;
@@ -102,9 +107,9 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
     {value.enabled && availability.enabled ? <>
       {loadError ? <p role="alert" className="text-body-sm text-warning">{loadError}</p> : null}
       {subs ? <>
-        <InstallPrompt what="transcripción" credit={TRANSCRIBER_CREDIT} install={subs.transcriber} busy={locked} onInstall={() => void run(installTranscriber, 'No se pudo instalar la transcripción.')} />
+        <TranscriberStatus transcriber={subs.transcriber} busy={locked} onRetry={() => void run(installTranscriber, 'No se pudo preparar la transcripción.')} />
         {note ? <p role="status" className="text-body-sm text-fg-2">{note}</p> : null}
-        {matchId !== null && subs.transcriber.state === 'installed' && (subs.state === 'none' || subs.state === 'failed') ? (
+        {matchId !== null && ['installed', 'installing'].includes(subs.transcriber.state) && (subs.state === 'none' || subs.state === 'failed') ? (
           <Button variant="secondary" size="sm" className="self-start" disabled={locked}
             onClick={() => void run(() => transcribeDemoVoice(matchId), 'No se pudo empezar la transcripción.')}>
             Transcribir ahora

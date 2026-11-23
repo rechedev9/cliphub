@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"slices"
 	"testing"
@@ -86,39 +87,73 @@ func (e demoTranscriptEnv) linkedJob() job.Job {
 	return j
 }
 
-// A render never holds its slot for a transcription: without a finished transcript it goes on without
-// subtitles, and the transcription it queued serves the next render.
-func TestSubtitlesNeverHoldTheRender(t *testing.T) {
+func readyTrack(t *testing.T) func(subtitles.Lookup, error) subtitles.Track {
+	return func(lookup subtitles.Lookup, err error) subtitles.Track {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		track, ready := lookup.Track()
+		if !ready {
+			t.Fatalf("subtitles = %+v; want the track ready", lookup)
+		}
+		return *track
+	}
+}
+
+func TestSubtitlesSayHowFarTheTranscriptionIsUntilItsPhrasesAreReady(t *testing.T) {
 	env := newDemoTranscriptEnv(t)
 	env.transcriber.state = teamvoice.TranscriberInstalled
 	gate := make(chan struct{})
 	env.transcriber.gate = gate
 	j := env.linkedJob()
 	req := subtitles.Request{JobID: j.ID, Target: j.TargetSteamID}
-	done := make(chan error, 1)
+	type answer struct {
+		lookup subtitles.Lookup
+		err    error
+	}
+	done := make(chan answer, 1)
 	go func() {
-		_, err := env.h.Subtitles(context.Background(), req)
-		done <- err
+		lookup, err := env.h.Subtitles(context.Background(), req)
+		done <- answer{lookup, err}
 	}()
 	select {
-	case err := <-done:
-		if err == nil {
-			t.Fatal("subtitles came back before the transcription ran")
+	case got := <-done:
+		if _, ready := got.lookup.Track(); ready || got.err != nil {
+			t.Fatalf("subtitles before the transcription ran = %+v, %v; want it pending", got.lookup, got.err)
 		}
 	case <-time.After(5 * time.Second):
 		close(gate)
-		t.Fatal("the render waited for the transcription")
+		t.Fatal("a lookup blocked on the transcription")
 	}
 	close(gate)
 	env.await(func(d demoTranscript) bool { return d.State == library.TranscriptReady })
-	track, err := env.h.Subtitles(context.Background(), req)
-	if err != nil || len(track.Phrases) != 1 || track.Phrases[0].Text != "Rotamos a B ya" {
+	lookup, err := env.h.Subtitles(context.Background(), req)
+	track, ready := lookup.Track()
+	if err != nil || !ready || len(track.Phrases) != 1 || track.Phrases[0].Text != "Rotamos a B ya" {
 		t.Fatalf("subtitles once transcribed = %+v, %v; want the team's phrase", track, err)
 	}
 	p := track.Phrases[0]
 	if len(p.Words) != 4 || p.Words[0].Text != "Rotamos" || p.Words[0].StartTick != p.StartTick || p.Words[3].Text != "ya" || p.Words[3].EndTick != p.EndTick ||
 		p.Words[2].EndTick >= p.Words[3].StartTick {
 		t.Fatalf("words = %+v of a frase from tick %d to %d; want the four words the transcriber timed, with the pause before the last", p.Words, p.StartTick, p.EndTick)
+	}
+}
+
+func TestSubtitlesDoNotStartAFailedTranscriptionAgain(t *testing.T) {
+	env := newDemoTranscriptEnv(t)
+	env.transcriber.state = teamvoice.TranscriberInstalled
+	j := env.linkedJob()
+	failed := library.DemoVoiceTranscript{MatchID: env.match.ID, State: library.TranscriptFailed, Error: "falló"}
+	if err := env.repo.SetDemoVoice(context.Background(), library.DemoVoiceUpdate{MatchID: env.match.ID, Transcript: failed}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := env.h.Subtitles(context.Background(), subtitles.Request{JobID: j.ID, Target: j.TargetSteamID})
+	if !errors.Is(err, subtitles.ErrTranscriptFailed) {
+		t.Fatalf("subtitles of a failed transcription = %v, want ErrTranscriptFailed", err)
+	}
+	if got, err := env.h.demoVoiceState(context.Background(), env.match.ID); err != nil || got.State != library.TranscriptFailed {
+		t.Fatalf("transcript after the lookup = %+v, %v; want it still failed", got, err)
 	}
 }
 
@@ -169,9 +204,10 @@ func TestSubtitlesGiveAPlayerTheSameSlotWhoeverThePOVIs(t *testing.T) {
 		if err := env.repo.LinkDemoJob(ctx, env.match.DemoID, j.ID); err != nil {
 			t.Fatal(err)
 		}
-		track, err := env.h.Subtitles(ctx, subtitles.Request{JobID: j.ID, Target: target})
-		if err != nil || len(track.Phrases) != len(roster) {
-			t.Fatalf("subtitles for %s = %+v, %v; want a phrase of each teammate", target, track, err)
+		lookup, err := env.h.Subtitles(ctx, subtitles.Request{JobID: j.ID, Target: target})
+		track, ok := lookup.Track()
+		if err != nil || !ok || len(track.Phrases) != len(roster) {
+			t.Fatalf("subtitles for %s = %+v, %v; want a phrase of each teammate", target, lookup, err)
 		}
 		for _, p := range track.Phrases {
 			if want := slices.Index(roster, p.SteamID64); want < 0 || p.Slot != want {

@@ -85,7 +85,16 @@ export function stretchesKey(stretches: readonly Stretch[]): string {
 }
 
 export function streamSubtitleNote(transcript: StreamTranscript): string | null {
-  if (transcript.transcriber.state !== 'installed') return 'Instala la transcripción para crear los subtítulos.';
+  switch (transcript.transcriber.state) {
+    case 'not_installed':
+    case 'installing':
+      return 'La transcripción se descarga una sola vez, al usar subtítulos, y después transcribe estos momentos.';
+    case 'failed':
+    case 'unsupported':
+      return 'Sin la transcripción, los vídeos salen sin subtítulos.';
+    case 'installed':
+      break;
+  }
   switch (transcript.state) {
     case 'queued':
     case 'running':

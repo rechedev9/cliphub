@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"maps"
 	"net/http"
 	"os"
 	"os/exec"
@@ -18,9 +19,8 @@ import (
 // Spec pins a local speech program and its model, fetched on request, as Studio pins HLAE.
 type Spec struct {
 	Version     string
-	BinURL      string
-	BinSHA256   string
-	BinBytes    int64
+	CPU         Build
+	GPU         Build
 	Exe         string
 	ModelName   string
 	ModelURL    string
@@ -28,13 +28,21 @@ type Spec struct {
 	ModelBytes  int64
 }
 
-// Pinned is the transcriber: NVIDIA's NeMo-Speech.cpp v0.3.0 (CPU build for Windows x64, with
-// its own VC++ runtime) and Parakeet TDT 0.6b v3 at q8_0, about 700 MB covering 25 European languages.
+type Build struct {
+	Dir    string
+	URL    string
+	SHA256 string
+	Bytes  int64
+}
+
+// Pinned is the transcriber: NVIDIA's NeMo-Speech.cpp v0.3.0 for Windows x64, its Vulkan build and the CPU build that runs
+// where Vulkan cannot (ggml.dll links vulkan-1.dll), and Parakeet TDT 0.6b v3 at q8_0, about 700 MB, 25 languages.
 var Pinned = Spec{
-	Version:     "0.3.0",
-	BinURL:      "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/download/v0.3.0/nemo-speech-0.3.0-windows-x86_64-cpu.zip",
-	BinSHA256:   "4ed9740e361e4653f56c3dce7d1e81883a1c8b831c1bd7d01567fff1130b5b05",
-	BinBytes:    8_694_509,
+	Version: "0.3.0",
+	CPU: Build{Dir: "0.3.0", URL: "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/download/v0.3.0/nemo-speech-0.3.0-windows-x86_64-cpu.zip",
+		SHA256: "4ed9740e361e4653f56c3dce7d1e81883a1c8b831c1bd7d01567fff1130b5b05", Bytes: 8_694_509},
+	GPU: Build{Dir: "0.3.0-vulkan", URL: "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/download/v0.3.0/nemo-speech-0.3.0-windows-x86_64-vulkan.zip",
+		SHA256: "72b3b8b41bfe2be0320eff4e9d310594e4f99deefcde4a157799a039656963ce", Bytes: 22_417_032},
 	Exe:         "nemo-speech.exe",
 	ModelName:   "parakeet-tdt-0.6b-v3.q8_0.gguf",
 	ModelURL:    "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/parakeet-tdt-0.6b-v3.q8_0.gguf",
@@ -99,78 +107,118 @@ type TranscriberOptions struct {
 
 // tool installs and checks one pinned program and model; no audio leaves the PC.
 type tool struct {
-	opts       TranscriberOptions
-	spec       Spec
-	mu         sync.Mutex
-	installing bool
-	done       int64
-	lastErr    *installError
-	// checked is the program that last ran its smoke test; checkErr is that test's result.
-	checked  string
-	checkErr *installError
+	opts        TranscriberOptions
+	spec        Spec
+	mu          sync.Mutex
+	installDone chan struct{}
+	total, done int64
+	lastErr     *installError
+	smoked      map[string]*installError
+	gpuFailed   bool
 }
 
 func newTool(opts TranscriberOptions, spec Spec) *tool {
 	if opts.Client == nil {
 		opts.Client = &http.Client{Timeout: 30 * time.Minute}
 	}
-	return &tool{opts: opts, spec: spec}
+	return &tool{opts: opts, spec: spec, smoked: map[string]*installError{}}
 }
 
-func (t *tool) versionDir() string { return filepath.Join(t.opts.Dir, t.spec.Version) }
+type programs struct{ cpu, gpu, model string }
 
-// paths returns the program and model to run, empty when not installed.
-func (t *tool) paths() (string, string) {
-	if t.opts.CLI != "" && t.opts.Model != "" {
-		return t.opts.CLI, t.opts.Model
+func (t *tool) overridden() bool { return t.opts.CLI != "" && t.opts.Model != "" }
+
+func (t *tool) buildDir(b Build) string { return filepath.Join(t.opts.Dir, b.Dir) }
+
+func (t *tool) findExe(b Build) string {
+	return findFile(filepath.Join(t.buildDir(b), "bin"), t.spec.Exe)
+}
+
+func (t *tool) modelPath() string { return filepath.Join(t.opts.Dir, "models", t.spec.ModelName) }
+
+// paths returns the builds and model to run, empty when not installed; an override has no GPU build.
+func (t *tool) paths() programs {
+	if t.overridden() {
+		return programs{cpu: t.opts.CLI, model: t.opts.Model}
 	}
 	if t.opts.Dir == "" {
-		return "", ""
+		return programs{}
 	}
-	model := filepath.Join(t.opts.Dir, "models", t.spec.ModelName)
-	if _, err := os.Stat(model); err != nil {
-		return "", ""
+	if _, err := os.Stat(t.modelPath()); err != nil {
+		return programs{}
 	}
-	cli := findFile(filepath.Join(t.versionDir(), "bin"), t.spec.Exe)
-	if cli == "" {
-		return "", ""
+	p := programs{cpu: t.findExe(t.spec.CPU), gpu: t.findExe(t.spec.GPU), model: t.modelPath()}
+	if p.cpu == "" || p.gpu == "" {
+		return programs{}
 	}
-	return cli, model
+	return p
+}
+
+func (t *tool) cpuBuild() programs {
+	if t.overridden() || t.opts.Dir == "" {
+		return programs{}
+	}
+	if _, err := os.Stat(t.modelPath()); err != nil {
+		return programs{}
+	}
+	cpu := t.findExe(t.spec.CPU)
+	if cpu == "" {
+		return programs{}
+	}
+	return programs{cpu: cpu, model: t.modelPath()}
+}
+
+func (t *tool) missingBytes() int64 {
+	if t.overridden() || t.opts.Dir == "" {
+		return 0
+	}
+	var n int64
+	for _, b := range []Build{t.spec.CPU, t.spec.GPU} {
+		if t.findExe(b) == "" {
+			n += b.Bytes
+		}
+	}
+	if _, err := os.Stat(t.modelPath()); err != nil {
+		n += t.spec.ModelBytes
+	}
+	return n
 }
 
 func (t *tool) supported() bool {
-	return (t.opts.CLI != "" && t.opts.Model != "") || (runtime.GOOS == "windows" && runtime.GOARCH == "amd64" && t.opts.Dir != "")
+	return t.overridden() || (runtime.GOOS == "windows" && runtime.GOARCH == "amd64" && t.opts.Dir != "")
 }
 
 func (t *tool) Status() TranscriberStatus {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	s := TranscriberStatus{Version: t.spec.Version, Model: t.spec.ModelName, DownloadBytes: t.spec.BinBytes + t.spec.ModelBytes}
-	cli, _ := t.paths()
+	s := TranscriberStatus{Version: t.spec.Version, Model: t.spec.ModelName}
+	cli := t.paths().cpu
 	switch {
 	case !t.supported():
 		s.State = TranscriberUnsupported
-	case t.installing:
-		s.State, s.DoneBytes = TranscriberInstalling, t.done
+	case t.installDone != nil:
+		s.State, s.DownloadBytes, s.DoneBytes = TranscriberInstalling, t.total, t.done
 	case cli != "" && t.smokeLocked(cli) == nil:
 		s.State = TranscriberInstalled
 	case cli != "":
-		s.State, s.ErrorCode, s.Error = TranscriberFailed, t.checkErr.code, t.checkErr.msg
+		smoke := t.smokeLocked(cli)
+		s.State, s.ErrorCode, s.Error = TranscriberFailed, smoke.code, smoke.msg
 	case t.lastErr != nil:
-		s.State, s.ErrorCode, s.Error = TranscriberFailed, t.lastErr.code, t.lastErr.msg
+		s.State, s.ErrorCode, s.Error, s.DownloadBytes = TranscriberFailed, t.lastErr.code, t.lastErr.msg, t.missingBytes()
 	default:
-		s.State = TranscriberMissing
+		s.State, s.DownloadBytes = TranscriberMissing, t.missingBytes()
 	}
 	return s
 }
 
 // smokeLocked runs the program's --help once per binary, so a build that cannot start never reads as installed.
 func (t *tool) smokeLocked(cli string) *installError {
-	if t.checked == cli {
-		return t.checkErr
+	if err, ok := t.smoked[cli]; ok {
+		return err
 	}
-	t.checked, t.checkErr = cli, smokeTest(cli)
-	return t.checkErr
+	err := smokeTest(cli)
+	t.smoked[cli] = err
+	return err
 }
 
 func smokeTest(cli string) *installError {
@@ -183,7 +231,7 @@ func smokeTest(cli string) *installError {
 	if err == nil {
 		return nil
 	}
-	log.Printf("teamvoice: %s smoke test failed: %v: %s", filepath.Base(cli), err, lastChars(string(out), 400))
+	log.Printf("teamvoice: %s smoke test failed: %v: %s", cli, err, lastChars(string(out), 400))
 	var exit *exec.ExitError
 	if errors.As(err, &exit) && uint32(exit.ExitCode()) == statusDLLNotFound {
 		return &installError{code: TranscriberRuntimeMissing, err: err,
@@ -207,93 +255,138 @@ var ErrTranscriberUnsupported = errors.New("teamvoice: local transcription runs 
 // ErrTranscriberMissing is a run asked for before the install.
 var ErrTranscriberMissing = errors.New("teamvoice: the local speech program is not installed")
 
-// Install fetches the pinned build and model in the background; Status follows it.
+// Install fetches in the background what the pinned builds and model lack, and checks the programs again.
 func (t *tool) Install(ctx context.Context) error {
 	if !t.supported() {
 		return ErrTranscriberUnsupported
 	}
 	t.mu.Lock()
-	if t.installing {
-		t.mu.Unlock()
+	defer t.mu.Unlock()
+	if t.installDone != nil {
 		return nil
 	}
-	t.installing, t.done, t.lastErr, t.checked, t.checkErr = true, 0, nil, "", nil
-	t.mu.Unlock()
-	go func() {
-		err := t.install(ctx)
-		cli, _ := t.paths()
-		var smoke *installError
-		if err == nil && cli != "" {
-			smoke = smokeTest(cli)
-		}
-		t.mu.Lock()
-		defer t.mu.Unlock()
-		t.installing = false
-		if err == nil && cli != "" {
-			t.checked, t.checkErr = cli, smoke
-		}
-		if err != nil {
-			log.Printf("teamvoice: install %s: %v", t.spec.Exe, err)
-			t.lastErr = &installError{code: TranscriberDownloadFailed, err: err,
-				msg: "No se pudo descargar la transcripción local; comprueba la conexión y vuelve a intentarlo."}
-		}
-	}()
+	t.lastErr, t.gpuFailed = nil, false
+	clear(t.smoked)
+	if t.paths().cpu != "" {
+		return nil
+	}
+	done := make(chan struct{})
+	t.installDone, t.total, t.done = done, t.missingBytes(), 0
+	go t.installInBackground(ctx, done)
 	return nil
 }
 
-func (t *tool) install(ctx context.Context) error {
-	models := filepath.Join(t.opts.Dir, "models")
-	if err := os.MkdirAll(models, 0o750); err != nil {
-		return err
-	}
-	progress := func(base int64) func(int64) {
-		return func(done int64) {
-			t.mu.Lock()
-			t.done = base + done
-			t.mu.Unlock()
+func (t *tool) installInBackground(ctx context.Context, done chan struct{}) {
+	defer close(done)
+	err := t.install(ctx)
+	smoked := map[string]*installError{}
+	if err == nil {
+		p := t.paths()
+		for _, cli := range []string{p.cpu, p.gpu} {
+			if cli != "" {
+				smoked[cli] = smokeTest(cli)
+			}
 		}
-	}
-	if cli := findFile(filepath.Join(t.versionDir(), "bin"), t.spec.Exe); cli == "" {
-		archive := filepath.Join(t.opts.Dir, strings.TrimSuffix(t.spec.Exe, ".exe")+"-"+t.spec.Version+".zip")
-		if err := fetchPinned(ctx, t.opts.Client, download{URL: t.spec.BinURL, SHA256: t.spec.BinSHA256, Bytes: t.spec.BinBytes, Dst: archive, Progress: progress(0)}); err != nil {
-			return err
-		}
-		defer os.Remove(archive)
-		staging := t.versionDir() + ".staging"
-		_ = os.RemoveAll(staging)
-		if err := unzipTo(archive, filepath.Join(staging, "bin")); err != nil {
-			_ = os.RemoveAll(staging)
-			return err
-		}
-		if findFile(staging, t.spec.Exe) == "" {
-			_ = os.RemoveAll(staging)
-			return errors.New("the archive has no " + t.spec.Exe)
-		}
-		_ = os.RemoveAll(t.versionDir())
-		if err := os.Rename(staging, t.versionDir()); err != nil {
-			return err
-		}
-	}
-	model := filepath.Join(models, t.spec.ModelName)
-	if _, err := os.Stat(model); err == nil {
-		return nil
-	}
-	return fetchPinned(ctx, t.opts.Client, download{URL: t.spec.ModelURL, SHA256: t.spec.ModelSHA256, Bytes: t.spec.ModelBytes, Dst: model, Progress: progress(t.spec.BinBytes)})
-}
-
-// ready returns the installed program and model, after its smoke test.
-func (t *tool) ready() (string, string, error) {
-	cli, model := t.paths()
-	if cli == "" {
-		return "", "", ErrTranscriberMissing
 	}
 	t.mu.Lock()
-	smoke := t.smokeLocked(cli)
-	t.mu.Unlock()
-	if smoke != nil {
-		return "", "", smoke
+	defer t.mu.Unlock()
+	t.installDone = nil
+	maps.Copy(t.smoked, smoked)
+	if err != nil {
+		log.Printf("teamvoice: install %s: %v", t.spec.Exe, err)
+		t.lastErr = &installError{code: TranscriberDownloadFailed, err: err,
+			msg: "No se pudo descargar la transcripción local; comprueba la conexión y vuelve a intentarlo."}
 	}
-	return cli, model, nil
+}
+
+func (t *tool) install(ctx context.Context) error {
+	if err := os.MkdirAll(filepath.Dir(t.modelPath()), 0o750); err != nil {
+		return err
+	}
+	var fetched int64
+	progress := func(done int64) {
+		t.mu.Lock()
+		t.done = fetched + done
+		t.mu.Unlock()
+	}
+	for _, b := range []Build{t.spec.CPU, t.spec.GPU} {
+		if t.findExe(b) != "" {
+			continue
+		}
+		if err := t.installBuild(ctx, b, progress); err != nil {
+			return err
+		}
+		fetched += b.Bytes
+	}
+	if _, err := os.Stat(t.modelPath()); err == nil {
+		return nil
+	}
+	return fetchPinned(ctx, t.opts.Client, download{URL: t.spec.ModelURL, SHA256: t.spec.ModelSHA256, Bytes: t.spec.ModelBytes, Dst: t.modelPath(), Progress: progress})
+}
+
+func (t *tool) installBuild(ctx context.Context, b Build, progress func(int64)) error {
+	archive := filepath.Join(t.opts.Dir, strings.TrimSuffix(t.spec.Exe, ".exe")+"-"+b.Dir+".zip")
+	if err := fetchPinned(ctx, t.opts.Client, download{URL: b.URL, SHA256: b.SHA256, Bytes: b.Bytes, Dst: archive, Progress: progress}); err != nil {
+		return err
+	}
+	defer os.Remove(archive)
+	staging := t.buildDir(b) + ".staging"
+	_ = os.RemoveAll(staging)
+	if err := unzipTo(archive, filepath.Join(staging, "bin")); err != nil {
+		_ = os.RemoveAll(staging)
+		return err
+	}
+	if findFile(staging, t.spec.Exe) == "" {
+		_ = os.RemoveAll(staging)
+		return errors.New("the archive has no " + t.spec.Exe)
+	}
+	_ = os.RemoveAll(t.buildDir(b))
+	return os.Rename(staging, t.buildDir(b))
+}
+
+// ready returns the installed builds and model after their smoke tests, once an install in progress ends.
+func (t *tool) ready(ctx context.Context) (programs, error) {
+	t.mu.Lock()
+	installing := t.installDone
+	t.mu.Unlock()
+	if installing != nil {
+		select {
+		case <-installing:
+		case <-ctx.Done():
+			return programs{}, ctx.Err()
+		}
+	}
+	p := t.paths()
+	if p.cpu == "" {
+		p = t.cpuBuild()
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if p.cpu == "" && t.lastErr != nil {
+		return programs{}, t.lastErr
+	}
+	if p.cpu == "" {
+		return programs{}, ErrTranscriberMissing
+	}
+	if smoke := t.smokeLocked(p.cpu); smoke != nil {
+		return programs{}, smoke
+	}
+	if p.gpu != "" && t.smokeLocked(p.gpu) != nil {
+		p.gpu = ""
+	}
+	return p, nil
+}
+
+func (t *tool) gpuUsable() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return !t.gpuFailed
+}
+
+func (t *tool) dropGPU() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.gpuFailed = true
 }
 
 // threads leaves one core to Studio and the game.
