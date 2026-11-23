@@ -118,11 +118,11 @@ export function StreamSubtitlesPanel({ jobId, kind, video, stretches, disabled =
   };
 
   return <div className="flex min-w-0 flex-col gap-3">
-    <p className="text-body-sm text-fg-2">Lo que dices en los momentos de tus vídeos, transcrito en este PC a partir de la pista del micro, en el idioma en que hablas. Una corrección o un descarte vale para todos los vídeos del stream; ocultar una frase vale solo para este vídeo.</p>
+    <p className="text-body-sm text-fg-2">Lo que dices en los momentos de tus vídeos, transcrito en este PC a partir de la pista del micro, o del audio del stream si no tiene una aparte, en el idioma en que hablas. Una corrección o un descarte vale para todos los vídeos del stream; ocultar una frase vale solo para este vídeo.</p>
     {loadError ? <p role="alert" className="text-body-sm text-warning">{loadError}</p> : null}
     {transcript ? <>
       <SubtitleToggle label={SUBTITLES_LABEL} checked={enabled} disabled={locked || !status.enabled} onChange={toggle} />
-      {status.reason ? <p role="status" className="text-body-sm text-fg-2">{status.reason}</p> : null}
+      {status.note ? <p role="status" className="text-body-sm text-fg-2">{status.note}</p> : null}
       {enabled ? <>
         <InstallPrompt what="transcripción" credit={TRANSCRIBER_CREDIT} install={transcript.transcriber} busy={locked}
           onInstall={() => void run(installTranscriber, 'No se pudo instalar la transcripción.')} />

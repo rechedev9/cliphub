@@ -46,17 +46,19 @@ export type StreamSubtitleRow = {
 
 export const SUMMARY_VIDEO = 'summary';
 
-export function streamSubtitlesStatus(availability: string): { enabled: boolean; reason: string | null } {
+export function streamSubtitlesStatus(availability: string): { enabled: boolean; note: string | null } {
   switch (availability) {
     case 'available':
-      return { enabled: true, reason: null };
+      return { enabled: true, note: null };
     case 'no_audio':
-      return { enabled: false, reason: 'Este vídeo no tiene audio, así que no hay nada que transcribir.' };
-    default:
+      return { enabled: false, note: 'Este vídeo no tiene audio, así que no hay nada que transcribir.' };
+    case 'mixed_track':
       return {
-        enabled: false,
-        reason: 'Este stream solo tiene una pista con tu voz y el juego mezclados. Los subtítulos aún no están disponibles para estos streams: graba el micro en una pista aparte.',
+        enabled: true,
+        note: 'Este stream tiene tu voz y el juego en una sola pista, así que también pueden salir tus compañeros o el anunciador del juego. Descarta las frases que no sean tuyas.',
       };
+    default:
+      return { enabled: false, note: null };
   }
 }
 

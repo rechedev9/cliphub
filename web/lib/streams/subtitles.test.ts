@@ -49,12 +49,13 @@ test('a frase Studio changed marks the changed words and the undo leaves no mark
   assert.equal(parseStreamTranscript({ ...good, lines: [{ ...lines[0], vocab_changes: [{ heard: 'moly' }] }] }), null);
 });
 
-test('a stream with only a mixed track says subtítulos are not available for it yet', () => {
+test('a stream with only a mixed track has subtítulos and warns that other voices can come in', () => {
   const status = streamSubtitlesStatus('mixed_track');
-  assert.equal(status.enabled, false);
-  assert.match(status.reason ?? '', /aún no están disponibles/);
+  assert.equal(status.enabled, true);
+  assert.match(status.note ?? '', /Descarta las frases que no sean tuyas/);
   assert.equal(streamSubtitlesStatus('no_audio').enabled, false);
-  assert.deepEqual(streamSubtitlesStatus('available'), { enabled: true, reason: null });
+  assert.deepEqual(streamSubtitlesStatus('available'), { enabled: true, note: null });
+  assert.equal(streamSubtitlesStatus('something_new').enabled, false);
 });
 
 test('the note says what is happening with the transcripción', () => {

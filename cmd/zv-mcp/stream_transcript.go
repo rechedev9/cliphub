@@ -75,7 +75,7 @@ type streamTranscriptOut struct {
 	State        string             `json:"state" jsonschema:"none, queued, running, ready or failed"`
 	Error        string             `json:"error,omitempty"`
 	Progress     float64            `json:"progress,omitempty"`
-	Availability string             `json:"availability" jsonschema:"available when the stream has a mic track; mixed_track when it has only the mix of voice and game, which has no subtitles yet; no_audio"`
+	Availability string             `json:"availability" jsonschema:"available when the stream has a mic track; mixed_track when it has only the mix of voice and game, transcribed too, where teammates and the game announcer can come in as phrases; no_audio"`
 	Transcriber  string             `json:"transcriber" jsonschema:"install state of install_transcriber"`
 	Transcribed  []streamSpanIn     `json:"transcribed" jsonschema:"the stretches already transcribed; the rest of the stream has no phrases"`
 	Phrases      []streamPhraseOut  `json:"phrases"`
@@ -134,7 +134,7 @@ func checkStreamPhrase(streamID, phraseID string) error {
 func registerStreamTranscriptTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "transcribe_stream",
 		Description: "Transcribe what the streamer says in the stretches of a stream that go into a video, on this PC, as the Subtítulos panel of Clips de stream does. " +
-			"Only the mic track is transcribed: a stream with only a mixed track answers mixed_track and has no subtitles yet. Stretches already transcribed are skipped unless force. " +
+			"It reads the mic track, or the only track of a stream with voice and game mixed (availability mixed_track), where teammates and the game announcer can come in: offer to discard those phrases. Stretches already transcribed are skipped unless force. " +
 			"Needs install_transcriber. It runs in the background; read stream_transcript until state is ready."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in transcribeStreamIn) (*mcp.CallToolResult, streamTranscriptOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {

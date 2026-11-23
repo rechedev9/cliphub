@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -201,27 +202,27 @@ func TestStreamTranscriptLivesWithItsVideos(t *testing.T) {
 	}
 }
 
-func TestStreamWithOnlyAMixedTrackIsNotTranscribed(t *testing.T) {
+func TestStreamWithOnlyAMixedTrackIsTranscribedFromThatTrack(t *testing.T) {
 	env := newStreamTranscriptEnv(t)
 	env.transcriber.state = teamvoice.TranscriberInstalled
 	base := env.stream(streamclips.SourceProbe{AudioCodec: "aac", AudioStreams: 1})
-	var got streamTranscript
-	env.json(http.MethodGet, base+"/transcript", nil, http.StatusOK, &got)
-	if got.Availability != streamVoiceMixedTrack {
-		t.Fatalf("availability = %q, want %q", got.Availability, streamVoiceMixedTrack)
+	env.json(http.MethodPost, base+"/transcript", streamSpans{Spans: []streamSpan{{StartSeconds: 62, EndSeconds: 75}}}, http.StatusAccepted, nil)
+	got := env.await(base, func(s streamTranscript) bool { return s.State == library.TranscriptReady })
+	if got.Availability != streamVoiceMixedTrack || len(got.Lines) != 1 || got.Lines[0].Text != "vaya tiro" {
+		t.Fatalf("transcript = %+v; want the frase of the mixed track, still marked mixed_track", got)
 	}
-	var refused struct {
-		Code string `json:"code"`
-	}
-	env.json(http.MethodPost, base+"/transcript", streamSpans{Spans: []streamSpan{{StartSeconds: 62, EndSeconds: 75}}}, http.StatusConflict, &refused)
-	if refused.Code != codeMixedTrack || len(env.transcriber.clips()) != 0 {
-		t.Fatalf("a mixed track answered %q and ran %d transcriptions; want it refused", refused.Code, len(env.transcriber.clips()))
+	env.transcriber.mu.Lock()
+	jobs := slices.Clone(env.transcriber.jobs)
+	env.transcriber.mu.Unlock()
+	if len(jobs) != 1 || jobs[0].Track != 0 {
+		t.Fatalf("transcribed %+v, want the stream's only audio track", jobs)
 	}
 	silent := env.stream(streamclips.SourceProbe{})
 	env.json(http.MethodGet, silent+"/transcript", nil, http.StatusOK, &got)
 	if got.Availability != streamVoiceNoAudio {
 		t.Fatalf("availability of a stream without audio = %q, want %q", got.Availability, streamVoiceNoAudio)
 	}
+	env.json(http.MethodPost, silent+"/transcript", streamSpans{Spans: []streamSpan{{StartSeconds: 62, EndSeconds: 75}}}, http.StatusConflict, nil)
 }
 
 func TestStreamTranscriptIsQueuedAgainAfterARestart(t *testing.T) {

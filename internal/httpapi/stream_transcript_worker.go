@@ -117,8 +117,8 @@ func (h *Handlers) transcribeStreamSpan(ctx context.Context, in streamSpanJob) (
 		return nil, err
 	}
 	track, availability := streamVoiceTrack(j.Probe)
-	if availability != streamVoiceAvailable {
-		return nil, errMixedTrack
+	if availability == streamVoiceNoAudio {
+		return nil, errNoStreamAudio
 	}
 	resolver, ok := h.storage.(storagePathResolver)
 	if !ok {

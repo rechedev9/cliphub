@@ -23,7 +23,6 @@ const (
 	noticeShortsWithoutSubtitles  = "Los vídeos han salido sin subtítulos: "
 	noticeSummaryWithoutSubtitles = "El resumen ha salido sin subtítulos: "
 	reasonNoTranscriber           = "la transcripción no está instalada en este PC."
-	reasonMixedTrack              = "este stream solo tiene una pista con la voz y el juego mezclados."
 	reasonNoStreamAudio           = "este stream no tiene audio."
 	reasonTranscriptFailed        = "la transcripción falló en este PC."
 	reasonShortsTranscriptLate    = "la transcripción no terminó a tiempo. Expórtalos de nuevo cuando termine."
@@ -62,8 +61,6 @@ func streamSubtitleNotice(summary bool, err error) string {
 	switch {
 	case errors.Is(err, errNoTranscriber):
 		return opening + reasonNoTranscriber
-	case errors.Is(err, errMixedTrack):
-		return opening + reasonMixedTrack
 	case errors.Is(err, errNoStreamAudio):
 		return opening + reasonNoStreamAudio
 	case errors.Is(err, errStreamTranscriptLate):

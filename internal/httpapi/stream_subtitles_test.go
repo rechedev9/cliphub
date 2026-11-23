@@ -83,8 +83,7 @@ func TestAStreamRenderGoesWithoutSubtitulosAndSaysWhy(t *testing.T) {
 			}},
 		{name: "no transcriber", probe: micStream, summary: true, want: "El resumen ha salido sin subtítulos: la transcripción no está instalada en este PC.",
 			arrange: func(streamTranscriptEnv) {}},
-		{name: "a mixed track", probe: streamclips.SourceProbe{AudioCodec: "aac", AudioStreams: 1},
-			want:    "Los vídeos han salido sin subtítulos: este stream solo tiene una pista con la voz y el juego mezclados.",
+		{name: "no audio", probe: streamclips.SourceProbe{}, want: "Los vídeos han salido sin subtítulos: este stream no tiene audio.",
 			arrange: func(env streamTranscriptEnv) { env.transcriber.state = teamvoice.TranscriberInstalled }},
 	}
 	for _, tc := range cases {

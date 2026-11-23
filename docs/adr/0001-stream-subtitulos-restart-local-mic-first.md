@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, its threshold for a mixed track superseded by ADR 0002
 ---
 
 # Stream subtítulos restart from a new design: local, mic track first
