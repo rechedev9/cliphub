@@ -10,9 +10,6 @@
   "enabledPlugins": {
     "mattpocock-skills@mattpocock": true
   },
-  "permissions": {
-    "deny": ["Skill(mattpocock-skills:pr)"]
-  },
   "hooks": {
     "SessionStart": [
       {
