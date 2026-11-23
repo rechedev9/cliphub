@@ -58,6 +58,7 @@ type streamPhraseOut struct {
 	EndSeconds   float64              `json:"end_seconds"`
 	Text         string               `json:"text" jsonschema:"what a video draws: the correction when corrected"`
 	Corrected    bool                 `json:"corrected,omitempty"`
+	CorrectedBy  string               `json:"corrected_by,omitempty" jsonschema:"who corrected it: user (by hand) or assistant (correct_stream_phrases)"`
 	OriginalText string               `json:"original_text,omitempty" jsonschema:"what the transcriber heard, when the text differs from it"`
 	VocabText    string               `json:"vocab_text,omitempty" jsonschema:"what Studio's CS2 vocabulary corrector wrote over the heard text; empty when it changed nothing"`
 	VocabChanges []demoVocabChangeOut `json:"vocab_changes,omitempty" jsonschema:"the words the corrector changed: heard and written"`
@@ -91,7 +92,7 @@ type streamStaleOut struct {
 
 func streamPhraseOf(l tuiclient.StreamVoiceLine) streamPhraseOut {
 	return streamPhraseOut{ID: l.ID, StartSeconds: float64(l.StartMS) / 1000, EndSeconds: float64(l.EndMS) / 1000,
-		Text: cleanText(l.Text, maxCommsTextRunes), Corrected: l.Corrected,
+		Text: cleanText(l.Text, maxCommsTextRunes), Corrected: l.Corrected, CorrectedBy: cleanName(l.CorrectedBy),
 		OriginalText: cleanText(l.OriginalText, maxCommsTextRunes), VocabText: cleanText(l.VocabText, maxCommsTextRunes),
 		VocabChanges: vocabChangesOf(l.VocabChanges), Discarded: l.Discarded}
 }
@@ -163,7 +164,7 @@ func registerStreamTranscriptTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "stream_transcript", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Read the transcript of a stream: each phrase the streamer said in the transcribed stretches, in the language it was said, with no speaker names, " +
-			"with the original_text the transcriber heard when the text differs from it, vocab_text and vocab_changes when Studio's CS2 vocabulary corrector changed words (sending original_text to correct_stream_phrase undoes them), and discarded when no video draws it, plus the subtitles switches and the phrases hidden in one video. " +
+			"with the original_text the transcriber heard when the text differs from it, vocab_text and vocab_changes when Studio's CS2 vocabulary corrector changed words (sending original_text to correct_stream_phrase undoes them), and discarded when no video draws it, corrected_by user or assistant on a corrected phrase, plus the subtitles switches and the phrases hidden in one video. " +
 			"Pass a phrase id to correct_stream_phrase, discard_stream_phrase or set_stream_subtitles. It lists 300 phrases at most: when truncated is true, call again with from_seconds."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in streamTranscriptIn) (*mcp.CallToolResult, streamTranscriptOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
@@ -181,7 +182,7 @@ func registerStreamTranscriptTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "correct_stream_phrase", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Correct a phrase of a stream transcript, as the Subtítulos panel does. The correction counts for every video of the stream and keeps what the transcriber heard as original_text; sending the original text again undoes it."},
+		Description: "Correct a phrase of a stream transcript, as the Subtítulos panel does. The correction counts for every video of the stream and keeps what the transcriber heard as original_text; sending the original text again undoes it. It is a user correction, also over one the assistant made with correct_stream_phrases, and the vocabulary corrector learns from it: use it only for text the user typed or dictated, and correct_stream_phrases for any correction you propose, even of one phrase."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in correctStreamPhraseIn) (*mcp.CallToolResult, streamPhraseOut, error) {
 			if err := checkStreamPhrase(in.ID, in.PhraseID); err != nil {
 				return nil, streamPhraseOut{}, err

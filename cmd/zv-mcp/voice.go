@@ -134,6 +134,7 @@ func clockMS(ms int64) string {
 func registerVoiceTools(server *mcp.Server, s *studio) {
 	registerVoiceCommsTools(server, s)
 	registerDemoTranscriptTools(server, s)
+	registerSubtitleReviewTools(server, s)
 	registerVoiceRecordingTools(server, s)
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 	call := func(ctx context.Context, matchID string, do func(*tuiclient.Client) (tuiclient.MatchVoice, error)) (*mcp.CallToolResult, voiceOut, error) {
