@@ -1868,9 +1868,9 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	musicKey, gameVolume = resolved.musicKey, resolved.gameVolume
 	effectiveMusic, effectiveMusicVolume := resolved.music, resolved.musicVolume
 	inputFingerprint, err := renderInputFingerprint(recordingResult, j.KillPlan, variant, musicKey, musicPath, effectiveMusicVolume, gameVolume, edit)
-	extras := w.awaitRenderExtras(ctx, j, edit)
+	extras := renderExtras{}
 	if err == nil {
-		inputFingerprint, err = extras.fingerprint(inputFingerprint)
+		extras, inputFingerprint, err = w.fingerprintRenderExtras(ctx, renderExtrasInput{job: j, edit: edit, fingerprint: inputFingerprint})
 	}
 	if err != nil {
 		if recording.IsNotReusableMessage(err.Error()) {

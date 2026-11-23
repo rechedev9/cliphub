@@ -97,6 +97,18 @@ func (w *RenderWorker) awaitRenderExtras(ctx context.Context, j job.Job, edit re
 	return extras
 }
 
+type renderExtrasInput struct {
+	job         job.Job
+	edit        renderplan.EditRequest
+	fingerprint string
+}
+
+func (w *RenderWorker) fingerprintRenderExtras(ctx context.Context, in renderExtrasInput) (renderExtras, string, error) {
+	extras := w.awaitRenderExtras(ctx, in.job, in.edit)
+	fingerprint, err := extras.fingerprint(in.fingerprint)
+	return extras, fingerprint, err
+}
+
 func (e renderExtras) renderWarnings(result editor.Result) []string {
 	result.Warnings = append(slices.Clone(result.Warnings), e.Warnings...)
 	return renderplan.CompleteRenderWarnings(result)

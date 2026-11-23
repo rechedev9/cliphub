@@ -154,6 +154,20 @@ func (t *tool) paths() programs {
 	return p
 }
 
+func (t *tool) cpuBuild() programs {
+	if t.overridden() || t.opts.Dir == "" {
+		return programs{}
+	}
+	if _, err := os.Stat(t.modelPath()); err != nil {
+		return programs{}
+	}
+	cpu := t.findExe(t.spec.CPU)
+	if cpu == "" {
+		return programs{}
+	}
+	return programs{cpu: cpu, model: t.modelPath()}
+}
+
 func (t *tool) missingBytes() int64 {
 	if t.overridden() || t.opts.Dir == "" {
 		return 0
@@ -343,6 +357,9 @@ func (t *tool) ready(ctx context.Context) (programs, error) {
 		}
 	}
 	p := t.paths()
+	if p.cpu == "" {
+		p = t.cpuBuild()
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if p.cpu == "" && t.lastErr != nil {

@@ -281,6 +281,34 @@ func TestAnInstallWithTheCPUBuildFetchesOnlyTheVulkanBuild(t *testing.T) {
 	}
 }
 
+func TestTranscribeKeepsTheCPUBuildWhenTheVulkanDownloadFails(t *testing.T) {
+	skipUnlessWindowsX64(t)
+	speech := []library.VoiceSpan{{StartMS: 1000, EndMS: 2600}}
+	words, _ := json.Marshal([][]fakeWord{{{"Rotad", 0.25, 0.6}}})
+	t.Setenv(fakeNemoEnv, string(words))
+	runs := filepath.Join(t.TempDir(), "runs.txt")
+	t.Setenv(fakeNemoRunsEnv, runs)
+	in := installPinned(t, fakeDecoder(pcm(4_000, speech)))
+	if err := os.RemoveAll(filepath.Join(in.dir, in.spec.GPU.Dir)); err != nil {
+		t.Fatal(err)
+	}
+	in.tr.spec.GPU.SHA256 = strings.Repeat("0", 64)
+	if err := in.tr.Install(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	lines, err := in.tr.Transcribe(t.Context(), TranscribeJob{Audio: "a.ogg", Speech: speech})
+	if err != nil || len(lines) != 1 || lines[0].Text != "Rotad" {
+		t.Fatalf("transcription without the Vulkan build = %+v, %v; want the CPU build to transcribe", lines, err)
+	}
+	raw, err := os.ReadFile(runs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if used := strings.TrimSpace(string(raw)); strings.Count(used, "\n") != 0 || !strings.HasSuffix(used, " cpu") {
+		t.Fatalf("runs = %q, want one run on the CPU", used)
+	}
+}
+
 func TestTranscribeFallsBackToTheCPUBuildOnceVulkanFails(t *testing.T) {
 	skipUnlessWindowsX64(t)
 	speech := []library.VoiceSpan{{StartMS: 1000, EndMS: 2600}}

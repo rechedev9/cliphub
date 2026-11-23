@@ -147,7 +147,7 @@ export function subtitleNote(subs: JobSubtitles): string | null {
     case 'running':
       return `Transcribiendo las voces… ${percent(subs.progress)}. Puedes crear el vídeo ya: el montaje espera a que termine.`;
     case 'failed':
-      return 'La transcripción falló. Al crear el vídeo se intenta otra vez; si vuelve a fallar, el vídeo sale sin subtítulos y te lo dice.';
+      return 'La transcripción falló. Pulsa Transcribir ahora para intentarlo otra vez; si no, el vídeo sale sin subtítulos y te lo dice.';
   }
 }
 
