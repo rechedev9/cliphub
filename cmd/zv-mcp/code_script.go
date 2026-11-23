@@ -19,6 +19,8 @@ const (
 	maxScriptHeapGrow  = 256 << 20
 	maxScriptStack     = 1024
 	maxScriptString    = 1 << 24
+	maxScriptItems     = 1 << 22
+	maxProcessMemory   = 2 << 30
 	scriptHeapPoll     = 20 * time.Millisecond
 	scriptHeapMetric   = "/memory/classes/heap/objects:bytes"
 )
@@ -102,7 +104,7 @@ func runScript(ctx context.Context, run scriptRun) (scriptResult, error) {
 	}
 	raw, err := scriptJSON(vm, value)
 	if err != nil {
-		return scriptResult{Calls: calls}, err
+		return scriptResult{Calls: calls}, scriptError(ctx, err)
 	}
 	var out any
 	if err := json.Unmarshal(raw, &out); err != nil {
@@ -114,7 +116,7 @@ func runScript(ctx context.Context, run scriptRun) (scriptResult, error) {
 func evalScript(vm *goja.Runtime, code string) (goja.Value, error) {
 	fnValue, err := vm.RunString("(" + code + "\n)")
 	if err != nil {
-		return nil, err
+		return nil, scriptFailure(vm, err)
 	}
 	fn, ok := goja.AssertFunction(fnValue)
 	if !ok {
@@ -122,7 +124,7 @@ func evalScript(vm *goja.Runtime, code string) (goja.Value, error) {
 	}
 	out, err := fn(goja.Undefined())
 	if err != nil {
-		return nil, err
+		return nil, scriptFailure(vm, err)
 	}
 	promise, ok := out.Export().(*goja.Promise)
 	if !ok {
@@ -132,7 +134,7 @@ func evalScript(vm *goja.Runtime, code string) (goja.Value, error) {
 	case goja.PromiseStateFulfilled:
 		return promise.Result(), nil
 	case goja.PromiseStateRejected:
-		return nil, fmt.Errorf("script failed: %s", promise.Result().String())
+		return nil, fmt.Errorf("script failed: %s", scriptValueText(vm, promise.Result()))
 	default:
 		return nil, errors.New("the script awaited something that never settled")
 	}
@@ -148,7 +150,7 @@ func scriptJSON(vm *goja.Runtime, value goja.Value) (json.RawMessage, error) {
 	}
 	text, err := stringify(goja.Undefined(), value)
 	if err != nil {
-		return nil, fmt.Errorf("the script's result is not JSON: %w", err)
+		return nil, fmt.Errorf("the script's result is not JSON: %w", scriptFailure(vm, err))
 	}
 	if goja.IsUndefined(text) {
 		return json.RawMessage("null"), nil
@@ -188,10 +190,6 @@ func scriptError(ctx context.Context, err error) error {
 	}
 	if ctx.Err() != nil {
 		return errors.New(stopReason(ctx))
-	}
-	var exception *goja.Exception
-	if errors.As(err, &exception) {
-		return fmt.Errorf("script failed: %s", exception.Value().String())
 	}
 	return err
 }
@@ -249,6 +247,41 @@ func hardenScriptRuntime(vm *goja.Runtime) error {
 		guard("repeat", (s, args) => s.length * Number(args[0]));
 		guard("padStart", (s, args) => Number(args[0]));
 		guard("padEnd", (s, args) => Number(args[0]));
-	})()`, maxScriptString))
+
+		const items = %d;
+		const tooLong = (n) => {
+			if (Number(n) > items) throw new RangeError("a script's arrays hold at most " + items + " items");
+		};
+		const NativeArray = Array;
+		for (const name of Object.getOwnPropertyNames(NativeArray.prototype)) {
+			const original = NativeArray.prototype[name];
+			if (name === "constructor" || typeof original !== "function") continue;
+			Object.defineProperty(NativeArray.prototype, name, { writable: false, configurable: false, value: function (...args) {
+				if (this != null) tooLong(this.length);
+				return original.apply(this, args);
+			} });
+		}
+		const from = NativeArray.from;
+		Object.defineProperty(NativeArray, "from", { writable: false, configurable: false, value: function (source, ...rest) {
+			if (source != null) tooLong(source.length);
+			return from.call(this, source, ...rest);
+		} });
+	})()`, maxScriptString, maxScriptItems))
 	return err
+}
+
+func scriptFailure(vm *goja.Runtime, err error) error {
+	var exception *goja.Exception
+	if !errors.As(err, &exception) || exception.Value() == nil {
+		return err
+	}
+	return fmt.Errorf("script failed: %s", scriptValueText(vm, exception.Value()))
+}
+
+func scriptValueText(vm *goja.Runtime, v goja.Value) string {
+	text := ""
+	if v == nil || vm.Try(func() { text = v.String() }) != nil {
+		return "the script threw a value that cannot be shown"
+	}
+	return text
 }

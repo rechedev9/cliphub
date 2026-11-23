@@ -166,6 +166,9 @@ func (b *codeBridge) search(in searchAPIIn) (string, error) {
 	if len(in.Names) > searchNameLimit {
 		return "", fmt.Errorf("names takes at most %d functions", searchNameLimit)
 	}
+	if len(in.Names) > 0 && strings.TrimSpace(in.Query) != "" {
+		return "", errors.New("pass query or names, not both")
+	}
 	if len(in.Names) > 0 {
 		var tools []declTool
 		var unknown []string

@@ -35,6 +35,9 @@ func main() {
 	})
 	server.AddReceivingMiddleware(recoverPanics, pinNegotiatedVersion)
 	registerTools(server, newStudio())
+	if err := limitProcessMemory(maxProcessMemory); err != nil {
+		log.Printf("zv-mcp: scripts run without the process memory cap: %v", err)
+	}
 	registerCodeTools(server)
 	if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil && ctx.Err() == nil {
 		log.Fatalf("zv-mcp: %v", err)

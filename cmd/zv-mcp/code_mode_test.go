@@ -323,3 +323,42 @@ func TestReadOnlyToolsChangeNothing(t *testing.T) {
 		t.Fatalf("only %d read-only tools; the registration changed", readOnly)
 	}
 }
+
+func TestRunScriptCapsArraysButKeepsThemUsable(t *testing.T) {
+	f := newCodeModeFixture(t)
+	for _, code := range []string{
+		"async () => Array(2 ** 25).fill(0).length",
+		"async () => Array.from({ length: 2 ** 25 }).length",
+		"async () => { const a = [1]; a.length = 2 ** 25; return a.join(\",\").length }",
+	} {
+		if _, failure := f.run(t, code); !strings.Contains(failure, "at most 4194304 items") {
+			t.Fatalf("code %q: failure = %q", code, failure)
+		}
+	}
+	out, failure := f.run(t, `async () => [Array(3).fill(1), Array.from([1, 2], x => x * 2), [3, 1, 2].sort(), [] instanceof Array, Array.isArray(new Array(2))]`)
+	if failure != "" || string(out.Result) != `[[1,1,1],[2,4],[1,2,3],true,true]` {
+		t.Fatalf("small arrays got %s, %q", out.Result, failure)
+	}
+}
+
+func TestRunScriptReportsValuesThatCannotBeShown(t *testing.T) {
+	f := newCodeModeFixture(t)
+	_, failure := f.run(t, "async () => { throw { toString() { throw 1 } } }")
+	if !strings.Contains(failure, "cannot be shown") {
+		t.Fatalf("failure = %q", failure)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	_, err := runScript(ctx, scriptRun{Code: "async () => ({ toJSON() { for (;;) {} } })"})
+	if err == nil || !strings.Contains(err.Error(), "cancelled") || strings.Contains(err.Error(), "not JSON") {
+		t.Fatalf("err = %v, want the cancellation", err)
+	}
+}
+
+func TestSearchAPIRefusesQueryAndNamesTogether(t *testing.T) {
+	f := newCodeModeFixture(t)
+	text, isErr := f.text(t, &mcp.CallToolParams{Name: searchAPIName, Arguments: map[string]any{"query": "match", "names": []string{"fake_match"}}})
+	if !isErr || !strings.Contains(text, "not both") {
+		t.Fatalf("got %q", text)
+	}
+}
