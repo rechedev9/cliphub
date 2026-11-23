@@ -122,15 +122,31 @@ func (h *Handlers) GetJobSubtitleReview(w http.ResponseWriter, r *http.Request) 
 			segments = parser.PreRollIDs(*j.KillPlan, preRoll, segments)
 		case j.KillPlan != nil:
 			plan = *j.KillPlan
+		default:
+			writeError(w, http.StatusConflict, "this job has no plays yet; wait for it to be parsed")
+			return
 		}
 		if ranges, err = segmentRanges(plan, segments); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 	}
-	m, err := h.subtitleMatch(r.Context(), j.ID)
-	if err != nil {
+	if h.voice == nil || h.libraryRepo == nil {
+		writeError(w, http.StatusNotFound, "team voice is not available in this Studio")
+		return
+	}
+	demo, err := h.libraryRepo.DemoForJob(r.Context(), j.ID)
+	if errors.Is(err, library.ErrNotFound) || (err == nil && demo.MatchID == nil) {
 		writeCodedError(w, http.StatusConflict, codeNoVoice, "this job's demo is not an analysed library demo")
+		return
+	}
+	if err != nil {
+		internalError(w, "find the job's demo", err)
+		return
+	}
+	m, err := h.libraryRepo.GetMatch(r.Context(), *demo.MatchID)
+	if err != nil {
+		writeLibraryError(w, "get the job's match", err)
 		return
 	}
 	t, err := h.demoVoiceState(r.Context(), m.ID)
@@ -240,10 +256,17 @@ func (h *Handlers) GetStreamSubtitleReview(w http.ResponseWriter, r *http.Reques
 		internalError(w, "get stream subtitles", err)
 		return
 	}
+	stretches := make([][]library.VoiceSpan, len(videos))
+	for i, v := range videos {
+		stretches[i] = streamclips.SubtitleStretches([]streamclips.SubtitleVideo{v})
+	}
 	drawn := func(l streamclips.VoiceLine) bool {
-		return slices.ContainsFunc(videos, func(v streamclips.SubtitleVideo) bool {
-			return !slices.Contains(choice.Hidden[v.ID], l.ID) && slices.ContainsFunc(streamclips.SubtitleStretches([]streamclips.SubtitleVideo{v}), func(s library.VoiceSpan) bool { return l.StartMS < s.EndMS && l.EndMS > s.StartMS })
-		})
+		for i, v := range videos {
+			if !slices.Contains(choice.Hidden[v.ID], l.ID) && slices.ContainsFunc(stretches[i], func(s library.VoiceSpan) bool { return l.StartMS < s.EndMS && l.EndMS > s.StartMS }) {
+				return true
+			}
+		}
+		return false
 	}
 	in := lines[:0]
 	for _, l := range lines {
