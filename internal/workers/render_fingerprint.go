@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 
+	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/playercard"
@@ -77,12 +79,27 @@ func renderInputFingerprint(result recording.RecordingResult, plan *killplan.Pla
 type renderExtras struct {
 	Subtitles *subtitles.Track
 	Card      *playercard.Facts
+	Warnings  []string
 }
 
 // readRenderExtras reads the subtitles and the player card of a render; one it cannot read is left out
 // of the video instead of failing it.
 func (w *RenderWorker) readRenderExtras(ctx context.Context, j job.Job, edit renderplan.EditRequest) renderExtras {
-	return renderExtras{Subtitles: w.renderSubtitles(ctx, j, edit), Card: w.shortPlayerCard(ctx, j, edit)}
+	return renderExtras{Subtitles: w.readSubtitles(ctx, j, edit), Card: w.shortPlayerCard(ctx, j, edit)}
+}
+
+func (w *RenderWorker) awaitRenderExtras(ctx context.Context, j job.Job, edit renderplan.EditRequest) renderExtras {
+	track, warning := w.awaitSubtitles(ctx, j, edit)
+	extras := renderExtras{Subtitles: track, Card: w.shortPlayerCard(ctx, j, edit)}
+	if warning != "" {
+		extras.Warnings = []string{warning}
+	}
+	return extras
+}
+
+func (e renderExtras) renderWarnings(result editor.Result) []string {
+	result.Warnings = append(slices.Clone(result.Warnings), e.Warnings...)
+	return renderplan.CompleteRenderWarnings(result)
 }
 
 // fingerprint adds the extras to the fingerprint of the render's edit and capture, so a corrected phrase

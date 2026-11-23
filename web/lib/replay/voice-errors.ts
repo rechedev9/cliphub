@@ -6,7 +6,7 @@ const VOICE_ERRORS: Readonly<Record<string, string>> = {
   no_voice: 'Esta partida no tiene voz del equipo: importa una grabación primero.',
   not_audio: 'No es una grabación de audio que Studio pueda leer.',
   too_many_tracks: 'Una partida guarda como mucho 16 pistas de voz.',
-  transcriber_not_installed: 'Instala la transcripción local antes de transcribir.',
+  transcriber_not_installed: 'La transcripción local no está lista en este PC.',
   queue_full: 'Hay demasiadas transcripciones en cola. Vuelve a intentarlo en un rato.',
   unsupported: 'La transcripción local solo funciona en Windows de 64 bits.',
   no_demo_file: 'El archivo de la demo no está en este PC, así que Studio no puede leer su voz.',

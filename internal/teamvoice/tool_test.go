@@ -2,14 +2,20 @@ package teamvoice
 
 import (
 	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/library"
 )
@@ -96,7 +102,228 @@ func TestTranscriberStatusFollowsTheInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s := NewTranscriber(TranscriberOptions{CLI: self, Model: model}).Status(); s.State != TranscriberInstalled || s.DownloadBytes != Pinned.BinBytes+Pinned.ModelBytes {
-		t.Fatalf("status with an override = %+v", s)
+	if s := NewTranscriber(TranscriberOptions{CLI: self, Model: model}).Status(); s.State != TranscriberInstalled || s.DownloadBytes != 0 {
+		t.Fatalf("status with an override = %+v, want installed with nothing to fetch", s)
+	}
+}
+
+func sha256Hex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+type requestLog struct {
+	mu    sync.Mutex
+	paths []string
+}
+
+func (l *requestLog) add(path string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.paths = append(l.paths, path)
+}
+
+func (l *requestLog) list() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.paths)
+}
+
+func skipUnlessWindowsX64(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "windows" || runtime.GOARCH != "amd64" {
+		t.Skip("the pinned builds run on Windows x64 only")
+	}
+}
+
+func pinnedServer(t *testing.T, release <-chan struct{}) (Spec, *requestLog, *http.Client) {
+	t.Helper()
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	exe, err := os.ReadFile(self)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var archive bytes.Buffer
+	zw := zip.NewWriter(&archive)
+	w, err := zw.CreateHeader(&zip.FileHeader{Name: "Release/nemo-speech.exe", Method: zip.Store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write(exe); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	model := []byte("parakeet weights")
+	requests := &requestLog{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.add(r.URL.Path)
+		switch r.URL.Path {
+		case "/cpu.zip", "/gpu.zip":
+			_, _ = w.Write(archive.Bytes())
+		case "/model.gguf":
+			<-release
+			_, _ = w.Write(model)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	build := func(dir, path string) Build {
+		return Build{Dir: dir, URL: srv.URL + path, SHA256: sha256Hex(archive.Bytes()), Bytes: int64(archive.Len())}
+	}
+	spec := Spec{Version: "9.9.9", CPU: build("9.9.9", "/cpu.zip"), GPU: build("9.9.9-vulkan", "/gpu.zip"), Exe: "nemo-speech.exe",
+		ModelName: "model.gguf", ModelURL: srv.URL + "/model.gguf", ModelSHA256: sha256Hex(model), ModelBytes: int64(len(model))}
+	return spec, requests, srv.Client()
+}
+
+type pinnedInstall struct {
+	tr       *Transcriber
+	spec     Spec
+	requests *requestLog
+	dir      string
+}
+
+func installPinned(t *testing.T, media Decoder) pinnedInstall {
+	t.Helper()
+	release := make(chan struct{})
+	close(release)
+	spec, requests, client := pinnedServer(t, release)
+	dir := t.TempDir()
+	tr := &Transcriber{newTool(TranscriberOptions{Dir: dir, Media: media, Client: client}, spec)}
+	if err := tr.Install(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tr.ready(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	return pinnedInstall{tr: tr, spec: spec, requests: requests, dir: dir}
+}
+
+func TestTranscribeWaitsForTheInstallItNeeds(t *testing.T) {
+	skipUnlessWindowsX64(t)
+	release := make(chan struct{})
+	spec, requests, client := pinnedServer(t, release)
+	speech := []library.VoiceSpan{{StartMS: 1000, EndMS: 2600}}
+	words, _ := json.Marshal([][]fakeWord{{{"Rotad", 0.25, 0.6}}})
+	t.Setenv(fakeNemoEnv, string(words))
+	tr := &Transcriber{newTool(TranscriberOptions{Dir: t.TempDir(), Media: fakeDecoder(pcm(4_000, speech)), Client: client}, spec)}
+	total := spec.CPU.Bytes + spec.GPU.Bytes + spec.ModelBytes
+	if s := tr.Status(); s.State != TranscriberMissing || s.DownloadBytes != total {
+		t.Fatalf("status before any install = %+v, want not_installed with %d bytes to fetch", s, total)
+	}
+	if err := tr.Install(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if s := tr.Status(); s.State != TranscriberInstalling || s.DownloadBytes != total {
+		t.Fatalf("status while the model downloads = %+v", s)
+	}
+	type result struct {
+		lines []Line
+		err   error
+	}
+	got := make(chan result, 1)
+	go func() {
+		lines, err := tr.Transcribe(t.Context(), TranscribeJob{Audio: "a.ogg", Speech: speech})
+		got <- result{lines, err}
+	}()
+	select {
+	case r := <-got:
+		t.Fatalf("a transcription ran before the install ended: %+v", r)
+	case <-time.After(200 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case r := <-got:
+		if r.err != nil || len(r.lines) != 1 || r.lines[0].Text != "Rotad" {
+			t.Fatalf("transcription after the install = %+v", r)
+		}
+	case <-time.After(time.Minute):
+		t.Fatal("the transcription never ran after the install")
+	}
+	if s := tr.Status(); s.State != TranscriberInstalled || s.DownloadBytes != 0 {
+		t.Fatalf("status after the install = %+v", s)
+	}
+	before := len(requests.list())
+	if err := tr.Install(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if s, after := tr.Status(), requests.list(); s.State != TranscriberInstalled || len(after) != before {
+		t.Fatalf("an install with the builds and model in place = %q after requests %q; want nothing downloaded", s.State, after[before:])
+	}
+}
+
+func TestAnInstallWithTheCPUBuildFetchesOnlyTheVulkanBuild(t *testing.T) {
+	skipUnlessWindowsX64(t)
+	in := installPinned(t, nil)
+	if err := os.RemoveAll(filepath.Join(in.dir, in.spec.GPU.Dir)); err != nil {
+		t.Fatal(err)
+	}
+	if s := in.tr.Status(); s.State != TranscriberMissing || s.DownloadBytes != in.spec.GPU.Bytes {
+		t.Fatalf("status without the Vulkan build = %+v, want not_installed with only its %d bytes to fetch", s, in.spec.GPU.Bytes)
+	}
+	before := len(in.requests.list())
+	if err := in.tr.Install(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := in.tr.ready(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := in.requests.list()[before:]; !slices.Equal(got, []string{"/gpu.zip"}) {
+		t.Fatalf("requests of the second install = %q, want only the Vulkan build", got)
+	}
+	if s := in.tr.Status(); s.State != TranscriberInstalled {
+		t.Fatalf("status after fetching the Vulkan build = %+v", s)
+	}
+}
+
+func TestTranscribeFallsBackToTheCPUBuildOnceVulkanFails(t *testing.T) {
+	skipUnlessWindowsX64(t)
+	speech := []library.VoiceSpan{{StartMS: 1000, EndMS: 2600}}
+	words, _ := json.Marshal([][]fakeWord{{{"Rotad", 0.25, 0.6}}})
+	t.Setenv(fakeNemoEnv, string(words))
+	runs := filepath.Join(t.TempDir(), "runs.txt")
+	t.Setenv(fakeNemoRunsEnv, runs)
+	in := installPinned(t, fakeDecoder(pcm(4_000, speech)))
+	build := func(exe string) string {
+		for _, dir := range []string{in.spec.GPU.Dir, in.spec.CPU.Dir} {
+			if strings.Contains(filepath.ToSlash(exe), "/"+dir+"/") {
+				return dir
+			}
+		}
+		return exe
+	}
+	transcribe := func() []string {
+		t.Helper()
+		_ = os.Remove(runs)
+		lines, err := in.tr.Transcribe(t.Context(), TranscribeJob{Audio: "a.ogg", Speech: speech})
+		if err != nil || len(lines) != 1 || lines[0].Text != "Rotad" {
+			t.Fatalf("transcription = %+v, %v", lines, err)
+		}
+		raw, err := os.ReadFile(runs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var used []string
+		for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+			exe, device, _ := strings.Cut(line, " ")
+			used = append(used, build(exe)+" "+device)
+		}
+		return used
+	}
+	gpu, cpu := in.spec.GPU.Dir+" vulkan", in.spec.CPU.Dir+" cpu"
+	if used := transcribe(); !slices.Equal(used, []string{gpu}) {
+		t.Fatalf("runs with a working Vulkan = %q, want the Vulkan build alone", used)
+	}
+	t.Setenv(fakeNemoVulkanEnv, "fail")
+	if used := transcribe(); !slices.Equal(used, []string{gpu, cpu}) {
+		t.Fatalf("runs when Vulkan fails = %q, want the Vulkan build, then the CPU build", used)
+	}
+	if used := transcribe(); !slices.Equal(used, []string{cpu}) {
+		t.Fatalf("runs after Vulkan failed once = %q, want the CPU build alone", used)
 	}
 }

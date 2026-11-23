@@ -60,14 +60,22 @@ test('hiding a phrase is a choice of this video and can be undone', () => {
 
 test('the note says what the render will do with the transcript', () => {
   const blocked = [
-    subtitleNote(subs({ transcriber: { ...installed, state: 'not_installed' } })),
+    subtitleNote(subs({ state: 'none', transcriber: { ...installed, state: 'not_installed' } })),
     subtitleNote(subs({ state: 'none' })),
     subtitleNote(subs({ state: 'failed', error: 'boom' })),
   ];
   assert.ok(blocked.every((note) => typeof note === 'string'), 'a missing install or transcript is said');
   assert.equal(new Set(blocked).size, blocked.length, 'each blocker has its own note');
-  assert.match(subtitleNote(subs({ state: 'running', progress: 0.42 })) ?? '', /42 %/);
+  assert.ok(blocked.every((note) => !/Instala/.test(note ?? '')), 'Studio installs the transcription on its own, it never asks for it');
+  const downloading = subtitleNote(subs({ state: 'none', transcriber: { ...installed, state: 'installing' } })) ?? '';
+  assert.match(downloading, /el montaje espera/, 'a transcription still downloading holds the render');
+  assert.doesNotMatch(downloading, /sin subtítulos/);
+  const running = subtitleNote(subs({ state: 'running', progress: 0.42 })) ?? '';
+  assert.match(running, /42 %/);
+  assert.match(running, /el montaje espera/, 'a running transcription holds the render, it never drops the subtitles');
+  assert.doesNotMatch(running, /sin subtítulos/);
   assert.equal(subtitleNote(subs({})), null);
+  assert.equal(subtitleNote(subs({ transcriber: { ...installed, state: 'failed' } })), null, 'a done transcript needs no transcriber to render');
 });
 
 test('only a well-formed answer of the server is read', () => {

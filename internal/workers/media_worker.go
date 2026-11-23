@@ -1117,7 +1117,7 @@ type RenderWorker struct {
 	cfg             RenderWorkerConfig
 	runner          commandRunner
 	voiceExtract    voiceExtractFunc
-	subtitles       SubtitleSource
+	subtitles       subtitleReader
 }
 
 func NewRenderWorker(repo StatusRepository, store storage.Storage, cfg RenderWorkerConfig) *RenderWorker {
@@ -1868,7 +1868,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	musicKey, gameVolume = resolved.musicKey, resolved.gameVolume
 	effectiveMusic, effectiveMusicVolume := resolved.music, resolved.musicVolume
 	inputFingerprint, err := renderInputFingerprint(recordingResult, j.KillPlan, variant, musicKey, musicPath, effectiveMusicVolume, gameVolume, edit)
-	extras := w.readRenderExtras(ctx, j, edit)
+	extras := w.awaitRenderExtras(ctx, j, edit)
 	if err == nil {
 		inputFingerprint, err = extras.fingerprint(inputFingerprint)
 	}
@@ -1986,7 +1986,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 			result.Warnings = append(result.Warnings, "ffprobe quality metadata: "+err.Error())
 		}
 	}
-	result.Warnings = renderplan.CompleteRenderWarnings(result)
+	result.Warnings = extras.renderWarnings(result)
 	if err := writeJSONFile(resultPath, result); err != nil {
 		return fmt.Errorf("write fingerprinted render result: %w", err)
 	}

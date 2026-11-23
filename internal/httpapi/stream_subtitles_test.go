@@ -63,6 +63,17 @@ func TestAStreamRenderWaitsForTheTranscripcionOfItsStretches(t *testing.T) {
 	}
 }
 
+func TestAStreamRenderDownloadsTheTranscriptionItNeeds(t *testing.T) {
+	env := newStreamTranscriptEnv(t)
+	base := env.stream(micStream)
+	env.json(http.MethodPatch, base+"/subtitles", map[string]bool{"shorts": true}, http.StatusOK, nil)
+	req := streamclips.SubtitleRequest{JobID: streamIDOf(base), Stretches: momentoStretch}
+	got := env.h.StreamSubtitles(context.Background(), req)
+	if got.Notice != "" || len(got.Lines) != 1 || env.transcriber.Status().State != teamvoice.TranscriberInstalled {
+		t.Fatalf("render subtitles before any download = %+v; want the transcription downloaded and the frase drawn", got)
+	}
+}
+
 func TestAStreamRenderGoesWithoutSubtitulosAndSaysWhy(t *testing.T) {
 	stretch := streamclips.SubtitleRequest{Stretches: momentoStretch}
 	cases := []struct {
@@ -81,8 +92,8 @@ func TestAStreamRenderGoesWithoutSubtitulosAndSaysWhy(t *testing.T) {
 			arrange: func(env streamTranscriptEnv) {
 				env.transcriber.state, env.transcriber.err = teamvoice.TranscriberInstalled, errors.New("boom")
 			}},
-		{name: "no transcriber", probe: micStream, summary: true, want: "El resumen ha salido sin subtítulos: la transcripción no está instalada en este PC.",
-			arrange: func(streamTranscriptEnv) {}},
+		{name: "no transcriber", probe: micStream, summary: true, want: "El resumen ha salido sin subtítulos: la transcripción no funciona en este PC.",
+			arrange: func(env streamTranscriptEnv) { env.transcriber.state = teamvoice.TranscriberUnsupported }},
 		{name: "no audio", probe: streamclips.SourceProbe{}, want: "Los vídeos han salido sin subtítulos: este stream no tiene audio.",
 			arrange: func(env streamTranscriptEnv) { env.transcriber.state = teamvoice.TranscriberInstalled }},
 	}

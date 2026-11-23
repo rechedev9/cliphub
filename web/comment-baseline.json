@@ -378,7 +378,7 @@
   "components/produce/short-preview.tsx": 15,
   "components/produce/short-producer.tsx": 33,
   "components/produce/short-storyboard.tsx": 4,
-  "components/produce/subtitles-panel.tsx": 7,
+  "components/produce/subtitles-panel.tsx": 6,
   "components/produce/summary-options.tsx": 2,
   "components/produce/use-produce-back.ts": 8,
   "components/ranking/ranking-filter-parts.tsx": 6,

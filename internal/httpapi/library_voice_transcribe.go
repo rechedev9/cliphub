@@ -77,8 +77,8 @@ func (h *Handlers) TranscribeLibraryMatchVoice(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, "body must be a JSON object")
 		return
 	}
-	if t := h.voice.deps.Transcriber; t == nil || t.Status().State != teamvoice.TranscriberInstalled {
-		writeCodedError(w, http.StatusConflict, codeNoTranscriber, "local transcription is not installed; install it first")
+	if !h.transcriberUsable() {
+		writeCodedError(w, http.StatusConflict, codeNoTranscriber, "local transcription cannot run on this PC; install_transcriber says why")
 		return
 	}
 	v, err := h.libraryRepo.GetMatchVoice(r.Context(), m.ID)
@@ -159,6 +159,25 @@ func (h *Handlers) transcribeMatch(ctx context.Context, job voiceJob) {
 // GetVoiceTranscriber handles GET /api/library/voice/transcriber.
 func (h *Handlers) GetVoiceTranscriber(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, h.transcriberStatus())
+}
+
+func (h *Handlers) transcriberUsable() bool {
+	if h.voice == nil || h.voice.deps.Transcriber == nil {
+		return false
+	}
+	t := h.voice.deps.Transcriber
+	switch t.Status().State {
+	case teamvoice.TranscriberInstalled, teamvoice.TranscriberInstalling:
+		return true
+	case teamvoice.TranscriberUnsupported:
+		return false
+	}
+	if err := t.Install(h.voice.lifetime()); err != nil {
+		log.Printf("httpapi: install the transcriber a transcription needs: %v", err)
+		return false
+	}
+	state := t.Status().State
+	return state == teamvoice.TranscriberInstalled || state == teamvoice.TranscriberInstalling
 }
 
 func (h *Handlers) transcriberStatus() teamvoice.TranscriberStatus {

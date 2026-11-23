@@ -61,7 +61,7 @@ type demoTranscriptOut struct {
 	Error       string          `json:"error,omitempty"`
 	Progress    float64         `json:"progress,omitempty"`
 	Voice       string          `json:"voice" jsonschema:"what the demo holds: none, extracting, ready, failed or unavailable"`
-	Transcriber string          `json:"transcriber" jsonschema:"install state of install_transcriber"`
+	Transcriber string          `json:"transcriber" jsonschema:"state of the local transcription, which Studio downloads on its own the first time it is needed (install_transcriber)"`
 	Phrases     []demoPhraseOut `json:"phrases"`
 	Truncated   bool            `json:"truncated,omitempty"`
 }
@@ -101,7 +101,7 @@ func demoTranscriptOf(t tuiclient.DemoTranscript, round int) demoTranscriptOut {
 func registerDemoTranscriptTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "transcribe_demo_voice",
 		Description: "Transcribe the team voices a match's demo recorded, on this PC, as the Subtítulos panel does. One transcript per demo: a done one is reused, and a render with subtitles queues it on its own. " +
-			"Needs install_transcriber. It runs in the background; read demo_transcript until state is ready."},
+			"Studio downloads the transcription on its own the first time, and the transcript waits for it. It runs in the background; read demo_transcript until state is ready."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in transcribeDemoVoiceIn) (*mcp.CallToolResult, demoTranscriptOut, error) {
 			if err := checkUUID("match_id", in.MatchID); err != nil {
 				return nil, demoTranscriptOut{}, err

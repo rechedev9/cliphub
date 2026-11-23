@@ -36,8 +36,8 @@ func TestDemoVoiceTranscriptKeepsTheOriginalAndDiscardsAcrossTranscriptions(t *t
 		t.Fatalf("discard = %+v; want the phrase discarded with its text", got)
 	}
 	req := subtitles.Request{JobID: j.ID, Target: j.TargetSteamID}
-	if track, err := env.h.Subtitles(context.Background(), req); err != nil || len(track.Phrases) != 0 {
-		t.Fatalf("subtitles with the team's phrase discarded = %+v, %v; want none drawn", track, err)
+	if track := readyTrack(t)(env.h.Subtitles(context.Background(), req)); len(track.Phrases) != 0 {
+		t.Fatalf("subtitles with the team's phrase discarded = %+v; want none drawn", track)
 	}
 
 	env.json(http.MethodPost, env.base, map[string]bool{"force": true}, http.StatusAccepted, nil)
@@ -60,7 +60,7 @@ func TestDemoVoiceTranscriptKeepsTheOriginalAndDiscardsAcrossTranscriptions(t *t
 	}
 
 	env.json(http.MethodPatch, discardedPath, map[string]any{"discarded": false}, http.StatusOK, &got)
-	if track, err := env.h.Subtitles(context.Background(), req); err != nil || len(track.Phrases) != 1 || track.Phrases[0].ID != discarded.ID.String() {
-		t.Fatalf("subtitles with the phrase restored = %+v, %v; want it drawn again", track, err)
+	if track := readyTrack(t)(env.h.Subtitles(context.Background(), req)); len(track.Phrases) != 1 || track.Phrases[0].ID != discarded.ID.String() {
+		t.Fatalf("subtitles with the phrase restored = %+v; want it drawn again", track)
 	}
 }

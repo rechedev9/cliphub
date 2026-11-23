@@ -129,17 +129,25 @@ function percent(progress: number | undefined): string {
 
 /** What the render will do with the transcript as it stands; null when the subtitles are ready. */
 export function subtitleNote(subs: JobSubtitles): string | null {
-  if (subs.transcriber.state !== 'installed') return 'Instala la transcripción para crear los subtítulos. Sin ella, el vídeo sale sin subtítulos.';
+  if (subs.state === 'ready') return null;
+  switch (subs.transcriber.state) {
+    case 'not_installed':
+    case 'installing':
+      return 'La transcripción se descarga una sola vez, al usar subtítulos. Puedes crear el vídeo ya: el montaje espera a que esté lista y transcriba las voces.';
+    case 'failed':
+    case 'unsupported':
+      return 'Sin la transcripción, el vídeo sale sin subtítulos.';
+    case 'installed':
+      break;
+  }
   switch (subs.state) {
     case 'none':
-      return 'Las voces aún no están transcritas: se transcriben al crear el vídeo. Si no terminan antes del montaje, el vídeo sale sin subtítulos.';
+      return 'Las voces aún no están transcritas: se transcriben al crear el vídeo, mientras CS2 graba, y el montaje espera a que terminen.';
     case 'queued':
     case 'running':
-      return `Transcribiendo las voces… ${percent(subs.progress)}. Si no termina antes del montaje, el vídeo sale sin subtítulos.`;
+      return `Transcribiendo las voces… ${percent(subs.progress)}. Puedes crear el vídeo ya: el montaje espera a que termine.`;
     case 'failed':
-      return 'La transcripción falló, así que el vídeo saldrá sin subtítulos. Prueba a transcribir de nuevo.';
-    case 'ready':
-      return null;
+      return 'La transcripción falló. Al crear el vídeo se intenta otra vez; si vuelve a fallar, el vídeo sale sin subtítulos y te lo dice.';
   }
 }
 

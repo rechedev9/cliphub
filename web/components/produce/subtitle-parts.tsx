@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
-export const TRANSCRIBER_CREDIT = 'Usa el modelo NVIDIA Parakeet TDT 0.6B v3, de NVIDIA, con licencia CC BY 4.0.';
+const PARAKEET_CREDIT = 'Funciona sin conexión en este PC. Usa el modelo NVIDIA Parakeet TDT 0.6B v3, de NVIDIA, con licencia CC BY 4.0.';
 
 export function SubtitleToggle({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled: boolean; onChange: (checked: boolean) => void }): ReactNode {
   return <label className={cn('flex min-h-10 items-center gap-3 text-body-sm text-fg-1', disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer')}>
@@ -20,21 +20,19 @@ function megabytes(bytes: number): number {
   return Math.max(1, Math.round(bytes / (1 << 20)));
 }
 
-export function InstallPrompt({ what, credit, install, busy, onInstall }: { what: string; credit: string; install: VoiceTranscriber; busy: boolean; onInstall: () => void }): ReactNode {
-  if (install.state === 'installed') return null;
-  if (install.state === 'unsupported') return <p className="text-body-sm text-warning">La {what} solo funciona en Windows de 64 bits.</p>;
-  if (install.state === 'installing') {
-    const done = install.download_bytes > 0 ? Math.round(((install.done_bytes ?? 0) / install.download_bytes) * 100) : 0;
-    return <p role="status" className="text-body-sm text-fg-2">Instalando la {what}… {done} % de unos {megabytes(install.download_bytes)} MB</p>;
-  }
+export function TranscriberStatus({ transcriber, busy, onRetry }: { transcriber: VoiceTranscriber; busy: boolean; onRetry: () => void }): ReactNode {
+  if (transcriber.state === 'unsupported') return <p className="text-body-sm text-warning">La transcripción solo funciona en Windows de 64 bits.</p>;
+  const done = transcriber.download_bytes > 0 ? Math.round(((transcriber.done_bytes ?? 0) / transcriber.download_bytes) * 100) : 0;
   return <div className="flex flex-col gap-1.5">
-    <div className="flex flex-wrap items-center gap-2">
-      <Button variant="secondary" size="sm" className="h-auto min-h-7 max-w-full shrink py-1 text-left whitespace-normal" disabled={busy} onClick={onInstall}>
-        Instalar la {what} (unos {megabytes(install.download_bytes)} MB)
-      </Button>
-      {install.state === 'failed' ? <span className="text-body-sm text-warning">{voiceErrorText(install.error_code, 'La instalación falló.')}</span> : null}
-    </div>
-    <p className="text-meta text-fg-3">Se descarga una vez y funciona sin conexión. {credit}</p>
+    {transcriber.state === 'not_installed' ? <p role="status" className="text-body-sm text-fg-2">Preparando la transcripción…</p> : null}
+    {transcriber.state === 'installing'
+      ? <p role="status" className="text-body-sm text-fg-2">Descargando la transcripción… {done} % de unos {megabytes(transcriber.download_bytes)} MB</p>
+      : null}
+    {transcriber.state === 'failed' ? <div className="flex flex-wrap items-center gap-2">
+      <span role="alert" className="text-body-sm text-warning">{voiceErrorText(transcriber.error_code, 'No se pudo preparar la transcripción.')}</span>
+      <Button variant="secondary" size="sm" disabled={busy} onClick={onRetry}>Reintentar</Button>
+    </div> : null}
+    <p className="text-meta text-fg-3">{PARAKEET_CREDIT}</p>
   </div>;
 }
 

@@ -139,10 +139,10 @@ func TestStreamTranscriptLivesWithItsVideos(t *testing.T) {
 	if first.Availability != streamVoiceAvailable || first.State != library.TranscriptNone || first.Transcriber.State != teamvoice.TranscriberMissing || len(first.Lines) != 0 {
 		t.Fatalf("transcript before anything = %+v; want a mic stream with no frases and the transcriber to install", first)
 	}
-	env.json(http.MethodPost, base+"/transcript", moment, http.StatusConflict, nil)
-	env.transcriber.state = teamvoice.TranscriberInstalled
-
 	env.json(http.MethodPost, base+"/transcript", moment, http.StatusAccepted, nil)
+	if s := env.transcriber.Status(); s.State != teamvoice.TranscriberInstalled {
+		t.Fatalf("transcriber after the first request = %+v; want it installed on its own", s)
+	}
 	got := env.await(base, func(s streamTranscript) bool { return s.State == library.TranscriptReady })
 	padded := library.VoiceSpan{StartMS: 60_000, EndMS: 80_000}
 	if clips := env.transcriber.clips(); len(clips) != 1 || clips[0] != padded || env.transcriber.jobs[0].Track != 1 {

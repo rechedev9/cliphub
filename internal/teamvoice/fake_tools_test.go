@@ -3,6 +3,7 @@ package teamvoice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,11 @@ import (
 
 // The test binary stands in for nemo-speech when this variable is set.
 const fakeNemoEnv = "CLIPHUB_FAKE_NEMO"
+
+const (
+	fakeNemoRunsEnv   = "CLIPHUB_FAKE_NEMO_RUNS"
+	fakeNemoVulkanEnv = "CLIPHUB_FAKE_NEMO_VULKAN"
+)
 
 type fakeWord struct {
 	Word  string  `json:"word"`
@@ -36,6 +42,9 @@ func argAfter(flag string) string {
 
 // fakeNemo answers each WAV of the input folder, in name order, with the next word list of words.
 func fakeNemo(words string) int {
+	if code := fakeNemoDevice(); code != 0 {
+		return code
+	}
 	if words == "fail" {
 		fmt.Fprintln(os.Stderr, "model load failed")
 		return 3
@@ -63,6 +72,29 @@ func fakeNemo(words string) int {
 		if err := os.WriteFile(filepath.Join(argAfter("--output-dir"), name), raw, 0o600); err != nil {
 			return 5
 		}
+	}
+	return 0
+}
+
+func fakeNemoDevice() int {
+	device := argAfter("--device")
+	if runs := os.Getenv(fakeNemoRunsEnv); runs != "" {
+		exe, err := os.Executable()
+		if err != nil {
+			return 6
+		}
+		f, err := os.OpenFile(runs, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			return 6
+		}
+		_, writeErr := fmt.Fprintf(f, "%s %s\n", exe, device)
+		if errors.Join(writeErr, f.Close()) != nil {
+			return 6
+		}
+	}
+	if device == "vulkan" && os.Getenv(fakeNemoVulkanEnv) == "fail" {
+		fmt.Fprintln(os.Stderr, "ggml_vulkan: vk::DeviceLostError")
+		return 7
 	}
 	return 0
 }

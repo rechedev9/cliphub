@@ -52,8 +52,10 @@ func (fakeVoiceMedia) Speech(context.Context, string) ([]library.VoiceSpan, int6
 }
 
 type fakeTranscriber struct {
-	state string
-	calls atomic.Int32
+	state        string
+	afterInstall string
+	installs     atomic.Int32
+	calls        atomic.Int32
 	// gate, when set, holds every transcription until it closes.
 	gate  chan struct{}
 	heard []teamvoice.Line
@@ -64,7 +66,11 @@ func (f *fakeTranscriber) Status() teamvoice.TranscriberStatus {
 }
 
 func (f *fakeTranscriber) Install(context.Context) error {
+	f.installs.Add(1)
 	f.state = teamvoice.TranscriberInstalled
+	if f.afterInstall != "" {
+		f.state = f.afterInstall
+	}
 	return nil
 }
 
@@ -149,11 +155,9 @@ func TestLibraryMatchVoiceImportSyncTranscribeAndSearch(t *testing.T) {
 		t.Fatalf("audio = %d %q", audio.Code, audio.Body.String())
 	}
 
-	env.json(http.MethodPost, base+"/transcribe", nil, http.StatusConflict, nil)
-	env.json(http.MethodPost, "/api/library/voice/transcriber/install", nil, http.StatusAccepted, nil)
 	env.json(http.MethodPost, base+"/transcribe", map[string]string{"language": "es"}, http.StatusAccepted, &status)
-	if status.Transcript.State != library.TranscriptQueued {
-		t.Fatalf("transcript = %+v", status.Transcript)
+	if status.Transcript.State != library.TranscriptQueued || env.transcriber.installs.Load() != 1 {
+		t.Fatalf("transcript = %+v after %d installs; want it queued and the missing transcriber installed without asking", status.Transcript, env.transcriber.installs.Load())
 	}
 	env.h.transcribeMatch(context.Background(), <-env.h.voice.queue)
 
