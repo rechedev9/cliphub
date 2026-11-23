@@ -19,3 +19,5 @@ A change that adds or changes a UI feature updates, in the same change:
 Do not ship the UI first and the tool in a later PR. A change to what `studio_status` returns also updates the issue docs: [Issues](../../AGENTS.md#issues).
 
 The recipe is [Feature with MCP](../skills/feature-with-mcp/SKILL.md).
+
+`readOnlyHint` is the allowlist of `run_script`: a script calls every tool that carries it, with no approval. Set it only on a tool that changes nothing and never asks for approval. `TestReadOnlyToolsChangeNothing` (`cmd/zv-mcp`) fails when a read-only tool takes `approve` or is named for a change.

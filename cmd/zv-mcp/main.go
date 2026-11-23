@@ -35,6 +35,10 @@ func main() {
 	})
 	server.AddReceivingMiddleware(recoverPanics, pinNegotiatedVersion)
 	registerTools(server, newStudio())
+	if err := limitProcessMemory(maxProcessMemory); err != nil {
+		log.Printf("zv-mcp: scripts run without the process memory cap: %v", err)
+	}
+	registerCodeTools(server)
 	if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil && ctx.Err() == nil {
 		log.Fatalf("zv-mcp: %v", err)
 	}
@@ -394,6 +398,9 @@ launch_practice, launch_bot_replay need the user's approval.
 ClipMind (the web edition of ClipHub): clipmind_status says whether Studio is signed in to a ClipMind account, with its workspace and
 the changes waiting; clipmind_sync is Sincronizar ahora and clipmind_disconnect is Desconectar (the library on this PC stays).
 Signing in stays in Studio's Ajustes: never ask the user for a ClipMind password in chat.
+Scripts: to combine or filter several read-only calls (a rival's prep, a match review, a job's best moments), call
+search_api for the TypeScript of the studio functions, then run_script with one async arrow function that returns only
+what the answer needs, so the large answers stay out of the conversation. Anything that changes Studio stays a normal call.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
 version, support code and studio.log path the report needs.
