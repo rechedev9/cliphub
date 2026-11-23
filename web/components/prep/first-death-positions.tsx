@@ -97,7 +97,7 @@ type BodyProps = {
 
 function FirstDeathBody({ teamId, tramo, data, picked, onPick, showMap, onToggleMap }: BodyProps): ReactNode {
   const [showOthers, setShowOthers] = useState(false);
-  if (data === 'failed') return <p role="alert" className="text-body-sm text-destructive">No se pudieron leer las posiciones. Comprueba que ClipHub Studio sigue abierto.</p>;
+  if (data === 'failed') return <p role="alert" className="text-body-sm text-destructive">No se pudieron leer las posiciones. Vuelve a intentarlo.</p>;
   if (data === null) return <Skeleton className="h-48 w-full" />;
   if (data.players.length === 0) {
     return (

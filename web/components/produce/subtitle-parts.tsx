@@ -20,18 +20,30 @@ function megabytes(bytes: number): number {
   return Math.max(1, Math.round(bytes / (1 << 20)));
 }
 
-export function TranscriberStatus({ transcriber, busy, onRetry }: { transcriber: VoiceTranscriber; busy: boolean; onRetry: () => void }): ReactNode {
+export type TranscriberStatusProps = {
+  transcriber: VoiceTranscriber;
+  busy: boolean;
+  onInstall: () => void;
+  installError: string | null;
+};
+
+export function TranscriberStatus({ transcriber, busy, onInstall, installError }: TranscriberStatusProps): ReactNode {
   if (transcriber.state === 'unsupported') return <p className="text-body-sm text-warning">La transcripción solo funciona en Windows de 64 bits.</p>;
   const done = transcriber.download_bytes > 0 ? Math.round(((transcriber.done_bytes ?? 0) / transcriber.download_bytes) * 100) : 0;
+  const size = transcriber.download_bytes > 0 ? ` (unos ${megabytes(transcriber.download_bytes)} MB)` : '';
   return <div className="flex flex-col gap-1.5">
-    {transcriber.state === 'not_installed' ? <p role="status" className="text-body-sm text-fg-2">Preparando la transcripción…</p> : null}
+    {transcriber.state === 'not_installed' ? <div className="flex flex-wrap items-center gap-2">
+      <span className="text-body-sm text-fg-2">Para transcribir, Studio descarga el transcriptor una sola vez{size}.</span>
+      <Button variant="secondary" size="sm" loading={busy} loadingText="Empezando la descarga…" onClick={onInstall}>Descargar el transcriptor</Button>
+    </div> : null}
     {transcriber.state === 'installing'
-      ? <p role="status" className="text-body-sm text-fg-2">Descargando la transcripción… {done} % de unos {megabytes(transcriber.download_bytes)} MB</p>
+      ? <p role="status" className="text-body-sm text-fg-2">Descargando el transcriptor… {done} % de unos {megabytes(transcriber.download_bytes)} MB</p>
       : null}
     {transcriber.state === 'failed' ? <div className="flex flex-wrap items-center gap-2">
-      <span role="alert" className="text-body-sm text-warning">{voiceErrorText(transcriber.error_code, 'No se pudo preparar la transcripción.')}</span>
-      <Button variant="secondary" size="sm" disabled={busy} onClick={onRetry}>Reintentar</Button>
+      <span role="alert" className="text-body-sm text-warning">{voiceErrorText(transcriber.error_code, 'No se pudo descargar el transcriptor.')}</span>
+      <Button variant="secondary" size="sm" disabled={busy} onClick={onInstall}>Reintentar</Button>
     </div> : null}
+    {installError !== null && transcriber.state !== 'failed' ? <p role="alert" className="text-body-sm text-warning">{installError}</p> : null}
     <p className="text-meta text-fg-3">{PARAKEET_CREDIT}</p>
   </div>;
 }

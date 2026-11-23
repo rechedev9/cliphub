@@ -1,8 +1,11 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { DocumentPage } from '@/components/records/document-page';
+
+export const metadata: Metadata = { title: 'Descargar Studio' };
 
 const DOWNLOAD_URL = 'https://github.com/rechedev9/cliphub/releases/latest';
 

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactElement } from 'react';
 import { CircleHelp } from 'lucide-react';
@@ -49,12 +50,25 @@ export function CommandStrip(): ReactElement {
           reads as two levels. */}
       {showTrail ? (
         <nav aria-label="Ruta actual" className="flex min-w-0 items-baseline gap-1.5">
-          <span className="flex min-w-0 items-baseline gap-1.5 truncate text-body-sm font-semibold text-fg-1">
-            <span aria-hidden className="text-slash">
-              /
+          {section === null ? (
+            <span className="flex min-w-0 items-baseline gap-1.5 truncate text-body-sm font-semibold text-fg-1">
+              <span aria-hidden className="text-slash">
+                /
+              </span>
+              ClipHub
             </span>
-            {section?.label ?? 'ClipHub'}
-          </span>
+          ) : (
+            <Link
+              href={section.href}
+              aria-current={trail === null ? 'page' : undefined}
+              className="flex min-w-0 items-baseline gap-1.5 truncate rounded-sm text-body-sm font-semibold text-fg-1 underline-offset-4 hover:underline"
+            >
+              <span aria-hidden className="text-slash">
+                /
+              </span>
+              {section.label}
+            </Link>
+          )}
           {trail === null ? null : (
             <>
               <span className="shrink-0 px-1 text-fg-4" aria-hidden>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Layers, Map as MapIcon, PlugZap } from 'lucide-react';
+import { Layers, Map as MapIcon } from 'lucide-react';
 import { getMapCallouts, type MapCallout } from '@/lib/api/callouts';
 import { isLibraryOffline, type LibraryMatch, type LibraryRosterEntry, type TeamCriterion } from '@/lib/api/library';
 import {
@@ -39,6 +39,7 @@ import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap } from '@/lib/tactical-transform';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { TramoBar } from '@/components/replay/tramo-bar';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
@@ -202,16 +203,7 @@ export function PatternFinder({ frame, teamId, scope, lineup, criteria, matches,
   }
   if (load.kind === 'offline' || load.kind === 'failed') {
     return (
-      <EmptyState
-        icon={PlugZap}
-        title={load.kind === 'offline' ? 'Servicio local sin conexión' : 'No se pudo buscar el patrón'}
-        description="Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind={load.kind === 'offline' ? 'offline' : 'error'} title="No se pudo buscar el patrón" onRetry={() => setAttempt((n) => n + 1)} />
     );
   }
   if (load.kind === 'loading') return <FinderSkeleton compact={frame !== undefined} />;

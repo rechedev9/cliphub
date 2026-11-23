@@ -70,21 +70,37 @@ func (r *MemoryStreamJobRepository) ListStreamVoiceLines(ctx context.Context, jo
 }
 
 func (r *MemoryStreamJobRepository) UpdateStreamVoiceLine(ctx context.Context, patch streamclips.VoiceLinePatch) (streamclips.VoiceLine, error) {
-	if err := ctx.Err(); err != nil {
+	out, err := r.patchStreamVoiceLines(ctx, patch.JobID, []streamclips.VoiceLinePatch{patch})
+	if err != nil {
 		return streamclips.VoiceLine{}, err
+	}
+	return out[0], nil
+}
+
+func (r *MemoryStreamJobRepository) CorrectStreamVoiceLines(ctx context.Context, batch streamclips.VoiceCorrections) ([]streamclips.VoiceLine, error) {
+	return r.patchStreamVoiceLines(ctx, batch.JobID, streamCorrectionPatches(batch))
+}
+
+func (r *MemoryStreamJobRepository) patchStreamVoiceLines(ctx context.Context, jobID uuid.UUID, patches []streamclips.VoiceLinePatch) ([]streamclips.VoiceLine, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	v := r.voices[patch.JobID]
-	i := slices.IndexFunc(v.lines, func(l streamclips.VoiceLine) bool { return l.ID == patch.ID })
-	if i < 0 {
-		return streamclips.VoiceLine{}, streamclips.ErrVoiceLineNotFound
-	}
+	v := r.voices[jobID]
 	v.lines = slices.Clone(v.lines)
-	v.lines[i] = patchStreamVoiceLine(v.lines[i], patch)
-	r.voices[patch.JobID] = v
-	out := v.lines[i]
-	out.Words = slices.Clone(out.Words)
+	out := make([]streamclips.VoiceLine, 0, len(patches))
+	for _, patch := range patches {
+		i := slices.IndexFunc(v.lines, func(l streamclips.VoiceLine) bool { return l.ID == patch.ID })
+		if i < 0 {
+			return nil, streamclips.ErrVoiceLineNotFound
+		}
+		v.lines[i] = patchStreamVoiceLine(v.lines[i], patch)
+		line := v.lines[i]
+		line.Words = slices.Clone(line.Words)
+		out = append(out, line)
+	}
+	r.voices[jobID] = v
 	return out, nil
 }
 
@@ -118,7 +134,7 @@ func (r *MemoryStreamJobRepository) ListStreamVoiceCorrections(ctx context.Conte
 	out := []library.VoiceCorrection{}
 	for _, id := range jobs {
 		for _, l := range r.voices[id].lines {
-			if l.Corrected {
+			if learnsFrom(streamLineAsDemo(l)) {
 				out = append(out, voiceCorrection(id, streamLineAsDemo(l)))
 			}
 		}

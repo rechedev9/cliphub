@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { customHudTheme } from '@/lib/custom-hud';
+import { humanErrorText } from '@/lib/human-error';
 import { OWN_HUD_PREFIX, fullDemoHudGallery } from '@/lib/hud-gallery';
 import {
   MAX_HUD_RADIUS, MAX_HUD_TEAM_NAME, MAX_HUD_THEME_NAME, createHudTheme, deleteHudTheme, duplicateStyle, hudColor, hudStyleOf, listHudThemes, sameHudStyle, updateHudTheme,
@@ -9,8 +10,9 @@ import {
 } from '@/lib/hud-themes';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DesignGallery } from '@/components/studio/design-gallery';
-import { FullDemoPart } from './full-demo-fields';
+import { FullDemoFold, FullDemoPart } from './full-demo-fields';
 
 /** The design gallery with the user's own themes, and the editor of the chosen one. */
 export function HudThemePicker({ base, style, backdrop, onSelect }: {
@@ -20,13 +22,12 @@ export function HudThemePicker({ base, style, backdrop, onSelect }: {
   const [max, setMax] = useState(10);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     listHudThemes(controller.signal).then((list) => { setThemes(list.themes); setMax(list.max); }).catch((failure: unknown) => {
-      if (!controller.signal.aborted) setMessage({ tone: 'error', text: failure instanceof Error ? failure.message : 'No se pudieron leer tus temas.' });
+      if (!controller.signal.aborted) setMessage({ tone: 'error', text: humanErrorText({ error: failure, lead: 'No se pudieron leer tus temas.' }) });
     });
     return () => controller.abort();
   }, []);
@@ -35,20 +36,20 @@ export function HudThemePicker({ base, style, backdrop, onSelect }: {
   const dirty = editing !== undefined && style !== undefined && !sameHudStyle(hudStyleOf(editing), style);
 
   function choose(next: string): void {
-    setConfirmDelete(false); setMessage(null);
+    setMessage(null);
     const theme = themes.find((entry) => `${OWN_HUD_PREFIX}${entry.id}` === next);
     setEditingId(theme?.id ?? null);
     if (theme) onSelect(theme.base, hudStyleOf(theme));
     else onSelect(next);
   }
 
-  async function run(action: () => Promise<void>): Promise<void> {
+  async function run(lead: string, action: () => Promise<void>): Promise<void> {
     setBusy(true); setMessage(null);
-    try { await action(); } catch (failure) { setMessage({ tone: 'error', text: failure instanceof Error ? failure.message : 'No se pudo guardar el tema.' }); }
+    try { await action(); } catch (failure) { setMessage({ tone: 'error', text: humanErrorText({ error: failure, lead }) }); }
     finally { setBusy(false); }
   }
 
-  const duplicate = (): Promise<void> => run(async () => {
+  const duplicate = (): Promise<void> => run('No se pudo duplicar el tema.', async () => {
     const created = await createHudTheme(base, duplicateStyle(base, style));
     setThemes((list) => [...list, created]);
     setEditingId(created.id);
@@ -56,18 +57,18 @@ export function HudThemePicker({ base, style, backdrop, onSelect }: {
     setMessage({ tone: 'info', text: 'Tema creado. Cambia sus colores y guárdalo.' });
   });
 
-  const save = (): Promise<void> => run(async () => {
+  const save = (): Promise<void> => run('No se pudo guardar el tema.', async () => {
     if (!editing || !style) return;
     const saved = await updateHudTheme(editing.id, style);
     setThemes((list) => list.map((theme) => theme.id === saved.id ? saved : theme));
     setMessage({ tone: 'info', text: 'Tema guardado.' });
   });
 
-  const remove = (): Promise<void> => run(async () => {
+  const remove = (): Promise<void> => run('No se pudo borrar el tema.', async () => {
     if (!editing) return;
     await deleteHudTheme(editing.id);
     setThemes((list) => list.filter((theme) => theme.id !== editing.id));
-    setEditingId(null); setConfirmDelete(false);
+    setEditingId(null);
     onSelect(editing.base);
   });
 
@@ -86,10 +87,9 @@ export function HudThemePicker({ base, style, backdrop, onSelect }: {
     </div> : null}
     {editing && style ? <div className="flex min-w-0 flex-wrap gap-2">
       <Button type="button" disabled={busy || !dirty} onClick={() => void save()}>{dirty ? 'Guardar cambios' : 'Guardado'}</Button>
-      {confirmDelete
-        ? <><Button type="button" variant="destructive" disabled={busy} onClick={() => void remove()}>Sí, borrar tema</Button>
-          <Button type="button" variant="secondary" disabled={busy} onClick={() => setConfirmDelete(false)}>No borrar</Button></>
-        : <Button type="button" variant="secondary" disabled={busy} onClick={() => setConfirmDelete(true)}>Borrar tema</Button>}
+      <ConfirmDialog title={`¿Borrar el tema ${style.name}?`} description="El tema desaparece de tus temas guardados. Los vídeos ya creados no cambian. No se puede deshacer."
+        confirmLabel="Borrar tema" pendingLabel="Borrando…" onConfirm={remove}
+        trigger={<Button type="button" variant="secondary" disabled={busy}>Borrar tema</Button>} />
     </div> : null}
     {message ? <p role={message.tone === 'error' ? 'alert' : 'status'} className={`text-body-sm ${message.tone === 'error' ? 'text-destructive' : 'text-fg-2'}`}>{message.text}</p> : null}
   </div>;
@@ -144,14 +144,15 @@ export function HudCompositionSwitches({ options, onOptions }: {
   options?: HudOptions; onOptions: (options: HudOptions) => void;
 }): ReactNode {
   const id = useId();
-  return <FullDemoPart title="Composición" note="Solo cambian el dibujo del HUD, sin volver a grabar.">
+  const on = SWITCHES.filter((entry) => options?.[entry.key] === true).length;
+  return <FullDemoFold nested title="Composición" value={on === 0 ? 'Como viene el diseño' : `${on} ${on === 1 ? 'cambio' : 'cambios'}`} note="Solo cambian el dibujo del HUD, sin volver a grabar.">
       {SWITCHES.map((entry) => <label key={entry.key} className="flex min-w-0 cursor-pointer items-start gap-3 text-body-sm">
         <input type="checkbox" checked={options?.[entry.key] === true} aria-describedby={`${id}-${entry.key}`} className="mt-0.5 size-4 shrink-0 accent-format-full"
           onChange={(event) => onOptions({ ...options, [entry.key]: event.target.checked })} />
         <span className="min-w-0"><span className="block font-semibold text-fg-1">{entry.label}</span>
           <span id={`${id}-${entry.key}`} className="mt-0.5 block text-fg-2">{entry.detail}</span></span>
       </label>)}
-  </FullDemoPart>;
+  </FullDemoFold>;
 }
 
 /** The team names of the scoreboard. */

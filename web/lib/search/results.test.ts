@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { searchResultsOf } from '../api/search.ts';
-import { foldSearch, resultRow, sectionRows } from './results.ts';
+import { actionRows, foldSearch, localRows, resultRow, sectionRows } from './results.ts';
 
 test('foldSearch drops accents and reads & as y, like the server', () => {
   assert.equal(foldSearch('  Rotación & SEÑUELO '), 'rotacion y senuelo');
@@ -28,4 +28,17 @@ test('searchResultsOf keeps only rows it can show', () => {
   const rows = searchResultsOf({ results: [{ kind: 'play', id: 'p', title: 'Exec' }, { kind: 'nope', id: 'x', title: 'y' }, { kind: 'call', id: 1 }] });
   assert.deepEqual(rows.map((row) => row.id), ['p']);
   assert.deepEqual(searchResultsOf(null), []);
+});
+
+test('actionRows lists every action the edition runs, and narrows by name or keyword', () => {
+  assert.deepEqual(actionRows('', 'desktop').map((row) => row.title), ['Crear Short', 'Crear demo completa', 'Importar demos', 'Crear clips de stream', 'Abrir ajustes']);
+  assert.deepEqual(actionRows('', 'web').map((row) => [row.title, row.href]), [['Importar demos', '/importar'], ['Abrir ajustes', '/settings']]);
+  assert.deepEqual(actionRows('twitch', 'desktop').map((row) => row.href), ['/streams']);
+  assert.deepEqual(actionRows('configuración', 'desktop').map((row) => row.href), ['/settings']);
+});
+
+test('localRows puts actions first and drops a section an action already opens', () => {
+  const rows = localRows('ajustes');
+  assert.deepEqual(rows.map((row) => [row.group, row.href]), [['action', '/settings']]);
+  assert.deepEqual(localRows('libreta').map((row) => row.href), ['/libreta']);
 });

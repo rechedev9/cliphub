@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Layers, Plus, PlugZap, Trash2, Wand2, X } from 'lucide-react';
+import { Layers, Plus, Trash2, Wand2, X } from 'lucide-react';
 import {
   deleteLibrarySeries,
   getLibrarySeries,
@@ -29,15 +29,16 @@ import { LIBRARY_SERIES_HREF, matchHref, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { matchScoreLabel, matchTitle } from '@/lib/library/partidas';
 import { SERIES_FORMAT_LABEL, VETO_ACTION_LABEL, seriesVetoTemplate, vetoStepsProblem } from '@/lib/library/veto';
-import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { EmptyCell } from '@/components/records/empty-cell';
 import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { RelatedList } from '@/components/records/related-list';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Segmented } from '@/components/ui/segmented';
+import { deleteErrorMessage } from '@/lib/delete-error';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -46,7 +47,7 @@ import { SeriesTeamSelect, useLibraryTeams } from './new-series-dialog';
 import { seriesName } from './series-library';
 
 type Loaded = { series: LibrarySeries; matches: LibraryMatch[]; candidates: LibraryMatch[] };
-type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'offline' };
+type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'failed'; error: unknown };
 
 const NO_TEAM = '';
 const NO_MATCH = '';
@@ -78,7 +79,7 @@ export function SeriesRecord({ seriesId }: { seriesId: string }): ReactNode {
         if (active) setState({ kind: 'ready', data: { series, matches, candidates } });
       } catch (error) {
         if (!active) return;
-        setState(isLibraryNotFound(error) && !isLibraryOffline(error) ? { kind: 'missing' } : { kind: 'offline' });
+        setState(isLibraryNotFound(error) && !isLibraryOffline(error) ? { kind: 'missing' } : { kind: 'failed', error });
       }
     })();
     return () => {
@@ -98,10 +99,10 @@ export function SeriesRecord({ seriesId }: { seriesId: string }): ReactNode {
   }
   if (state.kind === 'missing') {
     return (
-      <EmptyState
-        icon={Layers}
-        title="Serie no encontrada"
-        description="Puede que se haya eliminado o que el enlace sea antiguo."
+      <LoadErrorState
+        kind="not_found"
+        title="No se pudo leer la serie"
+        notFoundTitle="Serie no encontrada"
         actions={
           <Button asChild variant="outline" size="sm">
             <Link href={LIBRARY_SERIES_HREF}>Ver series</Link>
@@ -110,19 +111,8 @@ export function SeriesRecord({ seriesId }: { seriesId: string }): ReactNode {
       />
     );
   }
-  if (state.kind === 'offline') {
-    return (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudo leer la serie. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={reload}>
-            Reintentar
-          </Button>
-        }
-      />
-    );
+  if (state.kind === 'failed') {
+    return <LoadErrorState error={state.error} title="No se pudo leer la serie" onRetry={reload} />;
   }
   return <SeriesRecordView data={state.data} onChanged={reload} />;
 }
@@ -130,14 +120,19 @@ export function SeriesRecord({ seriesId }: { seriesId: string }): ReactNode {
 function SeriesRecordView({ data, onChanged }: { data: Loaded; onChanged: () => void }): ReactNode {
   const { series, matches, candidates } = data;
   const router = useRouter();
-  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const name = seriesName(series);
   useRouteTitle(name);
   useDocumentTitle(`${name} · Serie · ClipHub`);
 
   async function remove(): Promise<void> {
-    await deleteLibrarySeries(series.id);
-    router.push(LIBRARY_SERIES_HREF);
+    setDeleteError(null);
+    try {
+      await deleteLibrarySeries(series.id);
+      router.push(LIBRARY_SERIES_HREF);
+    } catch (error) {
+      setDeleteError(deleteErrorMessage(error));
+    }
   }
 
   return (
@@ -145,6 +140,7 @@ function SeriesRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
       <RecordHeader
         kind="Serie"
         icon={Layers}
+        back={{ href: LIBRARY_SERIES_HREF, label: 'Todas las series' }}
         title={name}
         subtitle={
           series.teams.length > 0 ? (
@@ -165,20 +161,26 @@ function SeriesRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
           { label: 'Creada', value: formatShortDate(series.created_at) },
         ]}
         actions={
-          <>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setDeleting(true)}>
-              <Trash2 aria-hidden />
-              Eliminar
-            </Button>
-            <Button asChild variant="ghost" size="sm">
-              <Link href={LIBRARY_SERIES_HREF}>
-                <ArrowLeft aria-hidden />
-                Todas las series
-              </Link>
-            </Button>
-          </>
+          <ConfirmDialog
+            title={`¿Borrar ${name}?`}
+            description="Se borra la serie y su veto. Sus partidas siguen en la biblioteca, sin serie. No se puede deshacer."
+            confirmLabel="Borrar serie"
+            pendingLabel="Borrando…"
+            onConfirm={remove}
+            trigger={
+              <Button type="button" variant="ghost" size="sm">
+                <Trash2 aria-hidden />
+                Borrar
+              </Button>
+            }
+          />
         }
       />
+      {deleteError === null ? null : (
+        <p role="alert" className="text-body-sm text-destructive">
+          {deleteError}
+        </p>
+      )}
       <RecordTabs
         tabs={[
           { id: 'mapas', label: 'Mapas', count: matches.length, content: <SeriesMatches series={series} matches={matches} candidates={candidates} onChanged={onChanged} /> },
@@ -186,22 +188,6 @@ function SeriesRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
           { id: 'datos', label: 'Datos', content: <SeriesDetails series={series} onChanged={onChanged} /> },
         ]}
       />
-      <Dialog open={deleting} onOpenChange={setDeleting}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Eliminar {name}</DialogTitle>
-            <DialogDescription>Se borra la serie y su veto. Sus partidas siguen en la biblioteca, sin serie.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleting(false)}>
-              Cancelar
-            </Button>
-            <Button type="button" variant="destructive" onClick={() => void remove()}>
-              Eliminar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

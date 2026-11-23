@@ -18,7 +18,7 @@ import { EmptyState } from '@/components/records/empty-state';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ReplayWorkspace } from './replay-workspace';
+import { LazyReplayWorkspace } from './lazy-replay-workspace';
 import { PlaylistRoundCard } from './playlist-round-card';
 import { TeamReplayHome } from './team-replay-home';
 import { useOpenPlaylist } from './use-saved-playlists';
@@ -125,7 +125,7 @@ function SavedPlaylistReplay({ id }: { id: string }): ReactNode {
     );
   }
   return (
-    <ReplayWorkspace
+    <LazyReplayWorkspace
       source="library"
       entries={entries}
       index={index}
@@ -175,7 +175,7 @@ function PassingPlaylistReplay(): ReactNode {
   if (refs.length === 0) return <TeamReplayHome />;
 
   return (
-    <ReplayWorkspace
+    <LazyReplayWorkspace
       source="library"
       entries={entries}
       index={index}

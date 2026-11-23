@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { LibraryApiError } from '@/lib/api/library';
 import { extractDemoVoice, patchDemoVoiceLine, installTranscriber, transcribeDemoVoice } from '@/lib/api/voice';
@@ -27,14 +27,17 @@ export type SubtitlesPanelProps = {
   onChange: (next: SubtitleChoice) => void;
   /** A Short turns its team voices on here; other videos have their own switch. */
   onVoicesChange?: (voices: boolean) => void;
+  onAvailability?: (availability: string | null) => void;
   disabled?: boolean;
 };
 
 /** The Subtítulos panel of a producer: the switches, the installs they need, and the phrases of the chosen plays or rounds. */
-export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailability = null, value, onChange, onVoicesChange, disabled = false }: SubtitlesPanelProps): ReactNode {
+export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailability = null, value, onChange, onVoicesChange, onAvailability, disabled = false }: SubtitlesPanelProps): ReactNode {
   const [subs, setSubs] = useState<JobSubtitles | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -51,14 +54,14 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
 
   const checked = planAvailability !== null && planAvailability !== 'not_requested' ? planAvailability : subs?.availability ?? planAvailability;
   const availability = subtitleAvailability({ voices, voicesLabel, availability: checked });
-  const missing = value.enabled && availability.enabled && subs?.transcriber.state === 'not_installed';
+  const reportAvailability = useRef(onAvailability);
+  reportAvailability.current = onAvailability;
   useEffect(() => {
-    if (!missing) return;
-    void installTranscriber().catch(() => undefined).then(load);
-  }, [load, missing]);
+    reportAvailability.current?.(checked);
+  }, [checked]);
 
   const waiting = subs !== null && (['queued', 'running'].includes(subs.state)
-    || subs.transcriber.state === 'installing' || missing || subs.availability === 'extracting');
+    || subs.transcriber.state === 'installing' || subs.availability === 'extracting');
   useEffect(() => {
     if (!waiting) return;
     const timer = window.setInterval(() => void load(), POLL_MS);
@@ -85,6 +88,25 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
     }
   };
 
+  const install = useCallback(async (): Promise<void> => {
+    setInstalling(true);
+    setInstallError(null);
+    try {
+      await installTranscriber();
+      await load();
+    } catch (error) {
+      setInstallError(voiceErrorText(error instanceof LibraryApiError ? error.code : undefined, 'No se pudo descargar el transcriptor.'));
+    } finally {
+      setInstalling(false);
+    }
+  }, [load]);
+
+  const missing = value.enabled && availability.enabled && subs?.transcriber.state === 'not_installed';
+  useEffect(() => {
+    if (!missing || installing || installError !== null) return;
+    void install();
+  }, [install, installError, installing, missing]);
+
   const rows = subs === null ? [] : subtitleRows(subs.lines, scope, value);
   const note = subs === null || !value.enabled ? null : subtitleNote(subs);
   const locked = disabled || busy;
@@ -107,7 +129,7 @@ export function SubtitlesPanel({ jobId, scope, voices, voicesLabel, planAvailabi
     {value.enabled && availability.enabled ? <>
       {loadError ? <p role="alert" className="text-body-sm text-warning">{loadError}</p> : null}
       {subs ? <>
-        <TranscriberStatus transcriber={subs.transcriber} busy={locked} onRetry={() => void run(installTranscriber, 'No se pudo preparar la transcripción.')} />
+        <TranscriberStatus transcriber={subs.transcriber} busy={locked || installing} installError={installError} onInstall={() => void install()} />
         {note ? <p role="status" className="text-body-sm text-fg-2">{note}</p> : null}
         {matchId !== null && ['installed', 'installing'].includes(subs.transcriber.state) && (subs.state === 'none' || subs.state === 'failed') ? (
           <Button variant="secondary" size="sm" className="self-start" disabled={locked}

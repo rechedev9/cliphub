@@ -10,7 +10,7 @@ import { crearJobFor } from '@/components/matches/open-in-crear-button';
 import type { CreateStepTarget } from '@/components/studio/create-flow-steps';
 
 /** A back control in a Crear flow: "Atrás" for the step before, the destination's name when it leaves the flow. */
-export type ProduceBack = CreateStepTarget & { readonly label: string };
+export type ProduceBack = CreateStepTarget & { readonly label: string; readonly hint?: string };
 
 export type ProduceBackOptions = { jobId: string; format: ProduceFormat; seriesId: string | null };
 
@@ -44,5 +44,5 @@ export function useProduceBack(options: ProduceBackOptions): { back: ProduceBack
   // A series picked its player for every map at once, so its way back is the series page.
   if (seriesId !== null) return { back: { label: 'Serie', href: seriesHref(seriesId, format) }, stepTargets: [toDemos, null] };
   const toPlayer: CreateStepTarget = { onSelect: playerStep.open, busy: playerStep.busy };
-  return { back: { label: 'Atrás', ...toPlayer }, stepTargets: [toDemos, toPlayer] };
+  return { back: { label: 'Atrás', hint: 'Volver a elegir el jugador', ...toPlayer }, stepTargets: [toDemos, toPlayer] };
 }

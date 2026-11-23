@@ -423,7 +423,7 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
         title="Descarga el MP4"
         detail={<span className="font-mono text-meta [overflow-wrap:anywhere]">{publishMP4FileName(file.title)}</span>}
         action={
-          <Button type="button" variant={next === 'download' ? 'hero' : 'outline'} size="sm" disabled={!file.downloadUrl} onClick={download}>
+          <Button type="button" variant={next === 'download' ? 'default' : 'outline'} size="sm" disabled={!file.downloadUrl} onClick={download}>
             <Download className="size-4" aria-hidden /> Descargar MP4
           </Button>
         }
@@ -441,7 +441,7 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
           </>
         }
         action={
-          <Button type="button" variant={next === 'upload' ? 'hero' : 'outline'} size="sm" onClick={openStudio}>
+          <Button type="button" variant={next === 'upload' ? 'default' : 'outline'} size="sm" onClick={openStudio}>
             Abrir YouTube Studio <ExternalLink className="size-3.5" aria-hidden />
           </Button>
         }

@@ -121,7 +121,7 @@ export function OverlayView({
   if (load.kind === 'failed') {
     return (
       <p role="alert" className="text-body-sm text-destructive">
-        No se pudieron superponer las rondas. Comprueba que ClipHub Studio sigue abierto.
+        No se pudieron superponer las rondas. Vuelve a intentarlo.
       </p>
     );
   }

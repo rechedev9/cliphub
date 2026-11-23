@@ -19,6 +19,8 @@ export type StoryRound = Pick<RoundRow, 'number' | 'winnerSide' | 'winnerTeamKey
 
 export type TeamNames = Readonly<Record<LibraryTeamKey, string>>;
 
+export type StoryContext = { readonly names: TeamNames; readonly finished: boolean };
+
 /** One stretch of the round history between two breaks: a regulation half or an overtime. */
 export type RoundBlock<R extends StoryRound> = {
   readonly key: string;
@@ -231,7 +233,7 @@ function endPhrase(round: StoryRound): string {
   }
 }
 
-function closingFact(rounds: readonly StoryRound[], names: TeamNames): RankedFact | null {
+function closingFact(rounds: readonly StoryRound[], { names, finished }: StoryContext): RankedFact | null {
   // Only the round that really ended the match can be told as the last one.
   const last = rounds.at(-1);
   if (last === undefined || !isTeamKey(last.winnerTeamKey)) return null;
@@ -239,6 +241,12 @@ function closingFact(rounds: readonly StoryRound[], names: TeamNames): RankedFac
   const team = last.winnerTeamKey;
   const [own, other] = ownScore(wins, team);
   const base = { rounds: `R ${last.number}`, at: last.number, rank: 3 };
+  if (!finished) {
+    const opening = `${names[team]} gana la ronda ${last.number}${endPhrase(last)}`;
+    if (own === other) return { ...base, text: `${opening} y la demo termina con empate a ${own}.` };
+    const leader = own > other ? team : rivalKey(team);
+    return { ...base, text: `${opening} y la demo termina con ${names[leader]} por delante ${Math.max(own, other)}-${Math.min(own, other)}.` };
+  }
   const opening = `${names[team]} gana la última ronda${endPhrase(last)}`;
   if (own > other) return { ...base, text: `${opening} y cierra ${own}-${other}.` };
   if (own === other) return { ...base, text: `${opening} y la partida acaba en empate a ${own}.` };
@@ -246,8 +254,9 @@ function closingFact(rounds: readonly StoryRound[], names: TeamNames): RankedFac
 }
 
 /** "Cómo fue la partida": the pistols, each team's longest run, the overtime and the close, in round order. */
-export function matchStory(rounds: readonly StoryRound[], names: TeamNames): StoryFact[] {
-  const facts: (RankedFact | null)[] = [pistolFact(rounds, names), overtimeFact(rounds), closingFact(rounds, names)];
+export function matchStory(rounds: readonly StoryRound[], context: StoryContext): StoryFact[] {
+  const { names } = context;
+  const facts: (RankedFact | null)[] = [pistolFact(rounds, names), overtimeFact(rounds), closingFact(rounds, context)];
   for (const [team, run] of longestRuns(rounds)) facts.push(streakFact({ rounds, names, team, ...run }));
   return facts
     .filter((fact) => fact !== null)

@@ -47,7 +47,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
       {
         term: 'Esta guía',
-        text: 'Recorre cada sección de la barra lateral, dividida en dos áreas: Crear y Analizar. Puedes volver a abrirla cuando quieras con el botón «Guía» de la barra superior.',
+        text: 'Recorre la barra lateral en su orden: Crear, Partidas, Estadísticas, Preparación y, al pie, Almacenamiento y Ajustes. Vuelve a abrirla con el botón «Guía» de la barra superior.',
       },
     ],
   },
@@ -163,24 +163,6 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/streams', label: 'Ir a Clips de stream' },
   },
   {
-    id: 'faceit-players',
-    kicker: 'Jugadores FACEIT',
-    label: 'Jugadores FACEIT',
-    title: 'Sigue jugadores de FACEIT y saca vídeos de sus partidas',
-    lead: 'Una lista de jugadores con su nivel, su ELO y sus últimas partidas, para encontrar la demo de la que sale tu próximo vídeo.',
-    points: [
-      {
-        term: 'Tus listas',
-        text: 'Busca un nick o pega la URL de un perfil para seguirlo. Las listas CIS y LATAM ya traen jugadores conocidos de cada región.',
-      },
-      {
-        term: 'Sus partidas',
-        text: 'Cada jugador muestra sus partidas recientes con mapa, resultado, K/D y ADR, y el enlace a la sala de FACEIT para descargar la demo.',
-      },
-    ],
-    link: { href: FACEIT_PLAYERS_HREF, label: 'Ir a Jugadores FACEIT' },
-  },
-  {
     id: 'deliver',
     kicker: 'Mis vídeos',
     label: 'Descargar y publicar',
@@ -250,8 +232,8 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'replay',
-    kicker: 'Replay',
-    label: 'Replay',
+    kicker: 'Replay 2D',
+    label: 'Replay 2D',
     title: 'Cada ronda, sobre el mapa',
     lead:
       'Abre una partida y revive sus rondas con todos los jugadores a la vez. Desde un equipo, una jugada o un informe llegas a las mismas rondas con el filtro ya puesto.',
@@ -269,7 +251,25 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         text: 'Dibuja sobre el mapa y deja una nota anclada al momento para enseñarla al equipo.',
       },
     ],
-    link: { href: '/replay', label: 'Ir al Replay' },
+    link: { href: '/replay', label: 'Ir al Replay 2D' },
+  },
+  {
+    id: 'patterns',
+    kicker: 'Buscador de patrones',
+    label: 'Buscador de patrones',
+    title: 'Lo que un equipo repite, sobre el mapa',
+    lead: 'Elige un equipo y busca en sus rondas granadas, posiciones de jugadores y patrones que se repiten.',
+    points: [
+      {
+        term: 'Dibuja la búsqueda',
+        text: 'Marca zonas del mapa: dónde cae una granada o dónde está un jugador. Solo quedan las rondas que lo cumplen.',
+      },
+      {
+        term: 'Al Replay 2D',
+        text: 'Las granadas que encuentras se abren superpuestas en el Replay 2D.',
+      },
+    ],
+    link: { href: '/patrones', label: 'Ir al Buscador de patrones' },
   },
   {
     id: 'teams',
@@ -277,7 +277,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     label: 'Equipos',
     title: 'La ficha de cada equipo',
     lead:
-      'Cada equipo tiene su ficha con su plantilla por fecha, sus partidas y su rendimiento por mapa, la base del scouting de un rival.',
+      'Cada equipo tiene su ficha con su plantilla por fecha, sus partidas y su rendimiento por mapa. Sus pestañas Playbook, Preparar y Veto reúnen lo que necesitas para preparar un rival.',
     points: [
       {
         term: 'Desde tus demos',
@@ -314,12 +314,30 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/jugadores', label: 'Ir a Jugadores' },
   },
   {
+    id: 'faceit-players',
+    kicker: 'Jugadores FACEIT',
+    label: 'Jugadores FACEIT',
+    title: 'Sigue jugadores de FACEIT y saca vídeos de sus partidas',
+    lead: 'Una lista de jugadores con su nivel, su ELO y sus últimas partidas, para encontrar la demo de la que sale tu próximo vídeo.',
+    points: [
+      {
+        term: 'Tus listas',
+        text: 'Busca un nick o pega la URL de un perfil para seguirlo. Las listas CIS y LATAM ya traen jugadores conocidos de cada región.',
+      },
+      {
+        term: 'Sus partidas',
+        text: 'Cada jugador muestra sus partidas recientes con mapa, resultado, K/D y ADR, y el enlace a la sala de FACEIT para descargar la demo.',
+      },
+    ],
+    link: { href: FACEIT_PLAYERS_HREF, label: 'Ir a Jugadores FACEIT' },
+  },
+  {
     id: 'ranking',
     kicker: 'Ranking',
     label: 'Ranking',
     title: 'Quién juega mejor un rol en un mapa',
     lead:
-      'Elige un mapa y un rol, como el lurker de B en Anubis, un periodo y un nivel de demos, y mira quién tiene mejor rating. Desde su fila abres sus rondas en el Replay.',
+      'Elige un mapa y un rol, como el lurker de B en Anubis, un periodo y un nivel de demos, y mira quién tiene mejor rating. Desde su fila abres sus rondas en el Replay 2D.',
     points: [
       {
         term: 'Rol por lado',
@@ -331,7 +349,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
       {
         term: 'Sus rondas',
-        text: 'Cada fila abre en el Replay las rondas más recientes de ese jugador dentro del filtro.',
+        text: 'Cada fila abre en el Replay 2D las rondas más recientes de ese jugador dentro del filtro.',
       },
     ],
     link: { href: '/ranking', label: 'Ir al Ranking' },
@@ -358,6 +376,24 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
     ],
     link: { href: '/libreta', label: 'Ir a la Libreta' },
+  },
+  {
+    id: 'tactics',
+    kicker: 'Editor de tácticas',
+    label: 'Editor de tácticas',
+    title: 'Describe una táctica y mira cuándo la juegan',
+    lead: 'Parte de las rondas de un equipo en un mapa y un lado. Cada condición que añades deja solo las rondas que la cumplen.',
+    points: [
+      {
+        term: 'Sobre el mapa',
+        text: 'Las condiciones se marcan en zonas del mapa, y cada una muestra cuántas rondas quedan.',
+      },
+      {
+        term: 'A la Libreta',
+        text: 'Al guardar, la jugada queda en la Libreta con la combinación en las notas y sus primeras rondas de ejemplo.',
+      },
+    ],
+    link: { href: '/tacticas/nueva', label: 'Ir al Editor de tácticas' },
   },
   {
     id: 'pro-lineups',
@@ -462,7 +498,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
       {
         term: 'Progreso en la barra superior',
-        text: 'Ahí ves cada trabajo en marcha: descarga, lectura de la demo, REC, edición y cola.',
+        text: 'Ahí ves cada trabajo en marcha: descarga, análisis de la demo, REC, montaje y cola.',
       },
       {
         term: 'No toques el juego',

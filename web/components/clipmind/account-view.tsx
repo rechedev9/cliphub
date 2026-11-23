@@ -2,10 +2,14 @@
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { LoadingText } from '@/components/ui/loading-text';
 import { FormError } from '@/components/clipmind/auth-forms';
+import { CmLoadError } from '@/components/clipmind/cm-load-error';
 import {
   accountLabel,
   cm,
@@ -16,14 +20,15 @@ import {
   parseSessions,
   type CmApiKey,
   type CmMe,
+  type CmResult,
   type CmSession,
 } from '@/lib/clipmind/client';
 
-interface Loaded {
-  me: CmMe;
-  sessions: CmSession[];
-  keys: CmApiKey[];
-}
+type Loaded = { me: CmMe; sessions: CmResult<CmSession[]>; keys: CmResult<CmApiKey[]> };
+
+type LoadState = { kind: 'loading' } | { kind: 'failed'; failure: CmResult<never> } | { kind: 'ready'; data: Loaded };
+
+type Action = 'create-key' | 'revoke-key' | 'close-session' | 'sign-out';
 
 const section = 'flex flex-col gap-3 border-t border-border pt-6';
 
@@ -31,12 +36,11 @@ function when(ms: number): string {
   return ms > 0 ? new Date(ms).toLocaleString('es-ES') : 'nunca';
 }
 
-/** Account page: sessions, assistant keys, data export and deleting the account. */
 export function AccountView(): ReactNode {
   const router = useRouter();
-  const [data, setData] = useState<Loaded | undefined>();
+  const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [error, setError] = useState<string | undefined>();
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<{ action: Action; id?: string } | null>(null);
   const [keyName, setKeyName] = useState('');
   const [secret, setSecret] = useState<string | undefined>();
   const mcpUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/mcp`;
@@ -48,46 +52,68 @@ export function AccountView(): ReactNode {
       cm('auth/tokens', { parse: parseApiKeys }),
     ]);
     if (!me.ok) {
-      setError(me.message);
+      setState({ kind: 'failed', failure: me });
       return;
     }
-    setData({ me: me.data, sessions: sessions.ok ? sessions.data : [], keys: keys.ok ? keys.data : [] });
+    setState({ kind: 'ready', data: { me: me.data, sessions, keys } });
   }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  async function run<T>(action: Promise<{ ok: true; data: T } | { ok: false; message: string }>, after?: (value: T) => void): Promise<void> {
-    setBusy(true);
+  function retry(): void {
+    setState({ kind: 'loading' });
+    void load();
+  }
+
+  async function run<T>({
+    action,
+    id,
+    call,
+    done,
+    after,
+  }: {
+    action: Action;
+    id?: string;
+    call: () => Promise<CmResult<T>>;
+    done?: string;
+    after?: (value: T) => void;
+  }): Promise<void> {
+    setPending({ action, id });
     setError(undefined);
-    const result = await action;
+    const result = await call();
     if (result.ok) {
       after?.(result.data);
+      if (done !== undefined) toast.success(done);
       await load();
     } else {
       setError(result.message);
     }
-    setBusy(false);
+    setPending(null);
   }
 
   async function signOut(): Promise<void> {
+    setPending({ action: 'sign-out' });
     await cm('auth/logout', { method: 'POST', parse: isDone });
     router.replace('/iniciar-sesion');
     router.refresh();
   }
 
-  async function createKey(event: FormEvent): Promise<void> {
+  function createKey(event: FormEvent): void {
     event.preventDefault();
-    await run(cm('auth/tokens', { method: 'POST', body: { name: keyName }, parse: parseSecret }), (value) => {
-      setSecret(value);
-      setKeyName('');
+    void run({
+      action: 'create-key',
+      call: () => cm('auth/tokens', { method: 'POST', body: { name: keyName }, parse: parseSecret }),
+      after: (value) => {
+        setSecret(value);
+        setKeyName('');
+      },
     });
   }
 
   async function deleteAccount(): Promise<void> {
-    if (!window.confirm('¿Borrar tu cuenta? Se eliminan tus datos y los espacios de los que eres el único miembro. No se puede deshacer.')) return;
-    setBusy(true);
+    setError(undefined);
     const result = await cm('auth/account', { method: 'DELETE', parse: isDone });
     if (result.ok) {
       router.replace('/iniciar-sesion');
@@ -95,14 +121,15 @@ export function AccountView(): ReactNode {
       return;
     }
     setError(result.message);
-    setBusy(false);
   }
 
-  if (data === undefined) {
-    return error ? <FormError message={error} /> : <p className="text-body-sm text-fg-3">Cargando…</p>;
-  }
-  const { me, sessions, keys } = data;
+  if (state.kind === 'loading') return <LoadingText spinner>Cargando tu cuenta</LoadingText>;
+  if (state.kind === 'failed') return <CmLoadError failure={state.failure} title="No se pudo leer tu cuenta" onRetry={retry} />;
+
+  const { me, sessions, keys } = state.data;
   const who = accountLabel(me.user);
+  const busy = pending !== null;
+  const isPending = (action: Action, id?: string): boolean => pending?.action === action && pending.id === id;
 
   return (
     <div className="measure-work flex flex-col gap-6">
@@ -112,7 +139,7 @@ export function AccountView(): ReactNode {
         <p className="text-body-sm text-fg-1">
           {who.name} <span className="text-fg-3">{who.detail}</span>
         </p>
-        <Button type="button" variant="outline" onClick={() => void signOut()}>
+        <Button type="button" variant="outline" disabled={busy} loading={isPending('sign-out')} onClick={() => void signOut()}>
           Salir
         </Button>
       </div>
@@ -128,22 +155,37 @@ export function AccountView(): ReactNode {
             <code className="text-body-sm break-all text-primary">{secret}</code>
           </div>
         )}
-        <form onSubmit={(event) => void createKey(event)} className="flex items-end gap-2">
+        <form onSubmit={createKey} className="flex items-end gap-2">
           <Field label="Nombre de la clave" className="max-w-xs">
             {(control) => <Input {...control} value={keyName} maxLength={80} placeholder="Claude" onChange={(event) => setKeyName(event.target.value)} required />}
           </Field>
-          <Button type="submit" variant="outline" disabled={busy}>
+          <Button type="submit" variant="outline" disabled={busy} loading={isPending('create-key')}>
             Crear clave
           </Button>
         </form>
-        {keys.length > 0 ? (
+        {keys.ok ? null : <CmLoadError failure={keys} title="No se pudieron leer tus claves" onRetry={retry} />}
+        {keys.ok && keys.data.length > 0 ? (
           <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
-            {keys.map((key) => (
+            {keys.data.map((key) => (
               <li key={key.id} className="flex items-center justify-between gap-4 px-4 py-2.5">
                 <span className="min-w-0 truncate text-body-sm text-fg-1">
                   {key.name} <span className="text-fg-3">· último uso {when(key.last_used_at)}</span>
                 </span>
-                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void run(cm(`auth/tokens/${key.id}`, { method: 'DELETE', parse: isDone }))}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  loading={isPending('revoke-key', key.id)}
+                  onClick={() =>
+                    void run({
+                      action: 'revoke-key',
+                      id: key.id,
+                      call: () => cm(`auth/tokens/${key.id}`, { method: 'DELETE', parse: isDone }),
+                      done: `Clave ${key.name} revocada.`,
+                    })
+                  }
+                >
                   Revocar
                 </Button>
               </li>
@@ -154,22 +196,40 @@ export function AccountView(): ReactNode {
 
       <div className={section}>
         <h2 className="text-body-lg font-semibold text-fg-1">Sesiones</h2>
-        <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
-          {sessions.map((session) => (
-            <li key={session.id} className="flex items-center justify-between gap-4 px-4 py-2.5">
-              <span className="min-w-0 truncate text-body-sm text-fg-1">
-                {session.device === '' ? 'Dispositivo' : session.device} <span className="text-fg-3">· {when(session.last_used_at)}</span>
-              </span>
-              {session.current ? (
-                <span className="text-body-sm text-primary">Esta sesión</span>
-              ) : (
-                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void run(cm(`auth/sessions/${session.id}`, { method: 'DELETE', parse: isDone }))}>
-                  Cerrar
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
+        {!sessions.ok ? (
+          <CmLoadError failure={sessions} title="No se pudieron leer tus sesiones" onRetry={retry} />
+        ) : (
+          <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
+            {sessions.data.map((session) => (
+              <li key={session.id} className="flex items-center justify-between gap-4 px-4 py-2.5">
+                <span className="min-w-0 truncate text-body-sm text-fg-1">
+                  {session.device === '' ? 'Dispositivo' : session.device} <span className="text-fg-3">· {when(session.last_used_at)}</span>
+                </span>
+                {session.current ? (
+                  <span className="text-body-sm text-primary">Esta sesión</span>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    loading={isPending('close-session', session.id)}
+                    onClick={() =>
+                      void run({
+                        action: 'close-session',
+                        id: session.id,
+                        call: () => cm(`auth/sessions/${session.id}`, { method: 'DELETE', parse: isDone }),
+                        done: 'Sesión cerrada en ese dispositivo.',
+                      })
+                    }
+                  >
+                    Cerrar
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className={section}>
@@ -181,9 +241,18 @@ export function AccountView(): ReactNode {
               Descargar mis datos
             </a>
           </Button>
-          <Button type="button" variant="destructive" disabled={busy} onClick={() => void deleteAccount()}>
-            Borrar mi cuenta
-          </Button>
+          <ConfirmDialog
+            title="¿Borrar tu cuenta?"
+            description="Se borran tus datos y los espacios de los que eres el único miembro. No se puede deshacer."
+            confirmLabel="Borrar mi cuenta"
+            pendingLabel="Borrando…"
+            onConfirm={deleteAccount}
+            trigger={
+              <Button type="button" variant="destructive" disabled={busy}>
+                Borrar mi cuenta
+              </Button>
+            }
+          />
         </div>
       </div>
     </div>

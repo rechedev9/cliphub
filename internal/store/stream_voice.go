@@ -15,6 +15,7 @@ type StreamVoiceRepository interface {
 	SetStreamVoice(ctx context.Context, update streamclips.VoiceUpdate) error
 	ListStreamVoiceLines(ctx context.Context, jobID uuid.UUID) ([]streamclips.VoiceLine, error)
 	UpdateStreamVoiceLine(ctx context.Context, patch streamclips.VoiceLinePatch) (streamclips.VoiceLine, error)
+	CorrectStreamVoiceLines(ctx context.Context, batch streamclips.VoiceCorrections) ([]streamclips.VoiceLine, error)
 	ListStreamVoices(ctx context.Context, states []string) ([]streamclips.VoiceTranscript, error)
 	ListStreamVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error)
 	GetStreamSubtitles(ctx context.Context, jobID uuid.UUID) (streamclips.Subtitles, error)
@@ -22,17 +23,26 @@ type StreamVoiceRepository interface {
 }
 
 func streamLineAsDemo(l streamclips.VoiceLine) library.DemoVoiceLine {
-	return library.DemoVoiceLine{StartMS: l.StartMS, EndMS: l.EndMS, Text: l.Text, Corrected: l.Corrected, OriginalText: l.OriginalText,
+	return library.DemoVoiceLine{StartMS: l.StartMS, EndMS: l.EndMS, Text: l.Text, Corrected: l.Corrected, CorrectedBy: l.CorrectedBy, OriginalText: l.OriginalText,
 		VocabText: l.VocabText, Discarded: l.Discarded, Words: l.Words}
 }
 
 func withDemoEdits(l streamclips.VoiceLine, edited library.DemoVoiceLine) streamclips.VoiceLine {
 	l.Text, l.Corrected, l.OriginalText, l.VocabText, l.Discarded, l.Words = edited.Text, edited.Corrected, edited.OriginalText, edited.VocabText, edited.Discarded, edited.Words
+	l.CorrectedBy = edited.CorrectedBy
 	return l
 }
 
 func patchStreamVoiceLine(l streamclips.VoiceLine, patch streamclips.VoiceLinePatch) streamclips.VoiceLine {
-	return withDemoEdits(l, patchDemoVoiceLine(streamLineAsDemo(l), library.DemoVoiceLinePatch{Text: patch.Text, Discarded: patch.Discarded}))
+	return withDemoEdits(l, patchDemoVoiceLine(streamLineAsDemo(l), library.DemoVoiceLinePatch{Text: patch.Text, Discarded: patch.Discarded, By: patch.By}))
+}
+
+func streamCorrectionPatches(batch streamclips.VoiceCorrections) []streamclips.VoiceLinePatch {
+	out := []streamclips.VoiceLinePatch{}
+	for _, p := range correctionPatches(batch.Lines, batch.By) {
+		out = append(out, streamclips.VoiceLinePatch{JobID: batch.JobID, ID: p.ID, Text: p.Text, By: p.By})
+	}
+	return out
 }
 
 func replaceStreamVoiceLines(existing []streamclips.VoiceLine, update streamclips.VoiceUpdate) []streamclips.VoiceLine {

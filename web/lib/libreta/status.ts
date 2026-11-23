@@ -8,11 +8,11 @@ export const STATUS_LABEL: Record<LibretaStatus, string> = {
   archived: 'Archivo',
 };
 
-export type StatusTone = 'success' | 'accent' | 'secondary' | 'stream' | 'outline';
+export type StatusTone = 'success' | 'default' | 'secondary' | 'stream' | 'outline';
 
 export const STATUS_TONE: Record<LibretaStatus, StatusTone> = {
   active: 'success',
-  practice: 'accent',
+  practice: 'default',
   draft: 'secondary',
   review: 'stream',
   archived: 'outline',

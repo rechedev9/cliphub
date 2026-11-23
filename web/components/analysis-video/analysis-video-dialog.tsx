@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { offlineMessage } from '@/lib/load-error';
 
 const ACTION_ICON: Record<AnalysisVideoAction, typeof Video> = { pov: Video, review: Clapperboard, short: Smartphone };
 
@@ -97,7 +98,7 @@ export function AnalysisVideoDialog({ sources, onClose, selected, teamId, steamI
       const job = await createPlayerJob(match.demo_id, player);
       router.push(analysisVideoHref(action, job.job_id, rounds));
     } catch (failure) {
-      setError(isLibraryOffline(failure) ? 'El servicio local no responde. Vuelve a intentarlo.' : 'No se pudo preparar el vídeo de esta partida.');
+      setError(isLibraryOffline(failure) ? offlineMessage() : 'No se pudo preparar el vídeo de esta partida.');
       setBusy(null);
     }
   }
@@ -234,7 +235,7 @@ function MatchPending({ state }: { state: null | 'failed' | 'offline' | LibraryM
   if (state === 'failed' || state === 'offline') {
     return (
       <p role="alert" className="text-body-sm text-destructive">
-        {state === 'offline' ? 'El servicio local no responde.' : 'Esta partida ya no está en la biblioteca.'}
+        {state === 'offline' ? offlineMessage() : 'Esta partida ya no está en la biblioteca.'}
       </p>
     );
   }

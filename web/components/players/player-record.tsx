@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Link2, PlugZap, User } from 'lucide-react';
+import { ExternalLink, Link2, User } from 'lucide-react';
 import { FACEIT_NOT_CONFIGURED_CODE } from '@/lib/api/types';
 import type { MetricsReport } from '@/lib/api/metrics';
 import type { ScoutMatchSummary } from '@/lib/api/scout';
@@ -12,7 +12,6 @@ import {
   getLibraryPlayer,
   getLibraryPlayerRole,
   isLibraryNotFound,
-  isLibraryOffline,
   LibraryApiError,
   linkLibraryPlayerFaceit,
   listLibraryMatches,
@@ -21,7 +20,7 @@ import {
   type LibraryPlayer,
   type LibraryPlayerRole,
 } from '@/lib/api/library';
-import { FACEIT_PLAYERS_HREF, TEAMS_HREF, matchHref, playerHref, teamHref } from '@/lib/clips/routes';
+import { FACEIT_PLAYERS_HREF, PLAYERS_HREF, TEAMS_HREF, matchHref, playerHref, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
   OUTCOME_LABEL,
@@ -29,10 +28,10 @@ import {
   adrLabel,
   kdLabel,
   playerLine,
+  playedRoundCount,
   playerTotals,
-  teamByKey,
-  teamLabel,
 } from '@/lib/library/partidas';
+import { playerMatchRows, unreadMatchesText, type PlayerMatchRow, type PlayerMatchRows } from '@/lib/library/player-match-rows';
 import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
 import { lastResults } from '@/lib/analysis/context-bar';
@@ -41,9 +40,11 @@ import { ScopeBar, type ScopeCounts, type ScopeEntity, type ScopeMatch, type Sco
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { DOCUMENT_COLUMN } from '@/components/records/document-page';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { RelatedList } from '@/components/records/related-list';
+import { TableSkeleton } from '@/components/records/table-skeleton';
 import { useTableView } from '@/components/records/use-table-view';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { LevelBadge } from '@/components/players/level-badge';
@@ -68,9 +69,9 @@ import { cn } from '@/lib/utils';
 /** How many of the player's most recent matches the record reads in full. */
 const MATCH_DETAIL_LIMIT = 100;
 
-type PlayerMatchRow = { match: LibraryMatch; teamName: string; rivalName: string; outcome: 'win' | 'loss' | 'draw' | null };
-type Loaded = { player: LibraryPlayer; rows: PlayerMatchRow[]; lines: NonNullable<ReturnType<typeof playerLine>>[] };
-type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'offline' };
+type Loaded = { player: LibraryPlayer; listed: LibraryMatch[] };
+type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'failed'; error: unknown };
+type MatchesState = { kind: 'loading' } | { kind: 'ready'; data: PlayerMatchRows };
 
 /** The player's matches as evidence labels: map, date and rival. */
 function rowIndex(rows: readonly PlayerMatchRow[]): ReadonlyMap<string, ScoutMatchSummary> {
@@ -79,36 +80,36 @@ function rowIndex(rows: readonly PlayerMatchRow[]): ReadonlyMap<string, ScoutMat
       row.match.id,
       {
         match_id: row.match.id, map: row.match.map, played_at: row.match.played_at, team_key: '',
-        opponent: row.rivalName, score: 0, opponent_score: 0, rounds: row.match.round_count, wins: 0,
+        opponent: row.rivalName, score: 0, opponent_score: 0, rounds: playedRoundCount(row.match), wins: 0,
       },
     ]),
   );
 }
 
-async function loadPlayer(steamId: string): Promise<Loaded> {
-  const [player, listed] = await Promise.all([getLibraryPlayer(steamId), listLibraryMatches({ steamid: steamId })]);
-  // The list has no player lines; the record reads each match for them.
-  const matches = await Promise.all(listed.slice(0, MATCH_DETAIL_LIMIT).map((match) => getLibraryMatch(match.id)));
-  const rows: PlayerMatchRow[] = [];
-  const lines: Loaded['lines'] = [];
-  for (const match of matches) {
-    const line = playerLine(match, steamId);
-    if (line === undefined) continue;
-    lines.push(line);
-    const own = teamByKey(match, line.team_key);
-    const rival = match.teams.find((team) => team.key !== line.team_key);
-    let outcome: PlayerMatchRow['outcome'] = null;
-    if (own !== undefined && rival !== undefined) {
-      if (own.score > rival.score) outcome = 'win';
-      else if (own.score < rival.score) outcome = 'loss';
-      else outcome = 'draw';
-    }
-    rows.push({ match, teamName: teamLabel(own), rivalName: teamLabel(rival), outcome });
-  }
-  return { player, rows, lines };
+function kdValue(totals: { kills: number; deaths: number }): string {
+  return totals.deaths + totals.kills > 0 ? kdLabel(totals.kills, totals.deaths) : 'Sin dato';
 }
 
-/** A player's record: nicks and teams by date, matches with their lines, the inferred role and FACEIT. */
+function usePlayerMatchRows(steamId: string, listed: readonly LibraryMatch[]): { state: MatchesState; retry: () => void } {
+  const [state, setState] = useState<MatchesState>({ kind: 'loading' });
+  const [attempt, setAttempt] = useState(0);
+  const ids = listed.slice(0, MATCH_DETAIL_LIMIT).map((match) => match.id).join(',');
+
+  useEffect(() => {
+    let active = true;
+    setState({ kind: 'loading' });
+    Promise.allSettled((ids === '' ? [] : ids.split(',')).map((id) => getLibraryMatch(id))).then((results) => {
+      if (active) setState({ kind: 'ready', data: playerMatchRows({ steamId, results }) });
+    });
+    return () => {
+      active = false;
+    };
+  }, [steamId, ids, attempt]);
+
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  return { state, retry };
+}
+
 export function PlayerRecord({ steamId }: { steamId: string }): ReactNode {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -116,13 +117,13 @@ export function PlayerRecord({ steamId }: { steamId: string }): ReactNode {
   useEffect(() => {
     let active = true;
     setState({ kind: 'loading' });
-    loadPlayer(steamId)
-      .then((data) => {
-        if (active) setState({ kind: 'ready', data });
+    Promise.all([getLibraryPlayer(steamId), listLibraryMatches({ steamid: steamId })])
+      .then(([player, listed]) => {
+        if (active) setState({ kind: 'ready', data: { player, listed } });
       })
       .catch((error: unknown) => {
         if (!active) return;
-        setState(isLibraryNotFound(error) && !isLibraryOffline(error) ? { kind: 'missing' } : { kind: 'offline' });
+        setState(isLibraryNotFound(error) ? { kind: 'missing' } : { kind: 'failed', error });
       });
     return () => {
       active = false;
@@ -151,19 +152,8 @@ export function PlayerRecord({ steamId }: { steamId: string }): ReactNode {
       />
     );
   }
-  if (state.kind === 'offline') {
-    return (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudo leer el jugador. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-            Reintentar
-          </Button>
-        }
-      />
-    );
+  if (state.kind === 'failed') {
+    return <LoadErrorState error={state.error} title="No se pudo leer el jugador" onRetry={() => setAttempt((n) => n + 1)} />;
   }
   return <PlayerRecordView data={state.data} />;
 }
@@ -201,7 +191,11 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
   const [role, setRole] = useState<LibraryPlayerRole | null | undefined>(undefined);
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
-  const totals = playerTotals(data.lines);
+  const { state: matchesState, retry: retryMatches } = usePlayerMatchRows(data.player.steamid64, data.listed);
+  const loaded = matchesState.kind === 'ready' ? matchesState.data : null;
+  const rows = loaded?.rows ?? [];
+  const totals = playerTotals(loaded?.lines ?? []);
+  const unread = loaded === null ? '' : unreadMatchesText(loaded);
   const name = player.nick || player.steamid64;
   let roleValue = 'Calculando';
   if (role === null) roleValue = 'Sin dato';
@@ -241,9 +235,9 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
     };
   }, []);
 
-  const maps = [...new Set(data.rows.map((row) => row.match.map))].sort();
-  const details = new Map(data.rows.map((row) => [row.match.id, row.match]));
-  const scopedRows = data.rows.filter(
+  const maps = [...new Set(data.listed.map((match) => match.map))].sort();
+  const details = new Map(rows.map((row) => [row.match.id, row.match]));
+  const scopedRows = rows.filter(
     (row) => (scope.map === '' || row.match.map === scope.map) && inScopePeriod(row.match.played_at, scope.period, now),
   );
 
@@ -252,7 +246,8 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
     if (REPORT_TABS.has(id)) {
       return reportState.kind === 'ready' ? { maps: reportState.report.matches, rounds: reportState.report.rounds } : null;
     }
-    return { maps: scopedRows.length, rounds: scopedRows.reduce((sum, row) => sum + row.match.round_count, 0) };
+    if (loaded === null) return null;
+    return { maps: scopedRows.length, rounds: scopedRows.reduce((sum, row) => sum + playedRoundCount(row.match), 0) };
   }
 
   function withReport(id: string, body: (report: MetricsReport) => ReactNode): ReactNode {
@@ -325,11 +320,12 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
         icon={User}
         title={name}
         subtitle={<span className="font-mono text-meta">{player.steamid64}</span>}
+        back={{ href: PLAYERS_HREF, label: 'Todos los jugadores' }}
         fields={[
           { label: 'Partidas', value: player.match_count },
-          { label: 'Rondas', value: totals.rounds },
-          { label: 'K/D', value: totals.deaths + totals.kills > 0 ? kdLabel(totals.kills, totals.deaths) : 'Sin dato' },
-          { label: 'ADR', value: adrLabel(totals.damage, totals.rounds) || 'Sin dato' },
+          { label: 'Rondas', value: loaded === null ? 'Calculando' : totals.rounds },
+          { label: 'K/D', value: loaded === null ? 'Calculando' : kdValue(totals) },
+          { label: 'ADR', value: loaded === null ? 'Calculando' : adrLabel(totals.damage, totals.rounds) || 'Sin dato' },
           { label: 'Rol', value: roleValue },
           { label: 'FACEIT', value: player.faceit_nickname ?? 'Sin vincular' },
         ]}
@@ -343,6 +339,16 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
         }
       />
       {linkError ? <p role="alert" className="text-body-sm text-destructive">{linkError}</p> : null}
+      {unread === '' ? null : (
+        <p role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-fg-2">
+          {unread}
+          {loaded !== null && loaded.failed > 0 ? (
+            <Button type="button" variant="outline" size="xs" onClick={retryMatches}>
+              Reintentar
+            </Button>
+          ) : null}
+        </p>
+      )}
       <RecordTabs
         value={tab}
         onValueChange={(next) => {
@@ -390,13 +396,20 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
           {
             id: 'partidas',
             label: 'Partidas',
-            count: data.rows.length,
-            content: withScope('partidas', <PlayerMatchesTable steamId={player.steamid64} rows={scopedRows} />),
+            count: loaded === null ? undefined : rows.length,
+            content: withScope(
+              'partidas',
+              loaded === null ? (
+                <TableSkeleton label="Cargando partidas del jugador" columns={6} />
+              ) : (
+                <PlayerMatchesTable steamId={player.steamid64} rows={scopedRows} />
+              ),
+            ),
           },
           {
             id: 'metricas',
             label: 'Métricas',
-            content: withReport('metricas', (report) => <PlayerMetrics report={report} matches={rowIndex(data.rows)} />),
+            content: withReport('metricas', (report) => <PlayerMetrics report={report} matches={rowIndex(rows)} />),
           },
           {
             id: 'faceit',

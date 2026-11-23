@@ -24,9 +24,11 @@ import {
   type FileGroup,
   type LibraryCopyMatch,
 } from '@/lib/storage-files';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { DeleteResult, SelectionBar } from '@/components/records/selection-bar';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
+import { LoadingText } from '@/components/ui/loading-text';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const ARCHIVO: CountNoun = { one: 'archivo', many: 'archivos', feminine: false };
@@ -35,17 +37,19 @@ const SCAN_POLL_MS = 2000;
 /** A folder with more files than this opens folded, so one big folder does not bury the rest of the page. */
 const GROUP_PREVIEW_ROWS = 6;
 
+type Removed = { path: string; freedBytes: number; label: string; cardLeft: boolean };
+
 type MatchIndex = ReadonlyMap<string, Pick<Match, 'map' | 'player'>>;
 
 type LoadState =
   | { kind: 'loading' }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; error: unknown }
   | { kind: 'ready'; files: StorageFiles; matches: MatchIndex };
 
 /** Almacenamiento: where demos and Studio videos live on this PC, with delete per file. */
 export function StorageFilesScreen({ children }: { children?: ReactNode }): ReactNode {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ text: string; failed: boolean } | null>(null);
   const [rescanError, setRescanError] = useState<string | null>(null);
   const [childrenKey, setChildrenKey] = useState(0);
   const [libraryMatches, setLibraryMatches] = useState<readonly LibraryCopyMatch[]>([]);
@@ -55,7 +59,7 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
       const [files, matches] = await Promise.all([api.listStorageFiles(), api.listMatches().catch(() => [])]);
       setState({ kind: 'ready', files, matches: new Map(matches.map((match) => [match.id, match])) });
     } catch (err) {
-      setState({ kind: 'error', message: storageLoadErrorMessage(err) });
+      setState({ kind: 'error', error: err });
     }
   }, []);
 
@@ -87,8 +91,8 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
     await load();
   };
 
-  const removeFile = (path: string, freedBytes: number, label: string): void => {
-    setNotice(`${label}: se han liberado ${formatBytes(freedBytes)}.`);
+  const removeFile = ({ path, freedBytes, label, cardLeft }: Removed): void => {
+    setNotice({ text: `${label}: se han liberado ${formatBytes(freedBytes)}.${cardLeft ? ` ${CARD_LEFT}` : ''}`, failed: cardLeft });
     setState((current) => {
       if (current.kind !== 'ready') return current;
       const keep = (file: StorageFile): boolean => file.path !== path;
@@ -105,16 +109,19 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
     body = <ReadyBody files={state.files} matches={state.matches} libraryMatches={libraryMatches} onRemoved={removeFile} onReload={() => { setChildrenKey((key) => key + 1); void load(); void loadLibrary(); }} />;
   } else if (state.kind === 'error') {
     body = (
-      <div className="flex flex-col items-start gap-3">
-        <p role="alert" className="text-body-sm text-destructive">{state.message}</p>
-        <Button type="button" variant="outline" size="sm" onClick={() => { setState({ kind: 'loading' }); void load(); }}>
-          Reintentar
-        </Button>
-      </div>
+      <LoadErrorState
+        error={state.error}
+        title="No se pudieron leer los archivos de tu PC"
+        onRetry={() => {
+          setState({ kind: 'loading' });
+          void load();
+        }}
+      />
     );
   } else {
     body = (
-      <div role="status" aria-label="Leyendo archivos" className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
+        <LoadingText spinner>Buscando las demos y los vídeos de tu PC</LoadingText>
         <Skeleton className="h-16 w-full rounded-none" />
         <Skeleton className="h-40 w-full rounded-none" />
       </div>
@@ -133,7 +140,7 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
           </Button>
         }
       />
-      {notice ? <p role="status" className="text-body-sm text-success">{notice}</p> : null}
+      {notice ? <DeleteResult result={notice} /> : null}
       {rescanError ? <p role="alert" className="text-body-sm text-destructive">{rescanError}</p> : null}
       {body}
       <div key={childrenKey}>{children}</div>
@@ -151,7 +158,7 @@ function ReadyBody({
   files: StorageFiles;
   matches: MatchIndex;
   libraryMatches: readonly LibraryCopyMatch[];
-  onRemoved: (path: string, freedBytes: number, label: string) => void;
+  onRemoved: (removed: Removed) => void;
   onReload: () => void;
 }): ReactNode {
   const demoGroups = useMemo(() => groupByFolder(files.demos), [files.demos]);
@@ -183,17 +190,16 @@ function ReadyBody({
     const copies = await settleEach(chosen.filter((file) => file.kind === 'studio_demo'), (file) => deleteStorageEntry(file, videos));
     const done = [...loose.done, ...copies.done];
     const failed = [...loose.failed, ...copies.failed];
-    const freed = done.reduce((sum, { value }) => sum + value, 0);
-    setBulkResult({
-      failed: failed.length > 0,
-      text: bulkDeleteSummary({
-        deleted: done.length,
-        failed: failed.length,
-        noun: ARCHIVO,
-        freed: freed > 0 ? formatBytes(freed) : undefined,
-        reason: failed[0] ? deleteErrorMessage(failed[0].error) : undefined,
-      }),
+    const freed = done.reduce((sum, { value }) => sum + value.freed, 0);
+    const cardsLeft = done.filter(({ value }) => value.cardLeft).length;
+    const summary = bulkDeleteSummary({
+      deleted: done.length,
+      failed: failed.length,
+      noun: ARCHIVO,
+      freed: freed > 0 ? formatBytes(freed) : undefined,
+      reason: failed[0] ? deleteErrorMessage(failed[0].error) : undefined,
     });
+    setBulkResult({ failed: failed.length > 0 || cardsLeft > 0, text: summary + cardsLeftText(cardsLeft) });
     // Failures and files picked during the delete stay chosen.
     setSelected((current) => withoutKeys(current, done.map(({ item }) => item.path)));
     setBulkBusy(false);
@@ -375,7 +381,7 @@ function FileRow({
   file: StorageFile;
   title: string;
   subtitle?: string;
-  onRemoved: (path: string, freedBytes: number, label: string) => void;
+  onRemoved: (removed: Removed) => void;
   checked: boolean;
   onToggle: () => void;
 }): ReactNode {
@@ -389,8 +395,8 @@ function FileRow({
     setDeleting(true);
     setError(null);
     try {
-      const freed = await deleteStorageEntry(file, hasVideoCard(file) ? await api.listVideos().catch(() => []) : []);
-      onRemoved(file.path, freed, title);
+      const { freed, cardLeft } = await deleteStorageEntry(file, hasVideoCard(file) ? await api.listVideos().catch(() => []) : []);
+      onRemoved({ path: file.path, freedBytes: freed, label: title, cardLeft });
     } catch (err) {
       setError(deleteErrorMessage(err));
       setArmed(false);
@@ -557,16 +563,30 @@ function hasVideoCard(file: StorageFile): boolean {
   return file.kind === 'short' || file.kind === 'full_demo';
 }
 
+type Deleted = { freed: number; cardLeft: boolean };
+
+function cardsLeftText(count: number): string {
+  if (count === 0) return '';
+  if (count === 1) return ' Un vídeo borrado sigue en Mis vídeos sin archivo: bórralo desde allí.';
+  return ` ${count} vídeos borrados siguen en Mis vídeos sin archivo: bórralos desde allí.`;
+}
+
+const CARD_LEFT = 'Su tarjeta sigue en Mis vídeos sin archivo: bórrala desde allí.';
+
 /** Deletes one listed file and returns the bytes it freed. A Studio copy goes with its partida. */
-async function deleteStorageEntry(file: StorageFile, videos: readonly Video[]): Promise<number> {
+async function deleteStorageEntry(file: StorageFile, videos: readonly Video[]): Promise<Deleted> {
   if (file.kind === 'studio_demo') {
     if (file.jobId === undefined) throw new Error('Esta copia no tiene partida que borrar.');
     await api.deleteMatch(file.jobId);
-    return file.sizeBytes;
+    return { freed: file.sizeBytes, cardLeft: false };
   }
   const card = libraryVideoFor(videos, file);
   if (card !== null && card.loteShort !== null) await api.deleteLoteShort(card.id, card.loteShort);
   const freed = await api.deleteStorageFile(file.path);
-  if (card !== null && card.loteShort === null) await api.deleteVideo(card.id).catch(() => undefined);
-  return freed;
+  if (card === null || card.loteShort !== null) return { freed, cardLeft: false };
+  const cardLeft = await api.deleteVideo(card.id).then(
+    () => false,
+    () => true,
+  );
+  return { freed, cardLeft };
 }

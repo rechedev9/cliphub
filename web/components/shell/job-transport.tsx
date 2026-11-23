@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useState, useSyncExternalStore, type ReactElement } from 'react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { captureProgressPercent } from '@/lib/capture-progress';
 import { sectionForPath } from '@/lib/nav';
 import { RESULTS_HREF } from '@/lib/clips/routes';
@@ -18,7 +19,7 @@ import { cn } from '@/lib/utils';
 const STAGE_META: Record<ShellJobStage, { tag: string; sub: string; tone: string }> = {
   recording: { tag: 'REC', sub: 'CS2 + HLAE grabando · no toques el juego', tone: 'text-stream-text' },
   composing: { tag: 'Montaje', sub: 'Montando el vídeo', tone: 'text-fg-1' },
-  parsing: { tag: 'Lectura', sub: 'Leyendo la demo', tone: 'text-fg-1' },
+  parsing: { tag: 'Analizando demo', sub: 'Las rondas y los jugadores aparecen al terminar', tone: 'text-fg-1' },
   acquiring: { tag: 'Descarga', sub: 'Descargando el vídeo de origen', tone: 'text-fg-1' },
   queued: { tag: 'En cola', sub: 'Empieza al acabar el REC actual', tone: 'text-fg-3' },
 };
@@ -26,7 +27,6 @@ const STAGE_META: Record<ShellJobStage, { tag: string; sub: string; tone: string
 const PILL_CLASS =
   'flex min-h-7 min-w-0 items-center gap-2 rounded-md border border-border-strong bg-transparent px-2.5 text-meta';
 
-/** Command-strip job pill plus the 400px dropdown listing every live job. */
 export function JobTransport(): ReactElement | null {
   const pathname = usePathname();
   const activity = useSyncExternalStore(
@@ -35,27 +35,8 @@ export function JobTransport(): ReactElement | null {
     serverShellActivitySnapshot,
   );
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const panelId = useId();
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (event: PointerEvent): void => {
-      if (rootRef.current !== null && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointer);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointer);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
 
   const [top] = activity.jobs;
-  // The idle pill answers "is anything recording?" where videos are made and listed: the Crear area.
   if (top === undefined && sectionForPath(pathname)?.area !== 'create') return null;
 
   const active = activity.jobs.filter((job) => job.stage !== 'queued').length;
@@ -63,75 +44,70 @@ export function JobTransport(): ReactElement | null {
   const more = activity.jobs.length - 1;
 
   return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        aria-label={top === undefined ? 'Trabajos: sin trabajos activos' : `Trabajos: ${pillTag(top)}, ${top.title}`}
-        onClick={() => setOpen((value) => !value)}
-        className={cn(
-          PILL_CLASS,
-          'transition-colors duration-(--dur-fast) ease-standard hover:bg-surface-3',
-          top?.stage === 'recording' ? 'border-stream/45' : null,
-          top === undefined ? 'max-sm:hidden' : null,
-        )}
-      >
-        {top === undefined ? (
-          <>
-            <span aria-hidden className="size-2 shrink-0 rounded-full bg-fg-3" />
-            <span className="text-fg-3">Sin trabajos activos</span>
-          </>
-        ) : (
-          <>
-            <StageIndicator stage={top.stage} />
-            <span className={cn('tabular-nums', STAGE_META[top.stage].tone)}>{pillTag(top)}</span>
-            {more > 0 ? (
-              <>
-                <span aria-hidden className="h-3.5 w-px shrink-0 bg-border-strong" />
-                <span className="text-fg-2">{more} más</span>
-              </>
-            ) : null}
-          </>
-        )}
-        <span aria-hidden className="text-fg-3">
-          ▾
-        </span>
-      </button>
-
-      {open ? (
-        <div
-          id={panelId}
-          role="dialog"
-          aria-label="Trabajos en marcha"
-          className="absolute top-full right-0 z-40 mt-1 w-[400px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg border border-border bg-surface-4"
-        >
-          <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border-strong px-3.5 py-2 text-meta text-fg-3">
-            <span>
-              Trabajos · {activity.jobs.length === 0 ? 'nada en marcha' : `${active} activos · ${queued} en cola`}
-            </span>
-            <Link
-              href={RESULTS_HREF}
-              onClick={() => setOpen(false)}
-              className="inline-flex min-h-10 items-center text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1"
-            >
-              Ver en Mis vídeos →
-            </Link>
-          </div>
-          {activity.jobs.length === 0 ? (
-            <p className="px-3.5 py-4 text-label text-fg-2">Aquí aparecerá el progreso de tus vídeos.</p>
-          ) : (
-            <ul>
-              {activity.jobs.map((job) => (
-                <li key={job.id} className="border-b border-border-subtle last:border-b-0">
-                  <JobRow job={job} onNavigate={() => setOpen(false)} />
-                </li>
-              ))}
-            </ul>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={top === undefined ? 'Trabajos: sin trabajos activos' : `Trabajos: ${pillTag(top)}, ${top.title}`}
+          className={cn(
+            PILL_CLASS,
+            'transition-colors duration-(--dur-fast) ease-standard hover:bg-surface-3',
+            top?.stage === 'recording' ? 'border-stream/45' : null,
+            top === undefined ? 'max-sm:hidden' : null,
           )}
+        >
+          {top === undefined ? (
+            <>
+              <span aria-hidden className="size-2 shrink-0 rounded-full bg-fg-3" />
+              <span className="text-fg-3">Sin trabajos activos</span>
+            </>
+          ) : (
+            <>
+              <StageIndicator stage={top.stage} />
+              <span className={cn('tabular-nums', STAGE_META[top.stage].tone)}>{pillTag(top)}</span>
+              {more > 0 ? (
+                <>
+                  <span aria-hidden className="h-3.5 w-px shrink-0 bg-border-strong" />
+                  <span className="text-fg-2">{more} más</span>
+                </>
+              ) : null}
+            </>
+          )}
+          <span aria-hidden className="text-fg-3">
+            ▾
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        aria-label="Trabajos en marcha"
+        className="w-[400px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg border-border bg-surface-4 p-0"
+      >
+        <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border-strong px-3.5 py-2 text-meta text-fg-3">
+          <span>
+            Trabajos · {activity.jobs.length === 0 ? 'nada en marcha' : `${active} activos · ${queued} en cola`}
+          </span>
+          <Link
+            href={RESULTS_HREF}
+            onClick={() => setOpen(false)}
+            className="inline-flex min-h-10 items-center text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1"
+          >
+            Ver en Mis vídeos →
+          </Link>
         </div>
-      ) : null}
-    </div>
+        {activity.jobs.length === 0 ? (
+          <p className="px-3.5 py-4 text-label text-fg-2">Aquí aparecerá el progreso de tus vídeos.</p>
+        ) : (
+          <ul>
+            {activity.jobs.map((job) => (
+              <li key={job.id} className="border-b border-border-subtle last:border-b-0">
+                <JobRow job={job} onNavigate={() => setOpen(false)} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 

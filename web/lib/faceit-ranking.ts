@@ -1,4 +1,5 @@
 import type { FaceitRanking, FaceitRankedPlayer, FaceitRankingKind } from './api/faceit.ts';
+import { offlineMessage } from './load-error.ts';
 
 export type RankingChoice = { kind: FaceitRankingKind; code: string };
 
@@ -116,7 +117,7 @@ export function rankingErrorMessage(code: string | undefined): string {
   if (code === 'faceit_rate_limited') {
     return 'FACEIT está limitando las peticiones. No es un fallo de Studio: vuelve a intentarlo en unos minutos.';
   }
-  if (code === 'service_unavailable') return 'Servicio local sin conexión. Arráncalo y vuelve a intentarlo.';
+  if (code === 'service_unavailable') return offlineMessage();
   return 'No se pudo leer el ranking de FACEIT. Comprueba la conexión y vuelve a intentarlo.';
 }
 

@@ -5,21 +5,10 @@ import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Video } from '@/lib/api/types';
 import { api } from '@/lib/api';
+import { deleteErrorMessage } from '@/lib/delete-error';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
-/**
- * Trash button with a confirm dialog: removes the reel from the library and
- * deletes its rendered files from disk (best-effort when the orchestrator is
- * offline). Deletion is not undoable, hence the explicit confirmation.
- */
 export function DeleteVideoButton({ video, onDeleted }: { video: Video; onDeleted: () => void }) {
   const [open, setOpen] = useState(false);
 
@@ -56,58 +45,26 @@ export type DeleteVideoDialogProps = {
 
 /** The confirmation alone, for a delete that starts from a menu item. */
 export function DeleteVideoDialog({ title, onConfirm: remove, open, onOpenChange, onDeleted, onCloseAutoFocus }: DeleteVideoDialogProps) {
-  const [deleting, setDeleting] = useState(false);
-
-  async function onConfirm() {
-    if (deleting) return;
-    setDeleting(true);
+  async function onConfirm(): Promise<void> {
     try {
       await remove();
-      onOpenChange(false);
       toast('Vídeo borrado.');
       onDeleted();
-    } catch {
-      toast('No se pudo borrar el vídeo.');
-    } finally {
-      setDeleting(false);
+    } catch (err) {
+      toast.error(deleteErrorMessage(err));
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm" onCloseAutoFocus={onCloseAutoFocus}>
-        <DialogHeader>
-          <DialogTitle>¿Borrar este vídeo?</DialogTitle>
-          <DialogDescription className="break-words">
-            <span className="font-medium text-fg-1">{title}</span> y su MP4 se
-            borrarán de este PC. Esta acción no se puede deshacer.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={deleting}
-            className="font-display font-bold"
-          >
-            Cancelar
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={onConfirm}
-            loading={deleting}
-            className="font-display font-bold"
-          >
-            {deleting ? (
-              'Borrando…'
-            ) : (
-              <>
-                <Trash2 className="size-4" aria-hidden /> Borrar
-              </>
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onCloseAutoFocus={onCloseAutoFocus}
+      title="¿Borrar este vídeo?"
+      description={<span className="break-words"><span className="font-medium text-fg-1">{title}</span> y su MP4 se borrarán de este PC. No se puede deshacer.</span>}
+      confirmLabel="Borrar vídeo"
+      pendingLabel="Borrando…"
+      onConfirm={onConfirm}
+    />
   );
 }

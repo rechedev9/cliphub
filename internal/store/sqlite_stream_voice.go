@@ -15,7 +15,7 @@ import (
 
 const streamVoiceColumns = `SELECT job_id, state, model, error, spans, pending, updated_at FROM stream_voice`
 
-const streamVoiceLineColumns = `SELECT id, job_id, start_ms, end_ms, text, corrected, original_text, vocab_text, discarded, words FROM stream_voice_lines`
+const streamVoiceLineColumns = `SELECT id, job_id, start_ms, end_ms, text, corrected, corrected_by, original_text, vocab_text, discarded, words FROM stream_voice_lines`
 
 type streamVoiceQuerier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
@@ -67,7 +67,7 @@ func scanStreamVoice(row sqlScanner) (streamclips.VoiceTranscript, error) {
 func scanStreamVoiceLine(row sqlScanner) (streamclips.VoiceLine, error) {
 	var l streamclips.VoiceLine
 	var id, jobID, words string
-	if err := row.Scan(&id, &jobID, &l.StartMS, &l.EndMS, &l.Text, &l.Corrected, &l.OriginalText, &l.VocabText, &l.Discarded, &words); err != nil {
+	if err := row.Scan(&id, &jobID, &l.StartMS, &l.EndMS, &l.Text, &l.Corrected, &l.CorrectedBy, &l.OriginalText, &l.VocabText, &l.Discarded, &words); err != nil {
 		return l, err
 	}
 	if words != "" {
@@ -146,8 +146,8 @@ func (r *SQLiteStreamJobRepository) SetStreamVoice(ctx context.Context, update s
 			if err != nil {
 				return fmt.Errorf("encode stream voice words: %w", err)
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO stream_voice_lines (id, job_id, start_ms, end_ms, text, corrected, original_text, vocab_text, discarded, words)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, l.ID.String(), id, l.StartMS, l.EndMS, l.Text, l.Corrected, l.OriginalText, l.VocabText, l.Discarded, words); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO stream_voice_lines (id, job_id, start_ms, end_ms, text, corrected, corrected_by, original_text, vocab_text, discarded, words)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, l.ID.String(), id, l.StartMS, l.EndMS, l.Text, l.Corrected, l.CorrectedBy, l.OriginalText, l.VocabText, l.Discarded, words); err != nil {
 				return fmt.Errorf("store stream voice line: %w", err)
 			}
 		}
@@ -162,28 +162,52 @@ func (r *SQLiteStreamJobRepository) ListStreamVoiceLines(ctx context.Context, jo
 func (r *SQLiteStreamJobRepository) UpdateStreamVoiceLine(ctx context.Context, patch streamclips.VoiceLinePatch) (streamclips.VoiceLine, error) {
 	var out streamclips.VoiceLine
 	err := r.inTx(ctx, func(tx *sql.Tx) error {
-		cur, err := scanStreamVoiceLine(tx.QueryRowContext(ctx, streamVoiceLineColumns+` WHERE job_id = ? AND id = ?`, patch.JobID.String(), patch.ID.String()))
-		if errors.Is(err, sql.ErrNoRows) {
-			return streamclips.ErrVoiceLineNotFound
-		}
-		if err != nil {
-			return err
-		}
-		out = patchStreamVoiceLine(cur, patch)
-		words, err := encodeDemoVoiceWords(out.Words)
-		if err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, `UPDATE stream_voice_lines SET text = ?, corrected = ?, original_text = ?, discarded = ?, words = ? WHERE id = ?`,
-			out.Text, out.Corrected, out.OriginalText, out.Discarded, words, patch.ID.String())
+		var err error
+		out, err = updateStreamVoiceLine(ctx, tx, patch)
 		return err
 	})
 	return out, err
 }
 
+func (r *SQLiteStreamJobRepository) CorrectStreamVoiceLines(ctx context.Context, batch streamclips.VoiceCorrections) ([]streamclips.VoiceLine, error) {
+	out := make([]streamclips.VoiceLine, 0, len(batch.Lines))
+	err := r.inTx(ctx, func(tx *sql.Tx) error {
+		for _, patch := range streamCorrectionPatches(batch) {
+			line, err := updateStreamVoiceLine(ctx, tx, patch)
+			if err != nil {
+				return err
+			}
+			out = append(out, line)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func updateStreamVoiceLine(ctx context.Context, tx *sql.Tx, patch streamclips.VoiceLinePatch) (streamclips.VoiceLine, error) {
+	cur, err := scanStreamVoiceLine(tx.QueryRowContext(ctx, streamVoiceLineColumns+` WHERE job_id = ? AND id = ?`, patch.JobID.String(), patch.ID.String()))
+	if errors.Is(err, sql.ErrNoRows) {
+		return streamclips.VoiceLine{}, streamclips.ErrVoiceLineNotFound
+	}
+	if err != nil {
+		return streamclips.VoiceLine{}, err
+	}
+	out := patchStreamVoiceLine(cur, patch)
+	words, err := encodeDemoVoiceWords(out.Words)
+	if err != nil {
+		return streamclips.VoiceLine{}, err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE stream_voice_lines SET text = ?, corrected = ?, corrected_by = ?, original_text = ?, discarded = ?, words = ? WHERE id = ?`,
+		out.Text, out.Corrected, out.CorrectedBy, out.OriginalText, out.Discarded, words, patch.ID.String())
+	return out, err
+}
+
 func (r *SQLiteStreamJobRepository) ListStreamVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT job_id, text, original_text, vocab_text FROM stream_voice_lines
-		WHERE corrected = 1 ORDER BY job_id, start_ms, rowid`)
+		WHERE corrected = 1 AND corrected_by != 'assistant' ORDER BY job_id, start_ms, rowid`)
 	if err != nil {
 		return nil, fmt.Errorf("list stream voice corrections: %w", err)
 	}

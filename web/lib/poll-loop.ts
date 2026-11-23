@@ -25,6 +25,7 @@ export interface PollLoopOptions {
    * injection keeps the lifecycle deterministic in tests.
    */
   activity?: WindowActivity;
+  wake?: (listener: () => void) => () => void;
 }
 
 // startPollLoop runs the first tick immediately, then reschedules itself using
@@ -79,6 +80,16 @@ export function startPollLoop(opts: PollLoopOptions): () => void {
     schedule(cadence === 'fast' ? opts.fastMs : opts.idleMs);
   }
 
+  const unsubscribeWake = opts.wake?.(() => {
+    if (stopped) return;
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      timer = undefined;
+    }
+    if (running) refreshPending = true;
+    else void run();
+  });
+
   const unsubscribe = activity.subscribe(() => {
     if (stopped) return;
     if (!activity.isActive()) {
@@ -107,6 +118,7 @@ export function startPollLoop(opts: PollLoopOptions): () => void {
   return function stop(): void {
     stopped = true;
     unsubscribe();
+    unsubscribeWake?.();
     if (timer !== undefined) {
       clearTimeout(timer);
       timer = undefined;

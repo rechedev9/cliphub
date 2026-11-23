@@ -1,3 +1,5 @@
+import { offlineMessage } from '../load-error.ts';
+
 /** Produce-screen empty state when `getMatch` returns nothing (404 / gone from disk). */
 export const PRODUCE_MATCH_MISSING = {
   title: 'Partida no encontrada',
@@ -50,7 +52,7 @@ export const PRODUCE_FULL_QUEUE_CTA = 'Poner demo completa en cola';
 
 /** A poll tick failed while the partida is already on screen: warn, keep the content. */
 export const PRODUCE_POLL_ERROR = 'No se pudo actualizar esta partida. Seguimos mostrando los últimos datos cargados.';
-export const PRODUCE_POLL_OFFLINE = 'Servicio local sin conexión. Seguimos mostrando los últimos datos cargados.';
+export const PRODUCE_POLL_OFFLINE = `${offlineMessage()} Seguimos mostrando los últimos datos cargados.`;
 
 /** `scanned` partida: roster read, no POV picked. Settled, so it never advances on its own. */
 export const PRODUCE_MATCH_NO_POV = {
@@ -60,5 +62,5 @@ export const PRODUCE_MATCH_NO_POV = {
 export const PRODUCE_PICK_POV_CTA = 'Elegir jugador';
 
 /** Creating a Short failed in transport or on the server; domain errors keep their own text. */
-export const PRODUCE_SHORT_CREATE_OFFLINE = 'El servicio local no responde. Comprueba que ClipHub sigue abierto y vuelve a intentarlo.';
+export const PRODUCE_SHORT_CREATE_OFFLINE = offlineMessage();
 export const PRODUCE_SHORT_CREATE_ERROR = 'No se pudo crear el vídeo. Vuelve a intentarlo.';

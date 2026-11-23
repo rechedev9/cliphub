@@ -28,7 +28,7 @@ const SIDES = [
 
 const TONE_CLASS: Record<StatusTone, string> = {
   success: 'border-success/40 bg-success/10',
-  accent: 'border-primary/40 bg-primary/10',
+  default: 'border-primary/40 bg-primary/10',
   secondary: 'border-border bg-surface-2',
   stream: 'border-stream/40 bg-stream/10',
   outline: 'border-border bg-surface-1',
@@ -36,7 +36,7 @@ const TONE_CLASS: Record<StatusTone, string> = {
 
 const DOT_CLASS: Record<StatusTone, string> = {
   success: 'bg-success',
-  accent: 'bg-primary',
+  default: 'bg-primary',
   secondary: 'bg-fg-4',
   stream: 'bg-stream',
   outline: 'bg-border-strong',

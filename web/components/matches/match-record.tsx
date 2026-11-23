@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Layers, MonitorPlay, Smartphone, Swords, Users, type LucideIcon } from 'lucide-react';
+import { Layers, MonitorPlay, Smartphone, Swords, Users, type LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import { CHANGE_NOT_APPLIED_REASON, parseFailureReason } from '@/lib/api/failure-reason';
 import type { LibraryDemo } from '@/lib/api/library';
@@ -27,6 +27,7 @@ import { MediaPlayer } from '@/components/studio/media-player';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { TacticalWorkspace } from '@/components/tactical/tactical-workspace';
 import { Button, FOCUS_RING } from '@/components/ui/button';
+import { LoadingText } from '@/components/ui/loading-text';
 import { Progress } from '@/components/ui/progress';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
@@ -99,6 +100,7 @@ export function MatchRecord({ matchId }: { matchId: string }): ReactNode {
       <RecordHeader
         kind="Partida"
         icon={Swords}
+        back={{ href: MATCHES_HREF, label: 'Todas las partidas' }}
         title={map || 'Partida'}
         fields={matchFields(match)}
         actions={
@@ -113,12 +115,6 @@ export function MatchRecord({ matchId }: { matchId: string }): ReactNode {
               <Link href={produceHref(matchId, PRODUCE_FORMAT.full)}>
                 <MonitorPlay aria-hidden />
                 Demo completa
-              </Link>
-            </Button>
-            <Button asChild variant="ghost" size="sm">
-              <Link href={MATCHES_HREF}>
-                <ArrowLeft aria-hidden />
-                Todas las partidas
               </Link>
             </Button>
           </>
@@ -181,9 +177,9 @@ export function MatchVideos({ matchId, videos, onVideosChange, demo, onOpenRound
     return (
       <RelatedList title="Vídeos de esta partida">
         {videos === undefined ? (
-          <p className="px-4 py-3 text-body-sm text-fg-3">Cargando vídeos</p>
+          <LoadingText className="px-4 py-3">Cargando vídeos</LoadingText>
         ) : (
-          <p className="px-4 py-3 text-body-sm text-fg-2">No se pudieron leer los vídeos. Comprueba que ClipHub Studio sigue abierto.</p>
+          <p role="alert" className="px-4 py-3 text-body-sm text-fg-2">No se pudieron leer los vídeos. Vuelve a abrir la partida para reintentar.</p>
         )}
       </RelatedList>
     );

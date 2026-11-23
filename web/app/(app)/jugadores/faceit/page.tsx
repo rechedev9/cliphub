@@ -20,16 +20,17 @@ import { PlayerProfile } from '@/components/players/player-profile';
 import { PlayerRail } from '@/components/players/player-rail';
 import { PlayerRows } from '@/components/players/player-rows';
 import { RankingPanel } from '@/components/players/ranking-panel';
-import { StudioEmptyState } from '@/components/studio/empty-state';
+import { EmptyState } from '@/components/records/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DisclosureSummary } from '@/components/ui/disclosure-summary';
+import { offlineHint, offlineMessage, offlineTitle } from '@/lib/load-error';
 
 type LoadState = 'loading' | 'ready' | 'offline' | 'unconfigured';
 
 const FACEIT_UNCONFIGURED_HINT = 'La conexión con FACEIT no está activada en este PC. Puedes cargar una demo descargada desde una sala de FACEIT para empezar a crear.';
-const FACEIT_OFFLINE_HINT = 'Servicio local sin conexión.';
+const FACEIT_OFFLINE_HINT = offlineMessage();
 // The service refreshes the followed ELOs once when Studio starts; while that runs, re-read the list to pick up the result.
 const ROSTER_REFRESHING_POLL_MS = 5_000;
 const WORKSPACE_GRID = 'grid min-w-0 items-start gap-5 @[64rem]/content:grid-cols-[19rem_minmax(0,1fr)] @[80rem]/content:gap-6';
@@ -240,16 +241,16 @@ export default function FaceitPlayersPage(): ReactNode {
       <div className="space-y-5"><Skeleton className="h-40 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-80 w-full" /></div>
     </div>;
   } else if (state === 'unconfigured') {
-    body = <StudioEmptyState icon={Users} title="FACEIT no está configurado" description={FACEIT_UNCONFIGURED_HINT}
+    body = <EmptyState icon={Users} title="FACEIT no está configurado" description={FACEIT_UNCONFIGURED_HINT}
       actions={<Button asChild><Link href="/shorts">Cargar una demo</Link></Button>}
       note={<details className="text-left normal-case tracking-normal">
         <DisclosureSummary className="min-h-10 py-2">Configuración avanzada de FACEIT</DisclosureSummary>
         <p className="break-words text-body-sm">Configura FACEIT_API_KEY en el servicio local y reinicia ClipHub para consultar perfiles e historial.</p>
-      </details>} compact />;
+      </details>} />;
   } else if (players.length === 0 && state === 'offline') {
-    body = <StudioEmptyState icon={Users} title="Servicio local sin conexión"
-      description="Arranca el servicio local y vuelve a intentarlo para ver a los jugadores que sigues."
-      actions={<Button variant="outline" onClick={() => void refresh()}>Reintentar</Button>} compact />;
+    body = <EmptyState icon={Users} title={offlineTitle()}
+      description={offlineHint()}
+      actions={<Button variant="outline" onClick={() => void refresh()}>Reintentar</Button>} />;
   } else {
     const followedShown = shown !== null && followedIDs.has(shown.id);
     const place = tab === 'ranking' && rankingSelected !== null && choice !== null

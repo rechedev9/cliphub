@@ -6,17 +6,18 @@ export type EmptyStateProps = {
   icon: LucideIcon;
   title: string;
   description: ReactNode;
-  /** What the area will hold, as a short list; for sections still being built. */
   preview?: readonly string[];
   actions?: ReactNode;
+  note?: ReactNode;
+  role?: 'status' | 'alert';
   className?: string;
 };
 
-/** A quiet, left-aligned empty panel for lists and record sections. */
-export function EmptyState({ icon: Icon, title, description, preview, actions, className }: EmptyStateProps): ReactNode {
+export function EmptyState({ icon: Icon, title, description, preview, actions, note, role, className }: EmptyStateProps): ReactNode {
   return (
     <section
       aria-label={title}
+      role={role}
       data-slot="records-empty"
       className={cn('flex flex-col gap-4 rounded-lg border border-dashed border-border-strong px-5 py-8 sm:px-8', className)}
     >
@@ -40,6 +41,7 @@ export function EmptyState({ icon: Icon, title, description, preview, actions, c
         </ul>
       ) : null}
       {actions ? <div className="ml-13 flex flex-wrap gap-2">{actions}</div> : null}
+      {note ? <div className="ml-13 text-meta text-fg-3">{note}</div> : null}
     </section>
   );
 }

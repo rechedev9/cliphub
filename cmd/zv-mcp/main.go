@@ -330,6 +330,17 @@ video queues the demo's one transcription when it has none (transcribe_demo_voic
 for it up to 30 min, and a video that goes without subtitles says why in its warnings. demo_transcript lists the phrases with their ids; correct_demo_phrase fixes one for every later video
 and keeps what the transcriber heard as original_text (a phrase the CS2 vocabulary corrector changed also has vocab_text and vocab_changes, and correcting it back to original_text undoes them and stops those changes in later transcriptions; a word change made by hand in two or more phrases is applied by later ones), discard_demo_phrase takes a phrase the transcriber invented out of every video of the demo
 (restore brings it back), and subtitles_hidden leaves one out of that video only. Transcribing again keeps the corrections and discards of the phrases heard the same.
+Subtitle review: before generate_short, plan_full_demo, render_stream or render_stream_summary with subtitles on, offer the user a review pass, never a silent one.
+review_demo_subtitles (job_id with the segment_ids and pre_roll_seconds of the Short, deaths for a death reel, or the rounds of the Full Demo) and
+review_stream_subtitles (no clip_ids and the play_ids of render_stream, or summary with the play_ids of the resumen) list only the phrases that video draws,
+with a glossary of the player nicks, map callouts and CS2 lexicon. The list counts only when state is ready and, for a stream, untranscribed is empty:
+transcribe first (transcribe_demo_voice, or transcribe_stream with the untranscribed stretches) and review again. When truncated, review again by fewer
+rounds, segment_ids, clip_ids or play_ids. Propose only the corrections you are sure of, and only mishearings (nicks, callouts, weapons, CS2 jargon,
+words split or joined): never rewrite, summarise, censor or translate; leave a phrase you cannot understand as it is, or propose discarding it, and
+leave a phrase corrected_by user alone. After the user agrees, correct_demo_phrases or correct_stream_phrases applies them all in one call behind one
+approval, marked corrected_by assistant; use them for every correction you propose, even of one phrase, and correct_demo_phrase or correct_stream_phrase
+only for text the user typed or dictated. The vocabulary corrector does not learn from assistant corrections; a hand correction of the phrase makes it
+the user's again, and original_text undoes it.
 get_round_comms gives one round's talk time by phase and phrases, match_talk_time every round's talk time, and
 search_comms finds a phrase by team, dates and period (round phase); each phrase has a studio_path to its moment.
 The TeamSpeak plugin (Instalar plugin de TeamSpeak in Ajustes) records one track per person while CS2 says a match is live;
@@ -358,7 +369,7 @@ downloading the transcription first like transcribe_voice; stream_transcript rea
 changed has vocab_text and vocab_changes, as in demo_transcript but with the CS2 lexicon and the corrections learned from demos
 and streams only (a stream has no map, so no callouts or nicks); correcting it back to original_text undoes them. correct_stream_phrase and
 discard_stream_phrase count for every video of the stream; set_stream_subtitles turns subtitles on for the Shorts or the resumen
-and hides a phrase in one video (a momento or group id, or summary). No review is needed before a render. With the switch on,
+and hides a phrase in one video (a momento or group id, or summary). Offer the subtitle review before a render, as for a demo. With the switch on,
 render_stream draws them on each Short (9:16: 2 to 4 words at a time in uppercase, the spoken word highlighted, inside the
 platforms' safe zone; a 16:9 layout draws them like the resumen) and render_stream_summary on the resumen (white lines, no
 speaker name), without hidden and discarded phrases. The render waits up to 5 minutes for the transcript of its stretches; when

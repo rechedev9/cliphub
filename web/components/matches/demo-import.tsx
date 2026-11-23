@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { offlineMessage } from '@/lib/load-error';
 
 const DEMO_FILE = /\.dem(\.zst)?$/i;
 
@@ -33,7 +34,7 @@ function importedHref(result: SharePackageImport): string | null {
 
 /** The sentence a failed package import shows. */
 function packageImportError(failure: unknown): string {
-  if (isLibraryOffline(failure)) return 'El servicio local no responde. Comprueba que ClipHub Studio sigue abierto.';
+  if (isLibraryOffline(failure)) return offlineMessage();
   const code = failure instanceof LibraryApiError ? failure.code : undefined;
   return shareErrorLabel(code, 'No se pudo importar el paquete.');
 }
@@ -179,7 +180,7 @@ export function DemoImport({ onImported, trigger }: { onImported: () => void; tr
           ) : null}
           {offline ? (
             <p role="alert" className="text-body-sm text-destructive">
-              El servicio local no responde. Comprueba que ClipHub Studio sigue abierto.
+              {offlineMessage()}
             </p>
           ) : null}
 

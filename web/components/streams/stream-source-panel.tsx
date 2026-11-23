@@ -82,7 +82,7 @@ export function StreamSourcePanel({
       className={cn(
         'flex flex-col gap-4.5 rounded-3xl border p-5 transition-colors duration-(--dur-fast) ease-standard @[40rem]/content:p-7',
         FORMAT_TONE.stream.tint,
-        dragging ? 'border-dashed border-format-stream' : FORMAT_TONE.stream.border,
+        dragging ? 'border-dashed border-format-stream' : 'border-border-subtle',
       )}
     >
       <div className="flex flex-wrap items-end gap-4.5">
@@ -122,8 +122,8 @@ export function StreamSourcePanel({
         <Label htmlFor="stream-url" className="sr-only">Enlace del vídeo</Label>
         <div
           className={cn(
-            'flex min-w-0 flex-wrap items-center gap-2.5 rounded-2xl border-2 bg-surface-0 py-2 pr-2 pl-4.5',
-            urlError ? 'border-destructive' : 'border-format-stream/70',
+            'flex min-w-0 flex-wrap items-center gap-2.5 rounded-2xl border bg-surface-0 py-2 pr-2 pl-4.5 transition-[border-color] duration-(--dur-fast) focus-within:border-ring',
+            urlError ? 'border-destructive' : 'border-border-strong',
           )}
         >
           <Link2 aria-hidden className={cn('size-5 shrink-0', FORMAT_TONE.stream.text)} />
@@ -143,8 +143,7 @@ export function StreamSourcePanel({
           />
           <Button
             type="submit"
-            variant="stream"
-            className="rounded-xl px-5 font-extrabold"
+            className={cn('rounded-xl border-transparent px-5 font-extrabold', FORMAT_TONE.stream.fill)}
             disabled={submitting}
             loading={submitting}
             loadingText="Importando…"
@@ -206,7 +205,7 @@ export function StreamSourcePanel({
         }}
       />
 
-      <p id="stream-source-hint" className="flex items-start gap-2.5 border-t border-format-stream/25 pt-4 text-body-sm text-fg-2">
+      <p id="stream-source-hint" className="flex items-start gap-2.5 border-t border-border-subtle pt-4 text-body-sm text-fg-2">
         <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
         <span>{KIND_COPY[sourceKind].result} También puedes arrastrar un MP4 hasta aquí.</span>
       </p>

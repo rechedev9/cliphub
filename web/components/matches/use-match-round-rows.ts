@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { fetchTacticalDocument, isServiceUnavailableError, isTacticalNotReadyError } from '@/lib/api/tactical';
+import { fetchTacticalDocument, isTacticalNotReadyError } from '@/lib/api/tactical';
 import type { TacticalDocument } from '@/lib/api/tactical';
-import { roundRows, type RoundRow } from '@/lib/library/rounds';
+import { loadErrorMessage } from '@/lib/load-error';
+import { playedRounds, roundRows, type RoundRow } from '@/lib/library/rounds';
 
 export type MatchRoundRows =
   | { readonly kind: 'loading' }
@@ -22,7 +23,7 @@ export function useMatchRoundRows(matchId: string): MatchRoundRows {
     setState({ kind: 'loading' });
     fetchTacticalDocument({ kind: 'library', id: matchId })
       .then((doc) => {
-        if (active) setState({ kind: 'ready', doc, rows: roundRows(doc) });
+        if (active) setState({ kind: 'ready', doc, rows: playedRounds(roundRows(doc)) });
       })
       .catch((err: unknown) => {
         if (!active) return;
@@ -32,9 +33,7 @@ export function useMatchRoundRows(matchId: string): MatchRoundRows {
         }
         setState({
           kind: 'error',
-          message: isServiceUnavailableError(err)
-            ? 'El servicio local no está disponible.'
-            : 'No se pudo leer el documento táctico de esta partida.',
+          message: loadErrorMessage({ error: err, lead: 'No se pudieron leer las rondas de esta partida.' }),
           retry: () => setAttempt((n) => n + 1),
         });
       });

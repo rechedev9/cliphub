@@ -40,15 +40,20 @@ export function fullDemoVoiceStatus(availability: string | null): VoiceStatus {
   return VOICE_STATUS[availability] ?? { text: `Estado de las voces: ${availability}.`, problem: true };
 }
 
-function voiceValue(enabled: boolean, availability: string | null): string {
-  if (!enabled) return 'Sin voces';
-  if (availability === 'available') return 'Incluidas';
-  return fullDemoVoiceStatus(availability).problem ? 'No hay en esta demo' : 'Si la demo las tiene';
+export function demoHasNoVoices(availability: string | null): boolean {
+  return availability === 'no_packets';
 }
 
-function subtitlesValue(options: FullDemoOptions): string {
+function voiceValue(enabled: boolean, availability: string | null): string {
+  if (demoHasNoVoices(availability)) return 'No hay voces en esta demo';
+  if (!enabled) return 'Sin voces';
+  if (availability === 'available') return 'Incluidas';
+  return fullDemoVoiceStatus(availability).problem ? 'No se pueden usar en esta demo' : 'Si la demo las tiene';
+}
+
+function subtitlesValue(options: FullDemoOptions, voiceAvailability: string | null): string {
   const subtitles = options.subtitles;
-  if (!subtitles?.enabled || !options.audio.voice.enabled) return 'No';
+  if (!subtitles?.enabled || !options.audio.voice.enabled || demoHasNoVoices(voiceAvailability)) return 'No';
   const hidden = subtitles.hidden?.length ?? 0;
   return `Sí${hidden > 0 ? `, ${hidden} ${hidden === 1 ? 'frase oculta' : 'frases ocultas'}` : ''}`;
 }
@@ -71,7 +76,7 @@ export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: 
     { label: FULL_DEMO_TRUEVIEW_LABEL, value: options.capture.trueview ? 'Sí' : 'No' },
     { label: FULL_DEMO_PRO_SETTINGS_LABEL, value: proSettingsSummary(options.capture.pro_settings) },
     { label: 'Voces del equipo', value: voiceValue(options.audio.voice.enabled, voiceAvailability) },
-    { label: 'Subtítulos', value: subtitlesValue(options) },
+    { label: 'Subtítulos', value: subtitlesValue(options, voiceAvailability) },
     { label: 'Efectos entre rondas', value: (options.transitions?.enabled ?? true) ? 'Activados' : 'Desactivados' },
     { label: FULL_DEMO_BUMPERS_TITLE, value: hasBumpers(options) ? bumperSummary(options) : 'Ninguno' },
     { label: INTRO_DESIGN_LABEL, value: options.overlays.theme === 'hud' ? INTRO_DESIGNS.hud : INTRO_DESIGNS.neon },

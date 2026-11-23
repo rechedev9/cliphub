@@ -1,115 +1,58 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { deleteErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
 import { cn } from '@/lib/utils';
 
-/** How long the armed "¿Borrar?" state waits before reverting on its own. */
-const REVERT_MS = 8000;
-const DEFAULT_CONFIRM = '¿Borrar?';
-
-/**
- * Two-step inline delete for a Partidas row (match or series). The first click
- * arms a destructive "¿Borrar?" button; the second confirms. Blur or a short
- * timeout disarms it, so there is no native confirm() and no modal. While
- * deleting the button shows a spinner and is disabled; on success `onDeleted`
- * lets the page re-fetch, and on failure the row shows an inline Spanish message
- * (offline hint or the orchestrator's 409 explanation) instead of crashing.
- *
- * Both states are `Button` now: the hand-rolled versions re-typed the geometry
- * and the whole `focus-visible:ring-*` recipe that `buttonVariants` already
- * ships — the single most duplicated string in the domain layer.
- */
 export function DeleteMatchButton({
   label,
-  confirmText = DEFAULT_CONFIRM,
+  confirmText,
   onConfirm,
   onDeleted,
   messageBelow = false,
 }: {
   label: string;
-  /** In a wrapping flex row, the message takes its own full-width line instead of widening the button column. */
   messageBelow?: boolean;
-  /** The armed button's text; name there what else the delete takes with it. */
   confirmText?: string | undefined;
   onConfirm: () => Promise<void>;
   onDeleted: () => void;
-}) {
-  const [armed, setArmed] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+}): ReactNode {
   const [error, setError] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function clearTimer() {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-  }
-
-  useEffect(() => clearTimer, []);
-
-  function arm() {
-    setError(null);
-    setArmed(true);
-    clearTimer();
-    timer.current = setTimeout(() => setArmed(false), REVERT_MS);
-  }
-
-  function disarm() {
-    clearTimer();
-    setArmed(false);
-  }
-
-  async function confirm() {
-    if (deleting) return;
-    clearTimer();
-    setDeleting(true);
+  async function confirm(): Promise<void> {
     setError(null);
     try {
       await onConfirm();
-      setArmed(false);
       onDeleted();
     } catch (err) {
       setError(deleteErrorMessage(err));
-      setArmed(false);
-    } finally {
-      setDeleting(false);
     }
   }
 
   return (
     <div className={messageBelow ? 'contents' : 'flex shrink-0 flex-col items-end gap-1'}>
-      {armed || deleting ? (
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          autoFocus
-          loading={deleting}
-          onClick={() => void confirm()}
-          onBlur={disarm}
-          aria-label={confirmText === DEFAULT_CONFIRM ? `Confirmar borrar ${label}` : `Confirmar borrar ${label}: ${confirmText}`}
-          className="text-meta"
-        >
-          {deleting ? null : <Trash2 aria-hidden />}
-          {deleting ? 'Borrando…' : confirmText}
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={arm}
-          aria-label={`Borrar ${label}`}
-          title={`Borrar ${label}`}
-          className="text-fg-3 hover:bg-destructive/10 hover:text-destructive"
-        >
-          <Trash2 aria-hidden />
-        </Button>
-      )}
+      <ConfirmDialog
+        title={confirmText ?? `¿Borrar ${label}?`}
+        description={`Se borra ${label}. No se puede deshacer.`}
+        confirmLabel="Borrar"
+        pendingLabel="Borrando…"
+        onConfirm={confirm}
+        trigger={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Borrar ${label}`}
+            title={`Borrar ${label}`}
+            className="text-fg-3 hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 aria-hidden />
+          </Button>
+        }
+      />
       {error ? (
         <p
           role="status"

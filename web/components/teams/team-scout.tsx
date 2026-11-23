@@ -122,7 +122,7 @@ function ScoutResult({ failed, scout, teamId, actions }: { failed: boolean; scou
       <div className="flex flex-col gap-4">
         <div className="flex justify-end">{actions}</div>
         <p role="alert" className="text-body-sm text-destructive">
-          No se pudo leer el scouting de este equipo. Comprueba que ClipHub Studio sigue abierto.
+          No se pudo leer el scouting de este equipo. Vuelve a intentarlo.
         </p>
       </div>
     );

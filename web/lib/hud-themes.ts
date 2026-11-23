@@ -1,5 +1,6 @@
 import { customHudTheme } from './custom-hud.ts';
 import { apiFetch } from './api/edition-fetch.ts';
+import { serverError } from './human-error.ts';
 
 /** Mirrors hudthemes.Style: a nil radius keeps the base design's shape. */
 export type HudStyle = { name: string; ct: string; t: string; background: string; radius?: number };
@@ -98,7 +99,7 @@ async function call(path: string, init?: RequestInit): Promise<unknown> {
   const body: unknown = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
     if (record(body) && body.code === 'hud_theme_limit') throw new Error('Ya tienes 10 temas, el máximo. Borra uno para crear otro.');
-    throw new Error(record(body) && typeof body.error === 'string' ? body.error : 'No se pudo guardar el tema.');
+    throw serverError(record(body) && typeof body.error === 'string' ? body.error : 'No se pudo guardar el tema.', response);
   }
   return body;
 }

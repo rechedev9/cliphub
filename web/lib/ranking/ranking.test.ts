@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { LeaderboardRow } from '../api/baseline.ts';
 import {
-  DEFAULT_MIN_ROUNDS,
+  LIBRARY_MIN_ROUNDS,
+  PRO_MIN_ROUNDS,
   RANKING_FETCH_LIMIT,
   leaderboardRequest,
   parseRanking,
@@ -30,10 +31,10 @@ const parse = (query: string): RankingState => parseRanking(new URLSearchParams(
 test('an empty query is the default view', () => {
   const state = parse('');
   assert.equal(state.sort, 'rating');
-  assert.equal(state.minRounds, DEFAULT_MIN_ROUNDS);
+  assert.equal(state.minRounds, PRO_MIN_ROUNDS);
   assert.equal(state.role, '');
   assert.deepEqual(state.scope.period, { kind: 'preset', preset: '90d' });
-  assert.equal(DEFAULT_MIN_ROUNDS, 50);
+  assert.equal(PRO_MIN_ROUNDS, 150);
   assert.equal(state.scope.reference, 'pro');
   assert.equal(writeRanking(state), '');
 });
@@ -56,10 +57,23 @@ test('every date is asked for explicitly and survives the URL', () => {
 
 test('the minimum of rounds is any whole number from 1 to 10000', () => {
   assert.equal(parse('min=137').minRounds, 137);
-  assert.equal(parse('min=0').minRounds, DEFAULT_MIN_ROUNDS);
-  assert.equal(parse('min=10001').minRounds, DEFAULT_MIN_ROUNDS);
-  assert.equal(parse('min=1.5').minRounds, DEFAULT_MIN_ROUNDS);
+  assert.equal(parse('min=0').minRounds, PRO_MIN_ROUNDS);
+  assert.equal(parse('min=10001').minRounds, PRO_MIN_ROUNDS);
+  assert.equal(parse('min=1.5').minRounds, PRO_MIN_ROUNDS);
   assert.equal(parse(writeRanking(parse('min=137'))).minRounds, 137);
+});
+
+test('the library ranks from fewer rounds than the pros, and a switch keeps a chosen minimum', () => {
+  const library = parse('ref=library');
+  assert.equal(library.minRounds, LIBRARY_MIN_ROUNDS);
+  assert.equal(writeRanking(library), 'ref=library');
+  assert.equal(parse('ref=library&min=0').minRounds, LIBRARY_MIN_ROUNDS);
+  const toPro = patchRanking(library, { scope: { reference: 'pro' } });
+  assert.equal(toPro.minRounds, PRO_MIN_ROUNDS);
+  assert.equal(writeRanking(toPro), '');
+  assert.equal(patchRanking(toPro, { scope: { reference: 'library' } }).minRounds, LIBRARY_MIN_ROUNDS);
+  assert.equal(patchRanking(parse('min=80'), { scope: { reference: 'library' } }).minRounds, 80);
+  assert.equal(writeRanking(parse('ref=library&min=150')), 'ref=library&min=150');
 });
 
 test('the side is read in any case and written in one', () => {

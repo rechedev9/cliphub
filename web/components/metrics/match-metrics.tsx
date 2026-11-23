@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { Gauge, PlugZap } from 'lucide-react';
+import { Gauge } from 'lucide-react';
 import { LibraryApiError, getLibraryMatchMetrics, type LibraryMatch } from '@/lib/api/library';
 import type { MetricsReport } from '@/lib/api/metrics';
 import { playerHref } from '@/lib/clips/routes';
 import { ctTeamByRound, topSwings } from '@/lib/metrics/match-view';
 import { EmptyState } from '@/components/records/empty-state';
-import { Button } from '@/components/ui/button';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MatchPlayersTable } from './match-players-table';
 import { MatchSwings } from './match-swings';
@@ -15,7 +15,7 @@ import { MatchWinChart } from './match-win-chart';
 import { MetricsView } from './metrics-view';
 import { WinProbability } from './win-probability';
 
-type State = { kind: 'loading' } | { kind: 'ready'; report: MetricsReport } | { kind: 'pending' } | { kind: 'offline' };
+type State = { kind: 'loading' } | { kind: 'ready'; report: MetricsReport } | { kind: 'pending' } | { kind: 'failed'; error: unknown };
 
 const SWING_LIMIT = 5;
 
@@ -108,7 +108,7 @@ export function MatchMetrics({
       })
       .catch((error: unknown) => {
         if (!active) return;
-        setState(error instanceof LibraryApiError && error.status === 409 ? { kind: 'pending' } : { kind: 'offline' });
+        setState(error instanceof LibraryApiError && error.status === 409 ? { kind: 'pending' } : { kind: 'failed', error });
       });
     return () => {
       active = false;
@@ -132,19 +132,8 @@ export function MatchMetrics({
       />
     );
   }
-  if (state.kind === 'offline') {
-    return (
-      <EmptyState
-        icon={PlugZap}
-        title="No se pudieron calcular las métricas"
-        description="Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-            Reintentar
-          </Button>
-        }
-      />
-    );
+  if (state.kind === 'failed') {
+    return <LoadErrorState error={state.error} title="No se pudieron calcular las métricas" onRetry={() => setAttempt((n) => n + 1)} />;
   }
   return <MatchMetricsReport match={match} report={state.report} onOpenReplay={onOpenReplay} />;
 }

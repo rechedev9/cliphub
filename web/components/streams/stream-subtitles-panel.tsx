@@ -40,6 +40,8 @@ export function StreamSubtitlesPanel({ jobId, kind, video, stretches, disabled =
   const [transcript, setTranscript] = useState<StreamTranscript | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
   const asked = useRef('');
 
   const load = useCallback(async (): Promise<void> => {
@@ -63,13 +65,7 @@ export function StreamSubtitlesPanel({ jobId, kind, video, stretches, disabled =
 
   const status = streamSubtitlesStatus(transcript?.availability ?? 'available');
   const enabled = transcript !== null && transcript.subtitles[kind] && status.enabled;
-  const missing = enabled && transcript.transcriber.state === 'not_installed';
-  useEffect(() => {
-    if (!missing) return;
-    void installTranscriber().catch(() => undefined).then(load);
-  }, [load, missing]);
-
-  const waiting = transcript !== null && (['queued', 'running'].includes(transcript.state) || transcript.transcriber.state === 'installing' || missing);
+  const waiting = transcript !== null && (['queued', 'running'].includes(transcript.state) || transcript.transcriber.state === 'installing');
   useEffect(() => {
     if (!waiting) return;
     const timer = window.setInterval(() => void load(), POLL_MS);
@@ -103,6 +99,19 @@ export function StreamSubtitlesPanel({ jobId, kind, video, stretches, disabled =
     }
   };
 
+  const install = async (): Promise<void> => {
+    setInstalling(true);
+    setInstallError(null);
+    try {
+      await installTranscriber();
+      await load();
+    } catch (error) {
+      setInstallError(voiceErrorText(errorCode(error), 'No se pudo descargar el transcriptor.'));
+    } finally {
+      setInstalling(false);
+    }
+  };
+
   const locked = disabled || busy;
   const hidden = video === null ? [] : transcript?.subtitles.hidden[video.id] ?? [];
   const rows = transcript === null || video === null ? [] : streamSubtitleRows({ lines: transcript.lines, windows: video.windows, hidden });
@@ -121,6 +130,7 @@ export function StreamSubtitlesPanel({ jobId, kind, video, stretches, disabled =
   };
   const toggle = (next: boolean): void => {
     void run(() => patchStreamSubtitles(jobId, kind === 'shorts' ? { shorts: next } : { summary: next }), 'No se pudo guardar el cambio.');
+    if (next && transcript?.transcriber.state === 'not_installed') void install();
   };
 
   return <div className="flex min-w-0 flex-col gap-3">
@@ -130,7 +140,7 @@ export function StreamSubtitlesPanel({ jobId, kind, video, stretches, disabled =
       <SubtitleToggle label={SUBTITLES_LABEL} checked={enabled} disabled={locked || !status.enabled} onChange={toggle} />
       {status.note ? <p role="status" className="text-body-sm text-fg-2">{status.note}</p> : null}
       {enabled ? <>
-        <TranscriberStatus transcriber={transcript.transcriber} busy={locked} onRetry={() => void run(installTranscriber, 'No se pudo preparar la transcripción.')} />
+        <TranscriberStatus transcriber={transcript.transcriber} busy={locked || installing} installError={installError} onInstall={() => void install()} />
         {note ? <p role="status" className="text-body-sm text-fg-2">{note}</p> : null}
         {usable && transcript.state === 'failed' && stretches.length > 0 ? (
           <Button variant="secondary" size="sm" className="self-start" disabled={locked}

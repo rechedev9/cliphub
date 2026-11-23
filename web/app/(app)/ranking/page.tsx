@@ -1,6 +1,9 @@
+import type { Metadata } from 'next';
 import { Suspense, type ReactNode } from 'react';
 import { RankingView } from '@/components/ranking/ranking-view';
 import { Skeleton } from '@/components/ui/skeleton';
+
+export const metadata: Metadata = { title: 'Ranking' };
 
 /** Ranking: who plays a role best on a map, from the library's analysed demos. */
 export default function RankingPage(): ReactNode {

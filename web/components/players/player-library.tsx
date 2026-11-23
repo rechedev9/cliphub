@@ -2,13 +2,14 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { PlugZap, Swords, User } from 'lucide-react';
+import { Swords, User } from 'lucide-react';
 import { isLibraryOffline, listLibraryPlayers, type LibraryPlayer } from '@/lib/api/library';
 import { MATCHES_HREF, playerHref } from '@/lib/clips/routes';
 import { formatShortDate } from '@/lib/format';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { TableSkeleton } from '@/components/records/table-skeleton';
 import { useTableView } from '@/components/records/use-table-view';
@@ -82,16 +83,7 @@ export function PlayerLibrary(): ReactNode {
 
   if (players.length === 0) {
     return offline ? (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudieron leer los jugadores. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind="offline" title="No se pudieron leer los jugadores" onRetry={() => setAttempt((n) => n + 1)} />
     ) : (
       <EmptyState
         icon={User}

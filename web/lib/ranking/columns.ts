@@ -1,5 +1,5 @@
 import type { GenericRole, LeaderboardRole, LeaderboardRow, SideBreakdown } from '../api/baseline.ts';
-import { RATING_FORMULA_TEXT } from '../analysis/rating.ts';
+import { RATING_LABEL } from '../analysis/rating.ts';
 import { formatDecimal } from '../format.ts';
 import { ROLE_LABEL as ROLE_LABEL_LIBRARY } from '../library/partidas.ts';
 import { ALLROUND, type RankingSort } from './ranking.ts';
@@ -27,7 +27,7 @@ const percent = (value: number): string => `${formatDecimal(value, 0)} %`;
 
 /** Table columns after the player, in reading order. Rating leads, as in every player ranking. */
 export const RANKING_COLUMNS: readonly RankingColumn[] = [
-  { sort: 'rating', header: 'Rating', title: RATING_FORMULA_TEXT, format: decimals(2) },
+  { sort: 'rating', header: 'Rating', title: RATING_LABEL, format: decimals(2) },
   { sort: 'adr', header: 'ADR', title: 'Daño medio por ronda', format: decimals(1) },
   { sort: 'kast', header: 'KAST', title: 'Rondas con baja, asistencia, supervivencia o muerte vengada', format: percent },
   { sort: 'kd', header: 'K/D', title: 'Bajas entre muertes', format: decimals(2) },

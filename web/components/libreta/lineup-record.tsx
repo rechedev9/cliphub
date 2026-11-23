@@ -3,21 +3,24 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Copy, Crosshair, Pencil, Play, PlugZap, Trash2 } from 'lucide-react';
+import { ArrowLeft, Copy, Crosshair, Pencil, Play, Trash2 } from 'lucide-react';
 import { isLibraryNotFound } from '@/lib/api/library';
 import { deleteLibraryLineup, getLibraryLineup, patchLibraryLineup, type LibraryLineup } from '@/lib/api/lineups';
 import { LIBRETA_TABS, libretaTabHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { lineupSpot, setposCommand } from '@/lib/libreta/lineups';
+import { loadErrorMessage } from '@/lib/load-error';
 import { evidencePath } from '@/lib/reports/scout-sections';
 import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practice-launch';
 import { Button } from '@/components/ui/button';
 import { currentEdition } from '@/lib/edition-routes';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Field } from '@/components/ui/field';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useCalloutNames } from '@/hooks/use-callout-names';
@@ -28,7 +31,7 @@ import { StatusBadge } from './status-badge';
 
 const LINEUPS_HREF = libretaTabHref(LIBRETA_TABS.lineups);
 
-type LoadState = { kind: 'loading' } | { kind: 'ready'; lineup: LibraryLineup } | { kind: 'missing' } | { kind: 'offline' };
+type LoadState = { kind: 'loading' } | { kind: 'ready'; lineup: LibraryLineup } | { kind: 'missing' } | { kind: 'failed'; error: unknown };
 
 /** One saved lineup: where to stand and aim, how to throw it, and a launch into CS2 to practise it. */
 export function LineupRecord({ lineupId }: { lineupId: string }): ReactNode {
@@ -42,7 +45,7 @@ export function LineupRecord({ lineupId }: { lineupId: string }): ReactNode {
         if (active) setState({ kind: 'ready', lineup });
       })
       .catch((error: unknown) => {
-        if (active) setState({ kind: isLibraryNotFound(error) ? 'missing' : 'offline' });
+        if (active) setState(isLibraryNotFound(error) ? { kind: 'missing' } : { kind: 'failed', error });
       });
     return () => {
       active = false;
@@ -64,7 +67,7 @@ export function LineupRecord({ lineupId }: { lineupId: string }): ReactNode {
       <EmptyState
         icon={Crosshair}
         title="Lineup no encontrado"
-        description="Puede que se haya eliminado o que el enlace sea antiguo."
+        description="Puede que se haya borrado o que el enlace sea antiguo."
         actions={
           <Button asChild variant="outline" size="sm">
             <Link href={LINEUPS_HREF}>Ver los lineups</Link>
@@ -73,18 +76,9 @@ export function LineupRecord({ lineupId }: { lineupId: string }): ReactNode {
       />
     );
   }
-  if (state.kind === 'offline') {
+  if (state.kind === 'failed') {
     return (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudo leer el lineup. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={reload}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState error={state.error} title="No se pudo leer el lineup" onRetry={reload} />
     );
   }
   return <LineupRecordView lineup={state.lineup} onChanged={reload} />;
@@ -93,7 +87,6 @@ export function LineupRecord({ lineupId }: { lineupId: string }): ReactNode {
 function LineupRecordView({ lineup, onChanged }: { lineup: LibraryLineup; onChanged: () => void }): ReactNode {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const practice = usePracticeLaunch(lineup.map);
   const calloutLabel = useCalloutNames([lineup.map]);
@@ -147,10 +140,23 @@ function LineupRecordView({ lineup, onChanged }: { lineup: LibraryLineup; onChan
               <Pencil aria-hidden />
               Editar
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setDeleting(true)}>
-              <Trash2 aria-hidden />
-              Eliminar
-            </Button>
+            <ConfirmDialog
+              title={`¿Borrar «${lineup.title}»?`}
+              description="Se borra el lineup de la Libreta y no se puede deshacer. Si solo quieres sacarlo de la lista, pásalo a Archivo."
+              confirmLabel="Borrar lineup"
+              pendingLabel="Borrando…"
+              onConfirm={() =>
+                deleteLibraryLineup(lineup.id)
+                  .then(() => router.push(LINEUPS_HREF))
+                  .catch((error: unknown) => setMessage(loadErrorMessage({ error, lead: 'No se pudo borrar el lineup.' })))
+              }
+              trigger={
+                <Button type="button" variant="ghost" size="sm">
+                  <Trash2 aria-hidden />
+                  Borrar
+                </Button>
+              }
+            />
             <Button asChild variant="ghost" size="sm">
               <Link href={LINEUPS_HREF}>
                 <ArrowLeft aria-hidden />
@@ -213,33 +219,6 @@ function LineupRecordView({ lineup, onChanged }: { lineup: LibraryLineup; onChan
         ) : null}
       </div>
       {editing ? <EditLineupDialog lineup={lineup} onClose={() => setEditing(false)} onSaved={onChanged} /> : null}
-      <Dialog open={deleting} onOpenChange={setDeleting}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Eliminar {lineup.title}</DialogTitle>
-            <DialogDescription>Se borra el lineup de la Libreta. No se puede deshacer; si solo quieres sacarlo de la lista, pásalo a Archivo.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleting(false)}>
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => {
-                deleteLibraryLineup(lineup.id)
-                  .then(() => router.push(LINEUPS_HREF))
-                  .catch(() => {
-                    setDeleting(false);
-                    setMessage('No se pudo eliminar el lineup.');
-                  });
-              }}
-            >
-              Eliminar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -256,8 +235,8 @@ function LineupNotes({ lineup, onSaved }: { lineup: LibraryLineup; onSaved: () =
     try {
       await patchLibraryLineup(lineup.id, { notes });
       onSaved();
-    } catch {
-      setError('No se pudieron guardar las notas.');
+    } catch (cause: unknown) {
+      setError(loadErrorMessage({ error: cause, lead: 'No se pudieron guardar las notas.' }));
     } finally {
       setBusy(false);
     }
@@ -265,16 +244,18 @@ function LineupNotes({ lineup, onSaved }: { lineup: LibraryLineup; onSaved: () =
 
   return (
     <form onSubmit={(event) => void save(event)} className="flex max-w-3xl flex-col gap-2">
-      <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-        Notas
-        <Textarea
-          value={notes}
-          maxLength={4000}
-          rows={4}
-          placeholder="Por ejemplo: apunta a la esquina de la antena con la mira."
-          onChange={(event) => setNotes(event.target.value)}
-        />
-      </label>
+      <Field label="Notas">
+        {(control) => (
+          <Textarea
+            {...control}
+            value={notes}
+            maxLength={4000}
+            rows={4}
+            placeholder="Por ejemplo: apunta a la esquina de la antena con la mira."
+            onChange={(event) => setNotes(event.target.value)}
+          />
+        )}
+      </Field>
       {error ? (
         <p role="alert" className="text-body-sm text-destructive">
           {error}

@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Pin, Search, X } from 'lucide-react';
 import type { LeaderboardRow } from '@/lib/api/baseline';
-import { DEFAULT_MIN_ROUNDS, MAX_MIN_ROUNDS, searchPlayers, type PinnedPlayer } from '@/lib/ranking/ranking';
+import { MAX_MIN_ROUNDS, searchPlayers, type PinnedPlayer } from '@/lib/ranking/ranking';
 import { Input } from '@/components/ui/input';
 import { Toggle } from '@/components/ui/toggle';
 import { cn } from '@/lib/utils';
@@ -20,8 +20,8 @@ const TONE = {
 /** One labelled row of the filter card: a tiny tracked caps label at the left, the controls after it. */
 export function FilterRow({ label, children }: { label: string; children: ReactNode }): ReactNode {
   return (
-    <div className="flex items-start gap-3">
-      <span className="w-18 shrink-0 pt-1.5 text-meta font-semibold tracking-widest text-fg-3 uppercase">{label}</span>
+    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+      <span className="shrink-0 text-meta sm:w-18 sm:pt-1.5 font-semibold tracking-widest text-fg-3 uppercase">{label}</span>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{children}</div>
     </div>
   );
@@ -59,8 +59,9 @@ export function FilterChip({
 }
 
 /** A whole number committed on release, blur or Enter, so a drag or typing "120" does not ask for every step. */
-export function MinRoundsControl({ value, onCommit }: { value: number; onCommit: (rounds: number) => void }): ReactNode {
+export function MinRoundsControl({ value, fallback, onCommit }: { value: number; fallback: number; onCommit: (rounds: number) => void }): ReactNode {
   const [text, setText] = useState(String(value));
+  const hintId = useId();
   useEffect(() => setText(String(value)), [value]);
   function commit(next: number): void {
     if (Number.isInteger(next) && next >= 1 && next <= MAX_MIN_ROUNDS) {
@@ -72,7 +73,7 @@ export function MinRoundsControl({ value, onCommit }: { value: number; onCommit:
   const parsed = Number(text);
   const slider = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), SLIDER_MAX) : value;
   return (
-    <div className="ml-auto flex items-center gap-2.5">
+    <div className="flex w-full flex-wrap items-center gap-x-2.5 gap-y-1 sm:ml-auto sm:w-auto">
       <span className="text-meta font-semibold tracking-widest text-fg-3 uppercase">Rondas mín.</span>
       <input
         type="range"
@@ -83,7 +84,7 @@ export function MinRoundsControl({ value, onCommit }: { value: number; onCommit:
         onChange={(event) => setText(event.target.value)}
         onPointerUp={(event) => commit(Number(event.currentTarget.value))}
         onKeyUp={(event) => commit(Number(event.currentTarget.value))}
-        className="h-1.5 w-40 cursor-pointer accent-primary"
+        className="h-1.5 min-w-24 flex-1 cursor-pointer accent-primary sm:w-40 sm:flex-none"
       />
       <Input
         type="number"
@@ -92,7 +93,7 @@ export function MinRoundsControl({ value, onCommit }: { value: number; onCommit:
         max={MAX_MIN_ROUNDS}
         value={text}
         aria-label="Rondas mínimas"
-        title={`Por debajo de ${DEFAULT_MIN_ROUNDS} rondas las cifras se mueven mucho`}
+        aria-describedby={hintId}
         onChange={(event) => setText(event.target.value)}
         onBlur={() => commit(Number(text))}
         onKeyDown={(event) => {
@@ -100,6 +101,9 @@ export function MinRoundsControl({ value, onCommit }: { value: number; onCommit:
         }}
         className="h-7 w-16 px-2 text-center text-body-sm font-semibold tabular-nums"
       />
+      <p id={hintId} className="basis-full text-meta text-fg-3 sm:text-right">
+        Por defecto, {fallback} rondas: con menos, una sola buena partida basta para subir a lo más alto.
+      </p>
     </div>
   );
 }

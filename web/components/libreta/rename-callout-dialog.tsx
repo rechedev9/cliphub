@@ -6,10 +6,11 @@ import { MAX_CALLOUT_NAME, deleteCalloutName, setCalloutName, type MapCallout } 
 import { isLibraryNotFound } from '@/lib/api/library';
 import { prettyMapName } from '@/lib/format';
 import { placeLabel } from '@/lib/tactical-labels';
+import { loadErrorMessage } from '@/lib/load-error';
 import { Button } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Field } from './play-fields';
 
 /** The team's own name for one CS2 place; `onSaved` gets the new name, or null back to CS2's. */
 export function RenameCalloutDialog({
@@ -37,8 +38,8 @@ export function RenameCalloutDialog({
       const saved = await setCalloutName({ map, token: callout.token, name: trimmed });
       onSaved(saved.name);
       onClose();
-    } catch {
-      setError('No se pudo guardar el nombre. Comprueba que ClipHub Studio sigue abierto.');
+    } catch (error) {
+      setError(loadErrorMessage({ error, lead: 'No se pudo guardar el nombre.' }));
       setBusy(false);
     }
   }
@@ -70,8 +71,8 @@ export function RenameCalloutDialog({
               Studio usará este nombre en {prettyMapName(map)} en lugar del de CS2: en los lineups, los roles, las jugadas y las granadas.
             </DialogDescription>
           </DialogHeader>
-          <Field label="Nombre del equipo">
-            <Input value={name} maxLength={MAX_CALLOUT_NAME} placeholder={cs2} autoFocus onChange={(event) => setName(event.target.value)} />
+          <Field label="Nombre del callout">
+            {(control) => <Input {...control} value={name} maxLength={MAX_CALLOUT_NAME} placeholder={cs2} autoFocus onChange={(event) => setName(event.target.value)} />}
           </Field>
           {error ? (
             <p role="alert" className="text-body-sm text-destructive">

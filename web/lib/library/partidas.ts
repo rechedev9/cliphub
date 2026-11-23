@@ -6,6 +6,7 @@ import type {
   LibraryParseState,
   LibraryRole,
   LibrarySource,
+  LibraryTeamKey,
 } from '../api/library.ts';
 import { TRUNCATED_DEMO_MESSAGE } from '../api/failure-reason.ts';
 import { formatDecimal, prettyMapName } from '../format.ts';
@@ -146,6 +147,40 @@ function scoreOutcome(own: number, rival: number): Outcome {
   if (own > rival) return 'win';
   if (own < rival) return 'loss';
   return 'draw';
+}
+
+export function playedRoundCount(match: Pick<LibraryMatch, 'teams'>): number {
+  return match.teams.reduce((sum, team) => sum + team.score, 0);
+}
+
+export type MatchResult =
+  | { readonly kind: 'won'; readonly winner: LibraryTeamKey }
+  | { readonly kind: 'draw' }
+  | { readonly kind: 'unfinished'; readonly leader: LibraryTeamKey | null };
+
+export type MatchResultInput = {
+  readonly scores: Readonly<Record<LibraryTeamKey, number>>;
+  readonly maxRounds: number;
+  readonly surrendered: boolean;
+};
+
+const DEFAULT_HALF = 12;
+const OVERTIME_HALF = 3;
+
+export function matchResult({ scores, maxRounds, surrendered }: MatchResultInput): MatchResult {
+  const ct = scores['ct-start'];
+  const t = scores['t-start'];
+  let leader: LibraryTeamKey | null = null;
+  if (ct > t) leader = 'ct-start';
+  if (t > ct) leader = 't-start';
+  const high = Math.max(ct, t);
+  const low = Math.min(ct, t);
+  const half = maxRounds > 1 ? Math.floor(maxRounds / 2) : DEFAULT_HALF;
+  if (leader === null) return surrendered || high === half ? { kind: 'draw' } : { kind: 'unfinished', leader };
+  if (surrendered) return { kind: 'won', winner: leader };
+  if (low < half) return high > half ? { kind: 'won', winner: leader } : { kind: 'unfinished', leader };
+  const overtimeStart = half + OVERTIME_HALF * Math.floor((low - half) / OVERTIME_HALF);
+  return high - overtimeStart > OVERTIME_HALF ? { kind: 'won', winner: leader } : { kind: 'unfinished', leader };
 }
 
 /** How a library team fared in a match, or null when it did not play it. */

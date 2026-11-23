@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Crosshair, Plus, PlugZap, Users } from 'lucide-react';
+import { Crosshair, Plus, Users } from 'lucide-react';
 import { GRENADE_KIND_LABEL } from '@/lib/analysis/grenade-patterns';
 import type { CountNoun } from '@/lib/records/selection';
 import { TEAM_GRENADE_KINDS } from '@/lib/api/grenades';
@@ -11,6 +11,8 @@ import type { LibretaStatus } from '@/lib/api/libreta';
 import { deleteLibraryLineup, listLibraryLineups, patchLibraryLineup, type LibraryLineup } from '@/lib/api/lineups';
 import { TEAMS_HREF, lineupHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
+import { bulkDeleteMessage, bulkStatusMessage } from '@/lib/libreta/bulk';
+import { settleEach, withoutKeys } from '@/lib/settle-each';
 import type { CalloutLabel } from '@/lib/libreta/callouts';
 import { lineupSpot, practiceBlockReason, techniqueLabel } from '@/lib/libreta/lineups';
 import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
@@ -18,6 +20,7 @@ import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view'
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { TableSkeleton } from '@/components/records/table-skeleton';
@@ -141,20 +144,18 @@ export function LineupList({
 
   async function bulkStatus(status: LibretaStatus): Promise<void> {
     setBusy(true);
-    const ids = chosen.map((lineup) => lineup.id);
-    const failed = (await Promise.allSettled(ids.map((id) => patchLibraryLineup(id, { status })))).filter((r) => r.status === 'rejected').length;
-    setMessage(failed === 0 ? `${ids.length} ${ids.length === 1 ? 'lineup pasa' : 'lineups pasan'} a ${STATUS_LABEL[status]}.` : `${failed} no se pudieron cambiar.`);
-    setSelected(new Set());
+    const { done, failed } = await settleEach(chosen, (lineup) => patchLibraryLineup(lineup.id, { status }));
+    setMessage(bulkStatusMessage({ done: done.length, failed: failed.map(({ item }) => item.title), noun: LINEUP, status: STATUS_LABEL[status] }));
+    setSelected((current) => withoutKeys(current, done.map(({ item }) => item.id)));
     setBusy(false);
     onReload();
   }
 
   async function bulkDelete(): Promise<void> {
     setBusy(true);
-    const ids = chosen.map((lineup) => lineup.id);
-    const failed = (await Promise.allSettled(ids.map((id) => deleteLibraryLineup(id)))).filter((r) => r.status === 'rejected').length;
-    setMessage(failed === 0 ? `${ids.length === 1 ? 'Eliminado 1 lineup' : `Eliminados ${ids.length} lineups`}.` : `${failed} no se pudieron eliminar.`);
-    setSelected(new Set());
+    const { done, failed } = await settleEach(chosen, (lineup) => deleteLibraryLineup(lineup.id));
+    setMessage(bulkDeleteMessage({ done: done.length, failed: failed.map(({ item }) => item.title), noun: LINEUP }));
+    setSelected((current) => withoutKeys(current, done.map(({ item }) => item.id)));
     setBusy(false);
     onReload();
   }
@@ -179,16 +180,7 @@ export function LineupList({
   }
   if (lineups.length === 0) {
     return offline ? (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudieron leer los lineups. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={onReload}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind="offline" title="No se pudieron leer los lineups" onRetry={onReload} />
     ) : (
       <>
         {status}
@@ -252,6 +244,7 @@ export function LineupList({
         rows={shown}
         columns={columns}
         rowKey={(lineup) => lineup.id}
+        rowLabel={(lineup) => lineup.title}
         rowHref={(lineup) => lineupHref(lineup.id)}
         view={view}
         selection={{

@@ -7,7 +7,7 @@ import { listLibraryMatches } from '@/lib/api/library';
 import type { LibraryMatch } from '@/lib/api/library';
 import { MATCHES_HREF, matchHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
-import { matchScoreLabel, matchTitle } from '@/lib/library/partidas';
+import { matchScoreLabel, matchTitle, playedRoundCount } from '@/lib/library/partidas';
 import { MATCH_REPLAY_TAB, MATCH_TAB_QUERY } from '@/lib/library/rounds';
 import { PLAYLISTS_HREF } from '@/lib/replay/saved-playlist';
 import { EmptyState } from '@/components/records/empty-state';
@@ -77,10 +77,13 @@ export function ReplayHome(): ReactNode {
   const recent = matches.slice(0, RECENT_LIMIT);
   return (
     <section className="flex flex-col gap-3" aria-labelledby="replay-home-title">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id="replay-home-title" className="text-title text-fg-1">
-          Elige una partida
-        </h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div className="flex flex-col gap-2">
+          <h2 id="replay-home-title" className="text-body font-semibold text-fg-1">
+            Rondas de una partida
+          </h2>
+          <p className="measure-read text-body text-fg-2">Abre una partida reciente y recorre sus rondas una a una.</p>
+        </div>
         <span className="flex items-baseline gap-3">
           {matches.length > recent.length ? (
             <Link href={MATCHES_HREF} className="text-body-sm text-fg-2 underline decoration-fg-4 underline-offset-2 hover:text-fg-1">
@@ -108,7 +111,7 @@ export function ReplayHome(): ReactNode {
               </span>
               <span className="truncate text-body-sm text-fg-2">{matchTitle(match)}</span>
               <span className="text-meta text-fg-3">
-                {formatShortDate(match.played_at)} · {match.round_count} {match.round_count === 1 ? 'ronda' : 'rondas'}
+                {formatShortDate(match.played_at)} · {playedRoundCount(match)} {playedRoundCount(match) === 1 ? 'ronda' : 'rondas'}
               </span>
             </Link>
           </li>

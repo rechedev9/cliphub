@@ -319,11 +319,11 @@ export function SteamAccount(): ReactNode {
         {account?.gcConfigured
           ? 'La sesión de descarga ya está lista en este PC. ClipHub solo la abre cuando pulsas Descargar.'
           : 'La primera descarga te pedirá usuario, contraseña y Steam Guard. No se escriben a disco.'}{' '}
-        Si estás jugando, Steam te echará de la partida. Sigue el flujo en{' '}
+        Si estás jugando, Steam te echará de la partida. Tras pulsar Descargar, Studio te lleva a{' '}
         <Link href={SHORTS_HREF} className={`text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 ${FOCUS_RING}`}>
           Shorts
         </Link>
-        .
+        : la demo sale en «Elige una demo» cuando termina de bajar y allí eliges el jugador.
       </p>
 
       <SteamDownloadDialog

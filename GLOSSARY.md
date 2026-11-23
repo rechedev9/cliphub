@@ -52,3 +52,7 @@ _Avoid_: Línea, cue, subtítulo
 **Subtítulo**:
 One block of text drawn on a video. A frase gives one subtítulo or several.
 _Avoid_: Frase as a name for the block on screen, caption
+
+**Corrección del asistente**:
+A frase an assistant corrected through the MCP review of a video's subtítulos, after the user agreed (`corrected_by` `assistant`). The vocabulary corrector does not learn from it; a later hand correction makes it the user's.
+_Avoid_: Corrección automática, autocorrección
