@@ -22,7 +22,6 @@ const (
 	streamVoiceAvailable  = "available"
 	streamVoiceMixedTrack = "mixed_track"
 	streamVoiceNoAudio    = "no_audio"
-	codeMixedTrack        = "mixed_track"
 	codeStreamNotReady    = "stream_not_ready"
 	streamSpanPadMS       = 1000
 	streamSpanGridMS      = 10_000
@@ -32,7 +31,6 @@ const (
 )
 
 var (
-	errMixedTrack     = errors.New("the stream has only a mixed audio track")
 	errNoStreamAudio  = errors.New("the stream has no audio")
 	errStreamNotReady = errors.New("the stream source is not on this PC yet")
 )
@@ -159,8 +157,6 @@ func (h *Handlers) TranscribeStream(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, errNoTranscriber):
 		writeCodedError(w, http.StatusConflict, codeNoTranscriber, "local transcription is not installed; install it first")
-	case errors.Is(err, errMixedTrack):
-		writeCodedError(w, http.StatusConflict, codeMixedTrack, "subtitles are not available yet for a stream with only a mixed audio track")
 	case errors.Is(err, errNoStreamAudio):
 		writeCodedError(w, http.StatusConflict, codeNoVoice, "this stream has no audio")
 	case errors.Is(err, errStreamNotReady):
@@ -190,11 +186,8 @@ func (h *Handlers) queueStreamTranscript(ctx context.Context, in streamTranscrib
 	if !streamSourceIsReady(in.job.Status) {
 		return false, errStreamNotReady
 	}
-	switch _, availability := streamVoiceTrack(in.job.Probe); availability {
-	case streamVoiceNoAudio:
+	if _, availability := streamVoiceTrack(in.job.Probe); availability == streamVoiceNoAudio {
 		return false, errNoStreamAudio
-	case streamVoiceMixedTrack:
-		return false, errMixedTrack
 	}
 	h.voice.streamMu.Lock()
 	defer h.voice.streamMu.Unlock()

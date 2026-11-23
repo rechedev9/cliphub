@@ -348,9 +348,9 @@ render_stream makes; warn the user when a joined Short passes 3 minutes, the You
 and, for render_stream, the video being encoded (video 2 of 3); then list_stream_videos for the
 videos and extra files. list_streams shows the streams already in Studio.
 Subtitles of a stream (the Subtítulos panel of Clips de stream): transcribe_stream transcribes on this PC only the stretches
-that go into a video (spans: the momentos of the plan for Shorts, the jugadas for the resumen), from the mic track, with
-install_transcriber; stream_transcript reads the phrases (no speaker names, in the language spoken, never translated) and says
-mixed_track for a stream with only the mix of voice and game, which has no subtitles yet. A phrase the CS2 vocabulary corrector
+that go into a video (spans: the momentos of the plan for Shorts, the jugadas for the resumen), from the mic track or, when
+the stream has only the mix of voice and game (mixed_track), from that track, where teammates and the game announcer can come in,
+with install_transcriber; stream_transcript reads the phrases (no speaker names, in the language spoken, never translated). A phrase the CS2 vocabulary corrector
 changed has vocab_text and vocab_changes, as in demo_transcript but with the CS2 lexicon and the corrections learned from demos
 and streams only (a stream has no map, so no callouts or nicks); correcting it back to original_text undoes them. correct_stream_phrase and
 discard_stream_phrase count for every video of the stream; set_stream_subtitles turns subtitles on for the Shorts or the resumen
