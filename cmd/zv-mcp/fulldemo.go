@@ -456,10 +456,7 @@ func setHUD(options *recapplan.Options, choice string) error {
 	id := strings.ToLower(strings.TrimSpace(choice))
 	switch id {
 	case nativeHUDID, "original", "cs2", strings.ToLower(nativeHUDName):
-		options.Capture.HUDProfile = recapplan.NativeHUDProfile
-		options.Overlays.HUDTheme = ""
-		options.Overlays.HUDPortrait = nil
-		return nil
+		return options.ChooseHUD("")
 	}
 	theme, ok := customhud.Lookup(id)
 	if !ok {
@@ -469,12 +466,7 @@ func setHUD(options *recapplan.Options, choice string) error {
 		}
 		return fmt.Errorf("unknown HUD design %q; use one of: %s", cleanName(choice), strings.Join(ids, ", "))
 	}
-	options.Capture.HUDProfile = customhud.CaptureProfile
-	options.Overlays.HUDTheme = theme.ID
-	if theme.ID != "focus" {
-		options.Overlays.HUDPortrait = nil
-	}
-	return nil
+	return options.ChooseHUD(theme.ID)
 }
 
 // level turns a percent from the user into the gain the planner stores.

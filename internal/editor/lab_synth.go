@@ -224,8 +224,9 @@ func labSynthSnapshot(rounds int) (recapplan.Snapshot, error) {
 		facts.Rounds = append(facts.Rounds, round)
 	}
 	options := recapplan.DefaultOptions()
-	options.Overlays.HUDTheme = ""
-	options.Capture.HUDProfile = recapplan.NativeHUDProfile
+	if err := options.ChooseHUD(""); err != nil {
+		return recapplan.Snapshot{}, err
+	}
 	voice := recapplan.VoiceEvidence{Availability: "available", IndexRef: "synthetic/voice-index.json", IndexHash: strings.Repeat("6", 64), ExtractorVersion: "team-packet-clock-v2", ClockKind: recapplan.ClockIngame, SelectedPackets: rounds,
 		Activity: []recapplan.TickRange{{Start: 0, End: facts.EndTick}}}
 	document, err := recapplan.Plan(facts, options, voice, nil, "synthetic/facts.json")
