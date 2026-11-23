@@ -5,18 +5,11 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/library"
 )
 
-// RecordingTrack is one person of a TeamSpeak plugin recording.
-type RecordingTrack struct {
-	File       string `json:"file"`
-	Nickname   string `json:"nickname"`
-	UID        string `json:"uid,omitempty"`
-	Self       bool   `json:"self,omitempty"`
-	DurationMS int64  `json:"duration_ms"`
-	MatchTrack int    `json:"match_track,omitempty"`
-	Failed     string `json:"failed,omitempty"`
-}
+type RecordingTrack = library.RecordingTrack
 
 // VoiceRecording is a recording the TeamSpeak plugin left for Studio.
 type VoiceRecording struct {

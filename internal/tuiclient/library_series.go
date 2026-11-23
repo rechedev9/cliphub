@@ -5,15 +5,11 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/library"
 )
 
-// VetoStep is one step of a known veto: team a or b (empty for the decider),
-// ban, pick or decider, and the map.
-type VetoStep struct {
-	Team   string `json:"team"`
-	Action string `json:"action"`
-	Map    string `json:"map"`
-}
+type VetoStep = library.VetoStep
 
 // LibrarySeries groups the maps of one BO1, BO2, BO3 or BO5.
 type LibrarySeries struct {
