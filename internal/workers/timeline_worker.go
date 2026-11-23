@@ -57,25 +57,41 @@ func (w *TimelineRenderWorker) HandleRenderTimeline(ctx context.Context, t *asyn
 	}
 	if err := w.render(ctx, payload); err != nil {
 		recordStageFailure(payload.ProjectID, obs.StageEditor, tasks.TypeRenderTimeline, errorClass(tasks.TypeRenderTimeline, err), err)
-		if updErr := w.repo.UpdateStatus(ctx, payload.ProjectID, timelineplan.StatusFailed, err.Error()); updErr != nil {
-			return fmt.Errorf("render timeline: %w (also failed to mark failed: %v)", err, updErr)
-		}
-		failed := timelineplan.RenderState{
-			ProjectID:   payload.ProjectID,
-			Status:      timelineplan.StatusFailed,
-			Fingerprint: payload.Fingerprint,
-			Error:       err.Error(),
-			UpdatedAt:   time.Now().UTC(),
-		}
-		if previous, ok, readErr := w.readState(payload.ProjectID); readErr == nil && ok {
-			failed.VideoKey = previous.VideoKey
-			failed.CoverKey = previous.CoverKey
-			failed.ResultKey = previous.ResultKey
-		}
-		_ = w.writeState(failed)
-		return err
+		return w.fail(ctx, payload, err)
 	}
 	return nil
+}
+
+func (w *TimelineRenderWorker) fail(ctx context.Context, payload tasks.RenderTimelinePayload, cause error) error {
+	state, owned, err := w.ownedState(payload)
+	if err != nil {
+		return fmt.Errorf("render timeline: %w (also failed to read render state: %v)", cause, err)
+	}
+	if !owned {
+		return cause
+	}
+	if err := w.repo.UpdateStatus(ctx, payload.ProjectID, timelineplan.StatusFailed, cause.Error()); err != nil {
+		return fmt.Errorf("render timeline: %w (also failed to mark failed: %v)", cause, err)
+	}
+	if err := w.writeState(state.Fail(cause.Error(), time.Now().UTC())); err != nil {
+		return fmt.Errorf("render timeline: %w (also failed to write failed render state: %v)", cause, err)
+	}
+	return cause
+}
+
+func (w *TimelineRenderWorker) ownedState(payload tasks.RenderTimelinePayload) (timelineplan.RenderState, bool, error) {
+	state, found, err := w.readState(payload.ProjectID)
+	if err != nil {
+		return timelineplan.RenderState{}, false, err
+	}
+	if payload.AttemptID != uuid.Nil {
+		return state, found && state.AttemptID == payload.AttemptID, nil
+	}
+	if !found {
+		state = timelineplan.RenderState{ProjectID: payload.ProjectID}
+	}
+	state.Fingerprint = payload.Fingerprint
+	return state, true, nil
 }
 
 func (w *TimelineRenderWorker) render(ctx context.Context, payload tasks.RenderTimelinePayload) error {
@@ -166,6 +182,9 @@ func (w *TimelineRenderWorker) render(ctx context.Context, payload tasks.RenderT
 	if err != nil {
 		return err
 	}
+	if _, owned, err := w.ownedState(payload); err != nil || !owned {
+		return err
+	}
 
 	revision := uuid.New()
 	videoKey, err := timelineplan.RenderRevisionVideoKey(p.ID, revision)
@@ -216,17 +235,18 @@ func (w *TimelineRenderWorker) render(ctx context.Context, payload tasks.RenderT
 	if err := w.putFile(delivery+"/cover.jpg", result.CoverPath); err != nil {
 		return err
 	}
-	if err := w.writeState(timelineplan.RenderState{
-		ProjectID:   p.ID,
-		AttemptID:   revision,
-		Status:      timelineplan.StatusRendered,
+	state, owned, err := w.ownedState(payload)
+	if err != nil || !owned {
+		return err
+	}
+	if err := w.writeState(state.Publish(timelineplan.PublishedRender{
 		Fingerprint: fp,
 		VideoKey:    videoKey,
 		CoverKey:    coverKey,
 		ResultKey:   resultKey,
 		Warnings:    result.Warnings,
-		UpdatedAt:   time.Now().UTC(),
-	}); err != nil {
+		At:          time.Now().UTC(),
+	})); err != nil {
 		return err
 	}
 	return w.repo.UpdateStatus(ctx, p.ID, timelineplan.StatusRendered, "")
