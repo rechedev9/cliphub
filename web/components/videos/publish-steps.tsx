@@ -263,7 +263,8 @@ function ScheduleBody({ assistant }: { assistant: PublishAssistant }): ReactElem
 function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
   const [view, setView] = useState<AssistantView>({ status: 'loading' });
   const [draft, setDraft] = useState<Draft>({ choice: undefined, title: video.title, description: '', tagsText: '' });
-  const [done, setDone] = useState<ReadonlySet<'download' | 'upload'>>(() => new Set());
+  const [downloaded, setDownloaded] = useState<string | null>(null);
+  const [opened, setOpened] = useState(false);
   const [copiedTargets, setCopiedTargets] = useState<ReadonlySet<CopyTarget>>(() => new Set());
   const [flash, setFlash] = useState<Flash>(null);
   const loadVersion = useRef(0);
@@ -278,6 +279,7 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
       const choice = assistant.recommendations.find((recommendation) => recommendation.title === initial.title)?.title;
       setView({ status: 'ready', assistant });
       setDraft(editableDraft(initial, choice));
+      setCopiedTargets(new Set());
     } catch {
       if (version === loadVersion.current) setView({ status: 'failed' });
     }
@@ -293,20 +295,16 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
     return () => clearTimeout(timer);
   }, [flash]);
 
-  function markDone(step: 'download' | 'upload'): void {
-    setDone((current) => (current.has(step) ? current : new Set([...current, step])));
-  }
-
   function download(): void {
     if (!file.downloadUrl) return;
     downloadPublishMP4({ url: file.downloadUrl, title: file.title });
     toast('Descargando MP4', { description: `${publishMP4FileName(file.title)} → Descargas` });
-    markDone('download');
+    setDownloaded(file.downloadUrl);
   }
 
   function openStudio(): void {
     openYouTubeStudio();
-    markDone('upload');
+    setOpened(true);
   }
 
   async function copy(target: CopyTarget, value: string): Promise<void> {
@@ -321,8 +319,9 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
   }
 
   const textsDone = copiedTargets.has('all') || FIELD_TARGETS.every((field) => copiedTargets.has(field));
-  const isDone = (step: StepKey): boolean => (step === 'texts' ? textsDone : done.has(step));
-  const next = STEP_ORDER.find((step) => !isDone(step));
+  const downloadDone = downloaded !== null && downloaded === file.downloadUrl;
+  const stepDone: Record<StepKey, boolean> = { download: downloadDone, upload: opened, texts: textsDone };
+  const next = STEP_ORDER.find((step) => !stepDone[step]);
   const assistant = view.status === 'ready' ? view.assistant : undefined;
   const recommendation = assistant?.recommendations.find((candidate) => candidate.title === draft.choice);
   const keywords = recommendation?.keywords ?? assistant?.keywords ?? [];
@@ -420,7 +419,7 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
     <ol className="studio-panel" aria-label="Pasos para publicar en YouTube">
       <Step
         index={1}
-        done={done.has('download')}
+        done={downloadDone}
         title="Descarga el MP4"
         detail={<span className="font-mono text-meta [overflow-wrap:anywhere]">{publishMP4FileName(file.title)}</span>}
         action={
@@ -431,7 +430,7 @@ function ReadySteps({ video, file }: PublishStepsProps): ReactElement {
       />
       <Step
         index={2}
-        done={done.has('upload')}
+        done={opened}
         title="Súbelo en YouTube Studio"
         detail={
           <>
