@@ -8,6 +8,7 @@ import {
   initialPublishDraft,
   openYouTubeStudio,
   publishAssistantAvailability,
+  publishMP4FileName,
   publishTagsText,
   recommendedPublishDraft,
 } from './publish-actions.ts';
@@ -111,6 +112,8 @@ test('downloads the MP4 with a safe filename and clicks the temporary anchor', (
   }
   assert.equal(anchor.href, '/api/reel.mp4');
   assert.equal(anchor.download, 'Mirage- 4K.mp4');
+  assert.equal(publishMP4FileName('Mirage: 4K'), anchor.download);
+  assert.equal(publishMP4FileName('   '), 'cliphub-reel.mp4');
   assert.equal(anchor.rel, 'noopener');
   assert.deepEqual(events, ['append', 'click', 'remove']);
 });

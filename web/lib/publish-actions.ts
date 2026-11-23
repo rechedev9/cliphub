@@ -54,11 +54,15 @@ export function publishTagsText(tags: string[]): string {
   return tags.join(', ');
 }
 
-export function downloadPublishMP4(url: string, title: string): void {
+export function publishMP4FileName(title: string): string {
   const safeTitle = title.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-') || 'cliphub-reel';
+  return `${safeTitle}.mp4`;
+}
+
+export function downloadPublishMP4(url: string, title: string): void {
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `${safeTitle}.mp4`;
+  anchor.download = publishMP4FileName(title);
   anchor.rel = 'noopener';
   document.body.appendChild(anchor);
   anchor.click();

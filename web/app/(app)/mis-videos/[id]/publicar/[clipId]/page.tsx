@@ -1,28 +1,28 @@
 'use client';
 
 import { use, useEffect, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Check, Download, Music, Play, SearchX } from 'lucide-react';
-import { toast } from 'sonner';
+import { AlertTriangle, Music, Play, SearchX } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match, Video } from '@/lib/api/types';
 import { loteShortVideo } from '@/lib/api/auto-shorts';
 import { demoPlaybackItem } from '@/lib/api/playback';
-import { ORPHAN_MATCH_SEGMENT, PUBLISH_SHORT_QUERY, RESULTS_HREF } from '@/lib/clips/routes';
+import { ORPHAN_MATCH_SEGMENT, PUBLISH_SHORT_QUERY, RESULTS_HREF, matchHref } from '@/lib/clips/routes';
 import { OUTPUT_STATE, OUTPUT_TYPE, outputState, outputType, type OutputState } from '@/lib/clips/hub';
 import { videoDisplayTitle } from '@/lib/clips/results';
 import { prettyMapName, timeAgo } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
-import { downloadPublishMP4 } from '@/lib/publish-actions';
 import { publishSummary } from '@/lib/publish-summary';
-import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ReelCover } from '@/components/brand/reel-cover';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { MediaPlayer } from '@/components/studio/media-player';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { StudioEmptyState } from '@/components/studio/empty-state';
-import { PublishAssistantPanel } from '@/components/videos/publish-assistant-panel';
+import { PublishSteps } from '@/components/videos/publish-steps';
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
 import { FullDemoEvidence } from '@/components/videos/full-demo-evidence';
 import { AutoShortsList, useAutoShortsFiles } from '@/components/videos/auto-shorts-list';
@@ -39,6 +39,10 @@ const STATE_TAG: Record<OutputState, { label: string; tone: StatusTagTone }> = {
   failed: { label: 'Falló', tone: 'danger' },
 };
 
+const LAYOUT_CLASS = 'grid items-start gap-6 @[80rem]/content:grid-cols-[minmax(0,1fr)_360px]';
+const ASIDE_CLASS = 'flex min-w-0 flex-col gap-4 @[80rem]/content:col-start-2 @[80rem]/content:row-start-1';
+const MAIN_CLASS = 'flex min-w-0 flex-col gap-4 @[80rem]/content:col-start-1 @[80rem]/content:row-start-1';
+
 type PublishPageProps = {
   params: Promise<{ id: string; clipId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -50,7 +54,6 @@ export default function PublishPage({ params, searchParams }: PublishPageProps):
   const short = typeof requestedShort === 'string' ? requestedShort : null;
   const router = useRouter();
   const orphan = id === ORPHAN_MATCH_SEGMENT;
-  const backHref = RESULTS_HREF;
 
   const [video, setVideo] = useState<Video | null>(null);
   const [match, setMatch] = useState<Match | null>(null);
@@ -71,7 +74,6 @@ export default function PublishPage({ params, searchParams }: PublishPageProps):
           orphan ? Promise.resolve<Match | null>(null) : api.getMatch(id),
         ]);
         if (!active) return 'idle';
-        // A rejected fetch keeps the last clip on screen; only a real miss (null) clears it.
         if (videoResult.status === 'fulfilled') setVideo(videoResult.value);
         setLoadFailed(videoResult.status === 'rejected');
         if (matchResult.status === 'fulfilled') setMatch(matchResult.value);
@@ -97,11 +99,11 @@ export default function PublishPage({ params, searchParams }: PublishPageProps):
     return (
       <StudioEmptyState
         icon={loadFailed ? AlertTriangle : SearchX}
-        title={loadFailed ? 'No se pudo cargar el clip' : 'Clip no encontrado'}
+        title={loadFailed ? 'No se pudo cargar el vídeo' : 'Vídeo no encontrado'}
         description={
           loadFailed
-            ? 'El servicio local no respondió. Reintenta o vuelve a la partida.'
-            : 'Este clip ya no está en este PC. Puede que se haya borrado junto con sus vídeos.'
+            ? 'El servicio local no respondió. Reintenta o vuelve a Mis vídeos.'
+            : 'Este vídeo ya no está en este PC. Puede que se haya borrado.'
         }
         actions={
           <>
@@ -110,7 +112,7 @@ export default function PublishPage({ params, searchParams }: PublishPageProps):
                 Reintentar
               </Button>
             ) : null}
-            <Button onClick={() => router.push(backHref)}>Volver</Button>
+            <Button onClick={() => router.push(RESULTS_HREF)}>Volver a Mis vídeos</Button>
           </>
         }
       />
@@ -121,87 +123,91 @@ export default function PublishPage({ params, searchParams }: PublishPageProps):
   const state = outputState(video.status);
   const ready = state === OUTPUT_STATE.ready;
   const isShort = type === OUTPUT_TYPE.short;
-  // `outputType` already reads `isLandscapeRecap`: a Short is exactly a non-recap.
   const canAddMusic = ready && isShort && !video.recovered;
   const map = video.map || match?.map || '';
   const score = (video.score || match?.score || '').trim();
   const player = video.targetName ?? match?.player ?? '';
+  const title = videoDisplayTitle({ title: video.title, map }, player);
   const dims = isShort ? '1080×1920' : '1920×1080';
   const mapName = map === '' ? '' : prettyMapName(map);
   const meta = [`${dims} · 60 fps`, mapName, score, timeAgo(video.createdAt)].filter((part) => part !== '').join(' · ');
-  const description = publishSummary(video, { map, player, score });
   const shown = loteShortVideo(video, { short, files: loteView.status === 'ready' ? loteView.files : null });
   const playback = demoPlaybackItem(shown);
-
-  function download(): void {
-    if (!shown.downloadUrl) return;
-    downloadPublishMP4(shown.downloadUrl, shown.title);
-    toast('Descargando MP4', { description: `${shown.title} → Descargas` });
-  }
+  const posterWidth = isShort ? 'mx-auto w-44 @[30rem]:mx-0 @[30rem]:w-28' : 'w-full @[30rem]:w-56';
+  const frame = (
+    <MediaFrame
+      aspect={isShort ? '9:16' : '16:9'}
+      media={<VideoPoster posterUrl={shown.thumbnailUrl} videoUrl={playback?.playbackUrl} loading="eager" fallback={<ReelCover seed={video.id} label={mapName} />} />}
+    />
+  );
 
   return (
-    <div className="measure-work grid items-start gap-6 @[80rem]/content:grid-cols-[minmax(0,1fr)_380px]">
-      {/* The render details stack under the clip, so the left column does not sit empty beside the tall assistant. */}
-      <div className="flex min-w-0 flex-col gap-6">
-        <section className="flex min-w-0 flex-col gap-3.5">
-          <div className="flex flex-col gap-1.5">
-            {ready ? (
-              <p className="flex items-center gap-1.5 text-meta font-medium text-success">
-                <Check className="size-3.5" aria-hidden /> Listo
-              </p>
-            ) : (
-              <StatusTag tone={STATE_TAG[state].tone} dot className="w-fit">
-                {STATE_TAG[state].label}
-              </StatusTag>
-            )}
-            <h1 className="font-display text-display-sm font-bold text-fg-1">{videoDisplayTitle({ title: video.title, map }, player)}</h1>
-          </div>
+    <div className="measure-work flex flex-col gap-6">
+      <header className="flex flex-col gap-2">
+        {ready ? null : (
+          <StatusTag tone={STATE_TAG[state].tone} dot className="w-fit">
+            {STATE_TAG[state].label}
+          </StatusTag>
+        )}
+        <h1 className="font-display text-display-sm font-bold text-fg-1">{title}</h1>
+        <p className="max-w-read text-body-sm text-fg-2">{publishSummary(video, { map, player, score })}</p>
+      </header>
 
-          <div className="studio-panel studio-panel-raised flex flex-wrap gap-4 p-4">
-            <MediaFrame
-              aspect={isShort ? '9:16' : '16:9'}
-              className={isShort ? 'w-[120px] shrink-0 border border-primary' : 'w-[240px] shrink-0 border border-primary'}
-              media={<VideoPoster posterUrl={shown.thumbnailUrl} videoUrl={playback?.playbackUrl} loading="eager" fallback={<ReelCover seed={video.id} label={mapName} />} />}
-            />
-            <div className="flex min-w-0 flex-1 basis-56 flex-col gap-2.5">
-              <p className="text-meta text-fg-3">{meta}</p>
-              <p className="text-body-sm text-fg-2">{description}</p>
-              <div className="mt-auto flex flex-wrap gap-2 pt-1">
-                {playback ? (
-                  <Button
-                    variant="outline-primary"
-                    size="sm"
-                    onClick={(event) => {
-                      setReturnFocus(event.currentTarget);
-                      setPlayerOpen(true);
-                    }}
-                  >
-                    <Play className="size-4" aria-hidden /> Reproducir
-                  </Button>
-                ) : null}
-                <Button variant="hero" size="sm" disabled={!shown.downloadUrl} onClick={download}>
-                  <Download className="size-4" /> Descargar MP4
-                </Button>
+      <div className={LAYOUT_CLASS}>
+        <aside className={ASIDE_CLASS} aria-label="Vídeo">
+          <section className="studio-panel @container p-3">
+            <div className="flex flex-col gap-3 @[30rem]:flex-row @[30rem]:items-start">
+              {playback ? (
+                <button
+                  type="button"
+                  aria-label={`Reproducir ${title}`}
+                  onClick={(event) => {
+                    setReturnFocus(event.currentTarget);
+                    setPlayerOpen(true);
+                  }}
+                  className={cn('group/poster relative block shrink-0 overflow-hidden rounded-md border border-border', FOCUS_RING, posterWidth)}
+                >
+                  {frame}
+                  <span aria-hidden className="absolute inset-0 flex items-center justify-center">
+                    <span
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-md border border-border-strong bg-surface-1/90 px-3 py-1.5',
+                        'text-body-sm font-semibold uppercase tracking-wider text-fg-1',
+                        'transition-[background-color,border-color] duration-(--dur-fast) ease-standard',
+                        'group-hover/poster:border-fg-3 group-hover/poster:bg-surface-3',
+                      )}
+                    >
+                      <Play className="size-4" /> Reproducir
+                    </span>
+                  </span>
+                </button>
+              ) : (
+                <div className={cn('shrink-0 overflow-hidden rounded-md border border-border', posterWidth)}>{frame}</div>
+              )}
+              <div className="flex min-w-0 flex-col items-start gap-2.5">
+                <p className="text-meta text-fg-3">{meta}</p>
                 {canAddMusic ? (
                   <Button variant="outline" size="sm" onClick={() => setMusicOpen(true)}>
                     <Music className="size-4 text-stream" aria-hidden />
                     {video.songId ? 'Cambiar música' : 'Añadir música'}
                   </Button>
                 ) : null}
-                <Button variant="outline" size="sm" onClick={() => router.push(backHref)}>
-                  {orphan ? 'Volver a clips' : 'Volver a la partida'}
-                </Button>
+                {orphan || match === null ? null : (
+                  <Link href={matchHref(id)} className={cn('rounded-sm text-body-sm text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1', FOCUS_RING)}>
+                    Ver la partida
+                  </Link>
+                )}
               </div>
             </div>
-          </div>
-        </section>
-        <FullDemoEvidence video={video} />
-        <AutoShortsList video={video} view={loteView} />
-      </div>
+          </section>
+          <AutoShortsList video={video} view={loteView} />
+        </aside>
 
-      <aside className="studio-panel p-4">
-        <PublishAssistantPanel video={video} />
-      </aside>
+        <div className={MAIN_CLASS}>
+          <PublishSteps video={video} file={shown} />
+          <FullDemoEvidence video={video} />
+        </div>
+      </div>
 
       {canAddMusic ? (
         <LibraryMusicDialog
@@ -226,13 +232,15 @@ export default function PublishPage({ params, searchParams }: PublishPageProps):
 
 function LoadingState(): ReactNode {
   return (
-    <div className="measure-work grid items-start gap-6 @[80rem]/content:grid-cols-[minmax(0,1fr)_380px]" role="status" aria-label="Cargando el clip">
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-4 w-20" />
-        <Skeleton className="h-9 w-80" />
-        <Skeleton className="h-72 w-full" />
+    <div className="measure-work flex flex-col gap-6" role="status" aria-label="Cargando el vídeo">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-9 w-80 max-w-full" />
+        <Skeleton className="h-4 w-96 max-w-full" />
       </div>
-      <Skeleton className="h-96 w-full" />
+      <div className={LAYOUT_CLASS}>
+        <Skeleton className={cn('h-64 w-full', ASIDE_CLASS)} />
+        <Skeleton className={cn('h-[36rem] w-full', MAIN_CLASS)} />
+      </div>
     </div>
   );
 }
