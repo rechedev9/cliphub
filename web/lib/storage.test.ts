@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
-import { DELETE_OFFLINE_MESSAGE } from './delete-error.ts';
+import { offlineMessage } from './load-error.ts';
 import { captureRetentionNote, formatBytes, freeableJobs, storageLoadErrorMessage, STORAGE_LOAD_ERROR_MESSAGE } from './storage.ts';
 
 const GIB = 1024 ** 3;
@@ -54,7 +54,7 @@ test('freeableJobs names a match without a player after its map alone', () => {
 
 test('storageLoadErrorMessage tells an offline orchestrator apart from other failures', () => {
   const offline = Object.assign(new Error('analysis service unavailable'), { code: SERVICE_UNAVAILABLE_CODE });
-  assert.equal(storageLoadErrorMessage(offline), DELETE_OFFLINE_MESSAGE);
+  assert.equal(storageLoadErrorMessage(offline), offlineMessage());
   assert.equal(storageLoadErrorMessage(new Error('upstream error')), STORAGE_LOAD_ERROR_MESSAGE);
   assert.equal(storageLoadErrorMessage(null), STORAGE_LOAD_ERROR_MESSAGE);
 });

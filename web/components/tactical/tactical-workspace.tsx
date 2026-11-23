@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Hourglass, PlugZap, Radar, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Hourglass, Radar, RefreshCw, TriangleAlert } from 'lucide-react';
 import {
   TACTICAL_STATES,
   fetchTacticalStatus,
@@ -9,10 +9,12 @@ import {
   startTacticalAnalysis,
 } from '@/lib/api/tactical';
 import type { TacticalStatus } from '@/lib/api/tactical';
-import { StudioEmptyState } from '@/components/studio/empty-state';
+import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { TacticalAnalysis } from '@/components/tactical/tactical-analysis';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
 import { Button } from '@/components/ui/button';
+import { loadErrorMessage } from '@/lib/load-error';
 import { startPollLoop } from '@/lib/poll-loop';
 import { browserWindowActivity } from '@/lib/window-activity';
 import { stateLabel } from '@/lib/tactical-labels';
@@ -21,10 +23,6 @@ import { stateLabel } from '@/lib/tactical-labels';
 // and let the loop idle once nothing is in flight.
 const FAST_POLL_MS = 1200;
 const IDLE_POLL_MS = 15000;
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'fallo desconocido';
-}
 
 /**
  * The tactical analysis of one demo, from "never scanned" to the workspace.
@@ -106,11 +104,7 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
       setOffline(false);
       setPollToken((token) => token + 1);
     } catch (error) {
-      setStartError(
-        isServiceUnavailableError(error)
-          ? 'El servicio de análisis local no está disponible.'
-          : errorMessage(error),
-      );
+      setStartError(loadErrorMessage({ error, lead: 'No se pudo empezar el análisis.' }));
     } finally {
       setStarting(false);
     }
@@ -155,20 +149,7 @@ function TacticalBody({
 }): ReactNode {
   if (status === null) {
     if (offline) {
-      return (
-        <StudioEmptyState
-          icon={PlugZap}
-          title="Servicio local no disponible"
-          description="No se pudo contactar con el servicio de análisis local. Arráncalo y vuelve a intentarlo."
-          compact
-          actions={
-            <Button onClick={onRetry} className="font-display">
-              <RefreshCw aria-hidden />
-              Reintentar
-            </Button>
-          }
-        />
-      );
+      return <LoadErrorState kind="offline" title="No se pudo leer el análisis de la demo" onRetry={onRetry} />;
     }
     return <TacticalWorkspaceSkeleton />;
   }
@@ -203,7 +184,7 @@ function TacticalStartPanel({
   onStart: () => void;
 }): ReactNode {
   return (
-    <StudioEmptyState
+    <EmptyState
       icon={Radar}
       title="Esta demo aún no está analizada"
       description={
@@ -228,7 +209,7 @@ function TacticalRunningPanel({ status }: { status: TacticalStatus }): ReactNode
   // Same frame as the not-started and failed states, so the panel does not jump as the state moves on.
   return (
     <div aria-live="polite">
-      <StudioEmptyState
+      <EmptyState
         icon={Hourglass}
         title={stateLabel(status.state)}
         description="Se está leyendo la demo para clasificar las rondas y reconstruir las posiciones. Esta página se actualiza sola al terminar."
@@ -249,7 +230,7 @@ function TacticalFailurePanel({
   onRetry: () => void;
 }): ReactNode {
   return (
-    <StudioEmptyState
+    <EmptyState
       icon={TriangleAlert}
       title="El análisis falló"
       description={

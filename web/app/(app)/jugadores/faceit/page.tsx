@@ -20,7 +20,7 @@ import { PlayerProfile } from '@/components/players/player-profile';
 import { PlayerRail } from '@/components/players/player-rail';
 import { PlayerRows } from '@/components/players/player-rows';
 import { RankingPanel } from '@/components/players/ranking-panel';
-import { StudioEmptyState } from '@/components/studio/empty-state';
+import { EmptyState } from '@/components/records/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -240,16 +240,16 @@ export default function FaceitPlayersPage(): ReactNode {
       <div className="space-y-5"><Skeleton className="h-40 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-80 w-full" /></div>
     </div>;
   } else if (state === 'unconfigured') {
-    body = <StudioEmptyState icon={Users} title="FACEIT no está configurado" description={FACEIT_UNCONFIGURED_HINT}
+    body = <EmptyState icon={Users} title="FACEIT no está configurado" description={FACEIT_UNCONFIGURED_HINT}
       actions={<Button asChild><Link href="/shorts">Cargar una demo</Link></Button>}
       note={<details className="text-left normal-case tracking-normal">
         <DisclosureSummary className="min-h-10 py-2">Configuración avanzada de FACEIT</DisclosureSummary>
         <p className="break-words text-body-sm">Configura FACEIT_API_KEY en el servicio local y reinicia ClipHub para consultar perfiles e historial.</p>
-      </details>} compact />;
+      </details>} />;
   } else if (players.length === 0 && state === 'offline') {
-    body = <StudioEmptyState icon={Users} title="Servicio local sin conexión"
+    body = <EmptyState icon={Users} title="Servicio local sin conexión"
       description="Arranca el servicio local y vuelve a intentarlo para ver a los jugadores que sigues."
-      actions={<Button variant="outline" onClick={() => void refresh()}>Reintentar</Button>} compact />;
+      actions={<Button variant="outline" onClick={() => void refresh()}>Reintentar</Button>} />;
   } else {
     const followedShown = shown !== null && followedIDs.has(shown.id);
     const place = tab === 'ranking' && rankingSelected !== null && choice !== null

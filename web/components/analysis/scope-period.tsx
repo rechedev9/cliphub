@@ -27,6 +27,8 @@ export function PeriodField({ scope, onChange, icon, className }: PeriodFieldPro
   else if (period.kind === 'range' || picking) value = RANGE;
   const from = period.kind === 'range' ? period.from : '';
   const to = period.kind === 'range' ? period.to : '';
+  const shown = PERIOD_PRESETS.find((entry) => entry.value === value);
+  const label = value === RANGE ? 'Entre dos fechas' : (shown?.label ?? 'Todas las fechas');
 
   function choose(next: string): void {
     setPicking(next === RANGE);
@@ -41,7 +43,7 @@ export function PeriodField({ scope, onChange, icon, className }: PeriodFieldPro
         <SelectTrigger aria-label="Periodo" className={cn(FIELD, value !== ALL && FIELD_SET, className)}>
           <span className="flex min-w-0 items-center gap-1.5">
             {icon}
-            <SelectValue />
+            <SelectValue>{label}</SelectValue>
           </span>
         </SelectTrigger>
         <SelectContent>

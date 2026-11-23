@@ -585,7 +585,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
         error={createError}
         cta={
           <Button
-            variant="hero"
+            variant="default"
             size="sm"
             disabled={!ready}
             loading={creating}

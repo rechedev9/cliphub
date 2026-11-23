@@ -113,9 +113,9 @@ export function TacticEditorReady({ analysis, teams, onTeam }: { analysis: TeamA
   } else if (failed) {
     centre = (
       <p role="alert" className="py-6 text-body-sm text-destructive">
-        No se pudo leer el playbook. Comprueba que ClipHub Studio sigue abierto y{' '}
+        No se pudo leer el playbook.{' '}
         <button type="button" className="underline underline-offset-4" onClick={retry}>
-          vuelve a intentarlo
+          Vuelve a intentarlo
         </button>
         .
       </p>

@@ -532,12 +532,10 @@ export function StreamEditor({
       onStatus={setPlaybackStatus}
       onPlayingChange={setPreviewPlaying}
       onClipChange={setPlaybackClipId}
-      onMediaError={(detail) => {
-        recordRendererError('stream_preview.error', new Error(`Vista previa de stream: ${detail}`));
+      onMediaError={(failure) => {
+        recordRendererError('stream_preview.error', new Error(`Vista previa de stream: ${failure.detail}`));
         setPreviewPlaying(false);
-        setPreviewError(
-          'No se pudo decodificar o leer el MP4 de origen. Comprueba que el archivo siga disponible y reintenta la vista previa.',
-        );
+        setPreviewError(failure.message);
       }}
     >
       <div className="-mx-(--shell-gutter) -my-4 flex flex-col @[48rem]/content:h-[calc(100dvh-var(--shell-strip-height))]">

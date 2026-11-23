@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { apiFetch, EditionApiError } from './edition-fetch.ts';
+import { apiFetch, EditionApiError, subscribeToApiMutations } from './edition-fetch.ts';
 
 const realFetch = globalThis.fetch;
 const realEdition = process.env.NEXT_PUBLIC_CLIPHUB_EDITION;
@@ -47,4 +47,19 @@ test('URLs outside the same-origin API pass through', async () => {
   await apiFetch('/unrar.wasm');
   await apiFetch('https://cliphubstrats.example/api/demos/x');
   assert.deepEqual(requested, ['/unrar.wasm', 'https://cliphubstrats.example/api/demos/x']);
+});
+
+test('a successful change tells the subscribers, a read or a failed change does not', async () => {
+  useEdition('desktop');
+  let changes = 0;
+  const unsubscribe = subscribeToApiMutations(() => {
+    changes += 1;
+  });
+  await apiFetch('/api/streams');
+  await apiFetch('/api/streams', { method: 'post' });
+  globalThis.fetch = async () => new Response('{}', { status: 500 });
+  await apiFetch('/api/streams', { method: 'DELETE' });
+  unsubscribe();
+  await apiFetch('/api/streams', { method: 'POST' });
+  assert.equal(changes, 1);
 });

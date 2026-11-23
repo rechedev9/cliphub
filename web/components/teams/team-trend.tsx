@@ -1,18 +1,19 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { getLibraryMatch, type LibraryMatch } from '@/lib/api/library';
+import type { LibraryMatch } from '@/lib/api/library';
 import type { BaselineMetric } from '@/lib/api/baseline';
 import { METRIC_INFO, baselineValue } from '@/lib/analysis/reference';
 import { TEAM_TREND_LABEL, TEAM_TREND_METRICS, teamTrend, type TeamTrendMetric } from '@/lib/analysis/team-trend';
 import { formatShortDate, prettyMapName } from '@/lib/format';
+import { Button } from '@/components/ui/button';
 import { LineChart } from '@/components/ui/line-chart';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useReferences } from '@/hooks/use-references';
+import { matchDetail, recentMatchIds, type TeamRequests } from './team-requests';
+import { playedRoundCount } from '@/lib/library/partidas';
 
-/** The chart reads the latest matches; older ones would squeeze the labels. */
-const MAX_MATCHES = 12;
 const MAX_PLAYERS = 5;
 const PLAYER_COLORS = ['--chart-1', '--chart-2', '--chart-3', '--chart-6', '--chart-7'];
 const decimal2 = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -24,20 +25,27 @@ const FORMAT: Readonly<Record<TeamTrendMetric, (value: number) => string>> = {
 const BASELINE: Readonly<Record<TeamTrendMetric, BaselineMetric | null>> = { kpr: 'kpr', adr: 'adr', kd: null };
 
 /** The team's latest matches, one line per regular player plus the team's own line and the library mean. */
-export function TeamTrend({ teamId, matches, map }: { teamId: string; matches: readonly LibraryMatch[]; map: string }): ReactNode {
+export function TeamTrend({
+  teamId,
+  matches,
+  map,
+  requests,
+}: {
+  teamId: string;
+  matches: readonly LibraryMatch[];
+  map: string;
+  requests: TeamRequests;
+}): ReactNode {
   const [details, setDetails] = useState<LibraryMatch[] | null | 'failed'>(null);
   const [metric, setMetric] = useState<TeamTrendMetric>('kpr');
+  const [attempt, setAttempt] = useState(0);
   const references = useReferences(map);
-  const ids = [...matches]
-    .sort((a, b) => Date.parse(b.played_at) - Date.parse(a.played_at))
-    .slice(0, MAX_MATCHES)
-    .map((match) => match.id)
-    .join(',');
+  const ids = recentMatchIds(matches).join(',');
 
   useEffect(() => {
     let active = true;
     setDetails(null);
-    Promise.all((ids === '' ? [] : ids.split(',')).map((id) => getLibraryMatch(id)))
+    Promise.all((ids === '' ? [] : ids.split(',')).map((id) => matchDetail(requests, id)))
       .then((list) => {
         if (active) setDetails(list);
       })
@@ -47,11 +55,18 @@ export function TeamTrend({ teamId, matches, map }: { teamId: string; matches: r
     return () => {
       active = false;
     };
-  }, [ids]);
+  }, [ids, requests, attempt]);
 
   let body: ReactNode;
   if (details === 'failed') {
-    body = <p role="alert" className="text-body-sm text-destructive">No se pudieron leer las partidas del equipo.</p>;
+    body = (
+      <p role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-destructive">
+        No se pudieron leer las partidas del equipo.
+        <Button type="button" variant="outline" size="xs" onClick={() => setAttempt((n) => n + 1)}>
+          Reintentar
+        </Button>
+      </p>
+    );
   } else if (details === null) {
     body = <Skeleton className="h-56 w-full" />;
   } else if (details.length < 2) {
@@ -65,7 +80,7 @@ export function TeamTrend({ teamId, matches, map }: { teamId: string; matches: r
         label={`${TEAM_TREND_LABEL[metric]} por partida y jugador, la más antigua primero`}
         categories={trend.matches.map((match) => ({
           label: `${prettyMapName(match.map)} ${formatShortDate(match.played_at)}`,
-          detail: `${match.round_count} rondas`,
+          detail: `${playedRoundCount(match)} rondas`,
         }))}
         series={[
           { id: 'team', label: 'Equipo', values: trend.team, color: '--fg-1', emphasis: true },

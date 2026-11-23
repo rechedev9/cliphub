@@ -263,7 +263,7 @@ export function TeamPositions({ teamId, scope, lineup }: TeamPositionsProps): Re
         <ChipRow label="Movimiento" value={movement} options={FIRST_DEATH_MOVEMENTS.map((value) => ({ value, label: MOVEMENT_LABEL[value] }))} onChange={setMovement} />
       </div>
       {data === 'failed' ? (
-        <p role="alert" className="text-body-sm text-destructive">No se pudieron leer las posiciones. Comprueba que ClipHub Studio sigue abierto.</p>
+        <p role="alert" className="text-body-sm text-destructive">No se pudieron leer las posiciones. Vuelve a intentarlo.</p>
       ) : null}
       {data === null ? <Skeleton role="status" aria-label="Leyendo las posiciones" className="h-48 w-full" /> : null}
       {data !== null && data !== 'failed' && data.players.length === 0 ? (

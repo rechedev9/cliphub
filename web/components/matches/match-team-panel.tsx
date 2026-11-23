@@ -91,31 +91,33 @@ export function MatchTeamPanel({
       {players.length === 0 ? (
         <p className="border-t border-border-subtle px-4 py-3 text-body-sm text-fg-3">Sin jugadores identificados.</p>
       ) : (
-        <table aria-label={`Jugadores de ${name}`} className="w-full table-fixed border-collapse text-left text-body-sm tabular-nums">
-          <thead className="text-meta text-fg-3">
-            <tr className="border-t border-border-subtle">
-              <th scope="col" className="h-8 px-4 font-medium">Jugador</th>
-              {['K', 'D', 'A', '+/-'].map((header) => (
-                <th key={header} scope="col" className={cn('h-8 px-2 text-right font-medium', header === '+/-' ? 'w-12' : 'w-10')}>
-                  {header}
-                </th>
+        <div className="overflow-x-auto">
+          <table aria-label={`Jugadores de ${name}`} className="w-full min-w-72 table-fixed border-collapse text-left text-body-sm tabular-nums">
+            <thead className="text-meta text-fg-3">
+              <tr className="border-t border-border-subtle">
+                <th scope="col" className="h-8 pr-2 pl-4 font-medium">Jugador</th>
+                {['K', 'D', 'A', '+/-'].map((header) => (
+                  <th key={header} scope="col" className={cn('h-8 px-1.5 text-right font-medium', header === '+/-' ? 'w-11' : 'w-9')}>
+                    {header}
+                  </th>
+                ))}
+                <th scope="col" className="h-8 w-16 pr-4 pl-1.5 text-right font-medium @[30rem]/content:w-36">ADR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {players.map((player) => (
+                <PlayerRow
+                  key={player.steamid64}
+                  player={player}
+                  best={bestAdr?.steamid64 === player.steamid64}
+                  maxAdr={bestAdr?.adr ?? 0}
+                  pathname={pathname}
+                  onOpenReplay={onOpenReplay}
+                />
               ))}
-              <th scope="col" className="h-8 w-36 pr-4 pl-2 text-right font-medium">ADR</th>
-            </tr>
-          </thead>
-          <tbody>
-            {players.map((player) => (
-              <PlayerRow
-                key={player.steamid64}
-                player={player}
-                best={bestAdr?.steamid64 === player.steamid64}
-                maxAdr={bestAdr?.adr ?? 0}
-                pathname={pathname}
-                onOpenReplay={onOpenReplay}
-              />
-            ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       )}
       <TeamAssignmentDialog
         open={editing}
@@ -151,12 +153,12 @@ function PlayerRow({
   const rounds = `${pathname}?${MATCH_TAB_QUERY}=${MATCH_REPLAY_TAB}&${tacticalFilterToQuery({ slots: [player.slot] })}`;
   return (
     <tr className="border-t border-border-subtle hover:bg-surface-3">
-      <td className="h-10 px-4">
+      <td className="h-10 pr-2 pl-4">
         <span className="flex min-w-0 items-center gap-2">
           <Link href={playerHref(player.steamid64)} className="truncate font-medium text-fg-1 hover:text-primary hover:underline">
             {name}
           </Link>
-          {best ? <Badge variant="outline">Mejor ADR</Badge> : null}
+          {best ? <Badge variant="outline" className="hidden @[30rem]/content:inline-flex">Mejor ADR</Badge> : null}
           <Link
             href={rounds}
             onClick={onOpenReplay}
@@ -168,15 +170,15 @@ function PlayerRow({
           </Link>
         </span>
       </td>
-      <td className="px-2 text-right">{player.kills}</td>
-      <td className="px-2 text-right text-fg-2">{player.deaths}</td>
-      <td className="px-2 text-right text-fg-2">{player.assists}</td>
-      <td className={cn('px-2 text-right font-medium', diff > 0 && 'text-outcome-win', diff < 0 && 'text-outcome-loss', diff === 0 && 'text-fg-3')}>
+      <td className="px-1.5 text-right">{player.kills}</td>
+      <td className="px-1.5 text-right text-fg-2">{player.deaths}</td>
+      <td className="px-1.5 text-right text-fg-2">{player.assists}</td>
+      <td className={cn('px-1.5 text-right font-medium', diff > 0 && 'text-outcome-win', diff < 0 && 'text-outcome-loss', diff === 0 && 'text-fg-3')}>
         {diff > 0 ? `+${diff}` : diff}
       </td>
-      <td className="pr-4 pl-2">
+      <td className="pr-4 pl-1.5">
         <span className="flex items-center justify-end gap-2">
-          <span aria-hidden className="h-1 w-16 overflow-hidden rounded-full bg-surface-4">
+          <span aria-hidden className="hidden h-1 w-16 overflow-hidden rounded-full bg-surface-4 @[30rem]/content:block">
             <span className="block h-full bg-fg-3" style={{ width: `${bar}%` }} />
           </span>
           <span className="w-11 text-right font-medium">{adrLabel(player.damage, player.rounds)}</span>

@@ -3,14 +3,14 @@
 import { useId, type ReactNode } from 'react';
 import type { CreativeBriefItem } from '@/lib/reel-brief';
 import { formatVideoDuration } from '@/lib/produce/full-demo-order';
+import { fullDemoBlockerText, fullDemoWarningText, type FullDemoNotice } from '@/lib/produce/full-demo-notices';
 import { ProduceBackButton } from '@/components/produce/produce-back-button';
 import type { ProduceBack } from '@/components/produce/use-produce-back';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 
-type Notice = { code: string; message: string; round_id?: string };
 
 type ActionProps = {
-  /** Rounds of the saved plan and whether the settings are saved, e.g. "19 rondas · Ajustes guardados"; null before a plan exists. */
+  /** A one-line recap, e.g. "19 rondas · Ajustes guardados"; null before a plan exists. */
   planState: string | null;
   /** What creating does next, read out as a status line under the button. */
   status: string;
@@ -25,8 +25,8 @@ export type FullDemoSummaryProps = ActionProps & {
   durationSeconds: number | null;
   roundCount: number;
   briefItems: readonly CreativeBriefItem[];
-  blockers: readonly Notice[];
-  warnings: readonly Notice[];
+  blockers: readonly FullDemoNotice[];
+  warnings: readonly FullDemoNotice[];
   assetBusy: boolean;
 };
 
@@ -37,6 +37,7 @@ function ErrorNotice({ error, className = '' }: { error: string | null; classNam
 /** The sticky recap beside the settings: what will be recorded and the button that records it. */
 export function FullDemoSummary({ durationSeconds, roundCount, briefItems, planState, status, blockers, warnings, assetBusy, error, back, cta }: FullDemoSummaryProps): ReactNode {
   const headingId = useId();
+  const shownWarnings = [...new Set(warnings.map(fullDemoWarningText).filter((text) => text !== ''))];
   return <aside aria-labelledby={headingId}
     className={`flex min-w-0 flex-col gap-4 rounded-2xl border p-5 ${FORMAT_TONE.full.border} ${FORMAT_TONE.full.tint}`}>
     <div className="flex flex-col gap-0.5">
@@ -54,8 +55,8 @@ export function FullDemoSummary({ durationSeconds, roundCount, briefItems, planS
       <dt className="text-fg-3">Duración</dt>
       <dd className="min-w-0 font-semibold text-fg-1 tabular-nums">{durationSeconds !== null ? `Unos ${formatVideoDuration(durationSeconds)}` : 'Se calcula al crear'}</dd>
     </dl>
-    {blockers.map((item, index) => <p key={`${item.code}-${index}`} role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-body-sm text-destructive">{item.message}{item.round_id ? ` (${item.round_id})` : ''}</p>)}
-    {warnings.map((item, index) => <p key={`${item.code}-${index}`} className="text-body-sm text-fg-2">{item.message}</p>)}
+    {blockers.map((item, index) => <p key={`${item.code}-${index}`} role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-body-sm text-destructive">{fullDemoBlockerText(item)}</p>)}
+    {shownWarnings.map((text) => <p key={text} className="text-body-sm text-fg-2">{text}</p>)}
     {assetBusy ? <p role="status" className="text-body-sm text-fg-2">Subiendo y verificando el archivo…</p> : null}
     {/* Below 64rem the summary sits under the settings, so FullDemoActionBar carries these instead. */}
     <ErrorNotice error={error} className="hidden @[64rem]/content:block" />

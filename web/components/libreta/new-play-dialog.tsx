@@ -8,11 +8,13 @@ import type { LibraryPlay } from '@/lib/api/stratbook';
 import type { TacticalSide, TacticalSite } from '@/lib/api/tactical';
 import { playHref } from '@/lib/clips/routes';
 import { parseTags } from '@/lib/libreta/status';
+import { loadErrorMessage } from '@/lib/load-error';
 import { playKinds } from '@/lib/stratbook/plays';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Field, KindField, MapField, NO_TEAM, SideField, SiteField, TagsField, TeamField, TitleField, mapChoices, useLibraryTeams } from './play-fields';
-import { StatusSelect } from './status-badge';
+import { useDiscardGuard } from './discard-guard';
+import { KindField, MapField, NO_TEAM, SideField, SiteField, TagsField, TeamField, TitleField, mapChoices, useLibraryTeams } from './play-fields';
+import { StatusField } from './status-badge';
 
 /** What the dialog opens with: the Tabla passes the cell's map, side, kind and team. */
 export type NewPlayPreset = { map?: string; side?: TacticalSide; kind?: string; teamId?: string };
@@ -45,6 +47,9 @@ export function NewPlayDialog({
   const [tags, setTags] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const snapshot = JSON.stringify([title, map, side, kind, site, teamId, status, tags]);
+  const [initial] = useState(snapshot);
+  const guard = useDiscardGuard({ dirty: snapshot !== initial, busy, onClose });
 
   function changeSide(next: TacticalSide): void {
     setSide(next);
@@ -78,14 +83,14 @@ export function NewPlayDialog({
       } else {
         router.push(playHref(play.id));
       }
-    } catch {
-      setError('No se pudo crear la jugada.');
+    } catch (cause: unknown) {
+      setError(loadErrorMessage({ error: cause, lead: 'No se pudo crear la jugada.' }));
       setBusy(false);
     }
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
+    <Dialog open onOpenChange={guard.onOpenChange}>
       <DialogContent className="sm:max-w-md" showCloseButton={!busy}>
         <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
           <DialogHeader>
@@ -105,9 +110,7 @@ export function NewPlayDialog({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <TeamField value={teamId} onChange={setTeamId} teams={teams} />
-            <Field label="Estado">
-              <StatusSelect value={status} onChange={setStatus} />
-            </Field>
+            <StatusField value={status} onChange={setStatus} />
           </div>
           <TagsField value={tags} onChange={setTags} />
           {error ? (
@@ -119,12 +122,13 @@ export function NewPlayDialog({
             <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={busy || title.trim() === ''}>
+            <Button type="submit" disabled={busy || title.trim() === ''} loading={busy}>
               Crear
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
+      {guard.confirm}
     </Dialog>
   );
 }

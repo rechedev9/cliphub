@@ -1,6 +1,6 @@
 import type { CaptureRetention, StorageUsage } from './api/storage.ts';
 import { SERVICE_UNAVAILABLE_CODE, type Match } from './api/types.ts';
-import { DELETE_OFFLINE_MESSAGE } from './delete-error.ts';
+import { offlineMessage } from './load-error.ts';
 import { prettyMapName } from './format.ts';
 
 export const STORAGE_LOAD_ERROR_MESSAGE = 'No se pudo leer el espacio usado. Inténtalo de nuevo.';
@@ -62,5 +62,5 @@ export function freeableJobs(
 
 export function storageLoadErrorMessage(err: unknown): string {
   const code: unknown = typeof err === 'object' && err !== null ? Reflect.get(err, 'code') : undefined;
-  return code === SERVICE_UNAVAILABLE_CODE ? DELETE_OFFLINE_MESSAGE : STORAGE_LOAD_ERROR_MESSAGE;
+  return code === SERVICE_UNAVAILABLE_CODE ? offlineMessage() : STORAGE_LOAD_ERROR_MESSAGE;
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Loader2, PlugZap, RefreshCw, Swords, TriangleAlert } from 'lucide-react';
+import { Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   analyzeLibraryDemo,
@@ -20,6 +20,7 @@ import { MATCHES_HREF, matchHref } from '@/lib/clips/routes';
 import { PARSE_STATE_LABEL, demoErrorLabel } from '@/lib/library/partidas';
 import { startPollLoop } from '@/lib/poll-loop';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { LibraryMatchRecord } from '@/components/matches/library-match-record';
 import { MatchRecord } from '@/components/matches/match-record';
 import { ProMatchNotice } from '@/components/pro-matches/pro-match-notice';
@@ -33,7 +34,8 @@ type Resolved =
   | { kind: 'pending'; demo: LibraryDemo; jobId: string | null }
   | { kind: 'legacy' }
   | { kind: 'missing' }
-  | { kind: 'offline' };
+  | { kind: 'offline' }
+  | { kind: 'error'; error: unknown };
 
 const PENDING_POLL_MS = 3_000;
 const PENDING_IDLE_MS = 15_000;
@@ -75,8 +77,8 @@ export function PartidaRecord({ id }: { id: string }): ReactNode {
       .then((next) => {
         if (active) setResolved(next);
       })
-      .catch(() => {
-        if (active) setResolved({ kind: 'missing' });
+      .catch((error: unknown) => {
+        if (active) setResolved({ kind: 'error', error });
       });
     return () => {
       active = false;
@@ -123,30 +125,20 @@ export function PartidaRecord({ id }: { id: string }): ReactNode {
       return <MatchRecord matchId={id} />;
     case 'offline':
       return (
-        <EmptyState
-          icon={PlugZap}
-          title="Servicio local sin conexión"
-          description="No se pudo leer la partida. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-          actions={
-            <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-              Reintentar
-            </Button>
-          }
+        <LoadErrorState kind="offline" title="No se pudo leer la partida" onRetry={() => setAttempt((n) => n + 1)} />
+      );
+    case 'error':
+      return (
+        <LoadErrorState
+          error={resolved.error}
+          title="No se pudo leer la partida"
+          notFoundTitle="Partida no encontrada"
+          onRetry={() => setAttempt((n) => n + 1)}
+          actions={<AllMatchesLink />}
         />
       );
     case 'missing':
-      return (
-        <EmptyState
-          icon={Swords}
-          title="Partida no encontrada"
-          description="Puede que se haya quitado de la biblioteca o que el enlace sea antiguo."
-          actions={
-            <Button asChild variant="outline" size="sm">
-              <Link href={MATCHES_HREF}>Ver partidas</Link>
-            </Button>
-          }
-        />
-      );
+      return <LoadErrorState kind="not_found" title="No se pudo leer la partida" notFoundTitle="Partida no encontrada" actions={<AllMatchesLink />} />;
     case 'pending':
       return (
         <PendingDemo
@@ -160,6 +152,14 @@ export function PartidaRecord({ id }: { id: string }): ReactNode {
         />
       );
   }
+}
+
+function AllMatchesLink(): ReactNode {
+  return (
+    <Button asChild variant="outline" size="sm">
+      <Link href={MATCHES_HREF}>Ver partidas</Link>
+    </Button>
+  );
 }
 
 function PendingDemo({

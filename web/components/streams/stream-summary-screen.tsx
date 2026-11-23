@@ -11,7 +11,7 @@ import { errorMessage } from '@/lib/streams/plan';
 import { streamDocumentTitle, streamTitle } from '@/lib/streams/title';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { StreamSummaryCard } from '@/components/streams/stream-summary';
-import { StudioEmptyState } from '@/components/studio/empty-state';
+import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 
@@ -91,9 +91,8 @@ function SummaryPlays({ jobId }: { jobId: string }): ReactNode {
 function SummaryUnavailable({ job }: { job: StreamJob }): ReactNode {
   const vod = job.source_kind === 'vod';
   return (
-    <StudioEmptyState
+    <EmptyState
       icon={Film}
-      accent="magenta"
       title={vod ? 'El vídeo aún no está en este PC' : 'Un clip corto no tiene resumen'}
       description={
         vod
@@ -136,9 +135,8 @@ export function StreamSummaryScreen({ jobId }: { jobId: string }): ReactNode {
   if (error !== null) {
     return (
       <div role="alert">
-        <StudioEmptyState
+        <EmptyState
           icon={AlertTriangle}
-          accent="magenta"
           title="No se pudo abrir el resumen"
           description={error}
           className="border-destructive/45"
@@ -161,9 +159,8 @@ export function StreamSummaryScreen({ jobId }: { jobId: string }): ReactNode {
   }
   if (job === null) {
     return (
-      <StudioEmptyState
+      <EmptyState
         icon={Film}
-        accent="magenta"
         title="Ese stream ya no está"
         description="El trabajo no existe o se ha borrado. Vuelve a la lista para traer otro vídeo."
         actions={

@@ -6,20 +6,22 @@ export const NAV_AREA_LABEL = {
   analyze: 'Analizar',
 } as const satisfies Record<Exclude<NavArea, 'chrome'>, string>;
 
-/** Studio nav in rail order. */
+/** Studio nav in rail order: the one source of the section names the rail, the breadcrumb and the guide show. */
 export const NAV_SECTIONS = [
   { label: 'Demo completa', href: '/videos-largos', area: 'create' },
   { label: 'Short', href: '/shorts', area: 'create' },
   { label: 'Clips de stream', href: '/streams', area: 'create' },
-  { label: 'Jugadores FACEIT', href: '/jugadores/faceit', area: 'create' },
   { label: 'Mis vídeos', href: '/mis-videos', area: 'create' },
   { label: 'Consejos', href: '/ideas', area: 'create' },
   { label: 'Partidas', href: '/partidas', area: 'analyze' },
-  { label: 'Replay', href: '/replay', area: 'analyze' },
+  { label: 'Replay 2D', href: '/replay', area: 'analyze' },
+  { label: 'Buscador de patrones', href: '/patrones', area: 'analyze' },
   { label: 'Equipos', href: '/equipos', area: 'analyze' },
   { label: 'Jugadores', href: '/jugadores', area: 'analyze' },
+  { label: 'Jugadores FACEIT', href: '/jugadores/faceit', area: 'analyze' },
   { label: 'Ranking', href: '/ranking', area: 'analyze' },
   { label: 'Libreta', href: '/libreta', area: 'analyze' },
+  { label: 'Editor de tácticas', href: '/tacticas/nueva', area: 'analyze' },
   { label: 'Lineups pro', href: '/lineups', area: 'analyze' },
   { label: 'Informes', href: '/informes', area: 'analyze' },
   { label: 'Almacenamiento', href: '/almacenamiento', area: 'chrome' },
@@ -34,14 +36,25 @@ const SECTION_PREFIXES: ReadonlyArray<readonly [prefix: string, href: NavHref]> 
   ['/series/', '/shorts'],
 ];
 
-/** The rail section a pathname lives in, including nested routes under it. */
+export function navSection(href: NavHref): NavSection {
+  const section = NAV_SECTIONS.find((entry) => entry.href === href);
+  if (section === undefined) throw new Error(`${href} is not a rail section`);
+  return section;
+}
+
+function inSection(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** The rail section a pathname lives in, including nested routes; the deepest section wins. */
 export function sectionForPath(pathname: string): NavSection | null {
   const owner = SECTION_PREFIXES.find(([prefix]) => pathname.startsWith(prefix))?.[1];
+  if (owner !== undefined) return navSection(owner);
+  let found: NavSection | null = null;
   for (const section of NAV_SECTIONS) {
-    if (owner === section.href) return section;
-    if (pathname === section.href || pathname.startsWith(`${section.href}/`)) return section;
+    if (inSection(pathname, section.href) && (found === null || section.href.length > found.href.length)) found = section;
   }
-  return null;
+  return found;
 }
 
 /** Tool pages bring their own context (the team and the filters), so the strip leaves the breadcrumb off them. */

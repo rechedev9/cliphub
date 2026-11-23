@@ -1,16 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { PlugZap } from 'lucide-react';
 import { getLibraryPlayerMetrics, type PlayerMetricsQuery } from '@/lib/api/library';
 import type { MetricsReport } from '@/lib/api/metrics';
 import type { ScoutMatchSummary } from '@/lib/api/scout';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { matchHref } from '@/lib/clips/routes';
 import { ecoText, roleText } from '@/lib/metrics/advanced';
-import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { MATCH_SAMPLE_OPTIONS } from '@/lib/analysis/match-sample';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MetricsView } from './metrics-view';
 
@@ -21,7 +19,7 @@ export const PLAYER_METRICS_LIMITS = MATCH_SAMPLE_OPTIONS;
 /** Sections the player page shows as their own tabs. */
 const OWN_TABS = ['metricas-compra', 'metricas-mapas'] as const;
 
-export type PlayerReportState = { kind: 'loading' } | { kind: 'ready'; report: MetricsReport } | { kind: 'offline' };
+export type PlayerReportState = { kind: 'loading' } | { kind: 'ready'; report: MetricsReport } | { kind: 'failed'; error: unknown };
 
 /** The player's metrics report for the page's scope, read once and shared by the tabs that read it. */
 export function usePlayerReport(steamId: string, scope: AnalysisScope): { state: PlayerReportState; retry: () => void } {
@@ -41,8 +39,8 @@ export function usePlayerReport(steamId: string, scope: AnalysisScope): { state:
       .then((report) => {
         if (active) setState({ kind: 'ready', report });
       })
-      .catch(() => {
-        if (active) setState({ kind: 'offline' });
+      .catch((error: unknown) => {
+        if (active) setState({ kind: 'failed', error });
       });
     return () => {
       active = false;
@@ -71,19 +69,8 @@ export function PlayerReportGate({
       </div>
     );
   }
-  if (state.kind === 'offline') {
-    return (
-      <EmptyState
-        icon={PlugZap}
-        title="No se pudieron calcular las métricas"
-        description="Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={retry}>
-            Reintentar
-          </Button>
-        }
-      />
-    );
+  if (state.kind === 'failed') {
+    return <LoadErrorState error={state.error} title="No se pudieron calcular las métricas" onRetry={retry} />;
   }
   if (state.report.players.length === 0) {
     return (

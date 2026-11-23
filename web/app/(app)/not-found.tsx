@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { Compass } from 'lucide-react';
 import { NotFoundAction } from '@/components/shell/not-found-action';
 
-export const metadata: Metadata = { title: 'Ruta desconocida' };
+export const metadata: Metadata = { title: 'Página no encontrada' };
 
 /**
  * 404 *inside* the shell. The root `not-found.tsx` renders under

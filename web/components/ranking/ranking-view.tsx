@@ -9,8 +9,8 @@ import { DEFAULT_MAP_POOL, EXTRA_POOL_MAPS } from '@/lib/api/veto';
 import type { AnalysisScope } from '@/lib/analysis/scope';
 import {
   ALLROUND,
-  DEFAULT_MIN_ROUNDS,
   DEFAULT_PERIOD,
+  defaultMinRounds,
   boardSampleText,
   leaderboardRequest,
   nextDir,
@@ -24,6 +24,7 @@ import {
   type RankingSort,
   type RankingState,
 } from '@/lib/ranking/ranking';
+import { offlineMessage } from '@/lib/load-error';
 import { EmptyState } from '@/components/records/empty-state';
 import { RankingFilters } from '@/components/ranking/ranking-filters';
 import { RankingTable } from '@/components/ranking/ranking-table';
@@ -35,7 +36,7 @@ type Load = { key: string; board: Leaderboard } | { key: string; failed: 'offlin
 const MAP_OPTIONS = [...DEFAULT_MAP_POOL, ...EXTRA_POOL_MAPS].sort();
 
 function failureMessage(failed: 'offline' | 'error', pro: boolean): string {
-  if (failed === 'offline') return 'No se pudo leer el ranking. Comprueba que ClipHub Studio sigue abierto.';
+  if (failed === 'offline') return `No se pudo leer el ranking. ${offlineMessage()}`;
   if (pro) return 'Los datos pro aún no están disponibles. Prueba de nuevo en un rato o usa los datos de tu biblioteca.';
   return 'El ranking no se pudo calcular con este filtro. Prueba con otro mapa o periodo.';
 }
@@ -102,8 +103,7 @@ function RankingBody({
     <>
       <RankingTable entries={entries} state={state} boardMetric={load.board.metric} onSort={onSort} onPin={onPin} />
       <p className="measure-read text-meta text-fg-3">
-        {boardSampleText(load.board)}. El rol se lee en los primeros 25 segundos de cada ronda; con menos de 4 rondas leídas no hay rol. El rating es el
-        Rating de ClipHub; su fórmula está en la cabecera de la columna.{state.scope.reference === 'pro' && load.board.days ? ` Últimos ${load.board.days} días.` : ''}
+        {boardSampleText(load.board)}. El rol se lee en los primeros 25 segundos de cada ronda; con menos de 4 rondas leídas no hay rol.{state.scope.reference === 'pro' && load.board.days ? ` Últimos ${load.board.days} días.` : ''}
         {pro ? ' Estos mapas no están en tu biblioteca, así que sus rondas no se abren en el Replay.' : ''}
       </p>
     </>
@@ -158,7 +158,7 @@ export function RankingView(): ReactNode {
     top: null,
     teamTop: null,
     event: '',
-    minRounds: DEFAULT_MIN_ROUNDS,
+    minRounds: defaultMinRounds(state.scope.reference),
   });
   const dirty = writeRanking(cleared, query) !== writeRanking(state, query);
 

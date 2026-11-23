@@ -3,12 +3,13 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { PlugZap, Shield } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { useTeamAnalysis, useTeamList } from '@/hooks/use-team-analysis';
 import { patternsHref } from '@/lib/analysis/pattern-canvas-mode';
 import { TeamChoice } from '@/components/analysis/team-choice';
 import { ImportDemosButton } from '@/components/matches/import-demos-button';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { useDocumentTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -69,16 +70,7 @@ export function PatternsWorkspace({ teamId }: { teamId: string }): ReactNode {
   }
   if (state.kind === 'offline') {
     return (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudo leer el equipo. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={reload}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind="offline" title="No se pudo leer el equipo" onRetry={reload} />
     );
   }
   return <PatternsCanvas analysis={state.data} onTeam={(next) => router.push(patternsHref(next))} onImported={reload} />;

@@ -21,6 +21,7 @@ import {
   type RolePlayer,
   type RoleSides,
 } from '@/lib/libreta/roles';
+import { loadErrorMessage, offlineHint, offlineTitle } from '@/lib/load-error';
 import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -149,10 +150,10 @@ function TeamSheet({ teamId, map, roster }: { teamId: string; map: string; roste
     return (
       <EmptyState
         icon={PlugZap}
-        title={load.offline ? 'Servicio local sin conexión' : 'No se pudo leer la hoja de roles'}
+        title={load.offline ? offlineTitle() : 'No se pudo leer la hoja de roles'}
         description={
           load.offline
-            ? 'Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo.'
+            ? `No se pudo leer la hoja de roles. ${offlineHint()}`
             : 'Puede que el equipo ya no esté en la biblioteca. Elige otro equipo o vuelve a intentarlo.'
         }
         actions={
@@ -222,7 +223,7 @@ function SheetEditor({ roles, players, teamId, map }: { roles: TeamRoles; player
         kind: 'error',
         message: rejected
           ? 'Studio no aceptó la hoja. Revisa que cada rol tenga nombre y que las tareas no pasen de 200 caracteres.'
-          : 'No se pudo guardar la hoja de roles. Comprueba que ClipHub Studio sigue abierto.',
+          : loadErrorMessage({ error, lead: 'No se pudo guardar la hoja de roles.' }),
       });
     }
   }

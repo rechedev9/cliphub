@@ -6,10 +6,12 @@ import type { LibretaStatus } from '@/lib/api/libreta';
 import type { LibraryPlay } from '@/lib/api/stratbook';
 import type { TacticalSite } from '@/lib/api/tactical';
 import { parseTags, tagsText } from '@/lib/libreta/status';
+import { loadErrorMessage } from '@/lib/load-error';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Field, KindField, NO_TEAM, SiteField, TagsField, TeamField, TitleField, useLibraryTeams } from './play-fields';
-import { StatusSelect } from './status-badge';
+import { useDiscardGuard } from './discard-guard';
+import { KindField, NO_TEAM, SiteField, TagsField, TeamField, TitleField, useLibraryTeams } from './play-fields';
+import { StatusField } from './status-badge';
 
 /** Edits what a play is called and how the team uses it; map and side stay those of its rounds. */
 export function EditPlayDialog({ play, onClose, onSaved }: { play: LibraryPlay; onClose: () => void; onSaved: () => void }): ReactNode {
@@ -22,6 +24,9 @@ export function EditPlayDialog({ play, onClose, onSaved }: { play: LibraryPlay; 
   const [tags, setTags] = useState(tagsText(play.tags));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const snapshot = JSON.stringify([title, kind, site, teamId, status, tags]);
+  const [initial] = useState(snapshot);
+  const guard = useDiscardGuard({ dirty: snapshot !== initial, busy, onClose });
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -38,15 +43,15 @@ export function EditPlayDialog({ play, onClose, onSaved }: { play: LibraryPlay; 
       });
       onSaved();
       onClose();
-    } catch {
-      setError('No se pudo guardar la jugada.');
+    } catch (cause: unknown) {
+      setError(loadErrorMessage({ error: cause, lead: 'No se pudo guardar la jugada.' }));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
+    <Dialog open onOpenChange={guard.onOpenChange}>
       <DialogContent className="sm:max-w-md" showCloseButton={!busy}>
         <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
           <DialogHeader>
@@ -60,9 +65,7 @@ export function EditPlayDialog({ play, onClose, onSaved }: { play: LibraryPlay; 
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <TeamField value={teamId} onChange={setTeamId} teams={teams} currentName={play.team_name} />
-            <Field label="Estado">
-              <StatusSelect value={status} onChange={setStatus} />
-            </Field>
+            <StatusField value={status} onChange={setStatus} />
           </div>
           <TagsField value={tags} onChange={setTags} />
           {error ? (
@@ -74,12 +77,13 @@ export function EditPlayDialog({ play, onClose, onSaved }: { play: LibraryPlay; 
             <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={busy || title.trim() === ''}>
+            <Button type="submit" disabled={busy || title.trim() === ''} loading={busy}>
               Guardar
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
+      {guard.confirm}
     </Dialog>
   );
 }

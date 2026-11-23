@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { searchLibrary } from '@/lib/api/search';
-import { resultRow, SEARCH_GROUP_LABEL, sectionRows, type SearchRow } from '@/lib/search/results';
+import { localRows, resultRow, SEARCH_GROUP_LABEL, type SearchRow } from '@/lib/search/results';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ const SEARCH_DELAY_MS = 180;
 
 type Found = { query: string; rows: SearchRow[]; failed: boolean };
 
-/** Ctrl+K anywhere in the app: sections of the rail and the library's records. */
+/** Ctrl+K anywhere in the app: actions, sections of the rail and the library's records. */
 export function GlobalSearch(): ReactNode {
   const [open, setOpen] = useState(false);
 
@@ -81,7 +81,7 @@ function SearchDialog({ onClose }: { onClose: () => void }): ReactNode {
 
   const trimmed = query.trim();
   const rows = useMemo(
-    () => (trimmed === '' ? [] : [...sectionRows(trimmed), ...(found.query === trimmed ? found.rows : [])]),
+    () => [...localRows(trimmed), ...(trimmed !== '' && found.query === trimmed ? found.rows : [])],
     [trimmed, found],
   );
   const current = Math.min(active, Math.max(rows.length - 1, 0));
@@ -110,7 +110,7 @@ function SearchDialog({ onClose }: { onClose: () => void }): ReactNode {
       <DialogContent className="top-[15%] translate-y-0 gap-3 p-3 sm:max-w-xl" showCloseButton={false}>
         <DialogHeader className="sr-only">
           <DialogTitle>Buscar en Studio</DialogTitle>
-          <DialogDescription>Jugadas, lineups, llamadas, equipos, jugadores, partidas y secciones.</DialogDescription>
+          <DialogDescription>Acciones, secciones, jugadas, lineups, llamadas, equipos, jugadores y partidas.</DialogDescription>
         </DialogHeader>
         <Input
           autoFocus

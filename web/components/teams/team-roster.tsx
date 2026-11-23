@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { getLibraryPlayerRole, type LibraryRole, type LibraryRosterEntry } from '@/lib/api/library';
+import type { LibraryRole, LibraryRosterEntry } from '@/lib/api/library';
 import type { Baseline, BaselineMetric, BaselineScope } from '@/lib/api/baseline';
 import { METRIC_INFO, baselineSampleText, baselineValue, minRoundsNote, proSourceText, referenceLabel } from '@/lib/analysis/reference';
 import { playerHref } from '@/lib/clips/routes';
@@ -10,10 +10,12 @@ import { formatShortDate, prettyMapName } from '@/lib/format';
 import { ROLE_LABEL } from '@/lib/library/partidas';
 import { PlayerAvatar } from '@/components/players/player-avatar';
 import { EmptyCell } from '@/components/records/empty-cell';
+import { Button } from '@/components/ui/button';
 import { DeltaValue } from '@/components/ui/delta-value';
 import { RoleChip } from '@/components/ui/role-chip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useReferences } from '@/hooks/use-references';
+import { playerRole, type TeamRequests } from './team-requests';
 
 /** The numbers each roster row shows, compared with the reference. */
 const ROW_METRICS: readonly BaselineMetric[] = ['kpr', 'dpr', 'adr', 'kast', 'opening_win_pct', 'trade_pct'];
@@ -34,29 +36,38 @@ export function TeamRoster({
   roster,
   map,
   reference,
+  requests,
 }: {
   roster: readonly LibraryRosterEntry[];
   /** The scope's map; numbers and reference read the same map. */
   map: string;
   reference: BaselineScope;
+  requests: TeamRequests;
 }): ReactNode {
   const data = useReferences(map, ROW_METRICS);
   const [roles, setRoles] = useState<ReadonlyMap<string, LibraryRole>>(new Map());
+  const [failedRoles, setFailedRoles] = useState(0);
+  const [attempt, setAttempt] = useState(0);
   const ids = roster.map((entry) => entry.steamid64).join(',');
 
   useEffect(() => {
     let active = true;
-    for (const steamId of ids === '' ? [] : ids.split(',')) {
-      getLibraryPlayerRole(steamId)
-        .then((role) => {
-          if (active) setRoles((current) => new Map(current).set(steamId, role.role));
-        })
-        .catch(() => undefined);
-    }
+    const steamIds = ids === '' ? [] : ids.split(',');
+    setFailedRoles(0);
+    Promise.allSettled(steamIds.map((steamId) => playerRole(requests, steamId))).then((results) => {
+      if (!active) return;
+      const next = new Map<string, LibraryRole>();
+      results.forEach((result, index) => {
+        const steamId = steamIds[index];
+        if (result.status === 'fulfilled' && steamId !== undefined) next.set(steamId, result.value.role);
+      });
+      setRoles(next);
+      setFailedRoles(results.filter((result) => result.status === 'rejected').length);
+    });
     return () => {
       active = false;
     };
-  }, [ids]);
+  }, [ids, requests, attempt]);
 
   if (roster.length === 0) return <p className="text-body-sm text-fg-2">Sin jugadores en las partidas de este equipo.</p>;
   const sorted = [...roster].sort((a, b) => Date.parse(b.last_played_at) - Date.parse(a.last_played_at));
@@ -70,7 +81,15 @@ export function TeamRoster({
     <section aria-label="Plantilla" className="flex flex-col gap-2">
       {data === 'failed' ? (
         <p role="alert" className="text-body-sm text-destructive">
-          No se pudieron leer las cifras de los jugadores. Comprueba que ClipHub Studio sigue abierto.
+          No se pudieron leer las cifras de los jugadores. Vuelve a intentarlo.
+        </p>
+      ) : null}
+      {failedRoles > 0 ? (
+        <p role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-fg-2">
+          {failedRoles === 1 ? 'No se pudo cargar el rol de 1 jugador.' : `No se pudo cargar el rol de ${failedRoles} jugadores.`}
+          <Button type="button" variant="outline" size="xs" onClick={() => setAttempt((n) => n + 1)}>
+            Reintentar
+          </Button>
         </p>
       ) : null}
       <div className="studio-panel overflow-x-auto">

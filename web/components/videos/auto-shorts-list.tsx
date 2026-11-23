@@ -9,6 +9,7 @@ import { demoPlaybackItem } from '@/lib/api/playback';
 import type { Video } from '@/lib/api/types';
 import { downloadPublishMP4 } from '@/lib/publish-actions';
 import { Button } from '@/components/ui/button';
+import { LoadingText } from '@/components/ui/loading-text';
 import { MediaPlayer } from '@/components/studio/media-player';
 import { apiFetch } from '@/lib/api/edition-fetch';
 
@@ -54,7 +55,7 @@ export function AutoShortsList({ video, view }: { video: Video; view: AutoShorts
 
   return <section className="studio-panel space-y-3 p-4" aria-label="Shorts de Auto-Shorts">
     <h2 className="font-display text-body-lg font-semibold text-fg-1">Shorts de esta tanda</h2>
-    {view.status === 'loading' ? <p className="text-body-sm text-fg-2">Cargando los Shorts…</p> : null}
+    {view.status === 'loading' ? <LoadingText>Cargando los Shorts…</LoadingText> : null}
     {view.status === 'failed' ? <p role="alert" className="text-body-sm text-fg-2">No se pudo leer la lista de Shorts. Vuelve a abrir la página para reintentar.</p> : null}
     {view.status === 'ready' && view.replaced ? (
       <p className="text-body-sm text-fg-2">Después se creó otro vídeo con este estilo en la misma partida, así que Studio ya no guarda la lista de esta tanda. Descargar MP4 sigue dando el primer Short.</p>

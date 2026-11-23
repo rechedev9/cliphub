@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { PlugZap, Shield, Swords } from 'lucide-react';
+import { Shield, Swords } from 'lucide-react';
 import { isLibraryOffline, listLibraryTeams, type LibraryTeam } from '@/lib/api/library';
 import { MATCHES_HREF } from '@/lib/clips/routes';
 import { formatShortDate } from '@/lib/format';
@@ -11,6 +11,7 @@ import { hubTeamHref } from '@/lib/nav-scope';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { TableSkeleton } from '@/components/records/table-skeleton';
@@ -75,16 +76,7 @@ export function TeamLibrary(): ReactNode {
 
   if (teams.length === 0) {
     return offline ? (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudieron leer los equipos. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind="offline" title="No se pudieron leer los equipos" onRetry={() => setAttempt((n) => n + 1)} />
     ) : (
       <EmptyState
         icon={Shield}

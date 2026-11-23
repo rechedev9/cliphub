@@ -1,5 +1,5 @@
 import { formatBytes } from '../storage.ts';
-import { apiFetch, assertEditionServes } from './edition-fetch.ts';
+import { apiFetch, assertEditionServes, notifyApiMutation } from './edition-fetch.ts';
 
 /** Bytes the browser has handed to the local server so far. */
 export type UploadProgress = { loaded: number; total: number; percent: number };
@@ -67,6 +67,7 @@ export function uploadForm(options: UploadFormOptions): Promise<Response> {
     };
     xhr.onload = () => {
       signal?.removeEventListener('abort', onAbort);
+      notifyApiMutation({ method: 'POST', ok: xhr.status >= 200 && xhr.status < 300 });
       const nullBody = xhr.status === 204 || xhr.status === 205 || xhr.status === 304;
       resolve(new Response(nullBody ? null : xhr.responseText, {
         status: xhr.status,

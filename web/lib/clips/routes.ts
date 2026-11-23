@@ -23,7 +23,7 @@ export function visorHref(entryId: string): string {
 export const MATCHES_HREF = '/partidas' as const;
 export const TEAMS_HREF = '/equipos' as const;
 /** Player sheets live under this prefix; the list itself is retired. */
-const PLAYERS_HREF = '/jugadores' as const;
+export const PLAYERS_HREF = '/jugadores' as const;
 export const REPORTS_HREF = '/informes' as const;
 export const LIBRETA_HREF = '/libreta' as const;
 export const STORAGE_HREF = '/almacenamiento' as const;

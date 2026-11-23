@@ -105,7 +105,11 @@ func addTeamReportRoutes(mux *http.ServeMux) {
 			return
 		}
 		if q.Get("scope") == "pro" {
-			_, _ = w.Write([]byte(`{"scope":"pro","map":"","metric":"adr","higher_is_better":true,"min_rounds":50,"matches":0,"rounds":0,"skipped":0,"players":[]}`))
+			if q.Get("min_rounds") != "150" {
+				http.Error(w, `{"error":"pro boards default to 150 rounds, got `+r.URL.RawQuery+`"}`, http.StatusBadRequest)
+				return
+			}
+			_, _ = w.Write([]byte(`{"scope":"pro","map":"","metric":"adr","higher_is_better":true,"min_rounds":150,"matches":0,"rounds":0,"skipped":0,"players":[]}`))
 			return
 		}
 		_, _ = w.Write([]byte(`{"scope":"library","map":"","metric":"adr","higher_is_better":true,"min_rounds":50,"matches":40,"rounds":900,"skipped":1,

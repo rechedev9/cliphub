@@ -3,7 +3,8 @@
 import type { ReactNode } from 'react';
 import type { LibraryDemo, LibraryMatch } from '@/lib/api/library';
 import { matchStory, type TeamNames } from '@/lib/library/match-story';
-import { teamByKey, teamLabel } from '@/lib/library/partidas';
+import { matchResult, teamByKey, teamLabel } from '@/lib/library/partidas';
+import { endedBySurrender } from '@/lib/library/rounds';
 import { MatchDemoDetails } from '@/components/matches/match-demo-details';
 import { MatchTiles } from '@/components/matches/match-tiles';
 import { MatchScoreboard } from '@/components/matches/match-scoreboard';
@@ -31,7 +32,14 @@ export function MatchSummary({
   const ctStart = teamByKey(match, 'ct-start');
   const tStart = teamByKey(match, 't-start');
   const names: TeamNames = { 'ct-start': teamLabel(ctStart), 't-start': teamLabel(tStart) };
-  const facts = rounds.kind === 'ready' ? matchStory(rounds.rows, names) : [];
+  const finished =
+    rounds.kind === 'ready' &&
+    matchResult({
+      scores: { 'ct-start': ctStart?.score ?? 0, 't-start': tStart?.score ?? 0 },
+      maxRounds: rounds.doc.demo.max_rounds,
+      surrendered: endedBySurrender(rounds.rows),
+    }).kind !== 'unfinished';
+  const facts = rounds.kind === 'ready' ? matchStory(rounds.rows, { names, finished }) : [];
 
   let bestAdr: { steamid64: string; adr: number } | null = null;
   for (const player of match.players ?? []) {

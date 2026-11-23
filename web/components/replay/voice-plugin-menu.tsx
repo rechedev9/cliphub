@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Radio } from 'lucide-react';
 import { listVoiceRecordings, type VoiceRecording } from '@/lib/api/voice-plugin';
+import { VOICE_HREF } from '@/lib/nav-groups';
 import { recordingTitle } from '@/lib/voice-plugin-view';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -55,7 +56,7 @@ export function VoicePluginMenu({ voice }: { voice: ReplayVoice }): ReactNode {
           </ul>
         ) : null}
         <Button asChild variant="ghost" size="xs" className="self-start">
-          <Link href="/settings#teamspeak">Instalar o revisar el plugin</Link>
+          <Link href={VOICE_HREF}>Instalar o revisar el plugin</Link>
         </Button>
       </PopoverContent>
     </Popover>

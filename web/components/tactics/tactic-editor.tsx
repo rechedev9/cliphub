@@ -2,12 +2,12 @@
 
 import { useCallback, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { PlugZap, Shield } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { TEAM_QUERY, withTeam } from '@/lib/nav-scope';
 import { TeamChoice } from '@/components/analysis/team-choice';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { useDocumentTitle } from '@/components/shell/route-title';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTeamAnalysis, useTeamList } from '@/hooks/use-team-analysis';
 import { TacticEditorReady } from './tactic-editor-ready';
@@ -25,14 +25,27 @@ export function TacticEditor(): ReactNode {
 
   if (teamId === '') {
     return (
-      <TeamChoice
-        sentence="El editor de tácticas parte de las rondas de un equipo en un mapa y un lado, y las condiciones que añades dejan solo las rondas que las cumplen. Elige un equipo para empezar."
-        teams={teams}
-        onPick={pick}
-      />
+      <div className="flex flex-col gap-4">
+        <h1 className="flex items-baseline gap-2 text-title font-semibold text-fg-1">
+          <span aria-hidden className="text-slash">
+            /
+          </span>
+          Editor de tácticas
+        </h1>
+        <TeamChoice
+          sentence="El editor de tácticas parte de las rondas de un equipo en un mapa y un lado, y las condiciones que añades dejan solo las rondas que las cumplen. Elige un equipo para empezar."
+          teams={teams}
+          onPick={pick}
+        />
+      </div>
     );
   }
-  return <TacticEditorStage key={teamId} teamId={teamId} teams={teams} onTeam={pick} />;
+  return (
+    <>
+      <h1 className="sr-only">Editor de tácticas</h1>
+      <TacticEditorStage key={teamId} teamId={teamId} teams={teams} onTeam={pick} />
+    </>
+  );
 }
 
 function TacticEditorStage({ teamId, teams, onTeam }: { teamId: string; teams: ReturnType<typeof useTeamList>; onTeam: (id: string) => void }): ReactNode {
@@ -48,16 +61,7 @@ function TacticEditorStage({ teamId, teams, onTeam }: { teamId: string; teams: R
   }
   if (state.kind === 'offline') {
     return (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudo leer el equipo. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={reload}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind="offline" title="No se pudo leer el equipo" onRetry={reload} />
     );
   }
   return <TacticEditorReady analysis={state.data} teams={teams} onTeam={onTeam} />;

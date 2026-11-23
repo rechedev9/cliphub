@@ -5,12 +5,11 @@ import { Clapperboard, RefreshCw } from 'lucide-react';
 import { deleteLibraryDemo, isLibraryNotFound, type LibraryMatch } from '@/lib/api/library';
 import { PRODUCE_FORMAT } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
-import { OUTCOME_LABEL, PARSE_STATE_LABEL, demoErrorLabel, matchTitle, ownFirstScoreline, withoutDemo, type Outcome, type PartidaRow } from '@/lib/library/partidas';
+import { PARSE_STATE_LABEL, demoErrorLabel, matchTitle, ownFirstScoreline, withoutDemo, type Outcome, type PartidaRow } from '@/lib/library/partidas';
 import { cn } from '@/lib/utils';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { OpenInCrearButton } from '@/components/matches/open-in-crear-button';
 import { TeamLogo } from '@/components/matches/team-logo';
-import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -44,22 +43,6 @@ export function ScoreStack({ match, ownTeam = null }: { match: LibraryMatch; own
         </span>
       ))}
     </span>
-  );
-}
-
-const OUTCOME_BADGE = {
-  win: { variant: 'success', letter: 'V' },
-  loss: { variant: 'danger', letter: 'D' },
-  draw: { variant: 'secondary', letter: 'E' },
-} as const;
-
-/** V, D or E for the own team, so the result reads at a glance; the row's own label already says it to screen readers. */
-export function OutcomeBadge({ outcome }: { outcome: Outcome }): ReactNode {
-  const { variant, letter } = OUTCOME_BADGE[outcome];
-  return (
-    <Badge aria-hidden variant={variant} shape="square" title={OUTCOME_LABEL[outcome]} className="w-6 justify-center px-0 font-bold">
-      {letter}
-    </Badge>
   );
 }
 

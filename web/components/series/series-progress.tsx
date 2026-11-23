@@ -25,7 +25,8 @@ import { prettyMapName } from '@/lib/format';
 import { groupSeriesDemos, representativeSeriesStatus, type SeriesGroup } from '@/lib/series-grouping';
 import { startPollLoop } from '@/lib/poll-loop';
 import { StudioDataRow } from '@/components/studio/data-row';
-import { StudioEmptyState } from '@/components/studio/empty-state';
+import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { LongOperation } from '@/components/studio/long-operation';
@@ -219,12 +220,12 @@ export function SeriesProgress({ id, format }: { id: string; format: ProduceForm
 
   if (!valid) {
     return (
-      <StudioEmptyState
+      <EmptyState
         icon={Layers}
         title="Serie no encontrada"
         description="Ese enlace de serie no es válido. Carga varias demos a la vez para empezar una serie nueva."
         actions={
-          <Button asChild variant="hero">
+          <Button asChild variant="default">
             <Link href={loadHref}>Cargar demos</Link>
           </Button>
         }
@@ -237,19 +238,13 @@ export function SeriesProgress({ id, format }: { id: string; format: ProduceForm
   }
 
   if (demos === null && loadError) {
-    const offline = loadError === 'offline';
     return (
-      <StudioEmptyState
-        icon={Layers}
-        title={offline ? 'Servicio de análisis offline' : 'No se pudo cargar la serie'}
-        description={
-          offline
-            ? 'Arranca el servicio de análisis local y vuelve a intentarlo.'
-            : 'Hubo un problema al cargar esta serie. Recarga la página para reintentar.'
-        }
-        note={offline ? 'ClipHub no envía tus demos a ningún servidor: todo el análisis es local.' : undefined}
+      <LoadErrorState
+        kind={loadError === 'offline' ? 'offline' : 'error'}
+        title="No se pudo cargar la serie"
+        onRetry={() => window.location.reload()}
         actions={
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" size="sm">
             <Link href={loadHref}>Cargar demos</Link>
           </Button>
         }
@@ -260,12 +255,12 @@ export function SeriesProgress({ id, format }: { id: string; format: ProduceForm
   const list = demos ?? [];
   if (list.length === 0) {
     return (
-      <StudioEmptyState
+      <EmptyState
         icon={Layers}
         title="No encontramos esta serie"
         description="Puede que sus demos se hayan borrado o que el enlace sea de una sola partida. Carga las demos de tu bo3/bo5 para crear una serie."
         actions={
-          <Button asChild variant="hero">
+          <Button asChild variant="default">
             <Link href={loadHref}>Cargar demos</Link>
           </Button>
         }
@@ -513,7 +508,7 @@ function ForgeLink({
   if (!seriesStatusIsForgeable(demo.status)) return null;
   const label = FORGE_LABEL[format];
   return (
-    <Button asChild size="sm" variant={reel ? 'outline' : 'hero'}>
+    <Button asChild size="sm" variant={reel ? 'outline' : 'default'}>
       <Link href={produceHref(demo.jobId, format, seriesId)}>
         {reel ? label.again : label.first}
         <ChevronRight className="size-4" />

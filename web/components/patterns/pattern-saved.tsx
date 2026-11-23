@@ -20,6 +20,7 @@ import {
 } from '@/lib/api/patterns';
 import { TREND_LABEL, ofRoundsLabel, percentLabel, timedKind } from '@/lib/analysis/pattern-finder';
 import { prettyMapName } from '@/lib/format';
+import { offlineMessage } from '@/lib/load-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -84,7 +85,7 @@ export function SavedPatterns({ map, teamId, teamName, scope, version, onOpen }:
       setConfirming(null);
       setRemoved((n) => n + 1);
     } catch (error) {
-      toast.error(isLibraryOffline(error) ? 'El servicio local no responde.' : `No se pudo borrar «${pattern.name}».`);
+      toast.error(isLibraryOffline(error) ? offlineMessage() : `No se pudo borrar «${pattern.name}».`);
     }
   }, []);
 
@@ -236,7 +237,7 @@ function SaveChangesButton({ opened, pattern, scope, onSaved }: { opened: SavedP
       toast.success(`Cambios guardados en «${opened.name}»`);
       onSaved();
     } catch (failure) {
-      toast.error(isLibraryOffline(failure) ? 'El servicio local no responde.' : `No se pudo guardar «${opened.name}».`);
+      toast.error(isLibraryOffline(failure) ? offlineMessage() : `No se pudo guardar «${opened.name}».`);
     } finally {
       setBusy(false);
     }
@@ -275,7 +276,7 @@ export function SavePatternButton({ map, teamId, teamName, pattern, scope, opene
       setCategory('');
       onSaved();
     } catch (failure) {
-      setError(isLibraryOffline(failure) ? 'El servicio local no responde. Vuelve a intentarlo.' : 'No se pudo guardar el patrón.');
+      setError(isLibraryOffline(failure) ? offlineMessage() : 'No se pudo guardar el patrón.');
     } finally {
       setBusy(false);
     }

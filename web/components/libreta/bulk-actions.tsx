@@ -53,7 +53,6 @@ export function LibretaBulkActions({
       <DeleteChosenButton
         count={count}
         noun={noun}
-        verb="Eliminar"
         disabled={busy}
         description="No se puede deshacer. Para quitar algo de la lista sin borrarlo, cambia su estado a Archivo."
         onConfirm={onDelete}

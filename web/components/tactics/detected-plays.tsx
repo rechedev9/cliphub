@@ -55,7 +55,7 @@ export function DetectedPlays({
   if (read.kind === 'failed') {
     return (
       <p role="alert" className="text-body-sm text-destructive">
-        No se pudieron buscar las jugadas repetidas. Comprueba que ClipHub Studio sigue abierto.
+        No se pudieron buscar las jugadas repetidas. Vuelve a intentarlo.
       </p>
     );
   }

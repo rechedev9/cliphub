@@ -350,7 +350,7 @@ export function HeatmapView({
     if (load.kind === 'failed') {
       return (
         <div role="alert" className="flex flex-wrap items-center gap-3">
-          <p className="text-body-sm text-destructive">No se pudo calcular el mapa de calor. Comprueba que ClipHub Studio sigue abierto.</p>
+          <p className="text-body-sm text-destructive">No se pudo calcular el mapa de calor. Vuelve a intentarlo.</p>
           <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
             Reintentar
           </Button>

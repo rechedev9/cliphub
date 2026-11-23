@@ -2,22 +2,20 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Film } from 'lucide-react';
 import { streamsApi, type StreamJob, type StreamSourceKind } from '@/lib/api/streams';
 import { startPollLoop } from '@/lib/poll-loop';
 import { uploadProgress, type UploadProgress } from '@/lib/api/upload';
 import { sortStreamJobs, streamListCadence } from '@/lib/streams/list';
 import { readIfCurrent } from '@/lib/streams/list-poll';
-import {
-  STREAM_LIST_FAIL_MESSAGE,
-  STREAM_OFFLINE_MESSAGE,
-  errorMessage,
-  isServiceUnavailable,
-  isStreamURLValidationError,
-} from '@/lib/streams/plan';
+import { isStreamURLValidationError } from '@/lib/streams/plan';
+import { loadErrorMessage } from '@/lib/load-error';
 import { streamImportErrorMessage, streamSourceUrlError } from '@/lib/streams/import';
 import { CREATE_FLOW } from '@/lib/produce/create-flow';
 import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
+import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
+import { LoadingText } from '@/components/ui/loading-text';
 import { Button } from '@/components/ui/button';
 import { StreamProjectCard } from '@/components/streams/stream-project-card';
 import { StreamSourcePanel, type StreamImportError } from '@/components/streams/stream-source-panel';
@@ -29,8 +27,7 @@ const POLL_IDLE_MS = 10000;
 export default function StreamsPage(): ReactNode {
   const router = useRouter();
   const [jobs, setJobs] = useState<StreamJob[] | null>(null);
-  const [offline, setOffline] = useState(false);
-  const [listError, setListError] = useState<string | null>(null);
+  const [listFailure, setListFailure] = useState<{ error: unknown } | null>(null);
   const [pollGeneration, setPollGeneration] = useState(0);
   const [sourceUrl, setSourceUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -50,13 +47,11 @@ export default function StreamsPage(): ReactNode {
           if (!current || loaded === null) return 'idle';
           const next = sortStreamJobs(loaded);
           setJobs(next);
-          setOffline(false);
-          setListError(null);
+          setListFailure(null);
           return streamListCadence(next);
         } catch (err) {
           if (!current) return 'idle';
-          setOffline(isServiceUnavailable(err));
-          setListError(errorMessage(err, STREAM_LIST_FAIL_MESSAGE));
+          setListFailure({ error: err });
           return 'idle';
         }
       },
@@ -102,28 +97,21 @@ export default function StreamsPage(): ReactNode {
     [title, sourceKind, open],
   );
 
+  const retryList = (): void => setPollGeneration((g) => g + 1);
   let list: ReactNode;
-  if (jobs === null) {
-    // A failed first poll leaves `jobs` null forever; the alert above is then
-    // the only truthful report, and a spinner beside it claims work in flight.
-    list =
-      listError !== null ? null : (
-        <p role="status" className="flex items-center gap-2 py-6 text-body-sm text-fg-2">
-          <span aria-hidden className="studio-spinner" />
-          Cargando streams
-        </p>
-      );
+  if (jobs === null && listFailure !== null) {
+    list = <LoadErrorState error={listFailure.error} title="No se pudieron leer tus proyectos de stream" onRetry={retryList} />;
+  } else if (jobs === null) {
+    list = <LoadingText spinner className="py-6">Cargando tus proyectos</LoadingText>;
   } else if (jobs.length === 0) {
     list = (
-      <p className="studio-panel px-6 py-8 text-center text-body text-fg-2">
-        Tus proyectos aparecerán aquí. Importa un vídeo para crear el primero.
-      </p>
+      <EmptyState icon={Film} title="Aún no tienes proyectos de stream" description="Importa un vídeo arriba para crear el primero." />
     );
   } else {
     list = (
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4.5">
         {jobs.map((job) => (
-          <StreamProjectCard key={job.id} job={job} onOpen={() => open(job)} onDeleted={() => setPollGeneration((g) => g + 1)} />
+          <StreamProjectCard key={job.id} job={job} onOpen={() => open(job)} onDeleted={retryList} />
         ))}
       </ul>
     );
@@ -131,19 +119,6 @@ export default function StreamsPage(): ReactNode {
 
   return (
     <div className="measure-work flex flex-col gap-7.5">
-      {listError !== null ? (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/45 bg-destructive/10 px-4 py-3 text-body-sm text-destructive"
-        >
-          <AlertTriangle aria-hidden className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1">{offline ? STREAM_OFFLINE_MESSAGE : listError}</span>
-          <Button type="button" variant="outline" size="sm" onClick={() => setPollGeneration((g) => g + 1)}>
-            Reintentar
-          </Button>
-        </div>
-      ) : null}
-
       <div className="flex flex-wrap items-center justify-between gap-4">
         {/* Five steps share the track here: the wider track and gap keep "2 · Momentos" off "3 · Aspecto". */}
         <CreateFlowSteps flow={CREATE_FLOW.stream} step={0} className="min-w-0 flex-1 max-w-180 gap-x-4" />
@@ -177,6 +152,13 @@ export default function StreamsPage(): ReactNode {
             </span>
           ) : null}
         </div>
+        {jobs !== null && listFailure !== null ? (
+          <p role="alert" className="flex flex-wrap items-center gap-3 text-body-sm text-warning">
+            <AlertTriangle aria-hidden className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1">{loadErrorMessage({ error: listFailure.error, lead: 'No se pudo actualizar la lista.' })}</span>
+            <Button type="button" variant="outline" size="sm" onClick={retryList}>Reintentar</Button>
+          </p>
+        ) : null}
         {list}
       </section>
     </div>

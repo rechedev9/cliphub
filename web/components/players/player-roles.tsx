@@ -69,7 +69,7 @@ function Positions({ steamId, scope, onCounts }: { steamId: string; scope: Analy
   if (data === 'failed') {
     return (
       <p role="alert" className="text-body-sm text-destructive">
-        No se pudieron leer sus posiciones. Comprueba que ClipHub Studio sigue abierto.
+        No se pudieron leer sus posiciones. Vuelve a intentarlo.
       </p>
     );
   }

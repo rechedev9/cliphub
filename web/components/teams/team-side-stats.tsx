@@ -56,7 +56,7 @@ export function sideStatsState(data: TeamSideStatsReport | null | 'failed'): Rea
   if (data === 'failed') {
     return (
       <p role="alert" className="text-body-sm text-destructive">
-        No se pudieron leer las estadísticas de este equipo. Comprueba que ClipHub Studio sigue abierto.
+        No se pudieron leer las estadísticas de este equipo. Vuelve a intentarlo.
       </p>
     );
   }

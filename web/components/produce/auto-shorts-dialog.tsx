@@ -111,7 +111,7 @@ export function AutoShortsDialog({ matchId, plays, disabled, creating, onCreate 
         </section>
         <DialogFooter>
           <Button type="button" variant="outline" disabled={creating} onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button type="button" variant="hero" disabled={chosen.length === 0} loading={creating} loadingText="Preparando grabación…" onClick={() => onCreate(chosen)}>
+          <Button type="button" variant="default" disabled={chosen.length === 0} loading={creating} loadingText="Preparando grabación…" onClick={() => onCreate(chosen)}>
             {chosen.length === 1 ? 'Crear 1 Short' : `Crear ${chosen.length} Shorts`}
           </Button>
         </DialogFooter>

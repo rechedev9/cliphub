@@ -38,7 +38,7 @@ import {
   type StreamFailureKind,
 } from '@/lib/streams/plan';
 import { affiliateFamilyLabel, isAffiliateStyle, stylesForFamily } from '@/lib/api/types';
-import { StudioEmptyState } from '@/components/studio/empty-state';
+import { EmptyState } from '@/components/records/empty-state';
 import { LongOperation } from '@/components/studio/long-operation';
 import { Button } from '@/components/ui/button';
 import { StreamEditor } from '@/components/streams/stream-editor';
@@ -447,9 +447,8 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
   }
   if (stage === 'missing') {
     return (
-      <StudioEmptyState
+      <EmptyState
         icon={Film}
-        accent="magenta"
         title="Ese stream ya no está"
         description="El trabajo no existe o se ha borrado. Vuelve a la lista para traer otro vídeo."
         actions={
@@ -463,9 +462,8 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
   if (stage === 'error') {
     return (
       <div role="alert">
-        <StudioEmptyState
+        <EmptyState
           icon={AlertTriangle}
-          accent="magenta"
           title="No se pudo abrir el stream"
           description={error ?? 'Algo salió mal.'}
           className="border-destructive/45"
@@ -507,9 +505,8 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
     const renderFailed = failure?.kind === 'render';
     return (
       <div role="alert">
-        <StudioEmptyState
+        <EmptyState
           icon={AlertTriangle}
-          accent="magenta"
           title={renderFailed ? 'No se pudieron crear los Shorts' : 'No se pudo traer el vídeo'}
           description={
             renderFailed ? (

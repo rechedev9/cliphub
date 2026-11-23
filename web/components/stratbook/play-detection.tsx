@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Field } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PlayGrenadeTable, PlayPositionTable } from './play-tables';
@@ -151,7 +152,7 @@ function DetectionResult({
   onSave: (play: DetectedPlay) => void;
 }): ReactNode {
   if (result === 'failed') {
-    return <p role="alert" className="text-body-sm text-destructive">No se pudieron leer las partidas de este equipo. Comprueba que ClipHub Studio sigue abierto.</p>;
+    return <p role="alert" className="text-body-sm text-destructive">No se pudieron leer las partidas de este equipo. Vuelve a intentarlo.</p>;
   }
   if (result === null) {
     return (
@@ -292,10 +293,9 @@ export function SaveDetectedDialog({
               <DialogTitle>Guardar la jugada repetida</DialogTitle>
               <DialogDescription>Se guardan sus granadas y posiciones comunes, y sus {play.rounds} rondas como ejemplos.</DialogDescription>
             </DialogHeader>
-            <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-              Título
-              <Input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} />
-            </label>
+            <Field label="Título">
+              {(control) => <Input {...control} value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} />}
+            </Field>
             {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
             <DialogFooter>
               <Button type="button" variant="outline" disabled={busy} onClick={onClose}>

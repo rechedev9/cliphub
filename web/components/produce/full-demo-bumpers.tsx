@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LongOperation } from '@/components/studio/long-operation';
 import { formatUploadBytes, uploadProgress, uploadSent, type UploadProgress } from '@/lib/api/upload';
+import { humanErrorText } from '@/lib/human-error';
 import { uploadFullDemoBumper, type FullDemoBumperOptions, type FullDemoDocument, type FullDemoOptions, type FullDemoAssetRef } from '@/lib/full-demo-plan';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { roundListLabel } from '@/lib/library/analysis-video';
@@ -122,7 +123,7 @@ function BumperUpload({ slot, asset, savedName, inputRef, onBusy, onChange }: {
       const ref = await uploadFullDemoBumper(file, { signal: controller.signal, onProgress: setProgress });
       if (!controller.signal.aborted) { setFileName({ id: ref.id, name: file.name }); onChange(ref); }
     } catch (failure) {
-      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'No se pudo subir el MP4. Inténtalo de nuevo.');
+      if (!controller.signal.aborted) setError(humanErrorText({ error: failure, lead: 'No se pudo subir el MP4.' }));
     } finally {
       if (!controller.signal.aborted) { request.current = null; setUploading(false); setProgress(null); onBusy(false); }
     }

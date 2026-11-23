@@ -6,6 +6,7 @@ import { browserWindowActivity } from '@/lib/window-activity';
 import { claimMediaPlayback } from '@/lib/media-playback-owner';
 import { PlaybackSession, PLAYBACK_STATUS, type PlaybackStatus } from '@/lib/playback-session';
 import { StreamAudioMixer } from '@/lib/stream-audio';
+import { STREAM_AUDIO_FAILURE, STREAM_AUDIO_RESUME_FAILURE, streamMediaFailure, type StreamMediaFailure } from '@/lib/stream-media-error';
 import { nextStreamPlaybackIndex, streamClipIndexAt, streamClipRange, streamPlaybackIndex, streamPlaybackStartIndex, STREAM_PLAYBACK_MODE, type StreamPlaybackMode } from '@/lib/stream-playback';
 
 const MAX_CANVAS_WIDTH = 1440;
@@ -31,7 +32,7 @@ type StreamFrameProps = {
   onStatus: (status: PlaybackStatus) => void;
   onPlayingChange: (playing: boolean) => void;
   onClipChange: (clipId: string | null) => void;
-  onMediaError: (detail: string) => void;
+  onMediaError: (failure: StreamMediaFailure) => void;
   videoSrc: string;
 };
 type StreamRuntime = {
@@ -41,11 +42,6 @@ type StreamRuntime = {
   configure: () => void;
 };
 const StreamFrameContext = createContext<StreamFrameState | null>(null);
-
-function mediaErrorDetail(video: HTMLVideoElement): string {
-  const error = video.error;
-  return error ? `MediaError ${error.code}: ${error.message || 'sin mensaje'}` : 'MediaError desconocido';
-}
 
 function clipRangeKey(mode: StreamPlaybackMode, clip: StreamClipRange | undefined): string {
   return JSON.stringify([mode, clip?.id, streamClipRange(clip)]);
@@ -81,7 +77,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
     let rangeKey = '';
     let selectionKey = '';
     let releaseOwner = (): void => {};
-    const mixer = new StreamAudioMixer(video, () => { if (alive) latest.current.onMediaError('El mezclador de audio falló'); });
+    const mixer = new StreamAudioMixer(video, () => { if (alive) latest.current.onMediaError(STREAM_AUDIO_FAILURE); });
     const session = new PlaybackSession(video, {
       onState: (state) => {
         if (!alive) return;
@@ -92,7 +88,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
         if (state.status === PLAYBACK_STATUS.error) {
           mixer.pause();
           latest.current.onPlayingChange(false);
-          latest.current.onMediaError(mediaErrorDetail(video));
+          latest.current.onMediaError(streamMediaFailure(video.error));
         } else if (state.status === PLAYBACK_STATUS.paused && !state.playRequested && latest.current.playing) {
           queueMicrotask(() => {
             // A no-op seek can report paused before AudioContext.resume()
@@ -178,7 +174,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
           if (!alive || generation !== playGeneration) return;
           runtime.pause();
           latest.current.onPlayingChange(false);
-          latest.current.onMediaError('No se pudo reanudar el audio');
+          latest.current.onMediaError(STREAM_AUDIO_RESUME_FAILURE);
         });
       },
       pause: () => {

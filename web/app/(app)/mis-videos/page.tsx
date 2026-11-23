@@ -288,6 +288,12 @@ function ResultsView(): ReactNode {
           icon={Film}
           title="Aún no hay vídeos"
           description="Los Shorts, demos completas y clips de stream que crees aparecerán aquí, ordenados por fecha."
+          actions={
+            <>
+              <Button asChild className={FORMAT_TONE.short.fill}><Link href={SHORTS_HREF}>Crear un Short</Link></Button>
+              <Button asChild variant="outline"><Link href={LONG_VIDEOS_HREF}>Crear una demo completa</Link></Button>
+            </>
+          }
         />
       </div>
     );

@@ -37,7 +37,7 @@ export function TeamSeries({ team }: { team: LibraryTeam }): ReactNode {
   if (series === 'failed') {
     return (
       <p role="alert" className="text-body-sm text-destructive">
-        No se pudieron leer las series. Comprueba que ClipHub Studio sigue abierto.
+        No se pudieron leer las series. Vuelve a intentarlo.
       </p>
     );
   }

@@ -9,12 +9,15 @@ import type { TacticalSide } from '@/lib/api/tactical';
 import { lineupHref } from '@/lib/clips/routes';
 import { parseSetpos, setposCommand } from '@/lib/libreta/lineups';
 import { parseTags } from '@/lib/libreta/status';
+import { loadErrorMessage } from '@/lib/load-error';
 import { Button } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { GrenadeField, TechniqueFields, type LineupTechnique } from './lineup-fields';
-import { Field, MapField, SideField, TagsField, TitleField, mapChoices } from './play-fields';
-import { StatusSelect } from './status-badge';
+import { MapField, SideField, TagsField, TitleField, mapChoices } from './play-fields';
+import { StatusField } from './status-badge';
+import { useDiscardGuard } from './discard-guard';
 
 /** A lineup written by hand from what `getpos` prints in the CS2 console. Saving opens it. */
 export function NewLineupDialog({ knownMaps = [], onClose }: { knownMaps?: readonly string[]; onClose: () => void }): ReactNode {
@@ -30,6 +33,9 @@ export function NewLineupDialog({ knownMaps = [], onClose }: { knownMaps?: reado
   const [tags, setTags] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const snapshot = JSON.stringify([title, map, side, grenade, setpos, technique, status, tags]);
+  const [initial] = useState(snapshot);
+  const guard = useDiscardGuard({ dirty: snapshot !== initial, busy, onClose });
   const aim = parseSetpos(setpos);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -51,14 +57,14 @@ export function NewLineupDialog({ knownMaps = [], onClose }: { knownMaps?: reado
         tags: parseTags(tags),
       });
       router.push(lineupHref(lineup.id));
-    } catch {
-      setError('No se pudo crear el lineup.');
+    } catch (cause: unknown) {
+      setError(loadErrorMessage({ error: cause, lead: 'No se pudo crear el lineup.' }));
       setBusy(false);
     }
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
+    <Dialog open onOpenChange={guard.onOpenChange}>
       <DialogContent className="sm:max-w-lg" showCloseButton={!busy}>
         <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
           <DialogHeader>
@@ -73,32 +79,27 @@ export function NewLineupDialog({ knownMaps = [], onClose }: { knownMaps?: reado
             <SideField value={side} onChange={setSide} />
             <GrenadeField value={grenade} onChange={setGrenade} />
           </div>
-          <Field label="Posición y mira">
-            <Textarea
-              value={setpos}
-              rows={2}
-              maxLength={400}
-              spellCheck={false}
-              placeholder="setpos -1012.03 -2233.97 -167.97;setang 7.38 -68.11 0.00"
-              onChange={(event) => setSetpos(event.target.value)}
-              className="font-mono"
-            />
-            {aim !== null ? (
-              <span className="text-meta text-fg-3">
-                Leído: <code className="font-mono text-fg-2">{setposCommand(aim)}</code>
-              </span>
-            ) : null}
-            {aim === null && setpos.trim() !== '' ? (
-              <span role="alert" className="text-meta text-destructive">
-                No se reconoce. Tiene que llevar setpos con tres números y setang con al menos dos.
-              </span>
-            ) : null}
+          <Field
+            label="Posición y mira"
+            hint={aim !== null ? <>Leído: <code className="font-mono text-fg-2">{setposCommand(aim)}</code></> : undefined}
+            error={aim === null && setpos.trim() !== '' ? 'No se reconoce. Tiene que llevar setpos con tres números y setang con al menos dos.' : undefined}
+          >
+            {(control) => (
+              <Textarea
+                {...control}
+                value={setpos}
+                rows={2}
+                maxLength={400}
+                spellCheck={false}
+                placeholder="setpos -1012.03 -2233.97 -167.97;setang 7.38 -68.11 0.00"
+                onChange={(event) => setSetpos(event.target.value)}
+                className="font-mono"
+              />
+            )}
           </Field>
           <TechniqueFields value={technique} onChange={setTechnique} />
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Estado">
-              <StatusSelect value={status} onChange={setStatus} />
-            </Field>
+            <StatusField value={status} onChange={setStatus} />
             <TagsField value={tags} onChange={setTags} />
           </div>
           {error ? (
@@ -110,12 +111,13 @@ export function NewLineupDialog({ knownMaps = [], onClose }: { knownMaps?: reado
             <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={busy || title.trim() === '' || aim === null}>
+            <Button type="submit" disabled={busy || title.trim() === '' || aim === null} loading={busy}>
               Crear
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
+      {guard.confirm}
     </Dialog>
   );
 }

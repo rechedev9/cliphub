@@ -1,4 +1,5 @@
 import type { BrandKit } from './brand-kit';
+import { humanErrorText } from './human-error.ts';
 
 export type BrandKitState = { kit: BrandKit | null; error: string | null };
 export type BrandKitStore = {
@@ -25,7 +26,7 @@ export function createBrandKitStore(load: (signal: AbortSignal) => Promise<Brand
         load(current.signal).then((kit) => {
           if (!current.signal.aborted) publish({ kit, error: null });
         }).catch((failure: unknown) => {
-          if (!current.signal.aborted) publish({ ...state, error: failure instanceof Error ? failure.message : 'No se pudo leer el kit de marca.' });
+          if (!current.signal.aborted) publish({ ...state, error: humanErrorText({ error: failure, lead: 'No se pudo leer el kit de marca.' }) });
         });
       }
       return () => {
