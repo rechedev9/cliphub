@@ -6,7 +6,7 @@
 .carta .stat{padding:22px 24px;border-radius:22px;background:#FFFFFF0D}
 .carta .stat .value{font-size:56px;margin-top:6px}{{end}}
 {{define "card"}}<main class="card carta">
-<div class="head"><div class="score">{{if .Rating}}<div class="rating"><span class="value">{{.Rating}}</span><span class="label">RATING CLIPHUB</span></div>{{end}}{{if .Role}}<span class="role">{{.Role}}</span>{{end}}</div>{{template "portrait" .}}</div>
+<div class="head"><div class="score">{{if .Rating}}<div class="rating"><span class="value">{{.Rating}}</span><span class="label">{{.Text.Rating}}</span></div>{{end}}{{if .Role}}<span class="role">{{.Role}}</span>{{end}}</div>{{template "portrait" .}}</div>
 <div class="name">{{.Name}}</div>{{if .Team}}<div class="team">{{.Team}}</div>{{end}}{{template "faceit" .}}
 {{if .Stats}}<div class="grid">{{range .Stats}}<div class="stat"><span class="label">{{.Label}}</span><span class="value">{{.Value}}</span></div>{{end}}</div>{{end}}
 </main>{{end}}

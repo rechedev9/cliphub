@@ -8,6 +8,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/htmlstill"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 	"github.com/rechedev9/cliphub/internal/playercard"
 )
 
@@ -69,12 +70,17 @@ func (h *Handlers) GetPlayerCard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, info)
 }
 
-// GetPlayerCardPreview handles GET /api/jobs/{id}/player-card/preview?template=: the job's card in
-// that template as an SVG of the renderer's own page.
+// GetPlayerCardPreview handles GET /api/jobs/{id}/player-card/preview?template=&language=: the job's
+// card in that template and language as an SVG of the renderer's own page.
 func (h *Handlers) GetPlayerCardPreview(w http.ResponseWriter, r *http.Request) {
 	template := r.URL.Query().Get("template")
 	if _, ok := playercard.Lookup(template); !ok {
 		writeError(w, http.StatusBadRequest, "template must be a player card id from the catalog")
+		return
+	}
+	language, err := overlaylang.Parse(r.URL.Query().Get("language"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	j, ok := h.cardJob(w, r)
@@ -87,7 +93,7 @@ func (h *Handlers) GetPlayerCardPreview(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusConflict, playerCardMissingStats)
 		return
 	}
-	page, err := playercard.HTML(template, facts.Card, facts.Image)
+	page, err := playercard.HTML(playercard.Page{Template: template, Card: facts.Card, Image: facts.Image, Language: language})
 	if err != nil {
 		internalError(w, "player card preview", err)
 		return

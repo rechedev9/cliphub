@@ -1,6 +1,7 @@
 import { CUSTOM_HUD_THEMES, verticalHudTheme } from './custom-hud.ts';
 import type { DesignGalleryItem } from './design-gallery.ts';
 import { hudPreviewUrl, hudStyleOf, sameHudStyle, verticalHudPreviewUrl, type HudStyle, type UserHudTheme } from './hud-themes.ts';
+import type { OverlayLanguage } from './overlay-language.ts';
 
 /** Own themes are gallery items too; the prefix keeps their ids apart from the catalog's. */
 export const OWN_HUD_PREFIX = 'user:';
@@ -23,7 +24,7 @@ export function fullDemoHudGallery({ base, style, themes, editingId }: {
 }
 
 /** The Short scoreboard takes only catalog designs, each shown as the band the video draws. */
-export function verticalHudGallery(selected: string | undefined): DesignGalleryItem[] {
+export function verticalHudGallery(selected: string | undefined, language?: OverlayLanguage): DesignGalleryItem[] {
   const chosen = verticalHudTheme(selected).id;
-  return CUSTOM_HUD_THEMES.map((theme) => ({ id: theme.id, label: theme.name, image: verticalHudPreviewUrl(theme.id), selected: theme.id === chosen }));
+  return CUSTOM_HUD_THEMES.map((theme) => ({ id: theme.id, label: theme.name, image: verticalHudPreviewUrl(theme.id, language), selected: theme.id === chosen }));
 }

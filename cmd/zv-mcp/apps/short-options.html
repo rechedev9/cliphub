@@ -18,7 +18,7 @@
 <script>
 const state = { jobId: "", segmentIds: [], data: null, choice: {}, audio: null, playing: "", loading: "", wanted: "", sources: {}, busy: false, started: "", approval: null, cardsReason: "" };
 const root = document.getElementById("root");
-const SINGLE = [["format", "Formato"], ["kill_effect", "Efecto de baja"], ["transition", "Transición"]];
+const SINGLE = [["format", "Formato"], ["kill_effect", "Efecto de baja"], ["transition", "Transición"], ["overlay_language", "Idioma de los textos del vídeo"]];
 // The player card slots of generate_short; a card is for a one-player vertical Short.
 const CARD_SLOTS = [
   ["opening_card", "Carta de apertura", "Cubre los primeros segundos en lugar de la tarjeta de apertura"],
@@ -211,7 +211,8 @@ function togglePlay(id) {
 
 function request() {
   const c = state.choice;
-  const args = { job_id: state.jobId, segment_ids: state.segmentIds, format: c.format, kill_effect: c.kill_effect, transition: c.transition };
+  const args = { job_id: state.jobId, segment_ids: state.segmentIds };
+  for (const [field] of SINGLE) if (c[field]) args[field] = c[field];
   if (c.music) args.music = c.music;
   for (const t of state.data.toggles) args[t.id] = Boolean(c[t.id]);
   if (c.victim_replay && c.victim_replay_speed) args.victim_replay_speed = Number(c.victim_replay_speed);

@@ -8,6 +8,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/brandkit"
 	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -122,6 +123,8 @@ type EditRequest struct {
 	// Subtitles burns the team comms transcript in the spoken language; SubtitlesHidden are phrases this video leaves out.
 	Subtitles       bool     `json:"subtitles,omitempty"`
 	SubtitlesHidden []string `json:"subtitles_hidden,omitempty"`
+
+	OverlayLanguage overlaylang.Language `json:"overlay_language,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {
@@ -228,7 +231,7 @@ func (r EditRequest) validateFields() error {
 	if r.FullDemo != nil {
 		o := r.FullDemo.Document.Options
 		if r.Format != FormatLandscape16x9 || r.KillEffect != KillEffectClean || r.Transition != TransitionCut ||
-			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.VictimReplaySpeed != 0 || r.PlayBadges || r.WinProbability || r.PlayerLabels || r.GrenadeTrails || r.StatsCard || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.VerticalHUD || r.VerticalHUDTheme != "" || r.Radar || r.RadarPosition != "" || r.RadarSize != "" || r.RadarOpacity != 0 || r.CoverFirstFrame ||
+			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.VictimReplaySpeed != 0 || r.PlayBadges || r.WinProbability || r.PlayerLabels || r.GrenadeTrails || r.StatsCard || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.VerticalHUD || r.VerticalHUDTheme != "" || r.Radar || r.RadarPosition != "" || r.RadarSize != "" || r.RadarOpacity != 0 || r.CoverFirstFrame || r.OverlayLanguage != overlaylang.Spanish ||
 			r.IntroText != "" || r.OutroText != "" || r.KeyDropFamily != "" || r.KeyDropStyle != "" || r.KeyDropCode != "" ||
 			r.KeyDropPositionY != nil || r.KeyDropStartSeconds != nil || r.KeyDropEndSeconds != nil ||
 			r.VoiceComms != o.Audio.Voice.Enabled || r.VoiceVolume == nil || *r.VoiceVolume != o.Audio.Voice.Gain ||
@@ -237,6 +240,9 @@ func (r EditRequest) validateFields() error {
 		}
 	}
 	if err := r.validateBrand(); err != nil {
+		return err
+	}
+	if _, err := overlaylang.Parse(string(r.OverlayLanguage)); err != nil {
 		return err
 	}
 	if r.DeathReel && (r.MatchRecap || r.FullDemo != nil) {

@@ -58,7 +58,7 @@ export function VerticalHudOptions({ value, onChange, disabled, allowed }: Verti
         <div className="grid min-w-0 gap-2">
           <DesignGallery
             label="Diseño"
-            items={verticalHudGallery(value.verticalHudTheme)}
+            items={verticalHudGallery(value.verticalHudTheme, value.overlayLanguage)}
             shape="band"
             disabled={disabled || !allowed}
             describedBy={allowed ? undefined : reasonId}
@@ -67,7 +67,7 @@ export function VerticalHudOptions({ value, onChange, disabled, allowed }: Verti
           {on ? (
             <>
               <img
-                src={verticalHudPreviewUrl(theme.id)}
+                src={verticalHudPreviewUrl(theme.id, value.overlayLanguage)}
                 alt={`Vista previa del HUD vertical ${theme.name}`}
                 width={628}
                 height={186}

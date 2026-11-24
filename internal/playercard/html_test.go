@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 )
 
 func ptr[T any](v T) *T { return &v }
@@ -39,7 +41,7 @@ func visibleText(page []byte) string {
 
 func render(t *testing.T, template string, card Card, img []byte) (string, string) {
 	t.Helper()
-	page, err := HTML(template, card, img)
+	page, err := HTML(Page{Template: template, Card: card, Image: img})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +115,38 @@ func TestCardsLeaveOutTheFiguresTheDemoLacks(t *testing.T) {
 }
 
 func TestUnknownTemplateIsRefused(t *testing.T) {
-	if _, err := HTML("fifa", fullCard(), nil); err == nil {
+	if _, err := HTML(Page{Template: "fifa", Card: fullCard()}); err == nil {
 		t.Fatal("rendered a template the catalog does not have")
+	}
+}
+
+func TestEnglishCardsLeaveNoSpanishText(t *testing.T) {
+	want := map[string]string{
+		"carta": "1.62 CLIPHUB RATING ENTRY &lt;b&gt;donk&lt;/b&gt; Spirit LEVEL 10 3120 ELO K/D 2.40 ADR 112.4 KAST 80% HS 54% ENTRIES 6 UTILITY 214",
+		"ficha": "&lt;b&gt;donk&lt;/b&gt; Spirit ENTRY LEVEL 10 3120 ELO CLIPHUB RATING 1.62 K/D 2.40 ADR 112.4",
+		"mvp":   "MVP WIN 13-7 MIRAGE &lt;b&gt;donk&lt;/b&gt; Spirit LEVEL 10 3120 ELO 6 ENTRIES",
+	}
+	for id, text := range want {
+		page, err := HTML(Page{Template: id, Card: fullCard(), Image: pngBytes(t), Language: overlaylang.English})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := visibleText(page); got != text {
+			t.Errorf("%s reads\n%q\nwant\n%q", id, got, text)
+		}
+		if !strings.Contains(string(page), `<html lang="en">`) {
+			t.Errorf("%s page is not marked English", id)
+		}
+	}
+	support := fullCard()
+	support.Role, support.Result = "support", &Result{Own: 12, Rival: 12}
+	for id, want := range map[string]string{"ficha": "SUPPORT", "mvp": "DRAW 12-12"} {
+		page, err := HTML(Page{Template: id, Card: support, Language: overlaylang.English})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := visibleText(page); !strings.Contains(got, want) {
+			t.Errorf("%s reads %q, want %q", id, got, want)
+		}
 	}
 }

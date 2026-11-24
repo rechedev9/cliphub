@@ -179,3 +179,14 @@ test('a Short saved or rendered by 5.25.0 with the English subtitles loads with 
   assert.equal(rendered !== undefined && 'subtitlesEnglish' in rendered, false);
   assert.equal('subtitles_english' in buildEditRequest(saved), false);
 });
+
+test('an English Short sends overlay_language en, a Spanish one keeps it off the wire, and Editar reads it back', () => {
+  const english = buildEditRequest(edit({ overlayLanguage: 'en' }));
+  assert.equal(english.overlay_language, 'en');
+  assert.equal('overlay_language' in buildEditRequest(edit({ overlayLanguage: 'es' })), false);
+  assert.equal('overlay_language' in buildEditRequest(edit()), false);
+  assert.equal(parseEffectiveEditConfig(JSON.parse(JSON.stringify(english)))?.overlayLanguage, 'en');
+  assert.equal(parseEffectiveEditConfig({ ...english, overlay_language: 'de' })?.overlayLanguage, undefined);
+  assert.equal(coerceEditConfig(JSON.parse('{"format":"short-9x16","overlayLanguage":"en"}')).overlayLanguage, 'en');
+  assert.equal(coerceEditConfig(JSON.parse('{"format":"short-9x16","overlayLanguage":"fr"}')).overlayLanguage, undefined);
+});

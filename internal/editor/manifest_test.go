@@ -1357,7 +1357,7 @@ func TestPrettifyMapName(t *testing.T) {
 }
 
 func TestPremiumHeadlinePrettifiesMap(t *testing.T) {
-	got := premiumHeadline("de_dust2", 3, "M4A1-S")
+	got := spanishOverlayText.headline(headlineFacts{mapName: "de_dust2", kills: 3, weapon: "M4A1-S"})
 	want := "3K con M4A1-S en Dust2"
 	if got != want {
 		t.Fatalf("premiumHeadline = %q, want %q", got, want)
@@ -1365,7 +1365,7 @@ func TestPremiumHeadlinePrettifiesMap(t *testing.T) {
 }
 
 func TestSmokeHeadlinePrettifiesMap(t *testing.T) {
-	got := smokeHeadline("de_mirage", SmokeCue{Type: "smoke", Destination: "A site"})
+	got := spanishOverlayText.smokeHeadline("de_mirage", SmokeCue{Type: "smoke", Destination: "A site"})
 	if !strings.Contains(got, "Mirage") || strings.Contains(got, "de_mirage") {
 		t.Fatalf("smokeHeadline = %q, want prettified map name", got)
 	}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
@@ -15,7 +16,7 @@ func TestGenerateShortRebuildsTheHorizontalDraft(t *testing.T) {
 	short := renderplan.EditRequest{Format: renderplan.FormatShort9x16, KillEffect: renderplan.KillEffectGlitch, Transition: renderplan.TransitionWhip,
 		CoverStrategy: renderplan.CoverStrategyNone, Intro: true, IntroText: "ACE", Outro: true, HookText: true, PlayBadges: true, WinProbability: true,
 		PlayerLabels: true, VictimReplay: true, VictimReplaySpeed: 1, PreRollSeconds: 5, VerticalHUD: true, StatsCard: true,
-		KeyDropStyle: "operator", KeyDropCode: "MYCODE", KeyDropStartSeconds: &start, KeyDropEndSeconds: &end}
+		KeyDropStyle: "operator", KeyDropCode: "MYCODE", KeyDropStartSeconds: &start, KeyDropEndSeconds: &end, OverlayLanguage: overlaylang.English}
 	for _, capture := range []renderplan.ShortCapture{{HUDMode: "deathnotices", PortraitSafeKillfeed: true}, {HUDMode: "gameplay", PortraitSafeKillfeed: true}, {HUDMode: "clean"}} {
 		edit, dropped := renderplan.HorizontalEdit(short, capture)
 		draft := decodeDraft(t, map[string]any{"preset": "gameplay-pov-60", "segment_ids": []string{"seg-002", "seg-001"}, "edit": edit, "dropped": dropped,

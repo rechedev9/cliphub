@@ -1,4 +1,5 @@
 import { persistAffiliateFamily } from '../affiliate-banner.ts';
+import { englishOverlays } from '../overlay-language.ts';
 import { radarEditFields } from '../radar-overlay.ts';
 import { DEFAULT_PRE_ROLL_SECONDS, DEFAULT_VICTIM_REPLAY_SPEED, type EditConfig } from './types.ts';
 
@@ -18,6 +19,7 @@ export type EditRequestBody = {
   radar_position?: string;
   radar_size?: string;
   radar_opacity?: number;
+  overlay_language?: 'en';
   match_recap: boolean;
   death_reel?: boolean;
   separate_shorts?: boolean;
@@ -116,6 +118,7 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     body.subtitles = true;
     if (edit.subtitlesHidden?.length) body.subtitles_hidden = [...edit.subtitlesHidden].sort();
   }
+  if (englishOverlays(edit) && !edit.fullDemo) body.overlay_language = 'en';
   const introText = edit.introText?.trim();
   if (edit.intro && introText) body.intro_text = introText;
   const outroText = edit.outroText?.trim();
