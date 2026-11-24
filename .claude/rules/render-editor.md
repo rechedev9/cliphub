@@ -37,6 +37,7 @@ A render attempt writes durable state only while it still owns that state. A tas
 
 - Full Demo: `RenderWorker.writeOwnedRenderState` (`internal/workers/full_demo_state.go`) is the fence for failed, cached and successful attempts. A stored variant with a different approved plan returns `recapplan.ErrPlanStale` and keeps its state. `renderplan.SameFullDemoRequest` decides "same plan".
 - Stream clips: `writeOwnedStreamRenderAttempt` (`internal/workers/stream_render_attempt.go`) writes only while `RenderState.AttemptID` is the task's attempt. A superseded attempt closes only its own state.
+- Editor timeline: `TimelineRenderWorker.ownedState` (`internal/workers/timeline_worker.go`) lets a task write its failure or published render, and the project row, only while `timelineplan.RenderState.AttemptID` is the payload's attempt; every writer goes through `StartAttempt`, `Fail` and `Publish` (`internal/timelineplan/render_state.go`). Test: `internal/workers/timeline_render_owner_test.go`.
 - Tests: `internal/workers/full_demo_state_test.go`, `internal/httpapi/full_demo_handlers_test.go`, `internal/workers/stream_render_intent_test.go`.
 
 ## Interrupted work on startup

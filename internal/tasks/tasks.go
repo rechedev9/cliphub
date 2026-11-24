@@ -207,6 +207,7 @@ type StreamAcquirePayload struct {
 
 type RenderTimelinePayload struct {
 	ProjectID   uuid.UUID `json:"project_id"`
+	AttemptID   uuid.UUID `json:"attempt_id,omitzero"`
 	Fingerprint string    `json:"fingerprint"`
 }
 
@@ -425,11 +426,11 @@ func NewStreamAcquireTask(id uuid.UUID) (*asynq.Task, error) {
 	return asynq.NewTask(TypeStreamAcquire, payload), nil
 }
 
-func NewRenderTimelineTask(id uuid.UUID, fingerprint string) (*asynq.Task, error) {
-	if !sha256HexPattern.MatchString(fingerprint) {
+func NewRenderTimelineTask(p RenderTimelinePayload) (*asynq.Task, error) {
+	if !sha256HexPattern.MatchString(p.Fingerprint) {
 		return nil, fmt.Errorf("timeline fingerprint must be a sha256 hex digest")
 	}
-	payload, err := json.Marshal(RenderTimelinePayload{ProjectID: id, Fingerprint: fingerprint})
+	payload, err := json.Marshal(p)
 	if err != nil {
 		return nil, err
 	}

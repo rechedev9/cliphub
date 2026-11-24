@@ -44,21 +44,13 @@ func sweepInterruptedEditorRenders(ctx context.Context, repo editorInterruptSwee
 			errs = append(errs, fmt.Errorf("fail interrupted editor project %s: %w", p.ID, err))
 			continue
 		}
-		failed := timelineplan.RenderState{
-			ProjectID: p.ID,
-			Status:    timelineplan.StatusFailed,
-			Error:     interruptedEditorRenderReason,
-			UpdatedAt: time.Now().UTC(),
-		}
 		var previous timelineplan.RenderState
 		key := timelineplan.RenderStateKey(p.ID)
-		if found, readErr := readSweepJSON(store, key, &previous); found && readErr == nil {
-			failed.Fingerprint = previous.Fingerprint
-			failed.VideoKey = previous.VideoKey
-			failed.CoverKey = previous.CoverKey
-			failed.ResultKey = previous.ResultKey
+		if found, readErr := readSweepJSON(store, key, &previous); !found || readErr != nil {
+			previous = timelineplan.RenderState{}
 		}
-		if err := writeSweepJSON(store, key, failed); err != nil {
+		previous.ProjectID = p.ID
+		if err := writeSweepJSON(store, key, previous.Fail(interruptedEditorRenderReason, time.Now().UTC())); err != nil {
 			errs = append(errs, fmt.Errorf("write failed editor render state for project %s: %w", p.ID, err))
 			continue
 		}
