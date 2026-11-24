@@ -856,6 +856,19 @@ first open and clears the file stamps, so its first `pro-matches` run rereads ev
 - A missing demo or a failed read renders the Short without the overlay and logs
   why; a track of another demo or tick rate fails the render.
 
+### Incident: Shorts left out their radar, player labels and grenade trails (Studio 5.24.0, 2026-11-24)
+
+The demo parser's `Close` closes the reader it was built on when that reader
+has a `Close`. The Short radar and world track open the stored demo, extract,
+then close it themselves and check the error, so every extraction ended in
+`close <demo>: file already closed` and the Short rendered without the overlay,
+with only a log line (`radar left out`). The first Full Demo with the ClipHub
+radar failed on the same error.
+
+- `demosafe.NewParser` hands the parser the demo without its `Close` and keeps
+  `Seek`, so whoever opens a demo closes it
+  (`TestParserLeavesTheDemoToWhoeverOpenedIt`).
+
 ## Short grade and closing card (`internal/editor`, 2026-11-21)
 
 ### Incident: a velocity Short came out neon, its end card hid the last kill and its HUD showed twice (Studio 5.28.0, 2026-11-21)
