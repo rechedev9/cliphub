@@ -29,17 +29,16 @@ type fullDemoRadarFixture struct {
 	local    FullDemoLocalRadar
 }
 
-func writeFullDemoRadarFile(t *testing.T, path string, body []byte) FullDemoLocalHUD {
-	t.Helper()
-	if err := os.WriteFile(path, body, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	sum := sha256.Sum256(body)
-	return FullDemoLocalHUD{Path: path, SHA256: hex.EncodeToString(sum[:])}
-}
-
 func newFullDemoRadarFixture(t *testing.T, dir string) fullDemoRadarFixture {
 	t.Helper()
+	write := func(name string, body []byte) FullDemoLocalHUD {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256(body)
+		return FullDemoLocalHUD{Path: path, SHA256: hex.EncodeToString(sum[:])}
+	}
 	options := recapplan.DefaultOptions()
 	options.Audio.Voice.Enabled = false
 	options.Overlays.HUDTheme = "focus"
@@ -70,8 +69,8 @@ func newFullDemoRadarFixture(t *testing.T, dir string) fullDemoRadarFixture {
 		t.Fatal(err)
 	}
 	return fullDemoRadarFixture{document: d, local: FullDemoLocalRadar{
-		Rounds: map[string]FullDemoLocalHUD{"a": writeFullDemoRadarFile(t, filepath.Join(dir, "radar-a.json"), body)},
-		Upper:  writeFullDemoRadarFile(t, filepath.Join(dir, "radar-upper.png"), png64.Bytes()),
+		Rounds: map[string]FullDemoLocalHUD{"a": write("radar-a.json", body)},
+		Upper:  write("radar-upper.png", png64.Bytes()),
 	}}
 }
 

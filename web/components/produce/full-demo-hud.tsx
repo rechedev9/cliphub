@@ -30,7 +30,7 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
 }): ReactNode {
   const theme = customHudTheme(options.overlays.hud_theme);
   // The design (and Focus portrait) set aside for the CS2 HUD, restored when switching back.
-  const [setAside, setSetAside] = useState<{ theme?: string; portrait?: FullDemoAssetRef | null; style?: HudStyle; look?: HudOptions; names?: HudTeamNames }>({});
+  const [setAside, setSetAside] = useState<{ theme?: string; portrait?: FullDemoAssetRef | null; style?: HudStyle; look?: HudOptions; names?: HudTeamNames; radar?: boolean }>({});
   const selected = theme ?? customHudTheme(setAside.theme) ?? CUSTOM_HUD_THEMES[0];
   const kind: HudKind = theme ? 'custom' : 'native';
   const portrait = options.overlays.hud_portrait;
@@ -80,7 +80,7 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
     onChange({ ...options, overlays });
   }
 
-  function choose(id: string, kept = portrait, style?: HudStyle, restored?: { look?: HudOptions; names?: HudTeamNames }): void {
+  function choose(id: string, kept = portrait, style?: HudStyle, restored?: { look?: HudOptions; names?: HudTeamNames; radar?: boolean }): void {
     const { hud_portrait: _portrait, hud_custom: _custom, ...current } = options.overlays;
     // The CS2 HUD set the switches and names aside; coming back restores them.
     const overlays = restored ? { ...current, ...(restored.look ? { hud_options: restored.look } : {}), ...(restored.names ? { team_names: restored.names } : {}) } : current;
@@ -88,7 +88,7 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
     setError(null);
     onChange({
       ...options,
-      capture: { ...options.capture, hud_profile: CUSTOM_HUD_CAPTURE_PROFILE },
+      capture: { ...options.capture, hud_profile: CUSTOM_HUD_CAPTURE_PROFILE, ...(restored?.radar ? { cliphub_radar: true } : {}) },
       overlays: { ...overlays, hud_theme: id, ...(id === 'focus' && kept ? { hud_portrait: kept } : {}), ...(style ? { hud_custom: style } : {}) },
     });
   }
@@ -100,8 +100,8 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
     const { hud_theme: _theme, hud_portrait: _portrait, hud_custom: style, hud_options: look, team_names: names, ...overlays } = options.overlays;
     cancelUpload();
     setError(null);
-    setSetAside({ theme: theme?.id, portrait, style, look, names });
-    const { cliphub_radar: _radar, ...capture } = options.capture;
+    const { cliphub_radar: radar, ...capture } = options.capture;
+    setSetAside({ theme: theme?.id, portrait, style, look, names, radar });
     onChange({ ...options, capture: { ...capture, hud_profile: NATIVE_HUD_CAPTURE_PROFILE }, overlays });
   }
 
