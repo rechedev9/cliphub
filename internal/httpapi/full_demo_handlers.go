@@ -18,6 +18,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/overlayassets"
 	"github.com/rechedev9/cliphub/internal/prosettings"
+	"github.com/rechedev9/cliphub/internal/radarmap"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/storage"
@@ -68,6 +69,11 @@ func (h *Handlers) planFullDemo(ctx context.Context, j job.Job, options recappla
 	options, err = recapplan.CanonicalNewOptions(options)
 	if err != nil {
 		return recapplan.Document{}, errBadRequest(err.Error())
+	}
+	if options.Capture.ClipHubRadar {
+		if _, ok := radarmap.Lookup(j.KillPlan.Demo.Map); !ok {
+			return recapplan.Document{}, errBadRequest("ClipHub radar is not available on " + j.KillPlan.Demo.Map)
+		}
 	}
 	facts, found, err := recapplan.LoadFacts(h.storage, j.ID)
 	if err != nil {

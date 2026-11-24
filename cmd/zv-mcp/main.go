@@ -75,7 +75,8 @@ generate_short radar draws ClipHub's own radar in a corner: the map, every livin
 smokes, molotov fires, flashes, HE grenades, the round's deaths and the bomb, read from the demo at render time;
 radar_position, radar_size and radar_opacity (percent) set it (list_short_options radar_positions, radar_sizes).
 It is refused with native_hud or the full-hud-60 preset, whose capture already shows CS2's radar, which is never
-hidden; it skips victim replays and is not for Full Demo or a match recap.
+hidden; it skips victim replays and is not for a match recap. In a Full Demo, plan_full_demo cliphub_radar (custom
+HUD only) records without CS2's radar and draws this one in the top left corner of every round, without zone names.
 The brand kit (get_brand_kit, save_brand_kit) keeps the channel logo, drawn as a watermark in a corner with an
 opacity, and an own sponsor banner with a time window. generate_short and plan_full_demo take brand_watermark and
 brand_banner to apply it; the render copies the kit, and brand_banner does not go with the affiliate banner.

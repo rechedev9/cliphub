@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -54,5 +55,27 @@ func TestFullDemoCaptureContractRejectsEachWrongReadback(t *testing.T) {
 				t.Fatalf("readback %s=%s: error %v, want %q", tc.cvar, tc.value, err, tc.reason)
 			}
 		})
+	}
+}
+
+func TestFullDemoClipHubRadarCaptureRequiresCS2RadarHidden(t *testing.T) {
+	document := recapplan.Document{Options: recapplan.DefaultOptions()}
+	document.Options.Capture.HUDProfile = customhud.CaptureProfile
+	document.Options.Capture.ClipHubRadar = true
+	plan := RecordingPlan{FullDemo: &document, Segments: []RecordingSegment{{ID: "round-001", TickStart: 0, TickEnd: 100, LiveEndTick: 90}}}
+	evidence := expectedCaptureEvidence(t, plan)
+	if err := evidence.Validate(plan); err != nil {
+		t.Fatalf("expected readbacks fail the capture contract: %v", err)
+	}
+	for i := range evidence.Applied {
+		if evidence.Applied[i].Name == "cl_drawhud_force_radar" {
+			if string(evidence.Applied[i].Value) != "0" {
+				t.Fatalf("ClipHub radar expects cl_drawhud_force_radar=%s, want 0", evidence.Applied[i].Value)
+			}
+			evidence.Applied[i].Value = json.RawMessage("1")
+		}
+	}
+	if err := evidence.Validate(plan); err == nil || !strings.Contains(err.Error(), "cl_drawhud_force_radar") {
+		t.Fatalf("a capture that kept CS2's radar was accepted: %v", err)
 	}
 }

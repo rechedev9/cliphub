@@ -99,7 +99,7 @@
             // The native crosshair, scope, radar and killfeed remain in the
             // capture; player panels are composed later from demo telemetry.
             if (broadcastHUD) Object.assign(settings, {
-                cl_draw_only_deathnotices: true, cl_drawhud_force_radar: 1, cl_drawhud_force_deathnotices: 1
+                cl_draw_only_deathnotices: true, cl_drawhud_force_radar: fullDemoCapture.cliphub_radar ? 0 : 1, cl_drawhud_force_deathnotices: 1
             });
             if (fullDemoCapture.hud_profile === "broadcast-clean-v2") Object.assign(settings, {
                 cl_hud_radar_background_alpha: .35, cl_hud_radar_map_additive: false, cl_hud_radar_scale: .85,

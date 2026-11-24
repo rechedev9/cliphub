@@ -184,7 +184,8 @@ type CaptureOptions struct {
 	// TrueView replays the player's recorded client prediction (CS2
 	// cl_demo_predict 1) instead of the interpolated server view. Omitted when
 	// off so existing documents keep their wire format and capture hash.
-	TrueView bool `json:"trueview,omitempty"`
+	TrueView     bool `json:"trueview,omitempty"`
+	ClipHubRadar bool `json:"cliphub_radar,omitempty"`
 	// ProSettings records with a professional player's resolution and
 	// viewmodel. Omitted when off so older documents keep their capture hash.
 	ProSettings ProSettings `json:"pro_settings,omitzero"`

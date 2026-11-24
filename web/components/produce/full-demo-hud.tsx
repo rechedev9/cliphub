@@ -12,7 +12,7 @@ import { MapCover } from '@/components/brand/map-cover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { CoverImage } from '@/components/studio/cover-image';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
-import { FULL_DEMO_TRUEVIEW_LABEL } from '@/lib/produce/full-demo-brief';
+import { FULL_DEMO_RADAR_LABEL, FULL_DEMO_TRUEVIEW_LABEL } from '@/lib/produce/full-demo-brief';
 import { FullDemoGroup } from './full-demo-fields';
 import { HudCompositionSwitches, HudTeamNameFields, HudThemePicker } from './full-demo-hud-look';
 import { NativeHudArt } from './full-demo-native-hud';
@@ -101,12 +101,18 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
     cancelUpload();
     setError(null);
     setSetAside({ theme: theme?.id, portrait, style, look, names });
-    onChange({ ...options, capture: { ...options.capture, hud_profile: NATIVE_HUD_CAPTURE_PROFILE }, overlays });
+    const { cliphub_radar: _radar, ...capture } = options.capture;
+    onChange({ ...options, capture: { ...capture, hud_profile: NATIVE_HUD_CAPTURE_PROFILE }, overlays });
   }
 
   function chooseTrueView(enabled: boolean): void {
     const { trueview: _trueview, ...capture } = options.capture;
     onChange({ ...options, capture: enabled ? { ...capture, trueview: true } : capture });
+  }
+
+  function chooseRadar(enabled: boolean): void {
+    const { cliphub_radar: _radar, ...capture } = options.capture;
+    onChange({ ...options, capture: enabled ? { ...capture, cliphub_radar: true } : capture });
   }
 
   return <FullDemoGroup title="HUD" note="Qué HUD aparece en el vídeo y desde qué vista se graba al jugador.">
@@ -146,6 +152,14 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
         </div> : null}
         <HudCompositionSwitches options={options.overlays.hud_options}
           onOptions={(hud_options) => onChange({ ...options, overlays: { ...options.overlays, hud_options } })} />
+        <label className="flex min-w-0 cursor-pointer items-start gap-3 text-body-sm">
+          <input type="checkbox" checked={options.capture.cliphub_radar === true} aria-label={FULL_DEMO_RADAR_LABEL} aria-describedby={`${id}-radar`}
+            onChange={(event) => chooseRadar(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-format-full" />
+          <span className="min-w-0">
+            <span className="block font-semibold text-fg-1">{FULL_DEMO_RADAR_LABEL}</span>
+            <span id={`${id}-radar`} className="mt-0.5 block text-fg-2">Arriba a la izquierda, en lugar del de CS2: el mapa del Replay 2D, cada jugador y hacia dónde mira, humos, fuegos, flashes, muertes y la bomba, sin nombres de zona. Se vuelve a grabar.</span>
+          </span>
+        </label>
         <HudTeamNameFields names={options.overlays.team_names}
           onNames={(team_names) => onChange({ ...options, overlays: { ...options.overlays, team_names } })} />
       </div> : <p className="text-body-sm text-fg-2">Vida, munición, radar, killfeed y la mira del jugador. Arriba queda la barra de equipos de CS2, con el dinero y la utilidad de ambos equipos.</p>}

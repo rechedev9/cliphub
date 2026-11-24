@@ -285,6 +285,9 @@ func (o Options) Validate() error {
 	} else if customhud.IsCaptureProfile(o.Capture.HUDProfile) {
 		return fmt.Errorf("broadcast-clean capture requires a custom HUD")
 	}
+	if o.Capture.ClipHubRadar && o.Capture.HUDProfile != customhud.CaptureProfile {
+		return fmt.Errorf("ClipHub radar requires a custom HUD")
+	}
 	if o.Overlays.HUDPortrait != nil && o.Overlays.HUDTheme != "focus" {
 		return fmt.Errorf("HUD portrait requires the Focus theme")
 	}

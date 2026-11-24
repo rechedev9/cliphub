@@ -73,6 +73,7 @@ type planFullDemoIn struct {
 	GameLevel           *int   `json:"game_level,omitempty" jsonschema:"game sound level in percent, 0 to 200; default 100"`
 	BetweenRoundEffects *bool  `json:"between_round_effects,omitempty" jsonschema:"dynamic transition effects between rounds; default on"`
 	TrueView            *bool  `json:"true_view,omitempty" jsonschema:"original 1:1 POV (CS2 TrueView) instead of the standard view; default off"`
+	ClipHubRadar        *bool  `json:"cliphub_radar,omitempty" jsonschema:"ClipHub's own radar in the top left corner in place of CS2's: the 2D Replay map art, every living player with where it looks, smokes, fires, flashes, deaths and the bomb, with no zone names; custom HUD only, changes the capture; default off"`
 	Rounds              []int  `json:"rounds,omitempty" jsonschema:"only these round numbers; empty means every round"`
 	fullDemoExtrasIn
 	hudLookIn
@@ -97,6 +98,7 @@ type fullDemoPlanOut struct {
 	GameLevel           int      `json:"game_level_percent"`
 	BetweenRoundEffects bool     `json:"between_round_effects"`
 	TrueView            bool     `json:"true_view"`
+	ClipHubRadar        bool     `json:"cliphub_radar"`
 	ProSettings         string   `json:"pro_settings,omitempty" jsonschema:"the pro whose resolution and viewmodel the capture uses; empty is the user's own 1920x1080"`
 	HUDPortrait         bool     `json:"hud_portrait,omitempty"`
 	Bumpers             []string `json:"bumpers,omitempty" jsonschema:"the added clips: intro, sponsor, outro"`
@@ -428,6 +430,9 @@ func applyFullDemoChoices(options recapplan.Options, in planFullDemoIn) (recappl
 	if in.TrueView != nil {
 		options.Capture.TrueView = *in.TrueView
 	}
+	if in.ClipHubRadar != nil {
+		options.Capture.ClipHubRadar = *in.ClipHubRadar
+	}
 	if err := applySubtitles(&options, in.subtitleChoices); err != nil {
 		return recapplan.Options{}, err
 	}
@@ -459,6 +464,7 @@ func setHUD(options *recapplan.Options, choice string) error {
 		options.Capture.HUDProfile = recapplan.NativeHUDProfile
 		options.Overlays.HUDTheme = ""
 		options.Overlays.HUDPortrait = nil
+		options.Capture.ClipHubRadar = false
 		return nil
 	}
 	theme, ok := customhud.Lookup(id)
@@ -513,7 +519,7 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 		JobID: jobID, PlanHash: doc.PlanHash, Ready: len(doc.Blockers) == 0, DurationSeconds: seconds, Rounds: len(doc.Rounds), NeedsCapture: true,
 		HUD: hud, OverlaySource: source, IntroDesign: introDesignOf(o.Overlays), TeamVoices: o.Audio.Voice.Enabled, VoiceStatus: doc.Voice.Availability,
 		VoiceLevel: percent(o.Audio.Voice.Gain), GameLevel: percent(o.Audio.Game.Gain), BetweenRoundEffects: effects,
-		TrueView: o.Capture.TrueView, Warnings: noticeMessages(doc.Warnings), Blockers: noticeMessages(doc.Blockers),
+		TrueView: o.Capture.TrueView, ClipHubRadar: o.Capture.ClipHubRadar, Warnings: noticeMessages(doc.Warnings), Blockers: noticeMessages(doc.Blockers),
 	}
 	out.ProSettings, out.HUDPortrait, out.Bumpers = describeExtras(o)
 	voices := "sin voces del equipo"
@@ -534,6 +540,9 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	}
 	if out.HUDPortrait {
 		out.Summary += " Con tu retrato en el HUD."
+	}
+	if out.ClipHubRadar {
+		out.Summary += " Con el radar de ClipHub en lugar del de CS2."
 	}
 	out.Summary += describeHUDLook(o.Overlays) + describeIntroDesign(o.Overlays) + describeBrand(o.Overlays.Brand)
 	if len(out.Bumpers) > 0 {
