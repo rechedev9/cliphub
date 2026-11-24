@@ -10,7 +10,7 @@ import { prettyMapName } from '@/lib/format';
 import { matchTitle } from '@/lib/library/partidas';
 import { EmptyState } from '@/components/records/empty-state';
 import { GrenadeFinder } from '@/components/patterns/grenade-finder';
-import type { TramoControl } from './tramo-bar';
+import type { TramoControl } from '@/lib/replay/tramo';
 import type { PlayerFocus } from '@/lib/replay/player-focus';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';

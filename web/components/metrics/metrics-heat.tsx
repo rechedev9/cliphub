@@ -8,6 +8,7 @@ import { ratioEstimate } from '@/lib/analysis/shrinkage';
 import { prettyMapName } from '@/lib/format';
 import { ecoText, mapLines, percentText, ppText, type MetricsSectionOptions } from '@/lib/metrics/advanced';
 import { buyLabel } from '@/lib/tactical-labels';
+import { MapThumb } from '@/components/analysis/map-thumb';
 import { HeatTable, type HeatColumn, type HeatRow } from '@/components/ui/heat-table';
 import { useLibraryBaselines } from '@/hooks/use-references';
 
@@ -117,7 +118,7 @@ export function MapHeatTable({ report }: { report: MetricsReport }): ReactNode {
     return {
       id: line.map,
       cells: {
-        map: { text: place, map: line.map },
+        map: { text: place, lead: <MapThumb map={line.map} className="h-5 w-8" crop={1.5} /> },
         matches: { text: String(line.matches) },
         kd: {
           text: decimal2.format(lineKd),

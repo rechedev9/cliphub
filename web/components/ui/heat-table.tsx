@@ -3,8 +3,7 @@ import Link from 'next/link';
 import type { EquipmentIconName } from '@/lib/api/game-assets';
 import { deltaArrow, heatLevel } from '@/lib/analysis/compare';
 import type { Reliability } from '@/lib/analysis/reference';
-import { MapThumb } from '@/components/analysis/map-thumb';
-import { EmptyCell } from '@/components/records/empty-cell';
+import { EmptyCell } from '@/components/ui/empty-cell';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { cn } from '@/lib/utils';
 
@@ -29,8 +28,8 @@ export type HeatCell = {
   readonly n?: number;
   readonly href?: string;
   readonly tone?: 'ct' | 't';
-  /** A map name such as `de_mirage`: the cell leads with its radar thumbnail. */
-  readonly map?: string;
+  /** A picture the cell leads with, such as a map's radar thumbnail. */
+  readonly lead?: ReactNode;
   /** A weapon or grenade: the cell leads with its silhouette. */
   readonly icon?: EquipmentIconName | null;
   /** This cell's own reference, such as the library's rate for the same site; overrides the column baseline, null leaves it plain. */
@@ -122,7 +121,7 @@ function CellView({
       title={title}
     >
       <span className={cn('inline-flex items-center gap-1.5', column.align === 'end' && 'justify-end')}>
-        {cell.map ? <MapThumb map={cell.map} className="h-5 w-8" crop={1.5} /> : null}
+        {cell.lead}
         {cell.icon ? <EquipmentIcon name={cell.icon} height={12} className="text-fg-2" /> : null}
         {text}
         {arrow === '' ? null : (

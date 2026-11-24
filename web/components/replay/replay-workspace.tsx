@@ -24,8 +24,7 @@ import { frameDue, loopWithin, playStartSeconds, playbackStep } from '@/lib/repl
 import { namesShown } from '@/lib/replay/map-settings';
 import { timelineTickShown } from '@/lib/replay/event-kinds';
 import { WHOLE_ROUND, isWholeRound, tramoEnd } from '@/lib/replay/tramo';
-import type { Tramo } from '@/lib/replay/tramo';
-import type { TramoControl } from './tramo-bar';
+import type { Tramo, TramoControl } from '@/lib/replay/tramo';
 import { defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
 import { replayShortcut, targetTakesKey } from '@/lib/replay/shortcut-keys';
 import type { ReplayShortcut } from '@/lib/replay/shortcut-keys';
