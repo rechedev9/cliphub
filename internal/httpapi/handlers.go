@@ -1795,12 +1795,7 @@ func (h *Handlers) readOrMaterializeRenderVariantStateLocked(
 		if stored.Status == renderplan.RenderVariantStatusReady && slices.Equal(stored.Warnings, warnings) {
 			return stored, true, false, nil
 		}
-		stored.Status = renderplan.RenderVariantStatusReady
-		stored.Warnings = nil
-		if len(warnings) > 0 {
-			stored.Warnings = append([]string(nil), warnings...)
-		}
-		stored.UpdatedAt = time.Now().UTC()
+		stored.PromoteReady(warnings, time.Now())
 		if err := h.writeRenderVariantState(*stored); err != nil {
 			return nil, false, false, err
 		}

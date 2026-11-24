@@ -71,11 +71,13 @@ func (w *StreamRenderWorker) writeOwnedStreamRenderAttempt(
 	if hasIntent {
 		state.AttemptID = intent.AttemptID
 	}
-	state.Status = status
-	state.Warnings = append([]string(nil), warnings...)
-	state.Error = errMsg
-	state.ErrorCode = errorCode
-	state.UpdatedAt = time.Now().UTC()
+	state.SettleAttempt(streamclips.AttemptOutcome{
+		Status:    status,
+		Warnings:  warnings,
+		Error:     errMsg,
+		ErrorCode: errorCode,
+		At:        time.Now(),
+	})
 	return true, w.writeStreamRenderState(state)
 }
 
