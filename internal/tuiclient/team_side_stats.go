@@ -6,28 +6,9 @@ import (
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
-// SideStat is one team figure: nil Value or GroupAvg when there is no data.
-type SideStat struct {
-	Value      *float64 `json:"value"`
-	Count      float64  `json:"count"`
-	Total      int      `json:"total"`
-	GroupAvg   *float64 `json:"group_avg"`
-	GroupTeams int      `json:"group_teams"`
-}
+type SideStat = tacticalplan.SideStat
 
-// SideStats is a team's figures over one side, or both.
-type SideStats struct {
-	MapsWon       SideStat `json:"maps_won"`
-	RoundsWon     SideStat `json:"rounds_won"`
-	PistolsWon    SideStat `json:"pistols_won"`
-	OpeningKills  SideStat `json:"opening_kills"`
-	Won5v4        SideStat `json:"won_5v4"`
-	Won4v5        SideStat `json:"won_4v5"`
-	Trades        SideStat `json:"trades"`
-	UtilityDamage SideStat `json:"utility_damage_per_round"`
-	FlashAssists  SideStat `json:"flash_assists_per_round"`
-	RoundsPlayed  SideStat `json:"rounds_played"`
-}
+type SideStats = tacticalplan.SideStats
 
 // SideStatsPlayer is one player card of the side stats.
 type SideStatsPlayer struct {

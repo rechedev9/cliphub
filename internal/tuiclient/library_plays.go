@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 // PlayGrenade is one grenade of a play, as the orchestrator stores it.
@@ -21,14 +23,7 @@ type PlayGrenade struct {
 	Lineup   string     `json:"lineup,omitempty"`
 }
 
-// PlayPosition is where one player of a play stood at the play's second.
-type PlayPosition struct {
-	Player    string     `json:"player,omitempty"`
-	SteamID64 string     `json:"steamid64,omitempty"`
-	Pos       [3]float64 `json:"pos"`
-	Callout   string     `json:"callout,omitempty"`
-	Share     float64    `json:"share,omitempty"`
-}
+type PlayPosition = tacticalplan.PlayPosition
 
 // Play is a strat of the stratbook. MissingMatchIDs is set on single reads.
 type Play struct {

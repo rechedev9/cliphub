@@ -6,16 +6,11 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/library"
 )
 
-// RosterEntry is one player who played for a team, by date.
-type RosterEntry struct {
-	SteamID64     string    `json:"steamid64"`
-	Nick          string    `json:"nick"`
-	FirstPlayedAt time.Time `json:"first_played_at"`
-	LastPlayedAt  time.Time `json:"last_played_at"`
-	Matches       int       `json:"matches"`
-}
+type RosterEntry = library.RosterEntry
 
 // LibraryTeamDetail is GET /api/library/teams/{id}: the team with its roster.
 type LibraryTeamDetail struct {
@@ -23,12 +18,7 @@ type LibraryTeamDetail struct {
 	Roster []RosterEntry `json:"roster"`
 }
 
-// PlayerNick is a name a player used, with the dates it was first and last seen.
-type PlayerNick struct {
-	Nick        string    `json:"nick"`
-	FirstSeenAt time.Time `json:"first_seen_at"`
-	LastSeenAt  time.Time `json:"last_seen_at"`
-}
+type PlayerNick = library.PlayerNick
 
 // PlayerTeam is a team a player played for, by date.
 type PlayerTeam struct {

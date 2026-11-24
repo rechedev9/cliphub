@@ -4,15 +4,11 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+
+	"github.com/rechedev9/cliphub/internal/library"
 )
 
-// RoleSlot is one player's job in a play or on a team's role sheet.
-type RoleSlot struct {
-	Name      string `json:"name"`
-	SteamID64 string `json:"steamid64,omitempty"`
-	Callout   string `json:"callout,omitempty"`
-	Task      string `json:"task,omitempty"`
-}
+type RoleSlot = library.RoleSlot
 
 // TeamRoleSheet is who does what for a team on one map, per side.
 type TeamRoleSheet struct {

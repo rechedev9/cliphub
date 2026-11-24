@@ -123,11 +123,7 @@ type PlaybookTactic struct {
 	ReportGroup
 }
 
-// PlaybookCombo is the tactic combination a playbook was narrowed to.
-type PlaybookCombo struct {
-	With    []string `json:"with"`
-	Without []string `json:"without"`
-}
+type PlaybookCombo = tacticalplan.PlaybookCombo
 
 // PlaybookRound is the part of a playbook round the assistant reads.
 type PlaybookRound struct {
@@ -307,12 +303,7 @@ type Leaderboard struct {
 	Players        []LeaderboardPlayer `json:"players"`
 }
 
-// MapRoleOption is a position players hold on the filtered side, with how many.
-type MapRoleOption struct {
-	Key     string `json:"key"`
-	Label   string `json:"label"`
-	Players int    `json:"players"`
-}
+type MapRoleOption = tacticalplan.MapRoleOption
 
 // BreakdownShare is a role or a position and its share of the rounds, in percent.
 type BreakdownShare struct {
