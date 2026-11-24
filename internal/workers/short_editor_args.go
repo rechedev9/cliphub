@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 )
 
@@ -44,6 +45,9 @@ func shortOverlayArgs(edit renderplan.EditRequest) []string {
 		if edit.RadarOpacity != 0 {
 			args = append(args, "--radar-opacity", strconv.FormatFloat(edit.RadarOpacity, 'f', -1, 64))
 		}
+	}
+	if edit.OverlayLanguage != overlaylang.Spanish {
+		args = append(args, "--overlay-language", edit.OverlayLanguage.String())
 	}
 	return args
 }

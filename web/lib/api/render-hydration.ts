@@ -110,6 +110,7 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   ) {
     parsed.voiceVolume = edit.voice_volume;
   }
+  if (edit.overlay_language === 'en') parsed.overlayLanguage = 'en';
   if (typeof edit.intro_text === 'string') parsed.introText = edit.intro_text;
   if (typeof edit.outro_text === 'string') parsed.outroText = edit.outro_text;
   const family =

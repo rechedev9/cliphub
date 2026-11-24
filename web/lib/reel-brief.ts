@@ -1,5 +1,6 @@
 import { affiliateFamilyLabel, affiliateStyleLabel, DEFAULT_VICTIM_REPLAY_SPEED, KEYDROP_CODE_RE, type EditConfig, type Preset } from './api/types.ts';
 import { verticalHudTheme } from './custom-hud.ts';
+import { OVERLAY_LANGUAGE_LABEL } from './overlay-language.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
 import { hasPlayerCards, withoutPlayerCards } from './player-cards.ts';
 import { formatDecimal } from './format.ts';
@@ -201,6 +202,7 @@ export function reelCreativeBrief(
     { label: 'Título / contador', value: `${edit.hookText ? 'Título automático' : 'Sin título automático'} · ${edit.killCounter ? 'Contador de kills' : 'Sin contador'}` },
     { label: 'Insignias / tarjeta', value: `${edit.playBadges ? 'Insignias de jugada' : 'Sin insignias'} · ${closingCardLabel(edit)}` },
     { label: 'Probabilidad de victoria', value: edit.winProbability ? 'Tras el plantado' : 'No' },
+    ...(edit.fullDemo ? [] : [{ label: 'Idioma de los textos', value: OVERLAY_LANGUAGE_LABEL[edit.overlayLanguage ?? 'es'] }]),
     { label: 'Repetición', value: victimReplayLabel(edit) },
     { label: 'Sobre el juego', value: worldOverlayLabel(edit) },
     { label: 'Radar', value: radarBriefLabel(edit) },

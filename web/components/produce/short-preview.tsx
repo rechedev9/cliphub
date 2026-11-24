@@ -8,6 +8,7 @@ import { brandImageUrl, type BrandCorner } from '@/lib/brand-kit';
 import { CUSTOM_HUD_THEMES, customHudTheme } from '@/lib/custom-hud';
 import { prettyMapName } from '@/lib/format';
 import { verticalHudPreviewUrl } from '@/lib/hud-themes';
+import { previewTexts } from '@/lib/overlay-language';
 import { previewFrame, previewTimeline, portraitPreview, type PreviewFrame } from '@/lib/produce/short-preview-timeline';
 import { coerceRadarOpacity, radarAutoPosition, RADAR_DEFAULT_OPACITY, type RadarSize } from '@/lib/radar-overlay';
 import { cn } from '@/lib/utils';
@@ -102,7 +103,7 @@ export function ShortPreview({ preset, edit, map, player, frameClassName, classN
           {frame.flash ? <rect width={size.w} height={size.h} fill={frame.flash.color} opacity={frame.flash.opacity} /> : null}
           {edit.radar && radarMap ? <Radar edit={edit} map={radarMap} size={size} /> : null}
           {portrait && edit.verticalHud && !edit.deathReel && frame.verticalHud ? (
-            <image href={verticalHudPreviewUrl((customHudTheme(edit.verticalHudTheme) ?? CUSTOM_HUD_THEMES[0])?.id ?? '')} x={(size.w - 628) / 2} y={132} width={628} height={186} />
+            <image href={verticalHudPreviewUrl((customHudTheme(edit.verticalHudTheme) ?? CUSTOM_HUD_THEMES[0])?.id ?? '', edit.overlayLanguage)} x={(size.w - 628) / 2} y={132} width={628} height={186} />
           ) : null}
           {centered || cornerFeed ? <Notices count={frame.notices} player={player} centered={centered} size={size} /> : null}
           {kit?.logo && edit.brandWatermark ? <Watermark href={brandImageUrl(kit.logo)} corner={kit.watermark_corner} opacity={kit.watermark_opacity} size={size} /> : null}
@@ -263,7 +264,8 @@ function Plate({ text, x, y, size, box, fill, anchor }: { text: string; x: numbe
 function Texts({ edit, frame, size, player, map }: { edit: EditConfig; frame: PreviewFrame; size: Size; player: string; map: string }): ReactNode {
   const { w, h } = size;
   const portrait = h > w;
-  const title = `3K EN ${prettyMapName(map).toUpperCase() || 'MIRAGE'}`;
+  const text = previewTexts(edit.overlayLanguage, prettyMapName(map).toUpperCase() || 'MIRAGE');
+  const title = text.title;
   const titleSize = fitFontSize(title, { base: portrait ? 72 : 58, safeWidth: w - 120 });
   const intro = edit.introText?.trim() || title;
   const outro = edit.outroText?.trim() || 'ClipHub';
@@ -273,9 +275,9 @@ function Texts({ edit, frame, size, player, map }: { edit: EditConfig; frame: Pr
       {frame.intro > 0 ? <Boxed text={intro} y={h / 3} size={fitFontSize(intro, { base: portrait ? 72 : 58, safeWidth: w - 120 })} box="rgb(0 0 0 / 0.55)" border={24} opacity={frame.intro} frameWidth={w} /> : null}
       {frame.winProbability > 0 ? (
         <g opacity={frame.winProbability}>
-          <Label text="PROB. DE VICTORIA" x={w / 2} y={h * 0.24} size={portrait ? 30 : 24} />
-          <Plate text="CT 64 %" x={w / 2 - 24} y={h * 0.24 + (portrait ? 44 : 38)} size={portrait ? 46 : 36} box="rgb(93 121 174 / 0.92)" fill="white" anchor="end" />
-          <Plate text="36 % T" x={w / 2 + 24} y={h * 0.24 + (portrait ? 44 : 38)} size={portrait ? 46 : 36} box="rgb(222 155 53 / 0.94)" fill="black" anchor="start" />
+          <Label text={text.winProbability} x={w / 2} y={h * 0.24} size={portrait ? 30 : 24} />
+          <Plate text={text.ctPlate} x={w / 2 - 24} y={h * 0.24 + (portrait ? 44 : 38)} size={portrait ? 46 : 36} box="rgb(93 121 174 / 0.92)" fill="white" anchor="end" />
+          <Plate text={text.tPlate} x={w / 2 + 24} y={h * 0.24 + (portrait ? 44 : 38)} size={portrait ? 46 : 36} box="rgb(222 155 53 / 0.94)" fill="black" anchor="start" />
         </g>
       ) : null}
       {frame.counter ? <Label text={frame.counter.value} x={w / 2} y={h * 0.62} size={frame.counter.size} opacity={frame.counter.opacity} /> : null}
@@ -283,9 +285,9 @@ function Texts({ edit, frame, size, player, map }: { edit: EditConfig; frame: Pr
       {frame.stats > 0 ? (
         <g opacity={frame.stats}>
           <rect width={w} height={h} fill="black" opacity={0.58} />
-          <Label text="ESTADÍSTICAS DE LA PARTIDA" x={w / 2} y={h * 0.3} size={36} />
+          <Label text={text.matchStats} x={w / 2} y={h * 0.3} size={36} />
           <Label text={player} x={w / 2} y={h * 0.35} size={fitFontSize(player, { base: 80, safeWidth: w - 140 })} />
-          {['K/D 1.45 (16/11)', 'ADR 92.4 · HS 48 %', 'RATING DE CLIPHUB 1.21'].map((line, i) => (
+          {text.statLines.map((line, i) => (
             <Label key={line} text={line} x={w / 2} y={h * 0.35 + 130 + i * 86} size={fitFontSize(line, { base: 50, safeWidth: w - 140 })} />
           ))}
         </g>

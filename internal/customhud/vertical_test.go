@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 )
 
 func verticalTimeline(states ...Snapshot) Timeline {
@@ -112,7 +114,7 @@ func verticalNodes(t *testing.T, state VerticalState) map[string]Node {
 		t.Fatal(err)
 	}
 	nodes := map[string]Node{}
-	for _, n := range r.verticalScene(state) {
+	for _, n := range r.verticalScene(state, overlaylang.Spanish) {
 		nodes[n.ID] = n
 	}
 	return nodes
@@ -157,11 +159,11 @@ func TestVerticalASSWritesStaticPlatesOnceAndFadesAroundGaps(t *testing.T) {
 	a := VerticalExample()
 	b := a
 	b.TimeRemaining--
-	script, err := VerticalASS(theme, []VerticalCue{
+	script, err := VerticalASS(VerticalScript{Theme: theme, Cues: []VerticalCue{
 		{StartSeconds: 2, EndSeconds: 3, State: a},
 		{StartSeconds: 3, EndSeconds: 4, State: b},
 		{StartSeconds: 6, EndSeconds: 7, State: b},
-	})
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +194,7 @@ func TestVerticalASSWritesStaticPlatesOnceAndFadesAroundGaps(t *testing.T) {
 	if run == 0 {
 		t.Fatal("the plates must span both cues of the run as one line")
 	}
-	if _, err := VerticalASS(theme, []VerticalCue{{StartSeconds: -1, EndSeconds: 1, State: a}}); err == nil {
+	if _, err := VerticalASS(VerticalScript{Theme: theme, Cues: []VerticalCue{{StartSeconds: -1, EndSeconds: 1, State: a}}}); err == nil {
 		t.Fatal("a cue before the video was accepted")
 	}
 }
@@ -202,11 +204,45 @@ func TestVerticalSVGDrawsTheBand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svg := r.VerticalSVG(VerticalExample())
+	svg := r.VerticalSVG(VerticalExample(), overlaylang.Spanish)
 	if !strings.Contains(svg, `viewBox="226 120 628 186"`) || !strings.Contains(svg, ">RONDA 17<") || !strings.Contains(svg, ">1:14<") {
 		t.Fatalf("svg=%.400s", svg)
 	}
 	if _, err := VerticalTheme("missing"); err == nil {
 		t.Fatal("an unknown design was accepted")
+	}
+}
+
+func TestEnglishVerticalHUDNamesEveryPhaseInEnglish(t *testing.T) {
+	theme, err := VerticalTheme("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cues []VerticalCue
+	for i, phase := range []string{"live", "freeze", "planted", "defusing", "ended"} {
+		state := VerticalExample()
+		state.Phase = phase
+		cues = append(cues, VerticalCue{StartSeconds: float64(i), EndSeconds: float64(i + 1), State: state})
+	}
+	script, err := VerticalASS(VerticalScript{Theme: theme, Cues: cues, Language: overlaylang.English})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"}ROUND 17", "}FREEZE TIME", "}BOMB PLANTED", "}DEFUSING", "}ROUND END"} {
+		if !strings.Contains(script, want) {
+			t.Errorf("the English HUD lacks %q", want)
+		}
+	}
+	for _, spanish := range []string{"RONDA", "COMPRAS", "BOMBA", "DESACTIVANDO"} {
+		if strings.Contains(script, spanish) {
+			t.Errorf("the English HUD still writes %q", spanish)
+		}
+	}
+	r, err := NewRenderer("prism")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if svg := r.VerticalSVG(VerticalExample(), overlaylang.English); !strings.Contains(svg, ">ROUND 17<") {
+		t.Fatalf("the English preview does not name the round: %.400s", svg)
 	}
 }

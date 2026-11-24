@@ -9,6 +9,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
@@ -111,6 +112,9 @@ func horizontalArguments(jobID string, d tuiclient.HorizontalDraft) generateIn {
 		c.Cover = new(false)
 	}
 	c.SubtitlesHidden = e.SubtitlesHidden
+	if e.OverlayLanguage != overlaylang.Spanish {
+		c.OverlayLanguage = e.OverlayLanguage.String()
+	}
 	if e.VictimReplaySpeed != 0 {
 		c.VictimReplaySpeed = new(e.VictimReplaySpeed)
 	}

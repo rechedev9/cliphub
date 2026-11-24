@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 )
 
 // VerticalVersion names the 9:16 HUD track format.
@@ -212,11 +214,11 @@ func VerticalTheme(id string) (Theme, error) {
 
 // VerticalASS draws the cues as a 1080x1920 libass script. Each node is written
 // only when it changes; a run of cues fades in after a gap and out before one.
-func VerticalASS(theme Theme, cues []VerticalCue) (string, error) {
+func VerticalASS(script VerticalScript) (string, error) {
 	if err := loadAssets(); err != nil {
 		return "", err
 	}
-	r := &Renderer{Theme: theme}
+	r, cues := &Renderer{Theme: script.Theme}, script.Cues
 	var b strings.Builder
 	fmt.Fprintf(&b, "[Script Info]\nScriptType: v4.00+\nPlayResX: %d\nPlayResY: %d\nScaledBorderAndShadow: yes\nWrapStyle: 2\n\n", VerticalWidth, VerticalHeight)
 	b.WriteString("[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: HUD,Montserrat ExtraBold,20,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
@@ -269,7 +271,7 @@ func VerticalASS(theme Theme, cues []VerticalCue) (string, error) {
 			clear(active)
 		}
 		next := map[string]Node{}
-		for _, node := range r.verticalScene(cue.State) {
+		for _, node := range r.verticalScene(cue.State, script.Language) {
 			next[node.ID] = node
 		}
 		for _, key := range sortedKeys() {
@@ -294,7 +296,7 @@ func VerticalASS(theme Theme, cues []VerticalCue) (string, error) {
 
 func secondsFrame(seconds float64) int64 { return int64(math.Round(seconds * 60)) }
 
-func (r *Renderer) verticalScene(v VerticalState) []Node {
+func (r *Renderer) verticalScene(v VerticalState, language overlaylang.Language) []Node {
 	s := &scene{r: r}
 	t := r.Theme
 	clockX := VerticalWidth/2 - verticalClockW/2
@@ -315,17 +317,17 @@ func (r *Renderer) verticalScene(v VerticalState) []Node {
 		s.typeText(id+"-name", side.name, mid, verticalTop+71, 20, verticalSideW-20, 600, t.Background, "center")
 		s.verticalAlive(id, side.x, side.alive, side.slots, side.color)
 	}
-	color := t.Text
-	phase := fmt.Sprintf("RONDA %d", v.Round)
+	color, text := t.Text, verticalTexts(language)
+	phase := fmt.Sprintf(text.round, v.Round)
 	switch v.Phase {
 	case "freeze":
-		phase = "COMPRAS"
+		phase = text.freeze
 	case "planted":
-		phase, color = "BOMBA PLANTADA", t.T
+		phase, color = text.planted, t.T
 	case "defusing":
-		phase, color = "DESACTIVANDO", t.CT
+		phase, color = text.defusing, t.CT
 	case "ended":
-		phase = "FIN DE RONDA"
+		phase = text.ended
 	}
 	center := VerticalWidth / 2
 	if v.Phase == "ended" {
@@ -371,9 +373,9 @@ func VerticalExample() VerticalState {
 }
 
 // VerticalSVG draws the band of the 9:16 HUD with the same display list as the video.
-func (r *Renderer) VerticalSVG(v VerticalState) string {
+func (r *Renderer) VerticalSVG(v VerticalState, language overlaylang.Language) string {
 	left := VerticalWidth/2 - verticalClockW/2 - verticalGap - verticalSideW - 40
 	top, width := verticalTop-30, VerticalWidth-2*left
 	height := verticalAliveY + verticalAliveH + 30 - top
-	return svgDocument(svgFrame{name: r.Theme.Name, x: left, y: top, w: width, h: height}, r.verticalScene(v))
+	return svgDocument(svgFrame{name: r.Theme.Name, x: left, y: top, w: width, h: height}, r.verticalScene(v, language))
 }

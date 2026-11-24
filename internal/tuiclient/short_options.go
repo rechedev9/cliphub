@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 )
 
 // Song is one music track of GET /api/songs.
@@ -83,6 +85,8 @@ type ShortEdit struct {
 	// Subtitles burns what the team voices say, without the SubtitlesHidden phrases.
 	Subtitles       bool     `json:"subtitles,omitempty"`
 	SubtitlesHidden []string `json:"subtitles_hidden,omitempty"`
+
+	OverlayLanguage overlaylang.Language `json:"overlay_language,omitempty"`
 }
 
 // ShortMusic is the "music" object of a Short: a track id from ListSongs and its mix.

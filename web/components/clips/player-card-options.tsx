@@ -78,7 +78,7 @@ export function PlayerCardOptions({ value, onChange, disabled = false, jobId, bl
           {templates.map((template) => (
             <li key={template.id} className="flex w-24 shrink-0 flex-col gap-1">
               <img
-                src={playerCardPreviewUrl(jobId, template.id, version)}
+                src={playerCardPreviewUrl({ jobId, templateId: template.id, version, language: value.overlayLanguage })}
                 alt={`Carta ${template.name} de ${player.name}`}
                 loading="lazy"
                 className="aspect-[9/16] w-full rounded border border-border-subtle bg-surface-3 object-cover"

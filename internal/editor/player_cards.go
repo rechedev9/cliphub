@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/rechedev9/cliphub/internal/htmlstill"
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 	"github.com/rechedev9/cliphub/internal/playercard"
 )
 
@@ -26,9 +27,14 @@ type PlayerCards struct {
 	Cover   string `json:"cover,omitempty"`
 }
 
+type playerCardsInput struct {
+	path, outDir string
+	language     overlaylang.Language
+}
+
 // preparePlayerCards draws each chosen template once into outDir with the overlay renderer.
-func preparePlayerCards(path, outDir string) (*PlayerCards, error) {
-	raw, err := os.ReadFile(path)
+func preparePlayerCards(in playerCardsInput) (*PlayerCards, error) {
+	raw, err := os.ReadFile(in.path)
 	if err != nil {
 		return nil, fmt.Errorf("read player cards: %w", err)
 	}
@@ -47,11 +53,11 @@ func preparePlayerCards(path, outDir string) (*PlayerCards, error) {
 		if id == "" || drawn[id] != "" {
 			return drawn[id], nil
 		}
-		html, err := playercard.HTML(id, req.Card, image)
+		html, err := playercard.HTML(playercard.Page{Template: id, Card: req.Card, Image: image, Language: in.language})
 		if err != nil {
 			return "", err
 		}
-		out := filepath.Join(outDir, "player-card-"+id+".png")
+		out := filepath.Join(in.outDir, "player-card-"+id+".png")
 		if err := htmlstill.Render(html, out, htmlstill.Portrait); err != nil {
 			return "", fmt.Errorf("draw the %s player card: %w", id, err)
 		}

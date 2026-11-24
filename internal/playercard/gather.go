@@ -83,7 +83,7 @@ func Gather(ctx context.Context, src Sources, jobID uuid.UUID, steamID string) (
 			avatar = f.AvatarURL
 		}
 	}
-	if role := libraryRole(ctx, src, steamID); roleLabels[role] != "" {
+	if role := libraryRole(ctx, src, steamID); spanishCardText.roles[role] != "" {
 		facts.Card.Role = role
 	}
 	if ref, found, err := loadImage(src.Files, steamID); err == nil && found {
