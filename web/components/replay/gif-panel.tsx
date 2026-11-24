@@ -7,7 +7,7 @@ import { tramoLabel } from '@/lib/replay/tramo';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { TramoBar } from './tramo-bar';
-import type { TramoControl } from './tramo-bar';
+import type { TramoControl } from '@/lib/replay/tramo';
 import type { GifState, ReplayGif } from './use-replay-gif';
 
 function stateLine(state: GifState): string | null {

@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 	"slices"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -62,11 +64,6 @@ func (h *Handlers) DeleteStreamJob(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DeleteStreamVideo handles DELETE /api/stream-jobs/{id}/renders/{variant}/videos/{clip_id}:
-// it removes one published stream clip (its MP4 and its upload-ready copy).
-// Startup reconciliation fails a render whose state and result list different
-// clips, so both drop the clip together; the last clip takes the whole render.
-// Idempotent: a clip already gone answers 204.
 func (h *Handlers) DeleteStreamVideo(w http.ResponseWriter, r *http.Request) {
 	release := h.lockStreamJobRequest(r)
 	defer release()
@@ -86,11 +83,20 @@ func (h *Handlers) DeleteStreamVideo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isClip := func(v streamclips.VideoEntry) bool { return v.ClipID == clipID }
-	if !exists || !state.HasPublishedRender() || !slices.ContainsFunc(state.Videos, isClip) {
+	if !exists || !state.HasPublishedRender() {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if state.Status == streamclips.StatusQueued || state.Status == streamclips.StatusRendering {
+	settling := state.Status == streamclips.StatusQueued || state.Status == streamclips.StatusRendering
+	if !slices.ContainsFunc(state.Videos, isClip) {
+		if !settling {
+			h.finishCutStreamVideoDelete(w, state, clipID)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if settling {
 		writeError(w, http.StatusConflict, fmt.Sprintf("stream render %s is %s; wait for it to settle before deleting", variant, state.Status))
 		return
 	}
@@ -103,14 +109,14 @@ func (h *Handlers) DeleteStreamVideo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "storage backend does not support delete")
 		return
 	}
-	isCopy := func(d streamclips.DeliveryEntry) bool { return d.Kind == "video" && d.Name == clipID+".mp4" }
-	keys := []string{state.Videos[slices.IndexFunc(state.Videos, isClip)].Key}
-	if i := slices.IndexFunc(state.Delivery, isCopy); i >= 0 {
-		keys = append(keys, state.Delivery[i].Key)
-	}
 	result, found, err := h.readPublishedStreamResult(state)
 	if err != nil {
 		internalError(w, "read published stream result", err)
+		return
+	}
+	keys := state.RemoveVideo(clipID, time.Now())
+	if err := h.writeStreamRenderState(state); err != nil {
+		internalError(w, "write stream render state", err)
 		return
 	}
 	if found {
@@ -120,15 +126,41 @@ func (h *Handlers) DeleteStreamVideo(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	state.Videos = slices.DeleteFunc(state.Videos, isClip)
-	state.Delivery = slices.DeleteFunc(state.Delivery, isCopy)
-	if err := h.writeStreamRenderState(state); err != nil {
-		internalError(w, "write stream render state", err)
-		return
-	}
 	// Files last: a failure here leaves an orphan file, never a broken render.
 	for _, key := range keys {
 		if err := deleter.Delete(key); err != nil {
+			internalError(w, "delete stream video", err)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handlers) finishCutStreamVideoDelete(w http.ResponseWriter, state streamclips.RenderState, clipID string) {
+	result, found, err := h.readPublishedStreamResult(state)
+	if err != nil {
+		internalError(w, "read published stream result", err)
+		return
+	}
+	isClip := func(v streamclips.VideoEntry) bool { return v.ClipID == clipID }
+	i := slices.IndexFunc(result.Clips, isClip)
+	if !found || i < 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	key := result.Clips[i].Key
+	result.Clips = slices.DeleteFunc(result.Clips, isClip)
+	if err := h.putStreamJSON(state.ResultKey, result); err != nil {
+		internalError(w, "write published stream result", err)
+		return
+	}
+	deleter, ok := h.storage.(renderArtifactDeleter)
+	if !ok || state.ArtifactDir == "" || path.Dir(key) != path.Join(state.ArtifactDir, "videos") {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	for _, orphan := range []string{key, path.Join(state.ArtifactDir, "shortslistosparasubir", clipID+".mp4")} {
+		if err := deleter.Delete(orphan); err != nil {
 			internalError(w, "delete stream video", err)
 			return
 		}

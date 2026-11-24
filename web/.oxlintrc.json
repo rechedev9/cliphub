@@ -84,6 +84,24 @@
       }
     },
     {
+      "files": ["hooks/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          { "patterns": [{ "group": ["@/components/**", "**/components/**"], "message": "A hook depends on lib, never on components: move the shared type or helper into web/lib." }] }
+        ]
+      }
+    },
+    {
+      "files": ["components/ui/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          { "patterns": [{ "group": ["@/components/**", "!@/components/ui/**", "../**"], "message": "components/ui never imports a feature folder: move the generic part into ui, hooks or lib, or take it as a prop." }] }
+        ]
+      }
+    },
+    {
       "files": ["app/api/**", "lib/api/edition-fetch.ts", "lib/api/upload.ts", "lib/browser-import/upload-analysis.ts", "**/*.test.ts", "**/*.test.tsx"],
       "rules": { "no-restricted-globals": "off" }
     }

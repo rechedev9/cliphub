@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/library"
 )
 
 // VoiceTrack is one speaker or mix of a match's team voice recording.
@@ -20,16 +22,7 @@ type VoiceTrack struct {
 	Source     string `json:"source"`
 }
 
-// VoiceSync places the recording on the demo: audio time 0 plays at demo time OffsetMS.
-type VoiceSync struct {
-	State        string  `json:"state"`
-	Method       string  `json:"method"`
-	OffsetMS     int64   `json:"offset_ms"`
-	AutoOffsetMS int64   `json:"auto_offset_ms"`
-	Confidence   float64 `json:"confidence"`
-	Note         string  `json:"note,omitempty"`
-	TeamKey      string  `json:"team_key,omitempty"`
-}
+type VoiceSync = library.VoiceSync
 
 // VoiceTranscript is the state of a match's local transcription.
 type VoiceTranscript struct {

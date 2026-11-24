@@ -694,9 +694,7 @@ func (h *Handlers) StartStreamRender(w http.ResponseWriter, r *http.Request) {
 			return nil
 		default:
 			failedState := state
-			failedState.Status = streamclips.StatusFailed
-			failedState.Error = "enqueue render: " + decision.Error()
-			failedState.UpdatedAt = time.Now().UTC()
+			failedState.Fail("enqueue render: "+decision.Error(), time.Now())
 			return h.writeStreamRenderState(failedState)
 		}
 	}, asynq.Unique(streamRenderUniqueTTL))

@@ -9,7 +9,7 @@ import { playerHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { ROLE_LABEL } from '@/lib/library/partidas';
 import { PlayerAvatar } from '@/components/players/player-avatar';
-import { EmptyCell } from '@/components/records/empty-cell';
+import { EmptyCell } from '@/components/ui/empty-cell';
 import { Button } from '@/components/ui/button';
 import { DeltaValue } from '@/components/ui/delta-value';
 import { RoleChip } from '@/components/ui/role-chip';

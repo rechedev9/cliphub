@@ -30,7 +30,7 @@ import { formatShortDate, prettyMapName } from '@/lib/format';
 import { matchScoreLabel, matchTitle } from '@/lib/library/partidas';
 import { SERIES_FORMAT_LABEL, VETO_ACTION_LABEL, seriesVetoTemplate, vetoStepsProblem } from '@/lib/library/veto';
 import { LoadErrorState } from '@/components/records/load-error-state';
-import { EmptyCell } from '@/components/records/empty-cell';
+import { EmptyCell } from '@/components/ui/empty-cell';
 import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { RelatedList } from '@/components/records/related-list';

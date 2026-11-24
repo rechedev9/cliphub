@@ -21,7 +21,7 @@ import { groupEvidenceByMatch, type VideoSource } from '@/lib/library/analysis-v
 import { dateText, evidencePath } from '@/lib/reports/scout-sections';
 import { PLAY_ORIGIN_LABEL, playSecondsLabel, playShapeLabel, stratbookFileName } from '@/lib/stratbook/plays';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
-import { EmptyCell } from '@/components/records/empty-cell';
+import { EmptyCell } from '@/components/ui/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { LoadErrorState } from '@/components/records/load-error-state';
 import { RecordHeader } from '@/components/records/record-header';

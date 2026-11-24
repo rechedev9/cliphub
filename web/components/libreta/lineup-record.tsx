@@ -11,7 +11,7 @@ import { formatShortDate, prettyMapName } from '@/lib/format';
 import { lineupSpot, setposCommand } from '@/lib/libreta/lineups';
 import { loadErrorMessage } from '@/lib/load-error';
 import { evidencePath } from '@/lib/reports/scout-sections';
-import { EmptyCell } from '@/components/records/empty-cell';
+import { EmptyCell } from '@/components/ui/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { LoadErrorState } from '@/components/records/load-error-state';
 import { RecordHeader } from '@/components/records/record-header';

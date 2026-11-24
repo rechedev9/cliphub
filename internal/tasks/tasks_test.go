@@ -61,8 +61,9 @@ func TestBoundStreamRenderTaskKeepsUniquePayloadAndCarriesIntent(t *testing.T) {
 
 func TestNewRenderTimelineTaskRoundtrip(t *testing.T) {
 	id := uuid.New()
+	attempt := uuid.New()
 	fp := strings.Repeat("ab", 32)
-	tk, err := NewRenderTimelineTask(id, fp)
+	tk, err := NewRenderTimelineTask(RenderTimelinePayload{ProjectID: id, AttemptID: attempt, Fingerprint: fp})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,10 +74,17 @@ func TestNewRenderTimelineTaskRoundtrip(t *testing.T) {
 	if err := json.Unmarshal(tk.Payload(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.ProjectID != id || payload.Fingerprint != fp {
+	if payload.ProjectID != id || payload.AttemptID != attempt || payload.Fingerprint != fp {
 		t.Fatalf("payload = %+v", payload)
 	}
-	if _, err := NewRenderTimelineTask(id, "nope"); err == nil {
+	var legacy RenderTimelinePayload
+	if err := json.Unmarshal([]byte(`{"project_id":"`+id.String()+`","fingerprint":"`+fp+`"}`), &legacy); err != nil {
+		t.Fatal(err)
+	}
+	if legacy.ProjectID != id || legacy.AttemptID != uuid.Nil {
+		t.Fatalf("legacy payload = %+v", legacy)
+	}
+	if _, err := NewRenderTimelineTask(RenderTimelinePayload{ProjectID: id, Fingerprint: "nope"}); err == nil {
 		t.Fatal("expected invalid fingerprint")
 	}
 }
@@ -294,7 +302,7 @@ func TestUniqueScope(t *testing.T) {
 	composeB := must(NewComposeFinalTask(jobB))
 	renderA := must(NewRenderVariantTask(jobA, testRenderVariant, "", 0, nil, edit, nil))
 	streamA := must(NewRenderStreamClipTask(jobA, "streamer-40-60"))
-	timeline := must(NewRenderTimelineTask(projectID, strings.Repeat("ab", 32)))
+	timeline := must(NewRenderTimelineTask(RenderTimelinePayload{ProjectID: projectID, Fingerprint: strings.Repeat("ab", 32)}))
 	parseA := must(NewParseDemoTask(jobA))
 
 	cases := []struct {

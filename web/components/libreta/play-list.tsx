@@ -16,7 +16,7 @@ import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { PLAY_ORIGIN_LABEL, playKindLabel, playShapeLabel, stratbookFileName } from '@/lib/stratbook/plays';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
-import { EmptyCell } from '@/components/records/empty-cell';
+import { EmptyCell } from '@/components/ui/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { LoadErrorState } from '@/components/records/load-error-state';
 import { FilterBar } from '@/components/records/filter-bar';

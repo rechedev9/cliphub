@@ -452,7 +452,8 @@ func (h *Handlers) StartEditorRender(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "fingerprint timeline", err)
 		return
 	}
-	task, err := tasks.NewRenderTimelineTask(p.ID, fp)
+	attemptID := uuid.New()
+	task, err := tasks.NewRenderTimelineTask(tasks.RenderTimelinePayload{ProjectID: p.ID, AttemptID: attemptID, Fingerprint: fp})
 	if err != nil {
 		internalError(w, "build timeline render task", err)
 		return
@@ -462,16 +463,12 @@ func (h *Handlers) StartEditorRender(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "load previous editor render state", err)
 		return
 	}
-	state := timelineplan.RenderState{
+	state := previous.StartAttempt(timelineplan.RenderAttempt{
 		ProjectID:   p.ID,
-		AttemptID:   uuid.New(),
-		Status:      timelineplan.StatusRendering,
+		AttemptID:   attemptID,
 		Fingerprint: fp,
-		VideoKey:    previous.VideoKey,
-		CoverKey:    previous.CoverKey,
-		ResultKey:   previous.ResultKey,
-		UpdatedAt:   time.Now().UTC(),
-	}
+		At:          time.Now().UTC(),
+	})
 	// The admission call runs inside the request; a later shutdown discard runs
 	// without it, so the compensating write uses its own context like
 	// persistJobQueueDecision. Only admitted work has anything to revert:
@@ -500,11 +497,7 @@ func (h *Handlers) StartEditorRender(w http.ResponseWriter, r *http.Request) {
 		if err := h.editorProjects.UpdateStatus(markCtx, p.ID, timelineplan.StatusFailed, reason); err != nil {
 			return fmt.Errorf("mark editor project failed after queue discard: %w", err)
 		}
-		failed := state
-		failed.Status = timelineplan.StatusFailed
-		failed.Error = reason
-		failed.UpdatedAt = time.Now().UTC()
-		return h.writeEditorRenderState(failed)
+		return h.writeEditorRenderState(state.Fail(reason, time.Now().UTC()))
 	}
 	_, err = h.queue.EnqueueWithTransition(task, claimQueueStage(claim, compensate), asynq.MaxRetry(0), asynq.Unique(editorRenderUniqueTTL))
 	if err != nil {

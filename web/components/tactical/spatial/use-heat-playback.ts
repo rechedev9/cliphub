@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useTramo } from '@/components/replay/tramo-bar';
-import type { TramoControl } from '@/components/replay/tramo-bar';
 import { ROUND_CLOCK_SECONDS, TRAMO_MIN_SECONDS, isWholeRound, tramoEnd } from '@/lib/replay/tramo';
-import type { Tramo } from '@/lib/replay/tramo';
+import type { Tramo, TramoControl } from '@/lib/replay/tramo';
 import { LIVE_SAMPLE_SECONDS } from '@/lib/heat-live';
 
 /** The owner keeps the tramo in the URL; between drag moves it hears of the tramo this long after the last one. */

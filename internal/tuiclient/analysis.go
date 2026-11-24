@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 // LibraryTeam is one team of the library.
@@ -97,13 +99,7 @@ func encodeValues(values url.Values) string {
 	return "?" + values.Encode()
 }
 
-// Rate is a count over a total, with its percentage.
-type Rate struct {
-	Count    int     `json:"count"`
-	Total    int     `json:"total"`
-	Pct      float64 `json:"pct"`
-	Reliable bool    `json:"reliable"`
-}
+type Rate = tacticalplan.Rate
 
 // AnalysisSkipped is a match a report could not read.
 type AnalysisSkipped struct {

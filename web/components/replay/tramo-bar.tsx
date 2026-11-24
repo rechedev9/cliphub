@@ -3,14 +3,11 @@
 import { useEffect, useRef, useState, useTransition, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { Check, SlidersHorizontal, Timer } from 'lucide-react';
 import { QUICK_TRAMOS, ROUND_CLOCK_SECONDS, WHOLE_ROUND, clockPercent, dragSeconds, edgeBounds, isWholeRound, keyedEdge, moveTramoEdge, nearestEdge, quickTramoOf, roundClock, tramoEnd } from '@/lib/replay/tramo';
-import type { Tramo } from '@/lib/replay/tramo';
+import type { Tramo, TramoControl } from '@/lib/replay/tramo';
 import { FOCUS_RING } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { CLOCK_BOX, STRIP } from './time-strip';
-
-/** A tramo and how to change it; the Replay keeps it in the URL and hands it to each form. */
-export type TramoControl = { tramo: Tramo; onChange: (tramo: Tramo) => void };
 
 /** The owner's tramo when it gives one, else one this view keeps for itself. */
 export function useTramo(control: TramoControl | undefined): TramoControl {

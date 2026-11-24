@@ -37,7 +37,7 @@ import type { RadarFrame, RadarSurfaceHandle } from './radar-surface';
 import { Segmented } from '@/components/ui/segmented';
 import { TelestratorLayer, useTelestratorDraft } from './telestrator';
 import { TramoBar, useTramo } from '@/components/replay/tramo-bar';
-import type { TramoControl } from '@/components/replay/tramo-bar';
+import type { TramoControl } from '@/lib/replay/tramo';
 import { CLOCK_BOX, PLAYING_STRIP, SCRUB_INPUT, SpeedPicker } from '@/components/replay/time-strip';
 import { InfoTip } from '@/components/analysis/info-tip';
 import { isWholeRound } from '@/lib/replay/tramo';

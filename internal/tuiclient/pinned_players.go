@@ -3,13 +3,11 @@ package tuiclient
 import (
 	"context"
 	"net/http"
+
+	"github.com/rechedev9/cliphub/internal/library"
 )
 
-// PinnedPlayer is a player the Ranking keeps on top of its table.
-type PinnedPlayer struct {
-	SteamID64 string `json:"steamid64"`
-	Name      string `json:"name"`
-}
+type PinnedPlayer = library.PinnedPlayer
 
 type pinnedPlayersBody struct {
 	Players []PinnedPlayer `json:"players"`

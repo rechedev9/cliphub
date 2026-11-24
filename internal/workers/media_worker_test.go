@@ -1460,7 +1460,7 @@ func TestPreserveRenderArtifactPointerKeepsCanonicalPrefixForLegacyState(t *test
 	}
 	canonicalPrefix := migrated.ArtifactPrefix
 
-	preserveRenderArtifactPointer(&migrated, &legacy)
+	migrated.KeepPublishedArtifacts(&legacy)
 
 	if migrated.ArtifactPrefix != canonicalPrefix || migrated.ArtifactPrefix == "" {
 		t.Fatalf("artifact prefix = %q, want canonical %q", migrated.ArtifactPrefix, canonicalPrefix)
