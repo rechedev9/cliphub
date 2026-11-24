@@ -209,3 +209,36 @@ test('reactivation during a running tick queues one immediate non-overlapping re
   await flushMicrotasks();
   assert.equal(calls, 2, 'reactivation must run immediately after the active tick settles');
 });
+
+test('wake runs a tick at once instead of waiting for the idle beat', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+
+  let calls = 0;
+  let wakeUp: () => void = () => {};
+  const stop = startPollLoop({
+    tick: async () => {
+      calls += 1;
+      return 'idle';
+    },
+    fastMs: 1000,
+    idleMs: 10000,
+    activity: activityHarness(true),
+    wake: (listener) => {
+      wakeUp = listener;
+      return () => {
+        wakeUp = () => {};
+      };
+    },
+  });
+  t.after(stop);
+
+  await flushMicrotasks();
+  assert.equal(calls, 1);
+  wakeUp();
+  await flushMicrotasks();
+  assert.equal(calls, 2, 'a wake must not wait for the idle timer');
+  stop();
+  wakeUp();
+  await flushMicrotasks();
+  assert.equal(calls, 2, 'no tick after stop()');
+});

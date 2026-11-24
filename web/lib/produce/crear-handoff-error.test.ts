@@ -15,8 +15,8 @@ test('a shared match explains that it came without its demo', () => {
 });
 
 test('a dead service and a failed fetch both point at ClipHub being closed', () => {
-  assert.match(crearHandoffError(new LibraryApiError('offline', 503, 'service_unavailable')).description, /no responde/);
-  assert.match(crearHandoffError(new TypeError('Failed to fetch')).description, /no responde/);
+  assert.match(crearHandoffError(new LibraryApiError('offline', 503, 'service_unavailable')).description, /cierra ClipHub Studio/);
+  assert.match(crearHandoffError(new TypeError('Failed to fetch')).description, /cierra ClipHub Studio/);
 });
 
 test('a demo gone from the library and any other failure keep a next step', () => {

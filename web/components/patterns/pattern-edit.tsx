@@ -6,6 +6,7 @@ import { isLibraryOffline, listLibraryPlays } from '@/lib/api/library';
 import { PATTERN_CATEGORY_MAX, PATTERN_NAME_MAX, updateSavedPattern, type PatternPatch, type SavedPattern } from '@/lib/api/patterns';
 import type { LibraryPlay } from '@/lib/api/stratbook';
 import { prettyMapName } from '@/lib/format';
+import { offlineMessage } from '@/lib/load-error';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
@@ -122,7 +123,7 @@ export function PatternEditDialog({ pattern, teamId, teamName = '', categories, 
       toast.success(`Patrón «${saved.name}» guardado`);
       onSaved(saved);
     } catch (failure) {
-      setError(isLibraryOffline(failure) ? 'El servicio local no responde. Vuelve a intentarlo.' : 'No se pudieron guardar los cambios.');
+      setError(isLibraryOffline(failure) ? offlineMessage() : 'No se pudieron guardar los cambios.');
     } finally {
       setBusy(false);
     }

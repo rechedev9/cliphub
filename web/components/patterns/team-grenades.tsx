@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Map as MapIcon, PlugZap } from 'lucide-react';
+import { Map as MapIcon } from 'lucide-react';
 import { isLibraryOffline, listTeamGrenades, type LibraryMatch, type TeamCriterion } from '@/lib/api/library';
 import { sampleNotes } from '@/lib/api/team-insights';
 import type { TeamGrenades as TeamGrenadesData } from '@/lib/api/grenades';
@@ -13,6 +13,7 @@ import { teamFocusFromQuery, writeTeamFocus } from '@/lib/replay/player-focus';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { useMapGeometry } from '@/components/analysis/use-map-geometry';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { TramoControl } from '@/lib/replay/tramo';
@@ -171,16 +172,7 @@ export function TeamGrenades({
   }
   if (load.kind === 'offline' || load.kind === 'failed') {
     return (
-      <EmptyState
-        icon={PlugZap}
-        title={load.kind === 'offline' ? 'Servicio local sin conexión' : 'No se pudieron leer las granadas'}
-        description="Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind={load.kind === 'offline' ? 'offline' : 'error'} title="No se pudieron leer las granadas" onRetry={() => setAttempt((n) => n + 1)} />
     );
   }
   if (load.kind === 'loading' || geometry === undefined) return <FinderSkeleton compact={frame !== undefined} />;

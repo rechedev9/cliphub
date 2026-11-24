@@ -29,8 +29,6 @@ const TOASTER_STYLE: ToasterStyle = {
   fontFamily: "var(--font-sans)",
 }
 
-const TOP_OFFSET = { top: "calc(var(--shell-strip-height, 3.5rem) + 0.5rem)" }
-
 /** Sonner only collapses an expanded list on Escape, and only when that list is focused. */
 function useDismissToastsOnEscape(): void {
   useEffect(() => {
@@ -59,9 +57,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
         loading: <Loader2Icon className="size-4 animate-spin" />,
       }}
       style={TOASTER_STYLE}
-      // Top toasts open under the command strip instead of covering it.
-      offset={TOP_OFFSET}
-      mobileOffset={TOP_OFFSET}
       toastOptions={{
         closeButtonAriaLabel: "Cerrar aviso",
         // Per-type accents layer on top of the shared night-navy skin by
@@ -84,8 +79,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
             "[--normal-border:var(--destructive)] [--normal-text:var(--destructive)]",
         },
       }}
-      // Top keeps clear of the sticky footer CTA; centre keeps clear of the right-aligned page actions («Cargar demo»).
-      position="top-center"
       closeButton
       // The list is wider than the card (full width under 600px). Clicks on
       // the empty list fall through; the card and its close button stay live.

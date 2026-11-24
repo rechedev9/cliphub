@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import type { TableViewControl } from '@/components/records/use-table-view';
 import { selectedCount, type CountNoun } from '@/lib/records/selection';
 import { nextSort, sortRows, type SortValue } from '@/lib/records/table-view';
+import { currentEdition } from '@/lib/edition-routes';
 import { cn } from '@/lib/utils';
 
 export type DataTableColumn<Row> = {
@@ -45,6 +46,7 @@ export type DataTableProps<Row> = {
   rows: readonly Row[];
   columns: readonly DataTableColumn<Row>[];
   rowKey: (row: Row) => string;
+  rowLabel?: (row: Row) => string;
   view: TableViewControl;
   /** The record a row opens, if any; the first visible cell becomes its link. */
   rowHref?: (row: Row) => string | undefined;
@@ -70,7 +72,7 @@ export type DataTableSelection = {
 };
 
 /** Dense, sortable record list with configurable columns and saved views. */
-export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, empty, toolbar, actions, selection }: DataTableProps<Row>): ReactNode {
+export function DataTable<Row>({ label, rows, columns, rowKey, rowLabel, view, rowHref, empty, toolbar, actions, selection }: DataTableProps<Row>): ReactNode {
   const router = useRouter();
   const { sort, hidden } = view.state;
   const visible = columns.filter((column) => column.required === true || !hidden.includes(column.id));
@@ -102,10 +104,15 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
     selection.onChange(next);
   }
 
-  // A click anywhere on the row opens it; clicks on the row's own controls keep their meaning.
   function openRow(event: MouseEvent<HTMLTableRowElement>, href: string): void {
     if (event.target instanceof Element && event.target.closest('a, button, input, [role="menuitem"]')) return;
-    router.push(href);
+    const newTab = event.button === 1 || event.ctrlKey || event.metaKey || event.shiftKey;
+    if (newTab && currentEdition() === 'web') {
+      event.preventDefault();
+      window.open(href, '_blank', 'noopener');
+      return;
+    }
+    if (event.button === 0) router.push(href);
   }
 
   return (
@@ -201,6 +208,7 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
                     <tr
                       key={key}
                       onClick={href === undefined ? undefined : (event) => openRow(event, href)}
+                      onAuxClick={href === undefined ? undefined : (event) => openRow(event, href)}
                       className={cn(
                         'border-b border-border-subtle last:border-b-0',
                         href !== undefined && 'cursor-pointer hover:bg-surface-3',
@@ -211,7 +219,7 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
                         <td className="h-10 w-9 px-3 align-middle">
                           <input
                             type="checkbox"
-                            aria-label="Elegir esta fila"
+                            aria-label={rowLabel ? `Elegir ${rowLabel(row)}` : 'Elegir esta fila'}
                             checked={selection.selected.has(key)}
                             onChange={() => toggleRow(key)}
                             className="size-4 accent-primary"

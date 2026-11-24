@@ -170,7 +170,7 @@ func (h *Handlers) PatchLibraryMatchDemoTranscriptLine(w http.ResponseWriter, r 
 		writeError(w, http.StatusBadRequest, "send text, discarded or both")
 		return
 	}
-	patch := library.DemoVoiceLinePatch{MatchID: m.ID, ID: lineID, Discarded: req.Discarded}
+	patch := library.DemoVoiceLinePatch{MatchID: m.ID, ID: lineID, Discarded: req.Discarded, By: library.CorrectedByUser}
 	if req.Text != nil {
 		text := strings.Join(strings.Fields(*req.Text), " ")
 		if text == "" || len([]rune(text)) > library.MaxVoiceLineRunes {

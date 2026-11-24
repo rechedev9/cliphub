@@ -9,7 +9,6 @@ import type { GifSpan } from '@/lib/replay/replay-gif';
 import { pickGifTarget, writeGifTarget } from '@/lib/replay/save-gif';
 import type { Tramo } from '@/lib/replay/tramo';
 import type { RoundTimeline, TimelineEvent } from '@/lib/tactical-timeline';
-import { encodeReplayGif } from './gif-export';
 import type { GifOverlay, MapCapture } from './gif-export';
 
 export type GifState =
@@ -122,6 +121,7 @@ export function useReplayGif(source: {
         if (target.kind === 'canceled') return setState({ kind: 'idle' });
         if (target.kind === 'failed') return setState({ kind: 'failed', message: target.message });
         setState({ kind: 'recording', percent: 0 });
+        const { encodeReplayGif } = await import('./gif-export');
         let shown = 0;
         const bytes = await encodeReplayGif({
           capture,

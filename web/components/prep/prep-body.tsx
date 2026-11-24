@@ -74,7 +74,7 @@ export function PrepBody({
     return (
       <div className="flex flex-col items-start gap-3">
         <p role="alert" className="text-body-sm text-destructive">
-          No se pudo preparar este rival. Comprueba que ClipHub Studio sigue abierto y que el equipo sigue en la biblioteca.
+          No se pudo preparar este rival. Vuelve a intentarlo o comprueba que el equipo sigue en la biblioteca.
         </p>
         <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
           Reintentar

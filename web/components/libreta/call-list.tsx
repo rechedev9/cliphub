@@ -1,18 +1,21 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Megaphone, Plus, PlugZap } from 'lucide-react';
+import { Megaphone, Plus } from 'lucide-react';
 import { deleteLibraryCall, listLibraryCalls, patchLibraryCall, type LibraryCall } from '@/lib/api/calls';
 import type { CountNoun } from '@/lib/records/selection';
 import { isLibraryOffline } from '@/lib/api/library';
 import type { LibretaStatus } from '@/lib/api/libreta';
 import { formatShortDate } from '@/lib/format';
+import { bulkDeleteMessage, bulkStatusMessage } from '@/lib/libreta/bulk';
+import { settleEach, withoutKeys } from '@/lib/settle-each';
 import { CALL_FILTER_FIELDS, CALL_SIDE_LABEL, callSearchText, tagOptions } from '@/lib/libreta/calls';
 import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyCell } from '@/components/ui/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { TableSkeleton } from '@/components/records/table-skeleton';
@@ -115,20 +118,20 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
   });
   const columns = useMemo(() => callColumns((call) => setEditing({ kind: 'edit', call })), []);
 
-  async function bulkStatus(status: LibretaStatus, ids: readonly string[]): Promise<void> {
+  async function bulkStatus(status: LibretaStatus, rows: readonly LibraryCall[]): Promise<void> {
     setBusy(true);
-    const failed = (await Promise.allSettled(ids.map((id) => patchLibraryCall(id, { status })))).filter((r) => r.status === 'rejected').length;
-    setMessage(failed === 0 ? `${ids.length} ${ids.length === 1 ? 'llamada pasa' : 'llamadas pasan'} a ${STATUS_LABEL[status]}.` : `${failed} no se pudieron cambiar.`);
-    setSelected(new Set());
+    const { done, failed } = await settleEach(rows, (call) => patchLibraryCall(call.id, { status }));
+    setMessage(bulkStatusMessage({ done: done.length, failed: failed.map(({ item }) => item.name), noun: LLAMADA, status: STATUS_LABEL[status] }));
+    setSelected((current) => withoutKeys(current, done.map(({ item }) => item.id)));
     setBusy(false);
     onReload();
   }
 
-  async function bulkDelete(ids: readonly string[]): Promise<void> {
+  async function bulkDelete(rows: readonly LibraryCall[]): Promise<void> {
     setBusy(true);
-    const failed = (await Promise.allSettled(ids.map((id) => deleteLibraryCall(id)))).filter((r) => r.status === 'rejected').length;
-    setMessage(failed === 0 ? `${ids.length === 1 ? 'Eliminada 1 llamada' : `Eliminadas ${ids.length} llamadas`}.` : `${failed} no se pudieron eliminar.`);
-    setSelected(new Set());
+    const { done, failed } = await settleEach(rows, (call) => deleteLibraryCall(call.id));
+    setMessage(bulkDeleteMessage({ done: done.length, failed: failed.map(({ item }) => item.name), noun: LLAMADA }));
+    setSelected((current) => withoutKeys(current, done.map(({ item }) => item.id)));
     setBusy(false);
     onReload();
   }
@@ -163,16 +166,7 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
   }
   if (calls.length === 0) {
     return offline ? (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudieron leer las llamadas. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={onReload}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind="offline" title="No se pudieron leer las llamadas" onRetry={onReload} />
     ) : (
       <>
         {status}
@@ -197,7 +191,6 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
   const hiddenArchived = (view.state.filters.status ?? FILTER_ANY) === FILTER_ANY ? filtered.length - shown.length : 0;
   // Only rows the filters show count as chosen, so a bulk action never reaches a hidden one.
   const chosen = shown.filter((call) => selected.has(call.id));
-  const chosenIds = chosen.map((call) => call.id);
 
   return (
     <div className="flex flex-col gap-3">
@@ -227,6 +220,7 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
         rows={shown}
         columns={columns}
         rowKey={(call) => call.id}
+        rowLabel={(call) => call.name}
         view={view}
         selection={{
           selected,
@@ -238,8 +232,8 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
               count={chosen.length}
               noun={LLAMADA}
               busy={busy}
-              onStatus={(next) => void bulkStatus(next, chosenIds)}
-              onDelete={() => void bulkDelete(chosenIds)}
+              onStatus={(next) => void bulkStatus(next, chosen)}
+              onDelete={() => void bulkDelete(chosen)}
             />
           ),
         }}

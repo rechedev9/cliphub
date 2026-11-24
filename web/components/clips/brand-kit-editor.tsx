@@ -15,9 +15,11 @@ import {
   type BrandKit,
 } from '@/lib/brand-kit';
 import { createBrandKitStore, type BrandKitState } from '@/lib/brand-kit-store';
+import { humanErrorText } from '@/lib/human-error';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 
 const brandKitStore = createBrandKitStore(getBrandKit);
 const NO_KIT: BrandKitState = { kit: null, error: null };
@@ -53,7 +55,7 @@ function BrandKitEditor({ kit, onSaved, disabled = false }: { kit: BrandKit; onS
       const image = await uploadBrandImage(file);
       setDraft((current) => ({ ...current, [field]: image }));
     } catch (failure) {
-      setMessage({ tone: 'error', text: failure instanceof Error ? failure.message : 'No se pudo subir la imagen.' });
+      setMessage({ tone: 'error', text: humanErrorText({ error: failure, lead: 'No se pudo subir la imagen.' }) });
     } finally { setBusy(false); }
   }
 
@@ -72,15 +74,15 @@ function BrandKitEditor({ kit, onSaved, disabled = false }: { kit: BrandKit; onS
       setDraft(saved);
       setMessage({ tone: 'info', text: 'Kit de marca guardado.' });
     } catch (failure) {
-      setMessage({ tone: 'error', text: failure instanceof Error ? failure.message : 'No se pudo guardar el kit de marca.' });
+      setMessage({ tone: 'error', text: humanErrorText({ error: failure, lead: 'No se pudo guardar el kit de marca.' }) });
     } finally { setBusy(false); }
   }
 
   const off = disabled || busy;
   return (
-    <details className="min-w-0 rounded-xl border border-border-subtle p-3">
-      <summary className="cursor-pointer text-body-sm font-semibold text-fg-1">Editar kit de marca</summary>
-      <div className="mt-3 grid min-w-0 gap-4 sm:grid-cols-2">
+    <details className="min-w-0 rounded-xl border border-border-subtle px-3 py-1">
+      <DisclosureSummary className="min-h-10 rounded-md text-body-sm font-semibold text-fg-1">Editar kit de marca</DisclosureSummary>
+      <div className="mt-2 grid min-w-0 gap-4 sm:grid-cols-2">
         <BrandImageField id={`${id}-logo`} label="Logo del canal" image={draft.logo} disabled={off}
           onFile={(file) => void upload(file, 'logo')} onRemove={() => remove('logo')} />
         <BrandImageField id={`${id}-banner`} label="Banner de sponsor" image={draft.banner} disabled={off}
@@ -120,7 +122,7 @@ function BrandKitEditor({ kit, onSaved, disabled = false }: { kit: BrandKit; onS
           <p className="text-body-sm text-fg-3">Segundos del vídeo. Sin salida, el banner sigue hasta el final.</p>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <div className="mt-3 mb-2 flex flex-wrap items-center gap-3">
         <Button type="button" onClick={() => void save()} disabled={off || !dirty || problem !== null}>Guardar kit</Button>
         {problem && dirty ? <p role="alert" className="text-body-sm text-destructive">{problem}</p> : null}
         {message ? <p role={message.tone === 'error' ? 'alert' : 'status'} className={message.tone === 'error' ? 'text-body-sm text-destructive' : 'text-body-sm text-fg-2'}>{message.text}</p> : null}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import { FileDown, FileUp, ListVideo, PenLine, Plus, PlugZap, Star } from 'lucide-react';
+import { FileDown, FileUp, ListVideo, PenLine, Plus, Star } from 'lucide-react';
 import { isLibraryOffline } from '@/lib/api/library';
 import { createPlaylist, deletePlaylist, exportPlaylists, importPlaylists, listPlaylists, patchPlaylist, type SavedPlaylist } from '@/lib/api/playlists';
 import { formatShortDate, prettyMapName } from '@/lib/format';
@@ -14,6 +14,7 @@ import { DataTable, type DataTableColumn } from '@/components/records/data-table
 import { DeleteChosenButton } from '@/components/records/delete-chosen-button';
 import { EmptyCell } from '@/components/ui/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { TableSkeleton } from '@/components/records/table-skeleton';
 import { useTableView } from '@/components/records/use-table-view';
@@ -256,16 +257,7 @@ export function PlaylistLibrary(): ReactNode {
   if (playlists.length === 0) {
     if (offline) {
       return (
-        <EmptyState
-          icon={PlugZap}
-          title="Servicio local sin conexión"
-          description="No se pudieron leer las playlists. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-          actions={
-            <Button type="button" variant="outline" size="sm" onClick={reload}>
-              Reintentar
-            </Button>
-          }
-        />
+        <LoadErrorState kind="offline" title="No se pudieron leer las playlists" onRetry={reload} />
       );
     }
     return (
@@ -332,6 +324,7 @@ export function PlaylistLibrary(): ReactNode {
           rows={shown}
           columns={columns}
           rowKey={(p) => p.id}
+          rowLabel={(p) => p.name}
           rowHref={(p) => savedPlaylistHref(p.id)}
           view={view}
           selection={{

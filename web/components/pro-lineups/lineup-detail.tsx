@@ -25,6 +25,7 @@ import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practic
 import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
 import { currentEdition } from '@/lib/edition-routes';
+import { offlineMessage } from '@/lib/load-error';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProLoadProblem } from './lineup-maps';
@@ -101,7 +102,7 @@ function Detail({ data, lineup }: { data: ProLineupMap; lineup: ProLineup }): Re
     saveProLineup(data.map, lineup.id)
       .then((saved) => setSave({ kind: 'saved', id: saved.id }))
       .catch((error: unknown) =>
-        setSave({ kind: 'failed', message: isLibraryOffline(error) ? 'El servicio local no responde.' : 'No se pudo guardar en la Libreta.' }),
+        setSave({ kind: 'failed', message: isLibraryOffline(error) ? offlineMessage() : 'No se pudo guardar en la Libreta.' }),
       );
   };
 

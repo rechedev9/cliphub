@@ -109,7 +109,7 @@ test('the note under the list says when it was read, or why the stored copy answ
 
 test('a ranking that cannot load says whose fault it is', () => {
   assert.match(rankingErrorMessage('faceit_rate_limited'), /^FACEIT está limitando las peticiones\. No es un fallo de Studio/);
-  assert.match(rankingErrorMessage('service_unavailable'), /^Servicio local sin conexión/);
+  assert.match(rankingErrorMessage('service_unavailable'), /^El servicio local se ha detenido/);
   assert.match(rankingErrorMessage('faceit_unavailable'), /^No se pudo leer el ranking de FACEIT/);
 });
 

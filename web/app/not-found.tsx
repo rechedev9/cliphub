@@ -1,19 +1,11 @@
 import type { ReactElement } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { Wordmark } from '@/components/brand/wordmark';
-import { RESULTS_HREF } from '@/lib/clips/routes';
+import { NotFoundAction } from '@/components/shell/not-found-action';
 
-export const metadata: Metadata = { title: 'Ruta desconocida' };
+export const metadata: Metadata = { title: 'Página no encontrada' };
 
-/**
- * The 404 for routes outside the app group. Two corrections over v3: the wash
- * and the eyebrow no longer use `--destructive` — red signals
- * "error, failure, delete", and a stale bookmark is none of those, so painting
- * one red makes a mistyped URL look like data loss — and the action is a
- * real `Button` instead of hand-rolled 40px anchors with no focus ring.
- */
 export default function NotFound(): ReactElement {
   return (
     <main className="relative flex min-h-svh flex-col items-center justify-center gap-6 px-6 text-center">
@@ -22,17 +14,11 @@ export default function NotFound(): ReactElement {
       </Link>
 
       <p className="text-meta font-medium text-fg-3 tabular-nums">404</p>
-      <h1 className="font-display text-display-sm font-bold text-fg-1 sm:text-display">
-        Esta página ha sido fraggeada
-      </h1>
-      <p className="max-w-md text-body text-fg-2">
-        No encontramos esa página. Vuelve y elige una partida para crear tu vídeo.
-      </p>
+      <h1 className="font-display text-display-sm font-bold text-fg-1 sm:text-display">Esta página no existe</h1>
+      <p className="max-w-md text-body text-fg-2">Puede que se haya borrado o que el enlace esté incompleto.</p>
 
       <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
-        <Button asChild size="lg">
-          <Link href={RESULTS_HREF}>Ir a Mis vídeos</Link>
-        </Button>
+        <NotFoundAction />
       </div>
     </main>
   );

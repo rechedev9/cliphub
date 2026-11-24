@@ -5,6 +5,7 @@ import { FileText, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { currentEdition } from '@/lib/edition-routes';
 import { formatShortDate } from '@/lib/format';
+import { loadErrorKind, loadErrorMessage } from '@/lib/load-error';
 import {
   defaultTeamDocumentTitle,
   deleteTeamDocument,
@@ -23,6 +24,11 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { DocumentViewer } from './document-viewer';
+
+function documentError(error: unknown, lead: string): string {
+  if (error instanceof Error && loadErrorKind(error) !== 'offline' && error.message !== '') return error.message;
+  return loadErrorMessage({ error, lead });
+}
 
 type ListState = { kind: 'loading' } | { kind: 'ready'; documents: TeamDocument[] } | { kind: 'error'; message: string };
 
@@ -46,7 +52,7 @@ export function TeamDocuments({ teamId, teamName, openId, onOpen }: { teamId: st
         .then((documents) => setState({ kind: 'ready', documents }))
         .catch((error: unknown) => {
           if (signal?.aborted) return;
-          setState({ kind: 'error', message: error instanceof Error ? error.message : 'No se pudieron leer los documentos.' });
+          setState({ kind: 'error', message: documentError(error, 'No se pudieron leer los documentos.') });
         });
     },
     [teamId],
@@ -80,7 +86,7 @@ export function TeamDocuments({ teamId, teamName, openId, onOpen }: { teamId: st
       toast.success(`Documento «${doc.title}» borrado.`);
       load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo borrar el documento.');
+      toast.error(documentError(error, 'No se pudo borrar el documento.'));
     }
   };
 
@@ -233,7 +239,7 @@ function UploadDialog({
     try {
       onUploaded(await uploadTeamDocument({ teamId, title, file }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo subir el documento.');
+      setError(documentError(err, 'No se pudo subir el documento.'));
     } finally {
       setBusy(false);
     }

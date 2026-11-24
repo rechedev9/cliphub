@@ -3,6 +3,7 @@ package demovocab
 import (
 	"context"
 	"log"
+	"slices"
 
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/placename"
@@ -45,24 +46,52 @@ func edits(corrections []library.VoiceCorrection, err error) []vocab.Edit {
 	return out
 }
 
-func BuildStream(ctx context.Context, in StreamSources) vocab.Vocabulary {
-	var learnFrom []vocab.Edit
-	if in.Demos != nil {
-		learnFrom = edits(in.Demos.ListDemoVoiceCorrections(ctx))
-	}
-	if in.Streams != nil {
-		learnFrom = append(learnFrom, edits(in.Streams.ListStreamVoiceCorrections(ctx))...)
-	}
-	terms := vocab.Lexicon("")
-	return vocab.Vocabulary{Terms: terms, Learned: vocab.Learn(learnFrom, terms)}
+type Glossary struct {
+	Players  []string `json:"players"`
+	Callouts []string `json:"callouts"`
+	Lexicon  []string `json:"lexicon"`
 }
 
-func Build(ctx context.Context, in Sources) vocab.Vocabulary {
+func (g Glossary) terms() []vocab.Term {
+	out := make([]vocab.Term, 0, len(g.Callouts)+len(g.Players)+len(g.Lexicon))
+	for _, c := range g.Callouts {
+		out = append(out, vocab.Term{Text: c})
+	}
+	for _, p := range g.Players {
+		out = append(out, vocab.Term{Text: p, KeepCase: true})
+	}
+	for _, l := range g.Lexicon {
+		out = append(out, vocab.Term{Text: l})
+	}
+	return out
+}
+
+func lexicon(mapName string) []string {
+	terms := vocab.Lexicon(mapName)
+	out := make([]string, 0, len(terms))
+	for _, t := range terms {
+		out = appendNew(out, t.Text)
+	}
+	return out
+}
+
+func appendNew(list []string, word string) []string {
+	if word == "" || slices.Contains(list, word) {
+		return list
+	}
+	return append(list, word)
+}
+
+func StreamGlossary() Glossary {
+	return Glossary{Players: []string{}, Callouts: []string{}, Lexicon: lexicon("")}
+}
+
+func DemoGlossary(ctx context.Context, in Sources) Glossary {
 	doc := in.Document
-	v := vocab.Vocabulary{}
+	g := Glossary{Players: []string{}, Callouts: []string{}, Lexicon: lexicon(doc.Demo.Map)}
 	for _, c := range doc.Geometry.Callouts {
 		if c.Name != "" {
-			v.Terms = append(v.Terms, vocab.Term{Text: placename.Label(c.Name)})
+			g.Callouts = appendNew(g.Callouts, placename.Label(c.Name))
 		}
 	}
 	if mapName := doc.Demo.Map; mapName != "" {
@@ -71,13 +100,29 @@ func Build(ctx context.Context, in Sources) vocab.Vocabulary {
 			log.Printf("demovocab: read the callout names of %s for the corrector: %v", mapName, err)
 		}
 		for _, n := range names {
-			v.Terms = append(v.Terms, vocab.Term{Text: n.Name})
+			g.Callouts = appendNew(g.Callouts, n.Name)
 		}
 	}
 	for _, p := range doc.Players {
-		v.Terms = append(v.Terms, vocab.Term{Text: p.Name, KeepCase: true})
+		g.Players = appendNew(g.Players, p.Name)
 	}
-	v.Terms = append(v.Terms, vocab.Lexicon(doc.Demo.Map)...)
+	return g
+}
+
+func BuildStream(ctx context.Context, in StreamSources) vocab.Vocabulary {
+	var learnFrom []vocab.Edit
+	if in.Demos != nil {
+		learnFrom = edits(in.Demos.ListDemoVoiceCorrections(ctx))
+	}
+	if in.Streams != nil {
+		learnFrom = append(learnFrom, edits(in.Streams.ListStreamVoiceCorrections(ctx))...)
+	}
+	terms := StreamGlossary().terms()
+	return vocab.Vocabulary{Terms: terms, Learned: vocab.Learn(learnFrom, terms)}
+}
+
+func Build(ctx context.Context, in Sources) vocab.Vocabulary {
+	v := vocab.Vocabulary{Terms: DemoGlossary(ctx, in).terms()}
 	if in.Corrections != nil {
 		v.Learned = vocab.Learn(edits(in.Corrections.ListDemoVoiceCorrections(ctx)), v.Terms)
 	}

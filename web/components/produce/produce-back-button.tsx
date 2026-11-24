@@ -16,7 +16,7 @@ export function ProduceBackButton({ back }: { back: ProduceBack }): ReactNode {
     );
   }
   return (
-    <Button type="button" variant="outline" size="sm" loading={back.busy === true} onClick={back.onSelect} title="Volver a elegir el jugador">
+    <Button type="button" variant="outline" size="sm" loading={back.busy === true} onClick={back.onSelect} title={back.hint}>
       <ChevronLeft aria-hidden />{back.label}
     </Button>
   );

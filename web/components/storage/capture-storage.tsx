@@ -6,17 +6,19 @@ import { api } from '@/lib/api';
 import type { CaptureRetention } from '@/lib/api/storage';
 import { setCaptureRetention } from '@/lib/api/video-edit';
 import { deleteCapturesErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
-import { captureRetentionNote, formatBytes, freeableJobs, storageLoadErrorMessage, type FreeableJob } from '@/lib/storage';
+import { captureRetentionNote, formatBytes, freeableJobs, type FreeableJob } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { LoadingText } from '@/components/ui/loading-text';
 import { Skeleton } from '@/components/ui/skeleton';
+import { LoadErrorState } from '@/components/records/load-error-state';
 
 const CAPTURES_DELETE_WARNING =
   'Se borran las grabaciones de CS2 de esta demo completa. El vídeo final y sus versiones se quedan. Para editarlo habrá que volver a grabar sus rondas.';
 
 type StorageState =
   | { kind: 'loading' }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; error: unknown }
   | { kind: 'ready'; totalBytes: number; jobs: FreeableJob[]; retention: CaptureRetention | null };
 
 /** Disk used by Studio jobs, and the Full Demo captures that can be freed per long video. */
@@ -32,7 +34,7 @@ export function CaptureStorage(): ReactNode {
         if (active) setState({ kind: 'ready', totalBytes: usage.totalBytes, jobs: freeableJobs(usage, matches), retention: usage.captureRetention });
       })
       .catch((err: unknown) => {
-        if (active) setState({ kind: 'error', message: storageLoadErrorMessage(err) });
+        if (active) setState({ kind: 'error', error: err });
       });
     return () => { active = false; };
   }, [reloadKey]);
@@ -78,15 +80,11 @@ export function CaptureStorage(): ReactNode {
       </div>
     );
   } else if (state.kind === 'error') {
-    body = (
-      <div className="flex flex-col items-start gap-3">
-        <p role="alert" className="text-body-sm text-destructive">{state.message}</p>
-        <Button type="button" variant="outline" size="sm" onClick={retry}>Reintentar</Button>
-      </div>
-    );
+    body = <LoadErrorState error={state.error} title="No se pudo leer el espacio que usa Studio" onRetry={retry} />;
   } else {
     body = (
-      <div role="status" aria-label="Leyendo espacio usado" className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
+        <LoadingText spinner>Midiendo el espacio que usa Studio</LoadingText>
         <Skeleton className="h-11 w-full rounded-none" />
         <Skeleton className="h-16 w-full rounded-none" />
       </div>

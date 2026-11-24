@@ -3,14 +3,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Swords } from 'lucide-react';
+import { Swords } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Video } from '@/lib/api/types';
 import type { LibraryDemo, LibraryMatch } from '@/lib/api/library';
 import { MATCHES_HREF, librarySeriesHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { currentEdition } from '@/lib/edition-routes';
-import { SOURCE_LABEL, matchTitle, scoreline } from '@/lib/library/partidas';
+import { SOURCE_LABEL, matchTitle, playedRoundCount, scoreline } from '@/lib/library/partidas';
 import { LEGACY_REPLAY_TAB, MATCH_REPLAY_TAB, MATCH_SUMMARY_TAB } from '@/lib/library/rounds';
 import { useRecordTab } from '@/hooks/use-record-tab';
 import { RecordHeader } from '@/components/records/record-header';
@@ -23,7 +23,6 @@ import { MatchRounds } from '@/components/matches/match-rounds';
 import { MatchSummary } from '@/components/matches/match-summary';
 import { TacticalAnalysis } from '@/components/tactical/tactical-analysis';
 import { MatchTendencies } from '@/components/metrics/match-tendencies';
-import { Button } from '@/components/ui/button';
 
 const TABS = [MATCH_SUMMARY_TAB, 'rondas', MATCH_REPLAY_TAB, 'metricas', 'videos'] as const;
 type MatchTab = (typeof TABS)[number];
@@ -45,11 +44,12 @@ function durationLabel(match: LibraryMatch): string | null {
 /** The score, date, duration, rounds, source and series as one line under the map. */
 function matchMeta(match: LibraryMatch, demo: LibraryDemo): ReactNode {
   const [left, right] = scoreline(match);
+  const rounds = playedRoundCount(match);
   const parts = [
     `${left.name} ${left.score} : ${right.score} ${right.name}`,
     formatShortDate(match.played_at),
     durationLabel(match),
-    `${match.round_count} ${match.round_count === 1 ? 'ronda' : 'rondas'}`,
+    `${rounds} ${rounds === 1 ? 'ronda' : 'rondas'}`,
     SOURCE_LABEL[demo.source],
   ].filter((part) => part !== null);
   return (
@@ -111,17 +111,12 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
       <RecordHeader
         kind="Partida"
         icon={Swords}
+        back={{ href: MATCHES_HREF, label: 'Todas las partidas' }}
         title={map}
         subtitle={matchMeta(match, demo)}
         actions={
           <>
             <CreateFromDemo demo={demo} />
-            <Button asChild variant="ghost" size="sm">
-              <Link href={MATCHES_HREF}>
-                <ArrowLeft aria-hidden />
-                Todas las partidas
-              </Link>
-            </Button>
           </>
         }
       />
@@ -146,7 +141,7 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
           {
             id: 'rondas',
             label: 'Rondas',
-            count: match.round_count,
+            count: playedRoundCount(match),
             content: <MatchRounds match={match} pathname={pathname} onOpenRound={openReplay} />,
           },
           {

@@ -38,6 +38,9 @@ export const metadata: Metadata = {
   description: 'Crea vídeos y analiza tus demos de CS2 en tu propio equipo.',
 };
 
+const TOAST_OFFSET = { bottom: '5.5rem', right: '1rem' };
+const TOAST_MOBILE_OFFSET = { bottom: '5.5rem' };
+
 const fontVars = `${saira.variable} ${plexSans.variable} ${plexMono.variable}`;
 
 export default function RootLayout({ children }: { children: ReactNode }): ReactElement {
@@ -58,7 +61,7 @@ export default function RootLayout({ children }: { children: ReactNode }): React
           <WebMCPNavigation />
           {currentEdition() === 'web' ? <DemoBanner /> : null}
           {children}
-          <Toaster />
+          <Toaster position="bottom-right" offset={TOAST_OFFSET} mobileOffset={TOAST_MOBILE_OFFSET} />
         </StudioThemeProvider>
       </body>
     </html>

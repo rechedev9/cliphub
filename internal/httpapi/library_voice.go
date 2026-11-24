@@ -34,6 +34,7 @@ type libraryVoiceRepository interface {
 	SetDemoVoice(ctx context.Context, update library.DemoVoiceUpdate) error
 	ListDemoVoiceLines(ctx context.Context, filter library.DemoVoiceLineFilter) ([]library.DemoVoiceLine, error)
 	UpdateDemoVoiceLine(ctx context.Context, patch library.DemoVoiceLinePatch) (library.DemoVoiceLine, error)
+	CorrectDemoVoiceLines(ctx context.Context, batch library.DemoVoiceCorrections) ([]library.DemoVoiceLine, error)
 	ListDemoVoices(ctx context.Context, states []string) ([]library.DemoVoiceTranscript, error)
 	ListDemoVoiceCorrections(ctx context.Context) ([]library.VoiceCorrection, error)
 }

@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { VOICE_SETTINGS_ANCHOR } from '@/lib/nav-groups';
 import { SettingsSection } from './settings-section';
 
 type PluginState =
@@ -114,7 +115,7 @@ export function TeamSpeakSettings(): ReactNode {
 
   return (
     <SettingsSection
-      id="teamspeak"
+      id={VOICE_SETTINGS_ANCHOR}
       title="Voz del equipo en TeamSpeak"
       description="Un plugin de TeamSpeak 3 graba una pista por persona mientras juegas una partida de CS2, y Studio la coloca sola en su demo. Solo graba con la grabación activada en TeamSpeak, y el audio no sale de este PC."
       status={state.kind === 'ready' && state.status.game_state === 'installed' ? <Badge variant="success">Listo</Badge> : null}

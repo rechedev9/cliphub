@@ -237,7 +237,7 @@ func (h *Handlers) PatchStreamTranscriptLine(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "send text, discarded or both")
 		return
 	}
-	patch := streamclips.VoiceLinePatch{JobID: j.ID, ID: lineID, Discarded: req.Discarded}
+	patch := streamclips.VoiceLinePatch{JobID: j.ID, ID: lineID, Discarded: req.Discarded, By: library.CorrectedByUser}
 	if req.Text != nil {
 		text := strings.Join(strings.Fields(*req.Text), " ")
 		if text == "" || len([]rune(text)) > library.MaxVoiceLineRunes {

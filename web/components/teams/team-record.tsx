@@ -3,14 +3,13 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, BookMarked, EllipsisVertical, GitMerge, Pencil, PlugZap, Shield } from 'lucide-react';
+import { BookMarked, EllipsisVertical, GitMerge, Pencil, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getLibraryTeam,
   getTeamLineups,
   getTeamProfile,
   isLibraryNotFound,
-  isLibraryOffline,
   listLibraryMatches,
   listLibraryPlays,
   listLibraryTeams,
@@ -28,6 +27,7 @@ import {
   rivalOf,
   teamLabel,
   teamOutcome,
+  playedRoundCount,
 } from '@/lib/library/partidas';
 import { inScopePeriod, type AnalysisScope, type ScopeField } from '@/lib/analysis/scope';
 import { mapPatch, tacticOptions, unknownTactic, type TacticOption } from '@/lib/analysis/scope-tactics';
@@ -41,6 +41,7 @@ import { ScopeBar, type ScopeCounts, type ScopeEntity, type ScopeMatch } from '@
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { DOCUMENT_COLUMN } from '@/components/records/document-page';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { SlashTitle } from '@/components/records/document-page';
 import { RecordTabs, type RecordTab } from '@/components/records/record-tabs';
@@ -59,6 +60,7 @@ import { TeamBombsites } from './team-bombsites';
 import { TeamPositions } from './team-positions';
 import { TeamMapHistory } from './team-map-history';
 import { TeamRoster } from './team-roster';
+import { matchDetail, newTeamRequests, playerRole, recentMatchIds, type TeamRequests } from './team-requests';
 import { TeamPrepare } from './team-prepare';
 import { TEAM_REPLAY_FORMS, TeamReplay, type TeamReplayForm } from './team-replay';
 import { TEAM_REPLAY_FIELDS, TEAM_REPLAY_LIMITS } from '@/lib/analysis/team-replay-fields';
@@ -71,10 +73,9 @@ import { TeamSideStats } from './team-side-stats';
 import { TeamPlayerPerformance } from './team-player-performance';
 
 /** `lineups` and `profile` are null when they could not be read; the views then count every round. */
-type Loaded = { team: LibraryTeam; matches: LibraryMatch[]; lineups: TeamLineups | null; profile: TeamProfile | null };
-type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'offline' };
+type Loaded = { team: LibraryTeam; matches: LibraryMatch[]; lineups: TeamLineups | null; profile: TeamProfile | null; requests: TeamRequests };
+type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'failed'; error: unknown };
 
-/** A team's record: roster by date, matches with rival and result, and the record per map. */
 export function TeamRecord({ teamId }: { teamId: string }): ReactNode {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -82,20 +83,26 @@ export function TeamRecord({ teamId }: { teamId: string }): ReactNode {
   useEffect(() => {
     let active = true;
     setState({ kind: 'loading' });
-    Promise.all([
-      getLibraryTeam(teamId),
-      listLibraryMatches({ team_id: teamId }),
-      getTeamLineups(teamId).catch(() => null),
-      getTeamProfile(teamId).catch(() => null),
-    ])
+    const requests = newTeamRequests();
+    const teamRead = getLibraryTeam(teamId);
+    const matchesRead = listLibraryMatches({ team_id: teamId });
+    teamRead
+      .then((team) => {
+        for (const entry of team.roster ?? []) void playerRole(requests, entry.steamid64).catch(() => undefined);
+      })
+      .catch(() => undefined);
+    matchesRead
+      .then((matches) => {
+        for (const id of recentMatchIds(matches)) void matchDetail(requests, id).catch(() => undefined);
+      })
+      .catch(() => undefined);
+    Promise.all([teamRead, matchesRead, getTeamLineups(teamId).catch(() => null), getTeamProfile(teamId).catch(() => null)])
       .then(([team, matches, lineups, profile]) => {
-        if (active) setState({ kind: 'ready', data: { team, matches, lineups, profile } });
+        if (active) setState({ kind: 'ready', data: { team, matches, lineups, profile, requests } });
       })
       .catch((error: unknown) => {
         if (!active) return;
-        if (isLibraryOffline(error)) setState({ kind: 'offline' });
-        else if (isLibraryNotFound(error)) setState({ kind: 'missing' });
-        else setState({ kind: 'offline' });
+        setState(isLibraryNotFound(error) ? { kind: 'missing' } : { kind: 'failed', error });
       });
     return () => {
       active = false;
@@ -126,19 +133,8 @@ export function TeamRecord({ teamId }: { teamId: string }): ReactNode {
       />
     );
   }
-  if (state.kind === 'offline') {
-    return (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudo leer el equipo. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={reload}>
-            Reintentar
-          </Button>
-        }
-      />
-    );
+  if (state.kind === 'failed') {
+    return <LoadErrorState error={state.error} title="No se pudo leer el equipo" onRetry={reload} />;
   }
   return <TeamRecordView data={state.data} onChanged={reload} />;
 }
@@ -180,7 +176,7 @@ const LEGACY_TABS: Readonly<Record<string, string>> = { scouting: 'preparar', se
 const QUERY_TABS = [...TEAM_TABS, ...Object.keys(LEGACY_TABS)];
 
 function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => void }): ReactNode {
-  const { team, matches, lineups, profile } = data;
+  const { team, matches, lineups, profile, requests } = data;
   const [editing, setEditing] = useState(false);
   const [merging, setMerging] = useState(false);
   const [rawTab, setTab] = useRecordTab(QUERY_TABS, DEFAULT_TAB);
@@ -293,7 +289,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
     if (rival?.team_id) rivals.set(rival.team_id, teamLabel(rival));
   }
   const playedRivals = [...rivals].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, 'es'));
-  let counts: ScopeCounts | null | undefined = { maps: scoped.length, rounds: scoped.reduce((sum, match) => sum + match.round_count, 0) };
+  let counts: ScopeCounts | null | undefined = { maps: scoped.length, rounds: scoped.reduce((sum, match) => sum + playedRoundCount(match), 0) };
   if (REPORTING_TABS.has(tab)) counts = reported;
   else if (tab === 'veto') counts = undefined;
   // Until a map (and for Playbook a side) is picked there is nothing counted yet: no 0 mapas · 0 rondas.
@@ -409,8 +405,13 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
         content: withScope(
           'plantilla',
           <div className="flex flex-col gap-3">
-            <TeamRoster roster={team.roster ?? []} map={scope.map} reference={scope.reference} />
-            <TeamTrend teamId={team.id} matches={matches.filter((match) => scope.map === '' || match.map === scope.map)} map={scope.map} />
+            <TeamRoster roster={team.roster ?? []} map={scope.map} reference={scope.reference} requests={requests} />
+            <TeamTrend
+              teamId={team.id}
+              matches={matches.filter((match) => scope.map === '' || match.map === scope.map)}
+              map={scope.map}
+              requests={requests}
+            />
           </div>,
         ),
       },
@@ -526,6 +527,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
         icon={Shield}
         title={team.name}
         subtitle={subtitle === '' ? undefined : subtitle}
+        back={{ href: TEAMS_HREF, label: 'Todos los equipos' }}
         fields={[
           { label: 'Partidas', value: matches.length },
           { label: 'Victorias', value: `${wins}-${losses}${draws > 0 ? `-${draws}` : ''}` },
@@ -540,12 +542,6 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
               <Link href={teamLibretaHref(team.id, true)}>
                 <BookMarked aria-hidden />
                 Jugadas repetidas
-              </Link>
-            </Button>
-            <Button asChild variant="ghost" size="xs">
-              <Link href={TEAMS_HREF}>
-                <ArrowLeft aria-hidden />
-                Todos los equipos
               </Link>
             </Button>
             <DropdownMenu>

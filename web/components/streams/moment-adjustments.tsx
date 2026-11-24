@@ -263,7 +263,7 @@ function TextOverlayEditor({
           overlay={row}
           clipDuration={clipDuration}
           disabled={disabled}
-          removeLabel={`Eliminar texto ${index + 1}`}
+          removeLabel={`Borrar texto ${index + 1}`}
           onChange={(patch) => updateRow(row.rowId, patch)}
           onRemove={() => removeRow(row.rowId)}
         />

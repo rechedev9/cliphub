@@ -23,9 +23,11 @@ import { replayHref } from '@/lib/analysis/replay-link';
 import { playHref } from '@/lib/clips/routes';
 import { MAX_PLAY_EXAMPLES } from '@/lib/stratbook/plays';
 import { cn } from '@/lib/utils';
+import { loadErrorMessage } from '@/lib/load-error';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Field } from '@/components/ui/field';
 import { playbookReplayTitle } from './playbook-summary';
 import { ZoneMap } from './zone-map';
 
@@ -265,8 +267,8 @@ function SaveComboDialog({
     setError(null);
     try {
       setSaved(await createLibraryPlay(playFromCombo(view, { teamId, title, sentence })));
-    } catch {
-      setError('No se pudo guardar la combinación. Comprueba que ClipHub Studio sigue abierto.');
+    } catch (error) {
+      setError(loadErrorMessage({ error, lead: 'No se pudo guardar la combinación.' }));
     } finally {
       setBusy(false);
     }
@@ -301,10 +303,9 @@ function SaveComboDialog({
                 {kept < view.round_count ? `, las primeras de ${view.round_count}` : ''}.
               </DialogDescription>
             </DialogHeader>
-            <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-              Título
-              <Input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} />
-            </label>
+            <Field label="Título">
+              {(control) => <Input {...control} value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} />}
+            </Field>
             {error ? (
               <p role="alert" className="text-body-sm text-destructive">
                 {error}

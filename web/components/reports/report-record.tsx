@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileDown, FileText, Pencil, PlugZap, Printer, Trash2 } from 'lucide-react';
+import { FileDown, FileText, Pencil, Printer, Trash2 } from 'lucide-react';
 import {
   deleteLibraryReport,
   getLibraryReport,
@@ -27,10 +27,13 @@ import { lastResults, scoreOutcome } from '@/lib/analysis/context-bar';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import { ScopeBar, type ScopeCounts } from '@/components/analysis/scope-bar';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { currentEdition } from '@/lib/edition-routes';
+import { loadErrorMessage } from '@/lib/load-error';
 import {
   Dialog,
   DialogContent,
@@ -55,7 +58,7 @@ import { ReportNotes } from './report-notes';
 
 /** Metrics are `null` when they could not be computed: the report still opens without them. */
 type Loaded = { report: LibraryReport; scout: ScoutReport; metrics: MetricsReport | null };
-type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'offline' };
+type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'failed'; error: unknown };
 
 /** A saved scouting report: its sections, its notes and its exports. */
 export function ReportRecord({ reportId }: { reportId: string }): ReactNode {
@@ -70,8 +73,7 @@ export function ReportRecord({ reportId }: { reportId: string }): ReactNode {
       })
       .catch((error: unknown) => {
         if (!active) return;
-        if (isLibraryNotFound(error)) setState({ kind: 'missing' });
-        else setState({ kind: 'offline' });
+        setState(isLibraryNotFound(error) ? { kind: 'missing' } : { kind: 'failed', error });
       });
     return () => {
       active = false;
@@ -95,7 +97,7 @@ export function ReportRecord({ reportId }: { reportId: string }): ReactNode {
       <EmptyState
         icon={FileText}
         title="Informe no encontrado"
-        description="Puede que se haya eliminado o que el enlace sea antiguo."
+        description="Puede que se haya borrado o que el enlace sea antiguo."
         actions={
           <Button asChild variant="outline" size="sm">
             <Link href={REPORTS_HREF}>Ver informes</Link>
@@ -104,19 +106,8 @@ export function ReportRecord({ reportId }: { reportId: string }): ReactNode {
       />
     );
   }
-  if (state.kind === 'offline') {
-    return (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudo leer el informe. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={reload}>
-            Reintentar
-          </Button>
-        }
-      />
-    );
+  if (state.kind === 'failed') {
+    return <LoadErrorState error={state.error} title="No se pudo leer el informe" onRetry={reload} />;
   }
   return <ReportRecordView data={state.data} onChanged={reload} />;
 }
@@ -160,8 +151,8 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
   const router = useRouter();
   const { report, scout, metrics } = data;
   const [editing, setEditing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   /** The example rounds of the report row the video dialog opened on. */
   const [video, setVideo] = useState<VideoSource[] | null>(null);
@@ -171,6 +162,17 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
   const onMapChange = useCallback((map: string) => setScope({ map }), [setScope]);
   useRouteTitle(report.title);
   useDocumentTitle(`${report.title} · Informe · ClipHub`);
+
+  async function deleteReport(): Promise<void> {
+    setDeleteError(null);
+    try {
+      await deleteLibraryReport(report.id);
+      router.replace(REPORTS_HREF);
+    } catch (error) {
+      if (isLibraryNotFound(error)) router.replace(REPORTS_HREF);
+      else setDeleteError(loadErrorMessage({ error, lead: 'No se pudo borrar el informe.' }));
+    }
+  }
 
   function exportHtml(): void {
     downloadHtml(buildReportHtml(exportInput(report, scout, metrics)), reportFileStem(report.title));
@@ -199,6 +201,7 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
         kind="Informe"
         icon={FileText}
         title={report.title}
+        back={{ href: REPORTS_HREF, label: 'Todos los informes' }}
         subtitle={
           <>
             Rival:{' '}
@@ -228,19 +231,27 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
               <Pencil aria-hidden />
               Editar
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setDeleting(true)}>
-              <Trash2 aria-hidden />
-              Eliminar
-            </Button>
-            <Button asChild variant="ghost" size="sm">
-              <Link href={REPORTS_HREF}>
-                <ArrowLeft aria-hidden />
-                Todos los informes
-              </Link>
-            </Button>
+            <ConfirmDialog
+              title={`¿Borrar ${report.title}?`}
+              description="Se borra el informe con sus notas. Las partidas y el equipo siguen en la biblioteca. No se puede deshacer."
+              confirmLabel="Borrar informe"
+              pendingLabel="Borrando…"
+              onConfirm={deleteReport}
+              trigger={
+                <Button type="button" variant="ghost" size="sm">
+                  <Trash2 aria-hidden />
+                  Borrar
+                </Button>
+              }
+            />
           </>
         }
       />
+      {deleteError ? (
+        <p role="alert" className="text-body-sm text-destructive">
+          {deleteError}
+        </p>
+      ) : null}
       {message ? (
         <p role="status" className="text-body-sm text-fg-2">
           {message}
@@ -301,32 +312,6 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
       />
       {video ? <AnalysisVideoDialog title="Crear vídeo de estas rondas" sources={video} teamId={report.team_id} onClose={() => setVideo(null)} /> : null}
       <EditReportDialog open={editing} onOpenChange={setEditing} report={report} onSaved={onChanged} />
-      <Dialog open={deleting} onOpenChange={setDeleting}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Eliminar {report.title}</DialogTitle>
-            <DialogDescription>Se borra el informe. Las partidas y el equipo siguen en la biblioteca.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleting(false)}>
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => {
-                void deleteLibraryReport(report.id)
-                  .then(() => router.replace(REPORTS_HREF))
-                  .catch(() => setMessage('No se pudo eliminar el informe.'))
-                  .finally(() => setDeleting(false));
-              }}
-            >
-              <Trash2 aria-hidden />
-              Eliminar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

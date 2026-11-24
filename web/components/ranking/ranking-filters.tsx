@@ -1,7 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { useId, useState, type ReactNode } from 'react';
+import { ChevronDown, X } from 'lucide-react';
 import {
   CT_ROLES,
   GENERIC_ROLES,
@@ -17,6 +17,7 @@ import { ROLE_LABEL as LIBRARY_ROLE_LABEL, SOURCE_LABEL } from '@/lib/library/pa
 import { ROLE_LABEL } from '@/lib/ranking/columns';
 import {
   ALLROUND,
+  defaultMinRounds,
   parseRankingRole,
   type PinnedPlayer,
   type RankingRole,
@@ -111,7 +112,6 @@ export function RankingFilters({
   const chosen = { key: state.mapRole, label: state.mapRole === ALLROUND ? 'Todoterreno' : state.mapRole, players: 0 };
   const positions = state.mapRole === '' || mapRoles.some((option) => option.key === state.mapRole) ? mapRoles : [chosen, ...mapRoles];
   const eventNames = state.event === '' || events.includes(state.event) ? events : [state.event, ...events];
-  const roleTitle = pro && needsMap ? 'Elige un mapa: con datos profesionales el rol se lee en un mapa' : undefined;
   // Without a map, Todoterreno on a side is the Rol filter's own choice; with a map it is a position.
   const anyMapAllround = needsMap && state.mapRole === ALLROUND && state.scope.side !== '';
   const pickedRole = state.role === '' ? ALL : state.role;
@@ -122,12 +122,30 @@ export function RankingFilters({
     else if (next === ALL && anyMapAllround) onAllround(null);
     else onRole(next === ALL ? '' : parseRankingRole(next, state.scope));
   }
-  const positionTitle = needsMap || needsSide ? 'Elige un mapa y un lado: la posición es una zona del mapa en un lado' : undefined;
+  const positionLocked = needsMap || needsSide;
   const rolesLocked = pro && needsMap;
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
+  const positionLabel = positionLocked
+    ? 'Posición: elige mapa y lado'
+    : (positions.find((option) => option.key === state.mapRole)?.label ?? 'Todas las posiciones');
+  const eventLabel = state.event === '' ? 'Todos los eventos' : state.event;
   return (
     <div className="studio-panel flex flex-col gap-2.5 p-3.5">
-      <div aria-live="polite" className="flex items-center justify-end gap-3">
-        <p className="text-meta font-semibold tracking-widest whitespace-nowrap text-fg-3 uppercase tabular-nums">
+      <div className="flex items-center justify-end gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => setOpen((value) => !value)}
+          className="mr-auto sm:hidden"
+        >
+          Filtros
+          <ChevronDown aria-hidden className={cn('transition-transform duration-(--dur-fast)', open && 'rotate-180')} />
+        </Button>
+        <p aria-live="polite" className="text-meta font-semibold tracking-widest whitespace-nowrap text-fg-3 uppercase tabular-nums">
           {counts === null ? 'Contando' : scopeCountText(counts.maps, counts.rounds)}
         </p>
         {onClear === null ? null : (
@@ -137,140 +155,143 @@ export function RankingFilters({
           </Button>
         )}
       </div>
-      <FilterRow label="Mapas">
-        <FilterChip pressed={state.scope.map === ''} onPick={() => onScope({ map: '' })}>
-          Todos
-        </FilterChip>
-        {maps.map((map) => (
-          <FilterChip key={map} pressed={state.scope.map === map} onPick={() => onScope({ map })}>
-            {prettyMapName(map)}
-          </FilterChip>
-        ))}
-      </FilterRow>
-      <FilterRow label="Lado">
-        <Segmented label="Lado" value={state.scope.side} options={SIDE_OPTIONS} onChange={(side) => onScope({ side })} />
-      </FilterRow>
-      <FilterRow label="Roles">
-        <div role="group" aria-label="Rol" className="flex flex-wrap items-center gap-1.5">
-          <FilterChip pressed={roleValue === ALL} disabled={rolesLocked} title={roleTitle} onPick={() => pickRole(ALL)}>
+      <div id={bodyId} className={cn('flex-col gap-2.5 sm:flex', open ? 'flex' : 'hidden')}>
+        <FilterRow label="Mapas">
+          <FilterChip pressed={state.scope.map === ''} onPick={() => onScope({ map: '' })}>
             Todos
           </FilterChip>
-          {pro
-            ? null
-            : GENERIC_ROLES.map((role) => (
-                <FilterChip key={role} pressed={roleValue === role} onPick={() => pickRole(role)}>
-                  {LIBRARY_ROLE_LABEL[role]}
-                </FilterChip>
-              ))}
-          {needsMap ? (
-            SIDES.map((side) => (
-              <FilterChip key={side} tone={side === 'T' ? 't' : 'ct'} pressed={roleValue === allroundValue(side)} disabled={rolesLocked} title={roleTitle} onPick={() => pickRole(allroundValue(side))}>
-                {side} todoterreno
-              </FilterChip>
-            ))
-          ) : (
-            <>
-              {T_ROLES.map((role) => (
-                <FilterChip key={role} tone="t" pressed={roleValue === role} onPick={() => pickRole(role)}>
-                  T {ROLE_LABEL[role]}
-                </FilterChip>
-              ))}
-              {CT_ROLES.map((role) => (
-                <FilterChip key={role} tone="ct" pressed={roleValue === role} onPick={() => pickRole(role)}>
-                  CT {ROLE_LABEL[role]}
-                </FilterChip>
-              ))}
-            </>
-          )}
-        </div>
-      </FilterRow>
-      <FilterRow label="Alcance">
-        <Segmented
-          label="Datos"
-          value={state.scope.reference}
-          options={[
-            { value: 'pro', label: 'Profesionales' },
-            { value: 'library', label: 'Tu biblioteca' },
-          ]}
-          onChange={onReference}
-        />
-        <PeriodControl scope={state.scope} onChange={onScope} />
-        <Select value={state.mapRole === '' ? ALL : state.mapRole} onValueChange={(next) => onMapRole(next === ALL ? '' : next)} disabled={needsMap || needsSide}>
-          <SelectTrigger aria-label="Posición" title={positionTitle} className={cn(TRIGGER, state.mapRole !== '' && 'border-fg-3 text-fg-1')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todas las posiciones</SelectItem>
-            {positions.map((option) => (
-              <SelectItem key={option.key} value={option.key}>
-                {option.players > 0 ? `${option.label} (${option.players})` : option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {pro ? (
-          <>
-            <Select value={state.top === null ? ALL : String(state.top)} onValueChange={(next) => onTop(parseTop(next))}>
-              <SelectTrigger aria-label="Nivel del rival" className={cn(TRIGGER, state.top !== null && 'border-fg-3 text-fg-1')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Cualquier rival</SelectItem>
-                {PRO_TOPS.map((top) => (
-                  <SelectItem key={top} value={String(top)}>
-                    Rival top {top} de HLTV
-                  </SelectItem>
+          {maps.map((map) => (
+            <FilterChip key={map} pressed={state.scope.map === map} onPick={() => onScope({ map })}>
+              {prettyMapName(map)}
+            </FilterChip>
+          ))}
+        </FilterRow>
+        <FilterRow label="Lado">
+          <Segmented label="Lado" value={state.scope.side} options={SIDE_OPTIONS} onChange={(side) => onScope({ side })} />
+        </FilterRow>
+        <FilterRow label="Roles">
+          <div role="group" aria-label="Rol" aria-describedby={rolesLocked ? `${bodyId}-roles` : undefined} className="flex flex-wrap items-center gap-1.5">
+            <FilterChip pressed={roleValue === ALL} disabled={rolesLocked} onPick={() => pickRole(ALL)}>
+              Todos
+            </FilterChip>
+            {pro
+              ? null
+              : GENERIC_ROLES.map((role) => (
+                  <FilterChip key={role} pressed={roleValue === role} onPick={() => pickRole(role)}>
+                    {LIBRARY_ROLE_LABEL[role]}
+                  </FilterChip>
                 ))}
-              </SelectContent>
-            </Select>
-            <Select value={state.teamTop === null ? ALL : String(state.teamTop)} onValueChange={(next) => onTeamTop(parseTop(next))}>
-              <SelectTrigger aria-label="Nivel del equipo" className={cn(TRIGGER, state.teamTop !== null && 'border-fg-3 text-fg-1')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Cualquier equipo</SelectItem>
-                {PRO_TOPS.map((top) => (
-                  <SelectItem key={top} value={String(top)}>
-                    Equipo top {top} de HLTV
-                  </SelectItem>
+            {needsMap ? (
+              SIDES.map((side) => (
+                <FilterChip key={side} tone={side === 'T' ? 't' : 'ct'} pressed={roleValue === allroundValue(side)} disabled={rolesLocked} onPick={() => pickRole(allroundValue(side))}>
+                  {side} todoterreno
+                </FilterChip>
+              ))
+            ) : (
+              <>
+                {T_ROLES.map((role) => (
+                  <FilterChip key={role} tone="t" pressed={roleValue === role} onPick={() => pickRole(role)}>
+                    T {ROLE_LABEL[role]}
+                  </FilterChip>
                 ))}
-              </SelectContent>
-            </Select>
-            <Select value={state.event === '' ? ALL : state.event} onValueChange={(next) => onEvent(next === ALL ? '' : next)}>
-              <SelectTrigger aria-label="Evento" className={cn(TRIGGER, 'max-w-56', state.event !== '' && 'border-fg-3 text-fg-1')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todos los eventos</SelectItem>
-                {eventNames.map((event) => (
-                  <SelectItem key={event} value={event}>
-                    {event}
-                  </SelectItem>
+                {CT_ROLES.map((role) => (
+                  <FilterChip key={role} tone="ct" pressed={roleValue === role} onPick={() => pickRole(role)}>
+                    CT {ROLE_LABEL[role]}
+                  </FilterChip>
                 ))}
-              </SelectContent>
-            </Select>
-          </>
-        ) : (
-          <Select value={state.level === '' ? ALL : state.level} onValueChange={(next) => onLevel(next === ALL ? '' : parseLevel(next))}>
-            <SelectTrigger aria-label="Nivel de las demos" className={cn(TRIGGER, state.level !== '' && 'border-fg-3 text-fg-1')}>
-              <SelectValue />
+              </>
+            )}
+          </div>
+          {rolesLocked ? <p id={`${bodyId}-roles`} className="basis-full text-meta text-fg-3">Con datos profesionales, elige un mapa para filtrar por rol.</p> : null}
+        </FilterRow>
+        <FilterRow label="Alcance">
+          <Segmented
+            label="Datos"
+            value={state.scope.reference}
+            options={[
+              { value: 'pro', label: 'Profesionales' },
+              { value: 'library', label: 'Tu biblioteca' },
+            ]}
+            onChange={onReference}
+          />
+          <PeriodControl scope={state.scope} onChange={onScope} />
+          <Select value={state.mapRole === '' ? ALL : state.mapRole} onValueChange={(next) => onMapRole(next === ALL ? '' : next)} disabled={positionLocked}>
+            <SelectTrigger aria-label="Posición" className={cn(TRIGGER, state.mapRole !== '' && 'border-fg-3 text-fg-1')}>
+              <SelectValue>{positionLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>Todas las demos</SelectItem>
-              {LEADERBOARD_SOURCES.map((source) => (
-                <SelectItem key={source} value={source}>
-                  {SOURCE_LABEL[source]}
+              <SelectItem value={ALL}>Todas las posiciones</SelectItem>
+              {positions.map((option) => (
+                <SelectItem key={option.key} value={option.key}>
+                  {option.players > 0 ? `${option.label} (${option.players})` : option.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        )}
-        <MinRoundsControl value={state.minRounds} onCommit={onMinRounds} />
-      </FilterRow>
-      <FilterRow label="Fijados">
-        <PlayerSearch players={players} pins={pins} onPin={onPin} />
-        <PinnedChips pins={pins} onPin={onPin} />
-      </FilterRow>
+          {pro ? (
+            <>
+              <Select value={state.top === null ? ALL : String(state.top)} onValueChange={(next) => onTop(parseTop(next))}>
+                <SelectTrigger aria-label="Nivel del rival" className={cn(TRIGGER, state.top !== null && 'border-fg-3 text-fg-1')}>
+                  <SelectValue>{state.top === null ? 'Cualquier rival' : `Rival top ${state.top} de HLTV`}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Cualquier rival</SelectItem>
+                  {PRO_TOPS.map((top) => (
+                    <SelectItem key={top} value={String(top)}>
+                      Rival top {top} de HLTV
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={state.teamTop === null ? ALL : String(state.teamTop)} onValueChange={(next) => onTeamTop(parseTop(next))}>
+                <SelectTrigger aria-label="Nivel del equipo" className={cn(TRIGGER, state.teamTop !== null && 'border-fg-3 text-fg-1')}>
+                  <SelectValue>{state.teamTop === null ? 'Cualquier equipo' : `Equipo top ${state.teamTop} de HLTV`}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Cualquier equipo</SelectItem>
+                  {PRO_TOPS.map((top) => (
+                    <SelectItem key={top} value={String(top)}>
+                      Equipo top {top} de HLTV
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={state.event === '' ? ALL : state.event} onValueChange={(next) => onEvent(next === ALL ? '' : next)}>
+                <SelectTrigger aria-label="Evento" className={cn(TRIGGER, 'max-w-56', state.event !== '' && 'border-fg-3 text-fg-1')}>
+                  <SelectValue>{eventLabel}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todos los eventos</SelectItem>
+                  {eventNames.map((event) => (
+                    <SelectItem key={event} value={event}>
+                      {event}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          ) : (
+            <Select value={state.level === '' ? ALL : state.level} onValueChange={(next) => onLevel(next === ALL ? '' : parseLevel(next))}>
+              <SelectTrigger aria-label="Nivel de las demos" className={cn(TRIGGER, state.level !== '' && 'border-fg-3 text-fg-1')}>
+                <SelectValue>{state.level === '' ? 'Todas las demos' : SOURCE_LABEL[state.level]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas las demos</SelectItem>
+                {LEADERBOARD_SOURCES.map((source) => (
+                  <SelectItem key={source} value={source}>
+                    {SOURCE_LABEL[source]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <MinRoundsControl value={state.minRounds} fallback={defaultMinRounds(state.scope.reference)} onCommit={onMinRounds} />
+        </FilterRow>
+        <FilterRow label="Fijados">
+          <PlayerSearch players={players} pins={pins} onPin={onPin} />
+          <PinnedChips pins={pins} onPin={onPin} />
+        </FilterRow>
+      </div>
     </div>
   );
 }

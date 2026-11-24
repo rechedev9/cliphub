@@ -124,7 +124,7 @@ export function TeamMapHistory({
   if (data === 'failed') {
     return (
       <p role="alert" className="text-body-sm text-destructive">
-        No se pudo leer el historial de mapas. Comprueba que ClipHub Studio sigue abierto.
+        No se pudo leer el historial de mapas. Vuelve a intentarlo.
       </p>
     );
   }

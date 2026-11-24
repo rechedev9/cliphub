@@ -2,8 +2,9 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowDown, ArrowUp, Pin, PinOff, Play, TriangleAlert } from 'lucide-react';
+import { ArrowDown, ArrowUp, Info, Pin, PinOff, Play, TriangleAlert } from 'lucide-react';
 import type { LeaderboardMetric, LeaderboardRow } from '@/lib/api/baseline';
+import { RATING_FORMULA_TEXT, RATING_LABEL } from '@/lib/analysis/rating';
 import { playerHref } from '@/lib/clips/routes';
 import { RANKING_COLUMNS, libraryRoleText, roleChips } from '@/lib/ranking/columns';
 import {
@@ -18,6 +19,7 @@ import {
   type RankingState,
 } from '@/lib/ranking/ranking';
 import { PlayerAvatar } from '@/components/players/player-avatar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RoleChip } from '@/components/ui/role-chip';
 import { cn } from '@/lib/utils';
 
@@ -55,7 +57,27 @@ function SortHeader({ column, state, onSort }: { column: (typeof RANKING_COLUMNS
         {column.header}
         {active ? <Arrow aria-hidden className="size-3" /> : null}
       </button>
+      {column.sort === 'rating' ? <RatingHelp /> : null}
     </th>
+  );
+}
+
+function RatingHelp(): ReactNode {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Cómo se calcula el ${RATING_LABEL}`}
+          className="ml-1 inline-grid size-6 place-items-center rounded-sm align-middle text-fg-3 outline-none hover:text-fg-1 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          <Info aria-hidden className="size-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="center" className="w-80 p-3 text-body-sm text-fg-2">
+        {RATING_FORMULA_TEXT}
+      </PopoverContent>
+    </Popover>
   );
 }
 

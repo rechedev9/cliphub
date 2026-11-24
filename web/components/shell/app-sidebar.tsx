@@ -9,12 +9,13 @@ import {
   Clapperboard,
   Crosshair,
   Download,
+  FileText,
   Film,
   HardDrive,
   Lightbulb,
-  ListChecks,
+  Mic,
   MonitorPlay,
-  NotebookPen,
+  PencilRuler,
   Play,
   Search,
   Settings,
@@ -26,7 +27,6 @@ import {
   UserRound,
   UserSearch,
   Users,
-  Vote,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -63,20 +63,19 @@ const ENTRY_META: Record<SidebarEntryId, { icon: LucideIcon; dot?: string }> = {
   'demo-completa': { icon: MonitorPlay, dot: 'bg-format-full' },
   short: { icon: Smartphone, dot: 'bg-format-short' },
   'clips-de-stream': { icon: Clapperboard, dot: 'bg-format-stream' },
-  'jugadores-faceit': { icon: UserSearch },
   'mis-videos': { icon: Film },
   ideas: { icon: Lightbulb },
   partidas: { icon: Swords },
   replay: { icon: Play },
   'buscador-de-patrones': { icon: Search },
-  'estadisticas-de-equipo': { icon: Shield },
-  'estadisticas-de-jugador': { icon: ChartColumn },
+  equipos: { icon: Shield },
+  jugadores: { icon: ChartColumn },
+  'jugadores-faceit': { icon: UserSearch },
   ranking: { icon: Trophy },
-  'editor-de-tacticas': { icon: NotebookPen },
-  playbook: { icon: BookOpen },
+  libreta: { icon: BookOpen },
+  'editor-de-tacticas': { icon: PencilRuler },
   'lineups-pro': { icon: Crosshair },
-  'simulacion-de-veto': { icon: Vote },
-  'preparar-rival': { icon: ListChecks },
+  informes: { icon: FileText },
   almacenamiento: { icon: HardDrive },
   ajustes: { icon: Settings },
 };
@@ -88,7 +87,7 @@ export function AppSidebar(): ReactElement {
   const edition = currentEdition();
   const groups = sidebarGroupsFor(edition);
   const footerEntries = sidebarFooterEntriesFor(edition);
-  const activeId = activeEntryId({ pathname, tab: params.get('tab') });
+  const activeId = activeEntryId({ pathname });
   const where: PageLocation = { pathname, search: params.toString() };
 
   return (
@@ -138,7 +137,7 @@ export function AppSidebar(): ReactElement {
               className="min-w-0 flex-1 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:px-0"
             >
               <Link href={VOICE_HREF}>
-                <Upload aria-hidden className="stroke-[1.5]" />
+                <Mic aria-hidden className="stroke-[1.5]" />
                 <span className="group-data-[collapsible=icon]:sr-only">Voz</span>
               </Link>
             </Button>
@@ -162,7 +161,7 @@ export function AppSidebar(): ReactElement {
 /** The web edition's footer: import goes to the browser scanner, and the account and team live here. */
 function WebFooterActions({ pathname }: { pathname: string }): ReactElement {
   const links = [
-    { href: '/equipo', label: 'Equipo', icon: Users },
+    { href: '/equipo', label: 'Mi espacio', icon: Users },
     { href: '/cuenta', label: 'Cuenta', icon: UserRound },
   ] as const;
   return (

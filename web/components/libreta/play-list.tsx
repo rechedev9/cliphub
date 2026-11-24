@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { BookMarked, FileDown, FileUp, Plus, PlugZap, Swords } from 'lucide-react';
+import { BookMarked, FileDown, FileUp, Plus, Swords } from 'lucide-react';
 import { deleteLibraryPlay, exportStratbook, isLibraryOffline, listLibraryPlays, patchLibraryPlay } from '@/lib/api/library';
 import type { CountNoun } from '@/lib/records/selection';
 import type { LibretaStatus } from '@/lib/api/libreta';
 import { STRATBOOK_FORMAT, STRATBOOK_VERSION, type LibraryPlay } from '@/lib/api/stratbook';
 import { MATCHES_HREF, playHref, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
+import { bulkDeleteMessage, bulkStatusMessage } from '@/lib/libreta/bulk';
+import { settleEach, withoutKeys } from '@/lib/settle-each';
 import { importLibretaText } from '@/lib/libreta/libreta-file';
 import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
@@ -16,6 +18,7 @@ import { PLAY_ORIGIN_LABEL, playKindLabel, playShapeLabel, stratbookFileName } f
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyCell } from '@/components/ui/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { TableSkeleton } from '@/components/records/table-skeleton';
@@ -173,20 +176,20 @@ export function PlayList({
     onImported();
   }
 
-  async function bulkStatus(status: LibretaStatus, ids: readonly string[]): Promise<void> {
+  async function bulkStatus(status: LibretaStatus, rows: readonly LibraryPlay[]): Promise<void> {
     setBusy(true);
-    const failed = (await Promise.allSettled(ids.map((id) => patchLibraryPlay(id, { status })))).filter((r) => r.status === 'rejected').length;
-    setMessage(failed === 0 ? `${ids.length} ${ids.length === 1 ? 'jugada pasa' : 'jugadas pasan'} a ${STATUS_LABEL[status]}.` : `${failed} no se pudieron cambiar.`);
-    setSelected(new Set());
+    const { done, failed } = await settleEach(rows, (play) => patchLibraryPlay(play.id, { status }));
+    setMessage(bulkStatusMessage({ done: done.length, failed: failed.map(({ item }) => item.title), noun: JUGADA, status: STATUS_LABEL[status] }));
+    setSelected((current) => withoutKeys(current, done.map(({ item }) => item.id)));
     setBusy(false);
     onReload();
   }
 
-  async function bulkDelete(ids: readonly string[]): Promise<void> {
+  async function bulkDelete(rows: readonly LibraryPlay[]): Promise<void> {
     setBusy(true);
-    const failed = (await Promise.allSettled(ids.map((id) => deleteLibraryPlay(id)))).filter((r) => r.status === 'rejected').length;
-    setMessage(failed === 0 ? `${ids.length === 1 ? 'Eliminada 1 jugada' : `Eliminadas ${ids.length} jugadas`}.` : `${failed} no se pudieron eliminar.`);
-    setSelected(new Set());
+    const { done, failed } = await settleEach(rows, (play) => deleteLibraryPlay(play.id));
+    setMessage(bulkDeleteMessage({ done: done.length, failed: failed.map(({ item }) => item.title), noun: JUGADA }));
+    setSelected((current) => withoutKeys(current, done.map(({ item }) => item.id)));
     setBusy(false);
     onReload();
   }
@@ -235,16 +238,7 @@ export function PlayList({
   }
   if (plays.length === 0) {
     return offline ? (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudo leer la Libreta. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={onReload}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind="offline" title="No se pudo leer la Libreta" onRetry={onReload} />
     ) : (
       <>
         {status}
@@ -291,7 +285,6 @@ export function PlayList({
   const hiddenArchived = (view.state.filters.status ?? FILTER_ANY) === FILTER_ANY ? filtered.length - shown.length : 0;
   // Only rows the filters show count as chosen, so a bulk action never reaches a hidden one.
   const chosen = shown.filter((play) => selected.has(play.id));
-  const chosenIds = chosen.map((play) => play.id);
 
   return (
     <div className="flex flex-col gap-3">
@@ -332,6 +325,7 @@ export function PlayList({
         rows={shown}
         columns={COLUMNS}
         rowKey={(play) => play.id}
+        rowLabel={(play) => play.title}
         rowHref={(play) => playHref(play.id)}
         view={view}
         selection={{
@@ -344,9 +338,9 @@ export function PlayList({
               count={chosen.length}
               noun={JUGADA}
               busy={busy}
-              onStatus={(next) => void bulkStatus(next, chosenIds)}
+              onStatus={(next) => void bulkStatus(next, chosen)}
               onExport={() => void exportPlays(chosen)}
-              onDelete={() => void bulkDelete(chosenIds)}
+              onDelete={() => void bulkDelete(chosen)}
             />
           ),
         }}

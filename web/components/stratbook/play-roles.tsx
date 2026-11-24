@@ -6,6 +6,7 @@ import { patchLibraryPlay } from '@/lib/api/library';
 import type { RoleSlot } from '@/lib/api/roles';
 import type { LibraryPlay } from '@/lib/api/stratbook';
 import { cleanRoles, rolePlayers, rolesFromPositions, sameRoles, type PlaceLabel } from '@/lib/libreta/roles';
+import { loadErrorMessage } from '@/lib/load-error';
 import { Button } from '@/components/ui/button';
 import { RoleRowsEditor, useTeamRoster } from '@/components/libreta/role-rows-editor';
 import { useCalloutNames } from '@/hooks/use-callout-names';
@@ -67,8 +68,8 @@ export function PlayRoles({ play, onSaved }: { play: LibraryPlay; onSaved: () =>
       await patchLibraryPlay(play.id, { roles: clean.slots });
       setDraft(null);
       onSaved();
-    } catch {
-      setError('No se pudieron guardar los roles. Comprueba que ClipHub Studio sigue abierto.');
+    } catch (error) {
+      setError(loadErrorMessage({ error, lead: 'No se pudieron guardar los roles.' }));
     } finally {
       setBusy(false);
     }

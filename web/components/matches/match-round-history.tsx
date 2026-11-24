@@ -39,9 +39,9 @@ export function MatchRoundHistory({
   const reasons = new Set(rows.map((row) => row.round.end_reason));
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto pb-1">
-        <div className="flex min-w-max gap-1">
-          <div className="flex w-36 flex-none flex-col gap-2.5">
+      <div className="overflow-x-auto pb-1 [mask-image:linear-gradient(to_right,#000_calc(100%_-_1.5rem),transparent)]">
+        <div className="flex min-w-max gap-1 pr-6">
+          <div className="sticky left-0 z-10 flex w-24 flex-none flex-col gap-2.5 bg-surface-2 @[40rem]/content:w-36">
             <span aria-hidden className="h-4" />
             {LIBRARY_TEAM_KEYS.map((key) => (
               <span

@@ -2,7 +2,6 @@
 
 import type { ReactNode } from 'react';
 import type { LibraryTeam } from '@/lib/api/library';
-import { TEAM_RED } from '@/components/analysis/scope-field-style';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
@@ -27,7 +26,7 @@ export function TeamChoice({
       </p>
       {teams !== null && withMatches.length === 0 ? null : (
         <Select value="" onValueChange={onPick} disabled={teams === null}>
-          <SelectTrigger aria-label="Equipo" className={cn('h-8 w-64 text-body-sm', TEAM_RED)}>
+          <SelectTrigger aria-label="Equipo" className="h-8 w-64 max-w-full text-body-sm">
             <SelectValue placeholder={teams === null ? 'Cargando equipos' : 'Elige un equipo'} />
           </SelectTrigger>
           <SelectContent>

@@ -5,6 +5,7 @@ import { isHudOptions, isHudStyle, isHudTeamNames, type HudOptions, type HudTeam
 import { uploadForm, type UploadProgress } from './api/upload.ts';
 import { isBrandOverlay, type BrandOverlay } from './brand-kit.ts';
 import { apiFetch } from './api/edition-fetch.ts';
+import { serverError } from './human-error.ts';
 
 export const FULL_DEMO_PROFILE = 'full-demo-pov-chill-v1';
 export const FULL_DEMO_CAPTURE_VARIANT = 'gameplay-pov-60';
@@ -360,7 +361,7 @@ export async function responseJSON(response: Response): Promise<unknown> {
   const value: unknown = await response.json();
   if (!response.ok) {
     const message = record(value) && typeof value.error === 'string' ? value.error : `Solicitud fallida (${response.status}).`;
-    throw Object.assign(new Error(message), record(value) && typeof value.code === 'string' ? { code: value.code } : {});
+    throw serverError(message, response, record(value) ? value.code : undefined);
   }
   return value;
 }

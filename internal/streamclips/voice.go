@@ -24,16 +24,17 @@ type VoiceTranscript struct {
 }
 
 type VoiceLine struct {
-	ID           uuid.UUID               `json:"id"`
-	JobID        uuid.UUID               `json:"job_id"`
-	StartMS      int64                   `json:"start_ms"`
-	EndMS        int64                   `json:"end_ms"`
-	Text         string                  `json:"text"`
-	Corrected    bool                    `json:"corrected"`
-	OriginalText string                  `json:"original_text,omitempty"`
-	VocabText    string                  `json:"vocab_text,omitempty"`
-	Discarded    bool                    `json:"discarded"`
-	Words        []library.DemoVoiceWord `json:"-"`
+	ID           uuid.UUID                `json:"id"`
+	JobID        uuid.UUID                `json:"job_id"`
+	StartMS      int64                    `json:"start_ms"`
+	EndMS        int64                    `json:"end_ms"`
+	Text         string                   `json:"text"`
+	Corrected    bool                     `json:"corrected"`
+	CorrectedBy  library.CorrectionAuthor `json:"corrected_by,omitempty"`
+	OriginalText string                   `json:"original_text,omitempty"`
+	VocabText    string                   `json:"vocab_text,omitempty"`
+	Discarded    bool                     `json:"discarded"`
+	Words        []library.DemoVoiceWord  `json:"-"`
 }
 
 func (l VoiceLine) HeardText() string {
@@ -55,6 +56,13 @@ type VoiceLinePatch struct {
 	ID        uuid.UUID
 	Text      *string
 	Discarded *bool
+	By        library.CorrectionAuthor
+}
+
+type VoiceCorrections struct {
+	JobID uuid.UUID
+	By    library.CorrectionAuthor
+	Lines []library.VoiceLineText
 }
 
 type Subtitles struct {

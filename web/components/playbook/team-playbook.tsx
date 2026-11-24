@@ -165,9 +165,9 @@ export function TeamPlaybook({
   if (failed) {
     return (
       <p role="alert" className="text-body-sm text-destructive">
-        No se pudo leer el playbook. Comprueba que ClipHub Studio sigue abierto y{' '}
+        No se pudo leer el playbook.{' '}
         <button type="button" className="underline underline-offset-4" onClick={() => setAttempt((n) => n + 1)}>
-          vuelve a intentarlo
+          Vuelve a intentarlo
         </button>
         .
       </p>

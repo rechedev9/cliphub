@@ -16,8 +16,10 @@ import {
 } from '@/lib/full-demo-plan';
 import { captureNote, editCtaLabel, pickVersion, recapSeconds, spaceWarning, versionDateLabel, type CaptureCheck, type SpaceCheck } from '@/lib/produce/edit-capture';
 import { FULL_DEMO_VOICE_LABEL, fullDemoBriefItems } from '@/lib/produce/full-demo-brief';
+import { FULL_DEMO_ERROR_CODES } from '@/lib/produce/full-demo-notices';
+import { humanErrorText } from '@/lib/human-error';
 import { fullDemoSubtitles, withFullDemoSubtitles } from '@/lib/produce/subtitles';
-import { INTRO_DESIGN_LABEL } from '@/lib/overlay-design-gallery';
+import { INTRO_DESIGN_LABEL, INTRO_DESIGNS } from '@/lib/overlay-design-gallery';
 import { availableFullDemoBumpers, recallFullDemoBumpers, rememberFullDemoBumpers, withRememberedBumpers } from '@/lib/produce/full-demo-bumper-memory';
 import { fullDemoQueueToast } from '@/lib/produce/full-demo-queue-toast';
 import { FULL_DEMO_MISSING_FILES, hasMissingFullDemoFiles } from '@/lib/produce/full-demo-requirements';
@@ -25,8 +27,9 @@ import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRO
 import { formatVideoDuration, fullDemoDurationSeconds, fullDemoOrderRounds } from '@/lib/produce/full-demo-order';
 import { prettyMapName } from '@/lib/format';
 import { Button } from '@/components/ui/button';
+import { LoadingText } from '@/components/ui/loading-text';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
-import { FullDemoGroup, FullDemoPart } from './full-demo-fields';
+import { FullDemoFold, FullDemoGroup } from './full-demo-fields';
 import { FullDemoAudio } from './full-demo-audio';
 import { SubtitlesPanel } from './subtitles-panel';
 import { FullDemoBumpers } from './full-demo-bumpers';
@@ -73,6 +76,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
   /** Which rounds a create would record, for the options whose key is `key`. */
   const [captureState, setCaptureState] = useState<{ key: string | null; check: CaptureCheck | null }>({ key: null, check: null });
   const [editedDate, setEditedDate] = useState<string | null>(null);
+  const [libraryVoices, setLibraryVoices] = useState<string | null>(null);
   const editVariant = edit?.variant ?? null;
   const editRevision = edit?.revision ?? null;
   const draftKey = `cliphub.full-demo.draft.v1:${matchId}`;
@@ -121,7 +125,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
       setDocument(loaded.document); setBaseline(base); setOptions(initial); setProPlayers(loaded.pro_players ?? []); setBusy(null);
     }).catch((failure: unknown) => {
       if (controller.signal.aborted) return;
-      setError(failure instanceof Error ? failure.message : 'No se pudo cargar el plan.'); setBusy(null);
+      setError(humanErrorText({ error: failure, lead: 'No se pudo cargar la preparación de la demo completa.', codes: FULL_DEMO_ERROR_CODES })); setBusy(null);
     });
     return () => controller.abort();
   }, [matchId, draftKey, loadAttempt, roundsKey, editVariant, editRevision]);
@@ -215,17 +219,18 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
       else toast('Demo completa en cola', fullDemoQueueToast(recBusy, planned.warnings));
       router.push(doneHref);
     } catch (failure) {
-      if (!controller.signal.aborted) { setError(failure instanceof Error ? failure.message : 'No se pudo encolar el vídeo.'); setBusy(null); }
+      if (!controller.signal.aborted) { setError(humanErrorText({ error: failure, lead: 'No se pudo poner el vídeo en cola.', codes: FULL_DEMO_ERROR_CODES })); setBusy(null); }
     } finally {
       if (createRequest.current === controller) createRequest.current = null;
     }
   }
 
   const chosenRounds = options?.rounds ?? [];
+  const voiceAvailability = libraryVoices ?? document?.voice.availability ?? null;
   const briefItems = options ? [
     { label: 'Jugador', value: match.player ?? document?.input.target_steamid64 ?? 'Pendiente' },
     { label: 'Rondas', value: chosenRounds.length > 0 ? roundListLabel(chosenRounds) : 'Todas' },
-    ...fullDemoBriefItems(options, document?.voice.availability ?? null),
+    ...fullDemoBriefItems(options, voiceAvailability),
   ] : [];
 
   const orderRounds = fullDemoOrderRounds({ chosen: chosenRounds, planned: document ? document.rounds.map((round) => round.source_round_number) : null, recap: recap.map((play) => play.round) });
@@ -246,6 +251,9 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
   const cta = <Button size="lg" disabled={!ready} loading={busy === 'create'} loadingText="Preparando demo completa…" onClick={() => void create()}
     className={`w-full font-extrabold ${FORMAT_TONE.full.fill}`}>{editCtaLabel({ capture, editing: editVariant !== null, fallback: recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA })}</Button>;
   const shownError = error ?? (showMissing && missingFiles ? FULL_DEMO_MISSING_FILES : null);
+  const briefValue = (label: string): string | undefined => briefItems.find((item) => item.label === label)?.value;
+  const compactParts = [planState ?? (chosenRounds.length > 0 ? `${chosenRounds.length} ${chosenRounds.length === 1 ? 'ronda' : 'rondas'}` : 'Todas las rondas'), briefValue('HUD'), briefValue('Voces del equipo')];
+  const compactSummary = options ? compactParts.filter((part) => part !== undefined && part !== '').join(' · ') : null;
   const title = match.player ? `POV de ${match.player} en ${prettyMapName(match.map)}` : PRODUCE_FULL_TITLE;
 
   return <>
@@ -281,36 +289,24 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
         </p>
       ) : null}
     </div>
-    {busy === 'load' ? <p role="status" className="text-body-sm text-fg-2">Cargando la preparación guardada…</p> : null}
-    {options === null && busy === null && error ? <Button variant="secondary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Reintentar conexión</Button> : null}
-    {options ? <fieldset disabled={busy !== null} inert={busy !== null}
-      className="grid min-w-0 items-start gap-6 @[64rem]/content:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
-      {/* The preview stays in view beside the HUD panel, so every pick and switch there shows at once. */}
-      <div className="min-w-0 @[64rem]/content:sticky @[64rem]/content:top-[calc(var(--shell-strip-height)+0.5rem)]">
-        <FullDemoHudPreview options={options} />
-      </div>
-      <FullDemoHud options={options} onChange={change} onAssetBusy={assetBusy} />
-    </fieldset> : null}
+    {busy === 'load' ? <LoadingText spinner>Cargando la preparación guardada</LoadingText> : null}
+    {options === null && busy === null && error ? <Button variant="secondary" className="self-start" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Reintentar</Button> : null}
     <div className="grid min-w-0 items-start gap-6 @[64rem]/content:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
       {options ? <fieldset disabled={busy !== null} inert={busy !== null} className="flex min-w-0 flex-col gap-4">
+        <FullDemoHudPreview options={options} />
+        <FullDemoHud options={options} onChange={change} onAssetBusy={assetBusy} />
         <FullDemoBumpers options={options} document={document} rounds={orderRounds} onChange={change} onAssetBusy={assetBusy} />
         <FullDemoBrand options={options} onChange={change} />
-        <div className="grid min-w-0 items-start gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))]">
-          <FullDemoAudio options={options} document={document} onChange={change} />
-          <FullDemoGroup title="Subtítulos">
-            <SubtitlesPanel jobId={matchId} scope={{ kind: 'rounds', rounds: options.rounds ?? null }} voices={options.audio.voice.enabled} voicesLabel={FULL_DEMO_VOICE_LABEL}
-              planAvailability={document?.voice.availability ?? null} value={fullDemoSubtitles(options)} onChange={(next) => change(withFullDemoSubtitles(options, next))} />
-          </FullDemoGroup>
-          <FullDemoGroup title="Grabación">
-            <div className="flex flex-col gap-3.5">
-              <FullDemoProSettings options={options} players={proPlayers} onChange={change} />
-              <FullDemoPart title={INTRO_DESIGN_LABEL} note={OVERLAYS_NOTE}>
-                <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={assetBusy} />
-              </FullDemoPart>
-              <FullDemoTransitions options={options} onChange={change} />
-            </div>
-          </FullDemoGroup>
-        </div>
+        <FullDemoAudio options={options} voiceAvailability={voiceAvailability} onChange={change} />
+        <FullDemoGroup title="Subtítulos">
+          <SubtitlesPanel jobId={matchId} scope={{ kind: 'rounds', rounds: options.rounds ?? null }} voices={options.audio.voice.enabled} voicesLabel={FULL_DEMO_VOICE_LABEL}
+            planAvailability={document?.voice.availability ?? null} onAvailability={setLibraryVoices} value={fullDemoSubtitles(options)} onChange={(next) => change(withFullDemoSubtitles(options, next))} />
+        </FullDemoGroup>
+        <FullDemoFold title={INTRO_DESIGN_LABEL} value={options.overlays.theme === 'hud' ? INTRO_DESIGNS.hud : INTRO_DESIGNS.neon} note={OVERLAYS_NOTE}>
+          <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={assetBusy} />
+        </FullDemoFold>
+        <FullDemoTransitions options={options} onChange={change} />
+        <FullDemoProSettings options={options} players={proPlayers} onChange={change} />
       </fieldset> : <div className="min-w-0" />}
       <div className="flex min-w-0 flex-col gap-4 @[64rem]/content:sticky @[64rem]/content:top-[calc(var(--shell-strip-height)+0.5rem)] @[64rem]/content:max-h-[calc(100dvh-var(--shell-strip-height)-1rem)] @[64rem]/content:overflow-y-auto">
         <FullDemoSummary durationSeconds={durationSeconds} roundCount={orderRounds.length} briefItems={briefItems} planState={planState} status={status}
@@ -318,6 +314,6 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
           error={shownError} back={back} cta={cta} />
       </div>
     </div>
-    <FullDemoActionBar planState={planState} status={status} error={shownError} back={back} cta={cta} />
+    <FullDemoActionBar planState={compactSummary} status={status} error={shownError} back={back} cta={cta} />
   </>;
 }

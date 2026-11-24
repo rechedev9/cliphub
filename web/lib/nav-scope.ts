@@ -38,7 +38,6 @@ export function sidebarHref(entry: SidebarEntry, where: PageLocation): string {
   if (entry.carry === undefined || team === null) return entry.href;
   const scope = scopeQuery(where.search);
   const tool = new URLSearchParams([[TEAM_QUERY, team], ...scope]);
-  const record = `/equipos/${encodeURIComponent(team)}`;
   switch (entry.carry) {
     case 'replay':
       return withQuery('/replay', tool);
@@ -47,13 +46,7 @@ export function sidebarHref(entry: SidebarEntry, where: PageLocation): string {
     case 'tacticas':
       return withQuery('/tacticas/nueva', tool);
     case 'team-stats':
-      return withQuery(record, scope);
-    case 'playbook':
-      return withQuery(record, new URLSearchParams([['tab', 'playbook'], ...scope]));
-    case 'prep':
-      return withQuery(record, new URLSearchParams([['tab', 'preparar'], ...scope]));
-    case 'veto':
-      return withQuery(record, new URLSearchParams([['tab', 'veto']]));
+      return withQuery(`/equipos/${encodeURIComponent(team)}`, scope);
   }
 }
 

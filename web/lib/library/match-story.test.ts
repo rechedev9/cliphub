@@ -4,6 +4,7 @@ import type { TacticalSide } from '../api/tactical.ts';
 import { matchStory, roundBlocks, sideRecord, type StoryRound, type TeamNames } from './match-story.ts';
 
 const NAMES: TeamNames = { 'ct-start': 'CatClan', 't-start': 'team_miwel' };
+const FINISHED = { names: NAMES, finished: true };
 
 const END: Record<string, string> = { def: 'bomb_defused', exp: 'bomb_exploded', elim: 't_eliminated_ct', time: 'time_expired' };
 
@@ -50,7 +51,7 @@ const INFERNO = build([
 ]);
 
 test('the story of a comeback names the pistols, both runs and the close', () => {
-  assert.deepEqual(matchStory(INFERNO, NAMES), [
+  assert.deepEqual(matchStory(INFERNO, FINISHED), [
     { rounds: 'R 1 y 13', text: 'CatClan gana las dos pistolas.' },
     { rounds: 'R 12 a 16', text: 'CatClan encadena cinco rondas y se pone 10-6 tras el descanso.' },
     { rounds: 'R 17 a 23', text: 'team_miwel gana las siete últimas rondas como CT, una de ellas con CatClan en eco.' },
@@ -60,13 +61,13 @@ test('the story of a comeback names the pistols, both runs and the close', () =>
 
 test('split pistols name both winners', () => {
   const rounds = build([...wins('abababababab'), ...wins('bababababab')]);
-  const [pistols] = matchStory(rounds, NAMES);
+  const [pistols] = matchStory(rounds, FINISHED);
   assert.deepEqual(pistols, { rounds: 'R 1 y 13', text: 'CatClan gana la pistola de la ronda 1 y team_miwel la de la ronda 13.' });
 });
 
 test('an overtime is told before the run that decides it', () => {
   const rounds = build([...wins('ab'.repeat(6)), ...wins('abababababba'), ...wins('bbbb')]);
-  assert.deepEqual(matchStory(rounds, NAMES), [
+  assert.deepEqual(matchStory(rounds, FINISHED), [
     { rounds: 'R 1 y 13', text: 'CatClan gana las dos pistolas.' },
     { rounds: 'R 25', text: 'Empate a 12 al final del tiempo reglamentario: la partida se va a la prórroga.' },
     { rounds: 'R 25 a 28', text: 'team_miwel gana las cuatro últimas rondas.' },
@@ -75,16 +76,16 @@ test('an overtime is told before the run that decides it', () => {
 });
 
 test('a run tells the score it leaves: ahead, level or still behind', () => {
-  assert.deepEqual(matchStory(build(wins('bbbaaab')), NAMES).slice(1), [
+  assert.deepEqual(matchStory(build(wins('bbbaaab')), FINISHED).slice(1), [
     { rounds: 'R 1 a 3', text: 'team_miwel encadena tres rondas como T y se pone 3-0.' },
     { rounds: 'R 4 a 6', text: 'CatClan encadena tres rondas como CT y empata a 3.' },
     { rounds: 'R 7', text: 'team_miwel gana la última ronda eliminando al rival y cierra 4-3.' },
   ]);
-  assert.equal(matchStory(build(wins('aaaabbba')), NAMES)[2]?.text, 'team_miwel encadena tres rondas como T y recorta hasta el 3-4.');
+  assert.equal(matchStory(build(wins('aaaabbba')), FINISHED)[2]?.text, 'team_miwel encadena tres rondas como T y recorta hasta el 3-4.');
 });
 
 test('a last round won by the side that loses the match', () => {
-  assert.equal(matchStory(build(wins('bbbaa')), NAMES).at(-1)?.text, 'CatClan gana la última ronda eliminando al rival, pero team_miwel se lleva la partida 3-2.');
+  assert.equal(matchStory(build(wins('bbbaa')), FINISHED).at(-1)?.text, 'CatClan gana la última ronda eliminando al rival, pero team_miwel se lleva la partida 3-2.');
 });
 
 test('a last round with no winner tells no closing line', () => {
@@ -92,11 +93,11 @@ test('a last round with no winner tells no closing line', () => {
   const last = rounds.at(-1);
   assert.ok(last);
   rounds[rounds.length - 1] = { ...last, winnerSide: '', winnerTeamKey: '' };
-  assert.equal(matchStory(rounds, NAMES).some((fact) => fact.text.includes('última ronda')), false);
+  assert.equal(matchStory(rounds, FINISHED).some((fact) => fact.text.includes('última ronda')), false);
 });
 
 test('no rounds tell no story', () => {
-  assert.deepEqual(matchStory([], NAMES), []);
+  assert.deepEqual(matchStory([], FINISHED), []);
 });
 
 test('the history breaks at the half and before the overtime, with the score of each block', () => {
@@ -117,4 +118,12 @@ test('the history breaks at the half and before the overtime, with the score of 
 test('each team wins and plays its rounds on the side it held', () => {
   assert.deepEqual(sideRecord(INFERNO, 'ct-start'), { CT: { won: 6, played: 12 }, T: { won: 4, played: 11 } });
   assert.deepEqual(sideRecord(INFERNO, 't-start'), { T: { won: 6, played: 12 }, CT: { won: 7, played: 11 } });
+});
+
+test('a demo that stops before the match ends tells who leads, not who won', () => {
+  assert.equal(
+    matchStory(build(wins('bbbaa')), { names: NAMES, finished: false }).at(-1)?.text,
+    'CatClan gana la ronda 5 eliminando al rival y la demo termina con team_miwel por delante 3-2.',
+  );
+  assert.equal(matchStory(build(wins('ab')), { names: NAMES, finished: false }).at(-1)?.text, 'team_miwel gana la ronda 2 eliminando al rival y la demo termina con empate a 1.');
 });

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { MapPinned, Pencil, PlugZap, Swords } from 'lucide-react';
+import { MapPinned, Pencil, Swords } from 'lucide-react';
 import { getMapCallouts, type MapCallout, type MapCallouts } from '@/lib/api/callouts';
 import { isLibraryOffline } from '@/lib/api/library';
 import type { LibraryLineup } from '@/lib/api/lineups';
@@ -20,6 +20,7 @@ import { isMultiLevelMap } from '@/lib/tactical-transform';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyCell } from '@/components/ui/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,7 @@ import { RenameCalloutDialog } from './rename-callout-dialog';
 const MAP_PATTERN = /^[a-z0-9_]+$/;
 
 const NAMED_OPTIONS = [
-  { value: 'team', label: 'Con nombre del equipo' },
+  { value: 'team', label: 'Con nombre de tu equipo' },
   { value: 'cs2', label: 'Con el nombre de CS2' },
 ];
 
@@ -86,23 +87,13 @@ function MapCalloutsView({ map }: { map: string }): ReactNode {
   }
   if (load.kind === 'failed') {
     return (
-      <EmptyState
-        icon={PlugZap}
-        title={load.offline ? 'Servicio local sin conexión' : 'No se pudieron leer los callouts'}
-        description="Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setLoad({ kind: 'loading' });
-              setAttempt((n) => n + 1);
-            }}
-          >
-            Reintentar
-          </Button>
-        }
+      <LoadErrorState
+        kind={load.offline ? 'offline' : 'error'}
+        title="No se pudieron leer los callouts"
+        onRetry={() => {
+          setLoad({ kind: 'loading' });
+          setAttempt((n) => n + 1);
+        }}
       />
     );
   }
@@ -192,7 +183,7 @@ function calloutColumns({ multiLevel, onPick }: { multiLevel: boolean; onPick: (
     },
     {
       id: 'team',
-      header: 'Nombre del equipo',
+      header: 'Callout de tu equipo',
       cell: (callout) => callout.name ?? <EmptyCell label="Sin nombre propio" />,
       sortValue: (callout) => callout.name ?? '',
     },
@@ -254,7 +245,7 @@ function CalloutList({
             values={view.state.filters}
             onChange={view.setFilter}
             onReset={view.resetFilters}
-            searchPlaceholder="Buscar por nombre de CS2 o del equipo"
+            searchPlaceholder="Buscar por nombre de CS2 o de tu equipo"
             filters={[{ id: 'named', label: 'Nombre', options: NAMED_OPTIONS }]}
             count={{ shown: shown.length, total: callouts.length, noun: callouts.length === 1 ? 'callout' : 'callouts' }}
           />

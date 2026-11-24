@@ -14,10 +14,10 @@ import {
 } from '@/lib/api/lineups';
 import { CLICK_LABEL, MOVEMENT_LABEL, techniqueLabel } from '@/lib/libreta/lineups';
 import { Badge } from '@/components/ui/badge';
+import { Field } from '@/components/ui/field';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GRENADE_KIND_TOKEN } from '@/components/patterns/grenade-radar';
-import { Field } from './play-fields';
 
 export type LineupTechnique = Pick<LibraryLineup, 'movement' | 'jump' | 'click'>;
 
@@ -50,18 +50,20 @@ export function TechniqueText({ lineup }: { lineup: LineupTechnique & Pick<Libra
 export function GrenadeField({ value, onChange }: { value: TeamGrenadeKind; onChange: (kind: TeamGrenadeKind) => void }): ReactNode {
   return (
     <Field label="Granada">
-      <Select value={value} onValueChange={(next) => isLineupGrenade(next) && onChange(next)}>
-        <SelectTrigger aria-label="Granada" className="h-9 w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {TEAM_GRENADE_KINDS.map((kind) => (
-            <SelectItem key={kind} value={kind}>
-              {GRENADE_KIND_LABEL[kind]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {(control) => (
+        <Select value={value} onValueChange={(next) => isLineupGrenade(next) && onChange(next)}>
+          <SelectTrigger {...control} className="h-9 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TEAM_GRENADE_KINDS.map((kind) => (
+              <SelectItem key={kind} value={kind}>
+                {GRENADE_KIND_LABEL[kind]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </Field>
   );
 }
@@ -72,32 +74,36 @@ export function TechniqueFields({ value, onChange }: { value: LineupTechnique; o
     <div className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Movimiento">
-          <Select value={value.movement} onValueChange={(next) => isLineupMovement(next) && onChange({ ...value, movement: next })}>
-            <SelectTrigger aria-label="Movimiento" className="h-9 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LINEUP_MOVEMENTS.map((movement) => (
-                <SelectItem key={movement} value={movement}>
-                  {MOVEMENT_LABEL[movement]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {(control) => (
+            <Select value={value.movement} onValueChange={(next) => isLineupMovement(next) && onChange({ ...value, movement: next })}>
+              <SelectTrigger {...control} className="h-9 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LINEUP_MOVEMENTS.map((movement) => (
+                  <SelectItem key={movement} value={movement}>
+                    {MOVEMENT_LABEL[movement]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </Field>
         <Field label="Clic">
-          <Select value={value.click} onValueChange={(next) => isLineupClick(next) && onChange({ ...value, click: next })}>
-            <SelectTrigger aria-label="Clic" className="h-9 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LINEUP_CLICKS.map((click) => (
-                <SelectItem key={click} value={click}>
-                  {CLICK_LABEL[click]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {(control) => (
+            <Select value={value.click} onValueChange={(next) => isLineupClick(next) && onChange({ ...value, click: next })}>
+              <SelectTrigger {...control} className="h-9 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LINEUP_CLICKS.map((click) => (
+                  <SelectItem key={click} value={click}>
+                    {CLICK_LABEL[click]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </Field>
       </div>
       <label className="flex items-center gap-2 text-body-sm text-fg-1">

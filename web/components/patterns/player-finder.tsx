@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Flame, Layers, Map as MapIcon, PlugZap, X } from 'lucide-react';
+import { Flame, Layers, Map as MapIcon, X } from 'lucide-react';
 import { getSpatialHeatmap, getSpatialOverlay, type LibraryRosterEntry, type TeamCriterion, type TeamSpatialQuery } from '@/lib/api/library';
 import type { SpatialResponse } from '@/lib/api/spatial';
 import { RADAR_LEVELS, type RadarLevel } from '@/lib/api/tactical';
@@ -18,6 +18,7 @@ import { isMultiLevelMap } from '@/lib/tactical-transform';
 import { CAPS_LABEL } from '@/components/analysis/scope-field-style';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { TramoBar, useTramo } from '@/components/replay/tramo-bar';
 import type { TramoControl } from '@/lib/replay/tramo';
 import { HeatLegend } from '@/components/tactical/spatial/heat-legend';
@@ -199,16 +200,7 @@ export function PlayerFinder({ frame, teamId, scope, lineup, criteria, roster, t
   }
   if (overlay.kind === 'failed' || heat.kind === 'failed') {
     return (
-      <EmptyState
-        icon={PlugZap}
-        title="No se pudo leer el calor de los jugadores"
-        description="Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind="error" title="No se pudo leer el calor de los jugadores" onRetry={() => setAttempt((n) => n + 1)} />
     );
   }
   if (overlay.kind === 'loading') return <Skeleton role="status" aria-label="Leyendo las posiciones" className="aspect-square w-full max-w-[44rem]" />;

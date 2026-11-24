@@ -88,7 +88,7 @@ export function RoundTable(props: RoundTableProps): ReactNode {
             <th scope="col" className={HEAD}>Sitio</th>
             <th scope="col" className={HEAD}>Forma T · CT</th>
             {showSwing ? <th scope="col" className={HEAD}>La baja que más pesó</th> : null}
-            <th scope="col" className={cn(HEAD, 'pr-4 text-right')}>Abrir</th>
+            <th scope="col" className={cn(HEAD, 'sticky right-0 bg-surface-2 pr-4 text-right')}>Abrir</th>
           </tr>
         </thead>
         {halves.map((half) => (
@@ -120,7 +120,7 @@ function RoundTableRow({ row, table }: { row: RoundRow; table: RoundTableProps }
   const { onVideo } = table;
   const picked = onVideo !== undefined && table.picked.has(row.number);
   return (
-    <tr className={cn('border-t border-border-subtle hover:bg-surface-3', picked && 'bg-primary/8')}>
+    <tr className={cn('group/round border-t border-border-subtle hover:bg-surface-3', picked && 'bg-primary/8')}>
       {onVideo === undefined ? null : (
         <td className="py-1 pr-1 pl-4">
           <label className="grid size-8 cursor-pointer place-items-center">
@@ -157,7 +157,12 @@ function RoundTableRow({ row, table }: { row: RoundRow; table: RoundTableProps }
           <SwingCell row={row} table={table} />
         </td>
       )}
-      <td className="py-2 pr-4 pl-3">
+      <td
+        className={cn(
+          'sticky right-0 py-2 pr-4 pl-3 group-hover/round:bg-surface-3',
+          picked ? 'bg-[color-mix(in_oklab,var(--color-primary)_8%,var(--color-surface-2))]' : 'bg-surface-2',
+        )}
+      >
         <div className="flex justify-end gap-1">
           <Button asChild size="xs" variant="ghost">
             <Link

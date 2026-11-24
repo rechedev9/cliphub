@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Music } from 'lucide-react';
 import { api } from '@/lib/api';
+import { humanErrorText } from '@/lib/human-error';
 import type { Preset, Song, Video } from '@/lib/api/types';
 import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
 import {
@@ -119,7 +120,7 @@ export function LibraryMusicDialog({
       onOpenChange(false);
       onApplied();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo volver a montar el vídeo con la música.');
+      setError(humanErrorText({ error: err, lead: 'No se pudo volver a montar el vídeo con la música.' }));
     } finally {
       setBusy(false);
     }
@@ -214,7 +215,7 @@ export function LibraryMusicDialog({
 
         <Button
           type="button"
-          variant="hero"
+          variant="default"
           className="w-full"
           disabled={!ready}
           loading={busy}

@@ -60,7 +60,7 @@ export function ClockHistogram({
       </div>
       <div aria-hidden className="ml-5 flex gap-0.5 px-0.5">
         {buckets.map((bucket, index) => (
-          <span key={bucket.start} className={cn('min-w-0 flex-1 text-center text-[9px] tabular-nums text-fg-3', index % 2 === 1 && 'invisible')}>
+          <span key={bucket.start} className={cn('min-w-0 flex-1 text-center text-meta whitespace-nowrap tabular-nums text-fg-3', index % 2 === 1 && 'invisible')}>
             {roundClock(bucket.start)}
           </span>
         ))}

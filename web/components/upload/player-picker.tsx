@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowRight, Users } from 'lucide-react';
 import { toast } from 'sonner';
+import type { LibraryMatch } from '@/lib/api/library';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import type { FaceitScoreboard } from '@/lib/api/faceit-scoreboard';
 import { prettyMapName } from '@/lib/format';
 import { MAX_POV_PLAYERS, MIN_POV_PLAYERS, togglePovPick } from '@/lib/produce/multi-pov';
 import { pickablePlayers } from '@/lib/produce/picker-roster';
+import { pickerScore, pickerTeams, type PickerScoreSide } from '@/lib/produce/picker-teams';
 import { cn } from '@/lib/utils';
 import { FaceitRoster } from '@/components/upload/faceit-roster';
 import { RosterTeam, type PickerPlayer } from '@/components/upload/roster-team';
@@ -15,6 +17,7 @@ import { FORMAT_TONE, type FormatTone } from '@/components/studio/format-tone';
 import { StatusTag } from '@/components/studio/status-tag';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { Button } from '@/components/ui/button';
+import { ProduceBackButton } from '@/components/produce/produce-back-button';
 import { Segmented } from '@/components/ui/segmented';
 
 export type PlayerPickerProps = {
@@ -37,8 +40,9 @@ export type PlayerPickerProps = {
   onPickMany?: (steamIds: string[]) => void;
   /** The flow colour of the selection and the CTA; defaults from `purpose`. */
   tone?: FormatTone;
-  /** Players picked before, anchor first, selected on open instead of the recommendation. */
+  /** Players picked before for this demo, anchor first; without them nobody starts selected. */
   initialPick?: readonly string[] | null;
+  library?: LibraryMatch | null;
 };
 
 type PickMode = 'one' | 'team';
@@ -86,17 +90,18 @@ function SeriesSummary({ mapCount, playerCount }: { mapCount: number; playerCoun
   );
 }
 
-/** The match above the two sides: map, final score in the winner's colour, rounds played. */
-function MatchHeader({ match }: { match: RosterMatch }): ReactNode {
-  const tWon = match.scoreT > match.scoreCt;
-  const ctWon = match.scoreCt > match.scoreT;
+const SIDE_TEXT = { T: 'text-side-t', CT: 'text-side-ct', '': 'text-fg-1' } as const;
+
+/** The match above the two teams: map, final score in the winner's colour, rounds played. */
+function MatchHeader({ match, score }: { match: RosterMatch; score: readonly [PickerScoreSide, PickerScoreSide] }): ReactNode {
+  const [left, right] = score;
   return (
     <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-xl bg-surface-2 px-4 py-3">
       <span className="min-w-0 truncate font-display text-title font-extrabold text-fg-1">{prettyMapName(match.map)}</span>
-      <span role="img" aria-label={`Marcador ${match.scoreT} a ${match.scoreCt}`} className="text-title font-extrabold tabular-nums">
-        <span className={tWon ? 'text-side-t' : 'text-fg-3'}>{match.scoreT}</span>
+      <span role="img" aria-label={`Marcador ${left.score} a ${right.score}`} className="text-title font-extrabold tabular-nums">
+        <span className={left.score > right.score ? SIDE_TEXT[left.side] : 'text-fg-3'}>{left.score}</span>
         <span className="text-fg-3"> : </span>
-        <span className={ctWon ? 'text-side-ct' : 'text-fg-3'}>{match.scoreCt}</span>
+        <span className={right.score > left.score ? SIDE_TEXT[right.side] : 'text-fg-3'}>{right.score}</span>
       </span>
       <span className="text-meta text-fg-3">{match.rounds} rondas</span>
     </div>
@@ -116,22 +121,19 @@ export function PlayerPicker({
   onPickMany,
   tone = purpose === 'full-demo' ? 'full' : 'short',
   initialPick = null,
+  library = null,
 }: PlayerPickerProps): ReactNode {
   const players = useMemo(() => pickablePlayers(allPlayers), [allPlayers]);
   const recommended = purpose === 'full-demo' ? pickPovRecommended(players) : pickRecommended(players);
   const picked = (initialPick ?? []).flatMap((id) => players.find((p) => p.steamId === id) ?? []);
-  const [selected, setSelected] = useState<string | null>(picked[0]?.steamId ?? recommended?.steamId ?? players[0]?.steamId ?? null);
+  const [selected, setSelected] = useState<string | null>(picked[0]?.steamId ?? null);
   const [mode, setMode] = useState<PickMode>(picked.length > 1 && onPickMany !== undefined ? 'team' : 'one');
   const [team, setTeam] = useState<PickerPlayer[]>(picked.length > 1 ? picked.slice(0, MAX_POV_PLAYERS) : []);
 
   useEffect(() => {
-    setSelected((current) =>
-      current !== null && players.some((player) => player.steamId === current)
-        ? current
-        : (recommended?.steamId ?? players[0]?.steamId ?? null),
-    );
+    setSelected((current) => (current !== null && players.some((player) => player.steamId === current) ? current : null));
     setTeam((current) => current.filter((p) => players.some((player) => player.steamId === p.steamId)));
-  }, [players, recommended?.steamId]);
+  }, [players]);
   const isSeries = (seriesMapCount ?? 0) >= 2;
   const canPickMany = onPickMany !== undefined && !isSeries;
   const multi = canPickMany && mode === 'team';
@@ -177,6 +179,7 @@ export function PlayerPicker({
   let footLabel = 'Jugador elegido';
   let footName = 'Elige un jugador para continuar';
   let footHint: string | null = null;
+  const suggestion = !multi && selectedPlayer === undefined && recommended !== undefined ? recommended : null;
   if (multi) {
     footLabel = team.length > 0 ? `${team.length} ${team.length === 1 ? 'jugador' : 'jugadores'}` : 'Jugadores elegidos';
     footName = team.length > 0 ? team.map(nameOf).join(', ') : 'Elige de 2 a 5 jugadores del mismo equipo';
@@ -196,14 +199,8 @@ export function PlayerPicker({
   ) : null;
 
   const showMvp = players.some((p) => p.mvps > 0);
-  const sides: Array<DemoPlayer['team']> = ['T', 'CT', ''];
-  const groups = sides
-    .map((side) => ({ side, roster: players.filter((p) => p.team === side) }))
-    .filter((g) => g.roster.length > 0);
-  const sideScore = (side: DemoPlayer['team']): number | null => {
-    if (isSeries || !match || side === '') return null;
-    return side === 'T' ? match.scoreT : match.scoreCt;
-  };
+  const groups = pickerTeams({ players, match: isSeries ? null : (match ?? null), library: isSeries ? null : library });
+  const headerScore = isSeries || !match ? null : pickerScore({ match, library });
 
   return (
     <div className="flex flex-col gap-5">
@@ -225,15 +222,17 @@ export function PlayerPicker({
         />
       ) : null}
       {!faceitBoard && isSeries ? <SeriesSummary mapCount={seriesMapCount ?? 0} playerCount={players.length} /> : null}
-      {!faceitBoard && !isSeries && match ? <MatchHeader match={match} /> : null}
+      {!faceitBoard && match && headerScore ? <MatchHeader match={match} score={headerScore} /> : null}
       {faceitBoard ? null : (
         <div className="grid items-start gap-5 @[60rem]/content:grid-cols-2">
-          {groups.map(({ side, roster }) => (
+          {groups.map(({ key, side, name, startedAs, score, roster }) => (
             <RosterTeam
-              key={side || 'other'}
+              key={key}
               side={side}
+              name={name}
+              note={startedAs}
               roster={roster}
-              score={sideScore(side)}
+              score={side === '' ? null : score}
               tone={tone}
               chosen={chosen}
               recommendedId={recommended?.steamId}
@@ -255,15 +254,16 @@ export function PlayerPicker({
             {footName}
           </p>
           {footHint ? <span className="text-meta text-fg-3">{footHint}</span> : null}
+          {suggestion ? (
+            <Button type="button" variant="link" size="sm" className="h-auto self-start px-0 text-body-sm" onClick={() => choose(suggestion.steamId)}>
+              {recommendedLabel}: elegir a {nameOf(suggestion)}
+            </Button>
+          ) : null}
         </div>
         {footStats}
         <span aria-hidden className="hidden flex-1 @[48rem]/content:block" />
         <div className="flex flex-wrap items-center gap-2">
-          {onCancel !== undefined ? (
-            <Button type="button" variant="ghost" onClick={onCancel}>
-              Atrás
-            </Button>
-          ) : null}
+          {onCancel !== undefined ? <ProduceBackButton back={{ label: 'Atrás', onSelect: onCancel }} /> : null}
           {allowDestinationSwitch && purpose === 'highlights' && !isSeries && !multi ? (
             <Button
               type="button"

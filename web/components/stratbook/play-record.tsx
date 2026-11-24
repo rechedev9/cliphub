@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, BookMarked, Clapperboard, FileDown, Pencil, PlugZap, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookMarked, Clapperboard, FileDown, Pencil, Trash2 } from 'lucide-react';
 import {
   deleteLibraryPlay,
   getLibraryPlay,
@@ -16,25 +16,21 @@ import { STRATBOOK_FORMAT, STRATBOOK_VERSION, type LibraryPlay, type LibraryPlay
 import { LIBRETA_HREF, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { rivalOf, teamLabel } from '@/lib/library/partidas';
+import { loadErrorMessage } from '@/lib/load-error';
 import { groupEvidenceByMatch, type VideoSource } from '@/lib/library/analysis-video';
 import { dateText, evidencePath } from '@/lib/reports/scout-sections';
 import { PLAY_ORIGIN_LABEL, playSecondsLabel, playShapeLabel, stratbookFileName } from '@/lib/stratbook/plays';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
 import { EmptyCell } from '@/components/ui/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
+import { LoadErrorState } from '@/components/records/load-error-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
 import { currentEdition } from '@/lib/edition-routes';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Field } from '@/components/ui/field';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { EditPlayDialog } from '@/components/libreta/edit-play-dialog';
@@ -81,7 +77,7 @@ export function PlayRecord({ playId }: { playId: string }): ReactNode {
       <EmptyState
         icon={BookMarked}
         title="Jugada no encontrada"
-        description="Puede que se haya eliminado o que el enlace sea antiguo."
+        description="Puede que se haya borrado o que el enlace sea antiguo."
         actions={
           <Button asChild variant="outline" size="sm">
             <Link href={LIBRETA_HREF}>Ver la Libreta</Link>
@@ -92,16 +88,7 @@ export function PlayRecord({ playId }: { playId: string }): ReactNode {
   }
   if (state.kind === 'offline') {
     return (
-      <EmptyState
-        icon={PlugZap}
-        title="Servicio local sin conexión"
-        description="No se pudo leer la jugada. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={reload}>
-            Reintentar
-          </Button>
-        }
-      />
+      <LoadErrorState kind="offline" title="No se pudo leer la jugada" onRetry={reload} />
     );
   }
   return <PlayRecordView play={state.play} onChanged={reload} />;
@@ -119,7 +106,6 @@ function downloadJson(value: unknown, fileName: string): void {
 function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChanged: () => void }): ReactNode {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   /** The example rounds the video dialog offers; null while it is closed. */
   const [video, setVideo] = useState<{ sources: VideoSource[]; selected?: number[] } | null>(null);
   const canVideo = currentEdition() === 'desktop';
@@ -217,10 +203,23 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
               <FileDown aria-hidden />
               Exportar
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setDeleting(true)}>
-              <Trash2 aria-hidden />
-              Eliminar
-            </Button>
+            <ConfirmDialog
+              title={`¿Borrar «${play.title}»?`}
+              description="Se borra la jugada de la Libreta y no se puede deshacer. Las partidas y sus rondas siguen en la biblioteca."
+              confirmLabel="Borrar jugada"
+              pendingLabel="Borrando…"
+              onConfirm={() =>
+                deleteLibraryPlay(play.id)
+                  .then(() => router.push(LIBRETA_HREF))
+                  .catch((error: unknown) => setMessage(loadErrorMessage({ error, lead: 'No se pudo borrar la jugada.' })))
+              }
+              trigger={
+                <Button type="button" variant="ghost" size="sm">
+                  <Trash2 aria-hidden />
+                  Borrar
+                </Button>
+              }
+            />
             <Button asChild variant="ghost" size="sm">
               <Link href={LIBRETA_HREF}>
                 <ArrowLeft aria-hidden />
@@ -307,33 +306,6 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
           onClose={() => setVideo(null)}
         />
       ) : null}
-      <Dialog open={deleting} onOpenChange={setDeleting}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Eliminar {play.title}</DialogTitle>
-            <DialogDescription>Se borra la jugada de la Libreta. Las partidas y sus rondas siguen en la biblioteca.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleting(false)}>
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => {
-                deleteLibraryPlay(play.id)
-                  .then(() => router.push(LIBRETA_HREF))
-                  .catch(() => {
-                    setDeleting(false);
-                    setMessage('No se pudo eliminar la jugada.');
-                  });
-              }}
-            >
-              Eliminar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -350,8 +322,8 @@ function PlayNotes({ play, onSaved }: { play: LibraryPlayDetail; onSaved: () => 
     try {
       await patchLibraryPlay(play.id, { notes });
       onSaved();
-    } catch {
-      setError('No se pudieron guardar las notas.');
+    } catch (cause: unknown) {
+      setError(loadErrorMessage({ error: cause, lead: 'No se pudieron guardar las notas.' }));
     } finally {
       setBusy(false);
     }
@@ -359,15 +331,9 @@ function PlayNotes({ play, onSaved }: { play: LibraryPlayDetail; onSaved: () => 
 
   return (
     <form onSubmit={(event) => void save(event)} className="flex max-w-3xl flex-col gap-2">
-      <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-        Notas
-        <Textarea
-          value={notes}
-          maxLength={4000}
-          rows={4}
-          onChange={(event) => setNotes(event.target.value)}
-        />
-      </label>
+      <Field label="Notas">
+        {(control) => <Textarea {...control} value={notes} maxLength={4000} rows={4} onChange={(event) => setNotes(event.target.value)} />}
+      </Field>
       {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
       <div>
         <Button type="submit" size="sm" disabled={busy || notes.trim() === play.notes.trim()}>

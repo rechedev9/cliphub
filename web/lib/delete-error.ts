@@ -1,11 +1,6 @@
 import { SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
+import { offlineMessage } from './load-error.ts';
 import { countOf, type CountNoun } from './records/selection.ts';
-
-/**
- * Shown inline near a Partidas row when a delete fails because the local
- * analysis service is unreachable, matching the page's "offline" hint copy.
- */
-export const DELETE_OFFLINE_MESSAGE = 'Servicio de análisis local desconectado. Arráncalo y reintenta.';
 
 /** Fallback when the error carries no usable message (unexpected transport failure). */
 export const DELETE_GENERIC_MESSAGE = 'No se pudo borrar. Inténtalo de nuevo.';
@@ -39,7 +34,7 @@ const BODYLESS_ERROR_RE = /^request failed \(\d+\)$/;
  */
 export function deleteErrorMessage(err: unknown): string {
   const e = err as { code?: unknown; message?: unknown } | null;
-  if (e?.code === SERVICE_UNAVAILABLE_CODE) return DELETE_OFFLINE_MESSAGE;
+  if (e?.code === SERVICE_UNAVAILABLE_CODE) return offlineMessage();
   if (e?.code === GENERATE_WORK_ACTIVE_CODE) return DELETE_RENDER_BUSY_MESSAGE;
   if (typeof e?.message !== 'string' || e.message.trim() === '') return DELETE_GENERIC_MESSAGE;
   if (STREAM_BUSY_RE.test(e.message)) return DELETE_STREAM_BUSY_MESSAGE;
