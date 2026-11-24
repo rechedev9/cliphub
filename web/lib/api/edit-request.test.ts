@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildEditRequest } from './edit-request.ts';
 import { constrainEditConfig } from '../reel-brief.ts';
 import type { EditConfig } from './types.ts';
 import { FULL_DEMO_EDIT } from '../full-demo.ts';
 import { parseEffectiveEditConfig } from './render-hydration.ts';
 import { coerceEditConfig } from './reel-store.ts';
+import { isFullDemoSnapshot } from '../full-demo-plan.ts';
 
 function edit(overrides: Partial<EditConfig> = {}): EditConfig {
   return {
@@ -189,4 +191,7 @@ test('an English Short sends overlay_language en, a Spanish one keeps it off the
   assert.equal(parseEffectiveEditConfig({ ...english, overlay_language: 'de' })?.overlayLanguage, undefined);
   assert.equal(coerceEditConfig(JSON.parse('{"format":"short-9x16","overlayLanguage":"en"}')).overlayLanguage, 'en');
   assert.equal(coerceEditConfig(JSON.parse('{"format":"short-9x16","overlayLanguage":"fr"}')).overlayLanguage, undefined);
+  const snapshot: unknown = JSON.parse(readFileSync(new URL('../full-demo-plan.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoSnapshot(snapshot));
+  assert.equal('overlay_language' in buildEditRequest({ ...FULL_DEMO_EDIT, fullDemo: snapshot, overlayLanguage: 'en' }), false);
 });

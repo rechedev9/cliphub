@@ -202,7 +202,7 @@ export function reelCreativeBrief(
     { label: 'Título / contador', value: `${edit.hookText ? 'Título automático' : 'Sin título automático'} · ${edit.killCounter ? 'Contador de kills' : 'Sin contador'}` },
     { label: 'Insignias / tarjeta', value: `${edit.playBadges ? 'Insignias de jugada' : 'Sin insignias'} · ${closingCardLabel(edit)}` },
     { label: 'Probabilidad de victoria', value: edit.winProbability ? 'Tras el plantado' : 'No' },
-    { label: 'Idioma de los textos', value: OVERLAY_LANGUAGE_LABEL[edit.overlayLanguage ?? 'es'] },
+    ...(edit.fullDemo ? [] : [{ label: 'Idioma de los textos', value: OVERLAY_LANGUAGE_LABEL[edit.overlayLanguage ?? 'es'] }]),
     { label: 'Repetición', value: victimReplayLabel(edit) },
     { label: 'Sobre el juego', value: worldOverlayLabel(edit) },
     { label: 'Radar', value: radarBriefLabel(edit) },
