@@ -97,7 +97,7 @@
       "rules": {
         "no-restricted-imports": [
           "error",
-          { "patterns": [{ "group": ["@/components/**", "!@/components/ui/**", "../**"], "message": "components/ui depends only on ui and lib: move the generic part into ui or lib, or take it as a prop." }] }
+          { "patterns": [{ "group": ["@/components/**", "!@/components/ui/**", "../**"], "message": "components/ui never imports a feature folder: move the generic part into ui, hooks or lib, or take it as a prop." }] }
         ]
       }
     },

@@ -68,6 +68,10 @@ func (w *TimelineRenderWorker) fail(ctx context.Context, payload tasks.RenderTim
 		if updErr := w.repo.UpdateStatus(ctx, payload.ProjectID, timelineplan.StatusFailed, cause.Error()); updErr != nil {
 			return fmt.Errorf("render timeline: %w (also failed to read render state: %v; and to mark failed: %v)", cause, err, updErr)
 		}
+		healed := timelineplan.RenderState{ProjectID: payload.ProjectID, Fingerprint: payload.Fingerprint}
+		if writeErr := w.writeState(healed.Fail(cause.Error(), time.Now().UTC())); writeErr != nil {
+			return fmt.Errorf("render timeline: %w (also failed to read render state: %v; and to rewrite it: %v)", cause, err, writeErr)
+		}
 		return fmt.Errorf("render timeline: %w (also failed to read render state: %v)", cause, err)
 	}
 	if !owned {

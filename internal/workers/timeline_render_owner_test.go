@@ -226,4 +226,7 @@ func TestTimelineRenderFailureWithUnreadableStateStillFailsTheProject(t *testing
 	if status := f.projectStatus(t); status != timelineplan.StatusFailed {
 		t.Fatalf("project status = %s, want failed", status)
 	}
+	if got := f.state(t); got.Status != timelineplan.StatusFailed || got.ProjectID != f.projectID {
+		t.Fatalf("state after unreadable read = %+v, want a failed state for the project", got)
+	}
 }

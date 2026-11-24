@@ -64,11 +64,6 @@ func (h *Handlers) DeleteStreamJob(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DeleteStreamVideo handles DELETE /api/stream-jobs/{id}/renders/{variant}/videos/{clip_id}:
-// it removes one published stream clip (its MP4 and its upload-ready copy).
-// The state drops the clip before the result, and startup reconciliation keeps a
-// state that lists a subset of its result, so a cut write never hides the rest.
-// The last clip takes the whole render. Idempotent: a clip already gone answers 204.
 func (h *Handlers) DeleteStreamVideo(w http.ResponseWriter, r *http.Request) {
 	release := h.lockStreamJobRequest(r)
 	defer release()
@@ -159,8 +154,13 @@ func (h *Handlers) finishCutStreamVideoDelete(w http.ResponseWriter, state strea
 		internalError(w, "write published stream result", err)
 		return
 	}
-	if deleter, ok := h.storage.(renderArtifactDeleter); ok && path.Dir(key) == path.Join(state.ArtifactDir, "videos") {
-		if err := deleter.Delete(key); err != nil {
+	deleter, ok := h.storage.(renderArtifactDeleter)
+	if !ok || state.ArtifactDir == "" || path.Dir(key) != path.Join(state.ArtifactDir, "videos") {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	for _, orphan := range []string{key, path.Join(state.ArtifactDir, "shortslistosparasubir", clipID+".mp4")} {
+		if err := deleter.Delete(orphan); err != nil {
 			internalError(w, "delete stream video", err)
 			return
 		}

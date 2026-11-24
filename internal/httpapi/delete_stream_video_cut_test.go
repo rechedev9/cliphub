@@ -115,8 +115,10 @@ func TestDeleteStreamVideoCutBeforeResultWriteKeepsRemainingClips(t *testing.T) 
 	if err != nil || !found || len(finished.Clips) != 2 {
 		t.Fatalf("result after retried delete = %+v found=%v err=%v", finished.Clips, found, err)
 	}
-	if exists, err := local.Exists(videos[1].Key); err != nil || exists {
-		t.Fatalf("dropped clip file exists=%v err=%v after retried delete", exists, err)
+	for _, key := range []string{videos[1].Key, delivery[1].Key} {
+		if exists, err := local.Exists(key); err != nil || exists {
+			t.Fatalf("dropped clip file %s exists=%v err=%v after retried delete", key, exists, err)
+		}
 	}
 }
 

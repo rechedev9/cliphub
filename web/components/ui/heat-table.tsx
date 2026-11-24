@@ -28,7 +28,6 @@ export type HeatCell = {
   readonly n?: number;
   readonly href?: string;
   readonly tone?: 'ct' | 't';
-  /** A picture the cell leads with, such as a map's radar thumbnail. */
   readonly lead?: ReactNode;
   /** A weapon or grenade: the cell leads with its silhouette. */
   readonly icon?: EquipmentIconName | null;

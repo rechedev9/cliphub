@@ -584,7 +584,7 @@
   "components/ui/dropdown-menu.tsx": 6,
   "components/ui/equipment-icon.tsx": 6,
   "components/ui/field.tsx": 5,
-  "components/ui/heat-table.tsx": 27,
+  "components/ui/heat-table.tsx": 26,
   "components/ui/input.tsx": 4,
   "components/ui/line-chart.tsx": 21,
   "components/ui/popover.tsx": 1,

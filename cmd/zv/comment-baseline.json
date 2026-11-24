@@ -471,7 +471,7 @@
   "internal/httpapi/clipmind_sync_handlers.go": 10,
   "internal/httpapi/community.go": 11,
   "internal/httpapi/conditional_json.go": 3,
-  "internal/httpapi/delete_handlers.go": 34,
+  "internal/httpapi/delete_handlers.go": 29,
   "internal/httpapi/delete_handlers_test.go": 5,
   "internal/httpapi/demo_admission.go": 18,
   "internal/httpapi/edition_routes.go": 5,
