@@ -65,7 +65,7 @@ func winProbWindows(short ShortEdit) []winProbWindow {
 	return out
 }
 
-// generatedWinProbEffects draws "PROB. DE VICTORIA" over a CT and a T plate, under the kill feed lane.
+// generatedWinProbEffects draws the win chance label over a CT and a T plate, under the kill feed lane.
 func generatedWinProbEffects(short ShortEdit) []Effect {
 	if len(short.Overlays.WinProbability) == 0 || short.FullDemo != nil {
 		return nil
@@ -83,6 +83,7 @@ func generatedWinProbEffects(short ShortEdit) []Effect {
 		ceiling = cardStart
 	}
 	var effects []Effect
+	phrases := overlayTexts(short.Overlays.Language)
 	for _, window := range winProbWindows(short) {
 		for i, cue := range short.Overlays.WinProbability[window.segmentID] {
 			start := max(window.offset+cue.StartSeconds, window.offset, floor)
@@ -104,12 +105,12 @@ func generatedWinProbEffects(short ShortEdit) []Effect {
 			}
 			effects = append(effects,
 				Effect{
-					Type: EffectText, Value: "PROB. DE VICTORIA", X: "(w-text_w)/2", Y: "h*0.24", Size: labelSize,
+					Type: EffectText, Value: phrases.winProbability, X: "(w-text_w)/2", Y: "h*0.24", Size: labelSize,
 					FontColor: "white@0.96", BoxColor: "none", ShadowColor: "black@0.85", ShadowX: 2, ShadowY: 2, Bold: true,
 					StartSeconds: start, EndSeconds: end, FadeInSeconds: fade, Source: "win-probability",
 				},
-				plate(fmt.Sprintf("CT %d %%", cue.CTPct), "w/2-24-text_w", "white", winProbCTBox),
-				plate(fmt.Sprintf("%d %% T", 100-cue.CTPct), "w/2+24", "black", winProbTBox),
+				plate(fmt.Sprintf(phrases.ctPlate, cue.CTPct), "w/2-24-text_w", "white", winProbCTBox),
+				plate(fmt.Sprintf(phrases.tPlate, 100-cue.CTPct), "w/2+24", "black", winProbTBox),
 			)
 		}
 	}

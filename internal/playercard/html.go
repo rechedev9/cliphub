@@ -10,8 +10,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/mediafont"
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 )
 
 //go:embed templates/*.html
@@ -19,9 +19,6 @@ var templates embed.FS
 
 // maxImageBytes bounds the player image inlined into a page; uploads are already capped at 10 MB.
 const maxImageBytes = 10 << 20
-
-// roleLabels names the library roles on a card; a role without a label is left out.
-var roleLabels = map[string]string{library.RoleAWP: "AWPER", library.RoleEntry: "ENTRY", library.RoleSupport: "SOPORTE", library.RoleRifler: "RIFLER"}
 
 type stat struct{ Label, Value string }
 
@@ -32,6 +29,7 @@ type fontFace struct {
 }
 
 type view struct {
+	Text                       cardText
 	Fonts                      []fontFace
 	Name, Team, Role, Initials string
 	Image                      template.URL
@@ -41,25 +39,32 @@ type view struct {
 	Best                       *stat
 }
 
+type Page struct {
+	Template string
+	Card     Card
+	Image    []byte
+	Language overlaylang.Language
+}
+
 // HTML is the page the overlay renderer draws for one template: the card over a
 // transparent 1080x1920 frame, with every font and the image inlined.
-func HTML(templateID string, card Card, image []byte) ([]byte, error) {
-	if _, ok := Lookup(templateID); !ok {
-		return nil, fmt.Errorf("unknown player card template %q", templateID)
+func HTML(page Page) ([]byte, error) {
+	if _, ok := Lookup(page.Template); !ok {
+		return nil, fmt.Errorf("unknown player card template %q", page.Template)
 	}
-	v, err := newView(card, image)
+	v, err := newView(page)
 	if err != nil {
 		return nil, err
 	}
-	switch templateID {
+	switch page.Template {
 	case "carta":
-		v.Stats = matchStats(card, "K/D", "ADR", "KAST", "HS", "ENTRADAS", "UTILIDAD")
+		v.Stats = v.Text.matchStats(page.Card, statKD, statADR, statKAST, statHS, statEntries, statUtility)
 	case "ficha":
-		v.Stats = firstStats(matchStats(card, "RATING CLIPHUB", "K/D", "ADR", "KAST", "HS"), 3)
+		v.Stats = firstStats(v.Text.matchStats(page.Card, statRating, statKD, statADR, statKAST, statHS), 3)
 	case "mvp":
-		v.Best = bestStat(card)
+		v.Best = v.Text.bestStat(page.Card)
 	}
-	t, err := template.ParseFS(templates, "templates/page.html", "templates/"+templateID+".html")
+	t, err := template.ParseFS(templates, "templates/page.html", "templates/"+page.Template+".html")
 	if err != nil {
 		return nil, err
 	}
@@ -70,12 +75,13 @@ func HTML(templateID string, card Card, image []byte) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-func newView(card Card, image []byte) (view, error) {
+func newView(page Page) (view, error) {
 	faces, err := mediafont.HUDFaces()
 	if err != nil {
 		return view{}, err
 	}
-	v := view{Name: strings.TrimSpace(card.Name), Team: strings.TrimSpace(card.Team), Role: roleLabels[card.Role], Initials: initials(card.Name), Image: imageURL(image)}
+	card, text := page.Card, cardTexts(page.Language)
+	v := view{Text: text, Name: strings.TrimSpace(card.Name), Team: strings.TrimSpace(card.Team), Role: text.roles[card.Role], Initials: initials(card.Name), Image: imageURL(page.Image)}
 	for _, face := range faces {
 		family := "Card Sans"
 		if face.Weight >= 800 {
@@ -95,11 +101,11 @@ func newView(card Card, image []byte) (view, error) {
 		}
 	}
 	if r := card.Result; r != nil {
-		v.Result, v.Outcome = fmt.Sprintf("EMPATE %d-%d", r.Own, r.Rival), "tied"
+		v.Result, v.Outcome = fmt.Sprintf(text.tied, r.Own, r.Rival), "tied"
 		if r.Own > r.Rival {
-			v.Result, v.Outcome = fmt.Sprintf("VICTORIA %d-%d", r.Own, r.Rival), "won"
+			v.Result, v.Outcome = fmt.Sprintf(text.won, r.Own, r.Rival), "won"
 		} else if r.Own < r.Rival {
-			v.Result, v.Outcome = fmt.Sprintf("DERROTA %d-%d", r.Own, r.Rival), "lost"
+			v.Result, v.Outcome = fmt.Sprintf(text.lost, r.Own, r.Rival), "lost"
 		}
 	}
 	v.Map = strings.ToUpper(strings.TrimPrefix(strings.TrimSpace(card.Map), "de_"))
@@ -132,17 +138,6 @@ func initials(name string) string {
 		return "?"
 	}
 	return strings.ToUpper(string(out))
-}
-
-// matchStats lists the card's figures under the given labels, in that order; an unknown one is left out.
-func matchStats(card Card, labels ...string) []stat {
-	var out []stat
-	for _, label := range labels {
-		if f, ok := figureOf(card, label); ok {
-			out = append(out, stat{Label: label, Value: f.text})
-		}
-	}
-	return out
 }
 
 func firstStats(stats []stat, n int) []stat {

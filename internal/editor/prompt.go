@@ -69,7 +69,7 @@ func GenerateCoverPrompt(short ShortEdit) string {
 	sb.WriteString("Text direction:\n")
 	headline := short.Headline
 	if headline == "" {
-		headline = premiumHeadline(short.Map, short.KillCount, short.PrimaryWeapon)
+		headline = overlayTexts(short.Overlays.Language).headline(headlineFacts{mapName: short.Map, kills: short.KillCount, weapon: short.PrimaryWeapon})
 	}
 	sb.WriteString(fmt.Sprintf("If text is used, place this exact play description at the top: \"%s\". Use \"%s\" only as a small player tag. Do not invent extra names or stats.\n\n", headline, short.Player))
 	sb.WriteString("Avoid:\n")

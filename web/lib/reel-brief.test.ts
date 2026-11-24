@@ -63,6 +63,7 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Título / contador', value: 'Título automático · Contador de kills' },
     { label: 'Insignias / tarjeta', value: 'Sin insignias · Sin tarjeta' },
     { label: 'Probabilidad de victoria', value: 'No' },
+    { label: 'Idioma de los textos', value: 'Español' },
     { label: 'Repetición', value: 'No' },
     { label: 'Sobre el juego', value: 'No' },
     { label: 'Radar', value: 'No' },

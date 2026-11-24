@@ -145,6 +145,7 @@ type shortOptionsOut struct {
 	PreRoll           []shortOption `json:"pre_roll" jsonschema:"values for pre_roll_seconds: how long before its first kill each play starts"`
 	CaptureHUD        []shortOption `json:"capture_hud" jsonschema:"values for capture_hud, the capture style of a landscape-16x9 video"`
 	PlayerCards       []shortOption `json:"player_cards" jsonschema:"player card templates for opening_card, end_card and cover_card (one-player short-9x16 only); get_player_card tells whether a job can carry them"`
+	OverlayLanguage   []shortOption `json:"overlay_language" jsonschema:"values for overlay_language, the language of the text the Short burns in"`
 }
 
 // shortChoices are the optional edit fields of generate_short. Unset fields keep the product defaults.
@@ -191,6 +192,7 @@ type shortChoices struct {
 	PreRollSeconds    *int     `json:"pre_roll_seconds,omitempty" jsonschema:"seconds each play starts before its first kill: 3, 5 or 8 (list_short_options pre_roll); two plays of one round that then overlap become one, named by the first id; one player only, not for death reels; default 3, the Short; the 16:9 summary of one player uses 5"`
 	CaptureHUD        string   `json:"capture_hud,omitempty" jsonschema:"capture style of a landscape-16x9 video (list_short_options capture_hud): gameplay (HUD completo), deathnotices (Killfeed) or clean (POV limpio); not with native_hud; default the HUD of the preset"`
 	playerCardChoices
+	OverlayLanguage string `json:"overlay_language,omitempty" jsonschema:"language of every text the video burns in: the hook and opening headline, play badges, win probability, stats card, player cards and vertical HUD; es or en from list_short_options overlay_language; custom intro_text and outro_text stay as written; default es"`
 	// PortraitSafeKillfeed is copied from horizontal_draft; it describes the Short, not a style to pick.
 	PortraitSafeKillfeed *bool `json:"portrait_safe_killfeed,omitempty" jsonschema:"landscape-16x9 made from a Short (horizontal_draft): record CS2's kill feed where the Short's 9:16 crop kept it, so the Short's recorded plays are reused; not with capture_hud clean; default false"`
 	subtitleChoices
@@ -215,7 +217,8 @@ func registerShortOptions(server *mcp.Server, s *studio) {
 			}
 			return nil, shortOptionsOut{Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions,
 				Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies, VerticalHUDThemes: verticalHUDThemes(),
-				RadarPositions: radarPositionOptions, RadarSizes: radarSizeOptions, PreRoll: preRollOptions, CaptureHUD: captureHUDOptions, PlayerCards: playerCardOptions()}, nil
+				RadarPositions: radarPositionOptions, RadarSizes: radarSizeOptions, PreRoll: preRollOptions, CaptureHUD: captureHUDOptions, PlayerCards: playerCardOptions(),
+				OverlayLanguage: overlayLanguageOptions}, nil
 		})
 
 	// Only the Short picker app plays previews; MCP Apps hosts hide app-only tools from the model.
@@ -349,6 +352,9 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 		return edit, err
 	}
 	if err := resolvePlayerCards(&edit, c); err != nil {
+		return edit, err
+	}
+	if err := resolveOverlayLanguage(&edit, c.OverlayLanguage); err != nil {
 		return edit, err
 	}
 	edit.BrandWatermark, edit.BrandBanner = orDefault(c.BrandWatermark, false), orDefault(c.BrandBanner, false)
@@ -501,7 +507,7 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	if e.VerticalHUD && e.VerticalHUDTheme != "" {
 		out += ", diseño del HUD vertical " + e.VerticalHUDTheme
 	}
-	out += describeRadar(e) + describeSummaryChoices(e) + describePlayerCards(e) + describeSubtitles(e.Subtitles, len(e.SubtitlesHidden))
+	out += describeRadar(e) + describeSummaryChoices(e) + describePlayerCards(e) + describeSubtitles(e.Subtitles, len(e.SubtitlesHidden)) + describeOverlayLanguage(e)
 	if e.IntroText != "" {
 		out += fmt.Sprintf(", apertura «%s»", e.IntroText)
 	}

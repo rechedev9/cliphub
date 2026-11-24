@@ -24,6 +24,7 @@ import (
 // Paths live here only; approved/effective documents contain immutable refs.
 type FullDemoExecution struct {
 	HUDTelemetry  *FullDemoLocalHUD    `json:"hud_telemetry,omitempty"`
+	Radar         *FullDemoLocalRadar  `json:"radar,omitempty"`
 	SchemaVersion string               `json:"schema_version"`
 	Approved      recapplan.Snapshot   `json:"approved"`
 	Assets        []FullDemoLocalMedia `json:"assets"`
@@ -91,6 +92,7 @@ type FullDemoRenderEvidence struct {
 
 type fullDemoRenderContext struct {
 	hud            *customhud.Timeline
+	radar          *fullDemoRadar
 	execution      FullDemoExecution
 	recording      recording.RecordingResult
 	ffmpeg         string
@@ -142,6 +144,11 @@ func readFullDemoExecution(ctx context.Context, path, outDir, publishDir string)
 	} else if execution.HUDTelemetry != nil {
 		return nil, fmt.Errorf("native HUD execution must not carry custom telemetry")
 	}
+	radarInputs, err := verifyFullDemoRadar(ctx, execution)
+	if err != nil {
+		return nil, err
+	}
+	inputs = append(inputs, radarInputs...)
 	seen := map[string]bool{}
 	for _, media := range execution.Assets {
 		if !slices.Contains(refs, media.Ref) || seen[media.Ref.ID] {
@@ -321,6 +328,16 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 		}
 		short.fullDemo.hud = &hud
 		evidence.HUD = &FullDemoHUDEvidence{RendererVersion: customhud.Version, Theme: d.Options.Overlays.HUDTheme, DemoSHA256: hud.DemoSHA256, TelemetrySHA256: execution.HUDTelemetry.SHA256, SnapshotCount: len(hud.Snapshots)}
+	}
+	if d.Options.Capture.ClipHubRadar {
+		if execution.Radar == nil {
+			return fmt.Errorf("ClipHub radar requires radar tracks")
+		}
+		radar, err := loadFullDemoRadar(*execution.Radar, d)
+		if err != nil {
+			return err
+		}
+		short.fullDemo.radar = radar
 	}
 	short.DurationSeconds = float64(effective.Timeline[len(effective.Timeline)-1].EndFrame) / recapplan.OutputFPS
 	short.AudioNormalize = false

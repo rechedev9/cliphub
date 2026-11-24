@@ -1,9 +1,9 @@
 {{define "page"}}<!doctype html>
-<html lang="es">
+<html lang="{{.Text.Lang}}">
 <head>
 <meta charset="utf-8"/>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'none'"/>
-<title>Carta de jugador</title>
+<title>{{.Text.Title}}</title>
 <style>
 {{range .Fonts}}@font-face{font-family:'{{.Family}}';src:url('{{.URL}}') format('truetype');font-weight:{{.Weight}};font-display:block}
 {{end}}*{box-sizing:border-box}html,body{width:1080px;height:1920px;margin:0;overflow:hidden;background:transparent}
@@ -25,4 +25,4 @@ body{font-family:'Card Sans',Arial,sans-serif;color:#F5F7FB;-webkit-font-smoothi
 <body>{{template "card" .}}</body>
 </html>{{end}}
 {{define "portrait"}}{{if .Image}}<img class="photo" src="{{.Image}}" alt=""/>{{else}}<div class="initials">{{.Initials}}</div>{{end}}{{end}}
-{{define "faceit"}}{{if or .Level .ELO}}<div class="faceit">{{if .Level}}<span>NIVEL {{.Level}}</span>{{end}}{{if .ELO}}<span>{{.ELO}} ELO</span>{{end}}</div>{{end}}{{end}}
+{{define "faceit"}}{{if or .Level .ELO}}<div class="faceit">{{if .Level}}<span>{{.Text.Level}} {{.Level}}</span>{{end}}{{if .ELO}}<span>{{.ELO}} ELO</span>{{end}}</div>{{end}}{{end}}

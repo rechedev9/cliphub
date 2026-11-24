@@ -20,6 +20,7 @@ func TestChooseHUDLeavesValidOptionsForEveryDesign(t *testing.T) {
 				t.Fatalf("choose %q: %v", from, err)
 			}
 			o.Overlays.HUDPortrait = &portrait
+			o.Capture.ClipHubRadar = from != ""
 			if err := o.ChooseHUD(to); err != nil {
 				t.Fatalf("choose %q after %q: %v", to, from, err)
 			}

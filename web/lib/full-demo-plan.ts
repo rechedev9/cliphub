@@ -98,8 +98,9 @@ const optionsShape = object({
     crosshair: object({ mode: oneOf('observed', 'provided-code'), code: string, allow_capture_default: boolean }),
     // Go omits it when off, so only a present key can mean TrueView.
     trueview: boolean,
+    cliphub_radar: boolean,
     pro_settings: proSettings,
-  }, ['trueview', 'pro_settings']),
+  }, ['trueview', 'cliphub_radar', 'pro_settings']),
   editorial: object({
     freeze_seconds: number(0, 20), keep_freeze_voice: boolean, voice_context_seconds: number(0, 3), max_freeze_seconds: number(0, 60),
     death_tail_seconds: number(0, 3), round_tail_seconds: number(0, 2), allow_safe_tail_trim: boolean,
@@ -154,7 +155,7 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
   // the player's own CS2 HUD; any other missing theme gets the default one.
   const nativeHud = !fixed.overlays.hud_theme && (fixed.capture.hud_profile === NATIVE_HUD_CAPTURE_PROFILE || fixed.capture.hud_profile === 'native');
   const hudTheme = nativeHud ? undefined : fixed.overlays.hud_theme ?? CUSTOM_HUD_THEMES[0]?.id;
-  const { trueview, pro_settings: proSettings, ...capture } = fixed.capture;
+  const { trueview, cliphub_radar: cliphubRadar, pro_settings: proSettings, ...capture } = fixed.capture;
   // Go's `omitempty` leaves retired image fields out of persisted plans. Do
   // the same here so an already-approved document does not become dirty just
   // because the old screenshot option disappeared from the form.
@@ -167,6 +168,7 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
       hud_profile: nativeHud ? NATIVE_HUD_CAPTURE_PROFILE : CUSTOM_HUD_CAPTURE_PROFILE,
       crosshair: { ...fixed.capture.crosshair, mode: 'observed', code: '', allow_capture_default: false },
       ...(trueview ? { trueview: true } : {}),
+      ...(cliphubRadar && !nativeHud ? { cliphub_radar: true } : {}),
       // Go omits it when no pro is chosen; an empty id never goes on the wire.
       ...(proSettings?.player_id ? { pro_settings: proSettings } : {}),
     },

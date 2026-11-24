@@ -32,7 +32,7 @@ var oversizedGoFiles = map[string]int{
 	"internal/editor/effects_test.go":                      1173,
 	"internal/editor/filter.go":                            1019,
 	"internal/editor/killfeed_probe_test.go":               1028,
-	"internal/editor/manifest.go":                          1190,
+	"internal/editor/manifest.go":                          1160,
 	"internal/editor/manifest_test.go":                     1372,
 	"internal/faceit/index.go":                             1097,
 	"internal/httpapi/handlers.go":                         2420,

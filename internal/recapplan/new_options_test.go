@@ -217,3 +217,30 @@ func TestCustomHUDIsOptionalAndTrueViewIsACaptureChoice(t *testing.T) {
 		}
 	}
 }
+
+func TestClipHubRadarIsACustomHUDCaptureChoice(t *testing.T) {
+	custom := DefaultOptions()
+	off, err := json.Marshal(custom.Capture)
+	if err != nil || strings.Contains(string(off), "cliphub_radar") {
+		t.Fatalf("ClipHub radar off must keep the historical wire: %s %v", off, err)
+	}
+	radar := custom
+	radar.Capture.ClipHubRadar = true
+	canonical, err := CanonicalNewOptions(radar)
+	if err != nil || !canonical.Capture.ClipHubRadar {
+		t.Fatalf("ClipHub radar choice was dropped: %+v %v", canonical.Capture, err)
+	}
+	if err := canonical.Validate(); err != nil {
+		t.Fatalf("ClipHub radar with the custom HUD must be admitted: %v", err)
+	}
+	for _, profile := range []string{NativeHUDProfile, customhud.LegacyCaptureProfile} {
+		other := canonical
+		other.Capture.HUDProfile = profile
+		if profile == NativeHUDProfile {
+			other.Overlays.HUDTheme = ""
+		}
+		if err := other.Validate(); err == nil || !strings.Contains(err.Error(), "ClipHub radar") {
+			t.Fatalf("ClipHub radar with %s was admitted: %v", profile, err)
+		}
+	}
+}

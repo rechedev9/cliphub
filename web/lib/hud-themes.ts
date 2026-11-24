@@ -1,6 +1,7 @@
 import { customHudTheme } from './custom-hud.ts';
 import { apiFetch } from './api/edition-fetch.ts';
 import { serverError } from './human-error.ts';
+import type { OverlayLanguage } from './overlay-language.ts';
 
 /** Mirrors hudthemes.Style: a nil radius keeps the base design's shape. */
 export type HudStyle = { name: string; ct: string; t: string; background: string; radius?: number };
@@ -90,8 +91,10 @@ export function hudPreviewUrl({ base, style, options, names }: { base: string; s
 }
 
 /** The 9:16 Short band (scoreboard and alive counts) drawn by the same renderer as the video. */
-export function verticalHudPreviewUrl(base: string): string {
-  return `${HUD_THEMES_API}/preview?${new URLSearchParams({ base, vertical: '1' }).toString()}`;
+export function verticalHudPreviewUrl(base: string, language?: OverlayLanguage): string {
+  const query = new URLSearchParams({ base, vertical: '1' });
+  if (language === 'en') query.set('language', language);
+  return `${HUD_THEMES_API}/preview?${query.toString()}`;
 }
 
 async function call(path: string, init?: RequestInit): Promise<unknown> {

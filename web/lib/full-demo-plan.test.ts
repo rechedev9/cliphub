@@ -134,6 +134,18 @@ test('the custom HUD is optional and TrueView is an explicit capture choice', ()
   assert.equal(isFullDemoOptions({ ...options, capture: { ...options.capture, trueview: 1 } }), false);
 });
 
+test('the ClipHub radar is a custom HUD capture choice that Go omits when off', () => {
+  const native = fixture().document.options;
+  const custom = currentFullDemoOptions({ ...native, capture: { ...native.capture, hud_profile: CUSTOM_HUD_CAPTURE_PROFILE } });
+  assert.equal('cliphub_radar' in currentFullDemoOptions({ ...custom, capture: { ...custom.capture, cliphub_radar: false } }).capture, false);
+  const radar = currentFullDemoOptions({ ...custom, capture: { ...custom.capture, cliphub_radar: true } });
+  assert.equal(radar.capture.cliphub_radar, true);
+  assert.ok(isFullDemoOptions(radar));
+  assert.notEqual(fullDemoOptionsKey(radar), fullDemoOptionsKey(custom));
+  assert.equal('cliphub_radar' in currentFullDemoOptions({ ...native, capture: { ...native.capture, cliphub_radar: true } }).capture, false);
+  assert.equal(isFullDemoOptions({ ...custom, capture: { ...custom.capture, cliphub_radar: 'yes' } }), false);
+});
+
 test('Focus portrait survives draft migration and render persistence and invalidates approval when changed', () => {
   const snapshot = fixture();
   snapshot.document.options = currentFullDemoOptions(snapshot.document.options);

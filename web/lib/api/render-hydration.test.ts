@@ -229,6 +229,7 @@ test('a fully populated edit survives the wire round trip through buildEditReque
     keyDropEndSeconds: 11,
     demoSource: 'faceit',
     overlayTheme: 'neon-violet',
+    overlayLanguage: 'en',
   };
   assert.deepEqual(parseEffectiveEditConfig(buildEditRequest(full)), full);
   const summary: EditConfig = {

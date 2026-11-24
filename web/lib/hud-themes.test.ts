@@ -41,4 +41,6 @@ test('switches and team names are checked like Go and drawn in the preview only 
 
 test('the vertical preview asks the orchestrator for the 9:16 band of a catalog design', () => {
   assert.equal(verticalHudPreviewUrl('prism'), '/api/full-demo/hud-themes/preview?base=prism&vertical=1');
+  assert.equal(verticalHudPreviewUrl('prism', 'es'), '/api/full-demo/hud-themes/preview?base=prism&vertical=1');
+  assert.equal(verticalHudPreviewUrl('prism', 'en'), '/api/full-demo/hud-themes/preview?base=prism&vertical=1&language=en');
 });

@@ -13,6 +13,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 	"github.com/rechedev9/cliphub/internal/pathguard"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/rhythm"
@@ -226,7 +227,7 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 		if err := verifyFullDemoCapturedInputs(ctx, recordingResult.Artifacts, recordingBaseDir, ffprobePath, cfg.DryRun); err != nil {
 			return runInputs{}, err
 		}
-		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.PlayBadges || cfg.WinProbability || cfg.PlayerLabels || cfg.GrenadeTrails || cfg.WorldTrackPath != "" || cfg.VerticalHUD || cfg.VerticalHUDTrackPath != "" || cfg.StatsCardPath != "" || cfg.PlayerCardsPath != "" || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" || cfg.Watermark != nil || cfg.SponsorBanner != nil || cfg.Radar || cfg.RadarTrackPath != "" || cfg.SubtitlesPath != "" {
+		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.PlayBadges || cfg.WinProbability || cfg.PlayerLabels || cfg.GrenadeTrails || cfg.WorldTrackPath != "" || cfg.VerticalHUD || cfg.VerticalHUDTrackPath != "" || cfg.StatsCardPath != "" || cfg.PlayerCardsPath != "" || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" || cfg.Watermark != nil || cfg.SponsorBanner != nil || cfg.Radar || cfg.RadarTrackPath != "" || cfg.SubtitlesPath != "" || cfg.OverlayLanguage != overlaylang.Spanish {
 			return runInputs{}, fmt.Errorf("full demo execution cannot be overridden by legacy editorial flags")
 		}
 		if coversEnabled != (fullDemoExecution.Approved.Document.Options.Outputs.CoverPolicy != "no-cover") {
@@ -248,7 +249,7 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 		}
 		fullDemoOverlay = &doc
 	}
-	overlays := ShortOverlays{PlayBadges: cfg.PlayBadges}
+	overlays := ShortOverlays{PlayBadges: cfg.PlayBadges, Language: cfg.OverlayLanguage}
 	if cfg.WinProbability {
 		overlays.WinProbability = winProbCues(recordingResult.Plan)
 	}
@@ -278,7 +279,7 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 	var cardWarnings []string
 	if path := strings.TrimSpace(cfg.PlayerCardsPath); path != "" {
 		// Cards never fail a Short: one the renderer cannot draw leaves the Short without its cards.
-		cards, cardErr := preparePlayerCards(path, outDir)
+		cards, cardErr := preparePlayerCards(playerCardsInput{path: path, outDir: outDir, language: cfg.OverlayLanguage})
 		if cardErr != nil {
 			cardWarnings = []string{fmt.Sprintf("player cards left out: %v", cardErr)}
 		}

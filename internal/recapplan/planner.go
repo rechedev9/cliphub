@@ -116,6 +116,7 @@ func CanonicalNewOptions(options Options) (Options, error) {
 		canonical.Overlays.HUDTheme = options.Overlays.HUDTheme
 	}
 	canonical.Capture.TrueView = options.Capture.TrueView
+	canonical.Capture.ClipHubRadar = options.Capture.ClipHubRadar
 	canonical.Subtitles = canonicalSubtitles(options.Subtitles)
 	if len(options.Rounds) > 0 {
 		canonical.Rounds = slices.Compact(slices.Sorted(slices.Values(options.Rounds)))

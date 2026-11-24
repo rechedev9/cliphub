@@ -218,6 +218,9 @@ func fullDemoRequiredCaptureCvars(plan RecordingPlan) (map[string]float64, error
 	if customhud.IsCaptureProfile(plan.FullDemo.Options.Capture.HUDProfile) {
 		required["cl_draw_only_deathnotices"] = 1
 		required["cl_drawhud_force_radar"] = 1
+		if plan.FullDemo.Options.Capture.ClipHubRadar {
+			required["cl_drawhud_force_radar"] = 0
+		}
 		required["cl_drawhud_force_deathnotices"] = 1
 	}
 	if plan.FullDemo.Options.Capture.HUDProfile == customhud.CaptureProfile {

@@ -7,6 +7,7 @@ func (o *Options) ChooseHUD(themeID string) error {
 		o.Capture.HUDProfile = NativeHUDProfile
 		o.Overlays.HUDTheme = ""
 		o.Overlays.HUDPortrait = nil
+		o.Capture.ClipHubRadar = false
 		return nil
 	}
 	if err := customhud.ValidateTheme(themeID); err != nil {

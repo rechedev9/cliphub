@@ -13,6 +13,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/hudthemes"
 	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -155,7 +156,12 @@ func (h *Handlers) GetHUDThemePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if q.Get("vertical") == "1" {
-		writeHUDPreview(w, renderer.VerticalSVG(customhud.VerticalExample()))
+		language, err := overlaylang.Parse(q.Get("language"))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeHUDPreview(w, renderer.VerticalSVG(customhud.VerticalExample(), language))
 		return
 	}
 	state := customhud.Example()
