@@ -170,7 +170,7 @@ func TestChooseShortOptionsListsChoicesAsText(t *testing.T) {
 		t.Fatalf("error result: %+v", res.Content)
 	}
 	text := res.Content[0].(*mcp.TextContent).Text
-	for _, want := range []string{"short-9x16*", "punch-in*", "flash*", "s1: Night Drive, Neon", "cover*", "generate_short", "opening_card, end_card, cover_card", "carta (Carta)"} {
+	for _, want := range []string{"short-9x16*", "punch-in*", "flash*", "s1: Night Drive, Neon", "cover*", "generate_short", "opening_card, end_card, cover_card", "carta (Carta)", "en (Inglés)"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("text lacks %q:\n%s", want, text)
 		}

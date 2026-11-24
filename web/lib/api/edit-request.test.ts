@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildEditRequest } from './edit-request.ts';
 import { constrainEditConfig } from '../reel-brief.ts';
 import type { EditConfig } from './types.ts';
 import { FULL_DEMO_EDIT } from '../full-demo.ts';
 import { parseEffectiveEditConfig } from './render-hydration.ts';
 import { coerceEditConfig } from './reel-store.ts';
+import { isFullDemoSnapshot } from '../full-demo-plan.ts';
 
 function edit(overrides: Partial<EditConfig> = {}): EditConfig {
   return {
@@ -178,4 +180,18 @@ test('a Short saved or rendered by 5.25.0 with the English subtitles loads with 
   assert.equal(rendered?.subtitles, true);
   assert.equal(rendered !== undefined && 'subtitlesEnglish' in rendered, false);
   assert.equal('subtitles_english' in buildEditRequest(saved), false);
+});
+
+test('an English Short sends overlay_language en, a Spanish one keeps it off the wire, and Editar reads it back', () => {
+  const english = buildEditRequest(edit({ overlayLanguage: 'en' }));
+  assert.equal(english.overlay_language, 'en');
+  assert.equal('overlay_language' in buildEditRequest(edit({ overlayLanguage: 'es' })), false);
+  assert.equal('overlay_language' in buildEditRequest(edit()), false);
+  assert.equal(parseEffectiveEditConfig(JSON.parse(JSON.stringify(english)))?.overlayLanguage, 'en');
+  assert.equal(parseEffectiveEditConfig({ ...english, overlay_language: 'de' })?.overlayLanguage, undefined);
+  assert.equal(coerceEditConfig(JSON.parse('{"format":"short-9x16","overlayLanguage":"en"}')).overlayLanguage, 'en');
+  assert.equal(coerceEditConfig(JSON.parse('{"format":"short-9x16","overlayLanguage":"fr"}')).overlayLanguage, undefined);
+  const snapshot: unknown = JSON.parse(readFileSync(new URL('../full-demo-plan.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoSnapshot(snapshot));
+  assert.equal('overlay_language' in buildEditRequest({ ...FULL_DEMO_EDIT, fullDemo: snapshot, overlayLanguage: 'en' }), false);
 });

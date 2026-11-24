@@ -77,7 +77,7 @@ func registerApps(server *mcp.Server, s *studio) {
 	}
 
 	mcp.AddTool(server, &mcp.Tool{Name: "choose_short_options", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}, Meta: appToolMeta(shortOptionsAppURI),
-		Description: "Let the user choose how a Short looks (format, kill effect, transition, music, extras, player cards) in an interactive picker, for the plays segment_ids of job_id. " +
+		Description: "Let the user choose how a Short looks (format, kill effect, transition, text language, music, extras, player cards) in an interactive picker, for the plays segment_ids of job_id. " +
 			"Without a UI the result lists the choices: ask the user in chat, then call generate_short. With the picker, the user's Generar button starts generate_short itself, so do not call it again."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in chooseShortIn) (*mcp.CallToolResult, chooseShortOut, error) {
 			if err := checkUUID("job_id", in.JobID); err != nil {
@@ -96,7 +96,7 @@ func registerApps(server *mcp.Server, s *studio) {
 			}
 			out := chooseShortOut{JobID: in.JobID, SegmentIDs: in.SegmentIDs, shortOptionsOut: shortOptionsOut{
 				Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions, Music: musicOptions(songs), Toggles: toggleOptions, ReplaySpeed: replaySpeedOptions, Banners: bannerFamilies,
-				PlayerCards: playerCardOptions()}}
+				PlayerCards: playerCardOptions(), OverlayLanguage: overlayLanguageOptions}}
 			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: describeShortChoices(out.shortOptionsOut)}}}, out, nil
 		})
 
@@ -191,6 +191,7 @@ func describeShortChoices(o shortOptionsOut) string {
 	list("Format", "format", o.Format)
 	list("Kill effect", "kill_effect", o.KillEffect)
 	list("Transition", "transition", o.Transition)
+	list("Language of the text the video burns in", "overlay_language", o.OverlayLanguage)
 	b.WriteString("\nMusic (music; default none):\n")
 	if len(o.Music) == 0 {
 		b.WriteString("- Studio has no music tracks\n")

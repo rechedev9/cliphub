@@ -284,11 +284,11 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		primarySmoke := primarySmoke(smokes)
 		player := segmentPlayer(result.Plan, segment, player)
 		label := shortLabel(player, mapName, killCount)
-		headline := premiumHeadline(mapName, killCount, primaryWeapon)
+		headline := overlayTexts(opts.Overlays.Language).headline(headlineFacts{mapName: mapName, kills: killCount, weapon: primaryWeapon})
 		title, caption, hashtags := publishText(player, mapName, killCount, primaryWeapon)
 		if smokeCount > 0 && killCount == 0 {
 			label = smokeLabel(player, mapName, smokes[0])
-			headline = smokeHeadline(mapName, smokes[0])
+			headline = overlayTexts(opts.Overlays.Language).smokeHeadline(mapName, smokes[0])
 			title, caption, hashtags = publishSmokeText(player, mapName, smokes[0])
 		}
 		publishBase := publishFileBase(index, safeID, player, mapName, killCount, primaryWeapon)
@@ -599,7 +599,7 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 		DurationSeconds:        duration,
 		Label:                  shortLabel(c.Player, c.MapName, killCount),
 		Title:                  title,
-		Headline:               premiumHeadline(c.MapName, killCount, primary),
+		Headline:               overlayTexts(opts.Overlays.Language).headline(headlineFacts{mapName: c.MapName, kills: killCount, weapon: primary}),
 		Caption:                caption,
 		Hashtags:               hashtags,
 		Kills:                  kills,
@@ -742,22 +742,6 @@ func segmentIDSet(ids []string) map[string]bool {
 		out[id] = true
 	}
 	return out
-}
-
-func premiumHeadline(mapName string, killCount int, weapon string) string {
-	parts := []string{}
-	if killCount > 0 {
-		parts = append(parts, fmt.Sprintf("%dK", killCount))
-	} else {
-		parts = append(parts, "Highlight")
-	}
-	if weapon != "" {
-		parts = append(parts, "con", weapon)
-	}
-	if mapName != "" {
-		parts = append(parts, "en", prettifyMapName(mapName))
-	}
-	return strings.Join(parts, " ")
 }
 
 // prettifyMapName turns a raw CS2 map name such as "de_dust2" into the
@@ -926,20 +910,6 @@ func smokeLabel(player, mapName string, smoke SmokeCue) string {
 		parts = append(parts, utilityDisplayName(smoke.Type))
 	}
 	return strings.Join(parts, " | ")
-}
-
-func smokeHeadline(mapName string, smoke SmokeCue) string {
-	destination := smoke.Destination
-	if destination == "" {
-		destination = utilityDisplayName(smoke.Type)
-	}
-	if smoke.FromArea != "" && smoke.Destination != "" {
-		destination = smoke.FromArea + " -> " + smoke.Destination
-	}
-	if mapName != "" {
-		return destination + " en " + prettifyMapName(mapName)
-	}
-	return destination
 }
 
 func utilityDisplayName(typ string) string {

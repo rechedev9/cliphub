@@ -87,6 +87,10 @@ cover frame. A card shows that match's ClipHub rating, K/D, ADR, KAST, HS%, entr
 library role and the FACEIT level and ELO when known, and changes only the render. get_player_card says whether a
 job can carry them and which picture they show; set_player_card_image sets the player's own PNG or JPG, kept per
 SteamID for later cards, or none to remove it, falling back to the FACEIT avatar or the initials.
+generate_short and generate_shorts_batch overlay_language (list_short_options overlay_language) sets the language of
+every text the Short burns in: es (default) or en, for a channel in English. It covers the hook and generated opening
+headline, play badges, win probability, stats card, player cards and vertical HUD; a custom intro_text or outro_text
+stays as written. It changes only the render, and horizontal_draft keeps it.
 A Full Demo (the whole match): choose_hud or list_hud_themes, plan_full_demo, then render_full_demo.
 Every custom HUD design also draws round facts from the demo: players alive per side, a win streak of 4 or more,
 3K/4K/ACE, the defuse bar with or without kit and the round MVP (list_hud_themes shows).

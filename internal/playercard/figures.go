@@ -20,36 +20,36 @@ const (
 	typicalUtilityRound = 6.0
 )
 
-// bestLabels are the figures the MVP template compares, in the order a tie keeps.
-var bestLabels = []string{"RATING CLIPHUB", "K/D", "ADR", "KAST", "HS", "ENTRADAS", "UTILIDAD"}
+// bestStats are the figures the MVP template compares, in the order a tie keeps.
+var bestStats = []string{statRating, statKD, statADR, statKAST, statHS, statEntries, statUtility}
 
-func figureOf(card Card, label string) (figure, bool) {
+func figureOf(card Card, key string) (figure, bool) {
 	rounds := float64(card.Rounds)
-	switch label {
-	case "RATING CLIPHUB":
+	switch key {
+	case statRating:
 		if card.Rating != nil {
 			return figure{fmt.Sprintf("%.2f", *card.Rating), *card.Rating / typicalRating}, true
 		}
-	case "K/D":
+	case statKD:
 		kd := float64(card.Kills) / float64(max(card.Deaths, 1))
 		return figure{fmt.Sprintf("%.2f", kd), kd / typicalKD}, true
-	case "ADR":
+	case statADR:
 		if card.ADR != nil {
 			return figure{fmt.Sprintf("%.1f", *card.ADR), *card.ADR / typicalADR}, true
 		}
-	case "KAST":
+	case statKAST:
 		if card.KAST != nil {
 			return figure{fmt.Sprintf("%.0f%%", *card.KAST), *card.KAST / typicalKAST}, true
 		}
-	case "HS":
+	case statHS:
 		if card.HSPct != nil {
 			return figure{fmt.Sprintf("%.0f%%", *card.HSPct), *card.HSPct / typicalHS}, true
 		}
-	case "ENTRADAS":
+	case statEntries:
 		if card.OpeningKills != nil {
 			return figure{fmt.Sprint(*card.OpeningKills), perRound(*card.OpeningKills, rounds) / typicalEntriesRound}, true
 		}
-	case "UTILIDAD":
+	case statUtility:
 		if card.UtilityDamage != nil {
 			return figure{fmt.Sprint(*card.UtilityDamage), perRound(*card.UtilityDamage, rounds) / typicalUtilityRound}, true
 		}
@@ -62,17 +62,4 @@ func perRound(total int, rounds float64) float64 {
 		return 0
 	}
 	return float64(total) / rounds
-}
-
-// bestStat is the figure furthest above a typical player's.
-func bestStat(card Card) *stat {
-	var best *stat
-	lead := 0.0
-	for _, label := range bestLabels {
-		f, ok := figureOf(card, label)
-		if ok && (best == nil || f.lead > lead) {
-			best, lead = &stat{Label: label, Value: f.text}, f.lead
-		}
-	}
-	return best
 }

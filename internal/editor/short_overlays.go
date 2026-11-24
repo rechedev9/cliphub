@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 	"github.com/rechedev9/cliphub/internal/subtitles"
 )
 
@@ -41,6 +42,8 @@ type ShortOverlays struct {
 	Subtitles *subtitles.Track `json:"subtitles,omitempty"`
 	// PlayerCards open, close and cover a one-player 9:16 Short; the end card replaces the stats card.
 	PlayerCards *PlayerCards `json:"player_cards,omitempty"`
+
+	Language overlaylang.Language `json:"language,omitempty"`
 }
 
 // StatsCard is the player's line for the closing card. A nil field is unknown and is not drawn.
@@ -76,7 +79,7 @@ func LoadStatsCard(path string) (*StatsCard, error) {
 }
 
 // playBadgeLabel names a play: its clutch (won when the round result is known) and its multikill.
-func playBadgeLabel(kills []KillCue) string {
+func playBadgeLabel(kills []KillCue, text overlayText) string {
 	vs, result := 0, ""
 	for _, kill := range kills {
 		if kill.ClutchVs > vs {
@@ -87,7 +90,7 @@ func playBadgeLabel(kills []KillCue) string {
 	if vs > 0 {
 		clutch := fmt.Sprintf("CLUTCH 1V%d", vs)
 		if result == killplan.ClutchWon {
-			clutch += " GANADO"
+			clutch += " " + text.clutchWon
 		}
 		parts = append(parts, clutch)
 	}
@@ -124,7 +127,7 @@ func generatedPlayBadgeEffects(short ShortEdit) []Effect {
 	width, _ := outputDimensions(short)
 	var effects []Effect
 	for _, window := range badgeWindows(short) {
-		label := playBadgeLabel(window.kills)
+		label := playBadgeLabel(window.kills, overlayTexts(short.Overlays.Language))
 		if label == "" {
 			continue
 		}
@@ -212,7 +215,7 @@ func withEndCardHold(short ShortEdit) ShortEdit {
 }
 
 // statsCardLines are the card rows in order; rows without data are left out.
-func statsCardLines(card StatsCard) []string {
+func statsCardLines(card StatsCard, text overlayText) []string {
 	kd := fmt.Sprintf("K/D %d/%d", card.Kills, card.Deaths)
 	if card.Deaths > 0 {
 		kd = fmt.Sprintf("K/D %.2f (%d/%d)", float64(card.Kills)/float64(card.Deaths), card.Kills, card.Deaths)
@@ -223,27 +226,27 @@ func statsCardLines(card StatsCard) []string {
 		rates = append(rates, fmt.Sprintf("ADR %.1f", *card.ADR))
 	}
 	if card.HSPct != nil {
-		rates = append(rates, fmt.Sprintf("HS %.0f %%", *card.HSPct))
+		rates = append(rates, fmt.Sprintf(text.headshots, *card.HSPct))
 	}
 	if len(rates) > 0 {
 		lines = append(lines, strings.Join(rates, " · "))
 	}
 	if card.Rating != nil {
-		lines = append(lines, fmt.Sprintf("RATING DE CLIPHUB %.2f", *card.Rating))
+		lines = append(lines, fmt.Sprintf(text.rating, *card.Rating))
 	}
 	if f := card.FACEIT; f != nil {
 		var faceit []string
 		if f.Level > 0 {
-			faceit = append(faceit, fmt.Sprintf("FACEIT NIVEL %d", f.Level))
+			faceit = append(faceit, fmt.Sprintf(text.faceitLevel, f.Level))
 		}
 		if f.WinPct != nil {
-			faceit = append(faceit, fmt.Sprintf("%.0f %% DE VICTORIAS", *f.WinPct))
+			faceit = append(faceit, fmt.Sprintf(text.winRate, *f.WinPct))
 		}
 		if len(faceit) > 0 {
 			lines = append(lines, strings.Join(faceit, " · "))
 		}
 		if bestMap := strings.TrimSpace(f.BestMap); bestMap != "" {
-			lines = append(lines, "MEJOR MAPA: "+strings.ToUpper(strings.TrimPrefix(bestMap, "de_")))
+			lines = append(lines, text.bestMap+strings.ToUpper(strings.TrimPrefix(bestMap, "de_")))
 		}
 	}
 	return lines
@@ -255,7 +258,7 @@ func generatedStatsCardEffects(short ShortEdit) []Effect {
 	if !ok || short.Overlays.StatsCard == nil || endPlayerCard(short) != "" {
 		return nil
 	}
-	card := short.Overlays.StatsCard
+	card, phrases := short.Overlays.StatsCard, overlayTexts(short.Overlays.Language)
 	width, height := outputDimensions(short)
 	text := func(value string, y, size int, bold bool) Effect {
 		return Effect{
@@ -267,14 +270,14 @@ func generatedStatsCardEffects(short ShortEdit) []Effect {
 	}
 	effects := []Effect{
 		{Type: EffectFlash, Color: "black", Opacity: 0.58, StartSeconds: start, EndSeconds: end, Source: "stats-card"},
-		text("ESTADÍSTICAS DE LA PARTIDA", height*30/100, 36, false),
+		text(phrases.matchStats, height*30/100, 36, false),
 	}
 	y := height * 35 / 100
 	if name := strings.TrimSpace(card.Player); name != "" {
 		effects = append(effects, text(name, y, 80, true))
 		y += 130
 	}
-	for _, line := range statsCardLines(*card) {
+	for _, line := range statsCardLines(*card, phrases) {
 		effects = append(effects, text(line, y, 50, true))
 		y += 86
 	}

@@ -24,7 +24,7 @@ func TestPlayBadgeLabelNamesClutchAndMultikill(t *testing.T) {
 		{"lost clutch kill", []KillCue{{ClutchVs: 1, ClutchResult: killplan.ClutchLost}}, "CLUTCH 1V1"},
 	}
 	for _, tc := range cases {
-		if got := playBadgeLabel(tc.kills); got != tc.want {
+		if got := playBadgeLabel(tc.kills, spanishOverlayText); got != tc.want {
 			t.Errorf("%s: playBadgeLabel = %q, want %q", tc.name, got, tc.want)
 		}
 	}
@@ -81,14 +81,14 @@ func TestStatsCardLinesLeaveOutUnknownData(t *testing.T) {
 	full := StatsCard{Player: "ZywOo", Kills: 24, Deaths: 15, ADR: &adr, HSPct: &hs, Rating: &rating,
 		FACEIT: &StatsCardFACEIT{Level: 8, WinPct: &win, BestMap: "de_mirage"}}
 	want := []string{"K/D 1.60 (24/15)", "ADR 92.4 · HS 54 %", "RATING DE CLIPHUB 1.18", "FACEIT NIVEL 8 · 58 % DE VICTORIAS", "MEJOR MAPA: MIRAGE"}
-	if got := statsCardLines(full); strings.Join(got, "|") != strings.Join(want, "|") {
+	if got := statsCardLines(full, spanishOverlayText); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("full card = %q, want %q", got, want)
 	}
 	bare := StatsCard{Player: "x", Kills: 3}
-	if got := statsCardLines(bare); strings.Join(got, "|") != "K/D 3/0" {
+	if got := statsCardLines(bare, spanishOverlayText); strings.Join(got, "|") != "K/D 3/0" {
 		t.Errorf("bare card = %q, want only the kills and deaths", got)
 	}
-	for _, line := range statsCardLines(full) {
+	for _, line := range statsCardLines(full, spanishOverlayText) {
 		if strings.Contains(line, "HLTV") {
 			t.Errorf("card line %q names HLTV", line)
 		}

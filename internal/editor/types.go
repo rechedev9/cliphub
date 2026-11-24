@@ -6,6 +6,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -175,6 +176,7 @@ type Config struct {
 	StatsCardPath string
 	// PlayerCardsPath is a playercard.Request JSON: the cards that open, close and cover a one-player 9:16 Short.
 	PlayerCardsPath string
+	OverlayLanguage overlaylang.Language
 	// WinProbability shows each side's post-plant round-win chance from the kill plan.
 	WinProbability bool
 	// PlayerLabels and GrenadeTrails draw names, health and team grenade paths over the gameplay

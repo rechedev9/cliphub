@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 )
 
 func main() {
@@ -117,6 +118,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		statsCard           = fs.String("stats-card", "", "optional stats card JSON drawn at the end of a 9:16 short")
 		subtitlesPath       = fs.String("subtitles", "", "optional team comms transcript JSON drawn as subtitles")
 		playerCards         = fs.String("player-cards", "", "optional player cards JSON: the cards that open, close and cover a one-player 9:16 short")
+		overlayLanguage     = fs.String("overlay-language", "", "language of the text the short burns in (badges, cards, HUD, headline): es or en; empty is es")
 		watermarkImage      = fs.String("watermark-image", "", "optional PNG or JPG logo drawn as a watermark for the whole short")
 		watermarkCorner     = fs.String("watermark-corner", "top-right", "watermark corner: top-left, top-right, bottom-left or bottom-right")
 		watermarkOpacity    = fs.Float64("watermark-opacity", 0.8, "watermark opacity from 0.1 to 1")
@@ -184,6 +186,10 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		}
 	})
 	segmentIDs, err := parseSegments(*segments)
+	if err != nil {
+		return editorArgs{}, err
+	}
+	language, err := overlaylang.Parse(*overlayLanguage)
 	if err != nil {
 		return editorArgs{}, err
 	}
@@ -256,6 +262,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		StatsCardPath:         *statsCard,
 		SubtitlesPath:         *subtitlesPath,
 		PlayerCardsPath:       *playerCards,
+		OverlayLanguage:       language,
 		Watermark:             brandWatermarkFlag(*watermarkImage, *watermarkCorner, *watermarkOpacity),
 		SponsorBanner:         sponsorBannerFlag(*sponsorImage, *sponsorStart, *sponsorEnd),
 		LineupCatalogPath:     *lineupCatalogPath,

@@ -1,4 +1,5 @@
 import type { FullDemoSnapshot } from '../full-demo-plan.ts';
+import type { OverlayLanguage } from '../overlay-language.ts';
 import type { RadarPosition, RadarSize } from '../radar-overlay.ts';
 
 export type SteamUser = { id: string; personaName: string; avatarUrl: string };
@@ -286,6 +287,7 @@ export type EditConfig = {
   radarPosition?: RadarPosition;
   radarSize?: RadarSize;
   radarOpacity?: number;
+  overlayLanguage?: OverlayLanguage;
   matchRecap: boolean;
   /** The plays are death clips (death plan), not kills. */
   deathReel?: boolean;

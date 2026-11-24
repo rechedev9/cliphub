@@ -17,6 +17,7 @@ import {
 } from '@/lib/api/types';
 import { selectAffiliateFamily, selectAffiliateOff, selectAffiliateStyle } from '@/lib/affiliate-banner';
 import { exclusiveBanner } from '@/lib/brand-kit';
+import { OVERLAY_LANGUAGE_LABEL, OVERLAY_LANGUAGES, isOverlayLanguage } from '@/lib/overlay-language';
 import { victimReplaySeconds } from '@/lib/produce/short-selection';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
@@ -195,6 +196,33 @@ export function EditOptions({
       </OptionGroup>
 
       <OptionGroup title="Textos">
+        {showFullDemoDelivery ? null : (
+          <OptionBlock label="Idioma de los textos del vídeo" choice="one">
+            <ToggleGroup
+              type="single"
+              value={value.overlayLanguage ?? 'es'}
+              onValueChange={(language) => {
+                if (isOverlayLanguage(language)) onChange({ ...value, overlayLanguage: language });
+              }}
+              disabled={disabled}
+              variant="outline"
+              spacing={CHIP_SPACING}
+              className="flex-wrap"
+              aria-label="Idioma de los textos del vídeo"
+            >
+              {OVERLAY_LANGUAGES.map((language) => (
+                <ToggleGroupItem key={language} value={language} aria-label={OVERLAY_LANGUAGE_LABEL[language]} className="group/choice">
+                  <ChoiceDot />
+                  {OVERLAY_LANGUAGE_LABEL[language]}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <p className="text-body-sm text-fg-3">
+              El título automático, las insignias, la probabilidad de victoria, las tarjetas y el marcador vertical. Los textos que escribes tú salen tal cual.
+            </p>
+          </OptionBlock>
+        )}
+
         <OptionBlock label="Texto automático" choice="many">
           <ToggleGroup
             type="multiple"

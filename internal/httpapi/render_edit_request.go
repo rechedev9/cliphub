@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"github.com/rechedev9/cliphub/internal/brandkit"
+	"github.com/rechedev9/cliphub/internal/overlaylang"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 )
@@ -61,6 +62,7 @@ type renderEditRequest struct {
 	BrandBanner     *brandChoice[brandkit.Banner]    `json:"brand_banner"`
 	Subtitles       *bool                            `json:"subtitles"`
 	SubtitlesHidden *[]string                        `json:"subtitles_hidden"`
+	OverlayLanguage *overlaylang.Language            `json:"overlay_language"`
 }
 
 func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditRequest {
@@ -207,6 +209,9 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.SubtitlesHidden != nil {
 		base.SubtitlesHidden = *r.SubtitlesHidden
+	}
+	if r.OverlayLanguage != nil {
+		base.OverlayLanguage = *r.OverlayLanguage
 	}
 	return renderplan.NormalizeEditRequest(base)
 }

@@ -41,6 +41,7 @@ import { radarAllowed } from '@/lib/radar-overlay';
 import { MULTI_PLAYER_CARD_REASON } from '@/lib/player-cards';
 import { selectShortsFormat, selectShortsPreset, shortsPresetsForFormat } from '@/lib/reel-format';
 import { cn } from '@/lib/utils';
+import { englishOverlays } from '@/lib/overlay-language';
 import { presetDescription } from '@/lib/preset-copy';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -682,6 +683,7 @@ function overlaysSummary(edit: EditConfig): string {
   if (edit.brandWatermark) parts.push('Marca de agua');
   if (edit.brandBanner && !edit.keyDropStyle) parts.push('Sponsor');
   if (edit.keyDropStyle) parts.push('Afiliado');
+  if (englishOverlays(edit)) parts.push('Textos en inglés');
   return parts.length > 0 ? parts.join(' + ') : 'Solo efectos';
 }
 

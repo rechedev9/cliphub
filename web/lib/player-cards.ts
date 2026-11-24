@@ -1,6 +1,7 @@
 import type { EditConfig } from './api/types.ts';
 import { apiFetch } from './api/edition-fetch.ts';
 import { serverError } from './human-error.ts';
+import type { OverlayLanguage } from './overlay-language.ts';
 
 /** The three independent card slots of a one-player 9:16 Short. */
 export const PLAYER_CARD_SLOTS = [
@@ -82,8 +83,9 @@ function cardApi(jobId: string, suffix = ''): string {
 }
 
 /** The SVG of the job's card in one template; version changes when the player's image does. */
-export function playerCardPreviewUrl(jobId: string, templateId: string, version: number): string {
-  return `${cardApi(jobId, '/preview')}?template=${encodeURIComponent(templateId)}&v=${version}`;
+export function playerCardPreviewUrl({ jobId, templateId, version, language }: { jobId: string; templateId: string; version: number; language?: OverlayLanguage | undefined }): string {
+  const english = language === 'en' ? '&language=en' : '';
+  return `${cardApi(jobId, '/preview')}?template=${encodeURIComponent(templateId)}${english}&v=${version}`;
 }
 
 async function failure(response: Response, fallback: string): Promise<Error> {

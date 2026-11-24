@@ -123,7 +123,7 @@ func writeVerticalHUD(short *ShortEdit) error {
 	if err != nil {
 		return err
 	}
-	script, err := customhud.VerticalASS(theme, cues)
+	script, err := customhud.VerticalASS(customhud.VerticalScript{Theme: theme, Cues: cues, Language: short.Overlays.Language})
 	if err != nil {
 		return fmt.Errorf("vertical HUD: %w", err)
 	}
