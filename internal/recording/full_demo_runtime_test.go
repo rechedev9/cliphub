@@ -118,6 +118,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		broadcast     bool
 		legacyHUD     bool
 		trueView      bool
+		cliphubRadar  bool
 		tickStep      int
 	}{
 		{name: "complete", outcome: "verified", trim: true, wantEnd: 892},
@@ -155,6 +156,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		{name: "TrueView forces CS2 demo prediction", outcome: "verified", trim: true, wantEnd: 892, trueView: true},
 		{name: "TrueView with broadcast HUD", outcome: "verified", trim: true, wantEnd: 892, broadcast: true, trueView: true},
 		{name: "TrueView prediction unavailable", outcome: "failed", trim: true, trueView: true, missing: []string{"cl_demo_predict"}},
+		{name: "ClipHub radar hides CS2's radar", outcome: "verified", trim: true, wantEnd: 892, broadcast: true, cliphubRadar: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := fullDemoCaptureFixture(t)
@@ -168,6 +170,10 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 			}
 			if tc.trueView {
 				p.FullDemo.Options.Capture.TrueView = true
+				p.Stream.FullDemoCapture = p.FullDemo.Options.Capture
+			}
+			if tc.cliphubRadar {
+				p.FullDemo.Options.Capture.ClipHubRadar = true
 				p.Stream.FullDemoCapture = p.FullDemo.Options.Capture
 			}
 			if tc.providedCode {
@@ -258,9 +264,16 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 				if tc.trueView {
 					wantPredict = "2"
 				}
+				wantRadar := "1"
+				if tc.cliphubRadar {
+					wantRadar = "0"
+				}
 				for _, applied := range evidence.Applied {
 					if applied.Name == "cl_demo_predict" && string(applied.Value) != wantPredict {
 						t.Fatalf("cl_demo_predict applied=%s, want %s", applied.Value, wantPredict)
+					}
+					if tc.broadcast && applied.Name == "cl_drawhud_force_radar" && string(applied.Value) != wantRadar {
+						t.Fatalf("cl_drawhud_force_radar applied=%s, want %s", applied.Value, wantRadar)
 					}
 				}
 				if tc.broadcast && (result.FinalCvars["cl_draw_only_deathnotices"] != false || result.FinalCvars["cl_drawhud_force_radar"] != float64(0) || result.FinalCvars["cl_drawhud_force_deathnotices"] != float64(0)) {

@@ -13,6 +13,7 @@ export const FULL_DEMO_SOURCES: readonly { value: SourceKind; label: string }[] 
 ];
 export const FULL_DEMO_BUMPERS_TITLE = 'Intro, sponsor y outro';
 export const FULL_DEMO_TRUEVIEW_LABEL = 'POV original 1:1';
+export const FULL_DEMO_RADAR_LABEL = 'Radar de ClipHub';
 export const FULL_DEMO_VOICE_LABEL = 'Incluir voces del equipo';
 export const FULL_DEMO_TRANSITIONS_LABEL = 'Activar efectos entre rondas';
 
@@ -74,6 +75,7 @@ export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: 
   return [
     { label: 'HUD', value: hudName },
     { label: FULL_DEMO_TRUEVIEW_LABEL, value: options.capture.trueview ? 'Sí' : 'No' },
+    { label: FULL_DEMO_RADAR_LABEL, value: options.capture.cliphub_radar ? 'Sí' : 'No' },
     { label: FULL_DEMO_PRO_SETTINGS_LABEL, value: proSettingsSummary(options.capture.pro_settings) },
     { label: 'Voces del equipo', value: voiceValue(options.audio.voice.enabled, voiceAvailability) },
     { label: 'Subtítulos', value: subtitlesValue(options, voiceAvailability) },

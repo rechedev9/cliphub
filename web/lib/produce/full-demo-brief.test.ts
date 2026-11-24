@@ -21,6 +21,8 @@ test('the recap names each setting with the words of its control', () => {
   assert.equal(rows['Intro, sponsor y outro'], 'Ninguno');
   assert.equal(rows['Resolución y viewmodel'], 'Tu configuración (1920x1080)');
   assert.equal(rows['POV original 1:1'], 'No');
+  assert.equal(rows['Radar de ClipHub'], 'No');
+  assert.equal(brief({ ...base, capture: { ...base.capture, cliphub_radar: true } })['Radar de ClipHub'], 'Sí');
   assert.equal(rows['Efectos entre rondas'], 'Activados');
   assert.equal(rows['Presentación y marcador'], 'Neón');
   assert.equal(brief({ ...base, overlays: { ...base.overlays, theme: 'hud' } })['Presentación y marcador'], 'A juego con el HUD');

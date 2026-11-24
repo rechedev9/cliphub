@@ -142,3 +142,22 @@ func TestFullDemoPlanLoadsWhenItsCaptureCheckFails(t *testing.T) {
 		t.Fatalf("plan = %+v, capture %+v; want the saved plan without a capture hint", got.Document, got.Capture)
 	}
 }
+
+func TestFullDemoClipHubRadarNeedsAMapWithARadar(t *testing.T) {
+	h, j, _, _, o := fullDemoAPIFixture(t)
+	o.Capture.ClipHubRadar = true
+	j.KillPlan.Demo.Map = "de_unknown"
+	for _, endpoint := range []string{"/full-demo/plan", "/full-demo/capture-check"} {
+		rw := fullDemoAPIRequest(t, h, j, endpoint, map[string]any{"options": o})
+		if rw.Code != http.StatusBadRequest || !strings.Contains(rw.Body.String(), "ClipHub radar") {
+			t.Fatalf("%s on a map without a radar: %d %s", endpoint, rw.Code, rw.Body.String())
+		}
+	}
+	j.KillPlan.Demo.Map = "de_mirage"
+	if got := fullDemoAPIPlan(t, h, j, o); !got.Document.Options.Capture.ClipHubRadar {
+		t.Fatalf("ClipHub radar dropped from the plan: %+v", got.Document.Options.Capture)
+	}
+	if got := fullDemoCaptureCheck(t, h, j, o); !got.Needed {
+		t.Fatalf("ClipHub radar capture check = %+v, want a new capture", got)
+	}
+}

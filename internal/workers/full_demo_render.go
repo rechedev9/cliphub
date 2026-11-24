@@ -48,6 +48,13 @@ func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, in full
 		}
 		execution.HUDTelemetry = telemetry
 	}
+	if snapshot.Document.Options.Capture.ClipHubRadar {
+		radar, err := w.materializeFullDemoRadar(ctx, fullDemoRadarInput{job: j, document: snapshot.Document, dir: dir})
+		if err != nil {
+			return "", err
+		}
+		execution.Radar = radar
+	}
 	for _, ref := range snapshot.Document.Options.AssetReferences() {
 		id, err := uuid.Parse(ref.ID)
 		if err != nil {

@@ -473,6 +473,10 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 		if hudFilter != "" {
 			video += "," + hudFilter
 		}
+		command, video, err = fullDemoRadarOverlay(fullDemoRadarStep{short: short, item: item, command: command, video: video, output: output})
+		if err != nil {
+			return nil, err
+		}
 		subtitleFilter, err := fullDemoSubtitlesFilter(short, item, output)
 		if err != nil {
 			return nil, err

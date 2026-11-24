@@ -51,3 +51,24 @@ func TestParseToEndKeepsTheParserError(t *testing.T) {
 		t.Fatalf("err = %v, want ErrCancelled", err)
 	}
 }
+
+type openedDemo struct {
+	*bytes.Reader
+	closes int
+}
+
+func (d *openedDemo) Close() error {
+	d.closes++
+	return nil
+}
+
+func TestParserLeavesTheDemoToWhoeverOpenedIt(t *testing.T) {
+	demo := &openedDemo{Reader: bytes.NewReader(make([]byte, 64<<10))}
+	p, err := NewParser(demo)
+	if err != nil {
+		t.Fatalf("NewParser: %v", err)
+	}
+	if err := p.Close(); err != nil || demo.closes != 0 {
+		t.Fatalf("parser Close = %v and closed the demo %d times, want the demo left open for its opener", err, demo.closes)
+	}
+}

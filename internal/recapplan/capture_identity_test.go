@@ -59,11 +59,12 @@ func TestCaptureIdentityByOption(t *testing.T) {
 		}
 	}
 	affectsCapture := map[string]func(*Options){
-		"HUD original": func(o *Options) { o.Capture.HUDProfile, o.Overlays.HUDTheme = NativeHUDProfile, "" },
-		"POV 1:1":      func(o *Options) { o.Capture.TrueView = true },
-		"pro":          func(o *Options) { o.Capture.ProSettings = mustProSettings(t) },
-		"rondas":       func(o *Options) { o.Rounds = []int{1, 2} },
-		"marcador":     func(o *Options) { o.Overlays.Scoreboard = !o.Overlays.Scoreboard },
+		"HUD original":  func(o *Options) { o.Capture.HUDProfile, o.Overlays.HUDTheme = NativeHUDProfile, "" },
+		"POV 1:1":       func(o *Options) { o.Capture.TrueView = true },
+		"radar ClipHub": func(o *Options) { o.Capture.ClipHubRadar = true },
+		"pro":           func(o *Options) { o.Capture.ProSettings = mustProSettings(t) },
+		"rondas":        func(o *Options) { o.Rounds = []int{1, 2} },
+		"marcador":      func(o *Options) { o.Overlays.Scoreboard = !o.Overlays.Scoreboard },
 	}
 	for name, change := range affectsCapture {
 		o := custom()

@@ -235,3 +235,21 @@ func TestLoadFullDemoStateSkewedDefaults(t *testing.T) {
 		}
 	}
 }
+
+func TestApplyFullDemoChoicesClipHubRadar(t *testing.T) {
+	got, err := applyFullDemoChoices(recapplan.DefaultOptions(), planFullDemoIn{HUD: "focus", ClipHubRadar: ptrTo(true)})
+	if err != nil || !got.Capture.ClipHubRadar || got.Capture.HUDProfile != customhud.CaptureProfile {
+		t.Fatalf("ClipHub radar not applied with the Focus HUD: %+v %v", got.Capture, err)
+	}
+	if out := describeFullDemoPlan("job", recapplan.Document{Options: got}); !out.ClipHubRadar || !strings.Contains(out.Summary, "radar de ClipHub") {
+		t.Error("the plan summary hides the ClipHub radar")
+	}
+	native, err := applyFullDemoChoices(got, planFullDemoIn{HUD: "native"})
+	if err != nil || native.Capture.ClipHubRadar {
+		t.Fatalf("the native HUD kept the ClipHub radar: %+v %v", native.Capture, err)
+	}
+	kept, err := applyFullDemoChoices(got, planFullDemoIn{})
+	if err != nil || !kept.Capture.ClipHubRadar {
+		t.Fatalf("a plan without the choice dropped the ClipHub radar: %+v %v", kept.Capture, err)
+	}
+}

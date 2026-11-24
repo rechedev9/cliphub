@@ -24,7 +24,7 @@ func ParseToEnd(p demoinfocs.Parser) error {
 func NewParser(r io.Reader) (demoinfocs.Parser, error) {
 	var p demoinfocs.Parser
 	err := Recover(func() error {
-		p = demoinfocs.NewParser(r)
+		p = demoinfocs.NewParser(borrow(r))
 		return nil
 	})
 	switch {
@@ -35,6 +35,17 @@ func NewParser(r io.Reader) (demoinfocs.Parser, error) {
 	default:
 		return nil, fmt.Errorf("open demo parser: %w", err)
 	}
+}
+
+type borrowedReader struct{ io.Reader }
+
+type borrowedReadSeeker struct{ io.ReadSeeker }
+
+func borrow(r io.Reader) io.Reader {
+	if s, ok := r.(io.ReadSeeker); ok {
+		return borrowedReadSeeker{s}
+	}
+	return borrowedReader{r}
 }
 
 // Recover runs fn and returns a panic on this goroutine as an ErrPanicked error.
