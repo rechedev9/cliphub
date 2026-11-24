@@ -213,3 +213,17 @@ func TestTimelineRenderLegacyPayloadStillWritesFailure(t *testing.T) {
 		t.Fatalf("legacy payload state = %+v, want failed with the published keys", got)
 	}
 }
+
+func TestTimelineRenderFailureWithUnreadableStateStillFailsTheProject(t *testing.T) {
+	t.Parallel()
+	f := newTimelineOwnerFixture(t, "")
+	if err := f.files.Put(timelineplan.RenderStateKey(f.projectID), bytes.NewReader([]byte("{"))); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.run(t, uuid.New()); err == nil {
+		t.Fatal("render without ffmpeg succeeded")
+	}
+	if status := f.projectStatus(t); status != timelineplan.StatusFailed {
+		t.Fatalf("project status = %s, want failed", status)
+	}
+}

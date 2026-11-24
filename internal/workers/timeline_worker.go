@@ -65,6 +65,9 @@ func (w *TimelineRenderWorker) HandleRenderTimeline(ctx context.Context, t *asyn
 func (w *TimelineRenderWorker) fail(ctx context.Context, payload tasks.RenderTimelinePayload, cause error) error {
 	state, owned, err := w.ownedState(payload)
 	if err != nil {
+		if updErr := w.repo.UpdateStatus(ctx, payload.ProjectID, timelineplan.StatusFailed, cause.Error()); updErr != nil {
+			return fmt.Errorf("render timeline: %w (also failed to read render state: %v; and to mark failed: %v)", cause, err, updErr)
+		}
 		return fmt.Errorf("render timeline: %w (also failed to read render state: %v)", cause, err)
 	}
 	if !owned {

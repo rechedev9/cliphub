@@ -24,7 +24,7 @@ type failingPutStorage struct {
 	failKey string
 }
 
-func (s failingPutStorage) Put(key string, r io.Reader) error {
+func (s *failingPutStorage) Put(key string, r io.Reader) error {
 	if key == s.failKey {
 		return errors.New("disk full")
 	}
@@ -45,7 +45,7 @@ func TestDeleteStreamVideoCutBeforeResultWriteKeepsRemainingClips(t *testing.T) 
 	variant := streamclips.DefaultVariant().Name
 	revision := uuid.New()
 	resultKey, _ := streamclips.RenderRevisionResultKey(j.ID, variant, revision)
-	files := failingPutStorage{Local: local, failKey: resultKey}
+	files := &failingPutStorage{Local: local, failKey: resultKey}
 	h := NewHandlers(newFakeRepo(), files, &fakeQueue{}, WithStreamRepository(streamRepo), WithStreamJobLocks(streamclips.NewJobLocks()))
 	put := func(key string) {
 		if err := local.Put(key, bytes.NewReader([]byte("x"))); err != nil {
@@ -103,6 +103,20 @@ func TestDeleteStreamVideoCutBeforeResultWriteKeepsRemainingClips(t *testing.T) 
 	}
 	if len(listed) != 2 || listed[0] != "first" || listed[1] != "last" {
 		t.Fatalf("listed after cut delete = %v, want [first last]", listed)
+	}
+
+	files.failKey = ""
+	retry := httptest.NewRecorder()
+	Routes(h).ServeHTTP(retry, httptest.NewRequest(http.MethodDelete, "/api/stream-jobs/"+j.ID.String()+"/renders/"+variant+"/videos/drop", nil))
+	if retry.Code != http.StatusNoContent {
+		t.Fatalf("retried delete = %d, want 204; body=%s", retry.Code, retry.Body.String())
+	}
+	finished, found, err := h.readPublishedStreamResult(after)
+	if err != nil || !found || len(finished.Clips) != 2 {
+		t.Fatalf("result after retried delete = %+v found=%v err=%v", finished.Clips, found, err)
+	}
+	if exists, err := local.Exists(videos[1].Key); err != nil || exists {
+		t.Fatalf("dropped clip file exists=%v err=%v after retried delete", exists, err)
 	}
 }
 
