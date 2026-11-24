@@ -306,6 +306,9 @@ what users run.
   Studio 5.27.1 pins official 2.193.1 (AfxHookSource2 0.42.1); a five-play
   Short capture of a Cache FACEIT demo with it recorded the game picture
   (2026-11-20).
+- CS2 1.42.0.1 (2026-11-24): Studio 5.31.0 pins official 2.193.2
+  (AfxHookSource2 0.42.2); a one-play Short capture of a Vertigo Valve demo
+  with it recorded the game picture (2026-11-24).
 
 ### Incident: frozen picture certified as a good capture (HLAE 2.192.7, 2026-10-09)
 
