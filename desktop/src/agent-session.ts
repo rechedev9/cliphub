@@ -128,7 +128,7 @@ export function setAgentAccess({
     if (running !== null) publishQuietly({ sessionFile, access: accessOff(), running, fsOps });
     throw error;
   }
-  removeQuietly(revokedMarker(accessFile), fsOps);
+  fsOps.rmSync(revokedMarker(accessFile), { force: true });
   if (running !== null) {
     try {
       writeAgentSession({ sessionFile, ...next, ...running, fsOps });

@@ -324,6 +324,16 @@ test('a revocation whose stored choice can be neither replaced nor removed stays
   writeAgentSession({ sessionFile, ...boot, ...running });
   assert.equal(JSON.parse(fs.readFileSync(sessionFile, 'utf8')).token, undefined);
 
+  const lockedMarker = flakyFs({ renameFailures: 0 });
+  const markerRm = lockedMarker.rmSync;
+  lockedMarker.rmSync = (file: string, options: { force: true }): void => {
+    if (file === `${accessFile}.revoked`) throw Object.assign(new Error('file is in use'), { code: 'EPERM' });
+    markerRm(file, options);
+  };
+  assert.throws(() => setAgentAccess({ accessFile, sessionFile, ...ACCESS_ON, running, fsOps: lockedMarker }), /in use/);
+  assert.deepEqual(readAgentAccess(accessFile), OFF);
+  assert.equal(JSON.parse(fs.readFileSync(sessionFile, 'utf8')).token, undefined);
+
   setAgentAccess({ accessFile, sessionFile, ...ACCESS_ON, running });
   assert.equal(fs.existsSync(`${accessFile}.revoked`), false);
   assert.deepEqual(readAgentAccess(accessFile), ACCESS_ON);
