@@ -98,7 +98,7 @@ export function appUpdateTitle(status: AppUpdateStatus, jobsBusy: boolean): stri
     case APP_UPDATE_STATE.downloading:
       return `Descargando ${status.version}`;
     case APP_UPDATE_STATE.ready:
-      return `Instalar ${status.version}. Studio se cierra y se vuelve a abrir`;
+      return `Actualizar a ${status.version}. Studio se cierra y se vuelve a abrir`;
     case APP_UPDATE_STATE.installing:
       return `Instalando ${status.version}`;
     case APP_UPDATE_STATE.checking:
