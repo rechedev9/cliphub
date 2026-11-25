@@ -38,6 +38,8 @@ test('hides current builds and labels the actionable states', () => {
     appUpdateLabel({ state: APP_UPDATE_STATE.available, version: '2.4.29', currentVersion: '2.4.28' }),
     'Actualizar',
   );
+  assert.equal(appUpdateLabel({ state: APP_UPDATE_STATE.ready, version: '2.4.29' }), 'Actualizar');
+  assert.match(appUpdateTitle({ state: APP_UPDATE_STATE.ready, version: '2.4.29' }, false), /^Actualizar a 2.4.29/);
   assert.equal(
     appUpdateLabel({ state: APP_UPDATE_STATE.downloading, version: '2.4.29', received: 41, total: 100 }),
     '41 %',

@@ -76,7 +76,7 @@ export function appUpdateLabel(status: AppUpdateStatus): string | null {
       return percent === undefined ? 'Descargando' : `${percent} %`;
     }
     case APP_UPDATE_STATE.ready:
-      return 'Reiniciar';
+      return 'Actualizar';
     case APP_UPDATE_STATE.installing:
       return 'Instalando';
     case APP_UPDATE_STATE.checking:
@@ -98,7 +98,7 @@ export function appUpdateTitle(status: AppUpdateStatus, jobsBusy: boolean): stri
     case APP_UPDATE_STATE.downloading:
       return `Descargando ${status.version}`;
     case APP_UPDATE_STATE.ready:
-      return `Reiniciar e instalar ${status.version}`;
+      return `Actualizar a ${status.version}. Studio se cierra y se vuelve a abrir`;
     case APP_UPDATE_STATE.installing:
       return `Instalando ${status.version}`;
     case APP_UPDATE_STATE.checking:
