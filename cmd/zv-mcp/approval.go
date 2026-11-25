@@ -98,10 +98,11 @@ const elicitKey = "approve"
 // with the answer, and a failed question fails the call. The request state binds
 // the answer to this exact request.
 func (a *approver) approve(req *mcp.CallToolRequest, spec approvalSpec) (approval, error) {
-	if spec.Auto != autoNever && a.autoApprove != nil && spec.Auto.allowedBy(a.autoApprove()) {
-		return approval{Approved: true}, nil
-	}
+	auto := spec.Auto != autoNever && a.autoApprove != nil && spec.Auto.allowedBy(a.autoApprove())
 	if !supportsElicitation(req) {
+		if auto {
+			return approval{Approved: true}, nil
+		}
 		return a.approveByCode(spec)
 	}
 	state, err := a.codeFor(spec)
@@ -110,6 +111,9 @@ func (a *approver) approve(req *mcp.CallToolRequest, spec approvalSpec) (approva
 	}
 	answer, answered := answerTo(req, state)
 	if !answered {
+		if auto {
+			return approval{Approved: true}, nil
+		}
 		ask := &mcp.ElicitParams{
 			Message:         spec.Summary + " " + cmp.Or(spec.Question, "¿Empezar ahora?"),
 			RequestedSchema: map[string]any{"type": "object", "properties": map[string]any{}},

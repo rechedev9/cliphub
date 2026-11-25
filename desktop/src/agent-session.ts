@@ -119,7 +119,18 @@ export function setAgentAccess({
   fsOps = nodeFs,
 }: SetAgentAccessOptions): void {
   const access = { enabled, autoApproveStarts, autoApproveDeletes };
-  if (running !== null) writeAgentSession({ sessionFile, ...access, ...running, fsOps });
+  if (running !== null) {
+    try {
+      writeAgentSession({ sessionFile, ...access, ...running, fsOps });
+    } catch (error) {
+      try {
+        removeAgentSession(sessionFile, fsOps);
+      } catch {
+        throw error;
+      }
+      throw error;
+    }
+  }
   try {
     writeFileAtomic({ file: accessFile, document: access, fsOps });
   } catch (error) {

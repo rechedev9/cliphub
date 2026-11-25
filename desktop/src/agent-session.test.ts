@@ -190,6 +190,28 @@ test('disabling access removes the session when it cannot be rewritten, so no to
   assert.equal(fs.existsSync(`${sessionFile}.tmp`), false);
 });
 
+test('turning off an automatic approval removes the session when it cannot be rewritten, so no approval stays published', () => {
+  const dir = tempDir();
+  const accessFile = path.join(dir, 'agent-access.json');
+  const sessionFile = path.join(dir, 'agent-session.json');
+  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION };
+  const granted = { enabled: true, autoApproveStarts: true, autoApproveDeletes: true };
+  setAgentAccess({ accessFile, sessionFile, ...granted, running });
+  assert.equal(JSON.parse(fs.readFileSync(sessionFile, 'utf8')).autoApproveStarts, true);
+
+  const ops = flakyFs({ renameFailures: 0 });
+  const realRename = ops.renameSync;
+  ops.renameSync = (from: string, to: string): void => {
+    if (to === sessionFile) throw Object.assign(new Error('file is in use'), { code: 'EPERM' });
+    realRename(from, to);
+  };
+  assert.throws(() => setAgentAccess({ accessFile, sessionFile, ...granted, autoApproveStarts: false, running, fsOps: ops }), /in use/);
+
+  assert.equal(fs.existsSync(sessionFile), false);
+  assert.equal(fs.existsSync(`${sessionFile}.tmp`), false);
+  assert.deepEqual(readAgentAccess(accessFile), granted);
+});
+
 test('a failure storing the choice never leaves a published token behind', () => {
   const dir = tempDir();
   const accessFile = path.join(dir, 'agent-access.json');

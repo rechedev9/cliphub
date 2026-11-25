@@ -47,10 +47,9 @@ export function AssistantSettings(): ReactNode {
   const update = (change: Partial<StudioAssistantUpdate>): void => {
     const bridge = getDesktopSettingsBridge();
     if (bridge?.updateAssistantAccess === undefined || state.kind !== 'ready') return;
-    const { enabled, autoApproveStarts, autoApproveDeletes } = state.access;
     setPending(true);
     setFailure(false);
-    void bridge.updateAssistantAccess({ enabled, autoApproveStarts, autoApproveDeletes, ...change })
+    void bridge.updateAssistantAccess({ enabled: state.access.enabled, ...change })
       .then((value) => {
         const access = parseAssistantAccess(value);
         if (access === null) setFailure(true);

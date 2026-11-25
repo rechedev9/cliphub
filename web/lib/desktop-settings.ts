@@ -52,7 +52,11 @@ export type StudioAssistantAccess = {
   mcpPath: string;
 };
 
-export type StudioAssistantUpdate = Omit<StudioAssistantAccess, 'mcpPath'>;
+export type StudioAssistantUpdate = {
+  enabled: boolean;
+  autoApproveStarts?: boolean;
+  autoApproveDeletes?: boolean;
+};
 
 export interface DesktopSettingsBridge {
   getAppInfo(): Promise<StudioAppInfo>;

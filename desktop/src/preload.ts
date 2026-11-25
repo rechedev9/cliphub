@@ -30,10 +30,13 @@ contextBridge.exposeInMainWorld('cliphubSettings', {
     { action: 'telemetry-update', enabled },
   ),
   getAssistantAccess: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'assistant-status' }),
-  updateAssistantAccess: (update: unknown): Promise<unknown> => ipcRenderer.invoke(
-    STUDIO_SETTINGS_CHANNEL,
-    assistantUpdateMessage(update),
-  ),
+  updateAssistantAccess: (update: unknown): Promise<unknown> => {
+    const message = assistantUpdateMessage(update);
+    if ((message.autoApproveStarts === true || message.autoApproveDeletes === true) && !userIsActive()) {
+      return Promise.resolve({ ok: false, error: 'La aprobación automática se activa desde un clic.' });
+    }
+    return ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, message);
+  },
   installTeamSpeakPlugin: (): Promise<unknown> => {
     if (!userIsActive()) return Promise.resolve({ ok: false, error: 'El plugin se instala desde un clic.' });
     return ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'teamspeak-plugin-install' });
@@ -96,6 +99,7 @@ contextBridge.exposeInMainWorld('cliphubClipboard', {
 
 function assistantUpdateMessage(update: unknown): Record<string, unknown> {
   const message: Record<string, unknown> = { action: 'assistant-update' };
+  if (typeof update === 'boolean') return { ...message, enabled: update };
   if (typeof update !== 'object' || update === null) return message;
   for (const key of ['enabled', 'autoApproveStarts', 'autoApproveDeletes']) {
     if (Object.hasOwn(update, key)) message[key] = Reflect.get(update, key);

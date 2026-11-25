@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -229,6 +230,21 @@ func TestAutoApprovalSkipsOnlyItsKind(t *testing.T) {
 		}
 		if !tc.want && (!failed || asked != 1) {
 			t.Errorf("%s, elicitation client: want the question declined, got %+v failed=%v asked=%d", tc.name, got, failed, asked)
+		}
+	}
+}
+
+func TestAutoApprovalTurnedOnDoesNotOverrideADecline(t *testing.T) {
+	for _, version := range []string{"", "2025-06-18"} {
+		var on atomic.Bool
+		a := newApprover()
+		a.autoApprove = func() autoApproval { return autoApproval{Starts: on.Load()} }
+		decline := &mcp.ClientOptions{ElicitationHandler: func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			on.Store(true)
+			return &mcp.ElicitResult{Action: "decline"}, nil
+		}}
+		if got, failed := callAskAuto(t, connectVersion(t, newAskServer(a), decline, version), "", autoStart); !failed {
+			t.Errorf("%q the switch turned on while the question was open overrode the decline: %+v", version, got)
 		}
 	}
 }
