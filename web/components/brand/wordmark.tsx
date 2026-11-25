@@ -4,29 +4,20 @@ export type WordmarkProps = {
   className?: string;
 };
 
-/**
- * ClipHub mark: a CH monogram inside a hexagon badge, with a play triangle
- * breaking out of the H. Uses semantic brand tokens so it stays legible in
- * high-contrast themes; the orange-to-purple lockup gradient lives in the
- * static asset at web/public/brand/cliphub-mark.svg.
- */
 export function BrandMark({ className }: { className?: string }) {
   return (
     <svg
       aria-hidden
-      viewBox="0 0 64 64"
+      viewBox="52 52 896 896"
       className={cn('size-8 shrink-0', className)}
       fill="none"
     >
-      <path className="fill-surface-0 stroke-border" strokeWidth="2" strokeLinejoin="round" d="M20 5h24l16 27-16 27H20L4 32 20 5Z" />
-      <path className="stroke-fg-1" strokeWidth="5.5" d="M31.4 23.9A8.5 8.5 0 1 0 31.4 36.1" />
-      <path className="stroke-fg-1" strokeWidth="5.5" d="M39 21v15M48.5 21v15M39 28.5h9.5" />
-      <path className="fill-primary" d="M34 37.5 48.5 45 34 52.5V37.5Z" />
+      <path className="stroke-fg-1" strokeWidth="132" d="M685.8 667.3A250 250 0 1 1 685.8 332.7" />
+      <path className="fill-brand-accent" d="M418 352 418 648 700 500Z" />
     </svg>
   );
 }
 
-/** The full horizontal lockup used by the sidebar and standalone headers. */
 export function Wordmark({ className }: WordmarkProps) {
   return (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
