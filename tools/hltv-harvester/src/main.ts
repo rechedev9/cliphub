@@ -451,8 +451,8 @@ async function faceitDemo(run: FaceitRun, match: FaceitMatch, resource: string):
   if (url === "") throw new Error("FACEIT gave no signed demo link");
   log(`class=downloading room=${match.roomId} file=${name} map=${match.map}`);
   await run.browser.download(run.ses, url, file);
-  writeSidecar(sidecar, match, resource);
   run.downloaded++;
+  writeSidecar(sidecar, match, resource);
 }
 
 function writeSidecar(path: string, match: FaceitMatch, resource: string): void {
