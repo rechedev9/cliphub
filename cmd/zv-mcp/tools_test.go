@@ -74,6 +74,18 @@ func TestConfigNeedsTheStoredAccessToo(t *testing.T) {
 			t.Errorf("stored %s: token not used", tc.raw)
 		}
 	}
+	if err := os.WriteFile(accessPath, []byte(`{"enabled":true,"autoApproveStarts":true,"autoApproveDeletes":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(accessPath+".revoked", nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.config(); !errors.Is(err, errAgentOff) {
+		t.Errorf("revocation marker: got %v, want errAgentOff", err)
+	}
+	if got := s.autoApproval(); got != (autoApproval{}) {
+		t.Errorf("revocation marker: auto approval %+v", got)
+	}
 }
 
 func TestAutoApprovalReadsTheSessionFile(t *testing.T) {

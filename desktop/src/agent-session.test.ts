@@ -297,6 +297,38 @@ test('a revocation that cannot be stored drops the stored choice and the publish
   assert.equal(fs.existsSync(sessionFile) && JSON.parse(fs.readFileSync(sessionFile, 'utf8')).token !== undefined, false);
 });
 
+test('a revocation whose stored choice can be neither replaced nor removed stays off after a restart until the next stored change', () => {
+  const dir = tempDir();
+  const accessFile = path.join(dir, 'agent-access.json');
+  const sessionFile = path.join(dir, 'agent-session.json');
+  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION };
+  const granted = { enabled: true, autoApproveStarts: true, autoApproveDeletes: true };
+  setAgentAccess({ accessFile, sessionFile, ...granted, running });
+
+  const ops = flakyFs({ renameFailures: 0 });
+  const realRename = ops.renameSync;
+  const realRm = ops.rmSync;
+  ops.renameSync = (from: string, to: string): void => {
+    if (to === accessFile) throw Object.assign(new Error('file is in use'), { code: 'EPERM' });
+    realRename(from, to);
+  };
+  ops.rmSync = (file: string, options: { force: true }): void => {
+    if (file === accessFile) throw Object.assign(new Error('file is in use'), { code: 'EPERM' });
+    realRm(file, options);
+  };
+  assert.throws(() => setAgentAccess({ accessFile, sessionFile, ...granted, autoApproveDeletes: false, running, fsOps: ops }), /in use/);
+  assert.equal(JSON.parse(fs.readFileSync(accessFile, 'utf8')).autoApproveDeletes, true);
+
+  const boot = readAgentAccess(accessFile);
+  assert.deepEqual(boot, OFF);
+  writeAgentSession({ sessionFile, ...boot, ...running });
+  assert.equal(JSON.parse(fs.readFileSync(sessionFile, 'utf8')).token, undefined);
+
+  setAgentAccess({ accessFile, sessionFile, ...ACCESS_ON, running });
+  assert.equal(fs.existsSync(`${accessFile}.revoked`), false);
+  assert.deepEqual(readAgentAccess(accessFile), ACCESS_ON);
+});
+
 test('a failure storing the choice never leaves a published token behind', () => {
   const dir = tempDir();
   const accessFile = path.join(dir, 'agent-access.json');

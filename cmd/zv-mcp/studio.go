@@ -121,7 +121,11 @@ type storedAgentAccess struct {
 }
 
 func (s *studio) storedAccess() (storedAgentAccess, bool) {
-	raw, err := os.ReadFile(filepath.Join(filepath.Dir(s.sessionPath), "agent-access.json"))
+	accessPath := filepath.Join(filepath.Dir(s.sessionPath), "agent-access.json")
+	if _, err := os.Stat(accessPath + ".revoked"); !errors.Is(err, os.ErrNotExist) {
+		return storedAgentAccess{}, false
+	}
+	raw, err := os.ReadFile(accessPath)
 	if err != nil {
 		return storedAgentAccess{}, false
 	}

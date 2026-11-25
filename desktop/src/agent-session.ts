@@ -55,6 +55,7 @@ const nodeFs: AgentSessionFs = {
 
 /** The user's choice to let an assistant drive Studio; off unless the file says otherwise. */
 export function readAgentAccess(accessFile: string): AgentAccess {
+  if (fs.existsSync(revokedMarker(accessFile))) return accessOff();
   try {
     const parsed: unknown = JSON.parse(fs.readFileSync(accessFile, 'utf8'));
     if (!isRecord(parsed)) return accessOff();
@@ -122,10 +123,12 @@ export function setAgentAccess({
   try {
     writeFileAtomic({ file: accessFile, document: kept, fsOps });
   } catch (error) {
+    markRevokedQuietly(accessFile, fsOps);
     removeQuietly(accessFile, fsOps);
     if (running !== null) publishQuietly({ sessionFile, access: accessOff(), running, fsOps });
     throw error;
   }
+  removeQuietly(revokedMarker(accessFile), fsOps);
   if (running !== null) {
     try {
       writeAgentSession({ sessionFile, ...next, ...running, fsOps });
@@ -167,6 +170,18 @@ function publishQuietly({ sessionFile, access, running, fsOps }: PublishOptions)
     writeAgentSession({ sessionFile, ...access, ...running, fsOps });
   } catch {
     removeQuietly(sessionFile, fsOps);
+  }
+}
+
+function revokedMarker(accessFile: string): string {
+  return `${accessFile}.revoked`;
+}
+
+function markRevokedQuietly(accessFile: string, fsOps: AgentSessionFs): void {
+  try {
+    fsOps.writeFileSync(revokedMarker(accessFile), '', { mode: 0o600 });
+  } catch {
+    return;
   }
 }
 

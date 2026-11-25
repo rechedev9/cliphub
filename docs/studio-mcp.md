@@ -93,7 +93,9 @@ boot, and production requires it even for reads (`requireMutationToken` in
    it stores in `agent-access.json` what the change keeps or revokes, publishes the session, and only
    then stores what it grants. A grant whose session cannot be published is never stored, so the next
    boot does not publish it; a grant that cannot be stored is withdrawn from the session; a revocation
-   that cannot be stored deletes `agent-access.json` (all switches off) and publishes access off. It
+   that cannot be stored writes the marker `agent-access.json.revoked`, deletes `agent-access.json` and
+   publishes access off. While the marker exists, Studio at boot and `zv-mcp` read every switch as off;
+   the next change that stores `agent-access.json` removes it. It
    retries a rename that Windows refuses while `zv-mcp` reads the file, and falls back to deleting the
    session file when rewriting it fails, so no token stays on disk. `zv-mcp` uses the session only while
    `agent-access.json` also has access on, so a session file Windows kept locked cannot outlive a
