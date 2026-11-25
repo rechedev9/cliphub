@@ -1,94 +1,96 @@
 import assert from 'node:assert/strict';
+import { execFileSync, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
-  defaultInstallGuardDeps,
-  installMarkerFile,
-  parseInstallMarker,
-  startRecordedInstaller,
-  updateInstallerRunning,
-  type InstallGuardDeps,
+  INSTALL_LOCK_NAME,
+  installLockFile,
+  installerCopyingFiles,
+  type InstallGuardFiles,
 } from './update-install-guard.ts';
 
-const FILE = 'C:\\appdata\\cliphub-studio\\update-installing.json';
-const NOW = 1_800_000_000_000;
+const FILE = 'C:\\appdata\\cliphub-studio\\update-installing.lock';
 
-function fakeDeps(files: Map<string, string>, alive: Set<number>): InstallGuardDeps {
+function failingOpen(code: string): InstallGuardFiles {
   return {
-    now: () => NOW,
-    isAlive: (pid) => alive.has(pid),
-    readFile: (file) => files.get(file) ?? null,
-    writeFile: (file, text) => { files.set(file, text); },
-    removeFile: (file) => { files.delete(file); },
+    open: () => { throw Object.assign(new Error(code), { code }); },
+    close: () => assert.fail('nothing was opened'),
+    remove: () => assert.fail('a held or missing lock is never removed'),
   };
 }
 
-test('a launch while the update installer still runs is told to leave', () => {
-  const files = new Map([[FILE, JSON.stringify({ pid: 4242, startedAt: NOW - 5_000 })]]);
-  assert.equal(updateInstallerRunning(FILE, ['ClipHub Studio.exe'], fakeDeps(files, new Set([4242]))), true);
-  assert.equal(files.has(FILE), true);
-});
-
-test('the installer relaunch, a finished installer and a stale or broken marker all start Studio', () => {
-  const cases: Array<{ name: string; marker: string; argv: string[]; alive: number[] }> = [
-    { name: 'installer relaunch passes --updated', marker: JSON.stringify({ pid: 4242, startedAt: NOW }), argv: ['Studio.exe', '--updated'], alive: [4242] },
-    { name: 'installer exited', marker: JSON.stringify({ pid: 4242, startedAt: NOW - 5_000 }), argv: ['Studio.exe'], alive: [] },
-    { name: 'marker older than ten minutes', marker: JSON.stringify({ pid: 4242, startedAt: NOW - 11 * 60_000 }), argv: ['Studio.exe'], alive: [4242] },
-    { name: 'marker from the future', marker: JSON.stringify({ pid: 4242, startedAt: NOW + 60_000 }), argv: ['Studio.exe'], alive: [4242] },
-    { name: 'unreadable marker', marker: '{"pid":', argv: ['Studio.exe'], alive: [4242] },
-    { name: 'marker without a pid', marker: JSON.stringify({ startedAt: NOW }), argv: ['Studio.exe'], alive: [4242] },
+test('only a lock another process holds open tells a launch to leave', () => {
+  const cases: Array<{ code: string; copying: boolean }> = [
+    { code: 'EBUSY', copying: true },
+    { code: 'ENOENT', copying: false },
+    { code: 'EACCES', copying: false },
+    { code: 'EPERM', copying: false },
+    { code: 'ENOTDIR', copying: false },
   ];
   for (const row of cases) {
-    const files = new Map([[FILE, row.marker]]);
-    assert.equal(updateInstallerRunning(FILE, row.argv, fakeDeps(files, new Set(row.alive))), false, row.name);
-    assert.equal(files.has(FILE), false, `${row.name} clears the marker`);
+    assert.equal(installerCopyingFiles(FILE, failingOpen(row.code)), row.copying, row.code);
   }
+  assert.equal(installerCopyingFiles(null, failingOpen('EBUSY')), false);
 });
 
-test('no marker, a dev build or a failing file system never block Studio', () => {
-  assert.equal(updateInstallerRunning(FILE, ['Studio.exe'], fakeDeps(new Map(), new Set([4242]))), false);
-  assert.equal(updateInstallerRunning(null, ['Studio.exe'], fakeDeps(new Map(), new Set())), false);
-  const broken = { ...fakeDeps(new Map(), new Set()), readFile: () => { throw new Error('EACCES'); } };
-  assert.equal(updateInstallerRunning(FILE, ['Studio.exe'], broken), false);
-  assert.equal(installMarkerFile({ isPackaged: false, getName: () => 'cliphub-studio', getPath: () => 'C:\\appdata' }), null);
-  assert.equal(
-    installMarkerFile({ isPackaged: true, getName: () => 'cliphub-studio', getPath: () => 'C:\\appdata' }),
-    path.join('C:\\appdata', 'cliphub-studio', 'update-installing.json'),
-  );
+test('a lock nobody holds is a leftover: Studio starts and clears it', () => {
+  const calls: string[] = [];
+  const files: InstallGuardFiles = {
+    open: () => { calls.push('open'); return 7; },
+    close: (descriptor) => { calls.push(`close ${descriptor}`); },
+    remove: (file) => { calls.push(`remove ${file}`); },
+  };
+  assert.equal(installerCopyingFiles(FILE, files), false);
+  assert.deepEqual(calls, ['open', 'close 7', `remove ${FILE}`]);
+  const stuck = { ...files, remove: () => { throw new Error('EPERM'); } };
+  assert.equal(installerCopyingFiles(FILE, stuck), false);
 });
 
-test('starting the installer records its pid, and a marker that cannot be written only logs', async () => {
-  const files = new Map<string, string>();
-  await startRecordedInstaller('C:\\updates\\setup.exe', FILE, () => assert.fail('no log'), async () => 4242, fakeDeps(files, new Set()));
-  assert.deepEqual(parseInstallMarker(files.get(FILE) ?? ''), { pid: 4242, startedAt: NOW });
-
-  const lines: string[] = [];
-  const failing = { ...fakeDeps(new Map(), new Set()), writeFile: () => { throw new Error('EROFS'); } };
-  await startRecordedInstaller('C:\\updates\\setup.exe', FILE, (line) => lines.push(line), async () => 4242, failing);
-  assert.match(lines[0] ?? '', /install marker not written: Error: EROFS/);
-
-  const untouched = new Map<string, string>();
-  await startRecordedInstaller('C:\\updates\\setup.exe', null, () => assert.fail('no log'), async () => 4242, fakeDeps(untouched, new Set()));
-  await startRecordedInstaller('C:\\updates\\setup.exe', FILE, () => assert.fail('no log'), async () => undefined, fakeDeps(untouched, new Set()));
-  assert.equal(untouched.size, 0);
-  await assert.rejects(startRecordedInstaller('C:\\updates\\setup.exe', FILE, () => {}, async () => { throw new Error('spawn EACCES'); }, fakeDeps(untouched, new Set())));
-  assert.equal(untouched.size, 0);
+test('the lock lives in the canonical profile of packaged builds only', () => {
+  const app = (isPackaged: boolean) => ({ isPackaged, getName: () => 'cliphub-studio', getPath: () => 'C:\\appdata' });
+  assert.equal(installLockFile(app(false)), null);
+  assert.equal(installLockFile(app(true)), path.join('C:\\appdata', 'cliphub-studio', INSTALL_LOCK_NAME));
 });
 
-test('the default file system and process checks round-trip a real marker', () => {
+test('the installer takes the lock before it replaces files and drops it before it starts Studio', () => {
+  const desktop = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const script = fs.readFileSync(path.join(desktop, 'build', 'installer.nsh'), 'utf8');
+  const manifest = JSON.parse(fs.readFileSync(path.join(desktop, 'package.json'), 'utf8'));
+  assert.equal(manifest.name, 'cliphub-studio');
+  const check = script.slice(script.indexOf('!macro customCheckAppRunning'));
+  assert.ok(check.includes('"$R8\\${APP_PACKAGE_NAME}\\' + INSTALL_LOCK_NAME + '", i 0x40000000, i 0, p 0, i 2, i 0x04000000, p 0)'));
+  assert.ok(check.indexOf('CreateFileW') < check.indexOf('_CHECK_APP_RUNNING'));
+  const install = script.slice(script.indexOf('!macro customInstall'), script.indexOf('!macro customCheckAppRunning'));
+  assert.ok(install.indexOf('CloseHandle(p $installLock)') > 0);
+  assert.ok(install.indexOf('CloseHandle(p $installLock)') < install.indexOf('ExecShellAsUser'));
+});
+
+test('a real exclusive delete-on-close handle blocks the launch until its process ends', { skip: process.platform !== 'win32' }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-install-guard-'));
+  const file = path.join(dir, INSTALL_LOCK_NAME);
+  const holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    `$s = [IO.FileStream]::new('${file}', 'Create', 'Write', 'None', 1, 'DeleteOnClose'); [Console]::Out.WriteLine('held'); [Console]::In.ReadLine() | Out-Null; $s.Dispose()`,
+  ], { stdio: ['pipe', 'pipe', 'ignore'] });
   try {
-    const file = path.join(dir, 'profile', 'update-installing.json');
-    assert.equal(defaultInstallGuardDeps.readFile(file), null);
-    defaultInstallGuardDeps.writeFile(file, JSON.stringify({ pid: process.pid, startedAt: Date.now() }));
-    assert.equal(defaultInstallGuardDeps.isAlive(process.pid), true);
-    assert.equal(updateInstallerRunning(file, ['Studio.exe']), true);
-    assert.equal(updateInstallerRunning(file, ['Studio.exe', '--updated']), false);
+    await new Promise<void>((resolve, reject) => {
+      holder.stdout.once('data', () => resolve());
+      holder.once('error', reject);
+      holder.once('exit', () => reject(new Error('holder exited early')));
+    });
+    assert.equal(installerCopyingFiles(file), true);
+    assert.equal(fs.existsSync(file), true);
+    execFileSync('taskkill', ['/PID', String(holder.pid), '/F'], { stdio: 'ignore' });
+    await new Promise((resolve) => holder.once('close', resolve));
+    assert.equal(installerCopyingFiles(file), false);
     assert.equal(fs.existsSync(file), false);
-    assert.equal(defaultInstallGuardDeps.isAlive(2_147_483_000), false);
+    fs.writeFileSync(file, '');
+    assert.equal(installerCopyingFiles(file), false);
+    assert.equal(fs.existsSync(file), false);
   } finally {
+    holder.kill();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

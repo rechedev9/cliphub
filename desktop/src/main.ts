@@ -66,7 +66,7 @@ import { registerReplayGifIPC } from './replay-gif-window';
 import { denyPopups, registerMatchModeIPC } from './match-mode-window';
 import { bringForward, ipcRouter, watchOpenRequests } from './studio-raise';
 import { AppUpdateController, createDefaultAppUpdateHost, spawnVerifiedInstaller } from './app-update';
-import { installMarkerFile, startRecordedInstaller, updateInstallerRunning } from './update-install-guard';
+import { installLockFile, installerCopyingFiles } from './update-install-guard';
 import {
   APP_UPDATE_CHANNEL,
   APP_UPDATE_STATUS_CHANNEL,
@@ -99,7 +99,7 @@ app.on('gpu-info-update', () => {
 // Every loopback bind and health check uses this host.
 const LOOPBACK_HOST = '127.0.0.1';
 
-if (updateInstallerRunning(installMarkerFile(app), process.argv)) process.exit(0);
+if (installerCopyingFiles(installLockFile(app))) process.exit(0);
 // Packaged lock is under canonical appData; dev/e2e stays profile-scoped.
 const ownsElectronInstance = requestCanonicalSingleInstanceLock(app);
 if (!ownsElectronInstance) {
@@ -883,7 +883,7 @@ function registerAppUpdateIPC(): void {
     isPackaged: app.isPackaged,
     platform: process.platform,
     updatesDirectory: path.join(app.getPath('userData'), 'updates'),
-    spawnInstaller: (installer) => startRecordedInstaller(installer, installMarkerFile(app), logLine, spawnVerifiedInstaller),
+    spawnInstaller: spawnVerifiedInstaller,
     reportError: (phase, error) => {
       telemetryClient.recordError({
         component: 'electron', name: 'update.failed', stage: 'update', class: phase, message: error,
