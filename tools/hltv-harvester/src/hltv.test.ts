@@ -42,7 +42,7 @@ test("only matches never seen or still without a demo are visited again", () => 
 });
 
 test("parseArgs ignores invalid numbers", () => {
-  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false });
+  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false, faceit: "", invalid: "" });
 });
 
 test("cutRanking keeps the whole ranking unless the run keeps ranked matches only", () => {

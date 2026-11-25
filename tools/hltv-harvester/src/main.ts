@@ -10,7 +10,7 @@
 //   pnpm start -- --best-maps --days 90 --top 20 --min-maps 10 --per-map 5
 //   pnpm start -- --veto-backfill C:\Users\me\cliphub-hltv\series-sidecars
 import { app, BrowserWindow, session, type DownloadItem, type Session } from "electron";
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -20,6 +20,10 @@ import {
 } from "./hltv.ts";
 import { ChallengeTimeoutError, FailureBreaker, isTransient, withRetry } from "./retry.ts";
 import { MAP_STATS_SCRIPT, isoDay, parseTeamMapStats, pickBestPerMap, teamSlug, type BestMapPick, type TeamStats } from "./best-maps.ts";
+import {
+  demoFileName, faceitSidecarFor, isSidecarOf, matchScript, parseFaceitMatch, parseReply, parseSignedUrl, replyKind, roomIds, roomUrl, sidecarName, signScript,
+  type ApiReply, type FaceitMatch,
+} from "./faceit.ts";
 
 const PAGE_DELAY_MS: [number, number] = [6000, 12000];
 const CHALLENGE_WAIT_MS = 30 * 60 * 1000;
@@ -28,6 +32,8 @@ const RESULTS_PAGE_SIZE = 100;
 const LOAD_ATTEMPTS = 4;
 const LOAD_BACKOFF_MS = 15_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
+const SIGN_IN_POLL_MS = 15_000;
+const FACEIT_REQUEST_MS = 60_000;
 
 const opts = parseArgs(process.argv.slice(2), join(homedir(), "cliphub-hltv"));
 const downloadsDir = join(opts.outDir, "downloads");
@@ -68,8 +74,7 @@ class Browser {
     await this.load(url);
     if (!(await this.challenged())) return;
     log("class=challenge message=\"Cloudflare pide verificación: complétala en la ventana del recolector\"");
-    this.win.show();
-    this.win.focus();
+    this.reveal();
     const deadline = Date.now() + CHALLENGE_WAIT_MS;
     while (Date.now() < deadline) {
       await sleep(5000);
@@ -93,6 +98,11 @@ class Browser {
     });
   }
 
+  reveal(): void {
+    this.win.show();
+    this.win.focus();
+  }
+
   private async challenged(): Promise<boolean> {
     const v: unknown = await this.win.webContents.executeJavaScript(CHALLENGE_SCRIPT);
     return v === true;
@@ -103,22 +113,66 @@ class Browser {
     return v;
   }
 
-  download(ses: Session, url: string, target: string): Promise<void> {
+  readWithin(script: string, ms: number): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("download timed out")), DOWNLOAD_TIMEOUT_MS);
-      ses.once("will-download", (_event, item: DownloadItem) => {
-        const part = `${target}.part`;
-        item.setSavePath(part);
-        item.once("done", (_e, state) => {
-          clearTimeout(timer);
+      const timer = setTimeout(() => reject(new Error("page script timed out")), ms);
+      this.read(script).then(resolve, reject).finally(() => clearTimeout(timer));
+    });
+  }
+
+  download(ses: Session, url: string, target: string): Promise<void> {
+    const part = `${target}.part`;
+    const wanted = new URL(url).href;
+    return new Promise((resolve, reject) => {
+      let item: DownloadItem | null = null;
+      let settled = false;
+      const dropPart = (): void => {
+        try {
+          rmSync(part, { force: true });
+        } catch (err) {
+          log(`class=part_left file="${part}" error="${String(err)}"`);
+        }
+      };
+      const finish = (err: Error | null): void => {
+        if (settled) {
+          if (err !== null) dropPart();
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        ses.removeListener("will-download", onStart);
+        if (err === null) {
+          resolve();
+          return;
+        }
+        dropPart();
+        reject(err);
+      };
+      const onStart = (_event: Electron.Event, started: DownloadItem): void => {
+        if (item !== null || started.getURLChain()[0] !== wanted) {
+          started.cancel();
+          return;
+        }
+        item = started;
+        started.setSavePath(part);
+        started.once("done", (_e, state) => {
           if (state !== "completed") {
-            reject(new Error(`download ${state}`));
+            finish(new Error(`download ${state}`));
             return;
           }
-          renameSync(part, target);
-          resolve();
+          try {
+            renameSync(part, target);
+            finish(null);
+          } catch (err) {
+            finish(err instanceof Error ? err : new Error(String(err)));
+          }
         });
-      });
+      };
+      const timer = setTimeout(() => {
+        item?.cancel();
+        finish(new Error("download timed out"));
+      }, DOWNLOAD_TIMEOUT_MS);
+      ses.on("will-download", onStart);
       this.win.webContents.downloadURL(url);
     });
   }
@@ -334,16 +388,116 @@ async function pickMatches(browser: Browser, pick: BestMapPick, ctx: PickContext
   log(`class=best_matches map=${pick.map} team="${pick.team}" matches=${rows.length}`);
 }
 
+type FaceitRun = { browser: Browser; ses: Session; dir: string; downloaded: number };
+
+async function faceit(win: BrowserWindow, ses: Session): Promise<void> {
+  const dir = join(opts.outDir, "faceit");
+  mkdirSync(dir, { recursive: true });
+  const rooms = roomIds(existsSync(opts.faceit) ? readFileSync(opts.faceit, "utf8") : opts.faceit);
+  if (rooms.length === 0) throw new Error(`no FACEIT room id in "${opts.faceit}"`);
+  const run: FaceitRun = { browser: new Browser(win), ses, dir, downloaded: 0 };
+  const breaker = new FailureBreaker(MAX_CONSECUTIVE_FAILURES);
+  let failed = 0;
+  try {
+    for (const roomId of rooms) {
+      if (run.downloaded >= opts.maxMatches) break;
+      try {
+        await faceitRoom(run, roomId);
+        breaker.success();
+      } catch (err) {
+        if (err instanceof ChallengeTimeoutError) throw err;
+        failed++;
+        log(`class=faceit_failed room=${roomId} error="${String(err)}"`);
+        if (breaker.failure()) throw new Error(`${MAX_CONSECUTIVE_FAILURES} FACEIT rooms failed in a row: offline or blocked`);
+      }
+    }
+  } finally {
+    log(`class=done faceit_rooms=${rooms.length} downloaded=${run.downloaded} failed=${failed}`);
+  }
+  if (failed > 0) process.exitCode = 1;
+}
+
+async function faceitRoom(run: FaceitRun, roomId: string): Promise<void> {
+  await pause();
+  await run.browser.open(roomUrl(roomId));
+  const reply = await faceitCall(run.browser, (ms) => matchScript(roomId, ms));
+  if (reply === null) throw new Error("FACEIT has no such room");
+  const match = parseFaceitMatch(reply.body, roomId);
+  if (match === null) throw new Error("FACEIT match unreadable or not finished");
+  if (match.demoUrls.length === 0) {
+    log(`class=faceit_no_demo room=${roomId}`);
+    return;
+  }
+  for (const resource of match.demoUrls) {
+    if (run.downloaded >= opts.maxMatches) return;
+    await faceitDemo(run, match, resource);
+  }
+}
+
+async function faceitDemo(run: FaceitRun, match: FaceitMatch, resource: string): Promise<void> {
+  const name = demoFileName(resource);
+  const file = join(run.dir, name);
+  const sidecar = join(run.dir, sidecarName(name));
+  if (existsSync(file)) {
+    if (!existsSync(sidecar) || !isSidecarOf(readFileSync(sidecar, "utf8"), name)) writeSidecar(sidecar, match, resource);
+    return;
+  }
+  const reply = await faceitCall(run.browser, (ms) => signScript(resource, ms));
+  if (reply === null) {
+    log(`class=faceit_demo_gone room=${match.roomId} file=${name}`);
+    return;
+  }
+  const url = parseSignedUrl(reply.body);
+  if (url === "") throw new Error("FACEIT gave no signed demo link");
+  log(`class=downloading room=${match.roomId} file=${name} map=${match.map}`);
+  await run.browser.download(run.ses, url, file);
+  run.downloaded++;
+  writeSidecar(sidecar, match, resource);
+}
+
+function writeSidecar(path: string, match: FaceitMatch, resource: string): void {
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, JSON.stringify(faceitSidecarFor(match, resource), null, 2));
+  renameSync(tmp, path);
+}
+
+async function faceitCall(browser: Browser, script: (ms: number) => string): Promise<ApiReply | null> {
+  const deadline = Date.now() + CHALLENGE_WAIT_MS;
+  let waiting = false;
+  for (;;) {
+    const ms = Math.max(1000, Math.min(FACEIT_REQUEST_MS, deadline - Date.now()));
+    const reply = parseReply(await browser.readWithin(script(ms), ms + 5000).catch(() => null));
+    const kind = replyKind(reply, waiting);
+    if (kind === "ok") return reply;
+    if (kind === "gone") return null;
+    if (kind === "error") throw new Error(`FACEIT answered ${reply.status}`);
+    if (Date.now() >= deadline) throw new ChallengeTimeoutError();
+    if (!waiting) {
+      log("class=faceit_needs_user message=\"FACEIT pide iniciar sesión o verificación: hazlo en la ventana del recolector\"");
+      browser.reveal();
+      waiting = true;
+    }
+    await sleep(Math.min(SIGN_IN_POLL_MS, Math.max(0, deadline - Date.now())));
+  }
+}
+
 app.whenReady().then(async () => {
+  if (opts.invalid !== "") {
+    mkdirSync(opts.outDir, { recursive: true });
+    log(`class=fatal error="${opts.invalid}"`);
+    app.exit(2);
+    return;
+  }
   const ses = session.fromPartition("persist:hltv");
   const win = new BrowserWindow({ width: 1280, height: 860, show: true, title: "ClipHub: recolector HLTV", webPreferences: { session: ses, contextIsolation: true, sandbox: true } });
   try {
-    if (opts.vetoBackfill !== "") await vetoBackfill(win);
+    if (opts.faceit !== "") await faceit(win, ses);
+    else if (opts.vetoBackfill !== "") await vetoBackfill(win);
     else if (opts.bestMaps) await bestMaps(win);
     else await (opts.refetch === "" ? harvest(win, ses) : refetch(win, ses));
   } catch (err) {
     log(`class=fatal error="${String(err)}"`);
     process.exitCode = 1;
   }
-  app.quit();
+  app.exit(Number(process.exitCode ?? 0));
 });
