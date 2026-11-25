@@ -803,7 +803,7 @@ Trust a delta only when `wall_cv_percent` is under 10 (`run_noisy` otherwise) an
 - The steps are in [Release](../.claude/rules/release.md#steps).
 - The in-app updater (`desktop/src/app-update.ts`, scheduled by `APP_UPDATE_START_DELAY_MS`
   and `APP_UPDATE_INTERVAL_MS` in `main.ts`) downloads and verifies the new installer in the
-  background and installs only when the user presses Reiniciar. It waits while
+  background and installs only when the user presses Actualizar. It waits while
   `zv-recorder.exe` or `zv-editor.exe` runs (`desktop/src/studio-jobs.ts`).
 - On 2026-11-14 the landing still offered 5.19.0 while Studio was at 5.23.0, because the
   ClipMind and landing deploy after the release was skipped.
