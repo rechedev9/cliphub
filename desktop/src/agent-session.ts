@@ -117,28 +117,62 @@ export function setAgentAccess({
   running,
   fsOps = nodeFs,
 }: SetAgentAccessOptions): void {
-  const access = { enabled, autoApproveStarts, autoApproveDeletes };
-  let failure: unknown = null;
+  const next = { enabled, autoApproveStarts, autoApproveDeletes };
+  const kept = keptAccess(readAgentAccess(accessFile), next);
   try {
-    writeFileAtomic({ file: accessFile, document: access, fsOps });
+    writeFileAtomic({ file: accessFile, document: kept, fsOps });
   } catch (error) {
-    failure = error;
+    removeQuietly(accessFile, fsOps);
+    if (running !== null) publishQuietly({ sessionFile, access: accessOff(), running, fsOps });
+    throw error;
   }
   if (running !== null) {
-    const published = failure === null ? access : accessOff();
     try {
-      writeAgentSession({ sessionFile, ...published, ...running, fsOps });
+      writeAgentSession({ sessionFile, ...next, ...running, fsOps });
     } catch (error) {
-      failure ??= error;
-      removeSessionQuietly(sessionFile, fsOps);
+      removeQuietly(sessionFile, fsOps);
+      throw error;
     }
   }
-  if (failure !== null) throw failure;
+  if (sameAccess(kept, next)) return;
+  try {
+    writeFileAtomic({ file: accessFile, document: next, fsOps });
+  } catch (error) {
+    if (running !== null) publishQuietly({ sessionFile, access: kept, running, fsOps });
+    throw error;
+  }
 }
 
-function removeSessionQuietly(sessionFile: string, fsOps: AgentSessionFs): void {
+function keptAccess(stored: AgentAccess, next: AgentAccess): AgentAccess {
+  return {
+    enabled: stored.enabled && next.enabled,
+    autoApproveStarts: stored.autoApproveStarts && next.autoApproveStarts,
+    autoApproveDeletes: stored.autoApproveDeletes && next.autoApproveDeletes,
+  };
+}
+
+function sameAccess(a: AgentAccess, b: AgentAccess): boolean {
+  return a.enabled === b.enabled && a.autoApproveStarts === b.autoApproveStarts && a.autoApproveDeletes === b.autoApproveDeletes;
+}
+
+interface PublishOptions {
+  sessionFile: string;
+  access: AgentAccess;
+  running: AgentSessionTarget;
+  fsOps: AgentSessionFs;
+}
+
+function publishQuietly({ sessionFile, access, running, fsOps }: PublishOptions): void {
   try {
-    removeAgentSession(sessionFile, fsOps);
+    writeAgentSession({ sessionFile, ...access, ...running, fsOps });
+  } catch {
+    removeQuietly(sessionFile, fsOps);
+  }
+}
+
+function removeQuietly(file: string, fsOps: AgentSessionFs): void {
+  try {
+    fsOps.rmSync(file, { force: true });
   } catch {
     return;
   }

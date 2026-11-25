@@ -43,6 +43,39 @@ func TestParseAgentSession(t *testing.T) {
 	}
 }
 
+func TestConfigNeedsTheStoredAccessToo(t *testing.T) {
+	token := strings.Repeat("ab", 32)
+	dir := t.TempDir()
+	s := &studio{sessionPath: filepath.Join(dir, "agent-session.json")}
+	session := `{"version":1,"enabled":true,"orchestratorUrl":"http://127.0.0.1:4100","token":"` + token + `"}`
+	if err := os.WriteFile(s.sessionPath, []byte(session), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	accessPath := filepath.Join(dir, "agent-access.json")
+	if _, err := s.config(); !errors.Is(err, errAgentOff) {
+		t.Errorf("no stored choice: got %v, want errAgentOff", err)
+	}
+	for _, tc := range []struct {
+		raw  string
+		want error
+	}{
+		{`{"enabled":false}`, errAgentOff},
+		{`{`, errAgentOff},
+		{`{"enabled":true}`, nil},
+	} {
+		if err := os.WriteFile(accessPath, []byte(tc.raw), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := s.config()
+		if !errors.Is(err, tc.want) {
+			t.Errorf("stored %s: got %v, want %v", tc.raw, err, tc.want)
+		}
+		if tc.want == nil && cfg.Token != token {
+			t.Errorf("stored %s: token not used", tc.raw)
+		}
+	}
+}
+
 func TestAutoApprovalReadsTheSessionFile(t *testing.T) {
 	token := strings.Repeat("ab", 32)
 	dir := t.TempDir()

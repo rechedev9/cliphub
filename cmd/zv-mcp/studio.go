@@ -108,7 +108,28 @@ func (s *studio) config() (tuiclient.Config, error) {
 	if err != nil {
 		return tuiclient.Config{}, err
 	}
+	if access, ok := s.storedAccess(); !ok || !access.Enabled {
+		return tuiclient.Config{}, errAgentOff
+	}
 	return tuiclient.Config{BaseURL: sess.OrchestratorURL, Token: sess.Token}, nil
+}
+
+type storedAgentAccess struct {
+	Enabled            bool `json:"enabled"`
+	AutoApproveStarts  bool `json:"autoApproveStarts"`
+	AutoApproveDeletes bool `json:"autoApproveDeletes"`
+}
+
+func (s *studio) storedAccess() (storedAgentAccess, bool) {
+	raw, err := os.ReadFile(filepath.Join(filepath.Dir(s.sessionPath), "agent-access.json"))
+	if err != nil {
+		return storedAgentAccess{}, false
+	}
+	var access storedAgentAccess
+	if json.Unmarshal(raw, &access) != nil {
+		return storedAgentAccess{}, false
+	}
+	return access, true
 }
 
 // webOrigin returns the Studio UI origin, or CLIPHUB_WEB_ORIGIN when a bare
@@ -146,16 +167,8 @@ func (s *studio) autoApproval() autoApproval {
 	if err != nil {
 		return autoApproval{}
 	}
-	stored, err := os.ReadFile(filepath.Join(filepath.Dir(s.sessionPath), "agent-access.json"))
-	if err != nil {
-		return autoApproval{}
-	}
-	var access struct {
-		Enabled            bool `json:"enabled"`
-		AutoApproveStarts  bool `json:"autoApproveStarts"`
-		AutoApproveDeletes bool `json:"autoApproveDeletes"`
-	}
-	if json.Unmarshal(stored, &access) != nil || !access.Enabled {
+	access, ok := s.storedAccess()
+	if !ok || !access.Enabled {
 		return autoApproval{}
 	}
 	return autoApproval{

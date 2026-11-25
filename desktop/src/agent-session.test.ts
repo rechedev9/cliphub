@@ -236,6 +236,67 @@ test('turning off an automatic approval stores it even when the session can be n
   assert.deepEqual(readAgentAccess(accessFile), { ...granted, autoApproveDeletes: false });
 });
 
+test('a grant whose session cannot be published is not stored, so the next boot does not publish it', () => {
+  const dir = tempDir();
+  const accessFile = path.join(dir, 'agent-access.json');
+  const sessionFile = path.join(dir, 'agent-session.json');
+  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION };
+  setAgentAccess({ accessFile, sessionFile, ...ACCESS_ON, running });
+
+  const ops = flakyFs({ renameFailures: 0 });
+  const realRename = ops.renameSync;
+  ops.renameSync = (from: string, to: string): void => {
+    if (to === sessionFile) throw Object.assign(new Error('file is in use'), { code: 'EPERM' });
+    realRename(from, to);
+  };
+  assert.throws(() => setAgentAccess({ accessFile, sessionFile, ...ACCESS_ON, autoApproveDeletes: true, running, fsOps: ops }), /in use/);
+
+  assert.deepEqual(readAgentAccess(accessFile), ACCESS_ON);
+  assert.equal(fs.existsSync(sessionFile), false);
+});
+
+test('a grant that cannot be stored is withdrawn from the published session', () => {
+  const dir = tempDir();
+  const accessFile = path.join(dir, 'agent-access.json');
+  const sessionFile = path.join(dir, 'agent-session.json');
+  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION };
+  setAgentAccess({ accessFile, sessionFile, ...ACCESS_ON, running });
+
+  const ops = flakyFs({ renameFailures: 0 });
+  const realRename = ops.renameSync;
+  let accessWrites = 0;
+  ops.renameSync = (from: string, to: string): void => {
+    if (to === accessFile && ++accessWrites > 1) throw Object.assign(new Error('file is in use'), { code: 'EPERM' });
+    realRename(from, to);
+  };
+  assert.throws(() => setAgentAccess({ accessFile, sessionFile, ...ACCESS_ON, autoApproveDeletes: true, running, fsOps: ops }), /in use/);
+
+  assert.deepEqual(readAgentAccess(accessFile), ACCESS_ON);
+  const session = JSON.parse(fs.readFileSync(sessionFile, 'utf8'));
+  assert.equal(session.token, TOKEN);
+  assert.equal(session.autoApproveDeletes, false);
+});
+
+test('a revocation that cannot be stored drops the stored choice and the published session', () => {
+  const dir = tempDir();
+  const accessFile = path.join(dir, 'agent-access.json');
+  const sessionFile = path.join(dir, 'agent-session.json');
+  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION };
+  const granted = { enabled: true, autoApproveStarts: true, autoApproveDeletes: true };
+  setAgentAccess({ accessFile, sessionFile, ...granted, running });
+
+  const ops = flakyFs({ renameFailures: 0 });
+  const realRename = ops.renameSync;
+  ops.renameSync = (from: string, to: string): void => {
+    if (to === accessFile) throw Object.assign(new Error('file is in use'), { code: 'EPERM' });
+    realRename(from, to);
+  };
+  assert.throws(() => setAgentAccess({ accessFile, sessionFile, ...granted, autoApproveDeletes: false, running, fsOps: ops }), /in use/);
+
+  assert.deepEqual(readAgentAccess(accessFile), OFF);
+  assert.equal(fs.existsSync(sessionFile) && JSON.parse(fs.readFileSync(sessionFile, 'utf8')).token !== undefined, false);
+});
+
 test('a failure storing the choice never leaves a published token behind', () => {
   const dir = tempDir();
   const accessFile = path.join(dir, 'agent-access.json');

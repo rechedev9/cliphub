@@ -89,11 +89,15 @@ boot, and production requires it even for reads (`requireMutationToken` in
    `autoApproveStarts` and `autoApproveDeletes` are the two automatic approval switches (see Approval). `agent-access.json` keeps
    all three switches as `{ "enabled", "autoApproveStarts", "autoApproveDeletes" }` (a missing one is off), so turning access off keeps
    the automatic approvals the user chose, but the session file publishes them only while access is on.
-2. Electron rewrites it at once when any of the switches changes (`agent-access.json` first, so a
-   revocation is stored even when the session cannot be rewritten, then the session file; when the
-   choice cannot be stored, the session is published with access off), retries a rename that Windows
-   refuses while `zv-mcp` reads the file, and falls back to deleting the session file when rewriting
-   it fails, so no token stays on disk. It deletes
+2. Electron rewrites it at once when any of the switches changes, in two steps (`setAgentAccess`):
+   it stores in `agent-access.json` what the change keeps or revokes, publishes the session, and only
+   then stores what it grants. A grant whose session cannot be published is never stored, so the next
+   boot does not publish it; a grant that cannot be stored is withdrawn from the session; a revocation
+   that cannot be stored deletes `agent-access.json` (all switches off) and publishes access off. It
+   retries a rename that Windows refuses while `zv-mcp` reads the file, and falls back to deleting the
+   session file when rewriting it fails, so no token stays on disk. `zv-mcp` uses the session only while
+   `agent-access.json` also has access on, so a session file Windows kept locked cannot outlive a
+   switch-off. It deletes
    the file on quit, on boot failure and at the start of a new boot attempt (a new boot mints a new
    token). `webOrigin` serves public UI assets such as the HUD previews (`/hud/*` needs no cookie).
 3. `zv-mcp` finds userData at `%APPDATA%\cliphub-studio`, overridden by
