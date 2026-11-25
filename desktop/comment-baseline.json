@@ -33,7 +33,7 @@
   "src/http-download.ts": 4,
   "src/http-health.ts": 1,
   "src/log-tail.ts": 4,
-  "src/main.ts": 73,
+  "src/main.ts": 72,
   "src/match-mode-window.ts": 3,
   "src/match-mode.ts": 3,
   "src/music-library.test.ts": 2,
