@@ -55,9 +55,9 @@ test('silent NSIS apply asks electron-builder to relaunch after replace', async 
   ];
   const spawned: Array<{ command: string; args: readonly string[]; options: SpawnOptions }> = [];
   let unrefs = 0;
-  await spawnVerifiedInstaller('C:\\updates\\ClipHub.Studio.Setup.2.4.30.exe', (command, args, options) => {
+  const pid = await spawnVerifiedInstaller('C:\\updates\\ClipHub.Studio.Setup.2.4.30.exe', (command, args, options) => {
     spawned.push({ command, args, options });
-    const child = Object.assign(new EventEmitter(), { unref: () => { unrefs += 1; } });
+    const child = Object.assign(new EventEmitter(), { pid: 4242, unref: () => { unrefs += 1; } });
     queueMicrotask(() => child.emit('spawn'));
     return child;
   });
@@ -67,6 +67,7 @@ test('silent NSIS apply asks electron-builder to relaunch after replace', async 
     options: { detached: true, stdio: 'ignore', windowsHide: true },
   }]);
   assert.equal(unrefs, 1);
+  assert.equal(pid, 4242);
 
   const desktopDirectory = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
   const manifest = JSON.parse(fs.readFileSync(path.join(desktopDirectory, 'package.json'), 'utf8'));

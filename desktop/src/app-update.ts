@@ -84,6 +84,7 @@ export function installerAssetName(version: string): string {
 const INSTALLER_SPAWN_ARGS = ['/S', '--updated', '--force-run'] as const;
 
 interface InstallerProcess {
+  readonly pid?: number;
   once(event: 'error', listener: (error: Error) => void): unknown;
   once(event: 'spawn', listener: () => void): unknown;
   unref(): void;
@@ -99,7 +100,7 @@ type SpawnInstallerProcess = (
 export function spawnVerifiedInstaller(
   installerPath: string,
   spawnProcess: SpawnInstallerProcess = spawn,
-): Promise<void> {
+): Promise<number | undefined> {
   return new Promise((resolve, reject) => {
     const child = spawnProcess(installerPath, [...INSTALLER_SPAWN_ARGS], {
       detached: true,
@@ -109,7 +110,7 @@ export function spawnVerifiedInstaller(
     child.once('error', reject);
     child.once('spawn', () => {
       child.unref();
-      resolve();
+      resolve(child.pid);
     });
   });
 }
