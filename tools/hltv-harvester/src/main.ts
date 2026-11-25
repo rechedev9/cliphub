@@ -20,6 +20,7 @@ import {
 } from "./hltv.ts";
 import { ChallengeTimeoutError, FailureBreaker, isTransient, withRetry } from "./retry.ts";
 import { MAP_STATS_SCRIPT, isoDay, parseTeamMapStats, pickBestPerMap, teamSlug, type BestMapPick, type TeamStats } from "./best-maps.ts";
+import { demoFileName, faceitSidecarFor, matchScript, parseFaceitMatch, parseSigned, roomIds, roomUrl, signScript } from "./faceit.ts";
 
 const PAGE_DELAY_MS: [number, number] = [6000, 12000];
 const CHALLENGE_WAIT_MS = 30 * 60 * 1000;
@@ -28,6 +29,7 @@ const RESULTS_PAGE_SIZE = 100;
 const LOAD_ATTEMPTS = 4;
 const LOAD_BACKOFF_MS = 15_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
+const SIGN_IN_POLL_MS = 15_000;
 
 const opts = parseArgs(process.argv.slice(2), join(homedir(), "cliphub-hltv"));
 const downloadsDir = join(opts.outDir, "downloads");
@@ -68,8 +70,7 @@ class Browser {
     await this.load(url);
     if (!(await this.challenged())) return;
     log("class=challenge message=\"Cloudflare pide verificación: complétala en la ventana del recolector\"");
-    this.win.show();
-    this.win.focus();
+    this.reveal();
     const deadline = Date.now() + CHALLENGE_WAIT_MS;
     while (Date.now() < deadline) {
       await sleep(5000);
@@ -91,6 +92,11 @@ class Browser {
       isTransient,
       onRetry: (attempt, err) => log(`class=load_retry attempt=${attempt} url="${url}" error="${String(err)}"`),
     });
+  }
+
+  reveal(): void {
+    this.win.show();
+    this.win.focus();
   }
 
   private async challenged(): Promise<boolean> {
@@ -334,11 +340,81 @@ async function pickMatches(browser: Browser, pick: BestMapPick, ctx: PickContext
   log(`class=best_matches map=${pick.map} team="${pick.team}" matches=${rows.length}`);
 }
 
+async function faceit(win: BrowserWindow, ses: Session): Promise<void> {
+  const dir = join(opts.outDir, "faceit");
+  mkdirSync(dir, { recursive: true });
+  const rooms = roomIds(existsSync(opts.faceit) ? readFileSync(opts.faceit, "utf8") : opts.faceit);
+  if (rooms.length === 0) throw new Error(`no FACEIT room id in "${opts.faceit}"`);
+  const browser = new Browser(win);
+  const breaker = new FailureBreaker(MAX_CONSECUTIVE_FAILURES);
+  let downloaded = 0;
+  let failed = 0;
+  for (const roomId of rooms) {
+    if (downloaded >= opts.maxMatches) break;
+    try {
+      downloaded += await faceitRoom(browser, ses, dir, roomId);
+      breaker.success();
+    } catch (err) {
+      if (err instanceof ChallengeTimeoutError) throw err;
+      failed++;
+      log(`class=faceit_failed room=${roomId} error="${String(err)}"`);
+      if (breaker.failure()) throw new Error(`${MAX_CONSECUTIVE_FAILURES} FACEIT rooms failed in a row: offline or blocked`);
+    }
+  }
+  log(`class=done faceit_rooms=${rooms.length} downloaded=${downloaded} failed=${failed}`);
+}
+
+async function faceitRoom(browser: Browser, ses: Session, dir: string, roomId: string): Promise<number> {
+  await pause();
+  await browser.open(roomUrl(roomId));
+  const match = parseFaceitMatch(await browser.read(matchScript(roomId)), roomId);
+  if (match === null) throw new Error("FACEIT match unreadable or not finished");
+  if (match.demoUrls.length === 0) {
+    log(`class=faceit_no_demo room=${roomId}`);
+    return 0;
+  }
+  let saved = 0;
+  for (const resource of match.demoUrls) {
+    const name = demoFileName(resource);
+    const file = join(dir, name);
+    if (existsSync(file)) continue;
+    const url = await signedUrl(browser, roomId, resource);
+    if (url === null) {
+      log(`class=faceit_demo_gone room=${roomId} file=${name}`);
+      continue;
+    }
+    log(`class=downloading room=${roomId} file=${name} map=${match.map}`);
+    await browser.download(ses, url, file);
+    writeFileSync(join(dir, name.replace(/\.dem\.zst$/, ".json")), JSON.stringify(faceitSidecarFor(match, resource), null, 2));
+    saved++;
+  }
+  return saved;
+}
+
+async function signedUrl(browser: Browser, roomId: string, resource: string): Promise<string | null> {
+  const deadline = Date.now() + CHALLENGE_WAIT_MS;
+  let asked = false;
+  for (;;) {
+    const signed = parseSigned(await browser.read(signScript(resource)).catch(() => null));
+    if (signed.kind === "signed") return signed.url;
+    if (signed.kind === "failed" && (signed.status === 404 || signed.status === 410)) return null;
+    if (signed.kind === "failed" && !asked) throw new Error(`FACEIT signing answered ${signed.status}`);
+    if (Date.now() >= deadline) throw new ChallengeTimeoutError();
+    if (!asked) {
+      log("class=faceit_needs_user message=\"FACEIT pide iniciar sesión o verificación: hazlo en la ventana del recolector\"");
+      browser.reveal();
+      asked = true;
+    }
+    await sleep(SIGN_IN_POLL_MS);
+  }
+}
+
 app.whenReady().then(async () => {
   const ses = session.fromPartition("persist:hltv");
   const win = new BrowserWindow({ width: 1280, height: 860, show: true, title: "ClipHub: recolector HLTV", webPreferences: { session: ses, contextIsolation: true, sandbox: true } });
   try {
-    if (opts.vetoBackfill !== "") await vetoBackfill(win);
+    if (opts.faceit !== "") await faceit(win, ses);
+    else if (opts.vetoBackfill !== "") await vetoBackfill(win);
     else if (opts.bestMaps) await bestMaps(win);
     else await (opts.refetch === "" ? harvest(win, ses) : refetch(win, ses));
   } catch (err) {
