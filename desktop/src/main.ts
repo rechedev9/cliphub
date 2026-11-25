@@ -99,7 +99,7 @@ app.on('gpu-info-update', () => {
 // Every loopback bind and health check uses this host.
 const LOOPBACK_HOST = '127.0.0.1';
 
-if (installerCopyingFiles(installLockFile(app))) process.exit(0);
+if (installerCopyingFiles(installLockFile(app.isPackaged, process.execPath))) process.exit(0);
 // Packaged lock is under canonical appData; dev/e2e stays profile-scoped.
 const ownsElectronInstance = requestCanonicalSingleInstanceLock(app);
 if (!ownsElectronInstance) {

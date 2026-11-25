@@ -1,13 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-export const INSTALL_LOCK_NAME = 'update-installing.lock';
-
-export interface InstallGuardApp {
-  readonly isPackaged: boolean;
-  getName(): string;
-  getPath(name: 'appData'): string;
-}
+export const INSTALL_LOCK_SUFFIX = '.update-installing.lock';
 
 export interface InstallGuardFiles {
   open(file: string): number;
@@ -21,8 +15,8 @@ export const defaultInstallGuardFiles: InstallGuardFiles = {
   remove: (file) => fs.rmSync(file, { force: true }),
 };
 
-export function installLockFile(app: InstallGuardApp): string | null {
-  return app.isPackaged ? path.join(app.getPath('appData'), app.getName(), INSTALL_LOCK_NAME) : null;
+export function installLockFile(isPackaged: boolean, execPath: string): string | null {
+  return isPackaged ? `${path.dirname(execPath)}${INSTALL_LOCK_SUFFIX}` : null;
 }
 
 export function installerCopyingFiles(

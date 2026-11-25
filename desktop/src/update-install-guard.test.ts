@@ -6,13 +6,13 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
-  INSTALL_LOCK_NAME,
+  INSTALL_LOCK_SUFFIX,
   installLockFile,
   installerCopyingFiles,
   type InstallGuardFiles,
 } from './update-install-guard.ts';
 
-const FILE = 'C:\\appdata\\cliphub-studio\\update-installing.lock';
+const FILE = 'C:\\Programs\\ClipHub Studio.update-installing.lock';
 
 function failingOpen(code: string): InstallGuardFiles {
   return {
@@ -49,28 +49,36 @@ test('a lock nobody holds is a leftover: Studio starts and clears it', () => {
   assert.equal(installerCopyingFiles(FILE, stuck), false);
 });
 
-test('the lock lives in the canonical profile of packaged builds only', () => {
-  const app = (isPackaged: boolean) => ({ isPackaged, getName: () => 'cliphub-studio', getPath: () => 'C:\\appdata' });
-  assert.equal(installLockFile(app(false)), null);
-  assert.equal(installLockFile(app(true)), path.join('C:\\appdata', 'cliphub-studio', INSTALL_LOCK_NAME));
+test('the lock sits beside the install folder of packaged builds only', () => {
+  const exe = path.join('C:\\Programs\\ClipHub Studio', 'ClipHub Studio.exe');
+  assert.equal(installLockFile(false, exe), null);
+  assert.equal(installLockFile(true, exe), 'C:\\Programs\\ClipHub Studio' + INSTALL_LOCK_SUFFIX);
 });
 
-test('the installer takes the lock before it replaces files and drops it before it starts Studio', () => {
+test('the installer takes the lock in whichever instance installs and drops it before it starts Studio', () => {
   const desktop = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
   const script = fs.readFileSync(path.join(desktop, 'build', 'installer.nsh'), 'utf8');
-  const manifest = JSON.parse(fs.readFileSync(path.join(desktop, 'package.json'), 'utf8'));
-  assert.equal(manifest.name, 'cliphub-studio');
-  const check = script.slice(script.indexOf('!macro customCheckAppRunning'));
-  assert.ok(check.includes('"$R8\\${APP_PACKAGE_NAME}\\' + INSTALL_LOCK_NAME + '", i 0x40000000, i 0, p 0, i 2, i 0x04000000, p 0)'));
-  assert.ok(check.indexOf('CreateFileW') < check.indexOf('_CHECK_APP_RUNNING'));
-  const install = script.slice(script.indexOf('!macro customInstall'), script.indexOf('!macro customCheckAppRunning'));
+  const macro = (name: string): string => {
+    const start = script.indexOf(`!macro ${name}`);
+    assert.ok(start >= 0, name);
+    return script.slice(start, script.indexOf('!macroend', start));
+  };
+  assert.ok(macro('openInstallLock').includes('CreateFileW(w "$INSTDIR' + INSTALL_LOCK_SUFFIX + '", i 0x40000000, i 0, p 0, i 2, i 0x04000000, p 0)'));
+  const take = macro('takeInstallLock');
+  assert.ok(take.indexOf('$installLock == -1') < take.lastIndexOf('!insertmacro openInstallLock'));
+  const running = macro('customCheckAppRunning');
+  assert.ok(running.indexOf('takeInstallLock') > 0 && running.indexOf('takeInstallLock') < running.indexOf('_CHECK_APP_RUNNING'));
+  assert.ok(running.indexOf('!ifndef BUILD_UNINSTALLER') < running.indexOf('takeInstallLock'));
+  const afterUninstall = macro('customUnInstallCheck');
+  assert.ok(afterUninstall.indexOf('Quit') < afterUninstall.indexOf('takeInstallLock'));
+  const install = macro('customInstall');
   assert.ok(install.indexOf('CloseHandle(p $installLock)') > 0);
   assert.ok(install.indexOf('CloseHandle(p $installLock)') < install.indexOf('ExecShellAsUser'));
 });
 
 test('a real exclusive delete-on-close handle blocks the launch until its process ends', { skip: process.platform !== 'win32' }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-install-guard-'));
-  const file = path.join(dir, INSTALL_LOCK_NAME);
+  const file = `${dir}${INSTALL_LOCK_SUFFIX}`;
   const holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
     `$s = [IO.FileStream]::new('${file}', 'Create', 'Write', 'None', 1, 'DeleteOnClose'); [Console]::Out.WriteLine('held'); [Console]::In.ReadLine() | Out-Null; $s.Dispose()`,
   ], { stdio: ['pipe', 'pipe', 'ignore'] });
