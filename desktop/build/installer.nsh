@@ -4,19 +4,19 @@ Var pid
 !ifndef BUILD_UNINSTALLER
   Var installLock
 
-  !macro openInstallLock
-    System::Call 'kernel32::CreateFileW(w "$INSTDIR.update-installing.lock", i 0x40000000, i 0, p 0, i 2, i 0x04000000, p 0) p .s'
+  !macro openInstallLock FILE
+    System::Call 'kernel32::CreateFileW(w "${FILE}", i 0x40000000, i 0, p 0, i 2, i 0x04000000, p 0) p .s'
     Pop $installLock
   !macroend
 
-  !macro takeInstallLock
+  !macro takeInstallLock FILE
     ${if} $installLock == ""
     ${orIf} $installLock == -1
-      !insertmacro openInstallLock
+      !insertmacro openInstallLock "${FILE}"
       ${if} $installLock == -1
-        SetFileAttributes "$INSTDIR.update-installing.lock" NORMAL
-        Delete "$INSTDIR.update-installing.lock"
-        !insertmacro openInstallLock
+        SetFileAttributes "${FILE}" NORMAL
+        Delete "${FILE}"
+        !insertmacro openInstallLock "${FILE}"
       ${endIf}
     ${endIf}
   !macroend
@@ -30,7 +30,11 @@ Var pid
       SetErrorLevel 2
       Quit
     ${endIf}
-    !insertmacro takeInstallLock
+    !insertmacro takeInstallLock "$INSTDIR.update-installing.lock"
+    ${if} $installLock == -1
+      CreateDirectory "$INSTDIR"
+      !insertmacro takeInstallLock "$INSTDIR\update-installing.lock"
+    ${endIf}
     ${if} $installLock == -1
       DetailPrint `Install lock not taken: Studio is not held back while files are replaced.`
     ${endIf}
@@ -56,7 +60,7 @@ Var pid
 
 !macro customCheckAppRunning
   !ifndef BUILD_UNINSTALLER
-    !insertmacro takeInstallLock
+    !insertmacro takeInstallLock "$INSTDIR.update-installing.lock"
   !endif
   !insertmacro IS_POWERSHELL_AVAILABLE
   !insertmacro _CHECK_APP_RUNNING

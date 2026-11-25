@@ -66,7 +66,7 @@ import { registerReplayGifIPC } from './replay-gif-window';
 import { denyPopups, registerMatchModeIPC } from './match-mode-window';
 import { bringForward, ipcRouter, watchOpenRequests } from './studio-raise';
 import { AppUpdateController, createDefaultAppUpdateHost, spawnVerifiedInstaller } from './app-update';
-import { installLockFile, installerCopyingFiles } from './update-install-guard';
+import { installLockFiles, installerCopyingFiles } from './update-install-guard';
 import {
   APP_UPDATE_CHANNEL,
   APP_UPDATE_STATUS_CHANNEL,
@@ -99,7 +99,7 @@ app.on('gpu-info-update', () => {
 // Every loopback bind and health check uses this host.
 const LOOPBACK_HOST = '127.0.0.1';
 
-if (installerCopyingFiles(installLockFile(app.isPackaged, process.execPath))) process.exit(0);
+if (installerCopyingFiles(installLockFiles(app.isPackaged, process.execPath))) process.exit(0);
 // Packaged lock is under canonical appData; dev/e2e stays profile-scoped.
 const ownsElectronInstance = requestCanonicalSingleInstanceLock(app);
 if (!ownsElectronInstance) {
