@@ -209,7 +209,31 @@ test('turning off an automatic approval removes the session when it cannot be re
 
   assert.equal(fs.existsSync(sessionFile), false);
   assert.equal(fs.existsSync(`${sessionFile}.tmp`), false);
-  assert.deepEqual(readAgentAccess(accessFile), granted);
+  assert.deepEqual(readAgentAccess(accessFile), { ...granted, autoApproveStarts: false });
+});
+
+test('turning off an automatic approval stores it even when the session can be neither rewritten nor removed', () => {
+  const dir = tempDir();
+  const accessFile = path.join(dir, 'agent-access.json');
+  const sessionFile = path.join(dir, 'agent-session.json');
+  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION };
+  const granted = { enabled: true, autoApproveStarts: true, autoApproveDeletes: true };
+  setAgentAccess({ accessFile, sessionFile, ...granted, running });
+
+  const ops = flakyFs({ renameFailures: 0 });
+  const realRename = ops.renameSync;
+  const realRm = ops.rmSync;
+  ops.renameSync = (from: string, to: string): void => {
+    if (to === sessionFile) throw Object.assign(new Error('file is in use'), { code: 'EPERM' });
+    realRename(from, to);
+  };
+  ops.rmSync = (file: string, options: { force: true }): void => {
+    if (file === sessionFile) throw Object.assign(new Error('file is in use'), { code: 'EPERM' });
+    realRm(file, options);
+  };
+  assert.throws(() => setAgentAccess({ accessFile, sessionFile, ...granted, autoApproveDeletes: false, running, fsOps: ops }), /in use/);
+
+  assert.deepEqual(readAgentAccess(accessFile), { ...granted, autoApproveDeletes: false });
 });
 
 test('a failure storing the choice never leaves a published token behind', () => {
@@ -224,6 +248,6 @@ test('a failure storing the choice never leaves a published token behind', () =>
     realRename(from, to);
   };
   assert.throws(() => setAgentAccess({ accessFile, sessionFile, ...ACCESS_ON, running, fsOps: ops }), /in use/);
-  assert.equal(fs.existsSync(sessionFile), false);
+  assert.equal(fs.existsSync(sessionFile) && JSON.parse(fs.readFileSync(sessionFile, 'utf8')).token !== undefined, false);
   assert.deepEqual(readAgentAccess(accessFile), OFF);
 });

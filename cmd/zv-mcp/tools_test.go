@@ -63,12 +63,43 @@ func TestAutoApprovalReadsTheSessionFile(t *testing.T) {
 		{`{"version":1,"enabled":true,"autoApproveStarts":"yes"}`, autoApproval{}},
 		{`{`, autoApproval{}},
 	}
+	accessPath := filepath.Join(dir, "agent-access.json")
+	both := `{"version":1,"enabled":true,"orchestratorUrl":"http://127.0.0.1:4100","token":"` + token + `","autoApproveStarts":true,"autoApproveDeletes":true}`
+	if err := os.WriteFile(s.sessionPath, []byte(both), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.autoApproval(); got != (autoApproval{}) {
+		t.Errorf("no stored choice: %+v", got)
+	}
+	if err := os.WriteFile(accessPath, []byte(`{"enabled":true,"autoApproveStarts":true,"autoApproveDeletes":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range cases {
 		if err := os.WriteFile(s.sessionPath, []byte(tc.raw), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		if got := s.autoApproval(); got != tc.want {
 			t.Errorf("%s: got %+v, want %+v", tc.raw, got, tc.want)
+		}
+	}
+	if err := os.WriteFile(s.sessionPath, []byte(both), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stored := []struct {
+		raw  string
+		want autoApproval
+	}{
+		{`{"enabled":true,"autoApproveStarts":true,"autoApproveDeletes":false}`, autoApproval{Starts: true}},
+		{`{"enabled":true,"autoApproveStarts":false,"autoApproveDeletes":true}`, autoApproval{Deletes: true}},
+		{`{"enabled":false,"autoApproveStarts":true,"autoApproveDeletes":true}`, autoApproval{}},
+		{`{`, autoApproval{}},
+	}
+	for _, tc := range stored {
+		if err := os.WriteFile(accessPath, []byte(tc.raw), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if got := s.autoApproval(); got != tc.want {
+			t.Errorf("stored %s with a session granting both: got %+v, want %+v", tc.raw, got, tc.want)
 		}
 	}
 	remote := &studio{sessionPath: s.sessionPath, upstream: "https://clipmind.example"}

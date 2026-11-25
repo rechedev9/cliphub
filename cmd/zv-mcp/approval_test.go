@@ -234,6 +234,34 @@ func TestAutoApprovalSkipsOnlyItsKind(t *testing.T) {
 	}
 }
 
+func TestAutoApprovalNeverApprovesAnAnswerToAStaleQuestion(t *testing.T) {
+	for _, version := range []string{"", "2025-06-18"} {
+		var on atomic.Bool
+		var calls atomic.Int32
+		a := newApprover()
+		a.autoApprove = func() autoApproval { return autoApproval{Starts: on.Load()} }
+		server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0"}, nil)
+		mcp.AddTool(server, &mcp.Tool{Name: "ask"}, func(ctx context.Context, req *mcp.CallToolRequest, in askIn) (*mcp.CallToolResult, askOut, error) {
+			request := "plays"
+			if calls.Add(1) > 1 {
+				request = "plays changed"
+			}
+			res, err := a.approve(req, approvalSpec{Tool: "ask", JobID: "job-1", Request: request, Summary: "Capture.", Auto: autoStart})
+			if res.Ask != nil {
+				return res.Ask, askOut{}, nil
+			}
+			return nil, askOut{Approved: res.Approved}, err
+		})
+		decline := &mcp.ClientOptions{ElicitationHandler: func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			on.Store(true)
+			return &mcp.ElicitResult{Action: "decline"}, nil
+		}}
+		if got, failed := callAskAuto(t, connectVersion(t, server, decline, version), "", autoStart); !failed {
+			t.Errorf("%q a decline for a question whose request changed was approved automatically: %+v", version, got)
+		}
+	}
+}
+
 func TestAutoApprovalTurnedOnDoesNotOverrideADecline(t *testing.T) {
 	for _, version := range []string{"", "2025-06-18"} {
 		var on atomic.Bool

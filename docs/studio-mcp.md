@@ -89,9 +89,11 @@ boot, and production requires it even for reads (`requireMutationToken` in
    `autoApproveStarts` and `autoApproveDeletes` are the two automatic approval switches (see Approval). `agent-access.json` keeps
    all three switches as `{ "enabled", "autoApproveStarts", "autoApproveDeletes" }` (a missing one is off), so turning access off keeps
    the automatic approvals the user chose, but the session file publishes them only while access is on.
-2. Electron rewrites it at once when any of the switches changes (session file first, then
-   `agent-access.json`), retries a rename that Windows refuses while `zv-mcp` reads the file, and
-   falls back to deleting it when turning access off fails, so no token stays on disk. It deletes
+2. Electron rewrites it at once when any of the switches changes (`agent-access.json` first, so a
+   revocation is stored even when the session cannot be rewritten, then the session file; when the
+   choice cannot be stored, the session is published with access off), retries a rename that Windows
+   refuses while `zv-mcp` reads the file, and falls back to deleting the session file when rewriting
+   it fails, so no token stays on disk. It deletes
    the file on quit, on boot failure and at the start of a new boot attempt (a new boot mints a new
    token). `webOrigin` serves public UI assets such as the HUD previews (`/hud/*` needs no cookie).
 3. `zv-mcp` finds userData at `%APPDATA%\cliphub-studio`, overridden by
@@ -163,8 +165,11 @@ safe. Only uploads are limited (2 concurrent).
   `change_video_music`. "Aprobar automáticamente borrar vídeos y capturas" (`autoApproveDeletes`) skips it for `delete_video` and
   `delete_captures` only. The call then starts at once, with no elicitation and no code. Every other delete, `merge_teams`, the
   subtitle corrections, `set_capture_retention`, `launch_practice` and `launch_bot_replay` always ask. Each approval spec names
-  its kind (`autoStart`, `autoCleanup` or none) in `cmd/zv-mcp/approval.go`; the approver rereads the session file on each such
-  call, so a switch applies at once, and remote (ClipMind) mode never skips. `studio_status` reports both switches
+  its kind (`autoStart`, `autoCleanup` or none) in `cmd/zv-mcp/approval.go`; the approver rereads the session file and
+  `agent-access.json` on each such call and skips only when both grant the switch, so a switch applies at once and a session
+  file Windows kept locked cannot outlive a revocation; remote (ClipMind) mode never skips. Only a first call skips: a call
+  that carries an answer to an earlier question (request state or input responses) is never approved automatically, so the
+  user's answer, or a new question when the request changed, always wins. `studio_status` reports both switches
   (`auto_approve_starts`, `auto_approve_deletes`); no tool can change them: they are the user's choice in Studio.
 
 ### Untrusted text

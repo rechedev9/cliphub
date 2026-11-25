@@ -146,7 +146,22 @@ func (s *studio) autoApproval() autoApproval {
 	if err != nil {
 		return autoApproval{}
 	}
-	return autoApproval{Starts: sess.AutoApproveStarts, Deletes: sess.AutoApproveDeletes}
+	stored, err := os.ReadFile(filepath.Join(filepath.Dir(s.sessionPath), "agent-access.json"))
+	if err != nil {
+		return autoApproval{}
+	}
+	var access struct {
+		Enabled            bool `json:"enabled"`
+		AutoApproveStarts  bool `json:"autoApproveStarts"`
+		AutoApproveDeletes bool `json:"autoApproveDeletes"`
+	}
+	if json.Unmarshal(stored, &access) != nil || !access.Enabled {
+		return autoApproval{}
+	}
+	return autoApproval{
+		Starts:  sess.AutoApproveStarts && access.AutoApproveStarts,
+		Deletes: sess.AutoApproveDeletes && access.AutoApproveDeletes,
+	}
 }
 
 func parseAgentSession(raw []byte) (agentSession, error) {

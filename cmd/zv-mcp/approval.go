@@ -111,7 +111,7 @@ func (a *approver) approve(req *mcp.CallToolRequest, spec approvalSpec) (approva
 	}
 	answer, answered := answerTo(req, state)
 	if !answered {
-		if auto {
+		if auto && !isAnswerCall(req) {
 			return approval{Approved: true}, nil
 		}
 		ask := &mcp.ElicitParams{
@@ -133,6 +133,10 @@ func answerTo(req *mcp.CallToolRequest, state string) (*mcp.ElicitResult, bool) 
 	}
 	answer, ok := req.Params.InputResponses[elicitKey].(*mcp.ElicitResult)
 	return answer, ok && answer != nil
+}
+
+func isAnswerCall(req *mcp.CallToolRequest) bool {
+	return req.Params != nil && (req.Params.RequestState != "" || len(req.Params.InputResponses) > 0)
 }
 
 func supportsElicitation(req *mcp.CallToolRequest) bool {

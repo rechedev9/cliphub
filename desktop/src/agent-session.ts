@@ -108,7 +108,6 @@ export function writeAgentSession({
   }
 }
 
-/** Stores the switch and republishes a running boot; the session goes first so no token outlives a failure. */
 export function setAgentAccess({
   accessFile,
   sessionFile,
@@ -119,30 +118,29 @@ export function setAgentAccess({
   fsOps = nodeFs,
 }: SetAgentAccessOptions): void {
   const access = { enabled, autoApproveStarts, autoApproveDeletes };
-  if (running !== null) {
-    try {
-      writeAgentSession({ sessionFile, ...access, ...running, fsOps });
-    } catch (error) {
-      try {
-        removeAgentSession(sessionFile, fsOps);
-      } catch {
-        throw error;
-      }
-      throw error;
-    }
-  }
+  let failure: unknown = null;
   try {
     writeFileAtomic({ file: accessFile, document: access, fsOps });
   } catch (error) {
-    // The choice was not stored, so a token published for it must not stay.
-    if (enabled && running !== null) {
-      try {
-        removeAgentSession(sessionFile, fsOps);
-      } catch {
-        // The original failure is the one worth reporting.
-      }
+    failure = error;
+  }
+  if (running !== null) {
+    const published = failure === null ? access : accessOff();
+    try {
+      writeAgentSession({ sessionFile, ...published, ...running, fsOps });
+    } catch (error) {
+      failure ??= error;
+      removeSessionQuietly(sessionFile, fsOps);
     }
-    throw error;
+  }
+  if (failure !== null) throw failure;
+}
+
+function removeSessionQuietly(sessionFile: string, fsOps: AgentSessionFs): void {
+  try {
+    removeAgentSession(sessionFile, fsOps);
+  } catch {
+    return;
   }
 }
 

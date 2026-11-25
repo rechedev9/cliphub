@@ -13,7 +13,7 @@
   "scripts/seed-bundled-music.mjs": 3,
   "scripts/smoke-launch-contract.test.mjs": 3,
   "src/agent-session.test.ts": 2,
-  "src/agent-session.ts": 11,
+  "src/agent-session.ts": 8,
   "src/app-update-ipc.ts": 1,
   "src/app-update.ts": 7,
   "src/boot-navigation.ts": 3,
