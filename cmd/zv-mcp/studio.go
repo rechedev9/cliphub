@@ -26,7 +26,9 @@ type agentSession struct {
 	// WebOrigin serves the Studio UI's public assets, such as the HUD previews.
 	WebOrigin string `json:"webOrigin,omitempty"`
 	// StudioVersion is the desktop release, cited in bug reports.
-	StudioVersion string `json:"studioVersion,omitempty"`
+	StudioVersion      string `json:"studioVersion,omitempty"`
+	AutoApproveStarts  bool   `json:"autoApproveStarts,omitempty"`
+	AutoApproveDeletes bool   `json:"autoApproveDeletes,omitempty"`
 }
 
 // uploadTimeout bounds one whole HTTP exchange of an import: a demo can be
@@ -130,6 +132,21 @@ func (s *studio) webOrigin() (string, error) {
 		return "", errors.New("this Studio version does not publish its UI address; ask the user to update ClipHub Studio")
 	}
 	return sess.WebOrigin, nil
+}
+
+func (s *studio) autoApproval() autoApproval {
+	if s.upstream != "" {
+		return autoApproval{}
+	}
+	raw, err := os.ReadFile(s.sessionPath)
+	if err != nil {
+		return autoApproval{}
+	}
+	sess, err := parseAgentSession(raw)
+	if err != nil {
+		return autoApproval{}
+	}
+	return autoApproval{Starts: sess.AutoApproveStarts, Deletes: sess.AutoApproveDeletes}
 }
 
 func parseAgentSession(raw []byte) (agentSession, error) {

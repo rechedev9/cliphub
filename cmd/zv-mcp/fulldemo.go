@@ -239,9 +239,8 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "render_full_demo", Meta: appToolMeta(jobProgressAppURI),
-		Description: "Capture and render a planned Full Demo. This opens CS2 full screen and records for a long time, so the user must approve it. " +
-			"If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
-			"Follow with wait_for_job, passing the returned variant."},
+		Description: "Capture and render a planned Full Demo. This opens CS2 full screen and records for a long time. " +
+			startApprovalHint + " Follow with wait_for_job, passing the returned variant."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in renderFullDemoIn) (*mcp.CallToolResult, generateOut, error) {
 			if err := checkUUID("job_id", in.JobID); err != nil {
 				return nil, generateOut{}, err
@@ -297,7 +296,7 @@ func startFullDemo(ctx context.Context, start fullDemoStart) (*mcp.CallToolResul
 		summary = plan.Summary + " CS2 se abrirá a pantalla completa y grabará durante bastante tiempo."
 	}
 	ok, err := sessionApprovals.approve(req, approvalSpec{Tool: start.Tool, JobID: start.JobID,
-		Request: struct{ PlanHash string }{doc.PlanHash}, Summary: summary, Given: start.Approve})
+		Request: struct{ PlanHash string }{doc.PlanHash}, Summary: summary, Given: start.Approve, Auto: autoStart})
 	if err != nil {
 		return nil, generateOut{}, err
 	}

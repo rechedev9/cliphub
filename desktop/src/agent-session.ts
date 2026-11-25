@@ -17,16 +17,26 @@ export interface AgentSessionFs {
   sleepSync(ms: number): void;
 }
 
-export interface AgentSessionOptions extends AgentSessionTarget {
-  sessionFile: string;
+export interface AgentAccess {
   enabled: boolean;
+  autoApproveStarts: boolean;
+  autoApproveDeletes: boolean;
+}
+
+export interface AgentAccessChange {
+  enabled: boolean;
+  autoApproveStarts?: boolean;
+  autoApproveDeletes?: boolean;
+}
+
+export interface AgentSessionOptions extends AgentSessionTarget, AgentAccess {
+  sessionFile: string;
   fsOps?: AgentSessionFs;
 }
 
-export interface SetAgentAccessOptions {
+export interface SetAgentAccessOptions extends AgentAccess {
   accessFile: string;
   sessionFile: string;
-  enabled: boolean;
   /** The services of the current boot, or null while none is up. */
   running: AgentSessionTarget | null;
   fsOps?: AgentSessionFs;
@@ -44,19 +54,42 @@ const nodeFs: AgentSessionFs = {
 };
 
 /** The user's choice to let an assistant drive Studio; off unless the file says otherwise. */
-export function readAgentAccess(accessFile: string): boolean {
+export function readAgentAccess(accessFile: string): AgentAccess {
   try {
     const parsed: unknown = JSON.parse(fs.readFileSync(accessFile, 'utf8'));
-    return typeof parsed === 'object' && parsed !== null && 'enabled' in parsed && parsed.enabled === true;
+    if (!isRecord(parsed)) return accessOff();
+    return {
+      enabled: parsed.enabled === true,
+      autoApproveStarts: parsed.autoApproveStarts === true,
+      autoApproveDeletes: parsed.autoApproveDeletes === true,
+    };
   } catch {
-    return false;
+    return accessOff();
   }
+}
+
+export function nextAgentAccess(stored: AgentAccess, change: AgentAccessChange): AgentAccess {
+  return {
+    enabled: change.enabled,
+    autoApproveStarts: change.autoApproveStarts ?? stored.autoApproveStarts,
+    autoApproveDeletes: change.autoApproveDeletes ?? stored.autoApproveDeletes,
+  };
+}
+
+function accessOff(): AgentAccess {
+  return { enabled: false, autoApproveStarts: false, autoApproveDeletes: false };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Publishes the running orchestrator to zv-mcp; the token is written only while access is on. */
 export function writeAgentSession({
   sessionFile,
   enabled,
+  autoApproveStarts,
+  autoApproveDeletes,
   orchestratorUrl,
   token,
   webOrigin,
@@ -64,7 +97,8 @@ export function writeAgentSession({
   fsOps = nodeFs,
 }: AgentSessionOptions): void {
   if (enabled) {
-    writeFileAtomic({ file: sessionFile, document: { version: 1, enabled, orchestratorUrl, token, webOrigin, studioVersion }, fsOps });
+    const document = { version: 1, enabled, orchestratorUrl, token, webOrigin, studioVersion, autoApproveStarts, autoApproveDeletes };
+    writeFileAtomic({ file: sessionFile, document, fsOps });
     return;
   }
   try {
@@ -75,10 +109,19 @@ export function writeAgentSession({
 }
 
 /** Stores the switch and republishes a running boot; the session goes first so no token outlives a failure. */
-export function setAgentAccess({ accessFile, sessionFile, enabled, running, fsOps = nodeFs }: SetAgentAccessOptions): void {
-  if (running !== null) writeAgentSession({ sessionFile, enabled, ...running, fsOps });
+export function setAgentAccess({
+  accessFile,
+  sessionFile,
+  enabled,
+  autoApproveStarts,
+  autoApproveDeletes,
+  running,
+  fsOps = nodeFs,
+}: SetAgentAccessOptions): void {
+  const access = { enabled, autoApproveStarts, autoApproveDeletes };
+  if (running !== null) writeAgentSession({ sessionFile, ...access, ...running, fsOps });
   try {
-    writeFileAtomic({ file: accessFile, document: { enabled }, fsOps });
+    writeFileAtomic({ file: accessFile, document: access, fsOps });
   } catch (error) {
     // The choice was not stored, so a token published for it must not stay.
     if (enabled && running !== null) {

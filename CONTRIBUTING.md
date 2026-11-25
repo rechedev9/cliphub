@@ -14,7 +14,8 @@ The bar is the same evidence our pull requests carry: what happened, who it hurt
    If one matches, add your evidence as a comment on it instead of opening a new one.
 2. File one issue per problem. Two unrelated failures are two issues.
 3. Collect the evidence below. If you drive Studio through its MCP server (`cliphub-studio`), call
-   `studio_status`: it returns `studio_version`, `support_code` and `log_path`. Without MCP, or
+   `studio_status`: it returns `studio_version`, `support_code` and `log_path`, plus
+   `auto_approve_starts` and `auto_approve_deletes`, worth citing when the problem is an approval. Without MCP, or
    when `studio_status` fails because Studio is closed or assistant access is off, ask the user;
    the version and support code are in Studio, Ajustes.
 

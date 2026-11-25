@@ -30,9 +30,9 @@ contextBridge.exposeInMainWorld('cliphubSettings', {
     { action: 'telemetry-update', enabled },
   ),
   getAssistantAccess: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'assistant-status' }),
-  updateAssistantAccess: (enabled: unknown): Promise<unknown> => ipcRenderer.invoke(
+  updateAssistantAccess: (update: unknown): Promise<unknown> => ipcRenderer.invoke(
     STUDIO_SETTINGS_CHANNEL,
-    { action: 'assistant-update', enabled },
+    assistantUpdateMessage(update),
   ),
   installTeamSpeakPlugin: (): Promise<unknown> => {
     if (!userIsActive()) return Promise.resolve({ ok: false, error: 'El plugin se instala desde un clic.' });
@@ -93,6 +93,15 @@ contextBridge.exposeInMainWorld('cliphubClipboard', {
     });
   },
 });
+
+function assistantUpdateMessage(update: unknown): Record<string, unknown> {
+  const message: Record<string, unknown> = { action: 'assistant-update' };
+  if (typeof update !== 'object' || update === null) return message;
+  for (const key of ['enabled', 'autoApproveStarts', 'autoApproveDeletes']) {
+    if (Object.hasOwn(update, key)) message[key] = Reflect.get(update, key);
+  }
+  return message;
+}
 
 function userIsActive(): boolean {
   const nav: unknown = Reflect.get(globalThis, 'navigator');

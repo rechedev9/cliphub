@@ -28,6 +28,27 @@ test('parses only the narrow Studio settings action shape', () => {
     action: STUDIO_SETTINGS_ACTION.assistantUpdate,
     enabled: true,
   });
+  assert.deepEqual(parseStudioSettingsRequest({ action: 'assistant-update', enabled: false, autoApproveStarts: true }), {
+    action: STUDIO_SETTINGS_ACTION.assistantUpdate,
+    enabled: false,
+    autoApproveStarts: true,
+  });
+  assert.deepEqual(parseStudioSettingsRequest({ action: 'assistant-update', enabled: true, autoApproveDeletes: false }), {
+    action: STUDIO_SETTINGS_ACTION.assistantUpdate,
+    enabled: true,
+    autoApproveDeletes: false,
+  });
+  assert.deepEqual(parseStudioSettingsRequest({
+    action: 'assistant-update',
+    enabled: true,
+    autoApproveStarts: false,
+    autoApproveDeletes: true,
+  }), {
+    action: STUDIO_SETTINGS_ACTION.assistantUpdate,
+    enabled: true,
+    autoApproveStarts: false,
+    autoApproveDeletes: true,
+  });
   assert.deepEqual(parseStudioSettingsRequest({ action: 'teamspeak-plugin-install' }), {
     action: STUDIO_SETTINGS_ACTION.teamspeakPluginInstall,
   });
@@ -49,6 +70,15 @@ test('parses only the narrow Studio settings action shape', () => {
     { action: 'assistant-update' },
     { action: 'assistant-update', enabled: 1 },
     { action: 'assistant-update', enabled: true, path: '/tmp/zv-mcp' },
+    { action: 'assistant-update', autoApproveStarts: true },
+    { action: 'assistant-update', autoApproveDeletes: true },
+    { action: 'assistant-update', enabled: true, autoApproveStarts: 'yes' },
+    { action: 'assistant-update', enabled: true, autoApproveStarts: undefined },
+    { action: 'assistant-update', enabled: true, autoApproveStarts: null },
+    { action: 'assistant-update', enabled: true, autoApproveDeletes: 1 },
+    { action: 'assistant-update', enabled: true, autoApproveStarts: true, autoApproveDeletes: true, extra: true },
+    { action: 'assistant-status', autoApproveStarts: true },
+    { action: 'telemetry-update', enabled: true, autoApproveStarts: true },
     Object.create({ action: STUDIO_SETTINGS_ACTION.appInfo }),
   ]) {
     assert.throws(() => parseStudioSettingsRequest(invalid), /invalid Studio settings request/);

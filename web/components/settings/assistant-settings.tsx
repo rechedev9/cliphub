@@ -8,6 +8,7 @@ import {
   getDesktopSettingsBridge,
   parseAssistantAccess,
   type StudioAssistantAccess,
+  type StudioAssistantUpdate,
 } from '@/lib/desktop-settings';
 import { writeClipboardText } from '@/lib/clipboard-write';
 import { Button } from '@/components/ui/button';
@@ -43,12 +44,13 @@ export function AssistantSettings(): ReactNode {
     return () => { active = false; };
   }, []);
 
-  const update = (enabled: boolean): void => {
+  const update = (change: Partial<StudioAssistantUpdate>): void => {
     const bridge = getDesktopSettingsBridge();
-    if (bridge?.updateAssistantAccess === undefined) return;
+    if (bridge?.updateAssistantAccess === undefined || state.kind !== 'ready') return;
+    const { enabled, autoApproveStarts, autoApproveDeletes } = state.access;
     setPending(true);
     setFailure(false);
-    void bridge.updateAssistantAccess(enabled)
+    void bridge.updateAssistantAccess({ enabled, autoApproveStarts, autoApproveDeletes, ...change })
       .then((value) => {
         const access = parseAssistantAccess(value);
         if (access === null) setFailure(true);
@@ -71,9 +73,25 @@ export function AssistantSettings(): ReactNode {
             checked={access.enabled}
             disabled={pending}
             aria-labelledby="assistant-switch-label"
-            onCheckedChange={update}
+            onCheckedChange={(enabled) => update({ enabled })}
           />
         </div>
+        <AutoApprovalSwitch
+          id="assistant-auto-starts"
+          label="Aprobar automáticamente grabaciones y renders"
+          help="Los asistentes podrán abrir CS2, grabar y renderizar sin preguntarte. No incluye ningún borrado."
+          checked={access.autoApproveStarts}
+          disabled={pending || !access.enabled}
+          onCheckedChange={(autoApproveStarts) => update({ autoApproveStarts })}
+        />
+        <AutoApprovalSwitch
+          id="assistant-auto-deletes"
+          label="Aprobar automáticamente borrar vídeos y capturas"
+          help="Los asistentes podrán borrar vídeos terminados y capturas de CS2 sin preguntarte. Los demás borrados siempre piden confirmación."
+          checked={access.autoApproveDeletes}
+          disabled={pending || !access.enabled}
+          onCheckedChange={(autoApproveDeletes) => update({ autoApproveDeletes })}
+        />
         {failure ? (
           <p role="alert" className="text-body-sm text-destructive">
             No se pudo guardar el cambio. Inténtalo de nuevo.
@@ -109,10 +127,38 @@ export function AssistantSettings(): ReactNode {
     <SettingsSection
       id="assistants"
       title="Asistentes (Claude, ChatGPT)"
-      description="Un asistente conectado puede importar demos, crear Shorts y consultar tus partidas y vídeos. Antes de grabar te pide tu aprobación en el chat. Solo funciona mientras Studio está abierto."
+      description="Un asistente conectado puede importar demos, crear Shorts y consultar tus partidas y vídeos. Antes de grabar o borrar te pide tu aprobación en el chat, salvo lo que apruebes automáticamente aquí. Solo funciona mientras Studio está abierto."
     >
       {body}
     </SettingsSection>
+  );
+}
+
+type AutoApprovalSwitchProps = {
+  id: string;
+  label: string;
+  help: string;
+  checked: boolean;
+  disabled: boolean;
+  onCheckedChange: (checked: boolean) => void;
+};
+
+function AutoApprovalSwitch({ id, label, help, checked, disabled, onCheckedChange }: AutoApprovalSwitchProps): ReactNode {
+  return (
+    <div className="flex items-center justify-between gap-4 border border-border bg-surface-2 px-3.5 py-3">
+      <div className="flex flex-col gap-1">
+        <span id={`${id}-label`} className="font-display text-body-sm font-bold text-fg-1">
+          {label}
+        </span>
+        <p className="text-body-sm text-fg-2">{help}</p>
+      </div>
+      <Switch
+        checked={checked}
+        disabled={disabled}
+        aria-labelledby={`${id}-label`}
+        onCheckedChange={onCheckedChange}
+      />
+    </div>
   );
 }
 

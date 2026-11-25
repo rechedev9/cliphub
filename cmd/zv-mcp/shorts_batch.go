@@ -71,7 +71,7 @@ func registerShortsBatchTool(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "generate_shorts_batch", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Auto-Shorts: one Short per great play of a parsed job, without picking plays by hand. Studio keeps the best play of each round whose score reaches min_score, " +
 			"then the limit best of those, captures them all in one CS2 session and renders each as its own Short in one variant (list_videos lists them). " +
-			"The look takes the same options as generate_short (list_short_options). Not for death reels or a Full Demo. This opens CS2 full screen and records for minutes, so the user must approve it. " +
+			"The look takes the same options as generate_short (list_short_options). Not for death reels or a Full Demo. This opens CS2 full screen and records for minutes. " + startApprovalNote +
 			"If the result says needs_approval, show the summary and the plays, ask the user, and call again with the same arguments and approve set to approval_code only if they agree. " +
 			"Follow with wait_for_job, passing the returned variant."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in shortsBatchIn) (*mcp.CallToolResult, shortsBatchOut, error) {
@@ -109,7 +109,7 @@ func registerShortsBatchTool(server *mcp.Server, s *studio) {
 			body.SegmentIDs, body.Edit.SeparateShorts = batch.SegmentIDs, true
 			summary := fmt.Sprintf("Grabar %s, uno por jugada (la mejor de cada ronda con puntuación %g o más), con el preset %s: %s. Opciones: %s. CS2 se abrirá a pantalla completa y grabará durante varios minutos.",
 				plural(len(batch.SegmentIDs), "Short", "Shorts"), batch.MinScore, body.Preset, plays, describeShortRequest(body))
-			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_shorts_batch", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve})
+			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_shorts_batch", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve, Auto: autoStart})
 			if err != nil {
 				return nil, shortsBatchOut{}, err
 			}

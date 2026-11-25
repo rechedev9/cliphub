@@ -23,6 +23,10 @@ func TestParseAgentSession(t *testing.T) {
 		{"unknown version", `{"version":2,"enabled":true}`, errStudioClosed},
 		{"not json", `{`, errStudioClosed},
 	}
+	sess, err := parseAgentSession([]byte(`{"version":1,"enabled":true,"orchestratorUrl":"http://127.0.0.1:4100","token":"` + token + `","autoApproveStarts":true,"autoApproveDeletes":true}`))
+	if err != nil || !sess.AutoApproveStarts || !sess.AutoApproveDeletes {
+		t.Errorf("auto approval flags: %+v, %v", sess, err)
+	}
 	for _, tc := range cases {
 		_, err := parseAgentSession([]byte(tc.raw))
 		if !errors.Is(err, tc.want) {
@@ -36,6 +40,40 @@ func TestParseAgentSession(t *testing.T) {
 		if _, err := parseAgentSession([]byte(raw)); err == nil {
 			t.Errorf("accepted invalid session %s", raw)
 		}
+	}
+}
+
+func TestAutoApprovalReadsTheSessionFile(t *testing.T) {
+	token := strings.Repeat("ab", 32)
+	dir := t.TempDir()
+	s := &studio{sessionPath: filepath.Join(dir, "agent-session.json")}
+	if got := s.autoApproval(); got != (autoApproval{}) {
+		t.Errorf("no session file: %+v", got)
+	}
+	cases := []struct {
+		raw  string
+		want autoApproval
+	}{
+		{`{"version":1,"enabled":true,"orchestratorUrl":"http://127.0.0.1:4100","token":"` + token + `"}`, autoApproval{}},
+		{`{"version":1,"enabled":true,"orchestratorUrl":"http://127.0.0.1:4100","token":"` + token + `","autoApproveStarts":true}`, autoApproval{Starts: true}},
+		{`{"version":1,"enabled":true,"orchestratorUrl":"http://127.0.0.1:4100","token":"` + token + `","autoApproveDeletes":true}`, autoApproval{Deletes: true}},
+		{`{"version":1,"enabled":true,"orchestratorUrl":"http://127.0.0.1:4100","token":"` + token + `","autoApproveStarts":true,"autoApproveDeletes":true}`, autoApproval{Starts: true, Deletes: true}},
+		{`{"version":1,"enabled":false,"autoApproveStarts":true,"autoApproveDeletes":true}`, autoApproval{}},
+		{`{"version":1,"enabled":true,"orchestratorUrl":"http://127.0.0.1:4100","token":"short","autoApproveStarts":true}`, autoApproval{}},
+		{`{"version":1,"enabled":true,"autoApproveStarts":"yes"}`, autoApproval{}},
+		{`{`, autoApproval{}},
+	}
+	for _, tc := range cases {
+		if err := os.WriteFile(s.sessionPath, []byte(tc.raw), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if got := s.autoApproval(); got != tc.want {
+			t.Errorf("%s: got %+v, want %+v", tc.raw, got, tc.want)
+		}
+	}
+	remote := &studio{sessionPath: s.sessionPath, upstream: "https://clipmind.example"}
+	if got := remote.autoApproval(); got != (autoApproval{}) {
+		t.Errorf("remote mode: %+v", got)
 	}
 }
 

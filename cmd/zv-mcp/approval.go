@@ -17,6 +17,29 @@ import (
 
 const approvalTTL = 10 * time.Minute
 
+const (
+	startApprovalNote   = "Studio asks the user first unless they turned on automatic approval in Studio, Ajustes, Asistentes. "
+	startApprovalHint   = startApprovalNote + deleteApprovalHint
+	cleanupApprovalHint = "Studio asks the user first unless they turned on automatic approval of deleting videos and captures in Studio, Ajustes, Asistentes. " + deleteApprovalHint
+)
+
+type autoKind int
+
+const (
+	autoNever autoKind = iota
+	autoStart
+	autoCleanup
+)
+
+type autoApproval struct {
+	Starts  bool
+	Deletes bool
+}
+
+func (k autoKind) allowedBy(on autoApproval) bool {
+	return (k == autoStart && on.Starts) || (k == autoCleanup && on.Deletes)
+}
+
 var (
 	errApprovalInvalid  = errors.New("the approval code is not valid for this request; ask the user again, then call without approve to get a new code")
 	errApprovalDeclined = errors.New("the user declined; nothing was started")
@@ -29,10 +52,11 @@ var sessionApprovals = newApprover()
 // HMAC under a per-process key over the tool, the job and the exact request, so
 // the model cannot compute one; it works once and lapses after approvalTTL.
 type approver struct {
-	key    []byte
-	now    func() time.Time
-	mu     sync.Mutex
-	issued map[string]time.Time
+	key         []byte
+	now         func() time.Time
+	autoApprove func() autoApproval
+	mu          sync.Mutex
+	issued      map[string]time.Time
 }
 
 func newApprover() *approver {
@@ -52,6 +76,7 @@ type approvalSpec struct {
 	Given string
 	// Question follows Summary in the elicitation; empty asks to start now.
 	Question string
+	Auto     autoKind
 }
 
 // approval is the outcome of a call: Approved, a Code to offer for a retry, or
@@ -73,6 +98,9 @@ const elicitKey = "approve"
 // with the answer, and a failed question fails the call. The request state binds
 // the answer to this exact request.
 func (a *approver) approve(req *mcp.CallToolRequest, spec approvalSpec) (approval, error) {
+	if spec.Auto != autoNever && a.autoApprove != nil && spec.Auto.allowedBy(a.autoApprove()) {
+		return approval{Approved: true}, nil
+	}
 	if !supportsElicitation(req) {
 		return a.approveByCode(spec)
 	}

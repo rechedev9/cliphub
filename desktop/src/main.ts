@@ -36,6 +36,7 @@ import {
 } from './window-state';
 import { lastLines } from './log-tail';
 import {
+  nextAgentAccess,
   readAgentAccess,
   removeAgentSession,
   setAgentAccess,
@@ -649,14 +650,10 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   assertBootAttemptActive(attempt);
   const running: AgentSessionTarget = { orchestratorUrl, token: security.mutationToken, webOrigin, studioVersion: app.getVersion() };
   activeAgentSession = running;
-  const assistantEnabled = readAgentAccess(agentAccessFile);
-  if (assistantEnabled) refreshStableMcp();
+  const assistantAccess = readAgentAccess(agentAccessFile);
+  if (assistantAccess.enabled) refreshStableMcp();
   try {
-    writeAgentSession({
-      sessionFile: agentSessionFile,
-      enabled: assistantEnabled,
-      ...running,
-    });
+    writeAgentSession({ sessionFile: agentSessionFile, ...assistantAccess, ...running });
   } catch (err) {
     // Assistant access is optional; Studio itself keeps booting.
     logLine(`[agent] could not publish the session: ${String(err)}\n`);
@@ -807,22 +804,18 @@ function registerStudioSettingsIPC(): void {
       }
     }
     if (request.action === 'assistant-status') {
-      return { enabled: readAgentAccess(agentAccessFile), mcpPath: assistantMcpPath };
+      return { ...readAgentAccess(agentAccessFile), mcpPath: assistantMcpPath };
     }
     if (request.action === 'assistant-update') {
+      const access = nextAgentAccess(readAgentAccess(agentAccessFile), request);
       try {
-        if (request.enabled) refreshStableMcp();
-        setAgentAccess({
-          accessFile: agentAccessFile,
-          sessionFile: agentSessionFile,
-          enabled: request.enabled,
-          running: activeAgentSession,
-        });
+        if (access.enabled) refreshStableMcp();
+        setAgentAccess({ accessFile: agentAccessFile, sessionFile: agentSessionFile, ...access, running: activeAgentSession });
       } catch (error) {
         logLine(`[agent] could not save assistant access: ${String(error)}\n`);
         return settingsFailure('No se pudo guardar el acceso de asistentes.');
       }
-      return { enabled: request.enabled, mcpPath: assistantMcpPath };
+      return { ...access, mcpPath: assistantMcpPath };
     }
     if (request.action === 'playback-info') {
       const read = readPlaybackInfo(
@@ -1019,7 +1012,7 @@ app.whenReady().then(() => {
   registerReplayGifIPC(saveFiles);
   registerAppUpdateIPC();
   registerMatchModeIPC({ isTrustedSender: trustedSettingsSender, webOrigin: () => activeWebOrigin, isLoopbackOrigin, backgroundColor: BOOT_SURFACE });
-  const studioShown = (): string | null => (loadingScreenShowing || !readAgentAccess(agentAccessFile) ? null : activeWebOrigin);
+  const studioShown = (): string | null => (loadingScreenShowing || !readAgentAccess(agentAccessFile).enabled ? null : activeWebOrigin);
   const routeInApp = ipcRouter({ ipc: ipcMain, window: aliveWindow });
   watchOpenRequests({ userData: app.getPath('userData'), window: aliveWindow, webOrigin: studioShown, log: logLine, routeInApp });
   telemetryClient.start();

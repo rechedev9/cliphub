@@ -136,7 +136,7 @@ func registerStorageTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "delete_captures", Annotations: destructive,
 		Description: "Free the kept CS2 recordings of one Full Demo (Borrar capturas in Almacenamiento). The finished long video and its versions stay, but an edit records its rounds again. " +
-			"It cannot be undone, so the user must approve it. " + deleteApprovalHint},
+			"It cannot be undone. " + cleanupApprovalHint},
 		func(ctx context.Context, req *mcp.CallToolRequest, in jobApprovalIn) (*mcp.CallToolResult, freedOut, error) {
 			if err := checkUUID("job_id", in.JobID); err != nil {
 				return nil, freedOut{}, err
@@ -155,7 +155,7 @@ func registerStorageTools(server *mcp.Server, s *studio) {
 			}
 			summary := fmt.Sprintf("Borrar %s de grabaciones de CS2 de esta demo completa. El vídeo final y sus versiones se quedan. "+
 				"Para editarlo habrá que volver a grabar sus rondas.", formatBytes(usage.Jobs[i].CaptureBytes))
-			return approveAndFree(req, approvalSpec{Tool: "delete_captures", JobID: in.JobID, Request: usage.Jobs[i].CaptureBytes, Summary: summary, Given: in.Approve, Question: "¿Borrar ahora?"},
+			return approveAndFree(req, approvalSpec{Tool: "delete_captures", JobID: in.JobID, Request: usage.Jobs[i].CaptureBytes, Summary: summary, Given: in.Approve, Question: "¿Borrar ahora?", Auto: autoCleanup},
 				func() (int64, error) { return c.DeleteJobCaptures(ctx, in.JobID) })
 		})
 
