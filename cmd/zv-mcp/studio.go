@@ -26,7 +26,9 @@ type agentSession struct {
 	// WebOrigin serves the Studio UI's public assets, such as the HUD previews.
 	WebOrigin string `json:"webOrigin,omitempty"`
 	// StudioVersion is the desktop release, cited in bug reports.
-	StudioVersion string `json:"studioVersion,omitempty"`
+	StudioVersion      string `json:"studioVersion,omitempty"`
+	AutoApproveStarts  bool   `json:"autoApproveStarts,omitempty"`
+	AutoApproveDeletes bool   `json:"autoApproveDeletes,omitempty"`
 }
 
 // uploadTimeout bounds one whole HTTP exchange of an import: a demo can be
@@ -106,7 +108,32 @@ func (s *studio) config() (tuiclient.Config, error) {
 	if err != nil {
 		return tuiclient.Config{}, err
 	}
+	if access, ok := s.storedAccess(); !ok || !access.Enabled {
+		return tuiclient.Config{}, errAgentOff
+	}
 	return tuiclient.Config{BaseURL: sess.OrchestratorURL, Token: sess.Token}, nil
+}
+
+type storedAgentAccess struct {
+	Enabled            bool `json:"enabled"`
+	AutoApproveStarts  bool `json:"autoApproveStarts"`
+	AutoApproveDeletes bool `json:"autoApproveDeletes"`
+}
+
+func (s *studio) storedAccess() (storedAgentAccess, bool) {
+	accessPath := filepath.Join(filepath.Dir(s.sessionPath), "agent-access.json")
+	if _, err := os.Stat(accessPath + ".revoked"); !errors.Is(err, os.ErrNotExist) {
+		return storedAgentAccess{}, false
+	}
+	raw, err := os.ReadFile(accessPath)
+	if err != nil {
+		return storedAgentAccess{}, false
+	}
+	var access storedAgentAccess
+	if json.Unmarshal(raw, &access) != nil {
+		return storedAgentAccess{}, false
+	}
+	return access, true
 }
 
 // webOrigin returns the Studio UI origin, or CLIPHUB_WEB_ORIGIN when a bare
@@ -130,6 +157,28 @@ func (s *studio) webOrigin() (string, error) {
 		return "", errors.New("this Studio version does not publish its UI address; ask the user to update ClipHub Studio")
 	}
 	return sess.WebOrigin, nil
+}
+
+func (s *studio) autoApproval() autoApproval {
+	if s.upstream != "" {
+		return autoApproval{}
+	}
+	raw, err := os.ReadFile(s.sessionPath)
+	if err != nil {
+		return autoApproval{}
+	}
+	sess, err := parseAgentSession(raw)
+	if err != nil {
+		return autoApproval{}
+	}
+	access, ok := s.storedAccess()
+	if !ok || !access.Enabled {
+		return autoApproval{}
+	}
+	return autoApproval{
+		Starts:  sess.AutoApproveStarts && access.AutoApproveStarts,
+		Deletes: sess.AutoApproveDeletes && access.AutoApproveDeletes,
+	}
 }
 
 func parseAgentSession(raw []byte) (agentSession, error) {

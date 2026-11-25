@@ -42,7 +42,7 @@ func registerDeleteTools(server *mcp.Server, s *studio) {
 	destructive := &mcp.ToolAnnotations{DestructiveHint: new(true)}
 
 	mcp.AddTool(server, &mcp.Tool{Name: "delete_video", Annotations: destructive,
-		Description: "Delete one finished demo video (with its cover and captions) from the PC, as Borrar does in Mis vídeos. It cannot be undone, so the user must approve it. " + deleteApprovalHint},
+		Description: "Delete one finished demo video (with its cover and captions) from the PC, as Borrar does in Mis vídeos. It cannot be undone. " + cleanupApprovalHint},
 		func(ctx context.Context, req *mcp.CallToolRequest, in deleteVideoIn) (*mcp.CallToolResult, deleteOut, error) {
 			if err := checkUUID("job_id", in.JobID); err != nil {
 				return nil, deleteOut{}, err
@@ -54,7 +54,7 @@ func registerDeleteTools(server *mcp.Server, s *studio) {
 				return nil, deleteOut{}, err
 			}
 			summary := fmt.Sprintf("Borrar del PC el vídeo %s (%s). No se puede deshacer.", in.Name, in.Variant)
-			return approveAndDelete(req, approvalSpec{Tool: "delete_video", JobID: in.JobID, Request: [2]string{in.Variant, in.Name}, Summary: summary, Given: in.Approve, Question: "¿Borrar ahora?"},
+			return approveAndDelete(req, approvalSpec{Tool: "delete_video", JobID: in.JobID, Request: [2]string{in.Variant, in.Name}, Summary: summary, Given: in.Approve, Question: "¿Borrar ahora?", Auto: autoCleanup},
 				func() error {
 					c, err := s.client(ctx)
 					if err != nil {

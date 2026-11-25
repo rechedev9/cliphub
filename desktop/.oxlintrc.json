@@ -53,7 +53,7 @@
     "typeAware": true
   },
   "overrides": [
-    { "files": ["src/main.ts"], "rules": { "max-lines": ["error", { "max": 1047 }] } },
+    { "files": ["src/main.ts"], "rules": { "max-lines": ["error", { "max": 1035 }] } },
     { "files": ["scripts/build-publication.test.mjs"], "rules": { "max-lines": ["error", { "max": 1343 }] } },
     { "files": ["scripts/isolated-userdata.cjs"], "rules": { "@typescript-eslint/no-require-imports": "off" } }
   ]

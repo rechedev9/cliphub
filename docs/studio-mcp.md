@@ -84,11 +84,22 @@ boot, and production requires it even for reads (`requireMutationToken` in
 
 1. After `waitForDesktopServices` succeeds, Electron always writes `<userData>/agent-session.json`
    atomically: `{ "version": 1, "enabled": false }` when the switch is off, and
-   `{ "version": 1, "enabled": true, "orchestratorUrl": "http://127.0.0.1:<port>", "token": "<hex>", "webOrigin": "http://127.0.0.1:<port>" }`
+   `{ "version": 1, "enabled": true, "orchestratorUrl": "http://127.0.0.1:<port>", "token": "<hex>", "webOrigin": "http://127.0.0.1:<port>", "studioVersion": "<x.y.z>", "autoApproveStarts": false, "autoApproveDeletes": false }`
    when it is on. "No file" then means "Studio is closed", and `enabled: false` means "switch off".
-2. Electron rewrites it at once when the switch changes (session file first, then
-   `agent-access.json`), retries a rename that Windows refuses while `zv-mcp` reads the file, and
-   falls back to deleting it when turning access off fails, so no token stays on disk. It deletes
+   `autoApproveStarts` and `autoApproveDeletes` are the two automatic approval switches (see Approval). `agent-access.json` keeps
+   all three switches as `{ "enabled", "autoApproveStarts", "autoApproveDeletes" }` (a missing one is off), so turning access off keeps
+   the automatic approvals the user chose, but the session file publishes them only while access is on.
+2. Electron rewrites it at once when any of the switches changes, in two steps (`setAgentAccess`):
+   it stores in `agent-access.json` what the change keeps or revokes, publishes the session, and only
+   then stores what it grants. A grant whose session cannot be published is never stored, so the next
+   boot does not publish it; a grant that cannot be stored is withdrawn from the session; a revocation
+   that cannot be stored writes the marker `agent-access.json.revoked`, deletes `agent-access.json` and
+   publishes access off. While the marker exists, Studio at boot and `zv-mcp` read every switch as off;
+   the next change that stores `agent-access.json` removes it. It
+   retries a rename that Windows refuses while `zv-mcp` reads the file, and falls back to deleting the
+   session file when rewriting it fails, so no token stays on disk. `zv-mcp` uses the session only while
+   `agent-access.json` also has access on, so a session file Windows kept locked cannot outlive a
+   switch-off. It deletes
    the file on quit, on boot failure and at the start of a new boot attempt (a new boot mints a new
    token). `webOrigin` serves public UI assets such as the HUD previews (`/hud/*` needs no cookie).
 3. `zv-mcp` finds userData at `%APPDATA%\cliphub-studio`, overridden by
@@ -154,6 +165,18 @@ safe. Only uploads are limited (2 concurrent).
   per-process random key over the tool, the job and the exact request, single use, expiring after
   10 minutes. This path still relies on the model asking the user, as the tool description says.
 - Headless Claude Code (`claude -p`) advertises elicitation and declines it, so nothing starts.
+- Automatic approval: two switches in Studio, Ajustes, Asistentes, both off by default and disabled while assistant access is off.
+  "Aprobar automáticamente grabaciones y renders" (`autoApproveStarts`) skips the question for `generate_short`,
+  `generate_shorts_batch`, `render_full_demo`, `record_round_pov`, `render_stream`, `render_stream_summary`, `retry_video` and
+  `change_video_music`. "Aprobar automáticamente borrar vídeos y capturas" (`autoApproveDeletes`) skips it for `delete_video` and
+  `delete_captures` only. The call then starts at once, with no elicitation and no code. Every other delete, `merge_teams`, the
+  subtitle corrections, `set_capture_retention`, `launch_practice` and `launch_bot_replay` always ask. Each approval spec names
+  its kind (`autoStart`, `autoCleanup` or none) in `cmd/zv-mcp/approval.go`; the approver rereads the session file and
+  `agent-access.json` on each such call and skips only when both grant the switch, so a switch applies at once and a session
+  file Windows kept locked cannot outlive a revocation; remote (ClipMind) mode never skips. Only a first call skips: a call
+  that carries an answer to an earlier question (request state or input responses) is never approved automatically, so the
+  user's answer, or a new question when the request changed, always wins. `studio_status` reports both switches
+  (`auto_approve_starts`, `auto_approve_deletes`); no tool can change them: they are the user's choice in Studio.
 
 ### Untrusted text
 
@@ -179,7 +202,7 @@ Read:
 
 | Tool | Orchestrator calls |
 | --- | --- |
-| `studio_status` | `/healthz`, `/api/capabilities` (`record.enabled`), session file state; Studio version (session file), support code (`telemetry.json`) and `studio.log` path for a bug report (`CONTRIBUTING.md`) |
+| `studio_status` | `/healthz`, `/api/capabilities` (`record.enabled`), session file state; Studio version (session file), support code (`telemetry.json`) and `studio.log` path for a bug report (`CONTRIBUTING.md`); `auto_approve_starts` and `auto_approve_deletes` (session file), the automatic approvals the user turned on |
 | `list_matches`, `get_match` | `GET /api/library/matches`, `GET /api/library/matches/{id}` (players with SteamIDs, side keys and their library team). `list_matches` reads every page of the matches, then the demos and series, as the Partidas list does: each match has its demo's `title` (the Título a person wrote, `demo_title` in the API; empty when it has none), its `kind` (Tipo de partida, derived: `scrim` for scrim demos, `oficial` for tournament (`hltv`) demos and for any match in a series with an event, `importada` for the rest, such as FACEIT pugs), source, tags, import date and, in a series, its format, event, veto and `map_role` (pick or decider). `kind`, `has_pov` (Con POV: a ready render with a video among the demo's jobs, the same rule as the POV chip), `sort` (`played` or `imported`), `team`, `opponent` and `event` are the controls above the list. Every match also carries `has_voice`, `voice_sync` (`auto`, `manual` or `unsynced`) and `voice_note`, read from `GET /api/library/voice/summary` (no tracks loaded); `has_voice` as a filter is Con voz, and `sync_voice` with `auto` true is the row's Volver a sincronizar voz |
 | `list_moments` | `GET /api/jobs/{id}/moments`: the same segment ids as the "Prepara tu Short" list, with scores; the top 10 by default (`limit`), plus `total`; each play has `score` (0 to 1: kills, clutch size and result, fast multi-kills, noscope, through smoke and blind kills, entry, retake, eco win, flick, win chance swing), `reasons`, `clutch_won` and `win_prob_swing`, as "Elegir las mejores" ranks them; `weapon`, `kinds` (clutch, clutch_won, ace, multi_kill, fast_double, fast_triple, fast_quad, fast_ace, noscope, through_smoke, attacker_blind, entry, retake, eco_win, flick) and `side` (CT, T) filter the list; in a multi-POV job each play carries `player` and `steamid`, and `player` filters by SteamID64 or name |
 | `list_series_moments` | `GET /api/jobs/{id}` (same `target_steamid`, different demos) and `GET /api/jobs/{id}/moments` per map; plays of every map tagged with `map_number`, `map` and `job_id`, in play order (map, round, tick) or best first; same filters as `list_moments` |

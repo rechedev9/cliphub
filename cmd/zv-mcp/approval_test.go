@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -70,7 +71,8 @@ func TestApprovalCodeIsSingleUseAndExpires(t *testing.T) {
 }
 
 type askIn struct {
-	Given string `json:"given,omitempty"`
+	Given string   `json:"given,omitempty"`
+	Auto  autoKind `json:"auto,omitempty"`
 }
 
 type askOut struct {
@@ -105,7 +107,7 @@ func connectVersion(t *testing.T, server *mcp.Server, opts *mcp.ClientOptions, v
 func newAskServer(a *approver) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0"}, nil)
 	mcp.AddTool(server, &mcp.Tool{Name: "ask"}, func(ctx context.Context, req *mcp.CallToolRequest, in askIn) (*mcp.CallToolResult, askOut, error) {
-		res, err := a.approve(req, approvalSpec{Tool: "ask", JobID: "job-1", Request: "plays", Summary: "Capture.", Given: in.Given})
+		res, err := a.approve(req, approvalSpec{Tool: "ask", JobID: "job-1", Request: "plays", Summary: "Capture.", Given: in.Given, Auto: in.Auto})
 		if res.Ask != nil {
 			return res.Ask, askOut{}, nil
 		}
@@ -116,7 +118,12 @@ func newAskServer(a *approver) *mcp.Server {
 
 func callAsk(t *testing.T, cs *mcp.ClientSession, given string) (askOut, bool) {
 	t.Helper()
-	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "ask", Arguments: map[string]any{"given": given}})
+	return callAskAuto(t, cs, given, autoNever)
+}
+
+func callAskAuto(t *testing.T, cs *mcp.ClientSession, given string, auto autoKind) (askOut, bool) {
+	t.Helper()
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "ask", Arguments: map[string]any{"given": given, "auto": auto}})
 	if err != nil || res.IsError {
 		return askOut{}, true
 	}
@@ -176,6 +183,96 @@ func TestApproveWithElicitationNeverUsesCodes(t *testing.T) {
 		}
 		if got, failed := callAsk(t, connectVersion(t, server, respond("", errors.New("no ui")), version), ""); !failed || got.Code != "" {
 			t.Errorf("%q a failing elicitation must be an error without a code: %+v failed=%v", version, got, failed)
+		}
+	}
+}
+
+func TestAutoApprovalSkipsOnlyItsKind(t *testing.T) {
+	cases := []struct {
+		name string
+		auto autoKind
+		on   *autoApproval
+		want bool
+	}{
+		{"start with starts on", autoStart, &autoApproval{Starts: true}, true},
+		{"cleanup with deletes on", autoCleanup, &autoApproval{Deletes: true}, true},
+		{"start with both on", autoStart, &autoApproval{Starts: true, Deletes: true}, true},
+		{"start with starts off", autoStart, &autoApproval{}, false},
+		{"start without a source", autoStart, nil, false},
+		{"cleanup with only starts on", autoCleanup, &autoApproval{Starts: true}, false},
+		{"start with only deletes on", autoStart, &autoApproval{Deletes: true}, false},
+		{"other tool with both on", autoNever, &autoApproval{Starts: true, Deletes: true}, false},
+	}
+	for _, tc := range cases {
+		asked := 0
+		elicit := &mcp.ClientOptions{ElicitationHandler: func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			asked++
+			return &mcp.ElicitResult{Action: "decline"}, nil
+		}}
+		a := newApprover()
+		if tc.on != nil {
+			on := *tc.on
+			a.autoApprove = func() autoApproval { return on }
+		}
+		server := newAskServer(a)
+
+		got, failed := callAskAuto(t, connectWith(t, server, nil), "", tc.auto)
+		if tc.want && (failed || !got.Approved || got.Code != "") {
+			t.Errorf("%s, code client: want approved without a code, got %+v failed=%v", tc.name, got, failed)
+		}
+		if !tc.want && (failed || got.Approved || got.Code == "") {
+			t.Errorf("%s, code client: want a code to ask with, got %+v failed=%v", tc.name, got, failed)
+		}
+
+		got, failed = callAskAuto(t, connectWith(t, server, elicit), "", tc.auto)
+		if tc.want && (failed || !got.Approved || asked != 0) {
+			t.Errorf("%s, elicitation client: want approved without a question, got %+v failed=%v asked=%d", tc.name, got, failed, asked)
+		}
+		if !tc.want && (!failed || asked != 1) {
+			t.Errorf("%s, elicitation client: want the question declined, got %+v failed=%v asked=%d", tc.name, got, failed, asked)
+		}
+	}
+}
+
+func TestAutoApprovalNeverApprovesAnAnswerToAStaleQuestion(t *testing.T) {
+	for _, version := range []string{"", "2025-06-18"} {
+		var on atomic.Bool
+		var calls atomic.Int32
+		a := newApprover()
+		a.autoApprove = func() autoApproval { return autoApproval{Starts: on.Load()} }
+		server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0"}, nil)
+		mcp.AddTool(server, &mcp.Tool{Name: "ask"}, func(ctx context.Context, req *mcp.CallToolRequest, in askIn) (*mcp.CallToolResult, askOut, error) {
+			request := "plays"
+			if calls.Add(1) > 1 {
+				request = "plays changed"
+			}
+			res, err := a.approve(req, approvalSpec{Tool: "ask", JobID: "job-1", Request: request, Summary: "Capture.", Auto: autoStart})
+			if res.Ask != nil {
+				return res.Ask, askOut{}, nil
+			}
+			return nil, askOut{Approved: res.Approved}, err
+		})
+		decline := &mcp.ClientOptions{ElicitationHandler: func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			on.Store(true)
+			return &mcp.ElicitResult{Action: "decline"}, nil
+		}}
+		if got, failed := callAskAuto(t, connectVersion(t, server, decline, version), "", autoStart); !failed {
+			t.Errorf("%q a decline for a question whose request changed was approved automatically: %+v", version, got)
+		}
+	}
+}
+
+func TestAutoApprovalTurnedOnDoesNotOverrideADecline(t *testing.T) {
+	for _, version := range []string{"", "2025-06-18"} {
+		var on atomic.Bool
+		a := newApprover()
+		a.autoApprove = func() autoApproval { return autoApproval{Starts: on.Load()} }
+		decline := &mcp.ClientOptions{ElicitationHandler: func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			on.Store(true)
+			return &mcp.ElicitResult{Action: "decline"}, nil
+		}}
+		if got, failed := callAskAuto(t, connectVersion(t, newAskServer(a), decline, version), "", autoStart); !failed {
+			t.Errorf("%q the switch turned on while the question was open overrode the decline: %+v", version, got)
 		}
 	}
 }

@@ -16,7 +16,12 @@ export type StudioSettingsRequest =
   | { action: typeof STUDIO_SETTINGS_ACTION.telemetryStatus }
   | { action: typeof STUDIO_SETTINGS_ACTION.telemetryUpdate; enabled: boolean }
   | { action: typeof STUDIO_SETTINGS_ACTION.assistantStatus }
-  | { action: typeof STUDIO_SETTINGS_ACTION.assistantUpdate; enabled: boolean }
+  | {
+    action: typeof STUDIO_SETTINGS_ACTION.assistantUpdate;
+    enabled: boolean;
+    autoApproveStarts?: boolean;
+    autoApproveDeletes?: boolean;
+  }
   | { action: typeof STUDIO_SETTINGS_ACTION.teamspeakPluginInstall };
 
 export interface TrustedSettingsSenderInput {
@@ -41,10 +46,21 @@ export function parseStudioSettingsRequest(value: unknown): StudioSettingsReques
     requireExactKeys(value, ['action']);
     return { action };
   }
-  if ((action === STUDIO_SETTINGS_ACTION.telemetryUpdate || action === STUDIO_SETTINGS_ACTION.assistantUpdate)
-    && typeof value.enabled === 'boolean') {
+  if (action === STUDIO_SETTINGS_ACTION.telemetryUpdate && typeof value.enabled === 'boolean') {
     requireExactKeys(value, ['action', 'enabled']);
     return { action, enabled: value.enabled };
+  }
+  if (action === STUDIO_SETTINGS_ACTION.assistantUpdate && typeof value.enabled === 'boolean') {
+    const autoApproveStarts = optionalFlag(value, 'autoApproveStarts');
+    const autoApproveDeletes = optionalFlag(value, 'autoApproveDeletes');
+    const request = {
+      action,
+      enabled: value.enabled,
+      ...(autoApproveStarts === undefined ? {} : { autoApproveStarts }),
+      ...(autoApproveDeletes === undefined ? {} : { autoApproveDeletes }),
+    };
+    requireExactKeys(value, Object.keys(request));
+    return request;
   }
   throw new Error('invalid Studio settings request');
 }
@@ -60,6 +76,13 @@ export function isTrustedSettingsSender(input: TrustedSettingsSenderInput): bool
   } catch {
     return false;
   }
+}
+
+function optionalFlag(value: Record<string, unknown>, key: string): boolean | undefined {
+  if (!Object.hasOwn(value, key)) return undefined;
+  const flag = value[key];
+  if (typeof flag !== 'boolean') throw new Error('invalid Studio settings request');
+  return flag;
 }
 
 function requireExactKeys(value: Record<string, unknown>, expected: string[]): void {

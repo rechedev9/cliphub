@@ -81,7 +81,15 @@ test('rejects a malformed optional assistant operation', () => {
 
 test('reads an assistant access reply and refuses a failure reply', () => {
   const mcpPath = String.raw`C:\Users\Ana\AppData\Roaming\cliphub-studio\mcp\zv-mcp.exe`;
-  assert.deepEqual(parseAssistantAccess({ enabled: true, mcpPath }), { enabled: true, mcpPath });
+  assert.deepEqual(parseAssistantAccess({ enabled: true, mcpPath }), { enabled: true, autoApproveStarts: false, autoApproveDeletes: false, mcpPath });
+  assert.deepEqual(
+    parseAssistantAccess({ enabled: true, autoApproveStarts: true, autoApproveDeletes: true, mcpPath }),
+    { enabled: true, autoApproveStarts: true, autoApproveDeletes: true, mcpPath },
+  );
+  assert.deepEqual(
+    parseAssistantAccess({ enabled: false, autoApproveStarts: 'yes', autoApproveDeletes: 1, mcpPath }),
+    { enabled: false, autoApproveStarts: false, autoApproveDeletes: false, mcpPath },
+  );
   assert.equal(parseAssistantAccess({ ok: false, error: 'No se pudo guardar.' }), null);
   assert.equal(parseAssistantAccess({ enabled: 'yes', mcpPath }), null);
   assert.equal(parseAssistantAccess({ enabled: false, mcpPath: '' }), null);

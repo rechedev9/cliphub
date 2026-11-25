@@ -17,16 +17,26 @@ export interface AgentSessionFs {
   sleepSync(ms: number): void;
 }
 
-export interface AgentSessionOptions extends AgentSessionTarget {
-  sessionFile: string;
+export interface AgentAccess {
   enabled: boolean;
+  autoApproveStarts: boolean;
+  autoApproveDeletes: boolean;
+}
+
+export interface AgentAccessChange {
+  enabled: boolean;
+  autoApproveStarts?: boolean;
+  autoApproveDeletes?: boolean;
+}
+
+export interface AgentSessionOptions extends AgentSessionTarget, AgentAccess {
+  sessionFile: string;
   fsOps?: AgentSessionFs;
 }
 
-export interface SetAgentAccessOptions {
+export interface SetAgentAccessOptions extends AgentAccess {
   accessFile: string;
   sessionFile: string;
-  enabled: boolean;
   /** The services of the current boot, or null while none is up. */
   running: AgentSessionTarget | null;
   fsOps?: AgentSessionFs;
@@ -44,19 +54,43 @@ const nodeFs: AgentSessionFs = {
 };
 
 /** The user's choice to let an assistant drive Studio; off unless the file says otherwise. */
-export function readAgentAccess(accessFile: string): boolean {
+export function readAgentAccess(accessFile: string): AgentAccess {
+  if (fs.existsSync(revokedMarker(accessFile))) return accessOff();
   try {
     const parsed: unknown = JSON.parse(fs.readFileSync(accessFile, 'utf8'));
-    return typeof parsed === 'object' && parsed !== null && 'enabled' in parsed && parsed.enabled === true;
+    if (!isRecord(parsed)) return accessOff();
+    return {
+      enabled: parsed.enabled === true,
+      autoApproveStarts: parsed.autoApproveStarts === true,
+      autoApproveDeletes: parsed.autoApproveDeletes === true,
+    };
   } catch {
-    return false;
+    return accessOff();
   }
+}
+
+export function nextAgentAccess(stored: AgentAccess, change: AgentAccessChange): AgentAccess {
+  return {
+    enabled: change.enabled,
+    autoApproveStarts: change.autoApproveStarts ?? stored.autoApproveStarts,
+    autoApproveDeletes: change.autoApproveDeletes ?? stored.autoApproveDeletes,
+  };
+}
+
+function accessOff(): AgentAccess {
+  return { enabled: false, autoApproveStarts: false, autoApproveDeletes: false };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Publishes the running orchestrator to zv-mcp; the token is written only while access is on. */
 export function writeAgentSession({
   sessionFile,
   enabled,
+  autoApproveStarts,
+  autoApproveDeletes,
   orchestratorUrl,
   token,
   webOrigin,
@@ -64,7 +98,8 @@ export function writeAgentSession({
   fsOps = nodeFs,
 }: AgentSessionOptions): void {
   if (enabled) {
-    writeFileAtomic({ file: sessionFile, document: { version: 1, enabled, orchestratorUrl, token, webOrigin, studioVersion }, fsOps });
+    const document = { version: 1, enabled, orchestratorUrl, token, webOrigin, studioVersion, autoApproveStarts, autoApproveDeletes };
+    writeFileAtomic({ file: sessionFile, document, fsOps });
     return;
   }
   try {
@@ -74,21 +109,87 @@ export function writeAgentSession({
   }
 }
 
-/** Stores the switch and republishes a running boot; the session goes first so no token outlives a failure. */
-export function setAgentAccess({ accessFile, sessionFile, enabled, running, fsOps = nodeFs }: SetAgentAccessOptions): void {
-  if (running !== null) writeAgentSession({ sessionFile, enabled, ...running, fsOps });
+export function setAgentAccess({
+  accessFile,
+  sessionFile,
+  enabled,
+  autoApproveStarts,
+  autoApproveDeletes,
+  running,
+  fsOps = nodeFs,
+}: SetAgentAccessOptions): void {
+  const next = { enabled, autoApproveStarts, autoApproveDeletes };
+  const kept = keptAccess(readAgentAccess(accessFile), next);
   try {
-    writeFileAtomic({ file: accessFile, document: { enabled }, fsOps });
+    writeFileAtomic({ file: accessFile, document: kept, fsOps });
   } catch (error) {
-    // The choice was not stored, so a token published for it must not stay.
-    if (enabled && running !== null) {
-      try {
-        removeAgentSession(sessionFile, fsOps);
-      } catch {
-        // The original failure is the one worth reporting.
-      }
-    }
+    markRevokedQuietly(accessFile, fsOps);
+    removeQuietly(accessFile, fsOps);
+    if (running !== null) publishQuietly({ sessionFile, access: accessOff(), running, fsOps });
     throw error;
+  }
+  fsOps.rmSync(revokedMarker(accessFile), { force: true });
+  if (running !== null) {
+    try {
+      writeAgentSession({ sessionFile, ...next, ...running, fsOps });
+    } catch (error) {
+      removeQuietly(sessionFile, fsOps);
+      throw error;
+    }
+  }
+  if (sameAccess(kept, next)) return;
+  try {
+    writeFileAtomic({ file: accessFile, document: next, fsOps });
+  } catch (error) {
+    if (running !== null) publishQuietly({ sessionFile, access: kept, running, fsOps });
+    throw error;
+  }
+}
+
+function keptAccess(stored: AgentAccess, next: AgentAccess): AgentAccess {
+  return {
+    enabled: stored.enabled && next.enabled,
+    autoApproveStarts: stored.autoApproveStarts && next.autoApproveStarts,
+    autoApproveDeletes: stored.autoApproveDeletes && next.autoApproveDeletes,
+  };
+}
+
+function sameAccess(a: AgentAccess, b: AgentAccess): boolean {
+  return a.enabled === b.enabled && a.autoApproveStarts === b.autoApproveStarts && a.autoApproveDeletes === b.autoApproveDeletes;
+}
+
+interface PublishOptions {
+  sessionFile: string;
+  access: AgentAccess;
+  running: AgentSessionTarget;
+  fsOps: AgentSessionFs;
+}
+
+function publishQuietly({ sessionFile, access, running, fsOps }: PublishOptions): void {
+  try {
+    writeAgentSession({ sessionFile, ...access, ...running, fsOps });
+  } catch {
+    removeQuietly(sessionFile, fsOps);
+  }
+}
+
+function revokedMarker(accessFile: string): string {
+  return `${accessFile}.revoked`;
+}
+
+function markRevokedQuietly(accessFile: string, fsOps: AgentSessionFs): void {
+  try {
+    fsOps.writeFileSync(revokedMarker(accessFile), '', { mode: 0o600 });
+  } catch {
+    return;
+  }
+}
+
+function removeQuietly(file: string, fsOps: AgentSessionFs): void {
+  try {
+    fsOps.rmSync(file, { force: true });
+  } catch {
+    return;
   }
 }
 

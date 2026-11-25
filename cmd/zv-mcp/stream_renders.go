@@ -184,8 +184,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "render_stream_summary", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Render one 16:9 video with the plays find_stream_plays found, in video order: the resumen of a VOD in Studio, opened with Hacer resumen on its project card. It is made from plays, never from the saved moments. " +
 			"play_ids picks some of them, as the Jugadas del resumen list does; empty uses every play. " +
-			"It encodes for minutes, so the user must approve it. If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
-			"Follow with wait_for_stream_render and variant summary."},
+			"It encodes for minutes. " + startApprovalHint + " Follow with wait_for_stream_render and variant summary."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in renderStreamSummaryIn) (*mcp.CallToolResult, streamRenderStartOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, streamRenderStartOut{}, err
@@ -218,7 +217,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 			}
 			summary := fmt.Sprintf("Crear el resumen horizontal 16:9 de %s con %s seguidas%s, unos %s. FFmpeg trabajará durante varios minutos.",
 				streamName(j), plural(len(plays), "jugada", "jugadas"), summaryShare(len(plays), len(scan.Plays)), clock(playsSeconds(plays)))
-			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "render_stream_summary", JobID: in.ID, Request: ids, Summary: summary, Given: in.Approve})
+			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "render_stream_summary", JobID: in.ID, Request: ids, Summary: summary, Given: in.Approve, Auto: autoStart})
 			if err != nil {
 				return nil, streamRenderStartOut{}, err
 			}
@@ -243,9 +242,8 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "render_stream", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Render a stream's moments (the momentos of Studio) as videos in one layout from list_stream_variants, one MP4 per moment, or per group of moments joined with edit_stream_plan: vertical 9:16 Shorts or 16:9. " +
 			"play_ids from find_stream_plays are added to the moments the user saved in Studio, as the Añadir button does: a play that overlaps a saved moment is skipped. Empty renders the saved moments. " +
-			"A facecam layout needs the facecam crop checked once in Studio first. It encodes for minutes, so the user must approve it: " +
-			"if the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
-			"Follow with wait_for_stream_render, passing the returned variant."},
+			"A facecam layout needs the facecam crop checked once in Studio first. It encodes for minutes. " +
+			startApprovalHint + " Follow with wait_for_stream_render, passing the returned variant."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in renderStreamIn) (*mcp.CallToolResult, streamRenderStartOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, streamRenderStartOut{}, err
@@ -311,7 +309,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 			summary := fmt.Sprintf("Renderizar %s de %s con el diseño %s%s%s: %s. FFmpeg trabajará durante varios minutos.",
 				plural(shorts, "vídeo", "vídeos"), streamName(j), variantLabel(body.Variant, variants),
 				momentOrigin(saved, added, len(in.PlayIDs)), joinedMoments(len(moments), shorts), describeShorts(body.Clips, body.Groups))
-			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "render_stream", JobID: in.ID, Request: body, Summary: summary, Given: in.Approve})
+			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "render_stream", JobID: in.ID, Request: body, Summary: summary, Given: in.Approve, Auto: autoStart})
 			if err != nil {
 				return nil, streamRenderStartOut{}, err
 			}

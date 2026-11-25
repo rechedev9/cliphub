@@ -12,6 +12,7 @@ about: Something in ClipHub Studio fails or behaves wrong. Read CONTRIBUTING.md 
 ## Evidence
 - Studio version:
 - Support code:
+- Automatic approvals: <!-- studio_status auto_approve_starts and auto_approve_deletes, when the problem is an approval -->
 - Frequency: always / sometimes (how often) / once
 - Input: <!-- map, demo source or stream link; a download link if the user agreed to share it -->
 

@@ -39,14 +39,16 @@ const statusRecorded = "recorded"
 type empty struct{}
 
 type statusOut struct {
-	Running        bool   `json:"running"`
-	CaptureEnabled bool   `json:"capture_enabled" jsonschema:"false means Steam, CS2 or HLAE is missing, so generate_short will fail"`
-	RenderEnabled  bool   `json:"render_enabled"`
-	StreamLinks    bool   `json:"stream_links" jsonschema:"false means import_stream cannot download Twitch, Kick or YouTube links (yt-dlp is missing); a local .mp4 still works"`
-	DefaultPreset  string `json:"default_preset"`
-	StudioVersion  string `json:"studio_version,omitempty" jsonschema:"the Studio release; cite it in a bug report"`
-	SupportCode    string `json:"support_code,omitempty" jsonschema:"lets the ClipHub team find this installation's diagnostics; cite it in a bug report"`
-	LogPath        string `json:"log_path,omitempty" jsonschema:"studio.log of this installation; read the lines near a failure for a bug report"`
+	Running            bool   `json:"running"`
+	CaptureEnabled     bool   `json:"capture_enabled" jsonschema:"false means Steam, CS2 or HLAE is missing, so generate_short will fail"`
+	RenderEnabled      bool   `json:"render_enabled"`
+	StreamLinks        bool   `json:"stream_links" jsonschema:"false means import_stream cannot download Twitch, Kick or YouTube links (yt-dlp is missing); a local .mp4 still works"`
+	DefaultPreset      string `json:"default_preset"`
+	StudioVersion      string `json:"studio_version,omitempty" jsonschema:"the Studio release; cite it in a bug report"`
+	SupportCode        string `json:"support_code,omitempty" jsonschema:"lets the ClipHub team find this installation's diagnostics; cite it in a bug report"`
+	LogPath            string `json:"log_path,omitempty" jsonschema:"studio.log of this installation; read the lines near a failure for a bug report"`
+	AutoApproveStarts  bool   `json:"auto_approve_starts" jsonschema:"true means the user turned on automatic approval of recordings and renders in Studio, Ajustes, Asistentes, so those start without asking; only the user can change it, in Studio"`
+	AutoApproveDeletes bool   `json:"auto_approve_deletes" jsonschema:"true means the user turned on automatic approval of deleting videos and captures in Studio, Ajustes, Asistentes, so delete_video and delete_captures run without asking; other deletes still ask, and only the user can change it, in Studio"`
 }
 
 type matchSummary struct {
@@ -240,7 +242,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerClipMindTools(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,
-		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE). Also returns the Studio version, support code and studio.log path a bug report needs."},
+		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE). Also returns the Studio version, support code and studio.log path a bug report needs, and the automatic approvals the user turned on in Studio (auto_approve_starts, auto_approve_deletes)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, statusOut, error) {
 			c, err := s.client(ctx)
 			if err != nil {
@@ -254,9 +256,10 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, statusOut{}, toolError(err)
 			}
-			ev := s.reportEvidence()
+			ev, auto := s.reportEvidence(), s.autoApproval()
 			return nil, statusOut{Running: true, CaptureEnabled: caps.Record.Enabled, RenderEnabled: caps.Render.Enabled, StreamLinks: caps.Stream.YtdlpEnabled, DefaultPreset: presets.Default,
-				StudioVersion: ev.studioVersion, SupportCode: ev.supportCode, LogPath: ev.logPath}, nil
+				StudioVersion: ev.studioVersion, SupportCode: ev.supportCode, LogPath: ev.logPath,
+				AutoApproveStarts: auto.Starts, AutoApproveDeletes: auto.Deletes}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_matches", Annotations: readOnly,
@@ -440,9 +443,8 @@ func registerTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "generate_short", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Capture and edit a Short from chosen plays of one job. For a series, the plays of one call must share one job_id (one map); a Short that mixes maps is not supported, so make one Short per map. " +
-			"A multi-POV job mixes players in one Short: pick plays whose times do not overlap, since one capture films one player at a time. Optional format, kill_effect, transition, music and extras come from list_short_options; unset keeps the defaults. This opens CS2 full screen and records for minutes, so the user must approve it. " +
-			"If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
-			"Follow with wait_for_job, passing the returned variant."},
+			"A multi-POV job mixes players in one Short: pick plays whose times do not overlap, since one capture films one player at a time. Optional format, kill_effect, transition, music and extras come from list_short_options; unset keeps the defaults. This opens CS2 full screen and records for minutes. " +
+			startApprovalHint + " Follow with wait_for_job, passing the returned variant."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in generateIn) (*mcp.CallToolResult, generateOut, error) {
 			if err := checkUUID("job_id", in.JobID); err != nil {
 				return nil, generateOut{}, err
@@ -481,7 +483,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			body.SegmentIDs = in.SegmentIDs
 			summary := fmt.Sprintf("Grabar un Short con %s y el preset %s: %s. Opciones: %s. CS2 se abrirá a pantalla completa y grabará durante varios minutos.",
 				what, body.Preset, plays, describeShortRequest(body))
-			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_short", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve})
+			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_short", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve, Auto: autoStart})
 			if err != nil {
 				return nil, generateOut{}, err
 			}

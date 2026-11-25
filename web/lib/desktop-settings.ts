@@ -46,8 +46,16 @@ export type StudioPlaybackInfo =
 
 export type StudioAssistantAccess = {
   enabled: boolean;
+  autoApproveStarts: boolean;
+  autoApproveDeletes: boolean;
   /** Absolute path of the stable zv-mcp copy under userData that an assistant launches. */
   mcpPath: string;
+};
+
+export type StudioAssistantUpdate = {
+  enabled: boolean;
+  autoApproveStarts?: boolean;
+  autoApproveDeletes?: boolean;
 };
 
 export interface DesktopSettingsBridge {
@@ -58,7 +66,7 @@ export interface DesktopSettingsBridge {
   updateTelemetry(enabled: boolean): Promise<StudioTelemetryStatus>;
   /** Optional so a current UI can still use settings exposed by an older preload. */
   getAssistantAccess?(): Promise<unknown>;
-  updateAssistantAccess?(enabled: boolean): Promise<unknown>;
+  updateAssistantAccess?(update: StudioAssistantUpdate): Promise<unknown>;
   /** Opens the bundled .ts3_plugin package with TeamSpeak 3; optional for an older preload. */
   installTeamSpeakPlugin?(): Promise<unknown>;
 }
@@ -67,7 +75,12 @@ export interface DesktopSettingsBridge {
 export function parseAssistantAccess(value: unknown): StudioAssistantAccess | null {
   if (!isRecord(value) || typeof value.enabled !== 'boolean') return null;
   if (typeof value.mcpPath !== 'string' || value.mcpPath === '') return null;
-  return { enabled: value.enabled, mcpPath: value.mcpPath };
+  return {
+    enabled: value.enabled,
+    autoApproveStarts: value.autoApproveStarts === true,
+    autoApproveDeletes: value.autoApproveDeletes === true,
+    mcpPath: value.mcpPath,
+  };
 }
 
 /** Narrows the install reply to the error to show, or null when TeamSpeak opened the package. */

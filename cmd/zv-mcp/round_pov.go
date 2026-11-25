@@ -36,9 +36,8 @@ func registerRoundPOVTool(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "record_round_pov", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Record one player's point of view for one round of a library match, as the Replay's \"Grabar su POV de esta ronda\" does: " +
 			"a Full Demo limited to that round, from the end of freeze time to the end of the round, with Studio's default look. " +
-			"It creates or reuses the player's job, waits for it to be parsed, plans the round and starts the capture. This opens CS2 full screen, so the user must approve it: " +
-			"if the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
-			"Follow with wait_for_job, passing the returned variant; the video lands in Mis vídeos (list_all_videos). " +
+			"It creates or reuses the player's job, waits for it to be parsed, plans the round and starts the capture. This opens CS2 full screen. " +
+			startApprovalHint + " Follow with wait_for_job, passing the returned variant; the video lands in Mis vídeos (list_all_videos). " +
 			"For a different look or several rounds use plan_full_demo with rounds and render_full_demo."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in recordRoundPOVIn) (*mcp.CallToolResult, recordRoundPOVOut, error) {
 			if err := checkUUID("match_id", in.MatchID); err != nil {
