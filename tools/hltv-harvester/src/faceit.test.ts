@@ -1,6 +1,8 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { demoFileName, faceitSidecarFor, isDemoResource, parseFaceitMatch, parseSigned, roomIds, signScript } from "./faceit.ts";
+import {
+  demoFileName, faceitSidecarFor, isDemoResource, isSidecarOf, matchScript, parseFaceitMatch, parseReply, parseSignedUrl, replyKind, roomIds, sidecarName, signScript,
+} from "./faceit.ts";
 import { parseArgs } from "./hltv.ts";
 
 const ROOM = "1-5a968f7b-a1e1-420a-95c3-f0715701759d";
@@ -39,7 +41,6 @@ test("parseFaceitMatch refuses another room, an unfinished match and a page that
   assert.equal(parseFaceitMatch(matchText({ id: "1-00000000-0000-0000-0000-000000000000" }), ROOM), null);
   assert.equal(parseFaceitMatch(matchText({ status: "ONGOING" }), ROOM), null);
   assert.equal(parseFaceitMatch("<html>Just a moment...</html>", ROOM), null);
-  assert.equal(parseFaceitMatch(undefined, ROOM), null);
 });
 
 test("demo resources keep FACEIT's file name so Studio reads the room and the map number", () => {
@@ -50,21 +51,50 @@ test("demo resources keep FACEIT's file name so Studio reads the room and the ma
   assert.equal(isDemoResource("https://faceit-cdn.net.evil.example/cs2/a.dem.zst"), false);
 });
 
-test("parseSigned takes only an https FACEIT or Backblaze link and tells sign-in from failure", () => {
-  const ok = { status: 200, body: JSON.stringify({ payload: { download_url: "https://demos-europe-central-faceit-cdn.s3.eu-central-003.backblazeb2.com/cs2/x.dem.zst?X-Amz-Signature=1" } }) };
-  assert.equal(parseSigned(ok).kind, "signed");
-  assert.deepEqual(parseSigned({ status: 401, body: "" }), { kind: "needs_user" });
-  assert.deepEqual(parseSigned({ status: 403, body: "<title>Just a moment...</title>" }), { kind: "needs_user" });
-  assert.deepEqual(parseSigned({ status: 404, body: "" }), { kind: "failed", status: 404 });
-  assert.deepEqual(parseSigned({ status: 200, body: JSON.stringify({ payload: { download_url: "https://evil.example/x" } }) }), { kind: "failed", status: 200 });
-  assert.deepEqual(parseSigned({ status: 200, body: "<html>" }), { kind: "failed", status: 200 });
-  assert.deepEqual(parseSigned(null), { kind: "failed", status: 0 });
+test("parseSignedUrl takes only an https FACEIT or Backblaze link", () => {
+  const signed = "https://demos-europe-central-faceit-cdn.s3.eu-central-003.backblazeb2.com/cs2/x.dem.zst?X-Amz-Signature=1";
+  assert.equal(parseSignedUrl(JSON.stringify({ payload: { download_url: signed } })), signed);
+  assert.equal(parseSignedUrl(JSON.stringify({ payload: { download_url: "https://evil.example/x" } })), "");
+  assert.equal(parseSignedUrl(JSON.stringify({ payload: { download_url: "http://x.backblazeb2.com/a" } })), "");
+  assert.equal(parseSignedUrl("<html>"), "");
 });
 
-test("signScript sends the resource as JSON from the FACEIT origin only", () => {
-  const script = signScript(DEMO);
-  assert.ok(script.startsWith("location.origin !== 'https://www.faceit.com'"));
-  assert.ok(script.includes(JSON.stringify(JSON.stringify({ resource_url: DEMO }))));
+test("replyKind asks the user on sign-in, a check or a page off FACEIT, and fails on service errors", () => {
+  const reply = (status: number) => ({ status, body: "" });
+  assert.equal(replyKind(reply(200), false), "ok");
+  assert.equal(replyKind(reply(401), false), "needs_user");
+  assert.equal(replyKind(reply(403), false), "needs_user");
+  assert.equal(replyKind(reply(-1), false), "needs_user");
+  assert.equal(replyKind(reply(404), true), "gone");
+  assert.equal(replyKind(reply(410), false), "gone");
+  assert.equal(replyKind(reply(0), false), "error");
+  assert.equal(replyKind(reply(0), true), "needs_user");
+  assert.equal(replyKind(reply(500), true), "error");
+  assert.equal(replyKind(reply(429), false), "error");
+  assert.deepEqual(parseReply(null), { status: 0, body: "" });
+  assert.deepEqual(parseReply({ status: 403, body: 1 }), { status: 403, body: "" });
+});
+
+test("the page scripts run only on the FACEIT origin, send JSON and stop at the time limit", () => {
+  const sign = signScript(DEMO, 30_000);
+  assert.ok(sign.startsWith(`location.origin !== "https://www.faceit.com"`));
+  assert.ok(sign.includes(JSON.stringify(JSON.stringify({ resource_url: DEMO }))));
+  assert.ok(sign.includes("AbortSignal.timeout(30000)"));
+  assert.ok(sign.includes("method: 'POST'"));
+  const read = matchScript(ROOM, 1.4);
+  assert.ok(read.includes(`"/api/match/v2/match/${ROOM}"`));
+  assert.ok(read.includes("AbortSignal.timeout(1)"));
+  assert.ok(!read.includes("POST"));
+});
+
+test("a sidecar is kept only when it is FACEIT's and names its own demo", () => {
+  const name = `${ROOM}-1-1.dem.zst`;
+  assert.equal(sidecarName(name), `${ROOM}-1-1.json`);
+  const match = parseFaceitMatch(matchText({}), ROOM);
+  assert.ok(match);
+  assert.equal(isSidecarOf(JSON.stringify(faceitSidecarFor(match, DEMO)), name), true);
+  assert.equal(isSidecarOf('{"source":"faceit","file":"other.dem.zst"}', name), false);
+  assert.equal(isSidecarOf('{"source":"faceit","fi', name), false);
 });
 
 test("the sidecar names the demo file and the room it came from", () => {
@@ -79,5 +109,7 @@ test("the sidecar names the demo file and the room it came from", () => {
 
 test("--faceit takes room ids, links or a file", () => {
   assert.equal(parseArgs(["--faceit", ROOM, "--max", "2"], "out").faceit, ROOM);
-  assert.equal(parseArgs(["--faceit", "--max", "2"], "out").faceit, "");
+  assert.equal(parseArgs(["--faceit", ROOM, "--max", "2"], "out").invalid, "");
+  assert.equal(parseArgs(["--faceit", "--max", "2"], "out").invalid, "--faceit needs room ids, room links or a file");
+  assert.equal(parseArgs(["--max", "2", "--faceit"], "out").invalid, "--faceit needs room ids, room links or a file");
 });

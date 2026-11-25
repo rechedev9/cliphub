@@ -220,10 +220,11 @@ export type HarvestOptions = {
   /** A folder of sidecars whose format and veto are read from their match pages, without downloading a demo. */
   vetoBackfill: string;
   faceit: string;
+  invalid: string;
 };
 
 export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
-  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false, faceit: "" };
+  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false, faceit: "", invalid: "" };
   for (let i = 0; i < argv.length; i++) {
     // A following flag is never a value, so `--hours --ranked-only` keeps the flag.
     const raw = argv[i + 1] ?? "";
@@ -241,7 +242,7 @@ export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
       case "--hours": opts.hours = positive(next, opts.hours); i += skip; break;
       case "--ranked-only": opts.rankedOnly = true; break;
       case "--veto-backfill": if (next !== "") opts.vetoBackfill = next; i += skip; break;
-      case "--faceit": if (next !== "") opts.faceit = next; i += skip; break;
+      case "--faceit": opts.faceit = next; if (next === "") opts.invalid = "--faceit needs room ids, room links or a file"; i += skip; break;
     }
   }
   return opts;
