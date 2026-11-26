@@ -1,4 +1,4 @@
-import type { FullDemoDocument } from '../full-demo-plan.ts';
+import type { FullDemoDocument, FullDemoOptions } from '../full-demo-plan.ts';
 import { fullDemoWarningText } from './full-demo-notices.ts';
 
 export type CameraMoment = { id: string; round: number; enemy: string; time: string };
@@ -14,6 +14,16 @@ export function fullDemoCameraMoments(document: FullDemoDocument): CameraMoment[
     const seconds = round ? (window.kill_tick - round.live_start_tick) / document.clock.tick_rate : 0;
     return { id: window.id, round: window.round, enemy: window.enemy_name || 'Rival', time: clock(seconds) };
   });
+}
+
+function roundsKey(rounds: readonly number[] | undefined): string {
+  return [...(rounds ?? [])].sort((a, b) => a - b).join(',');
+}
+
+export function fullDemoCameraListed(document: FullDemoDocument | null, options: FullDemoOptions): FullDemoDocument | null {
+  const planned = document?.options.second_camera;
+  if (!document || planned?.enabled !== true || planned.max_windows !== options.second_camera?.max_windows) return null;
+  return roundsKey(document.options.rounds) === roundsKey(options.rounds) ? document : null;
 }
 
 export function cameraIdRound(id: string): number | null {

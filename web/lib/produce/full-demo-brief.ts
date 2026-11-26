@@ -82,8 +82,10 @@ function hookValue(enabled: boolean, skipped: boolean): string {
   return skipped ? 'Omitido' : 'Sí';
 }
 
+export type FullDemoBrief = { options: FullDemoOptions; voiceAvailability: string | null; hookSkipped?: boolean; cameraSkipped?: boolean };
+
 /** The recap rows after player and rounds, labelled as the controls that set them. */
-export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: string | null, hookSkipped = false, cameraSkipped = false): CreativeBriefItem[] {
+export function fullDemoBriefItems({ options, voiceAvailability, hookSkipped = false, cameraSkipped = false }: FullDemoBrief): CreativeBriefItem[] {
   const hudName = options.overlays.hud_custom?.name ?? customHudLabel(options.overlays.hud_theme);
   return [
     { label: 'HUD', value: hudName },

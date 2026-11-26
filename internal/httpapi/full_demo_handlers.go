@@ -88,7 +88,7 @@ func (h *Handlers) planFullDemo(ctx context.Context, j job.Job, options recappla
 	if err := mediaassets.VerifyContent(ctx, h.storage, j.DemoPath, facts.DemoSHA256, 8<<30); err != nil {
 		return recapplan.Document{}, &recapplan.Error{Code: recapplan.ErrPlanStale, Detail: "Demo content is missing or changed: " + err.Error()}
 	}
-	if options.SecondCamera != nil && facts.Holds == nil {
+	if options.SecondCamera != nil && options.SecondCamera.Enabled && facts.Holds == nil {
 		if facts, err = h.ensureKillHolds(ctx, j, facts); err != nil {
 			return recapplan.Document{}, err
 		}

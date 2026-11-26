@@ -56,10 +56,11 @@ func rewindIndex(plan RecordingPlan, captures []RecordingSegment) int {
 	if plan.FullDemo == nil {
 		return slices.IndexFunc(captures, func(s RecordingSegment) bool { return s.POVSteamID64 != "" })
 	}
-	if len(captures) == 0 || !isCameraCapture(captures[0]) {
+	first := slices.IndexFunc(captures, func(s RecordingSegment) bool { return !isCameraCapture(s) })
+	if first <= 0 || EffectiveRecordStartTick(captures[first], plan.Tickrate) > EffectiveRecordEndTick(captures[first-1], plan)+plan.Tickrate {
 		return -1
 	}
-	return slices.IndexFunc(captures, func(s RecordingSegment) bool { return !isCameraCapture(s) })
+	return first
 }
 
 func isCameraCapture(s RecordingSegment) bool {

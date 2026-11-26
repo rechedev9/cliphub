@@ -11,7 +11,7 @@ function options(): FullDemoOptions {
 }
 
 function brief(value: FullDemoOptions, availability: string | null = null): Record<string, string> {
-  return Object.fromEntries(fullDemoBriefItems(value, availability).map((item) => [item.label, item.value]));
+  return Object.fromEntries(fullDemoBriefItems({ options: value, voiceAvailability: availability }).map((item) => [item.label, item.value]));
 }
 
 test('the recap names each setting with the words of its control', () => {
@@ -33,9 +33,9 @@ test('the recap names each setting with the words of its control', () => {
   assert.equal(story['Botón de suscripción'], 'Sí');
   assert.equal(rows['Gancho inicial'], 'No');
   assert.equal(brief({ ...base, hook: { enabled: true } })['Gancho inicial'], 'Sí');
-  const skipped = Object.fromEntries(fullDemoBriefItems({ ...base, hook: { enabled: true } }, null, true).map((item) => [item.label, item.value]));
+  const skipped = Object.fromEntries(fullDemoBriefItems({ options: { ...base, hook: { enabled: true } }, voiceAvailability: null, hookSkipped: true }).map((item) => [item.label, item.value]));
   assert.equal(skipped['Gancho inicial'], 'Omitido');
-  assert.equal(Object.fromEntries(fullDemoBriefItems(base, null, true).map((item) => [item.label, item.value]))['Gancho inicial'], 'No');
+  assert.equal(Object.fromEntries(fullDemoBriefItems({ options: base, voiceAvailability: null, hookSkipped: true }).map((item) => [item.label, item.value]))['Gancho inicial'], 'No');
 });
 
 test('voices read as missing once a plan found none, and pending before', () => {

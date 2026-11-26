@@ -4,7 +4,7 @@ import { useId, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { FULL_DEMO_CAMERA_DEFAULT, FULL_DEMO_CAMERA_MAX, withFullDemoCameraMax, withFullDemoCameraRemoved, withFullDemoSecondCamera, type FullDemoDocument, type FullDemoOptions } from '@/lib/full-demo-plan';
 import { FULL_DEMO_CAMERA_LABEL, FULL_DEMO_CAMERA_NOTE } from '@/lib/produce/full-demo-brief';
-import { cameraEmptyReason, cameraOmittedText, fullDemoCameraMoments } from '@/lib/produce/full-demo-camera';
+import { cameraEmptyReason, cameraOmittedText, fullDemoCameraListed, fullDemoCameraMoments } from '@/lib/produce/full-demo-camera';
 import { FullDemoFold, FullDemoToggle } from './full-demo-fields';
 
 export type FullDemoSecondCameraProps = {
@@ -16,18 +16,13 @@ export type FullDemoSecondCameraProps = {
   onPrepare: () => void;
 };
 
-function listable(document: FullDemoDocument | null, options: FullDemoOptions): document is FullDemoDocument {
-  const planned = document?.options.second_camera;
-  return planned?.enabled === true && planned.max_windows === options.second_camera?.max_windows;
-}
-
 export function FullDemoSecondCamera({ options, document, omitted, preparing, onChange, onPrepare }: FullDemoSecondCameraProps): ReactNode {
   const noteId = useId();
   const camera = options.second_camera;
   const enabled = camera?.enabled === true;
   const max = camera?.max_windows || FULL_DEMO_CAMERA_DEFAULT;
   const removed = camera?.removed ?? [];
-  const shown = listable(document, options) ? document : null;
+  const shown = fullDemoCameraListed(document, options);
   const moments = shown ? fullDemoCameraMoments(shown) : [];
   const listed = new Set(moments.map((moment) => moment.id));
   const gone = removed.filter((id) => !listed.has(id));

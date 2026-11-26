@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { isFullDemoSnapshot } from '../full-demo-plan.ts';
-import { cameraEmptyReason, cameraIdRound, cameraOmittedText, fullDemoCameraMoments } from './full-demo-camera.ts';
+import { cameraEmptyReason, cameraIdRound, cameraOmittedText, fullDemoCameraListed, fullDemoCameraMoments } from './full-demo-camera.ts';
 import { fullDemoBriefItems } from './full-demo-brief.ts';
 import { fullDemoWarningText } from './full-demo-notices.ts';
 
@@ -37,8 +37,19 @@ test('notices and omissions speak Spanish without dashes', () => {
 
 test('the brief row for the second camera follows the option and the skip', () => {
   const options = planDocument().options;
-  const row = (on: boolean, skipped: boolean) => fullDemoBriefItems(on ? { ...options, second_camera: { enabled: true, max_windows: 5 } } : options, null, false, skipped).find((item) => item.label === 'Segunda cámara')?.value;
+  const row = (on: boolean, skipped: boolean) => fullDemoBriefItems({ options: on ? { ...options, second_camera: { enabled: true, max_windows: 5 } } : options, voiceAvailability: null, cameraSkipped: skipped }).find((item) => item.label === 'Segunda cámara')?.value;
   assert.equal(row(false, false), 'No');
   assert.equal(row(true, false), 'Sí');
   assert.equal(row(true, true), 'Omitido');
+});
+
+test('the moment list hides when the cap or the rounds no longer match the plan', () => {
+  const base = planDocument();
+  const camera = { enabled: true, max_windows: 5 };
+  const planned = { ...base, options: { ...base.options, rounds: [2, 4], second_camera: camera } };
+  assert.equal(fullDemoCameraListed(planned, { ...base.options, rounds: [4, 2], second_camera: camera }), planned);
+  assert.equal(fullDemoCameraListed(planned, { ...base.options, rounds: [2, 4], second_camera: { ...camera, max_windows: 3 } }), null);
+  assert.equal(fullDemoCameraListed(planned, { ...base.options, rounds: [2, 4, 7], second_camera: camera }), null);
+  assert.equal(fullDemoCameraListed(base, { ...base.options, second_camera: camera }), null);
+  assert.equal(fullDemoCameraListed(null, { ...base.options, second_camera: camera }), null);
 });

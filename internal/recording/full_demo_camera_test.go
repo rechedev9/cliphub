@@ -118,6 +118,22 @@ func TestFullDemoSecondCameraRecordsEachWindowBeforeTheRounds(t *testing.T) {
 	}
 }
 
+func TestFullDemoSecondCameraSeeksForwardToARoundAfterTheLastWindow(t *testing.T) {
+	p := secondCameraPlan(t, true)
+	if err := p.MarkReplayOnly([]string{"round-001"}); err != nil {
+		t.Fatal(err)
+	}
+	p.Segments[1].SecondCamera = nil
+	camera := p.Segments[0].SecondCamera.ID
+	if got := captureIDs(p); !slices.Equal(got, []string{camera, "round-002"}) {
+		t.Fatalf("capture order = %v", got)
+	}
+	_, seeks, windows := buildRuntimeSchedule(p)
+	if slices.ContainsFunc(seeks, func(s seekStep) bool { return s.Rewind }) || slices.ContainsFunc(windows, func(w captureWindow) bool { return w.Pass != 0 }) {
+		t.Fatalf("a round that starts after the last window is reached in the same pass, never by a rewind that points forward: %+v", seeks)
+	}
+}
+
 func TestFullDemoSecondCameraValidation(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -191,12 +207,20 @@ func TestFullDemoSecondCameraRuntimeInMIRVSimulator(t *testing.T) {
 		name    string
 		players []string
 		camera  string
+		forward bool
 	}{
 		{name: "enemy POV acquired", players: []string{cameraEnemyA, cameraEnemyB}, camera: "complete"},
 		{name: "enemy POV never settles", camera: "unverified"},
+		{name: "round after the last window", players: []string{cameraEnemyA, cameraEnemyB}, camera: "complete", forward: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := secondCameraPlan(t, true)
+			if tc.forward {
+				if err := p.MarkReplayOnly([]string{"round-001"}); err != nil {
+					t.Fatal(err)
+				}
+				p.Segments[1].SecondCamera = nil
+			}
 			script, err := GenerateHLAEJavaScriptWithAttestation(p, token)
 			if err != nil {
 				t.Fatal(err)
