@@ -24,6 +24,21 @@ func TestDescribeCaptureCheckSaysWhatCS2RecordsAndWarnsOnLowSpace(t *testing.T) 
 	}
 }
 
+func TestDescribeCaptureCheckReportsSecondCameraWindows(t *testing.T) {
+	only := describeCaptureCheck("job", fullDemoCapture{Needed: true, MissingCameras: []string{"round-004-camera-31817", "round-011-camera-95048"}})
+	if !only.NeedsCapture || len(only.MissingSecondCamera) != 2 || !strings.Contains(only.Summary, "solo 2 segundas cámaras") || strings.Contains(only.Summary, "0 rondas") {
+		t.Errorf("cameras only = %+v", only)
+	}
+	both := describeCaptureCheck("job", fullDemoCapture{Needed: true, MissingRounds: []int{4}, MissingCameras: []string{"round-004-camera-31817"}})
+	if !strings.Contains(both.Summary, "1 ronda y 1 segunda cámara") {
+		t.Errorf("rounds and cameras = %+v", both)
+	}
+	omitted := describeCaptureCheck("job", fullDemoCapture{OmittedCameras: []string{"round-011-camera-95048"}})
+	if omitted.NeedsCapture || len(omitted.OmittedSecondCamera) != 1 || !strings.Contains(omitted.Summary, "1 segunda cámara no se pudo grabar") {
+		t.Errorf("omitted = %+v", omitted)
+	}
+}
+
 func TestDescribeFullDemoRoundsTimesEachRoundByTheDemoTickrate(t *testing.T) {
 	plan := tuiclient.Plan{Demo: tuiclient.PlanDemo{Tickrate: 128}, Segments: []tuiclient.Segment{
 		{Round: 1, TickStart: 1000, TickEnd: 1000 + 128*90, Kills: make([]tuiclient.Kill, 2)},

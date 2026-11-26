@@ -81,6 +81,9 @@ func replayKills(segment RecordingSegment, replay VictimReplay) []killplan.Kill 
 func (p RecordingPlan) CaptureSegments() []RecordingSegment {
 	var replays []RecordingSegment
 	for _, segment := range p.Segments {
+		if camera, ok := secondCameraCapture(segment); ok {
+			replays = append(replays, camera)
+		}
 		replay := segment.VictimReplay
 		if replay == nil {
 			continue
@@ -104,6 +107,9 @@ func (p RecordingPlan) CaptureSegments() []RecordingSegment {
 		} else {
 			out = append(out, segment)
 		}
+	}
+	if p.FullDemo != nil {
+		return append(replays, out...)
 	}
 	out = append(out, replays...)
 	return append(out, tail...)
@@ -147,7 +153,7 @@ func (p RecordingPlan) validateVictimReplays(ids map[string]bool) error {
 		}
 		replay := segment.VictimReplay
 		if replay == nil {
-			if segment.ReplayOnly {
+			if segment.ReplayOnly && segment.SecondCamera == nil {
 				return fmt.Errorf("segment %s replay_only needs a victim_replay", segment.ID)
 			}
 			continue

@@ -13,10 +13,14 @@ import (
 // fullDemoCapture tells the producer whether a plan only renders again or
 // must open CS2 first, and for which source rounds.
 type fullDemoCapture struct {
-	Needed        bool        `json:"needed"`
-	MissingRounds []int       `json:"missing_rounds"`
-	Space         *spaceCheck `json:"space,omitempty"`
+	Needed         bool        `json:"needed"`
+	MissingRounds  []int       `json:"missing_rounds"`
+	MissingCameras []string    `json:"missing_cameras,omitempty"`
+	OmittedCameras []string    `json:"omitted_cameras,omitempty"`
+	Space          *spaceCheck `json:"space,omitempty"`
 }
+
+const fullDemoCameraCaptureSeconds = recapplan.SecondCameraLeadSeconds*2 + recapplan.SecondCameraTailSeconds
 
 // CheckFullDemoCapture handles POST /api/jobs/{id}/full-demo/capture-check: it
 // plans the options like PlanFullDemo but saves nothing.
@@ -71,5 +75,10 @@ func (h *Handlers) fullDemoCaptureFor(id uuid.UUID, d recapplan.Document) (fullD
 			work.CaptureSeconds += seconds
 		}
 	}
-	return fullDemoCapture{Needed: len(missing) > 0, MissingRounds: missing, Space: checkSpace(work, h.dataDiskFree)}, nil
+	missingCameras, omittedCameras, err := recording.MissingFullDemoCameras(h.storage, id, d)
+	if err != nil {
+		return fullDemoCapture{}, err
+	}
+	work.CaptureSeconds += float64(len(missingCameras) * fullDemoCameraCaptureSeconds)
+	return fullDemoCapture{Needed: len(missing) > 0 || len(missingCameras) > 0, MissingRounds: missing, MissingCameras: missingCameras, OmittedCameras: omittedCameras, Space: checkSpace(work, h.dataDiskFree)}, nil
 }

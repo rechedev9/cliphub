@@ -119,6 +119,7 @@ func CanonicalNewOptions(options Options) (Options, error) {
 	canonical.Capture.ClipHubRadar = options.Capture.ClipHubRadar
 	canonical.Subtitles = canonicalSubtitles(options.Subtitles)
 	canonical.Hook = canonicalHook(options.Hook)
+	canonical.SecondCamera = canonicalSecondCamera(options.SecondCamera)
 	if len(options.Rounds) > 0 {
 		canonical.Rounds = slices.Compact(slices.Sorted(slices.Values(options.Rounds)))
 	}
@@ -232,7 +233,7 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 	if err := json.Unmarshal(optionsJSON, &options); err != nil {
 		return Document{}, err
 	}
-	factsHash, err := HashValue(f)
+	factsHash, err := f.Hash()
 	if err != nil {
 		return Document{}, err
 	}
@@ -356,6 +357,7 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 		}
 	}
 	d.planHook()
+	d.planSecondCamera(f)
 	if err := d.RebuildTimeline(); err != nil {
 		return Document{}, err
 	}

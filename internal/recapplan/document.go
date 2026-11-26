@@ -56,8 +56,9 @@ type Options struct {
 	// Rounds limits the video to these source round numbers, as a review made
 	// from the analysis area does. Omitted means every round, so documents
 	// approved before it existed keep their hash.
-	Rounds []int        `json:"rounds,omitempty"`
-	Hook   *HookOptions `json:"hook,omitempty"`
+	Rounds       []int                `json:"rounds,omitempty"`
+	Hook         *HookOptions         `json:"hook,omitempty"`
+	SecondCamera *SecondCameraOptions `json:"second_camera,omitempty"`
 }
 
 // MaxSelectedRounds caps a round selection; a match never has more rounds.
@@ -328,6 +329,7 @@ type Facts struct {
 	Complete        bool              `json:"complete"`
 	Rounds          []RoundFacts      `json:"rounds"`
 	Warnings        []Notice          `json:"warnings"`
+	Holds           *HoldEvidence     `json:"holds,omitempty"`
 }
 
 type CrosshairSample struct {
@@ -453,6 +455,7 @@ type Document struct {
 	Warnings       []Notice          `json:"warnings"`
 	Blockers       []Notice          `json:"blockers"`
 	Hook           *Hook             `json:"hook,omitempty"`
+	SecondCamera   *SecondCamera     `json:"second_camera,omitempty"`
 }
 
 type Approval struct {

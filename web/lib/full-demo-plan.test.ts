@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
-  loadFullDemoPlan, localFileProvenance, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, withFullDemoHook, withFullDemoRounds, withFullDemoStoryOverlay, type FullDemoOptions, type FullDemoSnapshot,
+  loadFullDemoPlan, localFileProvenance, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, withFullDemoCameraMax, withFullDemoCameraRemoved, withFullDemoHook, withFullDemoRounds, withFullDemoSecondCamera, withFullDemoStoryOverlay, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
 import { coerceEditConfig, coerceIntents } from './api/reel-store.ts';
@@ -532,4 +532,43 @@ test('the opening hook is optional, leaves the wire when off and invalidates app
   const resolved = { ...snapshot, document: { ...snapshot.document, hook: { round_id: round.round_id, first_kill_tick: round.live_start_tick, last_kill_tick: round.live_end_tick, kills: 2 } } };
   assert.ok(isFullDemoSnapshot(resolved));
   assert.equal(isFullDemoSnapshot({ ...snapshot, document: { ...snapshot.document, hook: { round_id: round.round_id } } }), false);
+});
+
+test('the second camera is optional, leaves the wire when off and keeps its canonical form', () => {
+  const defaults: unknown = JSON.parse(readFileSync(new URL('./full-demo-go-defaults.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoOptions(defaults));
+  assert.equal(Object.hasOwn(defaults, 'second_camera'), false);
+  assert.equal(Object.hasOwn(currentFullDemoOptions(defaults), 'second_camera'), false);
+  const on = withFullDemoSecondCamera(defaults, true);
+  assert.deepEqual(on.second_camera, { enabled: true, max_windows: 5 });
+  assert.ok(isFullDemoOptions(on));
+  assert.notEqual(fullDemoOptionsKey(on), fullDemoOptionsKey(defaults));
+  assert.equal(Object.hasOwn(withFullDemoSecondCamera(on, false), 'second_camera'), false);
+  assert.equal(fullDemoOptionsKey(withFullDemoSecondCamera(on, false)), fullDemoOptionsKey(defaults));
+
+  assert.equal(withFullDemoCameraMax(on, 99).second_camera?.max_windows, 10);
+  assert.equal(withFullDemoCameraMax(on, 0).second_camera?.max_windows, 1);
+  assert.equal(withFullDemoCameraMax(defaults, 3), defaults);
+
+  const removed = withFullDemoCameraRemoved(withFullDemoCameraRemoved(on, { id: 'round-012-camera-9', removed: true }), { id: 'round-003-camera-5', removed: true });
+  assert.deepEqual(removed.second_camera?.removed, ['round-003-camera-5', 'round-012-camera-9']);
+  assert.deepEqual(withFullDemoCameraRemoved(removed, { id: 'round-003-camera-5', removed: false }).second_camera?.removed, ['round-012-camera-9']);
+  assert.equal(fullDemoOptionsKey(withFullDemoCameraRemoved(removed, { id: null, removed: false })), fullDemoOptionsKey(on));
+
+  const messy = currentFullDemoOptions({ ...defaults, second_camera: { enabled: true, max_windows: 0, removed: ['b', 'a', 'b'] } });
+  assert.deepEqual(messy.second_camera, { enabled: true, max_windows: 5, removed: ['a', 'b'] });
+  assert.equal(Object.hasOwn(currentFullDemoOptions({ ...defaults, second_camera: { enabled: false, max_windows: 5 } }), 'second_camera'), false);
+  assert.equal(isFullDemoOptions({ ...defaults, second_camera: { enabled: true, max_windows: 11 } }), false);
+  assert.equal(isFullDemoOptions({ ...defaults, second_camera: { enabled: true } }), false);
+});
+
+test('a plan document carries its second camera moments', () => {
+  const snapshot: unknown = JSON.parse(readFileSync(new URL('./full-demo-plan.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoSnapshot(snapshot));
+  const round = snapshot.document.rounds[0];
+  assert.ok(round);
+  const kill = round.live_start_tick + 700;
+  const window = { id: `${round.round_id}-camera-${kill}`, round_id: round.round_id, round: round.source_round_number, kill_tick: kill, start_tick: kill - 320, end_tick: kill + 64, enemy_steamid64: '76561198000000001', enemy_name: 'Rival', score: 0.8, move_units: 12 };
+  assert.ok(isFullDemoSnapshot({ ...snapshot, document: { ...snapshot.document, second_camera: { windows: [window] } } }));
+  assert.equal(isFullDemoSnapshot({ ...snapshot, document: { ...snapshot.document, second_camera: { windows: [{ ...window, enemy_name: 3 }] } } }), false);
 });

@@ -115,6 +115,72 @@ Assistants set it with `plan_full_demo` `hook`.
   clock, as with an intro clip: a banner whose window starts in the first
   seconds also shows over the hook, and nothing is shifted.
 
+## Second camera
+
+**Segunda cámara**, a switch in the producer (off by default), draws a small
+window over the gameplay with the view of an enemy who was holding an angle
+just before the player killed them. The plan stores `options.second_camera`
+(`{enabled, max_windows, removed}`, omitted when off, so saved plans keep their
+hash). The windows are not part of the capture hash: they are recorded as extra
+capture segments of their round. Assistants set it with `plan_full_demo`
+`second_camera`, `second_camera_max` and `second_camera_remove`.
+
+- **Selection.** A kill qualifies when the POV killed a real player (never a
+  bot, never the POV, never a teammate), the kill is at least
+  `SecondCameraLeadSeconds` (5 s) after the live start of its round, and the
+  victim moved at most `SecondCameraStillUnits` from the kill position during
+  those 5 s, sampled `HoldSampleHz` times a second by the parser (`facts.holds`,
+  left out of the facts hash). The threshold is provisional and is calibrated
+  from `move_units` on real demos. A match parsed before this data existed
+  gets it the first time a plan asks for the second camera: the plan handler
+  reads the demo once (`ensureKillHolds`) and keeps the result with the facts.
+  A demo that cannot be read carries the `second_camera_unavailable` warning
+  and gets no window. Each qualifying kill takes the score of its play (as `list_moments`
+  scores, the same plays as the hook), the best one of each round is kept, and
+  the best `max_windows` (default 5, at most 10) are the windows. Ids in
+  `removed` are dropped after the cap, so a removed moment never brings in
+  another. A kill is left out when its window ends less than a second before
+  the end of the match's last round, or less than `SecondCameraRewindSeconds`
+  before the end of the demo: recording it would show the match end screen
+  before the rounds are recorded. No candidate gives the `second_camera_skipped` warning. The choice is
+  deterministic and the document's `second_camera.windows` carries it (id,
+  round, enemy, kill tick), bound by the plan hash. The id has the form
+  `round-NNN-camera-<tick>`.
+- **Capture.** Each window is a capture of the enemy's view from 5 s before the
+  kill to `SecondCameraTailSeconds` (1 s) after, recorded in the same CS2
+  session before the rounds: the windows first, then a rewind, then the rounds.
+  CS2 stays on the match end screen once playback reaches it, and a rewind does
+  not clear it, so nothing that needs a rewind may come after the last round.
+  The window is
+  recorded without CS2's radar and kill feed, which are unreadable at that
+  size: the HLAE runtime switches the three HUD cvars when it prepares the
+  first window (`fullDemoWindowHUD`), under the same readback contract as the
+  rest of the capture, and switches them back when it prepares the first
+  round. A video that is
+  already recorded records only the windows, and the rounds are reused. The
+  capture check reports them as `missing_cameras`. A window that CS2 cannot
+  show, or whose enemy it loses, never fails the capture: it certifies a shorter
+  clip. A window with a stored clip counts as attempted and is not recorded
+  again by itself. The cost is about 11 s of capture per window and about 40
+  Mb/s of disk, freed with the rest of the capture.
+- **Picture.** The window sits on the left (`demooverlay.SecondCameraX`,
+  `SecondCameraY`), 504 by 284 with rounded top corners, and the enemy's name in
+  a bar under it in the chosen design. With the ClipHub radar it moves below
+  the radar. It fades in and out and plays in sync with the POV. It has no
+  audio: the camera clip's sound is never mapped, so the mix is unchanged.
+- **Where it never goes.** Not on the hook, the bumpers, the player
+  introduction, the halftime card or the final scoreboard. The window keeps the
+  longest stretch of its time that none of them covers, and a window with less
+  than 3 s left is dropped.
+- **When a window cannot be used.** If its clip is missing, its certified end
+  falls short of the window or its frames fail the check, the render leaves it
+  out, adds a `second_camera_omitted` warning naming the round and succeeds. The
+  render evidence lists each window with `drawn` and a reason
+  (`capture_omitted` or `covered_by_overlay`), and `plan_full_demo` reports
+  `omitted_second_camera`.
+- **Metadata.** A window adds no kills and no rounds to the timeline, the
+  cover frame or the publish metadata. Studio only: ClipMind never shows it.
+
 ## Rendering
 
 The neon introduction uses HTML, CSS perspective, glow, embedded Roboto fonts

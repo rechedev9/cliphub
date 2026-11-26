@@ -114,6 +114,15 @@ top left corner that follows intro_design. The match then plays from round 1 and
 The play is the best scored one (as list_moments scores) among the rounds in the video; hook_round names it. It is
 skipped with a warning when the video has one round or the player has no kill. Off by default; it only changes the
 render and reuses the capture.
+plan_full_demo second_camera adds a small window over the gameplay, on the left with the enemy's name under it,
+showing the view of an enemy who stood almost still (holding an angle) during the 5 s before the player killed them:
+it opens about 5 s before the kill, closes 1 s after and has no audio. It picks real players only (never bots), at
+most one per round, ranked by the score of the play, up to second_camera_max (1 to 10, default 5). second_camera_moments
+lists the chosen ones (id, round, enemy, round_time); pass ids in second_camera_remove to drop them, and a removed one
+does not bring in another. It costs an extra capture pass in CS2 (about 11 s per window; recorded rounds are reused, and
+missing_second_camera says what is recorded). A window CS2 cannot record is left out of the video and listed in
+omitted_second_camera. A match analysed before this option is read once more when the plan asks for it; if the demo
+cannot be read, the plan carries the second_camera_unavailable warning and the video has no window. It is never drawn over the intro, the halftime card, the final scoreboard or the hook. Off by default.
 plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for the focus HUD and intro,
 sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo

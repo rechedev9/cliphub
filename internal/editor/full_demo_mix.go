@@ -477,6 +477,9 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 		if err != nil {
 			return nil, err
 		}
+		if command, video, err = fullDemoSecondCameraOverlay(fullDemoRadarStep{short: short, item: item, command: command, video: video, output: output}); err != nil {
+			return nil, err
+		}
 		subtitleFilter, err := fullDemoSubtitlesFilter(short, item, output)
 		if err != nil {
 			return nil, err

@@ -60,9 +60,13 @@ func checkFullDemoCapture(ctx context.Context, c *tuiclient.Client, jobID string
 
 func describeCaptureCheck(jobID string, capture fullDemoCapture) fullDemoPlanOut {
 	out := fullDemoPlanOut{JobID: jobID, NeedsCapture: capture.Needed, MissingRounds: capture.MissingRounds,
+		MissingSecondCamera: capture.MissingCameras, OmittedSecondCamera: capture.OmittedCameras,
 		Summary: "Comprobación sin guardar el plan: las capturas de todas las rondas están guardadas, así que solo se vuelve a montar."}
 	if capture.Needed {
-		out.Summary = fmt.Sprintf("Comprobación sin guardar el plan: con estas opciones CS2 graba %s.", plural(len(capture.MissingRounds), "ronda", "rondas"))
+		out.Summary = fmt.Sprintf("Comprobación sin guardar el plan: con estas opciones CS2 graba %s.", describeCaptureWork(capture))
+	}
+	if len(capture.OmittedCameras) > 0 {
+		out.Summary += fmt.Sprintf(" %s no se pudo grabar y el vídeo sale sin ella.", plural(len(capture.OmittedCameras), "segunda cámara", "segundas cámaras"))
 	}
 	if s := capture.Space; s != nil && s.Short {
 		out.LowSpace = fmt.Sprintf("Puede faltar espacio: hacen falta unos %s y quedan %s libres. Almacenamiento libera espacio.", formatBytes(s.NeededBytes), formatBytes(s.FreeBytes))

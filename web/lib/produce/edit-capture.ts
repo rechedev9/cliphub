@@ -9,7 +9,7 @@ import type { ShortSettings } from './short-draft.ts';
 import type { VideoVersion } from '../api/video-edit.ts';
 
 /** The server's answer to "does this plan open CS2?" (`POST /full-demo/capture-check`). */
-export type CaptureCheck = { needed: boolean; missingRounds: readonly number[]; space?: SpaceCheck | null };
+export type CaptureCheck = { needed: boolean; missingRounds: readonly number[]; missingCameras?: readonly string[]; omittedCameras?: readonly string[]; space?: SpaceCheck | null };
 export type SpaceCheck = { freeBytes: number; neededBytes: number; short: boolean };
 
 export const EDIT_RENDER_CTA = 'Volver a montar';
@@ -29,6 +29,7 @@ function roundList(rounds: readonly number[]): string {
 /** What an edit of a Full Demo will record, next to its button. */
 export function captureNote(capture: CaptureCheck, roundCount: number): string {
   if (!capture.needed) return 'Las capturas de todas las rondas están guardadas: solo se vuelve a montar.';
+  if (capture.missingRounds.length === 0 && (capture.missingCameras?.length ?? 0) > 0) return 'Se grabarán solo las segundas cámaras; las rondas ya están capturadas.';
   if (capture.missingRounds.length >= roundCount) return 'Las capturas de este vídeo ya no están guardadas: se grabarán todas sus rondas.';
   const one = capture.missingRounds.length === 1;
   return `Se grabará${one ? '' : 'n'} otra vez ${one ? 'la ronda' : 'las rondas'} ${roundList(capture.missingRounds)}; las demás ya están capturadas.`;
