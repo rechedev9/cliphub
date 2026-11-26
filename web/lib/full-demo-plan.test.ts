@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
-  loadFullDemoPlan, localFileProvenance, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, withFullDemoRounds, withFullDemoStoryOverlay, type FullDemoOptions, type FullDemoSnapshot,
+  loadFullDemoPlan, localFileProvenance, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, withFullDemoHook, withFullDemoRounds, withFullDemoStoryOverlay, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
 import { coerceEditConfig, coerceIntents } from './api/reel-store.ts';
@@ -506,4 +506,30 @@ test('the halftime card and the subscribe button are optional, leave the wire wh
   const stale = currentFullDemoOptions({ ...defaults, overlays: { ...defaults.overlays, halftime: false, subscribe: false } });
   assert.equal(fullDemoOptionsKey(stale), fullDemoOptionsKey(currentFullDemoOptions(defaults)));
   assert.equal(isFullDemoOptions({ ...defaults, overlays: { ...defaults.overlays, halftime: 'yes' } }), false);
+});
+
+test('the opening hook is optional, leaves the wire when off and invalidates approval', () => {
+  const defaults: unknown = JSON.parse(readFileSync(new URL('./full-demo-go-defaults.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoOptions(defaults));
+  assert.equal(Object.hasOwn(defaults, 'hook'), false);
+  const hooked = withFullDemoHook(defaults, true);
+  assert.deepEqual(hooked.hook, { enabled: true });
+  assert.ok(isFullDemoOptions(hooked));
+  assert.deepEqual(currentFullDemoOptions(hooked).hook, { enabled: true });
+  assert.notEqual(fullDemoOptionsKey(hooked), fullDemoOptionsKey(defaults));
+  const off = withFullDemoHook(hooked, false);
+  assert.equal(Object.hasOwn(off, 'hook'), false);
+  assert.equal(fullDemoOptionsKey(off), fullDemoOptionsKey(defaults));
+  const stale = currentFullDemoOptions({ ...defaults, hook: { enabled: false } });
+  assert.equal(Object.hasOwn(stale, 'hook'), false);
+  assert.equal(fullDemoOptionsKey(stale), fullDemoOptionsKey(currentFullDemoOptions(defaults)));
+  assert.equal(isFullDemoOptions({ ...defaults, hook: { enabled: 'yes' } }), false);
+
+  const snapshot: unknown = JSON.parse(readFileSync(new URL('./full-demo-plan.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoSnapshot(snapshot));
+  const round = snapshot.document.rounds[0];
+  assert.ok(round);
+  const resolved = { ...snapshot, document: { ...snapshot.document, hook: { round_id: round.round_id, first_kill_tick: round.live_start_tick, last_kill_tick: round.live_end_tick, kills: 2 } } };
+  assert.ok(isFullDemoSnapshot(resolved));
+  assert.equal(isFullDemoSnapshot({ ...snapshot, document: { ...snapshot.document, hook: { round_id: round.round_id } } }), false);
 });

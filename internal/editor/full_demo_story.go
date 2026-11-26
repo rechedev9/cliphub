@@ -92,7 +92,7 @@ func fullDemoHalftimeWindow(short ShortEdit, roundNumber int) (fullDemoStoryWind
 		return fullDemoStoryWindow{}, false
 	}
 	for _, item := range d.Timeline {
-		if item.Role != "round" || item.SourceRef != roundID || item.SourceOffsetFrames != 0 {
+		if item.Role != "round" || item.IsHook() || item.SourceRef != roundID || item.SourceOffsetFrames != 0 {
 			continue
 		}
 		start, last := fullDemoRoundItemSeconds(item)
@@ -162,7 +162,7 @@ func fullDemoSubscribeWindows(short ShortEdit, busy []fullDemoStoryWindow) []ful
 func fullDemoSubscribeWindowNear(items []recapplan.TimelineItem, busy []fullDemoStoryWindow, target float64) (fullDemoStoryWindow, bool) {
 	best, found := 0.0, false
 	for _, item := range items {
-		if item.Role != "round" {
+		if item.Role != "round" || item.IsHook() {
 			continue
 		}
 		first, last := fullDemoRoundItemSeconds(item)

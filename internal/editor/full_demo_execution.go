@@ -357,6 +357,11 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 		return err
 	}
 	short.Effects = generatedFullDemoOverlayEffects(*short)
+	hook, err := fullDemoHookOverlayEffects(manifest, *short)
+	if err != nil {
+		return err
+	}
+	short.Effects = append(short.Effects, hook...)
 	story, err := fullDemoStoryOverlayEffects(manifest, *short)
 	if err != nil {
 		return err
@@ -371,6 +376,9 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 	}
 	if _, ok := d.Options.IntroBumper(); ok {
 		short.Caption += " Opens with a channel intro."
+	}
+	if _, ok := fullDemoHookItem(effective); ok {
+		short.Caption += " Starts with a teaser of the best play."
 	}
 	if _, ok := d.Options.SponsorBumper(); ok {
 		short.Caption += " Includes a sponsor video."
@@ -404,7 +412,7 @@ func projectFullDemoTimeline(short *ShortEdit, d recapplan.Document) error {
 	}
 	short.Parts, short.Kills = []ShortPart{}, []KillCue{}
 	for _, item := range d.Timeline {
-		if item.Role != "round" {
+		if item.Role != "round" || item.IsHook() {
 			continue
 		}
 		part, ok := sources[item.SourceRef]

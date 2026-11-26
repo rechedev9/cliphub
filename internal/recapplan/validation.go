@@ -525,7 +525,7 @@ func (d Document) validateRecord() error {
 		seen[round.ID] = true
 		previousEnd = round.EffectiveEndTick
 	}
-	return nil
+	return d.validateHook()
 }
 
 func validateCrosshairSamples(samples []CrosshairSample, endTick int) error {

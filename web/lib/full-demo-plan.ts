@@ -135,7 +135,8 @@ const optionsShape = object({
   // Mirrors recapplan.SubtitleOptions: render only, and Go omits it when off. english is the retired
   // translation of 5.25.0 plans: still readable, but currentFullDemoOptions drops it.
   subtitles: object({ enabled: boolean, english: boolean, hidden: array(string, 2000) }, ['english', 'hidden']),
-}, ['transitions', 'bumpers', 'sponsor', 'rounds', 'subtitles']);
+  hook: object({ enabled: boolean }),
+}, ['transitions', 'bumpers', 'sponsor', 'rounds', 'subtitles', 'hook']);
 export type FullDemoOptions = Guarded<typeof optionsShape>;
 
 /** Old drafts stay readable, but cannot restore voice-driven or adjustable freezes. */
@@ -151,7 +152,7 @@ export function fixedFullDemoFreeze(options: FullDemoOptions): FullDemoOptions {
  * finely tuned transition after the corresponding controls disappeared.
  */
 export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOptions {
-  const { sponsor: legacySponsor, subtitles, ...fixed } = fixedFullDemoFreeze(options);
+  const { sponsor: legacySponsor, subtitles, hook, ...fixed } = fixedFullDemoFreeze(options);
   // Mirrors Go's CanonicalNewOptions: a native capture without a theme keeps
   // the player's own CS2 HUD; any other missing theme gets the default one.
   const nativeHud = !fixed.overlays.hud_theme && (fixed.capture.hud_profile === NATIVE_HUD_CAPTURE_PROFILE || fixed.capture.hud_profile === 'native');
@@ -209,6 +210,7 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
     outputs: { ...fixed.outputs, cover_policy: 'no-cover', metadata_policy: 'factual-v1' },
     ...legacySponsorBumper(fixed.bumpers, legacySponsor),
     ...subtitleOptions(subtitles),
+    ...(hook?.enabled ? { hook: { enabled: true } } : {}),
   };
 }
 
@@ -266,6 +268,11 @@ export function withFullDemoStoryOverlay(options: FullDemoOptions, overlay: Full
   return { ...options, overlays: { ...overlays, ...(chosen.halftime ? { halftime: true } : {}), ...(chosen.subscribe ? { subscribe: true } : {}) } };
 }
 
+export function withFullDemoHook(options: FullDemoOptions, enabled: boolean): FullDemoOptions {
+  const { hook: _previous, ...rest } = options;
+  return enabled ? { ...rest, hook: { enabled: true } } : rest;
+}
+
 export function isFullDemoOptions(value: unknown): value is FullDemoOptions {
   if (!optionsShape(value)) return false;
   const { editorial, capture } = value;
@@ -303,7 +310,8 @@ const documentShape = object({
   // emit 'round' and 'bumper' (reason 'intro-bumper', 'sponsor-bumper' or 'outro-bumper').
   timeline: nullable(array(object({ role: oneOf('round', 'sponsor', 'bumper'), source_ref: string, source_start_tick: integer, source_end_tick: integer, source_offset_frames: integer, start_frame: integer, end_frame: integer, start_sample: integer, end_sample: integer, reason: string }))),
   warnings: nullable(array(notice, 1000)), blockers: nullable(array(notice, 1000)),
-}, ['sponsor_placement']);
+  hook: object({ round_id: string, first_kill_tick: integer, last_kill_tick: integer, kills: integer }),
+}, ['sponsor_placement', 'hook']);
 export type FullDemoDocument = Guarded<typeof documentShape>;
 const snapshotShape = object({ document: documentShape, approval: object({ approved_plan_hash: hash, allow_safe_tail_trim: boolean, timestamp: string }) });
 export type FullDemoSnapshot = Guarded<typeof snapshotShape>;

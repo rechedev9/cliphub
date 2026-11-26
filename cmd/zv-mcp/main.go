@@ -108,6 +108,12 @@ not in the video or the job has no round results. subscribe_button shows a small
 the bottom right corner twice, about 6 s each near 25% and 75% of the match, only over rounds and never over the
 intro, the halftime card or the final scoreboard, above a bottom right brand watermark; a short video shows it
 once or not at all. Both are off by default, follow intro_design and only change the render.
+plan_full_demo hook opens the video with a teaser of the player's best play: 8 to 20 s from about 3 s before the
+play's first kill to 1.5 s after its last, after the intro clip and before round 1, with a MEJOR JUGADA label in the
+top left corner that follows intro_design. The match then plays from round 1 and shows the play again in its round.
+The play is the best scored one (as list_moments scores) among the rounds in the video; hook_round names it. It is
+skipped with a warning when the video has one round or the player has no kill. Off by default; it only changes the
+render and reuses the capture.
 plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for the focus HUD and intro,
 sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo

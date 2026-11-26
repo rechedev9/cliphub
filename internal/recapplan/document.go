@@ -56,7 +56,8 @@ type Options struct {
 	// Rounds limits the video to these source round numbers, as a review made
 	// from the analysis area does. Omitted means every round, so documents
 	// approved before it existed keep their hash.
-	Rounds []int `json:"rounds,omitempty"`
+	Rounds []int        `json:"rounds,omitempty"`
+	Hook   *HookOptions `json:"hook,omitempty"`
 }
 
 // MaxSelectedRounds caps a round selection; a match never has more rounds.
@@ -451,6 +452,7 @@ type Document struct {
 	Timeline       []TimelineItem    `json:"timeline"`
 	Warnings       []Notice          `json:"warnings"`
 	Blockers       []Notice          `json:"blockers"`
+	Hook           *Hook             `json:"hook,omitempty"`
 }
 
 type Approval struct {

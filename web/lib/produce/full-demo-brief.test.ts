@@ -31,6 +31,8 @@ test('the recap names each setting with the words of its control', () => {
   const story = brief({ ...base, overlays: { ...base.overlays, halftime: true, subscribe: true } });
   assert.equal(story['Marcador del descanso'], 'Sí');
   assert.equal(story['Botón de suscripción'], 'Sí');
+  assert.equal(rows['Gancho inicial'], 'No');
+  assert.equal(brief({ ...base, hook: { enabled: true } })['Gancho inicial'], 'Sí');
 });
 
 test('voices read as missing once a plan found none, and pending before', () => {

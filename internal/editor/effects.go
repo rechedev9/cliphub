@@ -291,7 +291,7 @@ func fullDemoGameplaySpanSeconds(short ShortEdit) (float64, float64) {
 		return start, end
 	}
 	first, last := 0, len(items)-1
-	for first <= last && items[first].Role == "bumper" {
+	for first <= last && fullDemoLeadIn(items[first]) {
 		start = float64(items[first].EndFrame) / recapplan.OutputFPS
 		first++
 	}

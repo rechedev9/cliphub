@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'none'"/>
+<title>Opening hook label</title>
+<style>
+@font-face{font-family:Roboto;src:url('{{.RegularFont}}') format('truetype');font-weight:400;font-display:block}
+@font-face{font-family:Roboto;src:url('{{.MediumFont}}') format('truetype');font-weight:500;font-display:block}
+@font-face{font-family:Roboto;src:url('{{.BoldFont}}') format('truetype');font-weight:700;font-display:block}
+*{box-sizing:border-box}html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent}body{font-family:Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+.tag{position:absolute;left:{{.Left}}px;top:{{.Top}}px;height:{{.Height}}px;display:flex;align-items:center;gap:12px;padding:0 20px 0 16px;font-size:20px;font-weight:700;letter-spacing:3px;text-transform:uppercase;white-space:nowrap}
+.dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+{{if .Palette}}{{with .Palette}}:root{--ct:#{{.CT}};--t:#{{.T}};--bg:#{{.Background}};--text:#{{.Text}};--muted:#{{.Muted}};--radius:{{.Radius}}px}{{end}}
+.tag{color:var(--text);border-left:6px solid var(--ct);border-radius:calc(var(--radius) * .6);background:color-mix(in srgb,var(--bg) 94%,transparent);box-shadow:0 10px 28px #0009}.dot{background:var(--ct)}
+{{else}}
+.tag{color:#f1eaf9;border:2px solid #d99aff;border-radius:10px;background:#0a090df0;box-shadow:0 0 5px #ead1ff,0 0 22px #a51aef,inset 0 0 14px #72009e55}.dot{background:#b7ff75;box-shadow:0 0 10px #b7ff75}
+{{end}}
+</style>
+</head>
+<body><div class="tag"><i class="dot"></i><span>{{.Label}}</span></div></body>
+</html>

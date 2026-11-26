@@ -27,6 +27,14 @@ func (d *Document) RebuildTimeline() error {
 		return ok
 	}
 	appendBumper(BumperRoleIntro)
+	hook, ok, err := d.hookItem(cursor)
+	if err != nil {
+		return err
+	}
+	if ok {
+		d.Timeline = append(d.Timeline, hook)
+		cursor = hook.EndFrame
+	}
 	rounds := 0
 	for _, r := range d.Rounds {
 		frames, err := TickFrames(r.EffectiveEndTick-r.RequestedStartTick, d.Clock.TickRate)

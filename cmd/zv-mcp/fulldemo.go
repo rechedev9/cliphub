@@ -95,6 +95,8 @@ type fullDemoPlanOut struct {
 	IntroDesign         string   `json:"intro_design" jsonschema:"neon or hud"`
 	HalftimeScoreboard  bool     `json:"halftime_scoreboard"`
 	SubscribeButton     bool     `json:"subscribe_button"`
+	Hook                bool     `json:"hook" jsonschema:"the opening hook was asked for"`
+	HookRound           int      `json:"hook_round,omitempty" jsonschema:"the round of the best play the hook teases; absent when the hook is off or was skipped (see warnings)"`
 	TeamVoices          bool     `json:"team_voices"`
 	VoiceStatus         string   `json:"voice_status,omitempty" jsonschema:"what the demo holds for team voices, e.g. available or no_packets"`
 	VoiceLevel          int      `json:"voice_level_percent"`
@@ -181,6 +183,7 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 		Description: "Prepare a Full Demo: one long video of the whole match from one player's point of view. This only builds and saves the plan, it never starts CS2. " +
 			"Choose the HUD with list_hud_themes first. Options left out keep Studio's defaults. " +
 			"halftime_scoreboard adds a score card at the side switch and subscribe_button a SUSCRÍBETE button twice over the rounds; both are off by default and only change the render. " +
+			"hook opens the video with an 8 to 20 s teaser of the player's best play before round 1; it is off by default, only changes the render and the reply's hook_round says which round it shows. " +
 			"Show the user the summary, then call render_full_demo with the plan_hash if they agree."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in planFullDemoIn) (*mcp.CallToolResult, fullDemoPlanOut, error) {
 			if err := checkUUID("job_id", in.JobID); err != nil {
@@ -539,7 +542,9 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	if out.ClipHubRadar {
 		out.Summary += " Con el radar de ClipHub en lugar del de CS2."
 	}
-	out.Summary += describeHUDLook(o.Overlays) + describeIntroDesign(o.Overlays) + describeStoryOverlays(o.Overlays) + describeBrand(o.Overlays.Brand)
+	hookText := ""
+	out.Hook, out.HookRound, hookText = describeHook(doc)
+	out.Summary += hookText + describeHUDLook(o.Overlays) + describeIntroDesign(o.Overlays) + describeStoryOverlays(o.Overlays) + describeBrand(o.Overlays.Brand)
 	if len(out.Bumpers) > 0 {
 		out.Summary += fmt.Sprintf(" Clips añadidos: %s.", strings.Join(out.Bumpers, ", "))
 	}

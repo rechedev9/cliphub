@@ -14,7 +14,8 @@ hash. Each enabled slot needs a verified video asset uploaded through
 `POST /api/editor/assets` with provenance. The planner blocks an enabled slot
 without a video or with an asset that has no verified video track.
 
-`RebuildTimeline` places the intro at frame 0, then the rounds with the
+`RebuildTimeline` places the intro at frame 0, then the
+[opening hook](full-demo-overlays.md#opening-hook) when the plan has one, then the rounds with the
 sponsor inserted after the second non-empty round, then the outro after the
 last item. A program with a single round plays the sponsor after it and
 carries the `sponsor_after_last_round` warning. Timeline items use role

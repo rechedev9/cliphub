@@ -26,6 +26,7 @@ const WARNING_TEXT: Readonly<Record<string, string>> = {
   pov_dead_in_freeze: 'Una ronda se queda fuera: el jugador murió antes de empezar a jugarla.',
   pov_tail_trimmed: 'El final de una ronda se acorta para no pasar de la siguiente.',
   sponsor_after_last_round: 'El vídeo tiene una sola ronda, así que el sponsor sale después de ella.',
+  hook_skipped: 'El vídeo sale sin gancho inicial: hace falta más de una ronda y alguna baja del jugador.',
   crosshair_capture_default_approved: 'En alguna ronda la demo no guarda la mira del jugador y se graba la mira por defecto.',
 };
 
