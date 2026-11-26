@@ -88,6 +88,11 @@ func (h *Handlers) planFullDemo(ctx context.Context, j job.Job, options recappla
 	if err := mediaassets.VerifyContent(ctx, h.storage, j.DemoPath, facts.DemoSHA256, 8<<30); err != nil {
 		return recapplan.Document{}, &recapplan.Error{Code: recapplan.ErrPlanStale, Detail: "Demo content is missing or changed: " + err.Error()}
 	}
+	if options.SecondCamera != nil && facts.Holds == nil {
+		if facts, err = h.ensureKillHolds(ctx, j, facts); err != nil {
+			return recapplan.Document{}, err
+		}
+	}
 	voice := recapplan.VoiceEvidence{Availability: "not_requested", Activity: []recapplan.TickRange{}}
 	if options.Audio.Voice.Enabled || options.Editorial.KeepFreezeVoice {
 		stored, err := voicecomms.EnsureStored(ctx, h.storage, j.ID, j.DemoPath, facts.DemoSHA256, j.TargetSteamID, h.fullDemoFFmpeg())

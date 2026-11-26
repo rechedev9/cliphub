@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 )
 
@@ -26,6 +27,7 @@ type Collector struct {
 	liveStarts   []RoundLiveStart
 	roundEnds    []RoundEnd
 	targetDeaths []TargetDeath
+	holds        []recapplan.KillHold
 
 	totalKillsTarget    int
 	killsAfterFilters   int
@@ -67,6 +69,7 @@ func (c *Collector) resetForMatchStart() {
 	c.liveStarts = nil
 	c.roundEnds = nil
 	c.targetDeaths = nil
+	c.holds = nil
 	c.totalKillsTarget = 0
 	c.killsAfterFilters = 0
 	c.totalUtilityTarget = 0

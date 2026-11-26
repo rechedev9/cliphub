@@ -214,7 +214,8 @@ type RecordingSegment struct {
 	// so this run records only the victim replay.
 	ReplayOnly bool `json:"replay_only,omitempty"`
 	// WinProb is the kill plan's post-plant win chance, read by the Short overlay.
-	WinProb []killplan.WinProbSpan `json:"win_prob,omitempty"`
+	WinProb      []killplan.WinProbSpan  `json:"win_prob,omitempty"`
+	SecondCamera *recapplan.CameraWindow `json:"second_camera,omitempty"`
 }
 
 // VictimReplay is the window around one kill seen by the player who died.
@@ -391,6 +392,9 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 		}
 		return out.Segments[i].ID < out.Segments[j].ID
 	})
+	if fullDemo != nil {
+		assignSecondCameras(out.Segments, fullDemo.SecondCamera)
+	}
 	if out.Stream.VictimReplay {
 		last := len(out.Segments) - 1
 		for i := range out.Segments {
@@ -641,6 +645,9 @@ func (p RecordingPlan) Validate() error {
 		previousEnd = s.TickEnd
 	}
 	if err := p.validateVictimReplays(seen); err != nil {
+		return err
+	}
+	if err := p.validateSecondCameras(seen); err != nil {
 		return err
 	}
 	if len(p.EditorialSegmentIDs) > 0 {

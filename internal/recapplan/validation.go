@@ -236,6 +236,9 @@ func (o Options) Validate() error {
 	if err := o.validateSubtitles(); err != nil {
 		return err
 	}
+	if err := o.validateSecondCameraOptions(); err != nil {
+		return err
+	}
 	if o.Transitions != nil {
 		if err := o.Transitions.Validate(); err != nil {
 			return err
@@ -405,6 +408,9 @@ func (f Facts) Validate() error {
 	if err := validateCrosshairSamples(f.Crosshairs, f.EndTick); err != nil {
 		return err
 	}
+	if f.Holds != nil && len(f.Holds.Kills) > MaxKillHolds {
+		return &Error{ErrFactsInsufficient, "hold evidence exceeds resource bounds"}
+	}
 	seen := map[string]bool{}
 	previous := -1
 	for _, r := range f.Rounds {
@@ -464,6 +470,9 @@ func (d Document) Validate() error {
 		return err
 	}
 	if err := d.Options.Validate(); err != nil {
+		return err
+	}
+	if err := d.validateSecondCamera(); err != nil {
 		return err
 	}
 	hash, err := d.Hash()

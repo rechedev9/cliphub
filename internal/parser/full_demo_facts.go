@@ -80,5 +80,6 @@ func (c *Collector) fullDemoFacts(meta PlanMeta, freezeDeaths []TargetDeath, saw
 		}
 		f.Rounds = append(f.Rounds, r)
 	}
+	f.Holds = &recapplan.HoldEvidence{Version: recapplan.HoldEvidenceVersion, Kills: append([]recapplan.KillHold{}, c.holds...)}
 	return f
 }

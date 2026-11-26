@@ -35,6 +35,7 @@ import { SubtitlesPanel } from './subtitles-panel';
 import { FullDemoBumpers } from './full-demo-bumpers';
 import { FullDemoOverlays } from './full-demo-overlays';
 import { FullDemoTransitions } from './full-demo-transitions';
+import { FullDemoSecondCamera } from './full-demo-second-camera';
 import { FullDemoProSettings } from './full-demo-pro-settings';
 import { FullDemoHud, FullDemoHudPreview } from './full-demo-hud';
 import { FullDemoBrand } from './full-demo-brand';
@@ -69,7 +70,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
   const [restored, setRestored] = useState(false);
   /** A create attempt hit a missing intro/sponsor/outro file: the footer now reports it as an error. */
   const [showMissing, setShowMissing] = useState(false);
-  const [busy, setBusy] = useState<'load' | 'create' | 'asset' | null>('load');
+  const [busy, setBusy] = useState<'load' | 'create' | 'asset' | 'prepare' | null>('load');
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const createRequest = useRef<AbortController | null>(null);
@@ -199,6 +200,17 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
     try { localStorage.setItem(draftKey, JSON.stringify(planned.options)); } catch { }
     return planned;
   }
+  async function prepareMoments(): Promise<void> {
+    if (!options || busy) return;
+    setBusy('prepare'); setError(null);
+    try {
+      await saveCurrentPlan();
+    } catch (failure) {
+      setError(humanErrorText({ error: failure, lead: 'No se pudieron elegir los momentos.', codes: FULL_DEMO_ERROR_CODES }));
+    } finally {
+      setBusy(null);
+    }
+  }
   async function create(): Promise<void> {
     if (!options || busy) return;
     if (hasMissingFullDemoFiles(options)) {
@@ -230,7 +242,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
   const briefItems = options ? [
     { label: 'Jugador', value: match.player ?? document?.input.target_steamid64 ?? 'Pendiente' },
     { label: 'Rondas', value: chosenRounds.length > 0 ? roundListLabel(chosenRounds) : 'Todas' },
-    ...fullDemoBriefItems(options, voiceAvailability, !dirty && document !== null && !document.hook),
+    ...fullDemoBriefItems(options, voiceAvailability, !dirty && document !== null && !document.hook, !dirty && document !== null && options.second_camera?.enabled === true && !document.second_camera),
   ] : [];
 
   const orderRounds = fullDemoOrderRounds({ chosen: chosenRounds, planned: document ? document.rounds.map((round) => round.source_round_number) : null, recap: recap.map((play) => play.round) });
@@ -306,6 +318,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
           <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={assetBusy} />
         </FullDemoFold>
         <FullDemoTransitions options={options} onChange={change} />
+        <FullDemoSecondCamera options={options} document={document} omitted={capture?.omittedCameras ?? []} preparing={busy === 'prepare'} onChange={change} onPrepare={() => void prepareMoments()} />
         <FullDemoProSettings options={options} players={proPlayers} onChange={change} />
       </fieldset> : <div className="min-w-0" />}
       <div className="flex min-w-0 flex-col gap-4 @[64rem]/content:sticky @[64rem]/content:top-[calc(var(--shell-strip-height)+0.5rem)] @[64rem]/content:max-h-[calc(100dvh-var(--shell-strip-height)-1rem)] @[64rem]/content:overflow-y-auto">
