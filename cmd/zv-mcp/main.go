@@ -150,6 +150,9 @@ list_moments ranks plays by score (kills, clutch size and whether it was won, fa
 kills through smoke or while blind, entry (opening kill), retake, eco_win, flick, and win_prob_swing, the round-win chance the play gave); kinds filters by
 those reason codes, as Elegir las mejores and the play filters in Studio do. Format landscape-16x9 with preset gameplay-pov-60 gives the horizontal best-moments video.
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
+While that capture waits for CS2, wait_for_job answers running with stage "capture queued". When the capture fails
+and the earlier recording is kept, it answers with the capture's failure_code (capture_failed when it has none): no new
+video was made and list_videos still has the earlier ones.
 list_all_videos lists the videos of every recent job and stream (Mis vídeos) and the Shorts imported from the old cloud
 (delete_imported_video removes one); retry_video renders a failed Short
 again from its last finished version and change_video_music changes a Short's music, both without a new capture.

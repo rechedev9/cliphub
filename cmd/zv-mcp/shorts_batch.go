@@ -124,7 +124,6 @@ func registerShortsBatchTool(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, shortsBatchOut{}, toolError(err)
 			}
-			recentCaptures.mark(in.JobID)
 			out.generateOut = startedOut(summary, res, "")
 			return nil, out, nil
 		})

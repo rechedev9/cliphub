@@ -29,7 +29,9 @@ type GenerateIntent struct {
 	AcceptedAt  time.Time `json:"accepted_at,omitzero"`
 	// NoCapture is a page load's request: its record task reuses stored clips or fails with
 	// capture_required, and never opens CS2. A click never sets it.
-	NoCapture bool `json:"no_capture,omitempty"`
+	NoCapture     bool      `json:"no_capture,omitempty"`
+	FailureReason string    `json:"failure_reason,omitempty"`
+	FailedAt      time.Time `json:"failed_at,omitzero"`
 }
 
 // Normalize fills unset edit fields with their defaults and returns the result.

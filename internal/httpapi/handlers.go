@@ -617,19 +617,7 @@ func (h *Handlers) jobStatusView(ctx context.Context, id uuid.UUID) (jobStatusRe
 	if err != nil {
 		return jobStatusResponse{}, false, err
 	}
-	resp := jobStatusResponse{
-		Status:        status,
-		FailureReason: failureReason,
-		FailureCode:   jobFailureCode(failureReason, ""),
-	}
-	if status == job.StatusRecording {
-		if progress, ok := captureProgressWithTotal(h.storage, id, status, segmentCount); ok {
-			resp.Progress = &progress
-		}
-	} else if progress, ok := renderProgressDocument(h.storage, id); ok {
-		resp.Progress = &progress
-	}
-	return resp, true, nil
+	return h.jobStatusViewOf(id, job.StatusRow{Status: status, FailureReason: failureReason, SegmentCount: segmentCount}), true, nil
 }
 
 type jobStatusResponse struct {
@@ -637,6 +625,7 @@ type jobStatusResponse struct {
 	FailureReason string               `json:"failure_reason,omitempty"`
 	FailureCode   string               `json:"failure_code,omitempty"`
 	Progress      *captureProgressView `json:"progress,omitempty"`
+	Generate      *generateRunView     `json:"generate,omitempty"`
 }
 
 // jobResponse is the GET /api/jobs/{id} body: the job plus optional capture

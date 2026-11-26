@@ -82,6 +82,15 @@ type JobStatus struct {
 	FailureReason string       `json:"failure_reason,omitempty"`
 	FailureCode   string       `json:"failure_code,omitempty"`
 	Progress      *JobProgress `json:"progress,omitempty"`
+	Generate      *GenerateRun `json:"generate,omitempty"`
+}
+
+type GenerateRun struct {
+	Variant       string    `json:"variant"`
+	Active        bool      `json:"active"`
+	FailureReason string    `json:"failure_reason,omitempty"`
+	FailureCode   string    `json:"failure_code,omitempty"`
+	FailedAt      time.Time `json:"failed_at,omitzero"`
 }
 
 type JobProgress struct {
