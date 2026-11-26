@@ -718,6 +718,20 @@ In round 11 that handle named no pawn. Upstream v5.3.0 and v6 both had it.
 - The demo now parses to the end, but it has 9 players from round 1 (5 T,
   4 CT): one team played a man down. The parser loses no one.
 
+### Incident: the daily pro demo run logged unknown grenade models (2026-11-26)
+
+The `prepare` stage printed `unknown grenade model` with models `0` and large
+hashes on most PGL Major Singapore 2026 maps. The parser learns a grenade's
+model from the weapon entities it has seen, so a projectile already in flight
+in a demo's first snapshot came before its weapon, or before its model was set
+(model `0`), and was thrown as an unknown type.
+
+- `demo-parser-rsn` v1.0.2 types such a projectile by its class, and an
+  incendiary by `m_bIsIncGrenade` (`TestBindGrenadeProjectiles_TypeFromModelOrClass`).
+  Only a class that names no grenade still warns, as a `ParserWarn`.
+- No analysis changed: `internal/tactical` already fell back to the class and
+  skips throws before the first round.
+
 ### Incident: the Focus HUD lost its recorded keys after a parser upgrade (Studio 5.22.0, 2026-11-21)
 
 The Focus HUD draws the keys a player presses from the demo's user commands.
