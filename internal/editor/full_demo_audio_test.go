@@ -252,6 +252,44 @@ func TestFullDemoAACRecoveryCorrectionIsBounded(t *testing.T) {
 // Regression for a 14-minute Windows program whose native AAC masters kept
 // overshooting the true-peak target until the retargeting loop asked loudnorm
 // for TP=-10.18, outside its [-9, 0] range, failing the render at 81 %.
+func TestFullDemoAACRecoveryLiftsALimiterThatHoldsAQuietProgramDown(t *testing.T) {
+	target := recapplan.DefaultOptions().Audio.Loudness
+	first := initialAACRecoveryMaster(target, "aac_mf")
+	lufs, peak := -18.45, -4.87
+	next := first.corrected(LoudnessMeasurement{Status: "measured", IntegratedLUFS: &lufs, TruePeakDBTP: &peak}, target)
+	if next.GainDB != first.GainDB+1.5 {
+		t.Fatalf("gain = %.2f, want one full step over %.2f", next.GainDB, first.GainDB)
+	}
+	if ceiling := first.CeilingDBFS + aacHeadroomTarget(target).TargetTPDBTP - peak; math.Abs(next.CeilingDBFS-ceiling) > 1e-9 {
+		t.Fatalf("ceiling = %.2f dBFS, want it lifted by the decoded peak's headroom to %.2f", next.CeilingDBFS, ceiling)
+	}
+	nearLUFS, nearPeak := -14.86, -3.2
+	near := first.corrected(LoudnessMeasurement{Status: "measured", IntegratedLUFS: &nearLUFS, TruePeakDBTP: &nearPeak}, target)
+	if near.CeilingDBFS != first.CeilingDBFS {
+		t.Fatalf("a shortfall one gain step covers moved the ceiling to %.2f", near.CeilingDBFS)
+	}
+}
+
+func TestFullDemoAACRecoveryDeliversAProgramItsLimiterHeldQuiet(t *testing.T) {
+	mediaTest(t)
+	const audio = `aevalsrc=0.03*sin(2*PI*250*t)+gte(mod(t\,30)\,20)*0.98*sin(2*PI*120*t)*pow(sin(2*PI*5*t)\,60)+gte(mod(t\,30)\,10)*lt(mod(t\,30)\,20)*0.06*sin(2*PI*330*t):s=48000`
+	ffmpeg := fullDemoTestFFmpeg(t)
+	target := recapplan.DefaultOptions().Audio.Loudness
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	dir := t.TempDir()
+	input, duration := fullDemoAudioTestProgram(t, ctx, ffmpeg, dir, fullDemoAudioTestFrames, audio, "1920x1080")
+	evidence, err := masterFullDemoProgram(ctx, ffmpeg, input, filepath.Join(dir, "final.mp4"), filepath.Join(dir, "logs"), target, false, duration, nil)
+	if err != nil {
+		t.Fatalf("master: %v; evidence: %+v", err, evidence)
+	}
+	assertRecoveredAAC(t, evidence, target)
+	last := evidence.FallbackMasters[len(evidence.FallbackMasters)-1]
+	if last.CeilingDBFS <= evidence.FallbackMasters[0].CeilingDBFS {
+		t.Fatalf("recovery never lifted its limiter: %+v", evidence.FallbackMasters)
+	}
+}
+
 func TestFullDemoMasterRetargetStaysWithinLoudnormRange(t *testing.T) {
 	target := recapplan.DefaultOptions().Audio.Loudness
 	current := aacHeadroomTarget(target)

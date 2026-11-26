@@ -57,6 +57,17 @@ Rules that follow from it:
   filter to `-f null`). The measurement logs (`decoded-aac-*.txt`,
   `program-*-input.txt`) always say `dynamic` because they run without
   `measured_*`. `TestFullDemoNativeMasterHandsOverWhenRetargetDiverges` pins it.
+- AAC recovery corrects the limiter as well as the gain. Its first master
+  limits at `TargetTPDBTP - 3.5`; on a program whose loud parts carry the
+  integrated loudness, that limiter, not the gain, holds the candidate quiet.
+  Studio 5.28.0 (2026-11-26, a 14:45 Full Demo with no voice track) failed
+  three times with recovery at -18.45, -18.38 and -18.19 LUFS, every peak near
+  -4.9 dBTP: each step added 1.5 dB of gain that the limiter took back.
+  `ProgramAACFallbackMaster.corrected` now lifts the ceiling by the decoded
+  peak's headroom, up to `aacHeadroomTarget`, when the shortfall is larger
+  than one gain step; a smaller shortfall keeps the ceiling, so the saved
+  replay's sequence holds. `TestFullDemoAACRecoveryLiftsALimiterThatHoldsAQuietProgramDown`
+  and `TestFullDemoAACRecoveryDeliversAProgramItsLimiterHeldQuiet` pin it.
 - Media Foundation (`aac_mf`) is a Windows OS component, not something the
   installer can bundle. Stripped builds such as Atlas OS and "N/KN" editions
   lack it, so recovery falls back to FFmpeg's native `aac`. Do not bundle it.
