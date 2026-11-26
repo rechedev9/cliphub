@@ -249,9 +249,6 @@ func TestFullDemoAACRecoveryCorrectionIsBounded(t *testing.T) {
 	}
 }
 
-// Regression for a 14-minute Windows program whose native AAC masters kept
-// overshooting the true-peak target until the retargeting loop asked loudnorm
-// for TP=-10.18, outside its [-9, 0] range, failing the render at 81 %.
 func TestFullDemoAACRecoveryLiftsALimiterThatHoldsAQuietProgramDown(t *testing.T) {
 	target := recapplan.DefaultOptions().Audio.Loudness
 	first := initialAACRecoveryMaster(target, "aac_mf")
@@ -290,6 +287,9 @@ func TestFullDemoAACRecoveryDeliversAProgramItsLimiterHeldQuiet(t *testing.T) {
 	}
 }
 
+// Regression for a 14-minute Windows program whose native AAC masters kept
+// overshooting the true-peak target until the retargeting loop asked loudnorm
+// for TP=-10.18, outside its [-9, 0] range, failing the render at 81 %.
 func TestFullDemoMasterRetargetStaysWithinLoudnormRange(t *testing.T) {
 	target := recapplan.DefaultOptions().Audio.Loudness
 	current := aacHeadroomTarget(target)
