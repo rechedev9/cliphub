@@ -83,11 +83,6 @@ func TestHalftimeIsUnknownWithoutCompleteRoundResults(t *testing.T) {
 			t.Errorf("%s produced a halftime score: %+v", name, got)
 		}
 	}
-	late := append([]killplan.RoundResult{}, full...)
-	late[0].TargetSide, late[1].TargetSide = "", ""
-	if got := BuildHalftime(halftimeDocument(), late, customhud.Teams{}); got == nil || got.Round != 13 || got.Teams[0].Score != 7 {
-		t.Fatalf("a POV who joined late keeps the team score: %+v", got)
-	}
 }
 
 func TestHalftimeAndSubscribePagesFollowTheDesign(t *testing.T) {
@@ -154,8 +149,22 @@ func TestHalftimeNeedsAProvenRegulationSwitch(t *testing.T) {
 	for i := range 4 {
 		late[i].TargetSide = ""
 	}
-	if got := BuildHalftime(halftimeDocument(), late, customhud.Teams{}); got == nil || got.Round != 13 || got.Teams[0].Score != 7 {
-		t.Fatalf("a POV who joins during the first half still switches at a standard half: %+v", got)
+	if got := BuildHalftime(halftimeDocument(), late, customhud.Teams{}); got != nil {
+		t.Fatalf("a POV who joins late has no proven halftime: %+v", got)
+	}
+	shortOvertime := halftimeRounds("T", "TTTCCC", 6)
+	for i := range 6 {
+		shortOvertime[i].TargetSide = ""
+	}
+	for i := range 6 {
+		side := "CT"
+		if i >= 3 {
+			side = "T"
+		}
+		shortOvertime = append(shortOvertime, killplan.RoundResult{Number: 13 + i, Winner: "CT", TargetSide: side})
+	}
+	if got := BuildHalftime(halftimeDocument(), shortOvertime, customhud.Teams{}); got != nil {
+		t.Fatalf("an MR6 overtime switch after 15 rounds is not halftime: %+v", got)
 	}
 	lateShort := halftimeRounds("T", "TTCTCTCT", 3)
 	lateShort[0].TargetSide = ""

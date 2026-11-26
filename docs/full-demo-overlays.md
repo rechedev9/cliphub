@@ -45,8 +45,9 @@ Assistants set them with `plan_full_demo` `halftime_scoreboard` and
   start of the first round after the regulation side switch and slides and
   fades in and out. The render worker derives it from the job's kill plan round
   results (`demooverlay.BuildHalftime`): the first round where the POV's side
-  changes is the switch, so overtime switches never count and the round is not
-  assumed to be 13. Names come from `overlays.team_names`, then the demo's clan
+  changes is the switch, and it counts only when the POV played every earlier
+  round on the other side, so overtime switches never count and the round is
+  not assumed to be 13. A POV who joins late gets no card. Names come from `overlays.team_names`, then the demo's clan
   names, then the side each team plays in the second half. The card is left
   out, without failing the render, when the kill plan has no round results (a
   job parsed before they were kept), a round before the switch has no winner or

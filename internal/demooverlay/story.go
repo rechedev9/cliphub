@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"embed"
 	"html/template"
-	"slices"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
@@ -23,8 +22,6 @@ const (
 	SubscribeSlidePixels = 480
 	SubscribeLabel       = "SUSCRÍBETE"
 )
-
-var standardHalfRounds = []int{12, 15}
 
 //go:embed halftime.html subscribe.html
 var storyAssets embed.FS
@@ -76,9 +73,6 @@ func BuildHalftime(doc Document, rounds []killplan.RoundResult, names customhud.
 }
 
 func regulationSwitch(firstHalf []killplan.RoundResult, side string) bool {
-	if slices.Contains(standardHalfRounds, len(firstHalf)) {
-		return true
-	}
 	for _, round := range firstHalf {
 		if round.TargetSide != side {
 			return false
