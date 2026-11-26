@@ -43,6 +43,15 @@ func TestApplyFullDemoChoicesHook(t *testing.T) {
 	if out := describeFullDemoPlan("job-1", doc); !out.Hook || out.HookRound != 7 || !strings.Contains(out.Summary, "gancho de la mejor jugada: 3 bajas en la ronda 7.") || out.Rounds != 2 {
 		t.Fatalf("plan with a hook = %+v", out)
 	}
+	doc.Rounds[1].Kills = nil
+	for _, tick := range []int{315, 700, 1100, 1500} {
+		doc.Rounds[1].Kills = append(doc.Rounds[1].Kills, killplan.Kill{Tick: tick})
+	}
+	doc.Hook = &recapplan.Hook{RoundID: "round-007", FirstKillTick: 315, LastKillTick: 1500, Kills: 4}
+	doc.Timeline[0].SourceOffsetFrames = 296
+	if out := describeFullDemoPlan("job-1", doc); !strings.Contains(out.Summary, "3 bajas en la ronda 7.") {
+		t.Fatalf("a kill one frame before the teaser starts is not shown: %s", out.Summary)
+	}
 	if !strings.Contains(serverInstructions, "plan_full_demo hook") || !strings.Contains(serverInstructions, "hook_round") {
 		t.Fatal("the server instructions do not explain the hook")
 	}

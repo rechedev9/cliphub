@@ -52,13 +52,10 @@ func fullDemoRadarLevel(item recapplan.TimelineItem, track radaroverlay.Track) s
 	if !item.IsHook() {
 		return segment.POVLevel(track.Calibration)
 	}
-	rate := int64(track.TickRate)
-	first := item.SourceStartTick + int(item.SourceOffsetFrames*rate/recapplan.OutputFPS)
-	last := first + int((item.EndFrame-item.StartFrame)*rate/recapplan.OutputFPS)
 	shown := segment
 	shown.Frames = nil
 	for _, frame := range segment.Frames {
-		if frame.Tick >= first && frame.Tick <= last {
+		if item.ShowsTick(frame.Tick, track.TickRate) {
 			shown.Frames = append(shown.Frames, frame)
 		}
 	}

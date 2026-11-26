@@ -40,6 +40,14 @@ func (t TimelineItem) IsHook() bool {
 	return t.Role == "round" && t.Reason == HookReason
 }
 
+func (t TimelineItem) ShowsTick(tick, rate int) bool {
+	if tick < t.SourceStartTick {
+		return false
+	}
+	frame, err := TickFrames(tick-t.SourceStartTick, rate)
+	return err == nil && frame >= t.SourceOffsetFrames && frame < t.SourceOffsetFrames+t.EndFrame-t.StartFrame
+}
+
 func (d *Document) planHook() {
 	d.Hook = nil
 	if d.Options.Hook == nil || !d.Options.Hook.Enabled {

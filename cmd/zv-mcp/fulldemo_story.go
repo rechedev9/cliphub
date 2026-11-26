@@ -46,11 +46,8 @@ func hookKillsShown(doc recapplan.Document, round recapplan.Round) int {
 		if !item.IsHook() {
 			continue
 		}
-		rate := int64(doc.Clock.TickRate)
-		first := item.SourceStartTick + int(item.SourceOffsetFrames*rate/recapplan.OutputFPS)
-		last := first + int((item.EndFrame-item.StartFrame)*rate/recapplan.OutputFPS)
 		for _, kill := range round.Kills {
-			if kill.Tick >= max(first, doc.Hook.FirstKillTick) && kill.Tick <= min(last, doc.Hook.LastKillTick) {
+			if kill.Tick >= doc.Hook.FirstKillTick && kill.Tick <= doc.Hook.LastKillTick && item.ShowsTick(kill.Tick, doc.Clock.TickRate) {
 				shown++
 			}
 		}

@@ -223,4 +223,8 @@ func TestHookRadarLevelComesFromItsOwnStretch(t *testing.T) {
 	if level := fullDemoRadarLevel(hook, track); level != radarmap.LevelLower {
 		t.Fatalf("the hook plays downstairs, so it draws the lower overview: %s", level)
 	}
+	edge := recapplan.TimelineItem{Role: "round", Reason: recapplan.HookReason, SourceRef: "round-002", SourceOffsetFrames: 4680, EndFrame: 120}
+	if level := fullDemoRadarLevel(edge, track); level != radarmap.LevelDefault {
+		t.Fatalf("the sample at the excluded end frame must not count: %s", level)
+	}
 }
