@@ -268,6 +268,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 	var crosshairs crosshairTimeline
 	var openingTaken bool
 	var trail viewTrail
+	var holds holdTrail
 	var plantWatch *postPlantWatch
 	if mode == SegmentModeKills {
 		plantWatch = &postPlantWatch{}
@@ -291,6 +292,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		roundLive = false
 		openingTaken = false
 		trail.reset()
+		holds.reset()
 		plantWatch.stop(p.GameState().IngameTick())
 	})
 
@@ -316,6 +318,9 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 			gi.AfterPlant = roundLive && planted
 			if yaw, pitch, ok := safeViewAngles(e.Killer); ok && isGunKill(e.Weapon) && p.TickRate() > 0 {
 				gi.Flick = trail.flick(viewSample{tick: tick, yaw: yaw, pitch: pitch}, int(math.Round(flickWindowSeconds*p.TickRate())))
+			}
+			if alsoRecap && e.Victim.SteamID64 != targetID {
+				c.RecordKillHold(holds.hold(e.Victim.SteamID64, tick, int(math.Round(p.TickRate())), playerPosition(e.Victim)))
 			}
 			killer := alivePlayer{SteamID64: e.Killer.SteamID64, Team: e.Killer.Team}
 			victim := alivePlayer{SteamID64: e.Victim.SteamID64, Team: e.Victim.Team, Equip: e.Victim.EquipmentValueFreezeTimeEnd()}
@@ -375,6 +380,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		planted = false
 		openingTaken = false
 		trail.reset()
+		holds.reset()
 		plantWatch.stop(tick)
 		c.RecordRoundStart(RoundStart{Round: activeRound, Tick: tick})
 	})
@@ -449,6 +455,9 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 				}
 			}
 			crosshairs.record(tick, code)
+			if participants != nil {
+				holds.record(tick, int(math.Round(p.TickRate())), holdPositions(participants.Playing(), targetID))
+			}
 		})
 	}
 	if err := parseCaptureDemo(p); err != nil {

@@ -175,6 +175,9 @@ func fullDemoRenderFingerprint(result recording.RecordingResult, variant string,
 	if err != nil {
 		return "", err
 	}
+	if effective, err = recapplan.WithCameraEvidence(effective, result.UsableFullDemoCameras(effective)); err != nil {
+		return "", err
+	}
 	if err := result.ValidateFullDemoFrames(effective); err != nil {
 		return "", recording.MarkNotReusable(err)
 	}
@@ -197,6 +200,13 @@ func fullDemoRenderFingerprint(result recording.RecordingResult, variant string,
 			}
 		}
 	}
+	cameras, err := fullDemoCameraInputs(result, effective)
+	if err != nil {
+		return "", err
+	}
+	for _, camera := range cameras {
+		inputs = append(inputs, input(camera))
+	}
 	sort.Slice(inputs, func(i, j int) bool { return inputs[i].SegmentID < inputs[j].SegmentID })
 	// Timing changes must invalidate rendered overlays without invalidating
 	// the source captures or unaffected renders with the roster disabled.
@@ -216,6 +226,9 @@ func fullDemoRenderFingerprint(result recording.RecordingResult, variant string,
 	}
 	if effective.Hook != nil {
 		policy += "/" + fullDemoHookPolicy
+	}
+	if effective.SecondCamera != nil {
+		policy += "/" + fullDemoSecondCameraPolicy
 	}
 	return recapplan.HashValue(struct {
 		Policy, Variant, EffectivePlanHash string

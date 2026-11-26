@@ -27,6 +27,7 @@ test('the capture note names only the rounds an edit records', () => {
   assert.equal(captureNote({ needed: false, missingRounds: [] }, 3), 'Las capturas de todas las rondas están guardadas: solo se vuelve a montar.');
   assert.equal(captureNote({ needed: true, missingRounds: [3, 5] }, 6), 'Se grabarán otra vez las rondas 3 y 5; las demás ya están capturadas.');
   assert.equal(captureNote({ needed: true, missingRounds: [7] }, 6), 'Se grabará otra vez la ronda 7; las demás ya están capturadas.');
+  assert.equal(captureNote({ needed: true, missingRounds: [], missingCameras: ['round-004-camera-12345'] }, 6), 'Se grabarán solo las segundas cámaras; las rondas ya están capturadas.');
   assert.equal(captureNote({ needed: true, missingRounds: [1, 2] }, 2), 'Las capturas de este vídeo ya no están guardadas: se grabarán todas sus rondas.');
 });
 

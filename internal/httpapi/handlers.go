@@ -136,6 +136,7 @@ type Handlers struct {
 	storage             storage.Storage
 	storageFiles        storageFileIndex
 	generateIntents     *generateintent.Store
+	killHolds           killHoldsBackfill
 	voiceProfiles       *voiceprofile.Store
 	queue               Enqueuer
 	mutationToken       string
@@ -253,7 +254,6 @@ func WithSteamTransportFactory(f func(steamresolve.Session) steamresolve.Transpo
 	}
 }
 
-// NewHandlers constructs an HTTP handler set.
 func NewHandlers(repo JobRepository, store storage.Storage, queue Enqueuer, opts ...Option) *Handlers {
 	h := &Handlers{
 		repo:             repo,

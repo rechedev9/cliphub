@@ -11,6 +11,9 @@ export const FULL_DEMO_PROFILE = 'full-demo-pov-chill-v1';
 export const FULL_DEMO_CAPTURE_VARIANT = 'gameplay-pov-60';
 export const FULL_DEMO_PLANNER_VERSION = 'full-demo-editorial-v2';
 export const FULL_DEMO_FREEZE_SECONDS = 2;
+export const FULL_DEMO_CAMERA_DEFAULT = 5;
+export const FULL_DEMO_CAMERA_MAX = 10;
+const FULL_DEMO_CAMERA_REMOVED_MAX = 60;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 
@@ -136,7 +139,8 @@ const optionsShape = object({
   // translation of 5.25.0 plans: still readable, but currentFullDemoOptions drops it.
   subtitles: object({ enabled: boolean, english: boolean, hidden: array(string, 2000) }, ['english', 'hidden']),
   hook: object({ enabled: boolean }),
-}, ['transitions', 'bumpers', 'sponsor', 'rounds', 'subtitles', 'hook']);
+  second_camera: object({ enabled: boolean, max_windows: integerRange(0, FULL_DEMO_CAMERA_MAX), removed: array(string, FULL_DEMO_CAMERA_REMOVED_MAX) }, ['removed']),
+}, ['transitions', 'bumpers', 'sponsor', 'rounds', 'subtitles', 'hook', 'second_camera']);
 export type FullDemoOptions = Guarded<typeof optionsShape>;
 
 /** Old drafts stay readable, but cannot restore voice-driven or adjustable freezes. */
@@ -152,7 +156,7 @@ export function fixedFullDemoFreeze(options: FullDemoOptions): FullDemoOptions {
  * finely tuned transition after the corresponding controls disappeared.
  */
 export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOptions {
-  const { sponsor: legacySponsor, subtitles, hook, ...fixed } = fixedFullDemoFreeze(options);
+  const { sponsor: legacySponsor, subtitles, hook, second_camera: secondCamera, ...fixed } = fixedFullDemoFreeze(options);
   // Mirrors Go's CanonicalNewOptions: a native capture without a theme keeps
   // the player's own CS2 HUD; any other missing theme gets the default one.
   const nativeHud = !fixed.overlays.hud_theme && (fixed.capture.hud_profile === NATIVE_HUD_CAPTURE_PROFILE || fixed.capture.hud_profile === 'native');
@@ -211,7 +215,14 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
     ...legacySponsorBumper(fixed.bumpers, legacySponsor),
     ...subtitleOptions(subtitles),
     ...(hook?.enabled ? { hook: { enabled: true } } : {}),
+    ...canonicalSecondCamera(secondCamera),
   };
+}
+
+function canonicalSecondCamera(camera: FullDemoOptions['second_camera']): Pick<FullDemoOptions, 'second_camera'> {
+  if (!camera?.enabled) return {};
+  const removed = [...new Set(camera.removed ?? [])].sort();
+  return { second_camera: { enabled: true, max_windows: camera.max_windows || FULL_DEMO_CAMERA_DEFAULT, ...(removed.length > 0 ? { removed } : {}) } };
 }
 
 /** Mirrors Go's canonicalSubtitles: off is omitted and the hidden ids are sorted, so one choice has one plan hash. */
@@ -273,6 +284,27 @@ export function withFullDemoHook(options: FullDemoOptions, enabled: boolean): Fu
   return enabled ? { ...rest, hook: { enabled: true } } : rest;
 }
 
+export function withFullDemoSecondCamera(options: FullDemoOptions, enabled: boolean): FullDemoOptions {
+  const { second_camera: previous, ...rest } = options;
+  return enabled ? { ...rest, second_camera: { ...previous, enabled: true, max_windows: previous?.max_windows || FULL_DEMO_CAMERA_DEFAULT } } : rest;
+}
+
+export function withFullDemoCameraMax(options: FullDemoOptions, max: number): FullDemoOptions {
+  if (!options.second_camera?.enabled) return options;
+  const clamped = Math.min(FULL_DEMO_CAMERA_MAX, Math.max(1, Math.round(max)));
+  return { ...options, second_camera: { ...options.second_camera, max_windows: clamped } };
+}
+
+export function withFullDemoCameraRemoved(options: FullDemoOptions, change: { id: string | null; removed: boolean }): FullDemoOptions {
+  const camera = options.second_camera;
+  if (!camera?.enabled) return options;
+  const { removed: previous = [], ...rest } = camera;
+  const { id } = change;
+  let next: string[] = [];
+  if (id !== null) next = change.removed ? [...new Set([...previous, id])].sort() : previous.filter((entry) => entry !== id);
+  return { ...options, second_camera: next.length > 0 ? { ...rest, removed: next } : rest };
+}
+
 export function isFullDemoOptions(value: unknown): value is FullDemoOptions {
   if (!optionsShape(value)) return false;
   const { editorial, capture } = value;
@@ -297,6 +329,11 @@ const round = object({
   start_reason: string, end_reason: string, bounds_evidence: string, excluded_intervals: nullable(array(interval)),
   kills: nullable(array(record, 1000)), utility: nullable(array(record, 1000)),
 });
+const cameraWindow = object({
+  id: string, round_id: string, round: integer, kill_tick: integer, start_tick: integer, end_tick: integer,
+  enemy_steamid64: string, enemy_name: string, score: number(-1e9, 1e9), move_units: number(0, 1e9),
+});
+export type FullDemoCameraWindow = Guarded<typeof cameraWindow>;
 const documentShape = object({
   schema_version: oneOf('1.0'), plan_id: uuid, revision: integer, plan_hash: hash, planner_version: oneOf('full-demo-editorial-v1', FULL_DEMO_PLANNER_VERSION),
   crosshairs: nullable(array(object({ tick: integer, code: string }), 4096)),
@@ -311,7 +348,8 @@ const documentShape = object({
   timeline: nullable(array(object({ role: oneOf('round', 'sponsor', 'bumper'), source_ref: string, source_start_tick: integer, source_end_tick: integer, source_offset_frames: integer, start_frame: integer, end_frame: integer, start_sample: integer, end_sample: integer, reason: string }))),
   warnings: nullable(array(notice, 1000)), blockers: nullable(array(notice, 1000)),
   hook: object({ round_id: string, first_kill_tick: integer, last_kill_tick: integer, kills: integer }),
-}, ['sponsor_placement', 'hook']);
+  second_camera: object({ windows: array(cameraWindow, FULL_DEMO_CAMERA_MAX) }),
+}, ['sponsor_placement', 'hook', 'second_camera']);
 export type FullDemoDocument = Guarded<typeof documentShape>;
 const snapshotShape = object({ document: documentShape, approval: object({ approved_plan_hash: hash, allow_safe_tail_trim: boolean, timestamp: string }) });
 export type FullDemoSnapshot = Guarded<typeof snapshotShape>;
@@ -387,7 +425,7 @@ export async function responseJSON(response: Response): Promise<unknown> {
   return value;
 }
 // `capture` comes with a saved plan: whether rendering it again opens CS2.
-const captureShape = object({ needed: boolean, missing_rounds: array(integer, 1000), space: object({ free_bytes: integer, needed_bytes: integer, short: boolean }) }, ['space']);
+const captureShape = object({ needed: boolean, missing_rounds: array(integer, 1000), missing_cameras: array(string, 100), omitted_cameras: array(string, 100), space: object({ free_bytes: integer, needed_bytes: integer, short: boolean }) }, ['missing_cameras', 'omitted_cameras', 'space']);
 const envelopeShape = object({ document: nullable(documentShape), defaults: isFullDemoOptions, pro_players: array(proPlayer, 500), compatibility: oneOf('legacy-until-planned-and-approved', 'editorial-v1'), capture: captureShape }, ['pro_players', 'capture']);
 export type FullDemoPlanEnvelope = Guarded<typeof envelopeShape>;
 export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Promise<FullDemoPlanEnvelope> {

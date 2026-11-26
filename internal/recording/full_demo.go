@@ -61,7 +61,7 @@ func (p RecordingPlan) validateFullDemo() error {
 				}
 			}
 		}
-		if !found {
+		if !found || !fullDemoCameraApproved(s, sources) {
 			return &recapplan.Error{Code: recapplan.ErrPOVContract, Detail: "Capture window differs from the Full Demo document: " + s.ID}
 		}
 	}

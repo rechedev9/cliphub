@@ -32,3 +32,10 @@ test('projectCaptureCheck reads the capture need and the space estimate', () => 
   assert.equal(projectCaptureCheck({ needed: 'yes' }), null);
   assert.equal(projectSpace({ free_bytes: -1, needed_bytes: 2, short: true }), null);
 });
+
+test('projectCaptureCheck reads the second camera ids and leaves them out when empty', () => {
+  const check = projectCaptureCheck({ needed: true, missing_rounds: [], missing_cameras: ['round-001-camera-9'], omitted_cameras: ['round-002-camera-5', 3] });
+  assert.deepEqual(check?.missingCameras, ['round-001-camera-9']);
+  assert.deepEqual(check?.omittedCameras, ['round-002-camera-5']);
+  assert.equal(Object.hasOwn(projectCaptureCheck({ needed: false, missing_rounds: [], omitted_cameras: [] }) ?? {}, 'omittedCameras'), false);
+});

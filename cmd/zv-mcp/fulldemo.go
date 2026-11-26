@@ -79,39 +79,45 @@ type planFullDemoIn struct {
 	hudLookIn
 	brandChoiceIn
 	storyOverlaysIn
+	secondCameraIn
 	subtitleChoices
 	custom *hudthemes.Style // A user theme resolved from hud by resolveUserHUD.
 }
 
 type fullDemoPlanOut struct {
-	JobID               string   `json:"job_id"`
-	PlanHash            string   `json:"plan_hash" jsonschema:"pass to render_full_demo"`
-	Ready               bool     `json:"ready" jsonschema:"false when blockers stop the render"`
-	Summary             string   `json:"summary"`
-	DurationSeconds     int      `json:"duration_seconds"`
-	Rounds              int      `json:"rounds"`
-	HUD                 string   `json:"hud" jsonschema:"HUD design id, or native"`
-	OverlaySource       string   `json:"overlay_source"`
-	IntroDesign         string   `json:"intro_design" jsonschema:"neon or hud"`
-	HalftimeScoreboard  bool     `json:"halftime_scoreboard"`
-	SubscribeButton     bool     `json:"subscribe_button"`
-	Hook                bool     `json:"hook" jsonschema:"the opening hook was asked for"`
-	HookRound           int      `json:"hook_round,omitempty" jsonschema:"the round of the best play the hook teases; absent when the hook is off or was skipped (see warnings)"`
-	TeamVoices          bool     `json:"team_voices"`
-	VoiceStatus         string   `json:"voice_status,omitempty" jsonschema:"what the demo holds for team voices, e.g. available or no_packets"`
-	VoiceLevel          int      `json:"voice_level_percent"`
-	GameLevel           int      `json:"game_level_percent"`
-	BetweenRoundEffects bool     `json:"between_round_effects"`
-	TrueView            bool     `json:"true_view"`
-	ClipHubRadar        bool     `json:"cliphub_radar"`
-	ProSettings         string   `json:"pro_settings,omitempty" jsonschema:"the pro whose resolution and viewmodel the capture uses; empty is the user's own 1920x1080"`
-	HUDPortrait         bool     `json:"hud_portrait,omitempty"`
-	Bumpers             []string `json:"bumpers,omitempty" jsonschema:"the added clips: intro, sponsor, outro"`
-	Warnings            []string `json:"warnings,omitempty"`
-	Blockers            []string `json:"blockers,omitempty" jsonschema:"why the video cannot be rendered yet"`
-	NeedsCapture        bool     `json:"needs_capture" jsonschema:"false when Studio still keeps the capture of every round: render_full_demo only renders again and CS2 does not open"`
-	MissingRounds       []int    `json:"missing_rounds,omitempty" jsonschema:"the source rounds render_full_demo records in CS2"`
-	LowSpace            string   `json:"low_space,omitempty" jsonschema:"the data disk may lack the space this capture and render need; Almacenamiento frees it"`
+	JobID               string                  `json:"job_id"`
+	PlanHash            string                  `json:"plan_hash" jsonschema:"pass to render_full_demo"`
+	Ready               bool                    `json:"ready" jsonschema:"false when blockers stop the render"`
+	Summary             string                  `json:"summary"`
+	DurationSeconds     int                     `json:"duration_seconds"`
+	Rounds              int                     `json:"rounds"`
+	HUD                 string                  `json:"hud" jsonschema:"HUD design id, or native"`
+	OverlaySource       string                  `json:"overlay_source"`
+	IntroDesign         string                  `json:"intro_design" jsonschema:"neon or hud"`
+	HalftimeScoreboard  bool                    `json:"halftime_scoreboard"`
+	SubscribeButton     bool                    `json:"subscribe_button"`
+	Hook                bool                    `json:"hook" jsonschema:"the opening hook was asked for"`
+	HookRound           int                     `json:"hook_round,omitempty" jsonschema:"the round of the best play the hook teases; absent when the hook is off or was skipped (see warnings)"`
+	SecondCamera        bool                    `json:"second_camera" jsonschema:"the second camera was asked for"`
+	SecondCameraMoments []secondCameraMomentOut `json:"second_camera_moments,omitempty" jsonschema:"the planned windows; absent when the option is off or no kill qualified (see warnings)"`
+	SecondCameraRemoved []string                `json:"second_camera_removed,omitempty" jsonschema:"moment ids left out of this plan"`
+	MissingSecondCamera []string                `json:"missing_second_camera,omitempty" jsonschema:"windows render_full_demo still records in CS2"`
+	OmittedSecondCamera []string                `json:"omitted_second_camera,omitempty" jsonschema:"windows recorded but unusable: the video leaves them out"`
+	TeamVoices          bool                    `json:"team_voices"`
+	VoiceStatus         string                  `json:"voice_status,omitempty" jsonschema:"what the demo holds for team voices, e.g. available or no_packets"`
+	VoiceLevel          int                     `json:"voice_level_percent"`
+	GameLevel           int                     `json:"game_level_percent"`
+	BetweenRoundEffects bool                    `json:"between_round_effects"`
+	TrueView            bool                    `json:"true_view"`
+	ClipHubRadar        bool                    `json:"cliphub_radar"`
+	ProSettings         string                  `json:"pro_settings,omitempty" jsonschema:"the pro whose resolution and viewmodel the capture uses; empty is the user's own 1920x1080"`
+	HUDPortrait         bool                    `json:"hud_portrait,omitempty"`
+	Bumpers             []string                `json:"bumpers,omitempty" jsonschema:"the added clips: intro, sponsor, outro"`
+	Warnings            []string                `json:"warnings,omitempty"`
+	Blockers            []string                `json:"blockers,omitempty" jsonschema:"why the video cannot be rendered yet"`
+	NeedsCapture        bool                    `json:"needs_capture" jsonschema:"false when Studio still keeps the capture of every round: render_full_demo only renders again and CS2 does not open"`
+	MissingRounds       []int                   `json:"missing_rounds,omitempty" jsonschema:"the source rounds render_full_demo records in CS2"`
+	LowSpace            string                  `json:"low_space,omitempty" jsonschema:"the data disk may lack the space this capture and render need; Almacenamiento frees it"`
 }
 
 type renderFullDemoIn struct {
@@ -130,9 +136,11 @@ type fullDemoState struct {
 
 // fullDemoCapture is the server's answer to "does this plan open CS2?".
 type fullDemoCapture struct {
-	Needed        bool  `json:"needed"`
-	MissingRounds []int `json:"missing_rounds"`
-	Space         *struct {
+	Needed         bool     `json:"needed"`
+	MissingRounds  []int    `json:"missing_rounds"`
+	MissingCameras []string `json:"missing_cameras,omitempty"`
+	OmittedCameras []string `json:"omitted_cameras,omitempty"`
+	Space          *struct {
 		FreeBytes   int64 `json:"free_bytes"`
 		NeededBytes int64 `json:"needed_bytes"`
 		Short       bool  `json:"short"`
@@ -184,6 +192,7 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			"Choose the HUD with list_hud_themes first. Options left out keep Studio's defaults. " +
 			"halftime_scoreboard adds a score card at the side switch and subscribe_button a SUSCRÍBETE button twice over the rounds; both are off by default and only change the render. " +
 			"hook opens the video with an 8 to 20 s teaser of the player's best play before round 1; it is off by default, only changes the render and the reply's hook_round says which round it shows. " +
+			"second_camera adds a small window with the view of an enemy who stood almost still holding an angle in the 5 s before the player killed them (left side, enemy name under it, about 5 s before the kill to 1 s after, no audio), at most one per round and second_camera_max in total (default 5); a match analysed before this option is read once more for it; it costs an extra capture pass in CS2 (about 11 s per window, recorded rounds are reused) and changes only the render otherwise; the reply's second_camera_moments lists them and second_camera_remove takes their ids to drop some. " +
 			"Show the user the summary, then call render_full_demo with the plan_hash if they agree."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in planFullDemoIn) (*mcp.CallToolResult, fullDemoPlanOut, error) {
 			if err := checkUUID("job_id", in.JobID); err != nil {
@@ -225,7 +234,9 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 				return nil, fullDemoPlanOut{}, err
 			}
 			if in.CheckOnly {
-				return checkFullDemoCapture(ctx, c, in.JobID, body)
+				result, out, err := checkFullDemoCapture(ctx, c, in.JobID, body)
+				out.SecondCamera = options.SecondCamera != nil && options.SecondCamera.Enabled
+				return result, out, err
 			}
 			raw, err := c.PlanFullDemo(ctx, in.JobID, body)
 			if err != nil {
@@ -401,6 +412,9 @@ func applyFullDemoChoices(options recapplan.Options, in planFullDemoIn) (recappl
 	}
 	applyBrandChoice(&options, in.brandChoiceIn)
 	applyStoryOverlays(&options, in.storyOverlaysIn)
+	if err := applySecondCamera(&options, in.secondCameraIn); err != nil {
+		return recapplan.Options{}, err
+	}
 	if err := applyIntroDesign(&options, in.IntroDesign); err != nil {
 		return recapplan.Options{}, err
 	}
@@ -543,7 +557,9 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	}
 	hookText := ""
 	out.Hook, out.HookRound, hookText = describeHook(doc)
-	out.Summary += hookText + describeHUDLook(o.Overlays) + describeIntroDesign(o.Overlays) + describeStoryOverlays(o.Overlays) + describeBrand(o.Overlays.Brand)
+	var cameraText string
+	out.SecondCamera, out.SecondCameraMoments, out.SecondCameraRemoved, cameraText = describeSecondCamera(doc)
+	out.Summary += hookText + cameraText + describeHUDLook(o.Overlays) + describeIntroDesign(o.Overlays) + describeStoryOverlays(o.Overlays) + describeBrand(o.Overlays.Brand)
 	if len(out.Bumpers) > 0 {
 		out.Summary += fmt.Sprintf(" Clips añadidos: %s.", strings.Join(out.Bumpers, ", "))
 	}
@@ -556,9 +572,11 @@ func describeFullDemoCapture(out *fullDemoPlanOut, capture *fullDemoCapture) {
 		return
 	}
 	out.NeedsCapture, out.MissingRounds = capture.Needed, capture.MissingRounds
+	defer describeSecondCameraCapture(out, capture)
 	switch {
 	case !capture.Needed:
 		out.Summary += " Las capturas de todas las rondas están guardadas: solo se vuelve a montar."
+	case len(capture.MissingRounds) == 0:
 	case len(capture.MissingRounds) < out.Rounds:
 		rounds := make([]string, len(capture.MissingRounds))
 		for i, r := range capture.MissingRounds {

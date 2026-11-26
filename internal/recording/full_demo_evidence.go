@@ -178,11 +178,18 @@ func (e *FullDemoCaptureEvidence) Validate(plan RecordingPlan) error {
 			return failed("HUD/crosshair readback differs: " + name)
 		}
 	}
-	if len(e.CertifiedEnds) != len(plan.Segments) {
+	captures := plan.CaptureSegments()
+	if len(e.CertifiedEnds) != len(captures) {
 		return failed("Every captured interval needs a certified end")
 	}
-	for _, s := range plan.Segments {
+	for _, s := range captures {
 		end, found := e.CertifiedEnds[s.ID]
+		if isCameraCapture(s) {
+			if !found || end < s.TickStart || end > s.TickEnd {
+				return failed("Second camera end lies outside its window: " + s.ID)
+			}
+			continue
+		}
 		if !found || end <= s.TickStart || end > s.TickEnd || end < min(s.LiveEndTick+1, s.TickEnd) || (end < s.TickEnd && !plan.FullDemo.Options.Editorial.AllowSafeTailTrim) {
 			return failed("Unapproved or interior capture gap: " + s.ID)
 		}

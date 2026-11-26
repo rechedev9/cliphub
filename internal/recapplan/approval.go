@@ -46,7 +46,7 @@ func ResolveApproval(ctx context.Context, store storage.Storage, id uuid.UUID, d
 	if err != nil {
 		return Snapshot{}, err
 	}
-	factsHash, hashErr := HashValue(facts)
+	factsHash, hashErr := facts.Hash()
 	if !found || hashErr != nil || factsHash != d.Input.FactsHash || facts.TargetSteamID64 != target || facts.DemoSHA256 != d.Input.DemoSHA256 || d.Input.FactsRef != artifacts.FullDemoFactsKey(id) {
 		return Snapshot{}, &Error{ErrPlanStale, "Demo facts or player changed; plan and approve again"}
 	}

@@ -15,7 +15,14 @@ type SegmentClip struct {
 
 // ResolveVictimReplayClip returns the victim POV clip recorded for segmentID.
 func ResolveVictimReplayClip(result RecordingResult, segmentID string) (SegmentClip, bool) {
-	id := VictimReplayID(segmentID)
+	return resolveCaptureClip(result, VictimReplayID(segmentID))
+}
+
+func ResolveFullDemoCameraClip(result RecordingResult, id string) (SegmentClip, bool) {
+	return resolveCaptureClip(result, id)
+}
+
+func resolveCaptureClip(result RecordingResult, id string) (SegmentClip, bool) {
 	var chosen *RecordingArtifact
 	for i := range result.Artifacts {
 		artifact := &result.Artifacts[i]
