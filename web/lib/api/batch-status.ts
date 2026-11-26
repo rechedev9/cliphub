@@ -6,15 +6,29 @@
  * `lib/` is what makes it testable.
  */
 
+type GenerateRunUpstream = { variant?: string; active?: boolean; failure_reason?: string; failure_code?: string; failed_at?: string };
+type GenerateRunBody = { variant: string; active: boolean; failure_reason?: string; failure_code?: string; failed_at?: string };
+
+export type JobStatusUpstream = {
+  status: string;
+  failure_reason?: string;
+  failure_code?: string;
+  progress?: RawCaptureProgress;
+  generate?: GenerateRunUpstream | null;
+};
+
+type JobStatusBody = {
+  status: string;
+  failure_reason?: string;
+  failure_code?: string;
+  progress?: CaptureProgress;
+  generate?: GenerateRunBody;
+};
+
 export type BatchStatusUpstreamItem = {
   job_id: string;
   variant: string;
-  job?: {
-    status: string;
-    failure_reason?: string;
-    failure_code?: string;
-    progress?: { done?: number; total?: number; percent?: number; stage?: string };
-  } | null;
+  job?: JobStatusUpstream | null;
   render?: unknown;
   error?: { code?: string; message?: string } | null;
 };
@@ -22,12 +36,7 @@ export type BatchStatusUpstreamItem = {
 export type BatchStatusItem = {
   job_id: string;
   variant: string;
-  job: {
-    status: string;
-    failure_reason?: string;
-    failure_code?: string;
-    progress?: { done: number; total: number; percent?: number; stage?: string };
-  } | null;
+  job: JobStatusBody | null;
   render: unknown;
   error?: { code?: string; message?: string };
 };
@@ -55,12 +64,29 @@ export function projectBatchStatusItem(
     render: item.render ?? null,
   };
   if (item.error) out.error = item.error;
-  if (item.job) {
-    out.job = { status: item.job.status };
-    if (item.job.failure_reason) out.job.failure_reason = item.job.failure_reason;
-    if (item.job.failure_code) out.job.failure_code = item.job.failure_code;
-    const parsed = parseCaptureProgress(item.job.progress);
-    if (parsed) out.job.progress = parsed;
-  }
+  if (item.job) out.job = projectJobStatus(item.job, parseCaptureProgress);
+  return out;
+}
+
+export function projectJobStatus(
+  job: JobStatusUpstream,
+  parseCaptureProgress: (raw: RawCaptureProgress) => CaptureProgress | undefined,
+): JobStatusBody {
+  const out: JobStatusBody = { status: job.status };
+  if (job.failure_reason) out.failure_reason = job.failure_reason;
+  if (job.failure_code) out.failure_code = job.failure_code;
+  const progress = parseCaptureProgress(job.progress);
+  if (progress) out.progress = progress;
+  const generate = projectGenerateRun(job.generate);
+  if (generate) out.generate = generate;
+  return out;
+}
+
+function projectGenerateRun(run: GenerateRunUpstream | null | undefined): GenerateRunBody | undefined {
+  if (!run?.variant) return undefined;
+  const out: GenerateRunBody = { variant: run.variant, active: run.active === true };
+  if (run.failure_reason) out.failure_reason = run.failure_reason;
+  if (run.failure_code) out.failure_code = run.failure_code;
+  if (run.failed_at) out.failed_at = run.failed_at;
   return out;
 }

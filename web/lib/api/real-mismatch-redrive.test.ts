@@ -24,6 +24,7 @@ type Orchestrator = {
   jobStatus: string;
   /** The job's failure_reason while it reads failed. */
   jobFailure?: string;
+  generateRun?: Record<string, unknown>;
   /** GET /renders/{variant} body, or null for 404 (nothing rendered yet). */
   render: Record<string, unknown> | null;
   generate: () => Response;
@@ -50,7 +51,7 @@ function fakeOrchestrator(jobId: string, state: Orchestrator): { calls: Call[]; 
     // Trust boundary: the client serialised this body itself.
     if (typeof init?.body === 'string') call.body = JSON.parse(init.body) as Record<string, unknown>;
     calls.push(call);
-    if (url === `${base}/status`) return json({ status: state.jobStatus, failure_reason: state.jobFailure });
+    if (url === `${base}/status`) return json({ status: state.jobStatus, failure_reason: state.jobFailure, generate: state.generateRun });
     const renders = `${base}/renders/${state.variant ?? DEFAULT_VARIANT}`;
     if (url === renders && method === 'GET') {
       return state.render ? json(state.render) : json({ error: 'render variant not found' }, 404);
@@ -148,6 +149,64 @@ test('a mismatching ready render re-drives once, fails on the next mismatching r
     state.render = readyRender('rev-4', ['seg-001']);
     await tick(client);
     assert.equal((await status())?.status, 'ready', 'a matching revision after the retry is ready');
+    assert.equal(fake.posts('/generate').length, 2);
+  } finally {
+    fake.restore();
+  }
+});
+
+test('a recapture that failed and kept the earlier recording shows that render with the failure, and one retry records again', async () => {
+  const drift = 'recorder failed: observer target 76561198000000000 drifted from 76561198000000001 during seg-001';
+  const state: Orchestrator = {
+    jobStatus: 'recorded',
+    render: readyRender('rev-1', EVERY_SEGMENT),
+    generate: () => json({ id: 'job-9', task: 'record' }, 202),
+    renderPost: () => json({ accepted: true }, 202),
+  };
+  const fake = fakeOrchestrator('job-9', state);
+  try {
+    const client = new RealApiClient();
+    const { videoId } = seedReel(client, 'job-9');
+
+    await tick(client);
+    assert.equal(fake.posts('/generate').length, 1, 'the changed reel re-drives /generate once');
+
+    state.generateRun = { variant: DEFAULT_VARIANT, active: true };
+    await tick(client);
+    assert.equal((await client.getVideo(videoId))?.status, 'queued', 'an accepted run waits in the queue');
+
+    state.generateRun = { variant: 'full-hud-60', active: false, failure_reason: drift, failure_code: 'capture_flake' };
+    await tick(client);
+    assert.equal((await client.getVideo(videoId))?.status, 'queued', 'a failed run of another variant is not this reel');
+
+    const failedRun = (): Record<string, unknown> => ({ variant: DEFAULT_VARIANT, active: false, failure_reason: drift, failure_code: 'capture_flake', failed_at: new Date().toISOString() });
+    state.generateRun = failedRun();
+    await tick(client);
+    await tick(client);
+    const kept = await client.getVideo(videoId);
+    assert.equal(kept?.status, 'ready', 'the earlier render stays on show');
+    assert.equal(kept?.changePending, true);
+    assert.equal(kept?.failureReason, drift);
+    assert.equal(kept?.failureCode, 'capture_flake');
+    assert.ok(kept?.downloadUrl, 'the earlier video stays playable');
+    assert.equal(fake.posts('/generate').length, 1, 'a failed capture never records again by itself');
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await client.retryVideo(videoId);
+    await tick(client);
+    assert.equal(fake.posts('/generate').length, 2, 'one retry issues exactly one more POST');
+    const retried = await client.getVideo(videoId);
+    assert.equal(retried?.status, 'queued', 'a status read from before the accepted retry is not its failure');
+    assert.equal(retried?.failureReason, undefined);
+    assert.equal(retried?.changePending, undefined);
+
+    state.generateRun = { variant: DEFAULT_VARIANT, active: true };
+    await tick(client);
+    assert.equal((await client.getVideo(videoId))?.status, 'queued');
+
+    state.generateRun = failedRun();
+    await tick(client);
+    assert.equal((await client.getVideo(videoId))?.failureReason, drift, 'the retried capture failed too');
     assert.equal(fake.posts('/generate').length, 2);
   } finally {
     fake.restore();

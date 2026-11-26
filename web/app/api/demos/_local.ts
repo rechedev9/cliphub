@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { localAPIRequestError } from '@/lib/api/local-request-guard';
-import { projectBatchStatusItem, type BatchStatusUpstreamItem } from '@/lib/api/batch-status';
+import { projectBatchStatusItem, projectJobStatus, type BatchStatusUpstreamItem, type JobStatusUpstream } from '@/lib/api/batch-status';
 import { parseControlJSONObject, prepareLocalUploadBody, readBoundedText } from '@/lib/api/bounded-request-body';
 import { parseFaceitScoreboard } from '@/lib/api/faceit-scoreboard';
 import {
@@ -75,24 +75,8 @@ export async function localStatus(jobId: string): Promise<Response> {
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
 
-  // Whitelist status, failure text/code, and capture progress; drop anything else.
-  const data = (await res.json()) as {
-    status: string;
-    failure_reason?: string;
-    failure_code?: string;
-    progress?: { done?: number; total?: number; percent?: number; stage?: string };
-  };
-  const body: {
-    status: string;
-    failure_reason?: string;
-    failure_code?: string;
-    progress?: { done: number; total: number; percent?: number; stage?: string };
-  } = { status: data.status };
-  if (data.failure_reason) body.failure_reason = data.failure_reason;
-  if (data.failure_code) body.failure_code = data.failure_code;
-  const parsed = parseCaptureProgress(data.progress);
-  if (parsed) body.progress = parsed;
-  return NextResponse.json(body);
+  const data: JobStatusUpstream = await res.json();
+  return NextResponse.json(projectJobStatus(data, parseCaptureProgress));
 }
 
 /** DELETE /api/demos/{jobId} — 204, or 409 while the job is still running. */

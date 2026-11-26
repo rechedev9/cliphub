@@ -4,10 +4,11 @@ import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Layers, MonitorPlay, Smartphone, Swords, Users, type LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import { CHANGE_NOT_APPLIED_REASON, parseFailureReason } from '@/lib/api/failure-reason';
+import { parseFailureReason } from '@/lib/api/failure-reason';
 import type { LibraryDemo } from '@/lib/api/library';
 import { demoPlaybackItem } from '@/lib/api/playback';
 import type { Match, Video } from '@/lib/api/types';
+import { changeNotice } from '@/lib/clips/change-notice';
 import { OUTPUT_STATE, OUTPUT_TYPE, isHighlightsVideo, isWorking, outputLabel, outputState, outputType, toOutput, type OutputState } from '@/lib/clips/hub';
 import { MATCHES_HREF, PRODUCE_FORMAT, produceHref, publishHref, type ProduceFormat } from '@/lib/clips/routes';
 import { matchDateLabel, prettyMapName, timeAgo } from '@/lib/format';
@@ -353,7 +354,7 @@ function VideoRow({ video, matchId, onChange }: { video: Video; matchId: string;
           fullDemoPlannerVersion: video.editConfig?.fullDemo?.document.planner_version,
         }).message
       : null;
-  const notice = failure ?? (video.changePending ? CHANGE_NOT_APPLIED_REASON : null);
+  const notice = failure ?? changeNotice(video)?.message ?? null;
 
   return (
     <li className="relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 px-4 py-3 hover:bg-surface-3 @[44rem]/content:grid-cols-[auto_minmax(0,1fr)_auto]">

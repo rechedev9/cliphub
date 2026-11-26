@@ -1,4 +1,4 @@
-import { CAPTURE_REQUIRED_CODE, GENERATE_WORK_ACTIVE_CODE, PLAN_READY_STATUSES, SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
+import { CAPTURE_REQUIRED_CODE, GENERATE_WORK_ACTIVE_CODE, PLAN_READY_STATUSES, SERVICE_UNAVAILABLE_CODE, type EditConfig, type GenerateFailure, type JobStatusView, type VideoStatus, type CaptureProgress } from './types.ts';
 import { CHANGE_NOT_APPLIED_REASON, MISMATCH_REDRIVE_FAILURE_REASON, isCaptureRequired, requiresRecapture } from './failure-reason.ts';
 import { editConfigsEqual } from './edit-request.ts';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
@@ -51,12 +51,35 @@ export type ReconcileInput = {
   captureProgress?: CaptureProgress;
   /** True after POST /record was accepted while the job may still read failed. */
   recordAdmitted?: boolean;
+  generateFailure?: GenerateFailure;
 };
+
+type JobFacts = Pick<ReconcileInput, 'jobStatus' | 'jobFailureReason' | 'jobFailureCode' | 'captureProgress' | 'generateFailure'>;
+
+type JobFactsInput = { job: JobStatusView; variant: string; recordAdmittedAt?: number };
+
+export function jobReconcileFacts(input: JobFactsInput): JobFacts {
+  const { job } = input;
+  return {
+    jobStatus: job.status,
+    jobFailureReason: job.failureReason,
+    jobFailureCode: job.failureCode,
+    captureProgress: job.captureProgress,
+    generateFailure: generateFailureOf(input),
+  };
+}
+
+function generateFailureOf(input: JobFactsInput): GenerateFailure | undefined {
+  const failure = input.job.generateFailure;
+  if (failure === undefined || failure.variant !== input.variant) return undefined;
+  if (input.recordAdmittedAt === undefined || failure.failedAt === undefined) return failure;
+  return Date.parse(failure.failedAt) < input.recordAdmittedAt ? undefined : failure;
+}
 
 export type ReelView = {
   status: VideoStatus;
   action: ReelAction;
-  /** Set only when status is 'failed' and the orchestrator supplied a reason. */
+  /** Set when status is 'failed' and the orchestrator supplied a reason, or with changePending when recording that change failed. */
   failureReason?: string;
   /** Stable orchestrator failure class; only set when the job (not the render) failed. */
   failureCode?: string;
@@ -113,6 +136,12 @@ function readyView(render: RenderFacts): ReelView {
 
 function changePending(render: RenderFacts): ReelView {
   return { ...readyView(render), changePending: true };
+}
+
+function changeFailed(render: RenderFacts, failure: GenerateFailure): ReelView {
+  const view: ReelView = { ...changePending(render), failureReason: failure.reason };
+  if (failure.code) view.failureCode = failure.code;
+  return view;
 }
 
 /** A latched reel: a page load's refused capture keeps a ready last render on show; any other latch is the failure. */
@@ -276,7 +305,9 @@ function mismatchDecision(input: DecideReelReconcileInput): ReelReconcileDecisio
     return { view: { status: 'queued', action: 'record' }, adoptEffective: false, mismatchRedrive: 'drive' };
   }
   if (previous.artifactPrefix === input.renderArtifactPrefix) {
-    return { view: { status: 'queued', action: 'none' }, adoptEffective: false, mismatchRedrive: 'wait' };
+    const waiting: ReelView = { status: 'queued', action: 'none' };
+    const view = input.generateFailure ? changeFailed(input, input.generateFailure) : waiting;
+    return { view, adoptEffective: false, mismatchRedrive: 'wait' };
   }
   return { view: failed(MISMATCH_REDRIVE_FAILURE_REASON), adoptEffective: false, mismatchRedrive: 'fail' };
 }

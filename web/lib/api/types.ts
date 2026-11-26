@@ -366,7 +366,9 @@ export type JobStatusView = {
   /** Stable obs class (`demo_incompatible`, `capture_flake`, …); `failureReason` stays human text. */
   failureCode?: string;
   captureProgress?: CaptureProgress;
+  generateFailure?: GenerateFailure;
 };
+export type GenerateFailure = { variant: string; reason: string; code?: string; failedAt?: string };
 /** `jobId` links a reel back to the parsed demo it was forged from (the series view groups reels per map); absent only on mock/demo seed videos. */
 export type Video = {
   id: string;
@@ -408,7 +410,7 @@ export type Video = {
   selectedCoverName?: string;
   /** Set only on a failed reel whose orchestrator job is gone: retry can never succeed, so the card offers delete/re-forge instead. */
   unrecoverable?: true;
-  /** Ready with its last render while a stored change waits for Reintentar: applying it records with CS2, which a page load never starts. */
+  /** Ready with its last render while a stored change waits for Reintentar: applying it records with CS2, which a page load never starts. `failureReason` is set when that recording was tried and failed. */
   changePending?: true;
 };
 export type Slots = { used: number; total: number };
