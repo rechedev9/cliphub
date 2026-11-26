@@ -4,6 +4,7 @@ import { projectBatchStatusItem, type BatchStatusUpstreamItem, type BatchStatusI
 import { parseCaptureProgress } from '../capture-progress.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
+const FAILED_RUN = { variant: 'viral-60-clean', active: false, failure_reason: 'recorder failed', failure_code: 'capture_flake', failed_at: '2026-11-26T20:00:00Z' };
 
 test('projectBatchStatusItem keeps the fields the client reconciles on', async (t) => {
   const cases: Array<{ name: string; upstream: BatchStatusUpstreamItem; expected: BatchStatusItem }> = [
@@ -51,6 +52,26 @@ test('projectBatchStatusItem keeps the fields the client reconciles on', async (
         job: { status: 'failed', failure_reason: 'demo_incompatible', failure_code: 'parse' },
         render: null,
       },
+    },
+    {
+      name: 'a generate run keeps its variant and failure and nothing else',
+      upstream: {
+        job_id: JOB,
+        variant: 'viral-60-clean',
+        job: { status: 'recorded', generate: FAILED_RUN },
+        render: { status: 'ready' },
+      },
+      expected: {
+        job_id: JOB,
+        variant: 'viral-60-clean',
+        job: { status: 'recorded', generate: { variant: 'viral-60-clean', active: false, failure_reason: 'recorder failed', failure_code: 'capture_flake' } },
+        render: { status: 'ready' },
+      },
+    },
+    {
+      name: 'a queued generate run reads as active',
+      upstream: { job_id: JOB, variant: 'viral-60-clean', job: { status: 'parsed', generate: { variant: 'viral-60-clean', active: true } } },
+      expected: { job_id: JOB, variant: 'viral-60-clean', job: { status: 'parsed', generate: { variant: 'viral-60-clean', active: true } }, render: null },
     },
     {
       name: 'capture progress is carried through the supplied parser',

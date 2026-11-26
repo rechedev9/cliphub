@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import type { Video } from '@/lib/api/types';
 import { demoPlaybackItem } from '@/lib/api/playback';
 import { parseFailureReason } from '@/lib/api/failure-reason';
+import { changeNotice } from '@/lib/clips/change-notice';
 import {
   isHighlightsVideo,
   isWorking,
@@ -225,7 +226,7 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
             <Link href={publishHref(matchId, video.id)} title={PUBLISH_PREP_HINT}>{PUBLISH_PREP_LABEL}</Link>
           </Button>
         )}
-        {video.changePending ? <RetryButton video={video} onChange={onChange} /> : null}
+        {changeNotice(video)?.retryCanHelp ? <RetryButton video={video} onChange={onChange} /> : null}
         {remove}
       </span>
     );

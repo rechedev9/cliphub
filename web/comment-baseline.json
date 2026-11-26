@@ -99,7 +99,7 @@
   "app/api/demos/[jobId]/tactical/status/route.ts": 1,
   "app/api/demos/_lib.test.ts": 1,
   "app/api/demos/_lib.ts": 109,
-  "app/api/demos/_local.ts": 32,
+  "app/api/demos/_local.ts": 31,
   "app/api/demos/batch-status/route.ts": 5,
   "app/api/demos/jobs/route.ts": 6,
   "app/api/demos/scan/route.ts": 6,

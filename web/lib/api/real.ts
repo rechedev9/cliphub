@@ -8,7 +8,7 @@ import { readMomentScores, withMomentScores } from './moment-scores.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
 import { reelStyleLabel } from './reel-style-label.ts';
-import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForLatch, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView } from './reel-reconcile.ts';
+import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, jobReconcileFacts, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForLatch, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, videoFromIntent, withAdmissionFailure, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type AdmissionFailure, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
 import { autoShortsTitle, reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict, withAutoShortsCount } from './reel-identity.ts';
@@ -925,14 +925,11 @@ export class RealApiClient implements ApiClient {
       this.pendingCapture.delete(intent.videoId);
     }
     const decision = decideReelReconcile({
-      jobStatus: job.status,
-      jobFailureReason: job.failureReason,
-      jobFailureCode: job.failureCode,
+      ...jobReconcileFacts(job, variantOf(intent)),
       renderStatus: render.status,
       renderFailureReason: render.failureReason,
       renderWarnings: render.warnings,
       renderArtifactPrefix: render.artifactPrefix,
-      captureProgress: job.captureProgress,
       recordAdmitted: this.pendingCapture.has(intent.videoId),
       intentEdit: intent.editConfig,
       renderEdit: render.editConfig,

@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { Download, Ellipsis, FolderOpen, History, Music, Pencil, Play, RectangleHorizontal, Smartphone, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { CHANGE_NOT_APPLIED_REASON } from '@/lib/api/failure-reason';
 import { prettifyMap } from '@/lib/api/map';
 import { PLAYBACK_REVIEW, demoPlaybackItem, type MediaPlaybackItem, type PlaybackFormat } from '@/lib/api/playback';
 import { streamsApi } from '@/lib/api/streams';
+import { changeNotice } from '@/lib/clips/change-notice';
 import { CLIP_SIZE, OUTPUT_TYPE, type ClipSize, type HubModel } from '@/lib/clips/hub';
 import { CREATE_AGAIN_LABEL, videoDisplayTitle, videoKind, type VideoKind } from '@/lib/clips/results';
 import { ORPHAN_MATCH_SEGMENT, PRODUCE_FORMAT, editVideoHref, matchHref, produceHref, publishHref } from '@/lib/clips/routes';
@@ -197,6 +197,7 @@ export function ClipCard({ clip, size, onChange, onPlay, onOpenVisor }: ClipCard
   const player = clip.match?.player ?? video.targetName;
   const title = videoDisplayTitle(video, player);
   const canReveal = playback !== null && video.jobId !== undefined;
+  const notice = changeNotice(video);
 
   return (
     <article className={CARD_CLASS}>
@@ -216,12 +217,12 @@ export function ClipCard({ clip, size, onChange, onPlay, onOpenVisor }: ClipCard
         title={title}
         meta={[prettifyMap(video.map), player, timeAgo(video.createdAt)].filter(Boolean).join(' · ')}
       />
-      {video.changePending ? (
+      {notice === null ? null : (
         <span className={cn('flex flex-col items-start gap-2', size === CLIP_SIZE.s ? 'px-3 pt-2.5' : 'px-4 pt-3')}>
-          <span className="text-meta text-warning">{CHANGE_NOT_APPLIED_REASON}</span>
-          <RetryButton video={video} onChange={onChange} />
+          <span className="text-meta text-warning">{notice.message}</span>
+          {notice.retryCanHelp ? <RetryButton video={video} onChange={onChange} /> : null}
         </span>
-      ) : null}
+      )}
       <span className={actionRowClass(size)}>
         {video.publishable === false ? null : (
           <Button asChild size={iconOnly ? 'icon-sm' : 'sm'}>
