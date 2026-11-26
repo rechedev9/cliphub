@@ -192,6 +192,7 @@ type Config struct {
 	// Watermark and SponsorBanner are the brand kit images; their Path is the uploaded file.
 	Watermark     *BrandWatermark
 	SponsorBanner *SponsorBanner
+	SubscribeCard *SubscribeCard
 	// Radar draws ClipHub's radar from RadarTrackPath, the radaroverlay.Track the render worker read,
 	// over the map art in RadarImagePath (and RadarLowerImagePath for a two-level map).
 	Radar               bool

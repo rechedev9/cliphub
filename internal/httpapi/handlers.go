@@ -1119,7 +1119,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Preset       string                 `json:"preset"`
 		Music        renderMusicRequest     `json:"music"`
-		Edit         renderplan.EditRequest `json:"edit"`
+		Edit         generateEditRequest    `json:"edit"`
 		SegmentIDs   []string               `json:"segment_ids"`
 		AllowCapture *bool                  `json:"allow_capture"` // false: a page load, which must never open CS2
 	}
@@ -1141,7 +1141,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		MusicKey:    req.Music.Key,
 		MusicVolume: req.Music.Volume,
 		GameVolume:  req.Music.GameVolume,
-		Edit:        renderplan.NormalizeEditRequest(req.Edit),
+		Edit:        renderplan.NormalizeEditRequest(req.Edit.EditRequest),
 		ActiveRunID: uuid.New(),
 		AcceptedAt:  time.Now().UTC(),
 	}
@@ -1153,8 +1153,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		rejectFullDemo(w, err)
 		return
 	}
-	if err := intent.Validate(); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if !h.validateGenerateIntent(r.Context(), w, req.Edit, &intent) {
 		return
 	}
 	hudMode, useRecapPlan := applyCaptureOverrides(preset.HUDMode, intent.Edit)

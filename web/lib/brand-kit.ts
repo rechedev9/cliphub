@@ -14,18 +14,20 @@ export type BrandKit = {
   banner?: BrandImage;
   banner_start_seconds: number;
   banner_end_seconds?: number;
+  channel_name?: string;
 };
 /** Mirrors brandkit.Watermark and brandkit.Banner, the copies a render or a plan keeps. */
 export type BrandWatermark = { image: BrandImage; corner: BrandCorner; opacity: number };
 export type BrandBanner = { image: BrandImage; start_seconds: number; end_seconds?: number };
-/** Mirrors recapplan.BrandOverlay; Go omits it when both are empty. */
-export type BrandOverlay = { watermark?: BrandWatermark; banner?: BrandBanner };
+export type BrandSubscribe = { logo?: BrandImage; channel_name?: string };
+export type BrandOverlay = { watermark?: BrandWatermark; banner?: BrandBanner; subscribe?: BrandSubscribe };
 
 export const BRAND_KIT_API = '/api/brand-kit';
 const OVERLAY_IMAGES_API = '/api/full-demo/overlay-images';
 export const MIN_BRAND_OPACITY = 0.1;
 export const MAX_BRAND_SECONDS = 43200;
 export const MAX_BRAND_IMAGE_BYTES = 10 * 1024 * 1024;
+export const MAX_CHANNEL_NAME = 30;
 export const DEFAULT_BRAND_KIT: BrandKit = { watermark_corner: 'top-right', watermark_opacity: 0.8, banner_start_seconds: 0 };
 export const BRAND_CORNER_LABELS: Record<BrandCorner, string> = {
   'top-left': 'Arriba a la izquierda',
@@ -73,17 +75,41 @@ export function isBrandBanner(value: unknown): value is BrandBanner {
   return record(value) && onlyKeys(value, ['image', 'start_seconds', 'end_seconds']) && isBrandImage(value.image) && validWindow(value.start_seconds, value.end_seconds);
 }
 
+export function channelNameProblem(name: string): string | null {
+  if (name.trim() !== name) return 'El nombre del canal no puede empezar ni acabar con espacios.';
+  if ([...name].length > MAX_CHANNEL_NAME) return `El nombre del canal no puede pasar de ${MAX_CHANNEL_NAME} caracteres.`;
+  if (/\p{Cc}/u.test(name)) return 'El nombre del canal debe ir en una sola línea.';
+  return null;
+}
+
+function channelName(value: unknown): value is string {
+  return typeof value === 'string' && value !== '' && channelNameProblem(value) === null;
+}
+
+export function isBrandSubscribe(value: unknown): value is BrandSubscribe {
+  return record(value) && onlyKeys(value, ['logo', 'channel_name'])
+    && (value.logo !== undefined || value.channel_name !== undefined)
+    && (value.logo === undefined || isBrandImage(value.logo))
+    && (value.channel_name === undefined || channelName(value.channel_name));
+}
+
+export function isSubscribeBannerChoice(value: unknown): boolean {
+  return value === true || (record(value) && (Object.keys(value).length === 0 || isBrandSubscribe(value)));
+}
+
 export function isBrandOverlay(value: unknown): value is BrandOverlay {
-  return record(value) && onlyKeys(value, ['watermark', 'banner'])
+  return record(value) && onlyKeys(value, ['watermark', 'banner', 'subscribe'])
     && (value.watermark === undefined || isBrandWatermark(value.watermark))
-    && (value.banner === undefined || isBrandBanner(value.banner));
+    && (value.banner === undefined || isBrandBanner(value.banner))
+    && (value.subscribe === undefined || isBrandSubscribe(value.subscribe));
 }
 
 /** Reads the server's kit; the response also carries `updated_at` and `corners`, which the form does not keep. */
 export function parseBrandKit(value: unknown): BrandKit | undefined {
   if (!record(value)) return undefined;
-  const { logo, watermark_corner: corner, watermark_opacity: alpha, banner, banner_start_seconds: start, banner_end_seconds: end } = value;
+  const { logo, watermark_corner: corner, watermark_opacity: alpha, banner, banner_start_seconds: start, banner_end_seconds: end, channel_name: name } = value;
   if ((logo !== undefined && !isBrandImage(logo)) || (banner !== undefined && !isBrandImage(banner))) return undefined;
+  if (name !== undefined && !channelName(name)) return undefined;
   if (!isBrandCorner(corner) || !opacity(alpha) || !validWindow(start, end) || !seconds(start)) return undefined;
   return {
     ...(logo ? { logo } : {}),
@@ -92,6 +118,7 @@ export function parseBrandKit(value: unknown): BrandKit | undefined {
     ...(banner ? { banner } : {}),
     banner_start_seconds: start,
     ...(seconds(end) && end > 0 ? { banner_end_seconds: end } : {}),
+    ...(name ? { channel_name: name } : {}),
   };
 }
 
@@ -101,11 +128,16 @@ export function brandKitProblem(kit: BrandKit): string | null {
   if (!seconds(kit.banner_start_seconds)) return 'El segundo de entrada del banner no es válido.';
   const end = kit.banner_end_seconds;
   if (end !== undefined && end !== 0 && (!seconds(end) || end <= kit.banner_start_seconds)) return 'El banner debe salir después de entrar.';
-  return null;
+  return kit.channel_name ? channelNameProblem(kit.channel_name) : null;
 }
 
 export function brandWatermarkOf(kit: BrandKit): BrandWatermark | undefined {
   return kit.logo ? { image: kit.logo, corner: kit.watermark_corner, opacity: kit.watermark_opacity } : undefined;
+}
+
+export function brandSubscribeOf(kit: BrandKit): BrandSubscribe | undefined {
+  if (!kit.logo && !kit.channel_name) return undefined;
+  return { ...(kit.logo ? { logo: kit.logo } : {}), ...(kit.channel_name ? { channel_name: kit.channel_name } : {}) };
 }
 
 export function brandBannerOf(kit: BrandKit): BrandBanner | undefined {

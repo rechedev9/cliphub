@@ -30,8 +30,9 @@ type horizontalDraftOut struct {
 // draftEdit reads the brand kit copies of the draft's edit as on or off; generate_short copies the saved kit again.
 type draftEdit struct {
 	tuiclient.ShortEdit
-	BrandWatermark json.RawMessage `json:"brand_watermark"`
-	BrandBanner    json.RawMessage `json:"brand_banner"`
+	BrandWatermark  json.RawMessage `json:"brand_watermark"`
+	BrandBanner     json.RawMessage `json:"brand_banner"`
+	SubscribeBanner json.RawMessage `json:"subscribe_banner"`
 }
 
 func registerHorizontalTool(server *mcp.Server, s *studio) {
@@ -103,7 +104,7 @@ func horizontalArguments(jobID string, d tuiclient.HorizontalDraft) generateIn {
 		dst **bool
 	}{{e.Intro, &c.Intro}, {e.Outro, &c.Outro}, {e.HookText, &c.HookText}, {e.KillCounter, &c.KillCounter}, {e.VoiceComms, &c.VoiceComms}, {e.NativeHUD, &c.NativeHUD},
 		{e.VictimReplay, &c.VictimReplay}, {e.PlayBadges, &c.PlayBadges}, {e.WinProbability, &c.WinProbability}, {e.PlayerLabels, &c.PlayerLabels},
-		{e.GrenadeTrails, &c.GrenadeTrails}, {e.PortraitSafeKillfeed, &c.PortraitSafeKillfeed}, {e.Subtitles, &c.Subtitles}, {kitCopied(e.BrandWatermark), &c.BrandWatermark}, {kitCopied(e.BrandBanner), &c.BrandBanner}} {
+		{e.GrenadeTrails, &c.GrenadeTrails}, {e.PortraitSafeKillfeed, &c.PortraitSafeKillfeed}, {e.Subtitles, &c.Subtitles}, {kitCopied(e.BrandWatermark), &c.BrandWatermark}, {kitCopied(e.BrandBanner), &c.BrandBanner}, {kitCopied(e.SubscribeBanner), &c.SubscribeBanner}} {
 		if f.on {
 			*f.dst = new(true)
 		}

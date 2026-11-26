@@ -142,6 +142,9 @@ func (o OverlayOptions) ImageSlots() []OverlayImageSlot {
 	if banner := o.Brand.Banner; banner != nil {
 		slots = append(slots, OverlayImageSlot{"banner de sponsor", &AssetRef{ID: banner.Image.ID, SHA256: banner.Image.SHA256}})
 	}
+	if card := o.Brand.Subscribe; card != nil && card.Logo != nil {
+		slots = append(slots, OverlayImageSlot{"logo de suscripción", &AssetRef{ID: card.Logo.ID, SHA256: card.Logo.SHA256}})
+	}
 	if o.Mode != "screenshots" {
 		return slots
 	}

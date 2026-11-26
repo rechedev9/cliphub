@@ -3,7 +3,7 @@ import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_LEGACY_CAPTURE_PROFILE, CUSTOM_H
 import { fullDemoTransitionPreset } from './full-demo-transitions.ts';
 import { isHudOptions, isHudStyle, isHudTeamNames, type HudOptions, type HudTeamNames } from './hud-themes.ts';
 import { uploadForm, type UploadProgress } from './api/upload.ts';
-import { isBrandOverlay, type BrandOverlay } from './brand-kit.ts';
+import { isBrandOverlay, type BrandOverlay, type BrandSubscribe } from './brand-kit.ts';
 import { apiFetch } from './api/edition-fetch.ts';
 import { serverError } from './human-error.ts';
 
@@ -206,7 +206,7 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
       ...(hudTheme ? { hud_theme: hudTheme } : {}),
       ...(hudTheme === 'focus' && portrait ? { hud_portrait: portrait } : {}),
       ...(hudTheme ? hudLook(hudCustom, hudOptions, teamNames) : {}),
-      ...brandOverlay(brand),
+      ...brandOverlay(brand, subscribe === true),
       ...(halftime ? { halftime: true } : {}),
       ...(subscribe ? { subscribe: true } : {}),
     },
@@ -249,8 +249,12 @@ function hudLook(custom: FullDemoOptions['overlays']['hud_custom'], options: Hud
 }
 
 /** Go's omitzero drops an empty brand overlay and omitempty each missing half. */
-function brandOverlay(brand: BrandOverlay | undefined): { brand?: BrandOverlay } {
-  const kept: BrandOverlay = { ...(brand?.watermark ? { watermark: brand.watermark } : {}), ...(brand?.banner ? { banner: brand.banner } : {}) };
+function brandOverlay(brand: BrandOverlay | undefined, subscribe: boolean): { brand?: BrandOverlay } {
+  const kept: BrandOverlay = {
+    ...(brand?.watermark ? { watermark: brand.watermark } : {}),
+    ...(brand?.banner ? { banner: brand.banner } : {}),
+    ...(subscribe && brand?.subscribe ? { subscribe: brand.subscribe } : {}),
+  };
   return Object.keys(kept).length > 0 ? { brand: kept } : {};
 }
 
@@ -273,10 +277,19 @@ export function withFullDemoRounds(options: FullDemoOptions, rounds: readonly nu
 
 export type FullDemoStoryOverlay = 'halftime' | 'subscribe';
 
-export function withFullDemoStoryOverlay(options: FullDemoOptions, overlay: FullDemoStoryOverlay, enabled: boolean): FullDemoOptions {
-  const { halftime, subscribe, ...overlays } = options.overlays;
+export function withFullDemoStoryOverlay(options: FullDemoOptions, overlay: FullDemoStoryOverlay, enabled: boolean, card?: BrandSubscribe): FullDemoOptions {
+  const { halftime, subscribe, brand, ...overlays } = options.overlays;
   const chosen = { halftime: Boolean(halftime), subscribe: Boolean(subscribe), [overlay]: enabled };
-  return { ...options, overlays: { ...overlays, ...(chosen.halftime ? { halftime: true } : {}), ...(chosen.subscribe ? { subscribe: true } : {}) } };
+  const { subscribe: previousCard, ...otherBrand } = brand ?? {};
+  let nextCard = previousCard;
+  if (overlay === 'subscribe') nextCard = enabled ? card : undefined;
+  const nextBrand: BrandOverlay = { ...otherBrand, ...(nextCard ? { subscribe: nextCard } : {}) };
+  return { ...options, overlays: {
+    ...overlays,
+    ...(Object.keys(nextBrand).length > 0 ? { brand: nextBrand } : {}),
+    ...(chosen.halftime ? { halftime: true } : {}),
+    ...(chosen.subscribe ? { subscribe: true } : {}),
+  } };
 }
 
 export function withFullDemoHook(options: FullDemoOptions, enabled: boolean): FullDemoOptions {

@@ -8,6 +8,7 @@ import {
   brandImageUrl,
   brandKitProblem,
   getBrandKit,
+  MAX_CHANNEL_NAME,
   isBrandCorner,
   saveBrandKit,
   uploadBrandImage,
@@ -45,8 +46,9 @@ function BrandKitEditor({ kit, onSaved, disabled = false }: { kit: BrandKit; onS
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const id = useId();
-  const dirty = JSON.stringify(draft) !== JSON.stringify(kit);
-  const problem = brandKitProblem(draft);
+  const ready = trimmedName(draft);
+  const dirty = JSON.stringify(ready) !== JSON.stringify(kit);
+  const problem = brandKitProblem(ready);
   const opacityPercent = Math.round(draft.watermark_opacity * 100);
 
   async function upload(file: File, field: 'logo' | 'banner'): Promise<void> {
@@ -69,7 +71,7 @@ function BrandKitEditor({ kit, onSaved, disabled = false }: { kit: BrandKit; onS
   async function save(): Promise<void> {
     setBusy(true); setMessage(null);
     try {
-      const saved = await saveBrandKit(draft);
+      const saved = await saveBrandKit(ready);
       onSaved(saved);
       setDraft(saved);
       setMessage({ tone: 'info', text: 'Kit de marca guardado.' });
@@ -87,6 +89,16 @@ function BrandKitEditor({ kit, onSaved, disabled = false }: { kit: BrandKit; onS
           onFile={(file) => void upload(file, 'logo')} onRemove={() => remove('logo')} />
         <BrandImageField id={`${id}-banner`} label="Banner de sponsor" image={draft.banner} disabled={off}
           onFile={(file) => void upload(file, 'banner')} onRemove={() => remove('banner')} />
+        <label className="flex min-w-0 flex-col gap-1.5 text-meta text-fg-3 sm:col-span-2">
+          Nombre del canal
+          <Input value={draft.channel_name ?? ''} maxLength={MAX_CHANNEL_NAME} placeholder="Como aparece en YouTube" disabled={off}
+            onChange={(event) => {
+              const { channel_name: _name, ...rest } = draft;
+              const name = event.target.value;
+              setDraft(name.trim() === '' ? rest : { ...rest, channel_name: name });
+            }} />
+          <span className="text-body-sm text-fg-3">Sale con tu logo en el banner de Suscríbete.</span>
+        </label>
         <div className="flex min-w-0 flex-col gap-2">
           <span className="text-meta text-fg-3">Esquina de la marca de agua</span>
           <ToggleGroup type="single" value={draft.watermark_corner} variant="outline" className="flex-wrap" disabled={off}
@@ -150,4 +162,10 @@ function BrandImageField({ id, label, image, disabled, onFile, onRemove }: {
       <p className="text-body-sm text-fg-3">PNG o JPG, hasta 10 MB. Un PNG sin fondo queda mejor.</p>
     </div>
   );
+}
+
+function trimmedName(kit: BrandKit): BrandKit {
+  const { channel_name: name, ...rest } = kit;
+  const trimmed = name?.trim();
+  return trimmed ? { ...rest, channel_name: trimmed } : rest;
 }

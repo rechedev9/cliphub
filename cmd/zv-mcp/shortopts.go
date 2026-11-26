@@ -90,6 +90,7 @@ var toggleOptions = []shortToggle{
 	{ID: "cover", Label: "Portada", Description: "Genera candidatos de portada desde el gameplay", Default: true},
 	{ID: "brand_watermark", Label: "Marca de agua", Description: "Dibuja el logo del kit de marca en su esquina y con su opacidad (necesita un logo guardado)"},
 	{ID: "brand_banner", Label: "Banner de sponsor", Description: "Muestra el banner del kit de marca en su ventana de tiempo (necesita un banner guardado; no va con el banner de afiliado)"},
+	{ID: "subscribe_banner", Label: "Suscríbete", Description: "Un banner de SUSCRÍBETE con campana una vez, hacia un tercio del Short, con el logo y el nombre del canal del kit de marca si los tiene"},
 }
 
 // bannerFamilies mirror AFFILIATE_FAMILY_CATALOG of the Studio UI (web/lib/api/types.ts).
@@ -183,6 +184,7 @@ type shortChoices struct {
 	VictimReplaySpeed *float64 `json:"victim_replay_speed,omitempty" jsonschema:"victim replay speed: 0.25, 0.5 or 1; needs victim_replay; default 0.5"`
 	BrandWatermark    *bool    `json:"brand_watermark,omitempty" jsonschema:"draw the channel logo of the brand kit (get_brand_kit) as a watermark in its corner and opacity; needs a saved logo; default false"`
 	BrandBanner       *bool    `json:"brand_banner,omitempty" jsonschema:"show the sponsor banner of the brand kit in its time window; needs a saved banner; not with banner_style; default false"`
+	SubscribeBanner   *bool    `json:"subscribe_banner,omitempty" jsonschema:"show a SUSCRÍBETE banner with a bell once, for 4.5 s from about a third of the Short (left out of a Short under 7.5 s), with the channel logo and channel name of the brand kit (get_brand_kit) when it has them; 9:16 centred low, 16:9 bottom right; default false"`
 	VerticalHUD       *bool    `json:"vertical_hud,omitempty" jsonschema:"9:16 HUD at the top of the Short: compact scoreboard with team names, score, clock and round, each side's alive count read from the demo at render time, and the centered kill feed under it (turns centered_killfeed on); short-9x16 only; not with native_hud or a preset that records the CS2 HUD (full-hud-60); default false"`
 	VerticalHUDTheme  string   `json:"vertical_hud_theme,omitempty" jsonschema:"catalog design of vertical_hud from list_short_options vertical_hud_themes (the list_hud_themes catalog); needs vertical_hud; default the first design"`
 	Radar             *bool    `json:"radar,omitempty" jsonschema:"ClipHub's own radar in a corner of the Short: the map with every living player and where they look, smokes, molotov fires, flashes, HE grenades, deaths of the round and the bomb, read from the demo at render time; not over victim replays, the hook title or the stats card; not with native_hud or a preset that records the CS2 HUD and its radar (full-hud-60); default false"`
@@ -358,6 +360,7 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 		return edit, err
 	}
 	edit.BrandWatermark, edit.BrandBanner = orDefault(c.BrandWatermark, false), orDefault(c.BrandBanner, false)
+	edit.SubscribeBanner = orDefault(c.SubscribeBanner, false)
 	if edit.BrandBanner && c.BannerStyle != "" {
 		return edit, errors.New("brand_banner and banner_style both put a banner in the same place; choose one")
 	}
@@ -491,7 +494,7 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 		on   bool
 	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter}, {"play_badges", e.PlayBadges}, {"win_probability", e.WinProbability}, {"player_labels", e.PlayerLabels}, {"grenade_trails", e.GrenadeTrails}, {"stats_card", e.StatsCard}, {"centered_killfeed", e.CenteredKillfeed}, {"vertical_hud", e.VerticalHUD}, {"radar", e.Radar},
 		{"voice_comms", e.VoiceComms}, {"native_hud", e.NativeHUD}, {"victim_replay", e.VictimReplay}, {"cover", e.CoverStrategy == coverGenerated},
-		{"brand_watermark", e.BrandWatermark}, {"brand_banner", e.BrandBanner}} {
+		{"brand_watermark", e.BrandWatermark}, {"brand_banner", e.BrandBanner}, {"subscribe_banner", e.SubscribeBanner}} {
 		if x.on {
 			extras = append(extras, x.name)
 		}

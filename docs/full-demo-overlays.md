@@ -62,6 +62,12 @@ Assistants set them with `plan_full_demo` `halftime_scoreboard` and
   halftime card and the final scoreboard, and the two stay 20 s apart; a video
   too short for that shows it once or not at all. With the brand watermark in
   the bottom right corner the button sits above it.
+  When the brand kit has a channel logo or channel name, turning the switch on
+  copies them into `overlays.brand.subscribe` and the button becomes a card
+  with the round logo, the name and a red SUSCRÍBETE button
+  (`demooverlay.SubscribeCard`); the logo is an overlay image the plan must
+  verify like the watermark. Shorts use the same card through
+  `subscribe_banner`, once a Short (`internal/editor/short_subscribe.go`).
 
 `internal/editor/full_demo_story.go` renders both stills beside the intro and
 outro PNGs (`full-demo-halftime.png`, `full-demo-subscribe.png`) and adds them

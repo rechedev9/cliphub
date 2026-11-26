@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, type ReactNode } from 'react';
-import { BRAND_CORNER_LABELS, bannerWindowLabel, brandBannerOf, brandWatermarkOf, type BrandBanner, type BrandOverlay, type BrandWatermark } from '@/lib/brand-kit';
+import { BRAND_CORNER_LABELS, bannerWindowLabel, brandBannerOf, brandSubscribeOf, brandWatermarkOf, type BrandBanner, type BrandOverlay, type BrandWatermark } from '@/lib/brand-kit';
 import type { FullDemoOptions } from '@/lib/full-demo-plan';
 import { Button } from '@/components/ui/button';
 import { BrandKitPanel, useBrandKit } from '@/components/clips/brand-kit-editor';
@@ -14,12 +14,14 @@ export function FullDemoBrand({ options, onChange }: { options: FullDemoOptions;
   const brand = options.overlays.brand ?? {};
   const kitWatermark = kit ? brandWatermarkOf(kit) : undefined;
   const kitBanner = kit ? brandBannerOf(kit) : undefined;
+  const kitSubscribe = kit ? brandSubscribeOf(kit) : undefined;
   const stale = (brand.watermark !== undefined && JSON.stringify(brand.watermark) !== JSON.stringify(kitWatermark))
-    || (brand.banner !== undefined && JSON.stringify(brand.banner) !== JSON.stringify(kitBanner));
+    || (brand.banner !== undefined && JSON.stringify(brand.banner) !== JSON.stringify(kitBanner))
+    || (options.overlays.subscribe === true && JSON.stringify(brand.subscribe) !== JSON.stringify(kitSubscribe));
 
   function setBrand(next: BrandOverlay): void {
     const { brand: _brand, ...overlays } = options.overlays;
-    onChange({ ...options, overlays: next.watermark || next.banner ? { ...overlays, brand: next } : overlays });
+    onChange({ ...options, overlays: Object.keys(next).length > 0 ? { ...overlays, brand: next } : overlays });
   }
 
   function toggle(part: 'watermark' | 'banner', on: boolean): void {
@@ -32,6 +34,7 @@ export function FullDemoBrand({ options, onChange }: { options: FullDemoOptions;
     setBrand({
       ...(brand.watermark && kitWatermark ? { watermark: kitWatermark } : {}),
       ...(brand.banner && kitBanner ? { banner: kitBanner } : {}),
+      ...(options.overlays.subscribe === true && kitSubscribe ? { subscribe: kitSubscribe } : {}),
     });
   }
 

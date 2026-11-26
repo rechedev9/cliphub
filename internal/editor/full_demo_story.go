@@ -7,6 +7,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/brandkit"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
+	"github.com/rechedev9/cliphub/internal/htmlstill"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -56,8 +57,12 @@ func fullDemoStoryOverlayEffects(manifest *Manifest, short ShortEdit) ([]Effect,
 	if err != nil {
 		return nil, err
 	}
+	card, err := fullDemoSubscribeCard(short)
+	if err != nil {
+		return nil, err
+	}
 	path := filepath.Join(manifest.OutputDir, fullDemoSubscribeSource+".png")
-	if err := demooverlay.RenderSubscribePNG(palette, path); err != nil {
+	if err := demooverlay.RenderSubscribePNG(palette, card, htmlstill.Landscape, path); err != nil {
 		return nil, err
 	}
 	for _, window := range windows {
@@ -199,6 +204,22 @@ func fullDemoStoryFreeWindows(span fullDemoStoryWindow, busy []fullDemoStoryWind
 		free = next
 	}
 	return free
+}
+
+func fullDemoSubscribeCard(short ShortEdit) (demooverlay.SubscribeCard, error) {
+	brand := short.FullDemo.Effective.Options.Overlays.Brand.Subscribe
+	if brand == nil {
+		return demooverlay.SubscribeCard{}, nil
+	}
+	card := demooverlay.SubscribeCard{ChannelName: brand.ChannelName}
+	if logo := brand.Logo; logo != nil {
+		path, err := short.fullDemo.execution.assetPath(recapplan.AssetRef{ID: logo.ID, SHA256: logo.SHA256})
+		if err != nil {
+			return demooverlay.SubscribeCard{}, err
+		}
+		card.LogoPath = path
+	}
+	return card, nil
 }
 
 func fullDemoSubscribeLift(short ShortEdit) (int, error) {

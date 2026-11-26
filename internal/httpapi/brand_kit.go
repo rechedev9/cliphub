@@ -177,6 +177,21 @@ func (h *Handlers) applyBrandKit(ctx context.Context, patch renderEditRequest, e
 		}
 		edit.BrandBanner = banner
 	}
+	if c := patch.SubscribeBanner; c != nil {
+		card, err := resolveBrandChoice(*c, func() (brandkit.Subscribe, error) {
+			k, err := loadKit()
+			return k.SubscribeCard(), err
+		})
+		if err != nil {
+			return err
+		}
+		if card != nil && card.Logo != nil {
+			if err := h.verifyBrandImage(ctx, *card.Logo); err != nil {
+				return err
+			}
+		}
+		edit.SubscribeBanner = card
+	}
 	return nil
 }
 

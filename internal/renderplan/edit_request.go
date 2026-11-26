@@ -118,8 +118,9 @@ type EditRequest struct {
 	// PortraitSafeKillfeed records a 16:9 video's kill feed where the 9:16 crop of the Short it comes from keeps it, so the Short's clips are reused.
 	PortraitSafeKillfeed bool `json:"portrait_safe_killfeed,omitempty"`
 	// BrandWatermark and BrandBanner are copied whole from the brand kit, so a later kit edit never changes this render.
-	BrandWatermark *brandkit.Watermark `json:"brand_watermark,omitempty"`
-	BrandBanner    *brandkit.Banner    `json:"brand_banner,omitempty"`
+	BrandWatermark  *brandkit.Watermark `json:"brand_watermark,omitempty"`
+	BrandBanner     *brandkit.Banner    `json:"brand_banner,omitempty"`
+	SubscribeBanner *brandkit.Subscribe `json:"subscribe_banner,omitempty"`
 	// Subtitles burns the team comms transcript in the spoken language; SubtitlesHidden are phrases this video leaves out.
 	Subtitles       bool     `json:"subtitles,omitempty"`
 	SubtitlesHidden []string `json:"subtitles_hidden,omitempty"`
@@ -391,7 +392,7 @@ func (r EditRequest) UsesFACEITOverlay() bool {
 
 // validateBrand keeps the kit off a Full Demo, whose approved plan carries it, and off a Short with the affiliate plate in the same place.
 func (r EditRequest) validateBrand() error {
-	if r.BrandWatermark == nil && r.BrandBanner == nil {
+	if r.BrandWatermark == nil && r.BrandBanner == nil && r.SubscribeBanner == nil {
 		return nil
 	}
 	if r.FullDemo != nil || r.MatchRecap {
@@ -409,6 +410,9 @@ func (r EditRequest) validateBrand() error {
 		if r.KeyDropStyle != "" {
 			return fmt.Errorf("the sponsor banner and the affiliate banner cannot share a Short")
 		}
+	}
+	if r.SubscribeBanner != nil {
+		return r.SubscribeBanner.Validate()
 	}
 	return nil
 }

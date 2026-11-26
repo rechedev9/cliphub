@@ -1,11 +1,18 @@
 package demooverlay
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"image"
+	"image/png"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/htmlstill"
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
@@ -100,7 +107,7 @@ func TestHalftimeAndSubscribePagesFollowTheDesign(t *testing.T) {
 		if strings.Index(page, "Vitality") > strings.Index(page, "Spirit") || !strings.Contains(page, `class="lead">7<`) || strings.Contains(page, `class="lead">5<`) {
 			t.Fatalf("%s halftime must put the POV team first and mark the leader", name)
 		}
-		button, err := SubscribeHTML(design)
+		button, err := SubscribeHTML(design, SubscribeCard{}, htmlstill.Landscape)
 		if err != nil {
 			t.Fatalf("%s subscribe: %v", name, err)
 		}
@@ -112,9 +119,44 @@ func TestHalftimeAndSubscribePagesFollowTheDesign(t *testing.T) {
 				t.Fatalf("%s page does not use its own colours", name)
 			}
 		}
-		if !strings.Contains(string(button), ">SUSCRÍBETE<") || !strings.Contains(string(button), "<svg") {
+		if !strings.Contains(string(button), ">SUSCRÍBETE<") || !strings.Contains(string(button), "<svg") || !strings.Contains(string(button), `class="pill"`) {
 			t.Fatalf("%s subscribe lacks its label or bell", name)
 		}
+	}
+}
+
+func TestSubscribeCardShowsTheChannelLogoAndName(t *testing.T) {
+	logo := filepath.Join(t.TempDir(), "logo.png")
+	img := image.NewNRGBA(image.Rect(0, 0, 4, 4))
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, img); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(logo, encoded.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for size, layout := range map[htmlstill.Size]string{htmlstill.Landscape: "landscape", htmlstill.Portrait: "portrait"} {
+		page, err := SubscribeHTML(nil, SubscribeCard{LogoPath: logo, ChannelName: "<i>ClipHub</i>"}, size)
+		if err != nil {
+			t.Fatal(err)
+		}
+		html := string(page)
+		if !strings.Contains(html, `class="`+layout+`"`) || !strings.Contains(html, fmt.Sprintf("width:%dpx;height:%dpx", size.Width, size.Height)) {
+			t.Fatalf("%s card is not laid out for its frame", layout)
+		}
+		if !strings.Contains(html, `src="data:image/png;base64,`) || !strings.Contains(html, "&lt;i&gt;ClipHub&lt;/i&gt;") || !strings.Contains(html, ">SUSCRÍBETE<") || strings.Contains(html, `class="pill"`) {
+			t.Fatalf("%s card lacks the logo, the escaped name or the button", layout)
+		}
+	}
+	nameOnly, err := SubscribeHTML(nil, SubscribeCard{ChannelName: "ClipHub"}, htmlstill.Portrait)
+	if err != nil || strings.Contains(string(nameOnly), "<img") || !strings.Contains(string(nameOnly), ">ClipHub<") {
+		t.Fatalf("a card without a logo: %v", err)
+	}
+	if err := os.WriteFile(logo, []byte("<svg/>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SubscribeHTML(nil, SubscribeCard{LogoPath: logo}, htmlstill.Portrait); err == nil {
+		t.Fatal("a logo that is not a PNG or JPG was drawn")
 	}
 }
 

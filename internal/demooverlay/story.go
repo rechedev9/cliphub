@@ -3,10 +3,15 @@ package demooverlay
 import (
 	"bytes"
 	"embed"
+	"encoding/base64"
+	"fmt"
 	"html/template"
+	"net/http"
+	"os"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/htmlstill"
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
@@ -19,7 +24,7 @@ const (
 
 	SubscribeSeconds     = 6.0
 	SubscribeBottomEdge  = 1036
-	SubscribeSlidePixels = 480
+	SubscribeSlidePixels = 900
 	SubscribeLabel       = "SUSCRÍBETE"
 )
 
@@ -137,16 +142,49 @@ func HalftimeHTML(halftime Halftime, palette *Palette) ([]byte, error) {
 	return storyPage("halftime.html", data)
 }
 
-func SubscribeHTML(palette *Palette) ([]byte, error) {
+type SubscribeCard struct {
+	LogoPath    string
+	ChannelName string
+}
+
+func SubscribeHTML(palette *Palette, card SubscribeCard, size htmlstill.Size) ([]byte, error) {
 	fonts, err := loadPageFonts()
 	if err != nil {
 		return nil, err
 	}
+	logo, err := subscribeLogoURL(card.LogoPath)
+	if err != nil {
+		return nil, err
+	}
+	layout := "landscape"
+	if size.Height > size.Width {
+		layout = "portrait"
+	}
 	return storyPage("subscribe.html", struct {
 		pageFonts
-		Palette *Palette
-		Label   string
-	}{fonts, palette, SubscribeLabel})
+		Palette       *Palette
+		Label         string
+		Layout        string
+		Width, Height int
+		Branded       bool
+		Logo          template.URL
+		ChannelName   string
+	}{fonts, palette, SubscribeLabel, layout, size.Width, size.Height, logo != "" || card.ChannelName != "", logo, card.ChannelName})
+}
+
+func subscribeLogoURL(path string) (template.URL, error) {
+	if path == "" {
+		return "", nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("subscribe logo: %w", err)
+	}
+	kind := http.DetectContentType(data)
+	if kind != "image/png" && kind != "image/jpeg" {
+		return "", fmt.Errorf("subscribe logo must be a PNG or JPG, got %s", kind)
+	}
+	return template.URL("data:" + kind + ";base64," + base64.StdEncoding.EncodeToString(data)), nil
 }
 
 func storyPage(file string, data any) ([]byte, error) {
@@ -173,10 +211,10 @@ func RenderHalftimePNG(halftime Halftime, palette *Palette, outPath string) erro
 	return renderHTMLStill(html, outPath)
 }
 
-func RenderSubscribePNG(palette *Palette, outPath string) error {
-	html, err := SubscribeHTML(palette)
+func RenderSubscribePNG(palette *Palette, card SubscribeCard, size htmlstill.Size, outPath string) error {
+	html, err := SubscribeHTML(palette, card, size)
 	if err != nil {
 		return err
 	}
-	return renderHTMLStill(html, outPath)
+	return htmlstill.Render(html, outPath, size)
 }

@@ -4,6 +4,8 @@ import { useId, type ReactNode } from 'react';
 import { withFullDemoStoryOverlay, type FullDemoOptions } from '@/lib/full-demo-plan';
 import { introDesignGallery, introDesignPreviewUrl } from '@/lib/overlay-design-gallery';
 import { FULL_DEMO_HALFTIME_LABEL, FULL_DEMO_HALFTIME_NOTE, FULL_DEMO_SOURCE_LABEL, FULL_DEMO_SOURCES, FULL_DEMO_SUBSCRIBE_LABEL, FULL_DEMO_SUBSCRIBE_NOTE } from '@/lib/produce/full-demo-brief';
+import { brandSubscribeOf } from '@/lib/brand-kit';
+import { useBrandKit } from '@/components/clips/brand-kit-editor';
 import { CoverImage } from '@/components/studio/cover-image';
 import { DesignGallery } from '@/components/studio/design-gallery';
 import { FullDemoChoice, FullDemoToggle } from './full-demo-fields';
@@ -19,6 +21,11 @@ function StoryOverlayToggle({ label, note, value, onChange }: { label: string; n
 
 export function FullDemoOverlays({ options, map, onChange, onAssetBusy }: { options: FullDemoOptions; map: string; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void }): ReactNode {
   void map; void onAssetBusy;
+  const { kit } = useBrandKit();
+  const card = kit ? brandSubscribeOf(kit) : undefined;
+  const subscribeNote = options.overlays.brand?.subscribe || (options.overlays.subscribe !== true && card)
+    ? `${FULL_DEMO_SUBSCRIBE_NOTE} Con tu logo y el nombre del canal del kit de marca.`
+    : FULL_DEMO_SUBSCRIBE_NOTE;
   const chosen = options.overlays.theme === 'hud' ? 'hud' : 'neon';
   function choose(theme: string): void {
     if (theme === 'hud' || theme === 'neon-violet') onChange({ ...options, overlays: { ...options.overlays, theme } });
@@ -35,7 +42,7 @@ export function FullDemoOverlays({ options, map, onChange, onAssetBusy }: { opti
     <FullDemoChoice label={FULL_DEMO_SOURCE_LABEL} value={options.source_kind} options={FULL_DEMO_SOURCES} onChange={(source_kind) => onChange({ ...options, source_kind })} />
     <StoryOverlayToggle label={FULL_DEMO_HALFTIME_LABEL} note={FULL_DEMO_HALFTIME_NOTE} value={options.overlays.halftime === true}
       onChange={(enabled) => onChange(withFullDemoStoryOverlay(options, 'halftime', enabled))} />
-    <StoryOverlayToggle label={FULL_DEMO_SUBSCRIBE_LABEL} note={FULL_DEMO_SUBSCRIBE_NOTE} value={options.overlays.subscribe === true}
-      onChange={(enabled) => onChange(withFullDemoStoryOverlay(options, 'subscribe', enabled))} />
+    <StoryOverlayToggle label={FULL_DEMO_SUBSCRIBE_LABEL} note={subscribeNote} value={options.overlays.subscribe === true}
+      onChange={(enabled) => onChange(withFullDemoStoryOverlay(options, 'subscribe', enabled, card))} />
   </div>;
 }

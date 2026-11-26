@@ -21,7 +21,7 @@ func TestBrandKitRepositoryContract(t *testing.T) {
 			}
 			logo := brandkit.ImageRef{ID: "0b5d1b6e-8a3c-4f0e-9d8a-1c2b3d4e5f60", SHA256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
 			banner := brandkit.ImageRef{ID: "1c6e2c7f-9b4d-4a1f-8e9b-2d3c4e5f6071", SHA256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
-			kit := brandkit.Kit{Logo: &logo, WatermarkCorner: brandkit.CornerBottomLeft, WatermarkOpacity: 0.55, Banner: &banner, BannerStartSeconds: 2, BannerEndSeconds: 9.5}
+			kit := brandkit.Kit{Logo: &logo, WatermarkCorner: brandkit.CornerBottomLeft, WatermarkOpacity: 0.55, Banner: &banner, BannerStartSeconds: 2, BannerEndSeconds: 9.5, ChannelName: "ClipHub RSN"}
 			saved, err := repo.SaveBrandKit(ctx, kit)
 			if err != nil || saved.UpdatedAt.IsZero() {
 				t.Fatalf("SaveBrandKit = %+v, %v", saved, err)
@@ -38,11 +38,14 @@ func TestBrandKitRepositoryContract(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got, _ := repo.GetBrandKit(ctx); got.Logo != nil || got.Banner != nil || got.BannerEndSeconds != 0 || got.WatermarkCorner != brandkit.CornerTopLeft || !got.UpdatedAt.Equal(cleared.UpdatedAt) {
+			if got, _ := repo.GetBrandKit(ctx); got.Logo != nil || got.Banner != nil || got.BannerEndSeconds != 0 || got.ChannelName != "" || got.WatermarkCorner != brandkit.CornerTopLeft || !got.UpdatedAt.Equal(cleared.UpdatedAt) {
 				t.Fatalf("GetBrandKit after clearing = %+v; want no images", got)
 			}
 			if _, err := repo.SaveBrandKit(ctx, brandkit.Kit{WatermarkCorner: "middle", WatermarkOpacity: 1}); err == nil {
 				t.Fatal("SaveBrandKit accepted an unknown corner")
+			}
+			if _, err := repo.SaveBrandKit(ctx, brandkit.Kit{WatermarkCorner: brandkit.CornerTopLeft, WatermarkOpacity: 1, ChannelName: "a\nb"}); err == nil {
+				t.Fatal("SaveBrandKit accepted a channel name on two lines")
 			}
 			if got, _ := repo.GetBrandKit(ctx); got.WatermarkCorner != brandkit.CornerTopLeft {
 				t.Fatalf("a rejected save changed the kit: %+v", got)

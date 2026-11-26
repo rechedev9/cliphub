@@ -225,6 +225,9 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			if err := resolveBrandKit(ctx, c, &in.brandChoiceIn); err != nil {
 				return nil, fullDemoPlanOut{}, err
 			}
+			if err := resolveSubscribeCard(ctx, c, &in.storyOverlaysIn); err != nil {
+				return nil, fullDemoPlanOut{}, err
+			}
 			options, err = applyFullDemoChoices(options, in)
 			if err != nil {
 				return nil, fullDemoPlanOut{}, err

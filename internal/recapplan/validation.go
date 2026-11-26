@@ -307,6 +307,14 @@ func (o Options) Validate() error {
 			return err
 		}
 	}
+	if card := o.Overlays.Brand.Subscribe; card != nil {
+		if !o.Overlays.Subscribe || !card.Branded() {
+			return fmt.Errorf("the subscribe card brand needs the subscribe button and a logo or a channel name")
+		}
+		if err := card.Validate(); err != nil {
+			return err
+		}
+	}
 	if o.Capture.XRay {
 		return fmt.Errorf("full demo profile requires xray disabled")
 	}

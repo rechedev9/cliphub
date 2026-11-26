@@ -248,6 +248,7 @@ export function coerceEditConfig(value: unknown): EditConfig {
   if (isPlayerCardId(raw.coverCard)) cfg.coverCard = raw.coverCard;
   if (raw.brandWatermark === true) cfg.brandWatermark = true;
   if (raw.brandBanner === true) cfg.brandBanner = true;
+  if (raw.subscribeBanner === true) cfg.subscribeBanner = true;
   if (raw.overlayLanguage === 'en') cfg.overlayLanguage = 'en';
   if (raw.subtitles === true) {
     cfg.subtitles = true;

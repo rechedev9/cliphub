@@ -1,6 +1,6 @@
 import type { ReelIntent } from './reel-store';
 import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
-import { isBrandBanner, isBrandWatermark } from '../brand-kit.ts';
+import { isBrandBanner, isBrandWatermark, isSubscribeBannerChoice } from '../brand-kit.ts';
 import { isCustomHudTheme } from '../custom-hud.ts';
 import { isPlayerCardId } from '../player-cards.ts';
 import { coerceRadarOpacity, isRadarPosition, isRadarSize } from '../radar-overlay.ts';
@@ -92,6 +92,7 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   // The effective edit holds the kit copy the render used; true is a request that has not been rendered yet.
   if (edit.brand_watermark === true || isBrandWatermark(edit.brand_watermark)) parsed.brandWatermark = true;
   if (edit.brand_banner === true || isBrandBanner(edit.brand_banner)) parsed.brandBanner = true;
+  if (isSubscribeBannerChoice(edit.subscribe_banner)) parsed.subscribeBanner = true;
   if (edit.centered_killfeed === true) parsed.centeredKillfeed = true;
   if (edit.vertical_hud === true) parsed.verticalHud = true;
   if (parsed.verticalHud && isCustomHudTheme(edit.vertical_hud_theme)) parsed.verticalHudTheme = edit.vertical_hud_theme;

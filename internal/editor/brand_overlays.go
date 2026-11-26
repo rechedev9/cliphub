@@ -175,7 +175,7 @@ func generatedBrandEffects(short ShortEdit) []Effect {
 			})
 		}
 	}
-	return effects
+	return append(effects, generatedSubscribeEffects(short)...)
 }
 
 // fullDemoBrandOverlays draws the plan's watermark and sponsor banner on a
@@ -245,7 +245,7 @@ func brandImageSize(path string) (int, int, error) {
 func singleClipBrandImages(short ShortEdit) []Effect {
 	var out []Effect
 	for _, effect := range imageEffects(short.Effects) {
-		if effect.Source == "brand-watermark" || effect.Source == "brand-banner" || effect.Source == "radar" {
+		if effect.Source == "brand-watermark" || effect.Source == "brand-banner" || effect.Source == shortSubscribeSource || effect.Source == "radar" {
 			out = append(out, effect)
 		}
 	}

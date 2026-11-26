@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"path/filepath"
 	"strconv"
@@ -186,7 +187,7 @@ func TestSubscribeButtonSitsAboveABottomRightWatermark(t *testing.T) {
 		t.Fatalf("a watermark in another corner moved the button: %d %v", lift, err)
 	}
 	effect := fullDemoSubscribeEffect("subscribe.png", fullDemoStoryWindow{100, 106}, 101)
-	if effect.Y != "-101" || effect.Source != fullDemoSubscribeSource || !strings.Contains(effect.X, "480") || !strings.Contains(effect.X, "100.400") || !strings.Contains(effect.X, "105.700") {
+	if effect.Y != "-101" || effect.Source != fullDemoSubscribeSource || !strings.Contains(effect.X, "900") || !strings.Contains(effect.X, "100.400") || !strings.Contains(effect.X, "105.700") {
 		t.Fatalf("subscribe effect = %+v", effect)
 	}
 }
@@ -252,5 +253,25 @@ func TestStoryOverlaysDrawNothingWithoutAChoiceOrAScore(t *testing.T) {
 	short.FullDemo.Effective.Options.Overlays.Subscribe = true
 	if _, err := fullDemoStoryOverlayEffects(manifest, short); err == nil {
 		t.Fatal("a chosen button that cannot be drawn must fail the render like the roster does")
+	}
+}
+
+func TestSubscribeCardTakesTheApprovedLogoAndName(t *testing.T) {
+	dir := t.TempDir()
+	logo := filepath.Join(dir, "logo.media")
+	writeBrandPNG(t, logo, 40, 40, color.NRGBA{R: 255, A: 255})
+	ref := brandkit.ImageRef{ID: "99999999-9999-4999-8999-999999999999", SHA256: strings.Repeat("9", 64)}
+	short := storyFixtureShort(dir, storyFixtureMatch(2))
+	if card, err := fullDemoSubscribeCard(short); err != nil || card != (demooverlay.SubscribeCard{}) {
+		t.Fatalf("a plan without the card brand = %+v %v; want the plain button", card, err)
+	}
+	short.FullDemo.Effective.Options.Overlays.Brand.Subscribe = &brandkit.Subscribe{Logo: &ref, ChannelName: "ClipHub RSN"}
+	short.fullDemo.execution.Assets = []FullDemoLocalMedia{{Ref: recapplan.AssetRef{ID: ref.ID, SHA256: ref.SHA256}, Path: logo}}
+	if card, err := fullDemoSubscribeCard(short); err != nil || card.LogoPath != logo || card.ChannelName != "ClipHub RSN" {
+		t.Fatalf("card = %+v %v", card, err)
+	}
+	short.fullDemo.execution.Assets = nil
+	if _, err := fullDemoSubscribeCard(short); err == nil {
+		t.Fatal("a missing approved subscribe logo was silently left out")
 	}
 }

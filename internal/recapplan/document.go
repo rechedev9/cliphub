@@ -309,6 +309,7 @@ type OverlayOptions struct {
 type BrandOverlay struct {
 	Watermark *brandkit.Watermark `json:"watermark,omitempty"`
 	Banner    *brandkit.Banner    `json:"banner,omitempty"`
+	Subscribe *brandkit.Subscribe `json:"subscribe,omitempty"`
 }
 
 type OutputOptions struct {

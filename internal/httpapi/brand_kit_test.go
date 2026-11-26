@@ -39,8 +39,8 @@ func TestBrandKitSaveChecksUploadedImages(t *testing.T) {
 		t.Fatalf("unsaved kit = %+v; want the default kit and the corners", got)
 	}
 	logo := storeBrandImage(t, env)
-	env.json(http.MethodPut, "/api/brand-kit", map[string]any{"logo": logo, "watermark_corner": "bottom-left", "watermark_opacity": 0.5, "banner_start_seconds": 1}, http.StatusOK, &got)
-	if got.Logo == nil || *got.Logo != logo || got.WatermarkCorner != brandkit.CornerBottomLeft || got.UpdatedAt.IsZero() {
+	env.json(http.MethodPut, "/api/brand-kit", map[string]any{"logo": logo, "watermark_corner": "bottom-left", "watermark_opacity": 0.5, "banner_start_seconds": 1, "channel_name": "ClipHub RSN"}, http.StatusOK, &got)
+	if got.Logo == nil || *got.Logo != logo || got.ChannelName != "ClipHub RSN" || got.WatermarkCorner != brandkit.CornerBottomLeft || got.UpdatedAt.IsZero() {
 		t.Fatalf("saved kit = %+v", got)
 	}
 	unknown := brandkit.ImageRef{ID: "0b5d1b6e-8a3c-4f0e-9d8a-1c2b3d4e5f60", SHA256: logo.SHA256}
@@ -49,6 +49,7 @@ func TestBrandKitSaveChecksUploadedImages(t *testing.T) {
 		{"watermark_corner": "middle", "watermark_opacity": 1},
 		{"watermark_corner": "top-left", "watermark_opacity": 0},
 		{"watermark_corner": "top-left", "watermark_opacity": 1, "banner_start_seconds": 5, "banner_end_seconds": 4},
+		{"watermark_corner": "top-left", "watermark_opacity": 1, "channel_name": "a name far longer than thirty characters"},
 	} {
 		env.json(http.MethodPut, "/api/brand-kit", bad, http.StatusBadRequest, nil)
 	}
@@ -102,5 +103,46 @@ func TestRenderBrandKitChoices(t *testing.T) {
 	}
 	if err := env.h.applyBrandKit(context.Background(), renderEditRequest{BrandWatermark: off, BrandBanner: bannerOff}, &edit); err != nil || edit.BrandWatermark != nil || edit.BrandBanner != nil {
 		t.Fatalf("off choices kept the kit: %v %+v", err, edit)
+	}
+}
+
+func TestRenderSubscribeBannerCopiesTheKitCard(t *testing.T) {
+	env := newLibraryTestEnv(t)
+	repo := store.NewMemoryBrandKitRepository()
+	env.h.brandKit = repo
+	on := &brandChoice[brandkit.Subscribe]{On: true}
+	edit := renderplan.DefaultEditRequest()
+	if err := env.h.applyBrandKit(context.Background(), renderEditRequest{SubscribeBanner: on}, &edit); err != nil || edit.SubscribeBanner == nil || edit.SubscribeBanner.Branded() {
+		t.Fatalf("subscribe without a kit = %+v %v; want the plain banner", edit.SubscribeBanner, err)
+	}
+	logo := storeBrandImage(t, env)
+	if _, err := repo.SaveBrandKit(context.Background(), brandkit.Kit{Logo: &logo, WatermarkCorner: brandkit.CornerTopLeft, WatermarkOpacity: 1, ChannelName: "ClipHub RSN"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := env.h.applyBrandKit(context.Background(), renderEditRequest{SubscribeBanner: on}, &edit); err != nil || edit.SubscribeBanner.Logo == nil || *edit.SubscribeBanner.Logo != logo || edit.SubscribeBanner.ChannelName != "ClipHub RSN" {
+		t.Fatalf("subscribe = %+v %v; want the kit's logo and name", edit.SubscribeBanner, err)
+	}
+	raw, err := json.Marshal(map[string]any{"subscribe_banner": edit.SubscribeBanner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var retry renderEditRequest
+	if err := json.Unmarshal(raw, &retry); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.SaveBrandKit(context.Background(), brandkit.Kit{WatermarkCorner: brandkit.CornerTopRight, WatermarkOpacity: 1}); err != nil {
+		t.Fatal(err)
+	}
+	again := renderplan.DefaultEditRequest()
+	if err := env.h.applyBrandKit(context.Background(), retry, &again); err != nil || !reflect.DeepEqual(again.SubscribeBanner, edit.SubscribeBanner) {
+		t.Fatalf("retry = %v %+v; want the saved copy kept", err, again.SubscribeBanner)
+	}
+	if err := env.h.applyBrandKit(context.Background(), renderEditRequest{SubscribeBanner: &brandChoice[brandkit.Subscribe]{}}, &again); err != nil || again.SubscribeBanner != nil {
+		t.Fatalf("off kept the banner: %v %+v", err, again.SubscribeBanner)
+	}
+	missing := brandkit.ImageRef{ID: "0b5d1b6e-8a3c-4f0e-9d8a-1c2b3d4e5f60", SHA256: logo.SHA256}
+	gone := &brandChoice[brandkit.Subscribe]{On: true, Snapshot: &brandkit.Subscribe{Logo: &missing}}
+	if err := env.h.applyBrandKit(context.Background(), renderEditRequest{SubscribeBanner: gone}, &again); !errors.Is(err, brandkit.ErrMissing) {
+		t.Fatalf("a copy with a missing logo = %v; want ErrMissing", err)
 	}
 }
