@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -107,6 +108,10 @@ func TestHalftimeCardMovesUnderTheSponsorBanner(t *testing.T) {
 	rest := fullDemoBannerTop + fullDemoBannerMaxHeight + fullDemoStoryMarginPixels - demooverlay.HalftimeCardTop
 	if effect := fullDemoHalftimeEffect(short, "halftime.png", window); !strings.Contains(effect.Y, fmt.Sprintf("\\,%d\\,", rest)) || rest <= 0 {
 		t.Fatalf("the card stays over the sponsor banner: %s", effect.Y)
+	}
+	effect := fullDemoHalftimeEffect(short, "halftime.png", window)
+	if !strings.Contains(effect.Y, strconv.Itoa(rest+demooverlay.HalftimeSlidePixels)) || strings.Contains(effect.Y, strconv.Itoa(rest-demooverlay.HalftimeSlidePixels)) {
+		t.Fatalf("under the banner the card slides in from below, never across it: %s", effect.Y)
 	}
 }
 

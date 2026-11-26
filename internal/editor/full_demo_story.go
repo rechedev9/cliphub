@@ -114,15 +114,16 @@ func fullDemoHalftimeWindow(short ShortEdit, roundNumber int) (fullDemoStoryWind
 }
 
 func fullDemoHalftimeEffect(short ShortEdit, path string, window fullDemoStoryWindow) Effect {
-	rest := 0
+	rest, hidden := 0, -demooverlay.HalftimeSlidePixels
 	if banner := short.FullDemo.Effective.Options.Overlays.Brand.Banner; banner != nil {
 		if start, end, ok := banner.Window(math.Inf(1)); ok && start < window.end && end > window.start {
 			rest = fullDemoBannerTop + fullDemoBannerMaxHeight + fullDemoStoryMarginPixels - demooverlay.HalftimeCardTop
+			hidden = rest + demooverlay.HalftimeSlidePixels
 		}
 	}
 	return Effect{
 		Type: EffectImage, Path: path, Source: fullDemoHalftimeSource,
-		X: "0", Y: fullDemoStorySlide(window, rest-demooverlay.HalftimeSlidePixels, rest),
+		X: "0", Y: fullDemoStorySlide(window, hidden, rest),
 		Width: demooverlay.FrameWidth, Height: demooverlay.FrameHeight,
 		StartSeconds: window.start, EndSeconds: window.end,
 		FadeInSeconds: demooverlay.IntroOverlaySlideSeconds, FadeOutSeconds: demooverlay.IntroOverlaySlideOutSeconds,

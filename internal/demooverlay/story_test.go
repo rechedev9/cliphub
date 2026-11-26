@@ -138,3 +138,28 @@ func TestOverlayDocumentWithoutHalftimeKeepsItsWireShape(t *testing.T) {
 		t.Fatalf("halftime round trip: %+v %v", restored.Halftime, err)
 	}
 }
+
+func TestHalftimeNeedsAProvenRegulationSwitch(t *testing.T) {
+	lateOvertime := halftimeRounds("CT", "CCCCCCTTTTTT", 15)
+	for i := range 12 {
+		lateOvertime[i].TargetSide = ""
+	}
+	for i := range 3 {
+		lateOvertime = append(lateOvertime, killplan.RoundResult{Number: 28 + i, Winner: "T", TargetSide: "CT"})
+	}
+	if got := BuildHalftime(halftimeDocument(), lateOvertime, customhud.Teams{}); got != nil {
+		t.Fatalf("a POV first seen in the second half must not turn an overtime switch into halftime: %+v", got)
+	}
+	late := halftimeRounds("CT", "CCCCCCCTTTTT", 6)
+	for i := range 4 {
+		late[i].TargetSide = ""
+	}
+	if got := BuildHalftime(halftimeDocument(), late, customhud.Teams{}); got == nil || got.Round != 13 || got.Teams[0].Score != 7 {
+		t.Fatalf("a POV who joins during the first half still switches at a standard half: %+v", got)
+	}
+	lateShort := halftimeRounds("T", "TTCTCTCT", 3)
+	lateShort[0].TargetSide = ""
+	if got := BuildHalftime(halftimeDocument(), lateShort, customhud.Teams{}); got != nil {
+		t.Fatalf("a non-standard half needs the POV on one side through all of it: %+v", got)
+	}
+}
