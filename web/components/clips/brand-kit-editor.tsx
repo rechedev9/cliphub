@@ -97,7 +97,7 @@ function BrandKitEditor({ kit, onSaved, disabled = false }: { kit: BrandKit; onS
               const name = event.target.value;
               setDraft(name.trim() === '' ? rest : { ...rest, channel_name: name });
             }} />
-          <span className="text-body-sm text-fg-3">Sale con tu logo en el banner de Suscríbete.</span>
+          <span className="text-body-sm text-fg-3">Sale con tu logo en el banner de Subscribe.</span>
         </label>
         <div className="flex min-w-0 flex-col gap-2">
           <span className="text-meta text-fg-3">Esquina de la marca de agua</span>

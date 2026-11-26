@@ -239,7 +239,7 @@ function SubscribeCard({ logo, name, size }: { logo?: string; name?: string; siz
       {logo ? <image href={logo} x={logoX} y={middle - logoSide / 2} width={logoSide} height={logoSide} clipPath="circle()" preserveAspectRatio="xMidYMid slice" /> : null}
       {name ? <text x={nameX} y={middle + fontSize * 0.35} fontSize={fontSize} fill="#f1eaf9" textLength={nameWidth} lengthAdjust="spacingAndGlyphs">{name}</text> : null}
       <rect x={cursor} y={middle - button.h / 2} width={button.w} height={button.h} rx={button.h / 2} fill="#ff0033" />
-      <text x={cursor + button.w / 2} y={middle + 9 * scale} fontSize={24 * scale} fill="white" textAnchor="middle" letterSpacing={1.5}>SUSCRÍBETE</text>
+      <text x={cursor + button.w / 2} y={middle + 9 * scale} fontSize={24 * scale} fill="white" textAnchor="middle" letterSpacing={1.5}>SUBSCRIBE</text>
     </g>
   );
 }

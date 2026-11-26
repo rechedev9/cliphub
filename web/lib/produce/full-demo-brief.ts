@@ -23,7 +23,7 @@ export const FULL_DEMO_CAMERA_NOTE = 'Una ventana pequeña sobre la partida con 
 export const FULL_DEMO_HALFTIME_LABEL = 'Marcador del descanso';
 export const FULL_DEMO_HALFTIME_NOTE = 'Al empezar la segunda parte, una tarjeta con los dos equipos y el resultado del descanso durante unos segundos.';
 export const FULL_DEMO_SUBSCRIBE_LABEL = 'Botón de suscripción';
-export const FULL_DEMO_SUBSCRIBE_NOTE = 'Un botón «Suscríbete» con campana en la esquina inferior derecha, dos veces durante las rondas.';
+export const FULL_DEMO_SUBSCRIBE_NOTE = 'Un botón «Subscribe» con una campana que se mueve y suena, en la esquina inferior derecha, dos veces durante las rondas.';
 
 export type VoiceStatus = { text: string; problem: boolean };
 

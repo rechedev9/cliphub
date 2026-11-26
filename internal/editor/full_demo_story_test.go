@@ -11,6 +11,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/brandkit"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
+	"github.com/rechedev9/cliphub/internal/htmlstill"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -186,8 +187,9 @@ func TestSubscribeButtonSitsAboveABottomRightWatermark(t *testing.T) {
 	if lift, err := fullDemoSubscribeLift(short); err != nil || lift != 0 {
 		t.Fatalf("a watermark in another corner moved the button: %d %v", lift, err)
 	}
-	effect := fullDemoSubscribeEffect("subscribe.png", fullDemoStoryWindow{100, 106}, 101)
-	if effect.Y != "-101" || effect.Source != fullDemoSubscribeSource || !strings.Contains(effect.X, "900") || !strings.Contains(effect.X, "100.400") || !strings.Contains(effect.X, "105.700") {
+	sprite := demooverlay.SubscribeSpriteFor(htmlstill.Landscape)
+	effect := fullDemoSubscribeEffect("subscribe.png", sprite, fullDemoStoryWindow{100, 106}, 101)
+	if effect.Y != strconv.Itoa(sprite.CellTop-101) || effect.Height != sprite.Height() || effect.Sprite == nil || effect.Source != fullDemoSubscribeSource || !strings.Contains(effect.X, "900") || !strings.Contains(effect.X, "100.400") || !strings.Contains(effect.X, "105.700") {
 		t.Fatalf("subscribe effect = %+v", effect)
 	}
 }
@@ -198,7 +200,7 @@ func TestStoryOverlaysKeepThePerItemComposition(t *testing.T) {
 	halftime, _ := fullDemoHalftimeWindow(short, 13)
 	short.Effects = append(short.Effects, fullDemoHalftimeEffect(short, filepath.Join(dir, "halftime.png"), halftime))
 	for _, window := range fullDemoSubscribeWindows(short, fullDemoStoryBusyWindows(short.Effects)) {
-		short.Effects = append(short.Effects, fullDemoSubscribeEffect(filepath.Join(dir, "subscribe.png"), window, 0))
+		short.Effects = append(short.Effects, fullDemoSubscribeEffect(filepath.Join(dir, "subscribe.png"), demooverlay.SubscribeSpriteFor(htmlstill.Landscape), window, 0))
 	}
 	if len(short.Effects) != 5 {
 		t.Fatalf("effects = %d, want the roster, the scoreboard, the halftime card and two buttons", len(short.Effects))
@@ -273,5 +275,32 @@ func TestSubscribeCardTakesTheApprovedLogoAndName(t *testing.T) {
 	short.fullDemo.execution.Assets = nil
 	if _, err := fullDemoSubscribeCard(short); err == nil {
 		t.Fatal("a missing approved subscribe logo was silently left out")
+	}
+}
+
+func TestFullDemoBellDingsOnlyInTheItemItRingsIn(t *testing.T) {
+	short := fullDemoItemOverlayFixtureShort(t.TempDir())
+	sprite := demooverlay.SubscribeSpriteFor(htmlstill.Landscape)
+	short.Effects = append(short.Effects, fullDemoSubscribeEffect("subscribe.png", sprite, fullDemoStoryWindow{0.25, 6.25}, 0))
+	ring := recapplan.TimelineItem{Role: "round", SourceRef: "round-001", SourceStartTick: 64, EndFrame: 60, EndSample: 48000}
+	command, err := fullDemoItemStreamCommand(short, ring, "item.nut", fullDemoItemAudioOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(command, " ")
+	if !strings.Contains(joined, "aevalsrc=") || !strings.Contains(joined, "adelay=36000S") || argIndex(command, "[subscribeaudio]") < 0 {
+		t.Fatalf("the ring 0.75 s into the program has no ding at sample 36000: %v", command)
+	}
+	later := ring
+	later.StartFrame, later.EndFrame = 60, 120
+	if command, err = fullDemoItemStreamCommand(short, later, "item.nut", fullDemoItemAudioOnly); err != nil || strings.Contains(strings.Join(command, " "), "aevalsrc=") {
+		t.Fatalf("an item after the ring dings again: %v %v", command, err)
+	}
+	muted := short
+	muted.FullDemo.Effective.Options.Audio.Game.Gain = 0
+	muted.FullDemo.Effective.Options.Audio.Voice.Enabled = false
+	muted.FullDemo.Effective.Options.Audio.Music.Enabled = false
+	if command, err = fullDemoItemStreamCommand(muted, ring, "item.nut", fullDemoItemAudioOnly); err != nil || strings.Contains(strings.Join(command, " "), "aevalsrc=") {
+		t.Fatalf("a plan that mutes every source got a ding: %v %v", command, err)
 	}
 }

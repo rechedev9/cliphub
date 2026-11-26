@@ -62,11 +62,12 @@ func fullDemoStoryOverlayEffects(manifest *Manifest, short ShortEdit) ([]Effect,
 		return nil, err
 	}
 	path := filepath.Join(manifest.OutputDir, fullDemoSubscribeSource+".png")
-	if err := demooverlay.RenderSubscribePNG(palette, card, htmlstill.Landscape, path); err != nil {
+	sprite, err := demooverlay.RenderSubscribeSprite(palette, card, htmlstill.Landscape, path)
+	if err != nil {
 		return nil, err
 	}
 	for _, window := range windows {
-		effects = append(effects, fullDemoSubscribeEffect(path, window, lift))
+		effects = append(effects, fullDemoSubscribeEffect(path, sprite, window, lift))
 	}
 	return effects, nil
 }
@@ -135,11 +136,11 @@ func fullDemoHalftimeEffect(short ShortEdit, path string, window fullDemoStoryWi
 	}
 }
 
-func fullDemoSubscribeEffect(path string, window fullDemoStoryWindow, lift int) Effect {
+func fullDemoSubscribeEffect(path string, sprite demooverlay.SubscribeSprite, window fullDemoStoryWindow, lift int) Effect {
 	return Effect{
 		Type: EffectImage, Path: path, Source: fullDemoSubscribeSource,
-		X: fullDemoStorySlide(window, demooverlay.SubscribeSlidePixels, 0), Y: strconv.Itoa(-lift),
-		Width: demooverlay.FrameWidth, Height: demooverlay.FrameHeight,
+		X: fullDemoStorySlide(window, demooverlay.SubscribeSlidePixels, 0), Y: strconv.Itoa(sprite.CellTop - lift),
+		Width: demooverlay.FrameWidth, Height: sprite.Height(), Sprite: subscribeBellSprite(sprite),
 		StartSeconds: window.start, EndSeconds: window.end,
 		FadeInSeconds: demooverlay.IntroOverlaySlideSeconds, FadeOutSeconds: demooverlay.IntroOverlaySlideOutSeconds,
 	}
@@ -204,6 +205,13 @@ func fullDemoStoryFreeWindows(span fullDemoStoryWindow, busy []fullDemoStoryWind
 		free = next
 	}
 	return free
+}
+
+func fullDemoBellDing(short ShortEdit, item recapplan.TimelineItem) bellDingMix {
+	if fullDemoSilentApproved(short) {
+		return bellDingMix{}
+	}
+	return bellDingMix{out: "subscribeaudio", rings: spriteRingSeconds(short.Effects, fullDemoSubscribeSource), offsetSeconds: float64(item.StartFrame) / recapplan.OutputFPS}
 }
 
 func fullDemoSubscribeCard(short ShortEdit) (demooverlay.SubscribeCard, error) {

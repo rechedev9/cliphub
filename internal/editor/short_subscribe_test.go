@@ -17,7 +17,7 @@ func TestSubscribeBannerShowsOnceAThirdIntoTheShort(t *testing.T) {
 		}
 		e := effects[0]
 		w, h := outputDimensions(short)
-		if e.Source != shortSubscribeSource || e.StartSeconds != 10.5 || e.EndSeconds != 15 || e.Width != w || e.Height != h || !strings.Contains(e.Y, "if(") || e.FadeInSeconds == 0 {
+		if e.Source != shortSubscribeSource || e.StartSeconds != 10.5 || e.EndSeconds != 15 || e.Width != w || h == 0 || !strings.Contains(e.Y, "if(") || e.FadeInSeconds == 0 {
 			t.Fatalf("%s banner = %+v; want 4.5 s from 35%% of the Short, full frame, sliding in", format, e)
 		}
 	}
@@ -56,5 +56,26 @@ func TestSubscribeBannerNeedsTheRendererAndAOneLineName(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, shortSubscribeSource+".png")); !os.IsNotExist(err) {
 		t.Fatalf("a failed render left a banner behind: %v", err)
+	}
+}
+
+func TestSubscribeBellSwingsAndDingsInTheCompilation(t *testing.T) {
+	subscribe := &ShortSubscribe{Path: "subscribe.png", CellTop: 1253, CellHeight: 230, Frames: 18}
+	short := ShortEdit{Output: "out.mp4", OutputFormat: OutputFormatShort9x16, DurationSeconds: 30, Overlays: ShortOverlays{Subscribe: subscribe},
+		Parts: []ShortPart{{SegmentID: "seg-001", Input: "a.mp4", DurationSeconds: 15}, {SegmentID: "seg-002", Input: "b.mp4", DurationSeconds: 15}}}
+	short.Effects = generatedBrandEffects(short)
+	if e := short.Effects[0]; e.Height != 230*19 || e.Sprite == nil || len(e.Sprite.PlayAt) != 2 {
+		t.Fatalf("banner = %+v; want a 19-cell sprite that rings twice", e)
+	}
+	filter := CompilationFilter(short)
+	if !strings.Contains(filter, "crop=w=iw:h=230:x=0:y='230*if(between(t\\,11.000") || !strings.Contains(filter, "between(t\\,13.100") {
+		t.Fatalf("filter = %s; want the bell cell picked at 11.0 s and 13.1 s", filter)
+	}
+	if strings.Count(filter, "aevalsrc=") != 1 || !strings.Contains(filter, "adelay=528000S") || !strings.Contains(filter, "[catv][gameraw]") || !strings.Contains(filter, "normalize=0[gamea]") {
+		t.Fatalf("filter = %s; want one ding at 11.0 s mixed into the game audio", filter)
+	}
+	short.Overlays.Subscribe, short.Effects = nil, nil
+	if filter := CompilationFilter(short); strings.Contains(filter, "aevalsrc") || strings.Contains(filter, "gameraw") {
+		t.Fatalf("a Short without the banner = %s", filter)
 	}
 }

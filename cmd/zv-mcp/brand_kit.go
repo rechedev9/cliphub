@@ -31,7 +31,7 @@ type brandKitOut struct {
 	HasBanner          bool     `json:"has_banner" jsonschema:"a sponsor banner is saved, so brand_banner can be used"`
 	BannerStartSeconds float64  `json:"banner_start_seconds"`
 	BannerEndSeconds   float64  `json:"banner_end_seconds,omitempty" jsonschema:"0 or absent keeps the banner to the end of the video"`
-	ChannelName        string   `json:"channel_name,omitempty" jsonschema:"channel name the SUSCRÍBETE banner shows beside the logo"`
+	ChannelName        string   `json:"channel_name,omitempty" jsonschema:"channel name the SUBSCRIBE banner shows beside the logo"`
 	Corners            []string `json:"corners" jsonschema:"values for watermark_corner"`
 	Summary            string   `json:"summary"`
 }
@@ -43,7 +43,7 @@ type saveBrandKitIn struct {
 	Banner             string   `json:"banner,omitempty" jsonschema:"absolute path of a PNG or JPG up to 10 MB with the sponsor banner, or none to remove it; left out keeps the saved one"`
 	BannerStartSeconds *float64 `json:"banner_start_seconds,omitempty" jsonschema:"second of the video when the banner appears; left out keeps the saved one"`
 	BannerEndSeconds   *float64 `json:"banner_end_seconds,omitempty" jsonschema:"second of the video when the banner leaves; 0 keeps it to the end; left out keeps the saved one"`
-	ChannelName        *string  `json:"channel_name,omitempty" jsonschema:"YouTube channel name, up to 30 characters, shown with the logo on the SUSCRÍBETE banner (generate_short subscribe_banner, plan_full_demo subscribe_button); empty removes it; left out keeps the saved one"`
+	ChannelName        *string  `json:"channel_name,omitempty" jsonschema:"YouTube channel name, up to 30 characters, shown with the logo on the SUBSCRIBE banner (generate_short subscribe_banner, plan_full_demo subscribe_button); empty removes it; left out keeps the saved one"`
 }
 
 func describeBrandKit(kit tuiclient.BrandKit) brandKitOut {
@@ -61,7 +61,7 @@ func describeBrandKit(kit tuiclient.BrandKit) brandKitOut {
 		parts[1] = "banner de sponsor " + window
 	}
 	if out.ChannelName != "" {
-		parts = append(parts, fmt.Sprintf("canal %q en el banner de suscripción", out.ChannelName))
+		parts = append(parts, fmt.Sprintf("canal %q en el banner de Subscribe", out.ChannelName))
 	}
 	out.Summary = strings.Join(parts, ", ") + "."
 	return out

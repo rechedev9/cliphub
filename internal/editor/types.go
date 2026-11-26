@@ -466,7 +466,7 @@ type ShortPart struct {
 	// Player names the part's POV in a multi-POV Short; empty otherwise.
 	Player string `json:"player,omitempty"`
 	// Speed below 1 plays the part in slow motion (the victim replay).
-	Speed float64 `json:"speed,omitempty"`
+	Speed            float64 `json:"speed,omitempty"`
 	HoldAfterSeconds float64 `json:"hold_after_seconds,omitempty"`
 }
 
@@ -757,49 +757,50 @@ const (
 )
 
 type Effect struct {
-	Type               EffectType `json:"type"`
-	StartSeconds       float64    `json:"start_seconds"`
-	EndSeconds         float64    `json:"end_seconds"`
-	AtSeconds          float64    `json:"at_seconds,omitempty"`
-	Scale              float64    `json:"scale,omitempty"`
-	Opacity            float64    `json:"opacity,omitempty"`
-	Color              string     `json:"color,omitempty"`
-	Value              string     `json:"value,omitempty"`
-	Path               string     `json:"path,omitempty"`
-	X                  string     `json:"x,omitempty"`
-	Y                  string     `json:"y,omitempty"`
-	Width              int        `json:"width,omitempty"`
-	Height             int        `json:"height,omitempty"`
-	CropX              int        `json:"crop_x,omitempty"`
-	CropY              int        `json:"crop_y,omitempty"`
-	CropWidth          int        `json:"crop_width,omitempty"`
-	CropHeight         int        `json:"crop_height,omitempty"`
-	Size               int        `json:"size,omitempty"`
-	FontFile           string     `json:"fontfile,omitempty"`
-	FontColor          string     `json:"font_color,omitempty"`
-	BoxColor           string     `json:"box_color,omitempty"`
-	BoxBorder          int        `json:"box_border,omitempty"`
-	ShadowColor        string     `json:"shadow_color,omitempty"`
-	ShadowX            int        `json:"shadow_x,omitempty"`
-	ShadowY            int        `json:"shadow_y,omitempty"`
-	Bold               bool       `json:"bold,omitempty"`
-	BorderWidth        int        `json:"border_width,omitempty"`
-	BorderColor        string     `json:"border_color,omitempty"`
-	FadeInSeconds      float64    `json:"fade_in_seconds,omitempty"`
-	FadeOutSeconds     float64    `json:"fade_out_seconds,omitempty"`
-	Contrast           float64    `json:"contrast,omitempty"`
-	Saturation         float64    `json:"saturation,omitempty"`
-	Gamma              float64    `json:"gamma,omitempty"`
-	Amplitude          float64    `json:"amplitude,omitempty"`
-	Frequency          float64    `json:"frequency,omitempty"`
-	Source             string     `json:"source,omitempty"`
-	SourceIndex        int        `json:"source_index,omitempty"`
-	SourceSegmentID    string     `json:"source_segment_id,omitempty"`
-	SourceKillTick     int        `json:"source_kill_tick,omitempty"`
-	SourceKillWeapon   string     `json:"source_kill_weapon,omitempty"`
-	SourceKillVictim   string     `json:"source_kill_victim,omitempty"`
-	SourceKillHeadshot bool       `json:"source_kill_headshot,omitempty"`
-	SourceSmokeID      string     `json:"source_smoke_id,omitempty"`
-	SourceSmokeType    string     `json:"source_smoke_type,omitempty"`
-	SourceSmokeTarget  string     `json:"source_smoke_target,omitempty"`
+	Type               EffectType   `json:"type"`
+	StartSeconds       float64      `json:"start_seconds"`
+	EndSeconds         float64      `json:"end_seconds"`
+	AtSeconds          float64      `json:"at_seconds,omitempty"`
+	Scale              float64      `json:"scale,omitempty"`
+	Opacity            float64      `json:"opacity,omitempty"`
+	Color              string       `json:"color,omitempty"`
+	Value              string       `json:"value,omitempty"`
+	Path               string       `json:"path,omitempty"`
+	X                  string       `json:"x,omitempty"`
+	Y                  string       `json:"y,omitempty"`
+	Width              int          `json:"width,omitempty"`
+	Height             int          `json:"height,omitempty"`
+	CropX              int          `json:"crop_x,omitempty"`
+	CropY              int          `json:"crop_y,omitempty"`
+	CropWidth          int          `json:"crop_width,omitempty"`
+	CropHeight         int          `json:"crop_height,omitempty"`
+	Size               int          `json:"size,omitempty"`
+	FontFile           string       `json:"fontfile,omitempty"`
+	FontColor          string       `json:"font_color,omitempty"`
+	BoxColor           string       `json:"box_color,omitempty"`
+	BoxBorder          int          `json:"box_border,omitempty"`
+	ShadowColor        string       `json:"shadow_color,omitempty"`
+	ShadowX            int          `json:"shadow_x,omitempty"`
+	ShadowY            int          `json:"shadow_y,omitempty"`
+	Bold               bool         `json:"bold,omitempty"`
+	BorderWidth        int          `json:"border_width,omitempty"`
+	BorderColor        string       `json:"border_color,omitempty"`
+	FadeInSeconds      float64      `json:"fade_in_seconds,omitempty"`
+	FadeOutSeconds     float64      `json:"fade_out_seconds,omitempty"`
+	Contrast           float64      `json:"contrast,omitempty"`
+	Saturation         float64      `json:"saturation,omitempty"`
+	Gamma              float64      `json:"gamma,omitempty"`
+	Amplitude          float64      `json:"amplitude,omitempty"`
+	Frequency          float64      `json:"frequency,omitempty"`
+	Source             string       `json:"source,omitempty"`
+	SourceIndex        int          `json:"source_index,omitempty"`
+	SourceSegmentID    string       `json:"source_segment_id,omitempty"`
+	SourceKillTick     int          `json:"source_kill_tick,omitempty"`
+	SourceKillWeapon   string       `json:"source_kill_weapon,omitempty"`
+	SourceKillVictim   string       `json:"source_kill_victim,omitempty"`
+	SourceKillHeadshot bool         `json:"source_kill_headshot,omitempty"`
+	SourceSmokeID      string       `json:"source_smoke_id,omitempty"`
+	SourceSmokeType    string       `json:"source_smoke_type,omitempty"`
+	SourceSmokeTarget  string       `json:"source_smoke_target,omitempty"`
+	Sprite             *ImageSprite `json:"sprite,omitempty"`
 }

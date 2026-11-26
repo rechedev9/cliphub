@@ -35,9 +35,9 @@ export function BrandKitOptions({ value, onChange, disabled = false }: { value: 
           <Megaphone className="size-4" />
           Banner de sponsor
         </ToggleGroupItem>
-        <ToggleGroupItem value="subscribe-banner" aria-label="Suscríbete" disabled={disabled}>
+        <ToggleGroupItem value="subscribe-banner" aria-label="Subscribe" disabled={disabled}>
           <BellRing className="size-4" />
-          Suscríbete
+          Subscribe
         </ToggleGroupItem>
       </ToggleGroup>
       {kit ? (
@@ -52,7 +52,7 @@ export function BrandKitOptions({ value, onChange, disabled = false }: { value: 
 }
 
 function subscribeText(kit: BrandKit | null): string {
-  const where = 'Suscríbete sale una vez, hacia un tercio del Short';
+  const where = 'Subscribe sale una vez, hacia un tercio del Short, con una campana que se mueve y suena';
   if (kit?.logo && kit.channel_name) return `${where}, con tu logo y «${kit.channel_name}».`;
   if (kit?.channel_name) return `${where}, con «${kit.channel_name}». Sube tu logo en el kit para que salga también.`;
   if (kit?.logo) return `${where}, con tu logo. Añade el nombre del canal en el kit para que salga también.`;

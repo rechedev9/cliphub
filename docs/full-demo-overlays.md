@@ -55,7 +55,7 @@ Assistants set them with `plan_full_demo` `halftime_scoreboard` and
   switch round is not in the video (a round selection or a short match), or the
   round leaves less than two seconds clear of the intro roster and the final
   scoreboard. It moves under the sponsor banner when both show at once.
-- **Botón de suscripción**: a SUSCRÍBETE pill with a bell drawn as inline SVG
+- **Botón de suscripción**: a SUBSCRIBE pill with a bell drawn as inline SVG
   in the bottom right corner, for `demooverlay.SubscribeSeconds`, placed near
   25 % and 75 % of the gameplay span between the bumpers. Each window lies
   inside one round item, at least a second away from the intro roster, the
@@ -64,10 +64,18 @@ Assistants set them with `plan_full_demo` `halftime_scoreboard` and
   the bottom right corner the button sits above it.
   When the brand kit has a channel logo or channel name, turning the switch on
   copies them into `overlays.brand.subscribe` and the button becomes a card
-  with the round logo, the name and a red SUSCRÍBETE button
+  with the round logo, the name and a red SUBSCRIBE button
   (`demooverlay.SubscribeCard`); the logo is an overlay image the plan must
   verify like the watermark. Shorts use the same card through
   `subscribe_banner`, once a Short (`internal/editor/short_subscribe.go`).
+  The still is a sprite: one cell at rest and `demooverlay.SubscribeSprite`
+  cells of the bell swinging, which a time-based `crop` picks at
+  `demooverlay.SubscribeBellFPS` from 0.5 s and 2.6 s into each window
+  (`editor.ImageSprite`). The overlay renderer draws only a 1920x1080 or
+  1080x1920 page, so `RenderSubscribeSprite` renders the cells on several such
+  pages and stacks them into one PNG. The first swing adds a soft generated marimba note (`aevalsrc`, C5, no
+  sound file) to the game audio of a Short and to the item audio of a Full
+  Demo, except in a plan that mutes every audio source.
 
 `internal/editor/full_demo_story.go` renders both stills beside the intro and
 outro PNGs (`full-demo-halftime.png`, `full-demo-subscribe.png`) and adds them
