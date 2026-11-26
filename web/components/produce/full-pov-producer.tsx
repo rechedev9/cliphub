@@ -230,7 +230,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
   const briefItems = options ? [
     { label: 'Jugador', value: match.player ?? document?.input.target_steamid64 ?? 'Pendiente' },
     { label: 'Rondas', value: chosenRounds.length > 0 ? roundListLabel(chosenRounds) : 'Todas' },
-    ...fullDemoBriefItems(options, voiceAvailability),
+    ...fullDemoBriefItems(options, voiceAvailability, !dirty && document !== null && !document.hook),
   ] : [];
 
   const orderRounds = fullDemoOrderRounds({ chosen: chosenRounds, planned: document ? document.rounds.map((round) => round.source_round_number) : null, recap: recap.map((play) => play.round) });

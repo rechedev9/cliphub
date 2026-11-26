@@ -75,8 +75,13 @@ function hasBumpers(options: FullDemoOptions): boolean {
   return Boolean(bumpers?.intro.enabled || bumpers?.sponsor?.enabled || bumpers?.outro.enabled);
 }
 
+function hookValue(enabled: boolean, skipped: boolean): string {
+  if (!enabled) return 'No';
+  return skipped ? 'Omitido' : 'Sí';
+}
+
 /** The recap rows after player and rounds, labelled as the controls that set them. */
-export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: string | null): CreativeBriefItem[] {
+export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: string | null, hookSkipped = false): CreativeBriefItem[] {
   const hudName = options.overlays.hud_custom?.name ?? customHudLabel(options.overlays.hud_theme);
   return [
     { label: 'HUD', value: hudName },
@@ -86,7 +91,7 @@ export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: 
     { label: 'Voces del equipo', value: voiceValue(options.audio.voice.enabled, voiceAvailability) },
     { label: 'Subtítulos', value: subtitlesValue(options, voiceAvailability) },
     { label: 'Efectos entre rondas', value: (options.transitions?.enabled ?? true) ? 'Activados' : 'Desactivados' },
-    { label: FULL_DEMO_HOOK_LABEL, value: options.hook?.enabled ? 'Sí' : 'No' },
+    { label: FULL_DEMO_HOOK_LABEL, value: hookValue(options.hook?.enabled === true, hookSkipped) },
     { label: FULL_DEMO_BUMPERS_TITLE, value: hasBumpers(options) ? bumperSummary(options) : 'Ninguno' },
     { label: INTRO_DESIGN_LABEL, value: options.overlays.theme === 'hud' ? INTRO_DESIGNS.hud : INTRO_DESIGNS.neon },
     { label: FULL_DEMO_SOURCE_LABEL, value: sourceValue(options) },

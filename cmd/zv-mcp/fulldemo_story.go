@@ -34,10 +34,28 @@ func describeHook(doc recapplan.Document) (bool, int, string) {
 	}
 	for _, round := range doc.Rounds {
 		if round.ID == doc.Hook.RoundID {
-			return requested, round.Number, fmt.Sprintf(" Abre con un gancho de la mejor jugada: %s en la ronda %d.", plural(doc.Hook.Kills, "baja", "bajas"), round.Number)
+			return requested, round.Number, fmt.Sprintf(" Abre con un gancho de la mejor jugada: %s en la ronda %d.", plural(hookKillsShown(doc, round), "baja", "bajas"), round.Number)
 		}
 	}
 	return requested, 0, ""
+}
+
+func hookKillsShown(doc recapplan.Document, round recapplan.Round) int {
+	shown := 0
+	for _, item := range doc.Timeline {
+		if !item.IsHook() {
+			continue
+		}
+		rate := int64(doc.Clock.TickRate)
+		first := item.SourceStartTick + int(item.SourceOffsetFrames*rate/recapplan.OutputFPS)
+		last := first + int((item.EndFrame-item.StartFrame)*rate/recapplan.OutputFPS)
+		for _, kill := range round.Kills {
+			if kill.Tick >= max(first, doc.Hook.FirstKillTick) && kill.Tick <= min(last, doc.Hook.LastKillTick) {
+				shown++
+			}
+		}
+	}
+	return shown
 }
 
 func describeStoryOverlays(o recapplan.OverlayOptions) string {

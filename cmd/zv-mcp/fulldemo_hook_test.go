@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -33,7 +34,12 @@ func TestApplyFullDemoChoicesHook(t *testing.T) {
 	if out := describeFullDemoPlan("job-1", doc); !out.Hook || out.HookRound != 0 || strings.Contains(out.Summary, "gancho") || out.Rounds != 2 {
 		t.Fatalf("a skipped hook must be reported as asked for and absent: %+v", out)
 	}
-	doc.Hook = &recapplan.Hook{RoundID: "round-007", FirstKillTick: 10, LastKillTick: 20, Kills: 3}
+	doc.Clock.TickRate = 64
+	for _, tick := range []int{100, 500, 900, 1300, 1700} {
+		doc.Rounds[1].Kills = append(doc.Rounds[1].Kills, killplan.Kill{Tick: tick})
+	}
+	doc.Hook = &recapplan.Hook{RoundID: "round-007", FirstKillTick: 100, LastKillTick: 1700, Kills: 5}
+	doc.Timeline = []recapplan.TimelineItem{{Role: "round", Reason: recapplan.HookReason, SourceRef: "round-007", SourceOffsetFrames: 600, StartFrame: 0, EndFrame: 1200}}
 	if out := describeFullDemoPlan("job-1", doc); !out.Hook || out.HookRound != 7 || !strings.Contains(out.Summary, "gancho de la mejor jugada: 3 bajas en la ronda 7.") || out.Rounds != 2 {
 		t.Fatalf("plan with a hook = %+v", out)
 	}

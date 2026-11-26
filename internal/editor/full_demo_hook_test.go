@@ -9,6 +9,8 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/radarmap"
+	"github.com/rechedev9/cliphub/internal/radaroverlay"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
@@ -198,5 +200,27 @@ func TestHookItemReadsItsStretchOfTheRoundCapture(t *testing.T) {
 		if strings.Count(strings.Join(following, " "), "voice.wav") != 1 {
 			t.Fatalf("%s: the round after the hook mixed a voice tail: %v", name, following)
 		}
+	}
+}
+
+func TestHookRadarLevelComesFromItsOwnStretch(t *testing.T) {
+	lowerMax := -100.0
+	track := radaroverlay.Track{TickRate: 64, Calibration: radarmap.Calibration{Map: "de_nuke", Scale: 7, Size: 1024, LowerAltitudeMax: &lowerMax}}
+	segment := radaroverlay.Segment{ID: "round-002", POV: 3}
+	for tick := 0; tick < 6400; tick += 64 {
+		z := 0.0
+		if tick >= 5120 {
+			z = -400
+		}
+		segment.Frames = append(segment.Frames, radaroverlay.Frame{Tick: tick, Players: []radaroverlay.Player{{Slot: 3, Side: "CT", Z: z}}})
+	}
+	track.Segments = []radaroverlay.Segment{segment}
+	round := recapplan.TimelineItem{Role: "round", SourceRef: "round-002", EndFrame: 6000}
+	if level := fullDemoRadarLevel(round, track); level != radarmap.LevelDefault {
+		t.Fatalf("the round is mostly upstairs: %s", level)
+	}
+	hook := recapplan.TimelineItem{Role: "round", Reason: recapplan.HookReason, SourceRef: "round-002", SourceOffsetFrames: 4800, EndFrame: 1200}
+	if level := fullDemoRadarLevel(hook, track); level != radarmap.LevelLower {
+		t.Fatalf("the hook plays downstairs, so it draws the lower overview: %s", level)
 	}
 }

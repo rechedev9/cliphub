@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 
 	"github.com/rechedev9/cliphub/internal/demooverlay"
+	"github.com/rechedev9/cliphub/internal/radaroverlay"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -44,4 +45,22 @@ func fullDemoHookEffect(path string, item recapplan.TimelineItem) Effect {
 		StartSeconds: window.start, EndSeconds: window.end,
 		FadeInSeconds: demooverlay.IntroOverlaySlideSeconds, FadeOutSeconds: demooverlay.IntroOverlaySlideOutSeconds,
 	}
+}
+
+func fullDemoRadarLevel(item recapplan.TimelineItem, track radaroverlay.Track) string {
+	segment := track.Segments[0]
+	if !item.IsHook() {
+		return segment.POVLevel(track.Calibration)
+	}
+	rate := int64(track.TickRate)
+	first := item.SourceStartTick + int(item.SourceOffsetFrames*rate/recapplan.OutputFPS)
+	last := first + int((item.EndFrame-item.StartFrame)*rate/recapplan.OutputFPS)
+	shown := segment
+	shown.Frames = nil
+	for _, frame := range segment.Frames {
+		if frame.Tick >= first && frame.Tick <= last {
+			shown.Frames = append(shown.Frames, frame)
+		}
+	}
+	return shown.POVLevel(track.Calibration)
 }
