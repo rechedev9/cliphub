@@ -366,9 +366,10 @@ export type JobStatusView = {
   /** Stable obs class (`demo_incompatible`, `capture_flake`, …); `failureReason` stays human text. */
   failureCode?: string;
   captureProgress?: CaptureProgress;
-  generateFailure?: GenerateFailure;
+  generateRun?: GenerateRun;
 };
 export type GenerateFailure = { variant: string; reason: string; code?: string; failedAt?: string };
+export type GenerateRun = { variant: string; active: true } | (GenerateFailure & { active: false });
 /** `jobId` links a reel back to the parsed demo it was forged from (the series view groups reels per map); absent only on mock/demo seed videos. */
 export type Video = {
   id: string;

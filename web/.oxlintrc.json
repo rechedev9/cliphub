@@ -72,7 +72,7 @@
     "typeAware": true
   },
   "overrides": [
-    { "files": ["lib/api/real.ts"], "rules": { "max-lines": ["error", { "max": 1343 }] } },
+    { "files": ["lib/api/real.ts"], "rules": { "max-lines": ["error", { "max": 1342 }] } },
     {
       "files": ["app/**", "components/**", "hooks/**", "lib/**"],
       "rules": {

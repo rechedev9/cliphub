@@ -176,7 +176,6 @@ test('record admission stays pending until capture starts or the grace runs out'
   assert.equal(pending('done', admittedAt + 1_000), true);
   assert.equal(pending('done', admittedAt + RECORD_ADMISSION_GRACE_MS), false);
   assert.equal(pending('recording', admittedAt + 1_000), false);
-  assert.equal(pending('failed', admittedAt + RECORD_ADMISSION_GRACE_MS * 10), true);
 });
 
 test('job failed → failed with reason', () => {

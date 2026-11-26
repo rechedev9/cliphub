@@ -65,8 +65,9 @@ export function parseStatusView(data: RawStatusView): JobStatusView {
   const parsed = parseCaptureProgress(data.progress);
   if (parsed) full.captureProgress = parsed;
   const run = data.generate;
-  if (run && !run.active && run.failure_reason) {
-    full.generateFailure = { variant: run.variant, reason: run.failure_reason, code: run.failure_code, failedAt: run.failed_at };
+  if (run?.active) full.generateRun = { variant: run.variant, active: true };
+  else if (run?.failure_reason) {
+    full.generateRun = { variant: run.variant, active: false, reason: run.failure_reason, code: run.failure_code, failedAt: run.failed_at };
   }
   return full;
 }

@@ -751,7 +751,7 @@
   "lib/api/real-mismatch-redrive.test.ts": 19,
   "lib/api/real-scan.test.ts": 3,
   "lib/api/real.test.ts": 30,
-  "lib/api/real.ts": 106,
+  "lib/api/real.ts": 104,
   "lib/api/recent-read.ts": 5,
   "lib/api/reconcile-batch.ts": 6,
   "lib/api/recovered-renders.ts": 14,

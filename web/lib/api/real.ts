@@ -863,15 +863,14 @@ export class RealApiClient implements ApiClient {
       return shouldReconcileVideoStatus(v) && !v?.unrecoverable;
     });
     if (active.length === 0) return;
-    // One request for every active reel; a server without the batch route
-    // (or a transport failure) leaves the per-reel fetches as the fallback.
+    const readAt = Date.now();
     const batch = await this.fetchBatchStatus(active.map((intent) => ({ jobId: intent.jobId, variant: variantOf(intent) })));
     await reconcileReels(
-      active.map((intent) => this.reconcileOne(intent, batch?.get(batchKey(intent.jobId, variantOf(intent))))),
+      active.map((intent) => this.reconcileOne(intent, { readAt, prefetched: batch?.get(batchKey(intent.jobId, variantOf(intent))) })),
     );
   }
 
-  private async reconcileOne(intent: ReelIntent, prefetched?: BatchStatusEntry): Promise<void> {
+  private async reconcileOne(intent: ReelIntent, { readAt, prefetched }: { readAt: number; prefetched?: BatchStatusEntry } = { readAt: Date.now() }): Promise<void> {
     // The batch could not read this reel: unknown, not gone and not "no render
     // yet". Both of those would move the reel (latch it unrecoverable, or
     // re-drive an unrequested capture), so leave the view and its 404 strikes
@@ -922,7 +921,7 @@ export class RealApiClient implements ApiClient {
     } else {
       this.readyWithoutVideoTicks.delete(intent.videoId);
     }
-    const ownFailure = this.captures.settle({ videoId: intent.videoId, variant: variantOf(intent), job });
+    const ownFailure = this.captures.settle({ videoId: intent.videoId, variant: variantOf(intent), job, readAt });
     const decision = decideReelReconcile({
       ...jobReconcileFacts(job, ownFailure),
       renderStatus: render.status,
