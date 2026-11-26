@@ -81,12 +81,18 @@ func (m ProgramAACFallbackMaster) filter(base string) string {
 }
 
 func (m ProgramAACFallbackMaster) corrected(decoded LoudnessMeasurement, target recapplan.LoudnessOptions) ProgramAACFallbackMaster {
-	m.GainDB = max(-3, min(6, m.GainDB+max(-1.5, min(1.5, target.TargetILUFS-*decoded.IntegratedLUFS))))
+	shortfall := target.TargetILUFS - *decoded.IntegratedLUFS
 	if *decoded.TruePeakDBTP > target.TargetTPDBTP {
 		m.CeilingDBFS = max(target.TargetTPDBTP-8, m.CeilingDBFS-min(2, *decoded.TruePeakDBTP-target.TargetTPDBTP+.2))
+	} else if shortfall > aacRecoveryGainStepDB {
+		headroom := aacHeadroomTarget(target).TargetTPDBTP
+		m.CeilingDBFS += max(0, min(shortfall, headroom-*decoded.TruePeakDBTP, headroom-m.CeilingDBFS))
 	}
+	m.GainDB = max(-3, min(6, m.GainDB+max(-aacRecoveryGainStepDB, min(aacRecoveryGainStepDB, shortfall))))
 	return m
 }
+
+const aacRecoveryGainStepDB = 1.5
 
 // fullDemoAACRecoveryAttempt is one recovery master and, once its candidate
 // was measured, the decoded AAC that owns acceptance.

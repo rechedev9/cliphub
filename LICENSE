@@ -1,19 +1,30 @@
 Copyright (c) 2026 Luis Reche. All rights reserved.
 
-PROPRIETARY AND CONFIDENTIAL
+PROPRIETARY SOFTWARE, SOURCE AVAILABLE FOR VIEWING ONLY
 
 This software and its source code, documentation, assets and associated files
 (the "Software") are the exclusive property of Luis Reche. The Software is
 licensed, not sold.
 
+The source code is published so that it can be read. Publication does not
+place the Software in the public domain and does not make it open source.
+
 No part of the Software may be copied, modified, merged, published,
 distributed, sublicensed, sold, reverse engineered, decompiled or used to
 create derivative works, in whole or in part, by any means, without the prior
-written permission of the copyright holder.
+written permission of the copyright holder. This includes using the Software,
+or any part of it, in another product or service, and using it to train or
+build software that competes with it.
 
-Access to this repository does not grant any license or right to the Software.
-Any permitted use is governed solely by a separate written agreement with the
-copyright holder.
+Viewing the repository, or forking it on GitHub as GitHub's Terms of Service
+allow, does not grant any license or right to the Software. Any permitted use
+is governed solely by a separate written agreement with the copyright holder.
+The official installers published in this repository's releases may be
+downloaded, installed and run as distributed; this grants no right to the
+source code.
+
+Third-party files in the repository that carry their own license notice, such
+as fonts and adapted code, remain under that license.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
