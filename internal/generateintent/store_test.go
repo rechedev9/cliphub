@@ -195,3 +195,45 @@ func TestFinishDoesNotPublishForStaleRun(t *testing.T) {
 		t.Fatalf("ActiveRunID = %s, want %s", got.ActiveRunID, current.ActiveRunID)
 	}
 }
+
+func TestFailKeepsItsCauseUntilTheNextAcceptedRun(t *testing.T) {
+	id := uuid.New()
+	store := New(&blockingStorage{files: map[string][]byte{}})
+	run := renderplan.GenerateIntent{Variant: editor.PresetViral60Clean, Edit: renderplan.DefaultEditRequest(), ActiveRunID: uuid.New()}
+	if err := store.Begin(id, run, nil); err != nil {
+		t.Fatal(err)
+	}
+	if owned, err := store.Fail(id, uuid.New(), errors.New("a superseded run"), nil); owned || err != nil {
+		t.Fatalf("Fail of a run that does not own the job = (%v, %v), want it ignored", owned, err)
+	}
+	if got, _, err := store.Read(id); err != nil || got.ActiveRunID != run.ActiveRunID || got.FailureReason != "" {
+		t.Fatalf("intent after a superseded run failed = %+v (%v), want the active run untouched", got, err)
+	}
+	if owned, err := store.Fail(id, run.ActiveRunID, errors.New("recorder crashed"), nil); !owned || err != nil {
+		t.Fatalf("Fail = (%v, %v), want the owning run closed", owned, err)
+	}
+	failed, _, err := store.Read(id)
+	if err != nil || failed.ActiveRunID != uuid.Nil || failed.FailureReason != "recorder crashed" || failed.FailedAt.IsZero() {
+		t.Fatalf("intent after its run failed = %+v (%v), want it idle with the cause and its time", failed, err)
+	}
+	next := run
+	next.ActiveRunID = uuid.New()
+	if err := store.Begin(id, next, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, err := store.Read(id); err != nil || got.FailureReason != "" || !got.FailedAt.IsZero() {
+		t.Fatalf("intent of the next accepted run = %+v (%v), want no earlier failure", got, err)
+	}
+	if _, err := store.Fail(id, next.ActiveRunID, errors.New("recorder crashed again"), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ClearFailure(id); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, err := store.Read(id); err != nil || got.FailureReason != "" || !got.FailedAt.IsZero() || got.Variant != next.Variant {
+		t.Fatalf("intent after ClearFailure = %+v (%v), want the same choice without the failure", got, err)
+	}
+	if err := store.ClearFailure(uuid.New()); err != nil {
+		t.Fatalf("ClearFailure of a job with no intent = %v, want nothing to do", err)
+	}
+}

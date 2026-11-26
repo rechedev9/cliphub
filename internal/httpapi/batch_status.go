@@ -213,6 +213,7 @@ func (h *Handlers) jobStatusViewOf(id uuid.UUID, row job.StatusRow) jobStatusRes
 	} else if progress, ok := renderProgressDocument(h.storage, id); ok {
 		resp.Progress = &progress
 	}
+	resp.Generate = h.generateRunView(id, row.Status)
 	return resp
 }
 

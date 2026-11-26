@@ -15,7 +15,6 @@
   "cmd/zv-mcp/apps_test.go": 3,
   "cmd/zv-mcp/brand_kit.go": 5,
   "cmd/zv-mcp/calls.go": 1,
-  "cmd/zv-mcp/captures.go": 5,
   "cmd/zv-mcp/clipboard.go": 3,
   "cmd/zv-mcp/clipmind.go": 4,
   "cmd/zv-mcp/community.go": 2,

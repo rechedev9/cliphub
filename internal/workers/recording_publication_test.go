@@ -217,6 +217,9 @@ func TestRecordingAttemptRunnerFailurePreservesCompletePreviousCommitWithoutRend
 	if completed.ActiveRunID != uuid.Nil {
 		t.Fatalf("active generate run = %s, want cleared after failed recapture", completed.ActiveRunID)
 	}
+	if !strings.Contains(completed.FailureReason, runnerErr.Error()) || completed.FailedAt.IsZero() {
+		t.Fatalf("generate intent after failed recapture = reason %q at %s, want the runner error kept for the status view", completed.FailureReason, completed.FailedAt)
+	}
 }
 
 func TestRecordingAttemptRunnerFailureRestoresAbsentCaptureSelection(t *testing.T) {

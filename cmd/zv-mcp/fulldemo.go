@@ -321,7 +321,6 @@ func startFullDemo(ctx context.Context, start fullDemoStart) (*mcp.CallToolResul
 	if err != nil {
 		return nil, generateOut{}, toolError(err)
 	}
-	recentCaptures.mark(start.JobID)
 	return nil, startedOut(summary, res, fullDemoVariant), nil
 }
 

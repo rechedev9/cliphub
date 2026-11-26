@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -79,6 +80,14 @@ func (s *Store) Complete(id, runID uuid.UUID) error {
 // a stale run from publishing state over a newer choice. persist must not call
 // this Store recursively.
 func (s *Store) Finish(id, runID uuid.UUID, persist func() error) (bool, error) {
+	return s.finish(id, runID, nil, persist)
+}
+
+func (s *Store) Fail(id, runID uuid.UUID, cause error, persist func() error) (bool, error) {
+	return s.finish(id, runID, cause, persist)
+}
+
+func (s *Store) finish(id, runID uuid.UUID, cause error, persist func() error) (bool, error) {
 	if runID == uuid.Nil {
 		return false, nil
 	}
@@ -96,7 +105,23 @@ func (s *Store) Finish(id, runID uuid.UUID, persist func() error) (bool, error) 
 		}
 	}
 	intent.ActiveRunID = uuid.Nil
+	if cause != nil {
+		intent.FailureReason, intent.FailedAt = cause.Error(), time.Now().UTC()
+	}
 	return true, s.write(id, intent)
+}
+
+func (s *Store) ClearFailure(id uuid.UUID) error {
+	lock := s.lock(id)
+	lock.Lock()
+	defer lock.Unlock()
+
+	intent, ok, err := s.read(id)
+	if err != nil || !ok || intent.FailureReason == "" {
+		return err
+	}
+	intent.FailureReason, intent.FailedAt = "", time.Time{}
+	return s.write(id, intent)
 }
 
 // WhileIdle runs persist only when no guided run currently owns id. It closes

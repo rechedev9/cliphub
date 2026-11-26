@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -335,7 +336,8 @@ func registerTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_job", Annotations: readOnly, Meta: appToolMeta(jobProgressAppURI),
 		Description: "Wait for a job to leave its running state (parsing, recording, rendering). Reports progress; call again while running is true. " +
-			"After generate_short or render_full_demo, pass the variant they returned: the capture ends before the render does, and only the variant tells when the video is finished."},
+			"After generate_short or render_full_demo, pass the variant they returned: the capture ends before the render does, and only the variant tells when the video is finished. " +
+			"A failure_code with the job still \"recorded\" means the new capture failed and the earlier videos were kept."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in waitJobIn) (*mcp.CallToolResult, jobOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, jobOut{}, err
@@ -367,13 +369,8 @@ func registerTools(server *mcp.Server, s *studio) {
 						return false, err
 					}
 				}
+				st.Generate = followedRun(st.Generate, in.Variant)
 				out = describeJob(in.ID, st, renders)
-				switch {
-				case out.Running:
-					recentCaptures.forget(in.ID)
-				case !out.Running && out.FailureCode == "" && recentCaptures.queued(in.ID):
-					out.Running, out.Stage, out.Note, out.Renders = true, "capture queued", "", nil
-				}
 				notify(ctx, req, donePercent(!out.Running, out.Percent), jobMessage(out))
 				return !out.Running, nil
 			})
@@ -497,7 +494,6 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, toolError(err)
 			}
-			recentCaptures.mark(in.JobID)
 			return nil, startedOut(summary, res, ""), nil
 		})
 }
@@ -622,6 +618,9 @@ func notify(ctx context.Context, req *mcp.CallToolRequest, percent int, message 
 // nothing more: the render outcome lives in the render variant states, and the
 // persisted progress file is never deleted, so it is no proof of work.
 func describeJob(id string, st tuiclient.JobStatus, renders []tuiclient.RenderVariantState) jobOut {
+	if st.Generate != nil && st.Generate.Active && !workerOwnsJob(st.Status) {
+		return jobOut{JobID: id, Status: cleanName(st.Status), Running: true, Stage: captureQueuedStage}
+	}
 	out := jobOut{JobID: id, Status: cleanName(st.Status), FailureCode: cleanName(st.FailureCode), FailureReason: cleanText(st.FailureReason, maxErrorRunes)}
 	if st.Status != statusRecorded {
 		out.Running = workerOwnsJob(st.Status)
@@ -654,6 +653,11 @@ func describeJob(id string, st tuiclient.JobStatus, renders []tuiclient.RenderVa
 	}
 	switch {
 	case out.Running:
+	case captureFailed(st.Generate, renders):
+		out.FailureCode = cmp.Or(cleanName(st.Generate.FailureCode), "capture_failed")
+		out.FailureReason = cleanText(st.Generate.FailureReason, maxErrorRunes)
+		out.Renders = nil
+		out.Note = "The capture for variant " + cleanName(st.Generate.Variant) + " failed and the earlier recording was kept: no new video was made, and list_videos still has the earlier ones."
 	case failed != nil:
 		out.FailureCode = "render_failed"
 		out.FailureReason = cleanText(failed.Error, maxErrorRunes)

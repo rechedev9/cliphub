@@ -334,9 +334,7 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 			return recordTaskFailure(ctx, w.repo, payload.JobID, tasks.TypeRecordDemo, retErr)
 		}
 		if hasGenerateIntent && taskIsTerminal(ctx) {
-			_, err := w.generateIntents.Finish(payload.JobID, generateIntent.ActiveRunID, func() error {
-				return recordFailure()
-			})
+			_, err := w.generateIntents.Fail(payload.JobID, generateIntent.ActiveRunID, retErr, recordFailure)
 			if err != nil {
 				logWorkerError(payload.JobID, "finish failed generate task", err)
 			}
@@ -369,6 +367,7 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 	if err := w.record(ctx, j, recordRequestFor(payload, generateIntent)); err != nil {
 		return err
 	}
+	w.forgetGenerateFailure(j.ID)
 	if err := w.repo.UpdateStatus(ctx, j.ID, job.StatusRecorded, ""); err != nil {
 		return fmt.Errorf("mark recorded: %w", err)
 	}

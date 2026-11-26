@@ -129,6 +129,13 @@ There is no event stream; the UI polls.
   `recorded`, `wait_for_job` decides from the render variant state (queued or rendering is running,
   failed is a failure, ready is done), never from the progress file alone. `generate_short` and
   `render_full_demo` return the variant to pass in.
+- The job record also says nothing about a generate run that no worker took yet, or about one whose
+  capture failed while the earlier recording was kept: the job stays `parsed` or `recorded` and the
+  earlier render stays `ready`. The status view carries that run in `generate` (`variant`, `active`,
+  and `failure_reason`, `failure_code` and `failed_at` once it failed). `wait_for_job` answers
+  running with stage "capture queued" while `active` is true, and reports the failure
+  (`capture_failed` when it has no code) unless a render of the followed variant is newer than
+  `failed_at`.
 - Library demos have their own states (`queued`, `parsing`, `ready`, `failed`): `wait_for_demo`.
 - In a host with MCP Apps, the tools that start or follow a long job show the progress view
   `ui://cliphub/job-progress`: a bar with the Spanish stage ("Montando corte 17 de 18"), the
@@ -626,8 +633,9 @@ link (served with range requests) and `publish_copy` the title, description and 
 had no errors besides the deliberate bad SteamID.
 
 That run found one more bug, fixed: right after `generate_short`, `wait_for_job` answered "parsed,
-not running", because a worker had not taken the job yet. A capture this process started now counts
-as "capture queued" for up to two minutes, until a worker owns the job.
+not running", because a worker had not taken the job yet. The status view now reports the accepted
+generate run (`generate.active`), and `wait_for_job` answers "capture queued" until a worker owns
+the job.
 
 Known noise: `list_videos` without a render asks every preset, and each missing one logs a 404 as an
 error diagnostic in `studio.log`.
