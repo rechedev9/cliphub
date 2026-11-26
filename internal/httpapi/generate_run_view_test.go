@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -9,13 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 func TestJobStatusViewReportsTheGenerateRunTheJobRecordHides(t *testing.T) {
@@ -23,74 +24,73 @@ func TestJobStatusViewReportsTheGenerateRunTheJobRecordHides(t *testing.T) {
 	id := uuid.New()
 	repo.jobs[id] = job.Job{ID: id, Status: job.StatusRecorded}
 	h := NewHandlers(repo, newFakeStorage(), &fakeQueue{})
-	router := chi.NewRouter()
-	router.Get("/api/jobs/batch-status", h.BatchStatus)
-	router.Get("/api/jobs/{id}", h.GetJob)
+	srv := httptest.NewServer(Routes(h))
+	t.Cleanup(srv.Close)
+	client := tuiclient.New(tuiclient.Config{BaseURL: srv.URL})
 
-	generate := func() map[string]any {
+	generate := func() *tuiclient.GenerateRun {
 		t.Helper()
-		single := httptest.NewRecorder()
-		router.ServeHTTP(single, httptest.NewRequest(http.MethodGet, "/api/jobs/"+id.String()+"?view=status", nil))
-		batch := httptest.NewRecorder()
-		router.ServeHTTP(batch, httptest.NewRequest(http.MethodGet, "/api/jobs/batch-status?items="+id.String()+":"+editor.PresetViral60Clean, nil))
-		if single.Code != http.StatusOK || batch.Code != http.StatusOK {
-			t.Fatalf("status = %d, batch = %d: %s %s", single.Code, batch.Code, single.Body.String(), batch.Body.String())
-		}
-		var one struct {
-			Generate map[string]any `json:"generate"`
-		}
-		var many struct {
-			Items []struct {
-				Job struct {
-					Generate map[string]any `json:"generate"`
-				} `json:"job"`
-			} `json:"items"`
-		}
-		if err := json.Unmarshal(single.Body.Bytes(), &one); err != nil {
+		single, err := client.GetJobStatus(context.Background(), id.String())
+		if err != nil {
 			t.Fatal(err)
 		}
-		if err := json.Unmarshal(batch.Body.Bytes(), &many); err != nil || len(many.Items) != 1 {
-			t.Fatalf("batch = %s (%v)", batch.Body.String(), err)
+		res, err := http.Get(srv.URL + "/api/jobs/batch-status?items=" + id.String() + ":" + editor.PresetViral60Clean)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(one.Generate, many.Items[0].Job.Generate) {
-			t.Fatalf("status view generate = %v, batch generate = %v; want the same document", one.Generate, many.Items[0].Job.Generate)
+		defer res.Body.Close()
+		var batch struct {
+			Items []struct {
+				Job tuiclient.JobStatus `json:"job"`
+			} `json:"items"`
 		}
-		return one.Generate
+		if err := json.NewDecoder(res.Body).Decode(&batch); err != nil || len(batch.Items) != 1 {
+			t.Fatalf("batch status = %d, %d items (%v)", res.StatusCode, len(batch.Items), err)
+		}
+		if !reflect.DeepEqual(single.Generate, batch.Items[0].Job.Generate) {
+			t.Fatalf("status view generate = %+v, batch generate = %+v; want the same document", single.Generate, batch.Items[0].Job.Generate)
+		}
+		return single.Generate
 	}
 
 	if idle := generate(); idle != nil {
-		t.Fatalf("a job with no generate run = %v, want none", idle)
+		t.Fatalf("a job with no generate run = %+v, want none", idle)
 	}
 
 	run := renderplan.GenerateIntent{Variant: editor.PresetViral60Clean, Edit: renderplan.DefaultEditRequest(), ActiveRunID: uuid.New()}
 	if err := h.generateIntents.Begin(id, run, nil); err != nil {
 		t.Fatal(err)
 	}
-	if active := generate(); active["active"] != true || active["variant"] != editor.PresetViral60Clean || active["failure_reason"] != nil {
-		t.Fatalf("an accepted generate run = %v, want it active", active)
+	if active := generate(); active == nil || !active.Active || active.Variant != editor.PresetViral60Clean || active.FailureReason != "" {
+		t.Fatalf("an accepted generate run = %+v, want it active", active)
 	}
 
 	if _, err := h.generateIntents.Fail(id, run.ActiveRunID, errors.New("recorder failed: observer target 76561198000000000 drifted from 76561198000000001 during seg-001"), nil); err != nil {
 		t.Fatal(err)
 	}
 	failed := generate()
-	reason, _ := failed["failure_reason"].(string)
-	if failed["active"] != false || !strings.Contains(reason, "drifted") || failed["failure_code"] != obs.ClassCaptureFlake || failed["failed_at"] == nil {
-		t.Fatalf("a failed run that kept the earlier recording = %v, want its failure", failed)
+	if failed == nil || failed.Active || !strings.Contains(failed.FailureReason, "drifted") || failed.FailureCode != obs.ClassCaptureFlake || failed.FailedAt.IsZero() {
+		t.Fatalf("a failed run that kept the earlier recording = %+v, want its failure", failed)
 	}
+
+	repo.jobs[id] = job.Job{ID: id, Status: job.StatusFailed, FailureReason: "recorder failed"}
+	if hidden := generate(); hidden != nil {
+		t.Fatalf("a failed job = %+v, want the failure on the job record only", hidden)
+	}
+	repo.jobs[id] = job.Job{ID: id, Status: job.StatusRecorded}
 
 	next := run
 	next.ActiveRunID = uuid.New()
 	if err := h.generateIntents.Begin(id, next, nil); err != nil {
 		t.Fatal(err)
 	}
-	if again := generate(); again["active"] != true || again["failure_reason"] != nil {
-		t.Fatalf("the next accepted run = %v, want it active without the earlier failure", again)
+	if again := generate(); again == nil || !again.Active || again.FailureReason != "" {
+		t.Fatalf("the next accepted run = %+v, want it active without the earlier failure", again)
 	}
 	if _, err := h.generateIntents.Finish(id, next.ActiveRunID, nil); err != nil {
 		t.Fatal(err)
 	}
 	if done := generate(); done != nil {
-		t.Fatalf("a run that handed its render off = %v, want none", done)
+		t.Fatalf("a run that handed its render off = %+v, want none", done)
 	}
 }
