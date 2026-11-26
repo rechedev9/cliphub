@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'none'"/>
+<title>Halftime score</title>
+<style>
+@font-face{font-family:Roboto;src:url('{{.RegularFont}}') format('truetype');font-weight:400;font-display:block}
+@font-face{font-family:Roboto;src:url('{{.MediumFont}}') format('truetype');font-weight:500;font-display:block}
+@font-face{font-family:Roboto;src:url('{{.BoldFont}}') format('truetype');font-weight:700;font-display:block}
+*{box-sizing:border-box}html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent}body{font-family:Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+.card{position:absolute;left:510px;top:224px;width:900px;height:124px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 34px}
+.label{font-size:16px;font-weight:700;letter-spacing:7px;text-indent:7px;text-transform:uppercase}
+.line{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:26px;width:100%}
+.team{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:30px;font-weight:700;text-transform:uppercase;letter-spacing:1px}.team:first-child{text-align:right}
+.score{display:flex;align-items:center;gap:14px;font-size:46px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}.score span{min-width:58px;text-align:center}.score i{font-style:normal;font-size:30px}
+{{if .Palette}}{{with .Palette}}:root{--ct:#{{.CT}};--t:#{{.T}};--bg:#{{.Background}};--text:#{{.Text}};--muted:#{{.Muted}};--radius:{{.Radius}}px}{{end}}
+.card{color:var(--text);border-top:6px solid var(--ct);border-radius:var(--radius);background:color-mix(in srgb,var(--bg) 94%,transparent);box-shadow:0 14px 36px #0009}
+.label,.score i{color:var(--muted)}
+.team,.score span{--side:var(--ct);color:var(--side)}.team[data-side="T"],.score span[data-side="T"]{--side:var(--t)}
+.score span{padding:5px 8px;border-radius:calc(var(--radius) * .6);box-shadow:inset 0 0 0 2px var(--side)}.score span.lead{background:var(--side);color:var(--bg);box-shadow:none}
+{{else}}
+.card{color:#f1eaf9;border:2px solid #d99aff;border-radius:12px;background:#0a090df0;box-shadow:0 0 5px #ead1ff,0 0 22px #a51aef,inset 0 0 20px #72009e55}
+.label{color:#ac93c4}.score i{color:#83758f}.score span{color:#e6e1ed}.score span.lead{color:#b7ff75}
+{{end}}
+</style>
+</head>
+<body><main class="card"><div class="label">{{.Label}}</div>
+<div class="line">{{with index .Teams 0}}<span class="team" data-side="{{.Side}}">{{.Name}}</span>{{end}}<span class="score">{{with index .Teams 0}}<span data-side="{{.Side}}"{{if .Lead}} class="lead"{{end}}>{{.Score}}</span>{{end}}<i>:</i>{{with index .Teams 1}}<span data-side="{{.Side}}"{{if .Lead}} class="lead"{{end}}>{{.Score}}</span>{{end}}</span>{{with index .Teams 1}}<span class="team" data-side="{{.Side}}">{{.Name}}</span>{{end}}</div>
+</main></body>
+</html>

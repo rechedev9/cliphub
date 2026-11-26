@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
-  loadFullDemoPlan, localFileProvenance, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, withFullDemoRounds, type FullDemoOptions, type FullDemoSnapshot,
+  loadFullDemoPlan, localFileProvenance, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, withFullDemoRounds, withFullDemoStoryOverlay, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
 import { coerceEditConfig, coerceIntents } from './api/reel-store.ts';
@@ -483,4 +483,27 @@ test('the HUD look survives drafts and the render request, and leaves with the c
   const native = { ...current, capture: { ...current.capture, hud_profile: NATIVE_HUD_CAPTURE_PROFILE }, overlays: { ...current.overlays, hud_theme: undefined } };
   assert.equal(isFullDemoOptions(native), false);
   assert.equal(isFullDemoOptions({ ...current, overlays: { ...current.overlays, hud_custom: { ...options.overlays.hud_custom, ct: 'zz' } } }), false);
+});
+
+test('the halftime card and the subscribe button are optional, leave the wire when off and invalidate approval', () => {
+  const defaults: unknown = JSON.parse(readFileSync(new URL('./full-demo-go-defaults.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoOptions(defaults));
+  assert.equal(Object.hasOwn(defaults.overlays, 'halftime'), false);
+  assert.equal(Object.hasOwn(defaults.overlays, 'subscribe'), false);
+  const halftime = withFullDemoStoryOverlay(defaults, 'halftime', true);
+  assert.equal(halftime.overlays.halftime, true);
+  assert.equal(Object.hasOwn(halftime.overlays, 'subscribe'), false);
+  assert.ok(isFullDemoOptions(halftime));
+  const both = withFullDemoStoryOverlay(halftime, 'subscribe', true);
+  assert.deepEqual([both.overlays.halftime, both.overlays.subscribe], [true, true]);
+  assert.deepEqual(currentFullDemoOptions(both).overlays, both.overlays);
+  assert.notEqual(fullDemoOptionsKey(both), fullDemoOptionsKey(defaults));
+  assert.notEqual(fullDemoOptionsKey(both), fullDemoOptionsKey(halftime));
+  const off = withFullDemoStoryOverlay(withFullDemoStoryOverlay(both, 'halftime', false), 'subscribe', false);
+  assert.equal(Object.hasOwn(off.overlays, 'halftime'), false);
+  assert.equal(Object.hasOwn(off.overlays, 'subscribe'), false);
+  assert.equal(fullDemoOptionsKey(off), fullDemoOptionsKey(defaults));
+  const stale = currentFullDemoOptions({ ...defaults, overlays: { ...defaults.overlays, halftime: false, subscribe: false } });
+  assert.equal(fullDemoOptionsKey(stale), fullDemoOptionsKey(currentFullDemoOptions(defaults)));
+  assert.equal(isFullDemoOptions({ ...defaults, overlays: { ...defaults.overlays, halftime: 'yes' } }), false);
 });

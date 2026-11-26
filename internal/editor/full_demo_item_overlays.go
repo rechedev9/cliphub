@@ -12,8 +12,10 @@ import (
 // per-item composition can project. Anything else keeps the legacy post-concat
 // re-encode path (see fullDemoProgramUsesItemOverlays).
 var supportedFullDemoOverlaySources = map[string]bool{
-	"full-demo-intro": true,
-	"full-demo-outro": true,
+	"full-demo-intro":       true,
+	"full-demo-outro":       true,
+	fullDemoHalftimeSource:  true,
+	fullDemoSubscribeSource: true,
 }
 
 // fullDemoItemOverlayEligible reports whether item encodes can carry the global

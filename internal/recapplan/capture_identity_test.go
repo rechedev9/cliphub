@@ -50,6 +50,8 @@ func TestCaptureIdentityByOption(t *testing.T) {
 		"bumpers":                func(o *Options) { o.Bumpers = &BumperOptions{Intro: BumperSlot{Enabled: true}} },
 		"origen de los overlays": func(o *Options) { o.SourceKind = "faceit" },
 		"subtítulos":             func(o *Options) { o.Audio.Voice.Enabled, o.Subtitles = true, &SubtitleOptions{Enabled: true} },
+		"marcador del descanso":  func(o *Options) { o.Overlays.Halftime = true },
+		"botón de suscripción":   func(o *Options) { o.Overlays.Subscribe = true },
 	}
 	for name, change := range renderOnly {
 		o := custom()

@@ -211,6 +211,9 @@ func fullDemoRenderFingerprint(result recording.RecordingResult, variant string,
 	if snapshot.Document.Options.Overlays.HUDTheme != "" {
 		policy += "/" + customhud.Version
 	}
+	if effective.Options.Overlays.Halftime || effective.Options.Overlays.Subscribe {
+		policy += "/" + fullDemoStoryOverlayPolicy
+	}
 	return recapplan.HashValue(struct {
 		Policy, Variant, EffectivePlanHash string
 		Captures                           []input
