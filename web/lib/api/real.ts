@@ -8,7 +8,7 @@ import { readMomentScores, withMomentScores } from './moment-scores.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
 import { reelStyleLabel } from './reel-style-label.ts';
-import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, jobReconcileFacts, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForLatch, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView } from './reel-reconcile.ts';
+import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, jobReconcileFacts, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForLatch, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, videoFromIntent, withAdmissionFailure, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type AdmissionFailure, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
 import { autoShortsTitle, reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict, withAutoShortsCount } from './reel-identity.ts';
@@ -35,6 +35,7 @@ import { recoveredVideo, recoveryProbes, type RecoveredVideo } from './recovered
 import { importedVideo, importedVideoId, isImportedVideo, parseImportedVideos, type ImportedVideo } from './imported-videos.ts';
 import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
 import { RecentRead } from './recent-read.ts';
+import { RecordAdmissions } from './record-admissions.ts';
 import type { StorageFiles, StorageUsage } from './storage.ts';
 import { batchItemError, parseRenderView, parseStatusView, type RawRenderView, type RawStatusView, type RenderView } from './status-view.ts';
 import { playsSelectionLabel } from '../format.ts';
@@ -163,7 +164,7 @@ export class RealApiClient implements ApiClient {
 
   private readonly jobGoneTicks = new Map<string, number>();
   private readonly readyWithoutVideoTicks = new Map<string, number>();
-  private readonly pendingCapture = new Map<string, number>();
+  private readonly captures = new RecordAdmissions();
   private readonly artifactNames = new Map<string, { video: string; cover?: string; covers?: string[]; revision?: string }>();
   private readonly seriesMatches = new Map<string, RosterMatch>();
   private readonly redrivenRevisions = new Map<string, RedrivenRevision>();
@@ -828,7 +829,7 @@ export class RealApiClient implements ApiClient {
       this.artifactNames.delete(videoId);
       this.jobGoneTicks.delete(videoId);
       this.readyWithoutVideoTicks.delete(videoId);
-      this.pendingCapture.delete(videoId);
+      this.captures.forget(videoId);
       this.forgetDriveState(videoId);
     }
     for (const [videoId, entry] of this.recovered) {
@@ -842,6 +843,7 @@ export class RealApiClient implements ApiClient {
   /** An explicit user action grants a fresh automatic re-drive and lifts any latch. */
   private forgetDriveState(videoId: string): void {
     this.asked.add(videoId);
+    this.captures.userActed(videoId);
     this.redrivenRevisions.delete(videoId);
     this.driveLatch.delete(videoId);
     this.keepAdmissionFailure(videoId, undefined);
@@ -920,17 +922,14 @@ export class RealApiClient implements ApiClient {
     } else {
       this.readyWithoutVideoTicks.delete(intent.videoId);
     }
-    const admittedAt = this.pendingCapture.get(intent.videoId);
-    if (admittedAt !== undefined && !recordAdmissionPending({ jobStatus: job.status, admittedAt, now: Date.now() })) {
-      this.pendingCapture.delete(intent.videoId);
-    }
+    const ownFailure = this.captures.settle({ videoId: intent.videoId, variant: variantOf(intent), job });
     const decision = decideReelReconcile({
-      ...jobReconcileFacts({ job, variant: variantOf(intent), recordAdmittedAt: this.pendingCapture.get(intent.videoId) }),
+      ...jobReconcileFacts(job, ownFailure),
       renderStatus: render.status,
       renderFailureReason: render.failureReason,
       renderWarnings: render.warnings,
       renderArtifactPrefix: render.artifactPrefix,
-      recordAdmitted: this.pendingCapture.has(intent.videoId),
+      recordAdmitted: this.captures.pending(intent.videoId),
       intentEdit: intent.editConfig,
       renderEdit: render.editConfig,
       intentSegmentIds: intent.segmentIds,
@@ -1028,6 +1027,7 @@ export class RealApiClient implements ApiClient {
     if (this.driving.has(intent.videoId)) return;
     this.driving.add(intent.videoId);
     const variant = variantOf(intent);
+    const sentAt = Date.now();
     try {
       const res =
         action === 'record'
@@ -1059,7 +1059,7 @@ export class RealApiClient implements ApiClient {
             }));
       if (res.ok) {
         if (redriveFrom) this.redrivenRevisions.set(intent.videoId, redriveFrom);
-        if (action === 'record') this.pendingCapture.set(intent.videoId, Date.now());
+        if (action === 'record') this.captures.accept(intent.videoId, sentAt);
         this.applyView(intent, { status: action === 'record' ? 'recording' : 'composing', action: 'none' });
         return;
       }
