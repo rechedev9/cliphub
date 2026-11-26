@@ -118,6 +118,7 @@ func CanonicalNewOptions(options Options) (Options, error) {
 	canonical.Capture.TrueView = options.Capture.TrueView
 	canonical.Capture.ClipHubRadar = options.Capture.ClipHubRadar
 	canonical.Subtitles = canonicalSubtitles(options.Subtitles)
+	canonical.Hook = canonicalHook(options.Hook)
 	if len(options.Rounds) > 0 {
 		canonical.Rounds = slices.Compact(slices.Sorted(slices.Values(options.Rounds)))
 	}
@@ -354,6 +355,7 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 			d.block(ErrAssetMissing, "Asset provenance and permission are required: "+a.Ref.ID)
 		}
 	}
+	d.planHook()
 	if err := d.RebuildTimeline(); err != nil {
 		return Document{}, err
 	}

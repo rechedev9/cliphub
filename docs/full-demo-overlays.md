@@ -69,6 +69,52 @@ as image effects that the per-item composition supports
 (`supportedFullDemoOverlaySources`), so they do not bring back the
 whole-program pass.
 
+## Opening hook
+
+**Gancho inicial**, under **Entre rondas**, opens the video with a teaser of
+the player's best play and then plays the match from round 1, where the play is
+seen again in its round. It is off by default and render only: the plan stores
+`options.hook` (`{enabled: true}`, omitted when off, so saved plans keep their
+hash), it never enters the capture hash and it reuses the footage of its round.
+Assistants set it with `plan_full_demo` `hook`.
+
+- **Selection.** When the plan is made, `recapplan` groups each round's POV
+  kills into plays (kills at most `HookPlayGapSeconds` apart, the kill play
+  window of the Short flow) and scores them with `moments.Rank`, the score of
+  `list_moments` and Auto-Shorts. The best play wins and a tie keeps the
+  earliest. Only rounds in the video count (a round selection narrows it), only
+  kills up to the round's `live_end_tick`, which every certified capture
+  covers, and only rounds whose certified part lasts `HookMinSeconds`. The
+  document carries the choice in `hook` (round and first and last kill tick),
+  so the approved hash binds it and admission plans it again from the facts.
+- **Window.** From `HookLeadSeconds` (3 s) before the first kill to
+  `HookTailSeconds` (1.5 s) after the last, inside the round's requested start
+  and effective end. Under `HookMinSeconds` (8 s) it grows backwards, then
+  forwards at the round start; over `HookMaxSeconds` (20 s) it keeps its end
+  and drops its start. `RebuildTimeline` derives it from the round each time,
+  so a certified tail trim shortens the tail after the last kill and the
+  window grows backwards again: the hook never reads past the effective end.
+- **Timeline.** One more `round` item with reason `hook`, after the intro clip
+  and before the first round, with `source_ref` of its round and
+  `source_offset_frames` of the teaser. It is not a round: the sponsor still
+  follows the second round, captions and titles keep their round count, and
+  its kills are not counted again in the kill count, the cover frame or the
+  publish metadata. A video with one round, or without a POV kill, has no hook
+  and carries the `hook_skipped` warning; it never blocks.
+- **Picture and sound.** The item goes through the same per-item render as its
+  round: custom HUD, radar, subtitles of that stretch, game audio and team
+  voices at the same offsets, and the round transition into the first round
+  (also when the hook comes from round 1). Its voices do not run on over the
+  first round. A `MEJOR JUGADA` label (`demooverlay.RenderHookPNG`,
+  `full-demo-hook.png`) slides into the top left corner, right of the radar,
+  for the whole hook, in the chosen design.
+- **Other overlays.** The player introduction opens the first real round
+  (`fullDemoGameplaySpanSeconds` skips the hook like the intro clip), and the
+  halftime card and the subscribe button never land on the hook. The brand
+  watermark shows on it. The sponsor banner keeps its window on the video
+  clock, as with an intro clip: a banner whose window starts in the first
+  seconds also shows over the hook, and nothing is shifted.
+
 ## Rendering
 
 The neon introduction uses HTML, CSS perspective, glow, embedded Roboto fonts

@@ -31,6 +31,11 @@ test('the recap names each setting with the words of its control', () => {
   const story = brief({ ...base, overlays: { ...base.overlays, halftime: true, subscribe: true } });
   assert.equal(story['Marcador del descanso'], 'Sí');
   assert.equal(story['Botón de suscripción'], 'Sí');
+  assert.equal(rows['Gancho inicial'], 'No');
+  assert.equal(brief({ ...base, hook: { enabled: true } })['Gancho inicial'], 'Sí');
+  const skipped = Object.fromEntries(fullDemoBriefItems({ ...base, hook: { enabled: true } }, null, true).map((item) => [item.label, item.value]));
+  assert.equal(skipped['Gancho inicial'], 'Omitido');
+  assert.equal(Object.fromEntries(fullDemoBriefItems(base, null, true).map((item) => [item.label, item.value]))['Gancho inicial'], 'No');
 });
 
 test('voices read as missing once a plan found none, and pending before', () => {

@@ -150,7 +150,11 @@ func SubscribeHTML(palette *Palette) ([]byte, error) {
 }
 
 func storyPage(file string, data any) ([]byte, error) {
-	page, err := template.ParseFS(storyAssets, file)
+	return htmlPage(storyAssets, file, data)
+}
+
+func htmlPage(assets embed.FS, file string, data any) ([]byte, error) {
+	page, err := template.ParseFS(assets, file)
 	if err != nil {
 		return nil, err
 	}

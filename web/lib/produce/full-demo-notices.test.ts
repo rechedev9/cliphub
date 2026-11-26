@@ -22,4 +22,5 @@ test('a warning names its round and an unknown one stays out of sight', () => {
     'Una ronda se queda fuera: el jugador murió antes de empezar a jugarla. Ronda 7.',
   );
   assert.equal(fullDemoWarningText({ code: 'tick_drift', message: 'Tick drift' }), '');
+  assert.match(fullDemoWarningText({ code: 'hook_skipped', message: 'El vídeo tiene una sola ronda, así que sale sin gancho inicial.' }), /sin gancho inicial/);
 });

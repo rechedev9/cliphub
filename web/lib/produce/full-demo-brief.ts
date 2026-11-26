@@ -16,6 +16,8 @@ export const FULL_DEMO_TRUEVIEW_LABEL = 'POV original 1:1';
 export const FULL_DEMO_RADAR_LABEL = 'Radar de ClipHub';
 export const FULL_DEMO_VOICE_LABEL = 'Incluir voces del equipo';
 export const FULL_DEMO_TRANSITIONS_LABEL = 'Activar efectos entre rondas';
+export const FULL_DEMO_HOOK_LABEL = 'Gancho inicial';
+export const FULL_DEMO_HOOK_NOTE = 'El vídeo abre con unos segundos de la mejor jugada de la partida, antes de la primera ronda.';
 export const FULL_DEMO_HALFTIME_LABEL = 'Marcador del descanso';
 export const FULL_DEMO_HALFTIME_NOTE = 'Al empezar la segunda parte, una tarjeta con los dos equipos y el resultado del descanso durante unos segundos.';
 export const FULL_DEMO_SUBSCRIBE_LABEL = 'Botón de suscripción';
@@ -73,8 +75,13 @@ function hasBumpers(options: FullDemoOptions): boolean {
   return Boolean(bumpers?.intro.enabled || bumpers?.sponsor?.enabled || bumpers?.outro.enabled);
 }
 
+function hookValue(enabled: boolean, skipped: boolean): string {
+  if (!enabled) return 'No';
+  return skipped ? 'Omitido' : 'Sí';
+}
+
 /** The recap rows after player and rounds, labelled as the controls that set them. */
-export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: string | null): CreativeBriefItem[] {
+export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: string | null, hookSkipped = false): CreativeBriefItem[] {
   const hudName = options.overlays.hud_custom?.name ?? customHudLabel(options.overlays.hud_theme);
   return [
     { label: 'HUD', value: hudName },
@@ -84,6 +91,7 @@ export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: 
     { label: 'Voces del equipo', value: voiceValue(options.audio.voice.enabled, voiceAvailability) },
     { label: 'Subtítulos', value: subtitlesValue(options, voiceAvailability) },
     { label: 'Efectos entre rondas', value: (options.transitions?.enabled ?? true) ? 'Activados' : 'Desactivados' },
+    { label: FULL_DEMO_HOOK_LABEL, value: hookValue(options.hook?.enabled === true, hookSkipped) },
     { label: FULL_DEMO_BUMPERS_TITLE, value: hasBumpers(options) ? bumperSummary(options) : 'Ninguno' },
     { label: INTRO_DESIGN_LABEL, value: options.overlays.theme === 'hud' ? INTRO_DESIGNS.hud : INTRO_DESIGNS.neon },
     { label: FULL_DEMO_SOURCE_LABEL, value: sourceValue(options) },

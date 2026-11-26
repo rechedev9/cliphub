@@ -52,6 +52,7 @@ func TestCaptureIdentityByOption(t *testing.T) {
 		"subtítulos":             func(o *Options) { o.Audio.Voice.Enabled, o.Subtitles = true, &SubtitleOptions{Enabled: true} },
 		"marcador del descanso":  func(o *Options) { o.Overlays.Halftime = true },
 		"botón de suscripción":   func(o *Options) { o.Overlays.Subscribe = true },
+		"gancho inicial":         func(o *Options) { o.Hook = &HookOptions{Enabled: true} },
 	}
 	for name, change := range renderOnly {
 		o := custom()

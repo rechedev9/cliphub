@@ -121,7 +121,7 @@ func (d Document) TransitionBoundaries() []TransitionBoundary {
 	var result []TransitionBoundary
 	for i := 1; i < len(d.Timeline); i++ {
 		a, b := d.Timeline[i-1], d.Timeline[i]
-		roundCut := d.Options.Transitions != nil && d.Options.Transitions.Enabled && a.Role == "round" && b.Role == "round" && a.SourceRef != b.SourceRef
+		roundCut := d.Options.Transitions != nil && d.Options.Transitions.Enabled && a.Role == "round" && b.Role == "round" && (a.SourceRef != b.SourceRef || a.IsHook() != b.IsHook())
 		if !bumperCut(a, b) && !roundCut {
 			continue
 		}

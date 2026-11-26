@@ -16,6 +16,7 @@ var supportedFullDemoOverlaySources = map[string]bool{
 	"full-demo-outro":       true,
 	fullDemoHalftimeSource:  true,
 	fullDemoSubscribeSource: true,
+	fullDemoHookSource:      true,
 }
 
 // fullDemoItemOverlayEligible reports whether item encodes can carry the global

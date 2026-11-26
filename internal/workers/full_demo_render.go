@@ -214,6 +214,9 @@ func fullDemoRenderFingerprint(result recording.RecordingResult, variant string,
 	if effective.Options.Overlays.Halftime || effective.Options.Overlays.Subscribe {
 		policy += "/" + fullDemoStoryOverlayPolicy
 	}
+	if effective.Hook != nil {
+		policy += "/" + fullDemoHookPolicy
+	}
 	return recapplan.HashValue(struct {
 		Policy, Variant, EffectivePlanHash string
 		Captures                           []input

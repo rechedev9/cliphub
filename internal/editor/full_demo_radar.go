@@ -112,7 +112,7 @@ func fullDemoRadarOverlay(s fullDemoRadarStep) ([]string, string, error) {
 		return nil, "", fmt.Errorf("ClipHub radar has no track for %s", s.item.SourceRef)
 	}
 	segment := track.Segments[0]
-	level := segment.POVLevel(track.Calibration)
+	level := fullDemoRadarLevel(s.item, track)
 	box, err := fullDemoRadarBox(s.short)
 	if err != nil {
 		return nil, "", err

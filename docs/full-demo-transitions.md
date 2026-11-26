@@ -1,6 +1,7 @@
 # Full Demo round transitions
 
-The **Entre rondas** panel has one switch: **Efectos entre rondas**. New Full Demo
+The **Entre rondas** panel has two switches: **Efectos entre rondas** and
+**Gancho inicial** ([Opening hook](full-demo-overlays.md#opening-hook)). New Full Demo
 plans enable the Dinámico preset by default. Turning the switch off uses clean
 cuts. Effect parameters are internal settings; the form does not expose presets,
 individual effects, or calibration controls.
@@ -31,7 +32,8 @@ existing full-program AAC mastering and decoded-output validation.
 Effects decorate existing frames rather than overlapping clips. Frame/sample
 counts, kills, overlay positions, and fixed two-second freeze
 context remain unchanged. Only adjacent different round items receive a cut
-effect. Split continuations and program endpoints are excluded; cuts into and
+effect; the opening hook and the first round count as different even when the
+hook comes from that round. Split continuations and program endpoints are excluded; cuts into and
 out of the intro, sponsor and outro bumpers always get the effect. Very short items clamp the effect window without changing coverage.
 
 Event-anchored zooms use existing kill or round-end facts and receive a paired
