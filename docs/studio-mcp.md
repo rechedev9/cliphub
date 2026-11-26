@@ -134,7 +134,7 @@ There is no event stream; the UI polls.
   earlier render stays `ready`. The status view carries that run in `generate` (`variant`, `active`,
   and `failure_reason`, `failure_code` and `failed_at` once it failed). `wait_for_job` answers
   running with stage "capture queued" while `active` is true, and reports the failure
-  (`capture_failed` when it has no code) unless a render of the followed variant is newer than
+  (`capture_failed` when it has no code) unless a render of that run's variant is newer than
   `failed_at`.
 - Library demos have their own states (`queued`, `parsing`, `ready`, `failed`): `wait_for_demo`.
 - In a host with MCP Apps, the tools that start or follow a long job show the progress view

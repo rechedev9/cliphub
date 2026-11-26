@@ -12,12 +12,18 @@ import (
 
 const waitJobID = "0b6c1d7e-52a4-4f0b-8f3e-9a1d2c3b4e5f"
 
-func waitJobStudio(t *testing.T, status *string) *mcp.ClientSession {
+func waitJobStudio(t *testing.T, status, otherRender *string) *mcp.ClientSession {
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	mux.HandleFunc("GET /api/presets", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"default":"viral-60-clean","presets":[{"name":"viral-60-clean","label":"Killfeed"}]}`))
+		_, _ = w.Write([]byte(`{"default":"viral-60-clean","presets":[{"name":"viral-60-clean","label":"Killfeed"},{"name":"clean-pov-60","label":"POV limpio"}]}`))
+	})
+	mux.HandleFunc("GET /api/jobs/"+waitJobID+"/renders/clean-pov-60", func(w http.ResponseWriter, _ *http.Request) {
+		if *otherRender == "" {
+			w.WriteHeader(http.StatusNotFound)
+		}
+		_, _ = w.Write([]byte(*otherRender))
 	})
 	mux.HandleFunc("GET /api/jobs/"+waitJobID, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(*status)) })
 	mux.HandleFunc("GET /api/jobs/"+waitJobID+"/renders/viral-60-clean", func(w http.ResponseWriter, _ *http.Request) {
@@ -50,8 +56,8 @@ func waitJob(t *testing.T, cs *mcp.ClientSession, variant string) map[string]any
 }
 
 func TestWaitForJobNeverReportsTheEarlierRenderAsTheNewOne(t *testing.T) {
-	status := ""
-	cs := waitJobStudio(t, &status)
+	status, otherRender := "", ""
+	cs := waitJobStudio(t, &status, &otherRender)
 
 	status = `{"status":"recorded","generate":{"variant":"viral-60-clean","active":true}}`
 	queued := waitJob(t, cs, "viral-60-clean")
@@ -81,6 +87,11 @@ func TestWaitForJobNeverReportsTheEarlierRenderAsTheNewOne(t *testing.T) {
 	if uncoded := waitJob(t, cs, ""); uncoded["failure_code"] != "capture_failed" {
 		t.Fatalf("a failed capture without a code = %v, want capture_failed", uncoded)
 	}
+	otherRender = `{"job_id":"` + waitJobID + `","variant":"clean-pov-60","status":"ready","created_at":"2026-11-26T10:25:00Z","updated_at":"2026-11-26T10:30:00Z"}`
+	if unrelated := waitJob(t, cs, ""); unrelated["failure_code"] != "capture_failed" {
+		t.Fatalf("a failed capture with a later render of another variant = %v, want capture_failed", unrelated)
+	}
+	otherRender = ""
 
 	status = `{"status":"recorded","generate":{"variant":"viral-60-clean","active":false,"failure_reason":"recorder failed","failed_at":"2026-11-26T10:01:00Z"}}`
 	later := waitJob(t, cs, "viral-60-clean")

@@ -19,5 +19,7 @@ func captureFailed(run *tuiclient.GenerateRun, renders []tuiclient.RenderVariant
 	if run == nil || run.Active || run.FailureReason == "" {
 		return false
 	}
-	return !slices.ContainsFunc(renders, func(r tuiclient.RenderVariantState) bool { return r.UpdatedAt.After(run.FailedAt) })
+	return !slices.ContainsFunc(renders, func(r tuiclient.RenderVariantState) bool {
+		return r.Variant == run.Variant && r.UpdatedAt.After(run.FailedAt)
+	})
 }
