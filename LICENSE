@@ -23,6 +23,9 @@ The official installers published in this repository's releases may be
 downloaded, installed and run as distributed; this grants no right to the
 source code.
 
+Third-party files in the repository that carry their own license notice, such
+as fonts and adapted code, remain under that license.
+
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
