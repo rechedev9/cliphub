@@ -25,6 +25,7 @@ type Orchestrator = {
   /** The job's failure_reason while it reads failed. */
   jobFailure?: string;
   generateRun?: Record<string, unknown>;
+  statusGate?: Promise<void>;
   /** GET /renders/{variant} body, or null for 404 (nothing rendered yet). */
   render: Record<string, unknown> | null;
   generate: () => Response;
@@ -51,7 +52,13 @@ function fakeOrchestrator(jobId: string, state: Orchestrator): { calls: Call[]; 
     // Trust boundary: the client serialised this body itself.
     if (typeof init?.body === 'string') call.body = JSON.parse(init.body) as Record<string, unknown>;
     calls.push(call);
-    if (url === `${base}/status`) return json({ status: state.jobStatus, failure_reason: state.jobFailure, generate: state.generateRun });
+    if (url === `${base}/status`) {
+      const answer = json({ status: state.jobStatus, failure_reason: state.jobFailure, generate: state.generateRun });
+      const gate = state.statusGate;
+      state.statusGate = undefined;
+      if (gate) await gate;
+      return answer;
+    }
     const renders = `${base}/renders/${state.variant ?? DEFAULT_VARIANT}`;
     if (url === renders && method === 'GET') {
       return state.render ? json(state.render) : json({ error: 'render variant not found' }, 404);
@@ -278,6 +285,77 @@ test('an earlier failure of the variant does not stop the first capture of a ree
     await new Promise((resolve) => setTimeout(resolve, 5));
     await client.retryVideo(videoId);
     assert.equal(fake.posts('/generate').length, 2, 'a retry right after that failure records at once, without waiting out the admission');
+  } finally {
+    fake.restore();
+  }
+});
+
+test('a retried capture of a failed job that fails before any poll sees it shows that failure and offers the retry again', async () => {
+  const state: Orchestrator = {
+    jobStatus: 'failed',
+    jobFailure: 'recorder crashed',
+    render: null,
+    generate: () => {
+      state.generateRun = { variant: DEFAULT_VARIANT, active: true };
+      return json({ id: 'job-12', task: 'record' }, 202);
+    },
+    renderPost: () => json({ accepted: true }, 202),
+  };
+  const fake = fakeOrchestrator('job-12', state);
+  try {
+    const client = new RealApiClient();
+    const { videoId } = seedReel(client, 'job-12');
+    await tick(client);
+    assert.equal((await client.getVideo(videoId))?.status, 'failed');
+
+    await client.retryVideo(videoId);
+    assert.equal(fake.posts('/generate').length, 1);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await tick(client);
+    assert.equal((await client.getVideo(videoId))?.status, 'recording', 'the accepted run is still active on a job that reads failed');
+
+    state.generateRun = undefined;
+    state.jobFailure = 'recorder failed: CS2 did not start';
+    await tick(client);
+    const failed = await client.getVideo(videoId);
+    assert.equal(failed?.status, 'failed', 'the run ended without ever reading recording');
+    assert.equal(failed?.failureReason, 'recorder failed: CS2 did not start');
+    for (let i = 0; i < 3; i++) await tick(client);
+    assert.equal(fake.posts('/generate').length, 1, 'the failure waits for the user');
+
+    await client.retryVideo(videoId);
+    assert.equal(fake.posts('/generate').length, 2, 'one retry records again');
+  } finally {
+    fake.restore();
+  }
+});
+
+test('a status read taken before a retry was accepted does not end that retry on a failed job', async () => {
+  const state: Orchestrator = {
+    jobStatus: 'failed',
+    jobFailure: 'recorder crashed',
+    render: null,
+    generate: () => {
+      state.generateRun = { variant: DEFAULT_VARIANT, active: true };
+      return json({ id: 'job-13', task: 'record' }, 202);
+    },
+    renderPost: () => json({ accepted: true }, 202),
+  };
+  const fake = fakeOrchestrator('job-13', state);
+  try {
+    const client = new RealApiClient();
+    const { videoId } = seedReel(client, 'job-13');
+    await tick(client);
+
+    let release = (): void => {};
+    state.statusGate = new Promise<void>((resolve) => { release = resolve; });
+    const stalePoll = client.listVideos();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await client.retryVideo(videoId);
+    assert.equal(fake.posts('/generate').length, 1);
+    release();
+    await stalePoll;
+    assert.equal((await client.getVideo(videoId))?.status, 'recording', 'the read from before the POST is not the end of its run');
   } finally {
     fake.restore();
   }

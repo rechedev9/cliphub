@@ -189,10 +189,9 @@ const PRE_CAPTURE_STATUSES: ReadonlySet<string> = new Set(
 
 /**
  * True while an accepted /generate should still count as admitted: the job may
- * read failed (or its pre-capture status) until the worker dequeues the task.
+ * read its pre-capture status until the worker dequeues the task.
  */
 export function recordAdmissionPending(input: { jobStatus: string; admittedAt: number; now: number }): boolean {
-  if (input.jobStatus === 'failed') return true;
   return PRE_CAPTURE_STATUSES.has(input.jobStatus) && input.now - input.admittedAt < RECORD_ADMISSION_GRACE_MS;
 }
 

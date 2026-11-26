@@ -1,23 +1,23 @@
 import { recordAdmissionPending } from './reel-reconcile.ts';
 import type { GenerateFailure, JobStatusView } from './types.ts';
 
-type JobRead = { videoId: string; variant: string; job: JobStatusView };
+type JobRead = { videoId: string; variant: string; job: JobStatusView; readAt: number };
+type Admission = { sentAt: number; acceptedAt: number };
 
 export class RecordAdmissions {
-  private readonly pendingSince = new Map<string, number>();
+  private readonly pendingSince = new Map<string, Admission>();
   private readonly ownFailuresSince = new Map<string, number>();
 
   accept(videoId: string, sentAt: number): void {
-    this.pendingSince.set(videoId, sentAt);
+    this.pendingSince.set(videoId, { sentAt, acceptedAt: Date.now() });
     this.ownFailuresSince.set(videoId, sentAt);
   }
 
   settle(read: JobRead): GenerateFailure | undefined {
     const failure = this.ownFailure(read);
-    const admittedAt = this.pendingSince.get(read.videoId);
-    if (admittedAt === undefined) return failure;
-    const waiting = failure === undefined && recordAdmissionPending({ jobStatus: read.job.status, admittedAt, now: Date.now() });
-    if (!waiting) this.pendingSince.delete(read.videoId);
+    const admission = this.pendingSince.get(read.videoId);
+    if (admission === undefined) return failure;
+    if (failure !== undefined || !this.stillAdmitted(read, admission)) this.pendingSince.delete(read.videoId);
     return failure;
   }
 
@@ -34,11 +34,18 @@ export class RecordAdmissions {
     this.ownFailuresSince.delete(videoId);
   }
 
+  private stillAdmitted(read: JobRead, admission: Admission): boolean {
+    if (read.job.status !== 'failed') return recordAdmissionPending({ jobStatus: read.job.status, admittedAt: admission.sentAt, now: Date.now() });
+    if (read.readAt <= admission.acceptedAt) return true;
+    const run = read.job.generateRun;
+    return run?.active === true && run.variant === read.variant;
+  }
+
   private ownFailure(read: JobRead): GenerateFailure | undefined {
-    const failure = read.job.generateFailure;
+    const run = read.job.generateRun;
     const since = this.ownFailuresSince.get(read.videoId);
-    if (failure === undefined || failure.variant !== read.variant || since === undefined) return undefined;
-    if (failure.failedAt === undefined) return failure;
-    return Date.parse(failure.failedAt) < since ? undefined : failure;
+    if (run === undefined || run.active || run.variant !== read.variant || since === undefined) return undefined;
+    if (run.failedAt === undefined) return run;
+    return Date.parse(run.failedAt) < since ? undefined : run;
   }
 }
