@@ -16,6 +16,10 @@ export const FULL_DEMO_TRUEVIEW_LABEL = 'POV original 1:1';
 export const FULL_DEMO_RADAR_LABEL = 'Radar de ClipHub';
 export const FULL_DEMO_VOICE_LABEL = 'Incluir voces del equipo';
 export const FULL_DEMO_TRANSITIONS_LABEL = 'Activar efectos entre rondas';
+export const FULL_DEMO_HALFTIME_LABEL = 'Marcador del descanso';
+export const FULL_DEMO_HALFTIME_NOTE = 'Al empezar la segunda parte, una tarjeta con los dos equipos y el resultado del descanso durante unos segundos.';
+export const FULL_DEMO_SUBSCRIBE_LABEL = 'Botón de suscripción';
+export const FULL_DEMO_SUBSCRIBE_NOTE = 'Un botón «Suscríbete» con campana en la esquina inferior derecha, dos veces durante las rondas.';
 
 export type VoiceStatus = { text: string; problem: boolean };
 
@@ -83,5 +87,7 @@ export function fullDemoBriefItems(options: FullDemoOptions, voiceAvailability: 
     { label: FULL_DEMO_BUMPERS_TITLE, value: hasBumpers(options) ? bumperSummary(options) : 'Ninguno' },
     { label: INTRO_DESIGN_LABEL, value: options.overlays.theme === 'hud' ? INTRO_DESIGNS.hud : INTRO_DESIGNS.neon },
     { label: FULL_DEMO_SOURCE_LABEL, value: sourceValue(options) },
+    { label: FULL_DEMO_HALFTIME_LABEL, value: options.overlays.halftime ? 'Sí' : 'No' },
+    { label: FULL_DEMO_SUBSCRIBE_LABEL, value: options.overlays.subscribe ? 'Sí' : 'No' },
   ];
 }

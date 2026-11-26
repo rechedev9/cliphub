@@ -102,6 +102,12 @@ plan_full_demo also takes compact_header, hide_inventory, round_win_banner, win_
 team_t_start for the custom HUD scoreboard; they change only the render, never the capture.
 plan_full_demo intro_design picks the look of the player intro and final scoreboard: neon (default) or hud,
 in the colours of the chosen HUD or own theme and neutral over the native CS2 HUD. It only changes the render.
+plan_full_demo halftime_scoreboard shows a compact card with both team names and the score for about 4 s at the
+start of the first round after the regulation side switch (never in overtime); it is left out when that round is
+not in the video or the job has no round results. subscribe_button shows a small SUSCRÍBETE button with a bell in
+the bottom right corner twice, about 6 s each near 25% and 75% of the match, only over rounds and never over the
+intro, the halftime card or the final scoreboard, above a bottom right brand watermark; a short video shows it
+once or not at all. Both are off by default, follow intro_design and only change the render.
 plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for the focus HUD and intro,
 sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo

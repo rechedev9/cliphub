@@ -78,6 +78,7 @@ type planFullDemoIn struct {
 	fullDemoExtrasIn
 	hudLookIn
 	brandChoiceIn
+	storyOverlaysIn
 	subtitleChoices
 	custom *hudthemes.Style // A user theme resolved from hud by resolveUserHUD.
 }
@@ -92,6 +93,8 @@ type fullDemoPlanOut struct {
 	HUD                 string   `json:"hud" jsonschema:"HUD design id, or native"`
 	OverlaySource       string   `json:"overlay_source"`
 	IntroDesign         string   `json:"intro_design" jsonschema:"neon or hud"`
+	HalftimeScoreboard  bool     `json:"halftime_scoreboard"`
+	SubscribeButton     bool     `json:"subscribe_button"`
 	TeamVoices          bool     `json:"team_voices"`
 	VoiceStatus         string   `json:"voice_status,omitempty" jsonschema:"what the demo holds for team voices, e.g. available or no_packets"`
 	VoiceLevel          int      `json:"voice_level_percent"`
@@ -177,6 +180,7 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "plan_full_demo",
 		Description: "Prepare a Full Demo: one long video of the whole match from one player's point of view. This only builds and saves the plan, it never starts CS2. " +
 			"Choose the HUD with list_hud_themes first. Options left out keep Studio's defaults. " +
+			"halftime_scoreboard adds a score card at the side switch and subscribe_button a SUSCRÍBETE button twice over the rounds; both are off by default and only change the render. " +
 			"Show the user the summary, then call render_full_demo with the plan_hash if they agree."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in planFullDemoIn) (*mcp.CallToolResult, fullDemoPlanOut, error) {
 			if err := checkUUID("job_id", in.JobID); err != nil {
@@ -394,6 +398,7 @@ func applyFullDemoChoices(options recapplan.Options, in planFullDemoIn) (recappl
 		return recapplan.Options{}, err
 	}
 	applyBrandChoice(&options, in.brandChoiceIn)
+	applyStoryOverlays(&options, in.storyOverlaysIn)
 	if err := applyIntroDesign(&options, in.IntroDesign); err != nil {
 		return recapplan.Options{}, err
 	}
@@ -507,7 +512,7 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	effects := o.Transitions != nil && o.Transitions.Enabled
 	out := fullDemoPlanOut{
 		JobID: jobID, PlanHash: doc.PlanHash, Ready: len(doc.Blockers) == 0, DurationSeconds: seconds, Rounds: len(doc.Rounds), NeedsCapture: true,
-		HUD: hud, OverlaySource: source, IntroDesign: introDesignOf(o.Overlays), TeamVoices: o.Audio.Voice.Enabled, VoiceStatus: doc.Voice.Availability,
+		HUD: hud, OverlaySource: source, IntroDesign: introDesignOf(o.Overlays), HalftimeScoreboard: o.Overlays.Halftime, SubscribeButton: o.Overlays.Subscribe, TeamVoices: o.Audio.Voice.Enabled, VoiceStatus: doc.Voice.Availability,
 		VoiceLevel: percent(o.Audio.Voice.Gain), GameLevel: percent(o.Audio.Game.Gain), BetweenRoundEffects: effects,
 		TrueView: o.Capture.TrueView, ClipHubRadar: o.Capture.ClipHubRadar, Warnings: noticeMessages(doc.Warnings), Blockers: noticeMessages(doc.Blockers),
 	}
@@ -534,7 +539,7 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	if out.ClipHubRadar {
 		out.Summary += " Con el radar de ClipHub en lugar del de CS2."
 	}
-	out.Summary += describeHUDLook(o.Overlays) + describeIntroDesign(o.Overlays) + describeBrand(o.Overlays.Brand)
+	out.Summary += describeHUDLook(o.Overlays) + describeIntroDesign(o.Overlays) + describeStoryOverlays(o.Overlays) + describeBrand(o.Overlays.Brand)
 	if len(out.Bumpers) > 0 {
 		out.Summary += fmt.Sprintf(" Clips añadidos: %s.", strings.Join(out.Bumpers, ", "))
 	}

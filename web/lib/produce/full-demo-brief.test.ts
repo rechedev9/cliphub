@@ -26,6 +26,11 @@ test('the recap names each setting with the words of its control', () => {
   assert.equal(rows['Efectos entre rondas'], 'Activados');
   assert.equal(rows['Presentación y marcador'], 'Neón');
   assert.equal(brief({ ...base, overlays: { ...base.overlays, theme: 'hud' } })['Presentación y marcador'], 'A juego con el HUD');
+  assert.equal(rows['Marcador del descanso'], 'No');
+  assert.equal(rows['Botón de suscripción'], 'No');
+  const story = brief({ ...base, overlays: { ...base.overlays, halftime: true, subscribe: true } });
+  assert.equal(story['Marcador del descanso'], 'Sí');
+  assert.equal(story['Botón de suscripción'], 'Sí');
 });
 
 test('voices read as missing once a plan found none, and pending before', () => {

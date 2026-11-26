@@ -298,7 +298,9 @@ type OverlayOptions struct {
 	Team2Image      *AssetRef         `json:"team2_image,omitempty"`
 	ScoreboardImage *AssetRef         `json:"scoreboard_image,omitempty"`
 	// Brand is the creator's brand kit, copied whole like HUDCustom so a later kit edit never changes the plan.
-	Brand BrandOverlay `json:"brand,omitzero"`
+	Brand     BrandOverlay `json:"brand,omitzero"`
+	Halftime  bool         `json:"halftime,omitempty"`
+	Subscribe bool         `json:"subscribe,omitempty"`
 }
 
 // BrandOverlay is the watermark and sponsor banner drawn over the rounds; nil is off.

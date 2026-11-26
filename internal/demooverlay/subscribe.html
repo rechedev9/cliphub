@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'none'"/>
+<title>Subscribe button</title>
+<style>
+@font-face{font-family:Roboto;src:url('{{.RegularFont}}') format('truetype');font-weight:400;font-display:block}
+@font-face{font-family:Roboto;src:url('{{.MediumFont}}') format('truetype');font-weight:500;font-display:block}
+@font-face{font-family:Roboto;src:url('{{.BoldFont}}') format('truetype');font-weight:700;font-display:block}
+*{box-sizing:border-box}html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent}body{font-family:Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+.pill{position:absolute;right:44px;bottom:44px;height:68px;display:flex;align-items:center;gap:14px;padding:0 30px 0 22px;border-radius:34px;font-size:24px;font-weight:700;letter-spacing:2px;text-transform:uppercase;white-space:nowrap}
+.bell{width:32px;height:32px;flex-shrink:0}
+{{if .Palette}}{{with .Palette}}:root{--ct:#{{.CT}};--t:#{{.T}};--bg:#{{.Background}};--text:#{{.Text}};--muted:#{{.Muted}}}{{end}}
+.pill{color:var(--text);background:color-mix(in srgb,var(--bg) 94%,transparent);box-shadow:inset 0 0 0 3px var(--ct),0 10px 28px #0009}.bell{color:var(--ct)}
+{{else}}
+.pill{color:#f1eaf9;background:#0a090df0;border:2px solid #d99aff;box-shadow:0 0 5px #ead1ff,0 0 22px #a51aef,inset 0 0 14px #72009e55}.bell{color:#d99aff}
+{{end}}
+</style>
+</head>
+<body><div class="pill"><svg class="bell" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5a1.5 1.5 0 0 0-1.5 1.5v.6A6 6 0 0 0 6 10.5v4.2l-1.6 2.4a.9.9 0 0 0 .75 1.4h13.7a.9.9 0 0 0 .75-1.4L18 14.7v-4.2a6 6 0 0 0-4.5-5.9V4A1.5 1.5 0 0 0 12 2.5z"/><path d="M9.6 20a2.5 2.5 0 0 0 4.8 0z"/></svg><span>{{.Label}}</span></div></body>
+</html>

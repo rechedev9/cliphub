@@ -125,7 +125,8 @@ const optionsShape = object({
     hud_custom: isHudStyle, hud_options: isHudOptions, team_names: isHudTeamNames,
     // Mirrors recapplan.BrandOverlay, the brand kit copy; it draws with any HUD.
     brand: isBrandOverlay,
-  }, ['mode', 'team1_image', 'team2_image', 'scoreboard_image', 'hud_theme', 'hud_portrait', 'hud_custom', 'hud_options', 'team_names', 'brand']),
+    halftime: boolean, subscribe: boolean,
+  }, ['mode', 'team1_image', 'team2_image', 'scoreboard_image', 'hud_theme', 'hud_portrait', 'hud_custom', 'hud_options', 'team_names', 'brand', 'halftime', 'subscribe']),
   outputs: object({ media_profile: oneOf('h264-1080p60-aac48-stereo'), cover_policy: oneOf('no-cover', 'generated-gameplay'), metadata_policy: oneOf('factual-v1') }),
   transitions: nullable(transitionOptions),
   bumpers: bumperOptions,
@@ -159,7 +160,7 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
   // Go's `omitempty` leaves retired image fields out of persisted plans. Do
   // the same here so an already-approved document does not become dirty just
   // because the old screenshot option disappeared from the form.
-  const { team1_image: _team1Image, team2_image: _team2Image, scoreboard_image: _scoreboardImage, hud_portrait: portrait, hud_custom: hudCustom, hud_options: hudOptions, team_names: teamNames, brand, ...overlays } = fixed.overlays;
+  const { team1_image: _team1Image, team2_image: _team2Image, scoreboard_image: _scoreboardImage, hud_portrait: portrait, hud_custom: hudCustom, hud_options: hudOptions, team_names: teamNames, brand, halftime, subscribe, ...overlays } = fixed.overlays;
   if (!nativeHud && !hudTheme) throw new Error('No hay diseños de HUD disponibles.');
   return {
     ...fixed,
@@ -201,6 +202,8 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
       ...(hudTheme === 'focus' && portrait ? { hud_portrait: portrait } : {}),
       ...(hudTheme ? hudLook(hudCustom, hudOptions, teamNames) : {}),
       ...brandOverlay(brand),
+      ...(halftime ? { halftime: true } : {}),
+      ...(subscribe ? { subscribe: true } : {}),
     },
     transitions: { ...fullDemoTransitionPreset(), enabled: fixed.transitions?.enabled ?? true },
     outputs: { ...fixed.outputs, cover_policy: 'no-cover', metadata_policy: 'factual-v1' },
@@ -253,6 +256,14 @@ export function withFullDemoRounds(options: FullDemoOptions, rounds: readonly nu
   const { rounds: _previous, ...rest } = options;
   const sorted = [...new Set(rounds ?? [])].sort((a, b) => a - b);
   return sorted.length === 0 ? rest : { ...rest, rounds: sorted };
+}
+
+export type FullDemoStoryOverlay = 'halftime' | 'subscribe';
+
+export function withFullDemoStoryOverlay(options: FullDemoOptions, overlay: FullDemoStoryOverlay, enabled: boolean): FullDemoOptions {
+  const { halftime, subscribe, ...overlays } = options.overlays;
+  const chosen = { halftime: Boolean(halftime), subscribe: Boolean(subscribe), [overlay]: enabled };
+  return { ...options, overlays: { ...overlays, ...(chosen.halftime ? { halftime: true } : {}), ...(chosen.subscribe ? { subscribe: true } : {}) } };
 }
 
 export function isFullDemoOptions(value: unknown): value is FullDemoOptions {

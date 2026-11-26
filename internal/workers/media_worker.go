@@ -3108,7 +3108,7 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 		}
 	}
 	doc := demooverlay.BuildForSource(demooverlay.FromRosterScan(roster, target), edit.DemoSource, enrichment)
-	doc.Theme, doc.Palette = demooverlay.NormalizeTheme(edit.OverlayTheme), fullDemoOverlayPalette(edit)
+	doc.Theme, doc.Palette, doc.Halftime = demooverlay.NormalizeTheme(edit.OverlayTheme), fullDemoOverlayPalette(edit), fullDemoHalftime(j, edit, doc)
 	if !screenshots && !demooverlay.UsesFACEITEnrichment(edit.DemoSource) {
 		demooverlay.ApplyAvatarURLs(&doc, storedLocalOverlayAvatarURLs(w, j.ID))
 	}

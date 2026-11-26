@@ -357,6 +357,11 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 		return err
 	}
 	short.Effects = generatedFullDemoOverlayEffects(*short)
+	story, err := fullDemoStoryOverlayEffects(manifest, *short)
+	if err != nil {
+		return err
+	}
+	short.Effects = append(short.Effects, story...)
 	short.Title = fmt.Sprintf("%s — %s | Full match POV", short.Player, short.Map)
 	short.Headline, short.Label = short.Title, short.Title
 	short.Hashtags = []string{"#CS2", "#FullDemo"}

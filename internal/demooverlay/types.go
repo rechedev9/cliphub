@@ -85,6 +85,7 @@ type Document struct {
 	Intro           Intro        `json:"intro"`
 	Outro           Scoreboard   `json:"outro"`
 	Screenshots     *Screenshots `json:"screenshots,omitempty"`
+	Halftime        *Halftime    `json:"halftime,omitempty"`
 }
 
 type ScreenshotFile struct {

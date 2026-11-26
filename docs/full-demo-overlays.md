@@ -29,6 +29,45 @@ the example match drawn with the renderer's own page, wrapped as an SVG image
 with the fallback font. Assistants choose the design with `plan_full_demo`
 `intro_design`.
 
+## Halftime card and subscribe button
+
+Two optional switches under **Presentación y marcador** add overlays over the
+rounds. Both are off by default, render only, and follow the chosen design
+(`overlays.theme`): neon, or the HUD palette from `demooverlay.DesignPalette`.
+The plan stores them as `overlays.halftime` and `overlays.subscribe`, omitted
+when off, so saved plans keep their hash and neither enters the capture hash.
+Assistants set them with `plan_full_demo` `halftime_scoreboard` and
+`subscribe_button`.
+
+- **Marcador del descanso**: a compact card in the upper third, under the HUD
+  strip, with the word DESCANSO, both team names (the POV's team first) and the
+  score at the side switch. It shows for `demooverlay.HalftimeSeconds` at the
+  start of the first round after the regulation side switch and slides and
+  fades in and out. The render worker derives it from the job's kill plan round
+  results (`demooverlay.BuildHalftime`): the first round where the POV's side
+  changes is the switch, so overtime switches never count and the round is not
+  assumed to be 13. Names come from `overlays.team_names`, then the demo's clan
+  names, then the side each team plays in the second half. The card is left
+  out, without failing the render, when the kill plan has no round results (a
+  job parsed before they were kept), a round before the switch has no winner or
+  no number, the POV's side is unknown on the round before the switch, the
+  switch round is not in the video (a round selection or a short match), or the
+  round leaves less than two seconds clear of the intro roster and the final
+  scoreboard. It moves under the sponsor banner when both show at once.
+- **Botón de suscripción**: a SUSCRÍBETE pill with a bell drawn as inline SVG
+  in the bottom right corner, for `demooverlay.SubscribeSeconds`, placed near
+  25 % and 75 % of the gameplay span between the bumpers. Each window lies
+  inside one round item, at least a second away from the intro roster, the
+  halftime card and the final scoreboard, and the two stay 20 s apart; a video
+  too short for that shows it once or not at all. With the brand watermark in
+  the bottom right corner the button sits above it.
+
+`internal/editor/full_demo_story.go` renders both stills beside the intro and
+outro PNGs (`full-demo-halftime.png`, `full-demo-subscribe.png`) and adds them
+as image effects that the per-item composition supports
+(`supportedFullDemoOverlaySources`), so they do not bring back the
+whole-program pass.
+
 ## Rendering
 
 The neon introduction uses HTML, CSS perspective, glow, embedded Roboto fonts

@@ -131,6 +131,7 @@ func CanonicalNewOptions(options Options) (Options, error) {
 		canonical.Overlays.HUDPortrait = options.Overlays.HUDPortrait
 	}
 	canonical.Overlays.Brand = options.Overlays.Brand
+	canonical.Overlays.Halftime, canonical.Overlays.Subscribe = options.Overlays.Halftime, options.Overlays.Subscribe
 	if canonical.Overlays.HUDTheme != "" {
 		canonical.Overlays.HUDCustom = options.Overlays.HUDCustom
 		canonical.Overlays.HUDOptions = options.Overlays.HUDOptions
