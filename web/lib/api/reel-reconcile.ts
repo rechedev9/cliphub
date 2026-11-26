@@ -56,24 +56,14 @@ export type ReconcileInput = {
 
 type JobFacts = Pick<ReconcileInput, 'jobStatus' | 'jobFailureReason' | 'jobFailureCode' | 'captureProgress' | 'generateFailure'>;
 
-type JobFactsInput = { job: JobStatusView; variant: string; recordAdmittedAt?: number };
-
-export function jobReconcileFacts(input: JobFactsInput): JobFacts {
-  const { job } = input;
+export function jobReconcileFacts(job: JobStatusView, generateFailure: GenerateFailure | undefined): JobFacts {
   return {
     jobStatus: job.status,
     jobFailureReason: job.failureReason,
     jobFailureCode: job.failureCode,
     captureProgress: job.captureProgress,
-    generateFailure: generateFailureOf(input),
+    generateFailure,
   };
-}
-
-function generateFailureOf(input: JobFactsInput): GenerateFailure | undefined {
-  const failure = input.job.generateFailure;
-  if (failure === undefined || failure.variant !== input.variant) return undefined;
-  if (input.recordAdmittedAt === undefined || failure.failedAt === undefined) return failure;
-  return Date.parse(failure.failedAt) < input.recordAdmittedAt ? undefined : failure;
 }
 
 export type ReelView = {
@@ -352,8 +342,10 @@ export function deriveReelView(input: ReconcileInput): ReelView {
   // A finished render is terminal even if the job later fails. QA warnings
   // are informational: they ride along but never hold the reel back.
   if (renderStatus === 'ready' || renderStatus === 'review_required') return readyView(input);
+  const rendering = renderStatus === 'queued' || renderStatus === 'rendering';
+  if (input.generateFailure && !rendering) return failed(input.generateFailure.reason, input.generateFailure.code);
   // The caller drops recordAdmitted once the job moved on or the grace ran out.
-  if (recordAdmitted && renderStatus !== 'queued' && renderStatus !== 'rendering') {
+  if (recordAdmitted && !rendering) {
     return { status: 'recording', action: 'none' };
   }
   if (jobStatus === 'failed') {
@@ -370,7 +362,7 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     }
     return failed(renderFailureReason);
   }
-  if (renderStatus === 'queued' || renderStatus === 'rendering') {
+  if (rendering) {
     return captureProgress
       ? { status: 'composing', action: 'none', captureProgress }
       : { status: 'composing', action: 'none' };

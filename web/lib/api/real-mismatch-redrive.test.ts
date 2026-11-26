@@ -213,6 +213,76 @@ test('a recapture that failed and kept the earlier recording shows that render w
   }
 });
 
+test('a reel with no render stops after its capture failed and kept an earlier recording, and one retry records again', async () => {
+  const drift = 'recorder failed: observer target 76561198000000000 drifted from 76561198000000001 during seg-001';
+  const state: Orchestrator = {
+    jobStatus: 'recorded',
+    render: null,
+    generate: () => json({ id: 'job-10', task: 'record' }, 202),
+    renderPost: () => json({ accepted: true }, 202),
+  };
+  const fake = fakeOrchestrator('job-10', state);
+  try {
+    const client = new RealApiClient();
+    const { videoId } = seedReel(client, 'job-10');
+
+    await tick(client);
+    assert.equal(fake.posts('/generate').length, 1, 'the reel asks for its capture once');
+
+    state.jobStatus = 'recording';
+    await tick(client);
+    state.jobStatus = 'recorded';
+    state.generateRun = { variant: DEFAULT_VARIANT, active: false, failure_reason: drift, failure_code: 'capture_flake', failed_at: new Date().toISOString() };
+    for (let i = 0; i < 3; i++) await tick(client);
+    assert.equal(fake.posts('/generate').length, 1, 'a failed capture never records again by itself');
+    const failed = await client.getVideo(videoId);
+    assert.equal(failed?.status, 'failed');
+    assert.equal(failed?.failureReason, drift);
+    assert.equal(failed?.failureCode, 'capture_flake');
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await client.retryVideo(videoId);
+    await tick(client);
+    assert.equal(fake.posts('/generate').length, 2, 'one retry issues exactly one more POST');
+    assert.equal((await client.getVideo(videoId))?.status, 'recording', 'the failure from before the retry is not its failure');
+  } finally {
+    fake.restore();
+  }
+});
+
+test('an earlier failure of the variant does not stop the first capture of a reel, and that capture failing is told at once', async () => {
+  const failedRun = (): Record<string, unknown> => ({ variant: DEFAULT_VARIANT, active: false, failure_reason: 'recorder crashed', failed_at: new Date().toISOString() });
+  const state: Orchestrator = {
+    jobStatus: 'recorded',
+    render: null,
+    generateRun: failedRun(),
+    generate: () => json({ id: 'job-11', task: 'record' }, 202),
+    renderPost: () => json({ accepted: true }, 202),
+  };
+  const fake = fakeOrchestrator('job-11', state);
+  try {
+    const client = new RealApiClient();
+    const { videoId } = seedReel(client, 'job-11');
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await tick(client);
+    assert.equal(fake.posts('/generate').length, 1, 'a reel that never recorded still asks for its capture');
+    await tick(client);
+    assert.equal((await client.getVideo(videoId))?.status, 'recording');
+
+    state.generateRun = failedRun();
+    await tick(client);
+    assert.equal((await client.getVideo(videoId))?.status, 'failed', 'a capture that fails before the page saw it recording is told at once');
+    assert.equal(fake.posts('/generate').length, 1);
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await client.retryVideo(videoId);
+    assert.equal(fake.posts('/generate').length, 2, 'a retry right after that failure records at once, without waiting out the admission');
+  } finally {
+    fake.restore();
+  }
+});
+
 test('a durable 409 latches failed; only an explicit retry re-POSTs', async () => {
   const state: Orchestrator = {
     jobStatus: 'parsed',
