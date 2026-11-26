@@ -130,7 +130,10 @@ func ValidateChannelName(name string) error {
 	if strings.TrimSpace(name) != name {
 		return fmt.Errorf("channel name must not start or end with spaces")
 	}
-	if !utf8.ValidString(name) || utf8.RuneCountInString(name) > MaxChannelNameRunes {
+	if !utf8.ValidString(name) {
+		return fmt.Errorf("channel name must be valid UTF-8 text")
+	}
+	if utf8.RuneCountInString(name) > MaxChannelNameRunes {
 		return fmt.Errorf("channel name must be at most %d characters", MaxChannelNameRunes)
 	}
 	if strings.ContainsFunc(name, unicode.IsControl) {

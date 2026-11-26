@@ -223,9 +223,10 @@ function SubscribeCard({ logo, name, size }: { logo?: string; name?: string; siz
   const button = { w: 220 * scale, h: 64 * scale };
   const branded = Boolean(logo || name);
   const width = pad * 2 + (logo ? logoSide + gap : 0) + (name ? nameWidth + gap : 0) + button.w;
-  const height = branded ? 96 * scale : 68;
+  const pillHeight = portrait ? 108 : 68;
+  const height = branded ? 96 * scale : pillHeight;
   const x = portrait ? (size.w - width) / 2 : size.w - width - 44;
-  const y = portrait ? 1290 : size.h - height - 44;
+  const y = portrait ? 1290 : size.h - height - 170;
   let cursor = x + pad;
   const middle = y + height / 2;
   const logoX = cursor;

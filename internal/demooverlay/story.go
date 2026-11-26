@@ -23,7 +23,7 @@ const (
 	HalftimeLabel       = "DESCANSO"
 
 	SubscribeSeconds     = 6.0
-	SubscribeBottomEdge  = 1036
+	SubscribeBottomEdge  = 910
 	SubscribeSlidePixels = 900
 	SubscribeLabel       = "SUSCRÍBETE"
 )

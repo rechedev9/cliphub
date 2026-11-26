@@ -177,7 +177,7 @@ func TestSubscribeButtonSitsAboveABottomRightWatermark(t *testing.T) {
 	for _, size := range [][2]int{{400, 200}, {64, 64}, {900, 120}} {
 		_, _, _, top := watermarkPlacement(brandkit.CornerBottomRight, size[0], size[1], demooverlay.FrameWidth, demooverlay.FrameHeight)
 		lift := subscribeLiftOverWatermark(size[0], size[1])
-		if bottom := demooverlay.SubscribeBottomEdge - lift; lift <= 0 || bottom > top-fullDemoStoryMarginPixels {
+		if bottom := demooverlay.SubscribeBottomEdge - lift; lift < 0 || bottom > top-fullDemoStoryMarginPixels {
 			t.Fatalf("a %dx%d logo at y=%d leaves the button's bottom edge at %d", size[0], size[1], top, bottom)
 		}
 	}

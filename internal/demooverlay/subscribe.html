@@ -10,9 +10,11 @@
 @font-face{font-family:Roboto;src:url('{{.BoldFont}}') format('truetype');font-weight:700;font-display:block}
 *{box-sizing:border-box}html,body{margin:0;width:{{.Width}}px;height:{{.Height}}px;overflow:hidden;background:transparent}body{font-family:Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 .pill{position:absolute;right:44px;bottom:44px;height:68px;display:flex;align-items:center;gap:14px;padding:0 30px 0 22px;border-radius:34px;font-size:24px;font-weight:700;letter-spacing:2px;text-transform:uppercase;white-space:nowrap}
-.bell{width:32px;height:32px;flex-shrink:0}
+.landscape .pill{bottom:170px}
+.portrait .pill{right:auto;bottom:auto;left:50%;top:1290px;transform:translateX(-50%);height:108px;gap:20px;padding:0 44px 0 34px;border-radius:54px;font-size:40px}
+.bell{width:32px;height:32px;flex-shrink:0}.portrait .pill .bell{width:48px;height:48px}
 .card{position:absolute;display:flex;align-items:center;white-space:nowrap}
-.landscape .card{right:44px;bottom:44px;height:96px;gap:18px;padding:0 16px 0 16px;border-radius:48px}
+.landscape .card{right:44px;bottom:170px;height:96px;gap:18px;padding:0 16px 0 16px;border-radius:48px}
 .portrait .card{left:50%;top:1290px;transform:translateX(-50%);height:156px;gap:26px;padding:0 26px;border-radius:78px}
 .logo{border-radius:50%;object-fit:cover;flex-shrink:0;background:#000}
 .landscape .logo{width:64px;height:64px}.portrait .logo{width:108px;height:108px}
