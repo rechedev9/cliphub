@@ -9,7 +9,7 @@ export type RawStatusView = {
   failure_reason?: string;
   failure_code?: string;
   progress?: { done?: number; total?: number; percent?: number; stage?: string };
-  generate?: { variant: string; active: boolean; failure_reason?: string; failure_code?: string };
+  generate?: { variant: string; active: boolean; failure_reason?: string; failure_code?: string; failed_at?: string };
 };
 
 /** `/renders/{variant}` and batch-status render half. */
@@ -66,7 +66,7 @@ export function parseStatusView(data: RawStatusView): JobStatusView {
   if (parsed) full.captureProgress = parsed;
   const run = data.generate;
   if (run && !run.active && run.failure_reason) {
-    full.generateFailure = { variant: run.variant, reason: run.failure_reason, code: run.failure_code };
+    full.generateFailure = { variant: run.variant, reason: run.failure_reason, code: run.failure_code, failedAt: run.failed_at };
   }
   return full;
 }

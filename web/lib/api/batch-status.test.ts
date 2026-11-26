@@ -5,6 +5,7 @@ import { parseCaptureProgress } from '../capture-progress.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const FAILED_RUN = { variant: 'viral-60-clean', active: false, failure_reason: 'recorder failed', failure_code: 'capture_flake', failed_at: '2026-11-26T20:00:00Z' };
+const FAILED_RUN_UPSTREAM = { ...FAILED_RUN, run_id: 'internal' };
 
 test('projectBatchStatusItem keeps the fields the client reconciles on', async (t) => {
   const cases: Array<{ name: string; upstream: BatchStatusUpstreamItem; expected: BatchStatusItem }> = [
@@ -58,13 +59,13 @@ test('projectBatchStatusItem keeps the fields the client reconciles on', async (
       upstream: {
         job_id: JOB,
         variant: 'viral-60-clean',
-        job: { status: 'recorded', generate: FAILED_RUN },
+        job: { status: 'recorded', generate: FAILED_RUN_UPSTREAM },
         render: { status: 'ready' },
       },
       expected: {
         job_id: JOB,
         variant: 'viral-60-clean',
-        job: { status: 'recorded', generate: { variant: 'viral-60-clean', active: false, failure_reason: 'recorder failed', failure_code: 'capture_flake' } },
+        job: { status: 'recorded', generate: FAILED_RUN },
         render: { status: 'ready' },
       },
     },

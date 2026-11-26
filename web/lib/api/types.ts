@@ -368,7 +368,7 @@ export type JobStatusView = {
   captureProgress?: CaptureProgress;
   generateFailure?: GenerateFailure;
 };
-export type GenerateFailure = { variant: string; reason: string; code?: string };
+export type GenerateFailure = { variant: string; reason: string; code?: string; failedAt?: string };
 /** `jobId` links a reel back to the parsed demo it was forged from (the series view groups reels per map); absent only on mock/demo seed videos. */
 export type Video = {
   id: string;

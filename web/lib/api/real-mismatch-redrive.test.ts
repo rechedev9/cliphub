@@ -179,7 +179,8 @@ test('a recapture that failed and kept the earlier recording shows that render w
     await tick(client);
     assert.equal((await client.getVideo(videoId))?.status, 'queued', 'a failed run of another variant is not this reel');
 
-    state.generateRun = { variant: DEFAULT_VARIANT, active: false, failure_reason: drift, failure_code: 'capture_flake', failed_at: '2026-11-26T20:00:00Z' };
+    const failedRun = (): Record<string, unknown> => ({ variant: DEFAULT_VARIANT, active: false, failure_reason: drift, failure_code: 'capture_flake', failed_at: new Date().toISOString() });
+    state.generateRun = failedRun();
     await tick(client);
     await tick(client);
     const kept = await client.getVideo(videoId);
@@ -190,17 +191,23 @@ test('a recapture that failed and kept the earlier recording shows that render w
     assert.ok(kept?.downloadUrl, 'the earlier video stays playable');
     assert.equal(fake.posts('/generate').length, 1, 'a failed capture never records again by itself');
 
-    state.generate = () => {
-      state.generateRun = { variant: DEFAULT_VARIANT, active: true };
-      return json({ id: 'job-9', task: 'record' }, 202);
-    };
+    await new Promise((resolve) => setTimeout(resolve, 5));
     await client.retryVideo(videoId);
     await tick(client);
     assert.equal(fake.posts('/generate').length, 2, 'one retry issues exactly one more POST');
     const retried = await client.getVideo(videoId);
-    assert.equal(retried?.status, 'queued');
-    assert.equal(retried?.failureReason, undefined, 'the retry drops the earlier failure');
+    assert.equal(retried?.status, 'queued', 'a status read from before the accepted retry is not its failure');
+    assert.equal(retried?.failureReason, undefined);
     assert.equal(retried?.changePending, undefined);
+
+    state.generateRun = { variant: DEFAULT_VARIANT, active: true };
+    await tick(client);
+    assert.equal((await client.getVideo(videoId))?.status, 'queued');
+
+    state.generateRun = failedRun();
+    await tick(client);
+    assert.equal((await client.getVideo(videoId))?.failureReason, drift, 'the retried capture failed too');
+    assert.equal(fake.posts('/generate').length, 2);
   } finally {
     fake.restore();
   }

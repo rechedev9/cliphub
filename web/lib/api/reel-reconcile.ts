@@ -56,14 +56,24 @@ export type ReconcileInput = {
 
 type JobFacts = Pick<ReconcileInput, 'jobStatus' | 'jobFailureReason' | 'jobFailureCode' | 'captureProgress' | 'generateFailure'>;
 
-export function jobReconcileFacts(job: JobStatusView, variant: string): JobFacts {
+type JobFactsInput = { job: JobStatusView; variant: string; recordAdmittedAt?: number };
+
+export function jobReconcileFacts(input: JobFactsInput): JobFacts {
+  const { job } = input;
   return {
     jobStatus: job.status,
     jobFailureReason: job.failureReason,
     jobFailureCode: job.failureCode,
     captureProgress: job.captureProgress,
-    generateFailure: job.generateFailure?.variant === variant ? job.generateFailure : undefined,
+    generateFailure: generateFailureOf(input),
   };
+}
+
+function generateFailureOf(input: JobFactsInput): GenerateFailure | undefined {
+  const failure = input.job.generateFailure;
+  if (failure === undefined || failure.variant !== input.variant) return undefined;
+  if (input.recordAdmittedAt === undefined || failure.failedAt === undefined) return failure;
+  return Date.parse(failure.failedAt) < input.recordAdmittedAt ? undefined : failure;
 }
 
 export type ReelView = {

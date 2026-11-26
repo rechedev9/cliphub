@@ -925,7 +925,7 @@ export class RealApiClient implements ApiClient {
       this.pendingCapture.delete(intent.videoId);
     }
     const decision = decideReelReconcile({
-      ...jobReconcileFacts(job, variantOf(intent)),
+      ...jobReconcileFacts({ job, variant: variantOf(intent), recordAdmittedAt: this.pendingCapture.get(intent.videoId) }),
       renderStatus: render.status,
       renderFailureReason: render.failureReason,
       renderWarnings: render.warnings,

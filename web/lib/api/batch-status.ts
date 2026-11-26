@@ -6,8 +6,8 @@
  * `lib/` is what makes it testable.
  */
 
-type GenerateRunUpstream = { variant?: string; active?: boolean; failure_reason?: string; failure_code?: string };
-type GenerateRunBody = { variant: string; active: boolean; failure_reason?: string; failure_code?: string };
+type GenerateRunUpstream = { variant?: string; active?: boolean; failure_reason?: string; failure_code?: string; failed_at?: string };
+type GenerateRunBody = { variant: string; active: boolean; failure_reason?: string; failure_code?: string; failed_at?: string };
 
 export type JobStatusUpstream = {
   status: string;
@@ -87,5 +87,6 @@ function projectGenerateRun(run: GenerateRunUpstream | null | undefined): Genera
   const out: GenerateRunBody = { variant: run.variant, active: run.active === true };
   if (run.failure_reason) out.failure_reason = run.failure_reason;
   if (run.failure_code) out.failure_code = run.failure_code;
+  if (run.failed_at) out.failed_at = run.failed_at;
   return out;
 }
