@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"slices"
 	"sort"
 	"strings"
 
@@ -47,6 +46,7 @@ type captureWindow struct {
 	RecordStart int    `json:"recordStart"`
 	VerifyUntil int    `json:"verifyUntil"`
 	RecordEnd   int    `json:"recordEnd"`
+	Camera      bool   `json:"camera,omitempty"`
 }
 
 const (
@@ -371,7 +371,11 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                lastSeekTick = -1;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("        }\n")
-	sb.WriteString("        const captureWindow = captureWindows.find((window) => (window.pass ?? 0) === pass && tick >= window.lockFrom && tick <= window.verifyUntil);\n")
+	verifiedWindow, cameraMiss := "", ""
+	if plan.FullDemo != nil {
+		verifiedWindow, cameraMiss = " && !(window.segmentId in fullDemoCameraUnverified)", " && !fullDemoCameraMiss(window)"
+	}
+	sb.WriteString("        const captureWindow = captureWindows.find((window) => (window.pass ?? 0) === pass && tick >= window.lockFrom && tick <= window.verifyUntil" + verifiedWindow + ");\n")
 	if plan.FullDemo != nil {
 		sb.WriteString("        if (fullDemoAcquiring !== null && captureWindow?.segmentId !== fullDemoAcquiring.segmentId) { failCapture('pov_acquisition_failed: demo left the acquisition window'); return; }\n")
 	}
@@ -440,7 +444,7 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                    return;\n")
 	sb.WriteString("                }\n")
 	sb.WriteString("                const observed = observedSteamId();\n")
-	sb.WriteString("                if (observed !== windowTarget(window)) {\n")
+	sb.WriteString("                if (observed !== windowTarget(window)" + cameraMiss + ") {\n")
 	if plan.FullDemo != nil {
 		sb.WriteString("                    failCapture(`pov_acquisition_failed: observer target ${observed ?? \"unknown\"} does not match ${windowTarget(window)} before ${item.key} at tick ${tick}`);\n")
 	} else {
@@ -514,7 +518,7 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 	}
 
 	captures := plan.CaptureSegments()
-	firstReplay := slices.IndexFunc(captures, func(s RecordingSegment) bool { return s.POVSteamID64 != "" })
+	firstReplay := rewindIndex(plan, captures)
 	passWindows := [2][]captureWindow{}
 	rewindAfter := 0
 	for i, s := range captures {
@@ -555,6 +559,7 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 			RecordStart: recordStart,
 			VerifyUntil: verifyUntil,
 			RecordEnd:   recordEnd,
+			Camera:      isCameraCapture(s),
 		}
 		windows = append(windows, window)
 		passWindows[pass] = append(passWindows[pass], window)

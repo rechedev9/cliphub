@@ -40,31 +40,80 @@ func MissingFullDemoRounds(store captureStore, id uuid.UUID, d recapplan.Documen
 	for _, round := range d.Rounds {
 		all = append(all, round.Number)
 	}
-	exists, err := store.Exists(ResultArtifactKey(id))
-	if err != nil || !exists {
+	result, ok, err := storedFullDemoResult(store, id, d)
+	if err != nil || !ok {
 		return all, err
-	}
-	rc, err := store.Open(ResultArtifactKey(id))
-	if err != nil {
-		return nil, err
-	}
-	defer rc.Close()
-	var result RecordingResult
-	if json.NewDecoder(rc).Decode(&result) != nil || !result.reusableFullDemoBase(d) {
-		return all, nil
 	}
 	missing := []int{}
 	for _, round := range d.Rounds {
-		want := RecordingSegment{ID: round.ID, TickStart: round.CaptureStartTick, TickEnd: round.CaptureEndTick, LiveEndTick: round.LiveEndTick}
-		stored, err := result.fullDemoClipStored(store, id, round.ID)
+		covered, err := result.fullDemoRoundReusable(store, id, d, round)
 		if err != nil {
 			return nil, err
 		}
-		if !stored || !result.FullDemoRoundCovered(want, d.Options.Editorial.AllowSafeTailTrim) {
+		if !covered {
 			missing = append(missing, round.Number)
 		}
 	}
 	return missing, nil
+}
+
+func MissingFullDemoCameras(store captureStore, id uuid.UUID, d recapplan.Document) ([]string, []string, error) {
+	if d.SecondCamera == nil {
+		return nil, nil, nil
+	}
+	result, ok, err := storedFullDemoResult(store, id, d)
+	if err != nil {
+		return nil, nil, err
+	}
+	usable := result.UsableFullDemoCameras(d)
+	missing, omitted := []string{}, []string{}
+	for _, w := range d.SecondCamera.Windows {
+		attempted := false
+		if i := slices.IndexFunc(d.Rounds, func(r recapplan.Round) bool { return r.ID == w.RoundID }); ok && i >= 0 {
+			covered, err := result.fullDemoRoundReusable(store, id, d, d.Rounds[i])
+			if err != nil {
+				return nil, nil, err
+			}
+			stored, err := result.fullDemoClipStored(store, id, w.ID)
+			if err != nil {
+				return nil, nil, err
+			}
+			attempted = covered && stored && result.storedCamera(w)
+		}
+		switch {
+		case !attempted:
+			missing = append(missing, w.ID)
+		case !usable[w.ID]:
+			omitted = append(omitted, w.ID)
+		}
+	}
+	return missing, omitted, nil
+}
+
+func storedFullDemoResult(store captureStore, id uuid.UUID, d recapplan.Document) (RecordingResult, bool, error) {
+	exists, err := store.Exists(ResultArtifactKey(id))
+	if err != nil || !exists {
+		return RecordingResult{}, false, err
+	}
+	rc, err := store.Open(ResultArtifactKey(id))
+	if err != nil {
+		return RecordingResult{}, false, err
+	}
+	defer rc.Close()
+	var result RecordingResult
+	if json.NewDecoder(rc).Decode(&result) != nil || !result.reusableFullDemoBase(d) {
+		return RecordingResult{}, false, nil
+	}
+	return result, true, nil
+}
+
+func (r RecordingResult) fullDemoRoundReusable(store captureStore, id uuid.UUID, d recapplan.Document, round recapplan.Round) (bool, error) {
+	want := RecordingSegment{ID: round.ID, TickStart: round.CaptureStartTick, TickEnd: round.CaptureEndTick, LiveEndTick: round.LiveEndTick}
+	stored, err := r.fullDemoClipStored(store, id, round.ID)
+	if err != nil {
+		return false, err
+	}
+	return stored && r.FullDemoRoundCovered(want, d.Options.Editorial.AllowSafeTailTrim), nil
 }
 
 // reusableFullDemoBase is the planner's capture identity without the round

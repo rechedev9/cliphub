@@ -60,14 +60,8 @@ func (r RecordingResult) FullDemoRoundTailPad(id string, startTick, endTick int)
 	fail := func(detail string) (FullDemoTailPad, error) {
 		return FullDemoTailPad{}, fmt.Errorf("full_demo_capture_incomplete: %s: %s", id, detail)
 	}
-	var capture *RecordingSegment
-	for i := range r.Plan.Segments {
-		if r.Plan.Segments[i].ID == id {
-			capture = &r.Plan.Segments[i]
-			break
-		}
-	}
-	if capture == nil || startTick < capture.TickStart || endTick <= startTick || endTick > capture.TickEnd {
+	capture, found := r.captureSegment(id)
+	if !found || startTick < capture.TickStart || endTick <= startTick || endTick > capture.TickEnd {
 		return fail("requested frame window is outside the recorded interval")
 	}
 	offset, err := recapplan.TickFrames(startTick-capture.TickStart, r.Plan.Tickrate)
@@ -144,6 +138,9 @@ func validateFullDemoCaptureFrames(plan RecordingPlan, artifacts []RecordingArti
 	result := RecordingResult{Plan: plan, Artifacts: artifacts}
 	var failures []error
 	for _, segment := range plan.Segments {
+		if segment.ReplayOnly {
+			continue
+		}
 		if err := result.ValidateFullDemoRoundFrames(segment.ID, segment.TickStart, segment.TickEnd); err != nil {
 			failures = append(failures, err)
 		}

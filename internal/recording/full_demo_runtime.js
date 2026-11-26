@@ -5,12 +5,29 @@
     // Freeze demo time, not recording time: no duplicate frames or shifted
     // audio are admitted, and no approved source boundary is rewritten.
     let fullDemoAcquiring = null;
+    let fullDemoLastKnownTick = null;
+    const fullDemoCameraUnverified = {};
+    const fullDemoCameraMiss = (window) => {
+        if (!window.camera) return false;
+        if (fullDemoAcquiring !== null) {
+            fullDemoAcquiring = null;
+            mirv.exec("demo_resume");
+        }
+        if (!(window.segmentId in fullDemoCameraUnverified)) {
+            const active = activeSegment === window.segmentId && Number.isInteger(fullDemoLastKnownTick);
+            fullDemoCameraUnverified[window.segmentId] = active ? fullDemoLastKnownTick : window.recordStart;
+            mirv.message(`[zackvideo] camera-unverified ${window.segmentId}\n`);
+        }
+        return true;
+    };
     const prepareFullDemoPOV = (window, tick) => {
         if (activeSegment !== null || fired[`record-end-${window.segmentId}`]) return true;
+        if (!fullDemoWindowHUD(window)) return false;
         if (tick < window.recordStart - fullDemoAcquireLeadTicks) return true;
         const observed = observedSteamId();
-        if (fullDemoAcquiring === null && observed === targetSteamId) return true;
+        if (fullDemoAcquiring === null && observed === windowTarget(window)) return true;
         if (tick >= window.recordStart) {
+            if (fullDemoCameraMiss(window)) return true;
             failCapture(`pov_acquisition_failed: POV not settled before record-start-${window.segmentId} at tick ${tick}`);
             return false;
         }
@@ -18,14 +35,14 @@
             fullDemoAcquiring = {segmentId: window.segmentId, frames: 0, stable: 0};
             mirv.message(`[zackvideo] pov-acquire ${window.segmentId} at tick ${tick}\n`);
             mirv.exec("demo_pause");
-            lockTarget(window.segmentId);
+            lockTarget(window.segmentId, windowTarget(window));
             lastLockFrame = frame;
         }
         const acquisition = fullDemoAcquiring;
         acquisition.frames++;
         // A bounded number of engine frames, also when ticks are paused.
         // Never reissue spec_player while the correct observer is settling.
-        acquisition.stable = observed === targetSteamId ? acquisition.stable + 1 : 0;
+        acquisition.stable = observed === windowTarget(window) ? acquisition.stable + 1 : 0;
         if (acquisition.stable >= 2) {
             mirv.message(`[zackvideo] pov-acquired ${window.segmentId} at tick ${tick}\n`);
             fullDemoAcquiring = null;
@@ -33,11 +50,12 @@
             return false; // Let resume take effect before consuming the schedule.
         }
         if (acquisition.frames >= 600) {
+            if (fullDemoCameraMiss(window)) return false;
             failCapture(`pov_acquisition_failed: observer did not settle for ${window.segmentId} at tick ${tick} after 600 frames`);
             return false;
         }
-        if (observed !== targetSteamId && frame - lastLockFrame >= 8) {
-            lockTarget(window.segmentId);
+        if (observed !== windowTarget(window) && frame - lastLockFrame >= 8) {
+            lockTarget(window.segmentId, windowTarget(window));
             lastLockFrame = frame;
         }
         return false;
@@ -70,6 +88,22 @@
         cvar.value = typed;
         if (!fullDemoCvarEquals(cvar.value, typed)) throw new Error(`cvar readback differs: ${name}`);
         fullDemoRequiredCvars.set(name, {cvar, value: typed});
+    };
+    const fullDemoCameraHUD = {cl_draw_only_deathnotices: true, cl_drawhud_force_radar: 0, cl_drawhud_force_deathnotices: -1};
+    let fullDemoRoundHUD = null;
+    let fullDemoHUDIsCamera = false;
+    const fullDemoWindowHUD = (window) => {
+        const camera = Boolean(window.camera);
+        if (camera === fullDemoHUDIsCamera) return true;
+        try {
+            if (fullDemoRoundHUD === null) {
+                fullDemoRoundHUD = Object.fromEntries(Object.keys(fullDemoCameraHUD).map((name) => [name, fullDemoFindCvar(name).value]));
+            }
+            for (const [name, value] of Object.entries(camera ? fullDemoCameraHUD : fullDemoRoundHUD)) fullDemoSetCvar(name, value);
+        } catch (err) { failCapture(`pov_contract_failed: ${err}`); return false; }
+        fullDemoHUDIsCamera = camera;
+        mirv.message(`[zackvideo] window-hud ${camera ? "camera" : "round"} ${window.segmentId}\n`);
+        return true;
     };
     const ensureFullDemoSettings = () => {
         if (fullDemoSettingsReady) return true;
@@ -151,8 +185,8 @@
     const fullDemoEnd = (window, endTick, reason) => {
         fullDemoEvidence("certified_end", {round_id: window.segmentId, end_tick: endTick, reason});
     };
-    let fullDemoLastKnownTick = null;
     const failOrTrimFullDemo = (window, tick, reason) => {
+        if (fullDemoCameraMiss(window)) return;
         // This callback precedes rendering. The first unconfirmed POV frame
         // is not recorded, so its tick can promise one more output frame than
         // the native capture contains. Certify the last confirmed POV tick,
@@ -174,7 +208,7 @@
         // frame as well: at 60 fps against a 64 Hz source, closing here can
         // underfill the approved rounded duration by one real frame. The editor
         // still trims to the exact approved duration; no frame is duplicated.
-        if (observedSteamId() !== targetSteamId) {
+        if (!window.camera && observedSteamId() !== targetSteamId) {
             failOrTrimFullDemo(window, tick, `unconfirmed terminal POV during ${window.segmentId}`);
             return;
         }
@@ -186,5 +220,7 @@
         fullDemoPendingEnd = null;
         run(item);
         activeSegment = null;
-        fullDemoEnd(window, window.recordEnd, 'complete');
+        const unverified = fullDemoCameraUnverified[window.segmentId];
+        if (unverified === undefined) fullDemoEnd(window, window.recordEnd, 'complete');
+        else fullDemoEnd(window, unverified, 'camera_unverified');
     };

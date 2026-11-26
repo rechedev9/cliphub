@@ -64,14 +64,22 @@ export function projectSpace(body: unknown): SpaceCheck | null {
   return { freeBytes, neededBytes, short: field(body, 'short') === true };
 }
 
+function cameraIds(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
+}
+
 /** Orchestrator capture check (also `capture` in the plan envelope); null when malformed. */
 export function projectCaptureCheck(body: unknown): CaptureCheck | null {
   const needed = field(body, 'needed');
   const missing = field(body, 'missing_rounds');
   if (typeof needed !== 'boolean' || !Array.isArray(missing)) return null;
+  const missingCameras = cameraIds(field(body, 'missing_cameras'));
+  const omittedCameras = cameraIds(field(body, 'omitted_cameras'));
   return {
     needed,
     missingRounds: missing.filter((round): round is number => count(round) !== null),
+    ...(missingCameras.length > 0 ? { missingCameras } : {}),
+    ...(omittedCameras.length > 0 ? { omittedCameras } : {}),
     space: projectSpace(field(body, 'space')),
   };
 }

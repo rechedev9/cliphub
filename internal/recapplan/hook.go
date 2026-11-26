@@ -2,10 +2,8 @@ package recapplan
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
-	"github.com/rechedev9/cliphub/internal/moments"
 )
 
 const (
@@ -66,41 +64,22 @@ func (d *Document) planHook() {
 }
 
 func bestHook(rounds []Round, rate int) (Hook, bool) {
-	plan := killplan.Plan{Demo: killplan.Demo{Tickrate: rate}}
+	var segments []killplan.Segment
 	var hooks []Hook
-	lead, tail, gap := secondsTicks(HookLeadSeconds, rate), secondsTicks(HookTailSeconds, rate), HookPlayGapSeconds*rate
 	for _, r := range rounds {
 		if min(r.LiveEndTick+1, r.RequestedEndTick)-r.RequestedStartTick < HookMinSeconds*rate {
 			continue
 		}
-		kills := slices.Clone(r.Kills)
-		slices.SortStableFunc(kills, func(a, b killplan.Kill) int { return a.Tick - b.Tick })
-		var play []killplan.Kill
-		flush := func() {
-			if len(play) == 0 {
-				return
-			}
-			first, last := play[0].Tick, play[len(play)-1].Tick
-			plan.Segments = append(plan.Segments, killplan.Segment{ID: fmt.Sprintf("%06d", len(hooks)), Round: r.Number, TickStart: first - lead, TickEnd: last + tail, Kills: play})
-			hooks = append(hooks, Hook{RoundID: r.ID, FirstKillTick: first, LastKillTick: last, Kills: len(play)})
-			play = nil
+		for _, play := range roundPlays(r, rate) {
+			segments = append(segments, play.segment(fmt.Sprintf("%06d", len(hooks)), r, rate))
+			hooks = append(hooks, Hook{RoundID: r.ID, FirstKillTick: play.first(), LastKillTick: play.last(), Kills: len(play.Kills)})
 		}
-		for _, kill := range kills {
-			if kill.Tick < r.RequestedStartTick || kill.Tick > r.LiveEndTick {
-				continue
-			}
-			if len(play) > 0 && kill.Tick-play[len(play)-1].Tick > gap {
-				flush()
-			}
-			play = append(play, kill)
-		}
-		flush()
 	}
-	ranked := moments.Rank(plan)
+	ranked := rankSegments(segments, rate)
 	if len(ranked) == 0 {
 		return Hook{}, false
 	}
-	for i, segment := range plan.Segments {
+	for i, segment := range segments {
 		if segment.ID == ranked[0].SegmentID {
 			return hooks[i], true
 		}

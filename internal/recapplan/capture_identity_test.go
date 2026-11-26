@@ -53,6 +53,7 @@ func TestCaptureIdentityByOption(t *testing.T) {
 		"marcador del descanso":  func(o *Options) { o.Overlays.Halftime = true },
 		"botón de suscripción":   func(o *Options) { o.Overlays.Subscribe = true },
 		"gancho inicial":         func(o *Options) { o.Hook = &HookOptions{Enabled: true} },
+		"segunda cámara":         func(o *Options) { o.SecondCamera = &SecondCameraOptions{Enabled: true, MaxWindows: 1} },
 	}
 	for name, change := range renderOnly {
 		o := custom()
@@ -87,4 +88,30 @@ func mustProSettings(t *testing.T) ProSettings {
 	}
 	t.Fatal("no catalog pro resolves")
 	return ProSettings{}
+}
+
+func TestHoldEvidenceKeepsPlansWithoutTheSecondCamera(t *testing.T) {
+	plan := func(f Facts, o Options) Document {
+		t.Helper()
+		d, err := Plan(f, o, VoiceEvidence{Availability: "not_requested"}, nil, "facts")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	after := standardCameraFacts()
+	old := after
+	old.Holds = nil
+	if plan(old, fixtureOptions()).PlanHash != plan(after, fixtureOptions()).PlanHash {
+		t.Fatal("hold evidence changed the plan hash of a plan without the second camera")
+	}
+	on, off := plan(after, cameraOptions(5)), plan(after, fixtureOptions())
+	if on.SecondCamera == nil {
+		t.Fatal("the fixture must plan second camera windows")
+	}
+	a, errA := on.CaptureHash()
+	b, errB := off.CaptureHash()
+	if errA != nil || errB != nil || a != b {
+		t.Fatal("the second camera windows changed the capture identity")
+	}
 }

@@ -88,11 +88,13 @@ type FullDemoRenderEvidence struct {
 	MusicIntervals  []FullDemoMusicInterval  `json:"music_intervals"`
 	TrackLevels     []FullDemoTrackLevel     `json:"track_levels"`
 	ProgramLoudness *ProgramLoudnessEvidence `json:"program_loudness"`
+	SecondCamera    []FullDemoCameraEvidence `json:"second_camera,omitempty"`
 }
 
 type fullDemoRenderContext struct {
 	hud            *customhud.Timeline
 	radar          *fullDemoRadar
+	cameras        map[int64]fullDemoCameraShot
 	execution      FullDemoExecution
 	recording      recording.RecordingResult
 	ffmpeg         string
@@ -307,6 +309,10 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 	if err != nil {
 		return err
 	}
+	planned := effective.SecondCamera
+	if effective, err = recapplan.WithCameraEvidence(effective, result.UsableFullDemoCameras(effective)); err != nil {
+		return err
+	}
 	pads, err := result.FullDemoTailPads(effective)
 	if err != nil {
 		return recording.MarkNotReusable(err)
@@ -367,6 +373,9 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 		return err
 	}
 	short.Effects = append(short.Effects, story...)
+	if err := attachFullDemoSecondCamera(short, planned, filepath.Dir(manifest.RecordingResult)); err != nil {
+		return err
+	}
 	short.Title = fmt.Sprintf("%s — %s | Full match POV", short.Player, short.Map)
 	short.Headline, short.Label = short.Title, short.Title
 	short.Hashtags = []string{"#CS2", "#FullDemo"}

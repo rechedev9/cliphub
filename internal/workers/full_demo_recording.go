@@ -79,8 +79,10 @@ func mergeFullDemoCaptureRuns(previous, next, merged recording.RecordingResult) 
 		}
 	}
 	nextIDs := map[string]bool{}
-	for _, segment := range next.Plan.Segments {
-		nextIDs[segment.ID] = true
+	for _, artifact := range next.Artifacts {
+		if isSegmentClip(artifact) {
+			nextIDs[artifact.SegmentID] = true
+		}
 	}
 	used := map[string]bool{}
 	for i := range merged.Artifacts {
@@ -98,7 +100,7 @@ func mergeFullDemoCaptureRuns(previous, next, merged recording.RecordingResult) 
 	merged.FullDemoRuns = []recording.FullDemoCaptureRun{}
 	merged.Plan.FullDemoSources = []recapplan.Document{}
 	documents := map[string]bool{}
-	mainHash, err := merged.Plan.FullDemo.CaptureHash()
+	mainHash, err := fullDemoSourceKey(*merged.Plan.FullDemo)
 	if err != nil {
 		return merged, err
 	}
@@ -113,7 +115,7 @@ func mergeFullDemoCaptureRuns(previous, next, merged recording.RecordingResult) 
 		}
 		delete(used, run.Revision)
 		merged.FullDemoRuns = append(merged.FullDemoRuns, run)
-		hash, err := run.Plan.FullDemo.CaptureHash()
+		hash, err := fullDemoSourceKey(*run.Plan.FullDemo)
 		if err != nil {
 			return merged, err
 		}
@@ -131,4 +133,15 @@ func mergeFullDemoCaptureRuns(previous, next, merged recording.RecordingResult) 
 		return merged, fmt.Errorf("full demo reused clips lack an immutable capture origin")
 	}
 	return merged, nil
+}
+
+func fullDemoSourceKey(d recapplan.Document) (string, error) {
+	hash, err := d.CaptureHash()
+	if err != nil || d.SecondCamera == nil {
+		return hash, err
+	}
+	return recapplan.HashValue(struct {
+		CaptureHash  string                  `json:"capture_hash"`
+		SecondCamera *recapplan.SecondCamera `json:"second_camera"`
+	}{hash, d.SecondCamera})
 }

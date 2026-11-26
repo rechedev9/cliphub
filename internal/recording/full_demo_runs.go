@@ -59,7 +59,11 @@ func (r RecordingResult) validateFullDemoRuns() error {
 		}
 		runs[run.Revision] = run
 	}
-	if len(r.FullDemoEvidence.CertifiedEnds) != len(r.Plan.Segments) {
+	cameras, err := r.validateFullDemoCameraRuns(runs)
+	if err != nil {
+		return err
+	}
+	if len(r.FullDemoEvidence.CertifiedEnds) != len(r.Plan.Segments)+cameras {
 		return fmt.Errorf("full demo aggregate has an incomplete coverage summary")
 	}
 	for _, segment := range r.Plan.Segments {
@@ -76,7 +80,7 @@ func (r RecordingResult) validateFullDemoRuns() error {
 		}
 		matched := false
 		for _, original := range run.Plan.Segments {
-			if reflect.DeepEqual(original, segment) {
+			if !original.ReplayOnly && reflect.DeepEqual(withoutCaptureExtras(original), withoutCaptureExtras(segment)) {
 				matched = true
 				break
 			}

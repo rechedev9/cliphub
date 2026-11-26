@@ -13,8 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -3400,14 +3398,6 @@ func captureProfilesCompatible(a, b recording.RecordingPlan) bool {
 		a.Runtime.Normalized() == b.Runtime.Normalized()
 }
 
-// withoutVictimReplay keeps only the main capture window of a segment.
-func withoutVictimReplay(segment recording.RecordingSegment) recording.RecordingSegment {
-	segment.VictimReplay = nil
-	segment.AfterReplays = false
-	segment.ReplayOnly = false
-	return segment
-}
-
 // captureStream drops VictimReplay: it adds replay windows but leaves every
 // main clip as it was, so those clips stay reusable across the toggle.
 func captureStream(stream recording.StreamConfig) recording.StreamConfig {
@@ -3425,84 +3415,6 @@ func legacyCaptureProfileCompatible(legacy, current recording.RecordingPlan) boo
 		legacy.Tickrate == current.Tickrate &&
 		captureStream(legacy.Stream) == captureStream(current.Stream) &&
 		legacy.Runtime.Normalized() == current.Runtime.Normalized()
-}
-
-// mergeRecordingResults unions a freshly recorded result over a previously
-// stored one so the job-level recording result accumulates every segment any
-// reel has recorded. The new run wins for segments it covers or clashes with
-// (ClashesWith); other prev segments are carried (their clips still live in storage under their
-// per-segment keys). Capture remains chronological; EditorialSegmentIDs keeps
-// the user-selected order from fullPlan regardless of which reel recorded when.
-func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killplan.Plan) (recording.RecordingResult, error) {
-	merged := next
-	merged.Plan.Segments = append([]recording.RecordingSegment(nil), next.Plan.Segments...)
-	merged.Artifacts = append([]recording.RecordingArtifact(nil), next.Artifacts...)
-	merged.Performance = mergeRecordingPerformance(prev.Performance, next.Performance)
-	haveSegment := make(map[string]bool, len(next.Plan.Segments))
-	for _, s := range next.Plan.Segments {
-		haveSegment[s.ID] = true
-	}
-	carriedReplay := map[string]bool{}
-	for _, s := range prev.Plan.Segments {
-		if !haveSegment[s.ID] && !next.Plan.ClashesWith(s) {
-			merged.Plan.Segments = append(merged.Plan.Segments, s)
-			haveSegment[s.ID] = true
-			if s.VictimReplay != nil {
-				carriedReplay[recording.VictimReplayID(s.ID)] = true
-			}
-		}
-	}
-	merged.Plan.EditorialSegmentIDs = make([]string, 0, len(merged.Plan.Segments))
-	for _, segment := range fullPlan.Segments {
-		if haveSegment[segment.ID] {
-			merged.Plan.EditorialSegmentIDs = append(merged.Plan.EditorialSegmentIDs, segment.ID)
-		}
-	}
-	sort.SliceStable(merged.Plan.Segments, func(a, b int) bool {
-		if merged.Plan.Segments[a].TickStart != merged.Plan.Segments[b].TickStart {
-			return merged.Plan.Segments[a].TickStart < merged.Plan.Segments[b].TickStart
-		}
-		return merged.Plan.Segments[a].ID < merged.Plan.Segments[b].ID
-	})
-	haveClip := make(map[string]bool, len(next.Artifacts))
-	for _, a := range next.Artifacts {
-		if isSegmentClip(a) {
-			haveClip[a.SegmentID] = true
-		}
-	}
-	for _, a := range prev.Artifacts {
-		// A replay clip is only valid next to the segment window it came from.
-		if isSegmentClip(a) && !haveClip[a.SegmentID] && (haveSegment[a.SegmentID] || carriedReplay[a.SegmentID]) {
-			merged.Artifacts = append(merged.Artifacts, a)
-		}
-	}
-	// Carried segments may keep replays recorded while the option was on.
-	for i, s := range merged.Plan.Segments {
-		merged.Plan.Stream.VictimReplay = merged.Plan.Stream.VictimReplay || s.VictimReplay != nil
-		if !s.ReplayOnly {
-			continue
-		}
-		if !slices.ContainsFunc(merged.Artifacts, func(a recording.RecordingArtifact) bool { return isSegmentClip(a) && a.SegmentID == s.ID }) {
-			return recording.RecordingResult{}, fmt.Errorf("merge recording plans: replay-only segment %s has no stored main clip", s.ID)
-		}
-		merged.Plan.Segments[i].ReplayOnly = false
-	}
-	if next.Plan.FullDemo != nil {
-		var err error
-		merged, err = mergeFullDemoCaptureRuns(prev, next, merged)
-		if err != nil {
-			return recording.RecordingResult{}, err
-		}
-	}
-	if err := merged.Plan.Validate(); err != nil {
-		return recording.RecordingResult{}, fmt.Errorf("merge recording plans: %w", err)
-	}
-	fingerprint, err := recording.CaptureInputFingerprint(merged.Plan)
-	if err != nil {
-		return recording.RecordingResult{}, fmt.Errorf("fingerprint merged recording plan: %w", err)
-	}
-	merged.CaptureInputFingerprint = fingerprint
-	return merged, nil
 }
 
 func mergeRecordingPerformance(prev, next *recording.RecordingPerformance) *recording.RecordingPerformance {
@@ -3539,145 +3451,6 @@ func putRecordingResult(store storage.Storage, id uuid.UUID, result recording.Re
 		return err
 	}
 	return store.Put(recording.ResultArtifactKey(id), bytes.NewReader(b))
-}
-
-// recordingOutputsReady reports which of requested's segments still lack a
-// durable, profile-compatible clip and therefore need (re)capture. Callers
-// resolve the effective segment ids (whole-demo mode passes every plan
-// segment), so a reel scoped to one clip is never wrongly considered ready
-// against the job-level result.json, which holds only the last run's
-// segments until the accumulate step unions it.
-//
-// An empty return means every requested segment can be skipped entirely; a
-// non-empty return is the subset the caller must actually record. Recapture
-// is all-or-nothing only when the stored result itself is unusable as a base
-// (missing, failed, pending publication, invalid, or built under an
-// incompatible capture profile) - in that case every requested segment is
-// returned as missing, since there is nothing per-segment left to trust.
-// captureProfilesCompatible and the per-segment reflect.DeepEqual comparison
-// stay authoritative: a clip is only reused when it was captured under the
-// exact same profile and segment definition, so HUD modes are never mixed
-// within one reel.
-// recordingReuse is what a stored capture already covers: the durable keys it
-// reuses, and the requested plays that only lack their victim replay.
-type recordingReuse struct {
-	keys       []string
-	replayOnly []string
-}
-
-func recordingOutputsReady(ctx context.Context, store storage.Storage, id uuid.UUID, requested []string, expectedPlan recording.RecordingPlan) ([]string, recordingReuse, error) {
-	if len(requested) == 0 {
-		return nil, recordingReuse{}, nil
-	}
-	needAll := append([]string(nil), requested...)
-	resultKey := recording.ResultArtifactKey(id)
-	exists, err := store.Exists(resultKey)
-	if err != nil || !exists {
-		return needAll, recordingReuse{}, err
-	}
-	result, err := decodeStoredRecordingResult(store, id)
-	if err != nil || result.Error != "" {
-		return needAll, recordingReuse{}, err
-	}
-	if result.PublicationPending {
-		return needAll, recordingReuse{}, nil
-	}
-	if err := recording.ValidateRunResult(result); err != nil {
-		return needAll, recordingReuse{}, nil
-	}
-	if !captureProfilesCompatible(result.Plan, expectedPlan) &&
-		!legacyCaptureProfileCompatible(result.Plan, expectedPlan) {
-		return needAll, recordingReuse{}, nil
-	}
-
-	recorded := make(map[string]bool)
-	recordedSegments := make(map[string]recording.RecordingSegment, len(result.Plan.Segments))
-	for _, segment := range result.Plan.Segments {
-		recordedSegments[segment.ID] = segment
-	}
-	for _, a := range result.Artifacts {
-		if isSegmentClip(a) {
-			recorded[a.SegmentID] = true
-		}
-	}
-	scriptKey, err := result.ScriptKey(id)
-	if err != nil {
-		return needAll, recordingReuse{}, err
-	}
-	if ok, err := store.Exists(scriptKey); err != nil || !ok {
-		return needAll, recordingReuse{}, err
-	}
-	keys := []string{resultKey, scriptKey}
-	expectedSegments := make(map[string]recording.RecordingSegment, len(expectedPlan.Segments))
-	for _, segment := range expectedPlan.Segments {
-		expectedSegments[segment.ID] = segment
-	}
-
-	var missing, replayOnly []string
-	for _, segID := range requested {
-		storedSegment, stored := recordedSegments[segID]
-		expectedSegment, expected := expectedSegments[segID]
-		compatibleWindow := reflect.DeepEqual(withoutVictimReplay(storedSegment), withoutVictimReplay(expectedSegment))
-		if result.Plan.FullDemo != nil && expectedPlan.FullDemo != nil && stored && expected {
-			// Narrower editorial requests use an immutable broader capture. The
-			// effective render trims it using its original capture start tick.
-			compatibleWindow = result.FullDemoRoundCovered(expectedSegment, expectedPlan.FullDemo.Options.Editorial.AllowSafeTailTrim)
-		}
-		if !recorded[segID] || !stored || !expected || !compatibleWindow {
-			missing = append(missing, segID)
-			continue
-		}
-		clipKey, err := result.SegmentClipKey(id, segID)
-		if err != nil {
-			return needAll, recordingReuse{}, err
-		}
-		ok, err := store.Exists(clipKey)
-		if err != nil {
-			return needAll, recordingReuse{}, err
-		}
-		if !ok {
-			missing = append(missing, segID)
-			continue
-		}
-		if expectedSegment.VictimReplay != nil {
-			replayID := recording.VictimReplayID(segID)
-			replayKey, err := result.SegmentClipKey(id, replayID)
-			if err != nil {
-				return needAll, recordingReuse{}, err
-			}
-			if ok, err := store.Exists(replayKey); err != nil {
-				return needAll, recordingReuse{}, err
-			} else if !ok || !recorded[replayID] || !reflect.DeepEqual(storedSegment.VictimReplay, expectedSegment.VictimReplay) {
-				// The main clip is reusable; only the replay window is recorded.
-				missing = append(missing, segID)
-				replayOnly = append(replayOnly, segID)
-				continue
-			}
-			keys = append(keys, replayKey)
-		}
-		if result.Plan.FullDemo != nil {
-			var digest string
-			for _, artifact := range result.Artifacts {
-				if isSegmentClip(artifact) && artifact.SegmentID == segID {
-					digest = artifact.ContentSHA256
-					break
-				}
-			}
-			if len(digest) != 64 {
-				missing = append(missing, segID)
-				continue
-			}
-			if err := mediaassets.VerifyContent(ctx, store, clipKey, digest, 8<<30); err != nil {
-				if ctx.Err() != nil {
-					return needAll, recordingReuse{}, ctx.Err()
-				}
-				missing = append(missing, segID)
-				continue
-			}
-		}
-		keys = append(keys, clipKey)
-	}
-	return missing, recordingReuse{keys: keys, replayOnly: replayOnly}, nil
 }
 
 func compositionOutputsReady(store storage.Storage, id uuid.UUID) (bool, []string, error) {

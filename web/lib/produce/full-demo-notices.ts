@@ -27,6 +27,9 @@ const WARNING_TEXT: Readonly<Record<string, string>> = {
   pov_tail_trimmed: 'El final de una ronda se acorta para no pasar de la siguiente.',
   sponsor_after_last_round: 'El vídeo tiene una sola ronda, así que el sponsor sale después de ella.',
   hook_skipped: 'El vídeo sale sin gancho inicial: hace falta más de una ronda y alguna baja del jugador.',
+  second_camera_skipped: 'Ninguna baja del jugador cumple las condiciones de la segunda cámara, así que el vídeo sale sin ella.',
+  second_camera_unavailable: 'No se han podido leer los movimientos de los enemigos en esta demo, así que el vídeo sale sin segunda cámara.',
+  second_camera_omitted: 'Una segunda cámara no se pudo grabar y el vídeo sale sin ella.',
   crosshair_capture_default_approved: 'En alguna ronda la demo no guarda la mira del jugador y se graba la mira por defecto.',
 };
 
