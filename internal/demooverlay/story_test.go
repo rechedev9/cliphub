@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -240,6 +241,33 @@ func TestSubscribeSpriteSwingsTheBellFromRest(t *testing.T) {
 		}
 		if bottom := sprite.CellTop + sprite.CellHeight; sprite.CellTop < 0 || bottom > size.Height {
 			t.Fatalf("%v cell %d+%d leaves the frame", size, sprite.CellTop, sprite.CellHeight)
+		}
+	}
+}
+
+func TestSubscribeSpriteStacksThePagesCellByCell(t *testing.T) {
+	size := htmlstill.Portrait
+	sprite := SubscribeSpriteFor(size)
+	rows := sprite.rowsPerPage(size)
+	var pages []image.Image
+	for p := 0; p*rows <= sprite.Frames; p++ {
+		page := image.NewNRGBA(image.Rect(0, 0, size.Width, size.Height))
+		for r := 0; r < rows; r++ {
+			for y := r * sprite.CellHeight; y < (r+1)*sprite.CellHeight; y++ {
+				page.SetNRGBA(0, y, color.NRGBA{R: uint8(p*rows + r), A: 255})
+			}
+		}
+		pages = append(pages, page)
+	}
+	sheet := sprite.stack(pages, size)
+	if sheet.Bounds().Dy() != sprite.Height() {
+		t.Fatalf("sheet is %d px tall; want %d", sheet.Bounds().Dy(), sprite.Height())
+	}
+	for cell := 0; cell <= sprite.Frames; cell++ {
+		for _, y := range []int{cell * sprite.CellHeight, (cell+1)*sprite.CellHeight - 1} {
+			if got := sheet.NRGBAAt(0, y).R; int(got) != cell {
+				t.Fatalf("row %d holds cell %d; want %d", y, got, cell)
+			}
 		}
 	}
 }

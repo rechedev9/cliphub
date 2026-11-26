@@ -67,7 +67,7 @@ func fullDemoStoryOverlayEffects(manifest *Manifest, short ShortEdit) ([]Effect,
 		return nil, err
 	}
 	for _, window := range windows {
-		effects = append(effects, fullDemoSubscribeEffect(path, sprite, window, lift))
+		effects = append(effects, fullDemoSubscribeEffect(fullDemoSubscribeImage{path: path, sprite: sprite, lift: lift}, window))
 	}
 	return effects, nil
 }
@@ -136,11 +136,17 @@ func fullDemoHalftimeEffect(short ShortEdit, path string, window fullDemoStoryWi
 	}
 }
 
-func fullDemoSubscribeEffect(path string, sprite demooverlay.SubscribeSprite, window fullDemoStoryWindow, lift int) Effect {
+type fullDemoSubscribeImage struct {
+	path   string
+	sprite demooverlay.SubscribeSprite
+	lift   int
+}
+
+func fullDemoSubscribeEffect(image fullDemoSubscribeImage, window fullDemoStoryWindow) Effect {
 	return Effect{
-		Type: EffectImage, Path: path, Source: fullDemoSubscribeSource,
-		X: fullDemoStorySlide(window, demooverlay.SubscribeSlidePixels, 0), Y: strconv.Itoa(sprite.CellTop - lift),
-		Width: demooverlay.FrameWidth, Height: sprite.Height(), Sprite: subscribeBellSprite(sprite),
+		Type: EffectImage, Path: image.path, Source: fullDemoSubscribeSource,
+		X: fullDemoStorySlide(window, demooverlay.SubscribeSlidePixels, 0), Y: strconv.Itoa(image.sprite.CellTop - image.lift),
+		Width: demooverlay.FrameWidth, Height: image.sprite.Height(), Sprite: subscribeBellSprite(image.sprite),
 		StartSeconds: window.start, EndSeconds: window.end,
 		FadeInSeconds: demooverlay.IntroOverlaySlideSeconds, FadeOutSeconds: demooverlay.IntroOverlaySlideOutSeconds,
 	}

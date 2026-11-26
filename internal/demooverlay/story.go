@@ -199,6 +199,9 @@ func SubscribeHTML(palette *Palette, card SubscribeCard, size htmlstill.Size) ([
 	}
 	sprite := SubscribeSpriteFor(size)
 	swings, rows := subscribeBellSwings(sprite.Frames), sprite.rowsPerPage(size)
+	if rows < 1 {
+		return nil, fmt.Errorf("subscribe sprite cell of %d px does not fit a %dx%d page", sprite.CellHeight, size.Width, size.Height)
+	}
 	var pages [][]byte
 	for first := 0; first < len(swings); first += rows {
 		page, err := storyPage("subscribe.html", struct {
@@ -273,7 +276,7 @@ func RenderSubscribeSprite(palette *Palette, card SubscribeCard, size htmlstill.
 		return SubscribeSprite{}, err
 	}
 	defer os.RemoveAll(dir)
-	sheet := image.NewNRGBA(image.Rect(0, 0, size.Width, sprite.Height()))
+	stills := make([]image.Image, 0, len(pages))
 	for i, page := range pages {
 		pagePath := filepath.Join(dir, fmt.Sprintf("page-%d.png", i))
 		if err := htmlstill.Render(page, pagePath, size); err != nil {
@@ -283,10 +286,18 @@ func RenderSubscribeSprite(palette *Palette, card SubscribeCard, size htmlstill.
 		if err != nil {
 			return SubscribeSprite{}, err
 		}
-		top := i * sprite.rowsPerPage(size) * sprite.CellHeight
-		draw.Draw(sheet, image.Rect(0, top, size.Width, sprite.Height()), still, image.Point{}, draw.Src)
+		stills = append(stills, still)
 	}
-	return sprite, encodePNG(sheet, outPath)
+	return sprite, encodePNG(sprite.stack(stills, size), outPath)
+}
+
+func (s SubscribeSprite) stack(pages []image.Image, size htmlstill.Size) *image.NRGBA {
+	sheet := image.NewNRGBA(image.Rect(0, 0, size.Width, s.Height()))
+	for i, page := range pages {
+		top := i * s.rowsPerPage(size) * s.CellHeight
+		draw.Draw(sheet, image.Rect(0, top, size.Width, s.Height()), page, image.Point{}, draw.Src)
+	}
+	return sheet
 }
 
 func decodePNG(path string) (image.Image, error) {
