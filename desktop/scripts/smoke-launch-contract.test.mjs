@@ -141,6 +141,9 @@ server.listen(0, '127.0.0.1', () => {
     });
   });
   await startup;
+  const refusedProbeWindowMs = 1_500;
+  await new Promise((resolveWindow) => setTimeout(resolveWindow, refusedProbeWindowMs));
+  assert.equal(smoke.exitCode, null, `a refused health probe must not end the smoke:\n${stdout}\n${stderr}`);
 
   decoy = spawn(
     process.execPath,
