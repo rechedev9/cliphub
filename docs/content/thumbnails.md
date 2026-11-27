@@ -2,14 +2,17 @@
 
 Status: **draft, waiting for the owner's approval.** No renderer code lands before it is approved.
 
-This file is the single source of truth for the thumbnails of the content product (`content/`):
-the full-map POV (16:9) and the Short (9:16) of the YouTube channel @ClipHubRSN. It replaces the
-Thumbnails section of the old `pro-pov-pipeline` skill and its `thumb.ts` and `portraits.ts`, which
-this spec was read from (state of 2026-11-27). A renderer that passes the checks in
+This file is the single source of truth for the thumbnails of the content product (`content/`,
+not in the repository yet): the full-map POV (16:9) and the Short (9:16) of the YouTube channel
+@ClipHubRSN. It replaces the Thumbnails section of the old `pro-pov-pipeline` skill and its
+`thumb.ts` and `portraits.ts`, which this spec was read from (state of 2026-11-27). Those, like the
+`youtube-channel` skill and `mock-anime.ts` named below, are the owner's local files, outside this
+repository. A renderer that passes the checks in
 [Acceptance checks](#acceptance-checks) is the tool; a skill only says when to call it.
 
 Environment details (browser profile, signed-in accounts, device ids, download folders, the FFmpeg
-path) are not part of the spec. They come from `content/config.local.json`.
+path) are not part of the spec. They come from `content/config.local.json`, which `.gitignore`
+keeps out of this public repository.
 
 ## 1. Who supplies what
 
@@ -59,13 +62,16 @@ edge, portrait, hook, name, ELO, map box.
   bottom (`y = H - h + 14`).
 - Rim light from the cutout's own alpha:
   - halo: RGB (255, 120, 20), Gaussian blur sigma 26, alpha x2, at `y = H - h + 20`;
-  - edge: RGB (255, 205, 110), Gaussian blur sigma 5, alpha x2, at `y = H - h + 8`.
+  - edge: RGB (255, 205, 110), Gaussian blur sigma 5, alpha x2, at `y = H - h + 8`;
+  - both at the portrait's x.
 
 ### Large text (hook, name, ELO)
 
 - Font: Saira ExtraBold (800). Each line is centred horizontally in its box `[x, x + w]` and
   vertically on `cy`.
-- Size: `min(max, floor(w / (0.68 * length)))`, so a long line shrinks to fit.
+- Size: start at `min(max, floor(w / (0.68 * length)))`, where `length` counts every character
+  including spaces, then shrink 1 px at a time until the line measured in the pinned font, border
+  included, fits `w`. A long line shrinks to fit.
 - Shadow and outline layer: fill `#3A1200`, border width `round(size / 18)` in `#160600`, shadow
   black at 75 % offset `(0, round(size / 22))`.
 - Fill: a vertical three-stop gradient from `cy - 0.42 * size` to `cy + 0.42 * size`, masked by
@@ -83,7 +89,8 @@ edge, portrait, hook, name, ELO, map box.
 | hook | x 600, w 1280, cy 905, max 280 | x 120, w 1680, cy 870, max 320 | x 40, w 1000, cy 1090, max 270 |
 
 On a POV with a portrait the hook overlaps the portrait's shoulder a little. On a Short the hook
-sits above the head and never covers the face.
+sits above the head and never covers the face; how a tall source keeps it so is
+[Open questions](#open-questions) 8.
 
 ### Map box (kill-feed style)
 
@@ -149,13 +156,14 @@ sits above the head and never covers the face.
 ## 6. Portraits
 
 - The player's real HLTV bodyshot (`img.player-summary-stat-box-left-bodyshot` on the player page),
-  fetched once per player and kept per player. Never an AI-drawn face.
+  fetched once per player and kept per player outside the repository, in the folder
+  `content/config.local.json` names. Never an AI-drawn face.
 - It must be a PNG (signature `89 50 4E 47 0D 0A 1A 0A`) with transparency. HLTV's grey silhouette
   (about 12 KB) is not a photo: treat it as no portrait.
 - A player without a portrait (streamers such as m3wsu or StRoGo) gets the no-portrait layout.
 - Someone looks at each new portrait once: the jersey must be the player's current team.
 
-## 7. What the data says (as of 2026-11-26)
+## 7. What the data says (as of 2026-11-27)
 
 Sources: YouTube Studio export (28 days to 2026-11-24, read 2026-11-25) and the YouTube Data API
 view counts read 2026-11-26 16:08 Madrid.
@@ -192,7 +200,8 @@ view counts read 2026-11-26 16:08 Madrid.
 
 ## 8. Examples
 
-Good (follow these; thumbnails of 2026-11-27):
+Good (follow their layout and text; thumbnails of 2026-11-27; their portraits wait on Open
+questions 5):
 
 - donk, FACEIT Ancient POV (`dWPPR5XqqD8`): portrait left with the rim light, `DONK`, `5299 ELO`,
   `32-22`, map box `ANCIENT`. Name, ELO and K-D read at phone size.
@@ -216,10 +225,11 @@ A renderer test can verify each of these without a person:
 3. Text outside `/^[A-Z0-9 .%!?-]+$/` after uppercasing is refused with an error, and no file is
    written.
 4. More than 5 words on a POV or 3 on a Short is refused (per the rule chosen in Open questions 2).
-5. `elo` that is not 3 or 4 digits is refused; with no `elo`, no pixel of the ELO box differs from
-   the render without it.
-6. Each text line's bounding box lies inside its box `[x, x + w]` and inside the canvas; its size
-   is `min(max, floor(w / (0.68 * length)))`.
+5. `elo` that is not 3 or 4 digits is refused. With no `elo`, every pixel outside the ELO box
+   equals the render of the same inputs with an `elo`, and the ELO box shows only the layers below
+   it.
+6. Each text line's bounding box, border included, lies inside its box `[x, x + w]` and inside the
+   canvas; its size is the largest one at or under `min(max, floor(w / (0.68 * length)))` that fits.
 7. On a Short, every text bounding box and the map box lie inside y = 240 to 1680 and x = 0 to
    1080; the map box top is at y = 310.
 8. The map box's top-left corner is at (40, 40) on a POV and (40, 310) on a Short, with a 5 px
@@ -238,7 +248,8 @@ the right player and team; every word is true for that video.
 
 ## Open questions
 
-The sources disagree on these. Each needs the owner's decision before the renderer is written.
+The sources disagree on these, or leave them open. Each needs the owner's decision before the
+renderer is written.
 
 1. **Short safe zone.** `thumb.ts` uses TikTok's 3:4 profile grid (y = 240 to 1680) and places the
    map box at y = 310 for it. The repo's `shorts-thumbnail` skill measured the YouTube Shorts tab at
@@ -260,3 +271,9 @@ The sources disagree on these. Each needs the owner's decision before the render
    Gemini design. Is it retired, or kept for the owner's own `RSN` Shorts?
 7. **Background reuse.** The pipeline asks for one new Gemini image per thumbnail; a set of
    per-map backgrounds was also made on 2026-11-25. May a map background be reused across videos?
+8. **Tall portraits on a Short.** The Short portrait is `681 * srcH / srcW` px tall with its bottom
+   at `H + 14`, so a source taller than about 1.04:1 puts the head top above y = 1225, inside the
+   hook box. Cap the portrait height (cut the crop nearer the chin), lower the hook, or accept it?
+9. **Nicks outside the charset.** FACEIT nicks may contain `_`, which the text rule refuses, and
+   the spec gives no fallback. Map `_` to a space or `-`, drop it, or leave such a player without a
+   thumbnail?

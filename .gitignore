@@ -86,3 +86,6 @@ logs/
 # The landing ships its own film loops.
 !landing/public/film/*.mp4
 !landing/public/film/*.webm
+
+# Content product machine config: accounts, device ids, local folders (docs/content/thumbnails.md)
+/content/config.local.json
