@@ -52,7 +52,7 @@ export const TICKER = [
 ] as const;
 
 export const STATS = [
-  { value: "10", label: "Shorts de una demo con un clic", side: "ct" },
+  { value: "10", label: "Shorts como máximo de una demo con un clic", side: "ct" },
   { value: "9:16", label: "Vertical para Shorts, TikTok y Reels", side: "t" },
   { value: "16:9", label: "Horizontal para YouTube", side: "ct" },
   { value: "3", label: "Plataformas de stream: Twitch, Kick y YouTube", side: "t" },

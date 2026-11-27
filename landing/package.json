@@ -9,7 +9,8 @@
     "start": "next start -p 3100",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint app components lib test next.config.mjs postcss.config.mjs",
-    "test": "node --test --test-reporter=dot \"test/**/*.test.ts\""
+    "test": "node --test --test-reporter=dot \"test/**/*.test.ts\"",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run test"
   },
   "dependencies": {
     "lucide-react": "^0.469.0",

@@ -19,7 +19,8 @@ export default function FilmBackdrop({ film, priority = false, position = "50% 5
     const seek = () => {
       if (startAt > 0 && video.currentTime < startAt) video.currentTime = startAt;
     };
-    video.addEventListener("loadedmetadata", seek, { once: true });
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) seek();
+    else video.addEventListener("loadedmetadata", seek, { once: true });
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) void video.play().catch(() => undefined);
