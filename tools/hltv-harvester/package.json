@@ -6,7 +6,6 @@
   "description": "Operator tool: downloads recent HLTV demo archives for the ClipHub pro lineups index",
   "main": "dist/main.js",
   "scripts": {
-    "postinstall": "node -e \"require('electron/install.js')\"",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:unit": "node --no-warnings --test --test-reporter=dot \"src/**/*.test.ts\"",
