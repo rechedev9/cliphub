@@ -227,6 +227,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/library/pro-follows", h.ListLibraryProFollows)
 	r.Post("/api/library/pro-follows", h.FollowLibraryProTeam)
 	r.Delete("/api/library/pro-follows/{team}", h.UnfollowLibraryProTeam)
+	r.Post("/api/library/pro-teams/{team}/import", h.ImportLibraryProTeam)
 	r.Get("/api/library/teams", h.ListLibraryTeams)
 	r.Post("/api/library/teams", h.CreateLibraryTeam)
 	r.Get("/api/library/teams/{id}", h.GetLibraryTeam)

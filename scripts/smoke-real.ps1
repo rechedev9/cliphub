@@ -39,6 +39,58 @@ function Get-LoopbackListenerProcessID {
     return [int]$listeners[0]
 }
 
+Add-Type -Namespace ClipHubSmoke -Name ProcessInfo -MemberDefinition @'
+[StructLayout(LayoutKind.Sequential)]
+public struct BasicInformation {
+    public IntPtr ExitStatus;
+    public IntPtr PebBaseAddress;
+    public IntPtr AffinityMask;
+    public IntPtr BasePriority;
+    public IntPtr UniqueProcessId;
+    public IntPtr InheritedFromUniqueProcessId;
+}
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern IntPtr OpenProcess(uint access, bool inherit, uint processId);
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool CloseHandle(IntPtr handle);
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool GetProcessTimes(IntPtr handle, out long creation, out long exit, out long kernel, out long user);
+[DllImport("ntdll.dll")]
+public static extern int NtQueryInformationProcess(IntPtr handle, int informationClass, ref BasicInformation information, int length, out int returnLength);
+'@
+
+function Get-ProcessLineage {
+    param([int]$ProcessID)
+
+    $queryLimitedInformation = 0x1000
+    $handle = [ClipHubSmoke.ProcessInfo]::OpenProcess($queryLimitedInformation, $false, [uint32]$ProcessID)
+    if ($handle -eq [IntPtr]::Zero) {
+        return $null
+    }
+    try {
+        $creation = [long]0
+        $exit = [long]0
+        $kernel = [long]0
+        $user = [long]0
+        if (-not [ClipHubSmoke.ProcessInfo]::GetProcessTimes($handle, [ref]$creation, [ref]$exit, [ref]$kernel, [ref]$user) -or
+            $exit -ne 0) {
+            return $null
+        }
+        $information = New-Object 'ClipHubSmoke.ProcessInfo+BasicInformation'
+        $returned = 0
+        $size = [Runtime.InteropServices.Marshal]::SizeOf($information)
+        if ([ClipHubSmoke.ProcessInfo]::NtQueryInformationProcess($handle, 0, [ref]$information, $size, [ref]$returned) -ne 0) {
+            return $null
+        }
+        return [pscustomobject]@{
+            StartedAt       = [DateTime]::FromFileTimeUtc($creation)
+            ParentProcessId = [int]$information.InheritedFromUniqueProcessId.ToInt64()
+        }
+    } finally {
+        [void][ClipHubSmoke.ProcessInfo]::CloseHandle($handle)
+    }
+}
+
 function Test-ProcessBelongsToLaunch {
     param(
         [int]$CandidateProcessID,
@@ -49,16 +101,6 @@ function Test-ProcessBelongsToLaunch {
     if ($CandidateProcessID -le 0 -or $LaunchProcessID -le 0) {
         return $false
     }
-    $processesByID = @{}
-    try {
-        foreach ($snapshotProcess in @(Get-CimInstance Win32_Process `
-            -Property ProcessId, ParentProcessId, CreationDate `
-            -ErrorAction Stop)) {
-            $processesByID[[int]$snapshotProcess.ProcessId] = $snapshotProcess
-        }
-    } catch {
-        Fail "could not inspect process ancestry: $($_.Exception.Message)"
-    }
     $currentProcessID = $CandidateProcessID
     $descendantStartedAt = $null
     for ($depth = 0; $depth -lt 128 -and $currentProcessID -gt 0; $depth++) {
@@ -66,11 +108,11 @@ function Test-ProcessBelongsToLaunch {
             return $null -eq $descendantStartedAt -or
                 $descendantStartedAt -ge $LaunchStartedAt
         }
-        $process = $processesByID[$currentProcessID]
+        $process = Get-ProcessLineage -ProcessID $currentProcessID
         if ($null -eq $process) {
             return $false
         }
-        $currentStartedAt = ([DateTime]$process.CreationDate).ToUniversalTime()
+        $currentStartedAt = $process.StartedAt
         if ($null -ne $descendantStartedAt -and
             $currentStartedAt -gt $descendantStartedAt) {
             # ParentProcessId can outlive its process. Reject a newer process
@@ -356,7 +398,7 @@ for ($attempt = 0; $attempt -lt 40; $attempt++) {
             break
         }
     }
-    $healthStatus = & curl.exe -sS -o NUL -w "%{http_code}" "$BaseUrl/healthz" 2>$null
+    $healthStatus = & curl.exe -s -o NUL -w "%{http_code}" "$BaseUrl/healthz"
     if ($LASTEXITCODE -eq 0 -and
         $healthStatus -eq "200" -and
         (-not $ownedOrchestrator -or ($ownedServer -and -not $ownedServer.HasExited))) {

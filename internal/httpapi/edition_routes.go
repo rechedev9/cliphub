@@ -126,6 +126,7 @@ var analysisRoutes = []Route{
 	post("/api/library/pro-lineups/{map}/lineups/{id}/save"),
 	get("/api/library/pro-matches"),
 	post("/api/library/pro-matches/{match}/{entry}/import"),
+	post("/api/library/pro-teams/{team}/import"),
 	get("/api/library/documents"),
 	post("/api/library/document-uploads"),
 	get("/api/library/documents/{id}"),
