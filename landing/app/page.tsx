@@ -23,10 +23,8 @@ import {
 import { DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL, SERVICE_CONTACT_URL } from "@/lib/site";
 
 const wrap = "mx-auto w-full max-w-7xl px-5 sm:px-10";
-const eyebrow =
-  "inline-flex items-center gap-3 font-mono text-xs font-medium uppercase tracking-[0.24em] text-brand sm:text-sm";
 const giant = "font-display font-black uppercase italic leading-[0.86] tracking-[-0.01em]";
-const h2 = `${giant} hud-glitch mt-5 text-5xl sm:text-7xl lg:text-8xl`;
+const h2 = `${giant} hud-glitch text-5xl sm:text-7xl lg:text-8xl`;
 const lead = "mt-6 max-w-xl text-base leading-relaxed text-muted sm:text-lg";
 
 interface CtaProps {
@@ -49,25 +47,15 @@ function Cta({ href, label, solid = false }: CtaProps) {
   );
 }
 
-function Eyebrow({ index, label }: { index: string; label: string }) {
-  return (
-    <p className={eyebrow}>
-      <span className="bg-brand px-1.5 text-bg">{index}</span>
-      {label}
-    </p>
-  );
-}
-
 interface PathCardProps {
   href: string;
-  tag: string;
   title: string;
   text: string;
   cta: string;
   side: "ct" | "t";
 }
 
-function PathCard({ href, tag, title, text, cta, side }: PathCardProps) {
+function PathCard({ href, title, text, cta, side }: PathCardProps) {
   const tone = side === "ct" ? "text-side-ct" : "text-side-t";
   return (
     <a
@@ -75,8 +63,7 @@ function PathCard({ href, tag, title, text, cta, side }: PathCardProps) {
       className="hud-cut group relative flex flex-col bg-surface/90 p-5 backdrop-blur transition-colors hover:bg-line sm:p-6"
     >
       <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1.5 ${side === "ct" ? "bg-side-ct" : "bg-side-t"}`} />
-      <span className={`font-mono text-[11px] uppercase tracking-[0.22em] ${tone}`}>{tag}</span>
-      <span className={`${giant} mt-2 text-4xl`}>{title}</span>
+      <span className={`${giant} text-[2.1rem] leading-none ${tone}`}>{title}</span>
       <span className="mt-2 text-sm leading-relaxed text-muted">{text}</span>
       <span className="mt-5 inline-flex items-center gap-2 font-display text-sm font-extrabold uppercase tracking-[0.18em] text-brand">
         {cta}
@@ -91,12 +78,9 @@ function PathCard({ href, tag, title, text, cta, side }: PathCardProps) {
 function FeatureCards({ items }: { items: readonly Feature[] }) {
   return (
     <ol className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
-      {items.map((f, i) => (
+      {items.map((f) => (
         <li key={f.title} className="group relative bg-bg p-6 transition-colors hover:bg-surface sm:p-7">
-          <span className="font-mono text-xs text-faint transition-colors group-hover:text-brand">
-            {String(i + 1).padStart(2, "0")}
-          </span>
-          <h3 className={`${giant} mt-4 text-3xl`}>{f.title}</h3>
+          <h3 className={`${giant} text-3xl`}>{f.title}</h3>
           <p className="mt-3 text-sm leading-relaxed text-muted">{f.text}</p>
           <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 origin-left scale-x-0 bg-brand transition-transform duration-300 group-hover:scale-x-100" />
         </li>
@@ -145,14 +129,7 @@ export default function Home() {
           <div aria-hidden="true" className="hud-scanlines pointer-events-none absolute inset-0" />
           <div className={`${wrap} relative grid items-center gap-16 lg:grid-cols-[1.15fr_1fr]`}>
             <div>
-              <p className={eyebrow}>
-                <span className="flex items-center gap-1.5 border border-rec px-1.5 text-rec">
-                  <span className="hud-blink size-1.5 rounded-full bg-rec" />
-                  Live
-                </span>
-                {HERO.kicker}
-              </p>
-              <div className="relative mt-6">
+              <div className="relative">
                 <span
                   aria-hidden="true"
                   className="absolute left-[38%] top-1/2 h-3 w-[75%] -translate-x-1/2 -translate-y-1/2 -rotate-[24deg] bg-brand shadow-[0_0_30px_var(--color-brand)] sm:h-5"
@@ -206,7 +183,6 @@ export default function Home() {
 
         <section id="como-funciona" aria-labelledby="como-titulo" className="border-t border-line py-24 sm:py-32">
           <div className={wrap}>
-            <Eyebrow index="01" label="Cómo funciona" />
             <h2 id="como-titulo" className={`${h2} max-w-5xl`}>
               De la demo al vídeo en tres pasos.
             </h2>
@@ -224,7 +200,6 @@ export default function Home() {
 
         <section id="shorts" aria-labelledby="shorts-titulo" className="border-t border-line py-24 sm:py-32">
           <div className={wrap}>
-            <Eyebrow index="02" label="Shorts 9:16" />
             <h2 id="shorts-titulo" className={`${h2} max-w-5xl`}>
               Hecho para el scroll.
             </h2>
@@ -246,7 +221,6 @@ export default function Home() {
           />
           <div aria-hidden="true" className="hud-scanlines absolute inset-0" />
           <div className={`${wrap} relative py-24`}>
-            <Eyebrow index="03" label="Demo completa · 16:9" />
             <h2 id="demo-titulo" className={`${h2} max-w-5xl`}>
               {FULL_DEMO.title}
             </h2>
@@ -266,7 +240,6 @@ export default function Home() {
         <section id="streams" aria-labelledby="streams-titulo" className="border-t border-line bg-surface py-24 sm:py-32">
           <div className={`${wrap} grid gap-14 lg:grid-cols-[1fr_1.1fr] lg:items-center`}>
             <div>
-              <Eyebrow index="04" label="Clips de stream" />
               <h2 id="streams-titulo" className={h2}>
                 {STREAMS.title}
               </h2>
@@ -296,7 +269,6 @@ export default function Home() {
         <section id="servicio" aria-labelledby="servicio-titulo" className="relative border-t border-line py-24 sm:py-32">
           <div className={`${wrap} grid gap-14 lg:grid-cols-[1fr_1.1fr] lg:items-start`}>
             <div>
-              <Eyebrow index="05" label="Servicio" />
               <h2 id="servicio-titulo" className={h2}>
                 {SERVICE.title}
               </h2>
@@ -324,7 +296,6 @@ export default function Home() {
 
         <section id="planes" aria-labelledby="planes-titulo" className="hud-grid border-t border-line py-24 sm:py-32">
           <div className={wrap}>
-            <Eyebrow index="06" label="Elige cómo" />
             <h2 id="planes-titulo" className={`${h2} max-w-5xl`}>
               Tú editas o editamos nosotros.
             </h2>
@@ -334,10 +305,7 @@ export default function Home() {
                 return (
                   <li key={plan.id} className="hud-cut relative flex flex-col bg-surface p-7 sm:p-9">
                     <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1.5 ${ct ? "bg-side-ct" : "bg-side-t"}`} />
-                    <span className={`font-mono text-xs uppercase tracking-[0.22em] ${ct ? "text-side-ct" : "text-side-t"}`}>
-                      {plan.tag}
-                    </span>
-                    <h3 className={`${giant} mt-3 text-5xl`}>{plan.name}</h3>
+                    <h3 className={`${giant} text-5xl`}>{plan.name}</h3>
                     <p className="mt-2 font-display text-xl font-bold uppercase tracking-[0.08em] text-brand">{plan.price}</p>
                     <ul className="mt-6 flex-1 space-y-3 text-muted">
                       {plan.points.map((point) => (
@@ -360,7 +328,6 @@ export default function Home() {
         <section id="preguntas" aria-labelledby="preguntas-titulo" className="border-t border-line py-24 sm:py-32">
           <div className={`${wrap} grid gap-12 lg:grid-cols-[1fr_1.4fr]`}>
             <div>
-              <Eyebrow index="07" label="Preguntas" />
               <h2 id="preguntas-titulo" className={h2}>
                 Antes de que preguntes.
               </h2>
@@ -383,8 +350,7 @@ export default function Home() {
 
         <section id="descargar" aria-labelledby="descargar-titulo" className="hud-grid relative overflow-hidden border-t border-line py-24 sm:py-32">
           <div className={`${wrap} relative`}>
-            <Eyebrow index="08" label="Empieza ahora" />
-            <h2 id="descargar-titulo" className={`${giant} hud-glitch mt-5 text-[clamp(3.6rem,13vw,11rem)]`}>
+            <h2 id="descargar-titulo" className={`${giant} hud-glitch text-[clamp(3.6rem,13vw,11rem)]`}>
               Dale a grabar.
             </h2>
             <div className="mt-12 flex flex-col gap-3 sm:flex-row">
@@ -396,7 +362,7 @@ export default function Home() {
             </p>
             <div className="mt-20 grid gap-12 border-t border-line pt-10 md:grid-cols-2">
               <div>
-                <h3 className={eyebrow}>Qué necesitas</h3>
+                <h3 className={`${giant} text-3xl`}>Qué necesitas</h3>
                 <ul className="mt-5 space-y-2 text-muted">
                   {REQUIREMENTS.map((r) => (
                     <li key={r} className="flex items-center gap-3">
@@ -407,7 +373,7 @@ export default function Home() {
                 </ul>
               </div>
               <div>
-                <h3 className={eyebrow}>Si Windows avisa al instalar</h3>
+                <h3 className={`${giant} text-3xl`}>Si Windows avisa al instalar</h3>
                 <p className="mt-5 leading-relaxed text-muted">
                   El instalador aún no está firmado, así que Windows puede mostrar «Windows protegió su PC». Pulsa «Más
                   información» y luego «Ejecutar de todas formas». El código y el checksum de cada versión están en{" "}

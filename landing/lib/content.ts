@@ -14,7 +14,6 @@ export const POV_FILM: Film = {
 };
 
 export const HERO = {
-  kicker: "Clipping de CS2 para creadores · Windows",
   title: "Tu demo, hecha vídeo.",
   lead: "Studio graba tus jugadas dentro de CS2 y monta el Short o el partido entero por ti, con kill feed, música, radar y tu marca. Sin abrir un editor.",
   primary: "Descargar gratis",
@@ -23,14 +22,12 @@ export const HERO = {
 
 export const PATHS = {
   tool: {
-    tag: "Hazlo tú",
-    title: "Studio",
-    text: "Descarga la app y saca tus clips cuando quieras. Empieza gratis.",
+    title: "Hazlo tú",
+    text: "Descarga Studio y saca tus clips cuando quieras. Empieza gratis.",
     cta: "Descargar gratis",
   },
   service: {
-    tag: "Lo hacemos por ti",
-    title: "Servicio",
+    title: "Lo hacemos por ti",
     text: "¿Sin tiempo para editar? Nos mandas tus demos o tu VOD y te devolvemos los vídeos listos.",
     cta: "Habla con nosotros",
   },
@@ -123,7 +120,6 @@ export const SERVICE = {
 export const PLANS = [
   {
     id: "studio",
-    tag: "Hazlo tú",
     name: "Studio",
     price: "Gratis para empezar",
     points: ["Shorts, demo completa y clips de stream", "Todo en tu PC, sin subir nada", "Plan Pro con más funciones, muy pronto"],
@@ -131,7 +127,6 @@ export const PLANS = [
   },
   {
     id: "servicio",
-    tag: "Lo hacemos por ti",
     name: "Servicio",
     price: "A tu medida",
     points: ["Nosotros editamos con Studio", "Shorts y vídeos largos con tu marca", "Volumen y ritmo según tu canal"],
