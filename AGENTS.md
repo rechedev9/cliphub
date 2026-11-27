@@ -70,10 +70,18 @@ it. [ClipMind and the VPS](.claude/rules/clipmind.md).
 - Fast local Go loop: `go test -short ./...` skips the slow FFmpeg renders and `TestNoDeadCode`.
   Pre-PR runs use the full suite. `internal/editor` alone nears the 10 min default on Windows, so
   pass `-timeout 30m` to a full run.
-- `web`, `desktop`, `mcp-apps`: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build`
-  for `web`. One test: `pnpm --dir <pkg> exec node --test <path>.test.ts`. `landing` names its
-  tests `test` and runs all four with `run check`. `tools/hltv-harvester` has `typecheck` and
-  `test:unit` only.
+- One root pnpm workspace (`pnpm-workspace.yaml`: `web`, `desktop`, `landing`, `mcp-apps`,
+  `tools/hltv-harvester`) with one `pnpm-lock.yaml` and a hoisted `node_modules`: install once with
+  `pnpm install`, never inside a package. Shared dependency versions live in the `catalog:` of
+  `pnpm-workspace.yaml`; overrides, `allowBuilds` and patches live there too.
+- `pnpm run check` is the local gate: every package's `typecheck`, `lint` and `test:unit`, then
+  `go run ./cmd/zv check`. `make check` calls it. It does not run the Go tests or the builds.
+- One package: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build` for `web` and
+  `landing`. One test: `pnpm --dir <pkg> exec node --test <path>.test.ts`. `landing`'s `test:unit`
+  runs `next build` first, because its tests read the prerendered page. `tools/hltv-harvester` has
+  `typecheck` and `test:unit` only.
+- `web`'s `build` flattens Next's monorepo standalone output (`web/scripts/flatten-standalone.mjs`)
+  so `.next/standalone/server.js` stays where the installer and the ClipMind image expect it.
 - A few Full Demo editor tests depend on the FFmpeg version; Studio ships FFmpeg 8.1.2.
   [Render and the editor](.claude/rules/render-editor.md).
 

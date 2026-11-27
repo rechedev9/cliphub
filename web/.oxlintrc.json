@@ -1,5 +1,5 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "$schema": "../node_modules/oxlint/configuration_schema.json",
   "jsPlugins": ["../tools/oxlint-no-comments/plugin.mjs"],
   "plugins": ["react", "nextjs", "typescript", "unicorn"],
   "categories": {

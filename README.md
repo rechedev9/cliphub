@@ -69,12 +69,11 @@ Run `.\bin\zv.exe --help` for the other commands, or `zv workflows list` through
 
 ## Run from source
 
-Requirements: Go 1.26.10 (from `go.mod`), Node 24, pnpm 11.22.0, and Steam with CS2 for capture.
+Requirements: Go 1.26.10 (from `go.mod`), Node 24, the pnpm pinned in the root `package.json`, and Steam with CS2 for capture.
 
 ```powershell
 .\scripts\build.ps1                                   # Go binaries into bin\
-pnpm --dir web install --frozen-lockfile
-pnpm --dir desktop install --frozen-lockfile
+pnpm install --frozen-lockfile                       # one root workspace and lockfile
 pnpm --dir desktop run build
 pnpm --dir desktop run assemble                       # stages bin\, the web build and HLAE
 $env:CLIPHUB_E2E_USER_DATA = "C:\temp\cliphub-try\$(Get-Date -f yyyyMMdd-HHmmss)"
@@ -99,11 +98,10 @@ Repository layout:
 go vet ./...
 go test ./... -count=1 -timeout 30m
 go run ./cmd/zv check
-pnpm --dir web run typecheck && pnpm --dir web run lint && pnpm --dir web run test:unit
-pnpm --dir desktop run typecheck && pnpm --dir desktop run lint && pnpm --dir desktop run test:unit
+pnpm run check                                        # every package's typecheck, lint and test:unit, then zv check
 ```
 
-`make test` runs the Go tests and `zv check`; `make build` builds the binaries. A few Full Demo editor tests depend on the FFmpeg version, and Studio ships FFmpeg 8.1.2. There is no CI on pushes or pull requests; the release workflow runs the checks before it publishes, so run the checks for what you touched before you push. [AGENTS.md](AGENTS.md) describes how to verify a change by hand in the real app.
+`make check` runs `pnpm run check`; `make test` runs the Go tests and `zv check`; `make build` builds the binaries. A few Full Demo editor tests depend on the FFmpeg version, and Studio ships FFmpeg 8.1.2. There is no CI on pushes or pull requests; the release workflow runs the checks before it publishes, so run the checks for what you touched before you push. [AGENTS.md](AGENTS.md) describes how to verify a change by hand in the real app.
 
 ## Releases
 
