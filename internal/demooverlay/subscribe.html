@@ -12,14 +12,10 @@
 .row{position:relative;width:{{.Width}}px;height:{{.CellHeight}}px}
 .pill{position:absolute;right:44px;top:50%;transform:translateY(-50%);height:68px;display:flex;align-items:center;gap:14px;padding:0 30px 0 22px;border-radius:34px;font-size:24px;font-weight:700;letter-spacing:2px;text-transform:uppercase;white-space:nowrap}
 .bell{width:32px;height:32px;flex-shrink:0;transform-origin:50% 12%}
-.card{position:absolute;display:flex;align-items:center;white-space:nowrap}
-.card{right:44px;top:50%;transform:translateY(-50%);height:96px;gap:18px;padding:0 16px 0 16px;border-radius:48px}
-.logo{border-radius:50%;object-fit:cover;flex-shrink:0;background:#000}
-.logo{width:64px;height:64px}
-.name{font-weight:700;color:var(--text,#f1eaf9);max-width:15em;overflow:hidden;text-overflow:ellipsis}
-.name{font-size:30px}
-.yt{display:flex;align-items:center;font-weight:700;text-transform:uppercase;color:#fff;background:#ff0033;box-shadow:0 6px 18px #ff003366}
-.yt{height:64px;gap:10px;padding:0 26px 0 20px;border-radius:32px;font-size:24px;letter-spacing:1.5px}
+.card{position:absolute;display:flex;align-items:center;white-space:nowrap;right:44px;top:50%;transform:translateY(-50%);height:96px;gap:18px;padding:0 16px 0 16px;border-radius:48px}
+.logo{width:64px;height:64px;border-radius:50%;object-fit:cover;flex-shrink:0;background:#000}
+.name{font-weight:700;color:var(--text,#f1eaf9);max-width:15em;overflow:hidden;text-overflow:ellipsis;font-size:30px}
+.yt{display:flex;align-items:center;font-weight:700;text-transform:uppercase;color:#fff;background:#ff0033;box-shadow:0 6px 18px #ff003366;height:64px;gap:10px;padding:0 26px 0 20px;border-radius:32px;font-size:24px;letter-spacing:1.5px}
 .yt .bell{color:#fff}
 {{if .Palette}}{{with .Palette}}:root{--ct:#{{.CT}};--t:#{{.T}};--bg:#{{.Background}};--text:#{{.Text}};--muted:#{{.Muted}}}{{end}}
 .pill{color:var(--text);background:color-mix(in srgb,var(--bg) 94%,transparent);box-shadow:inset 0 0 0 3px var(--ct),0 10px 28px #0009}.bell{color:var(--ct)}

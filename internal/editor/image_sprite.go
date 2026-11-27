@@ -1,8 +1,10 @@
 package editor
 
 import (
+	"cmp"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 )
 
@@ -41,7 +43,8 @@ func imageSpriteFilters(effect Effect) []string {
 
 func spriteClipCell(effectStart float64, sprite *ImageSprite) string {
 	cell := "0"
-	for _, clip := range sprite.Clips {
+	clips := slices.SortedStableFunc(slices.Values(sprite.Clips), func(a, b SpriteClip) int { return cmp.Compare(a.AtSeconds, b.AtSeconds) })
+	for _, clip := range clips {
 		start := effectStart + clip.AtSeconds
 		frame := fmt.Sprintf("min(%d\\,%d+trunc((t-%.3f)*%d))", min(clip.Last, sprite.Frames), clip.First, start, sprite.FPS)
 		cell = fmt.Sprintf("if(gte(t\\,%.3f)\\,%s\\,%s)", start, frame, cell)

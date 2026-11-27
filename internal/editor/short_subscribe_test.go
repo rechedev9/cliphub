@@ -84,3 +84,12 @@ func TestLikeThenSubscribeHoldAndDingInTheCompilation(t *testing.T) {
 		t.Fatalf("a Short without the banner = %s", filter)
 	}
 }
+
+func TestSpriteClipsPlayInTimeOrderWhateverTheirOrder(t *testing.T) {
+	like, follow := SpriteClip{AtSeconds: 0.8, First: 1, Last: 8}, SpriteClip{AtSeconds: 1.9, First: 9, Last: 31}
+	inOrder := imageSpriteFilters(Effect{StartSeconds: 2, Sprite: &ImageSprite{CellHeight: 150, Frames: 31, FPS: 20, Clips: []SpriteClip{like, follow}}})
+	reversed := imageSpriteFilters(Effect{StartSeconds: 2, Sprite: &ImageSprite{CellHeight: 150, Frames: 31, FPS: 20, Clips: []SpriteClip{follow, like}}})
+	if len(inOrder) != 1 || len(reversed) != 1 || inOrder[0] != reversed[0] || !strings.Contains(inOrder[0], `if(gte(t\,3.900)`) {
+		t.Fatalf("in order = %v, reversed = %v; want the later clip checked first either way", inOrder, reversed)
+	}
+}

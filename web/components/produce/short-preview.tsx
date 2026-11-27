@@ -20,6 +20,10 @@ type Size = { w: number; h: number };
 const RADAR_SHARE: Record<RadarSize, number> = { small: 0.26, medium: 0.32, large: 0.4 };
 const SHADOW = { filter: 'drop-shadow(3px 3px 0 rgb(0 0 0 / 0.85))' };
 const FONT = 'var(--font-display)';
+const SUBSCRIBE_AT = 0.35;
+const SUBSCRIBE_SECONDS = 4.5;
+const SUBSCRIBE_LIKED_AT = 0.85;
+const SUBSCRIBE_DONE_AT = 2;
 
 /** internal/editor fitFontSize: the largest size, in steps of 2 down to 32, whose rough width fits. */
 function fitFontSize(text: string, { base, safeWidth }: { base: number; safeWidth: number }): number {
@@ -92,8 +96,8 @@ export function ShortPreview({ preset, edit, map, player, frameClassName, classN
   const affiliateOn = affiliate !== undefined && t >= (edit.keyDropStartSeconds ?? 0) && t < affiliateEnd;
   const bannerOn = edit.brandBanner === true && kit?.banner !== undefined
     && t >= kit.banner_start_seconds && t < (kit.banner_end_seconds ?? timeline.duration);
-  const subscribeStart = timeline.duration * 0.35;
-  const subscribeOn = edit.subscribeBanner === true && t >= subscribeStart && t < subscribeStart + 4.5;
+  const subscribeStart = timeline.duration * SUBSCRIBE_AT;
+  const subscribeOn = edit.subscribeBanner === true && t >= subscribeStart && t < subscribeStart + SUBSCRIBE_SECONDS;
   const affiliateWidth = Math.min(720, Math.max(280, size.w * 0.55)) / size.w;
 
   return (
@@ -112,7 +116,7 @@ export function ShortPreview({ preset, edit, map, player, frameClassName, classN
           {kit?.banner && bannerOn ? (
             <image href={brandImageUrl(kit.banner)} x={size.w * (portrait ? 0.1 : 0.275)} y={size.h * 0.8} width={size.w * (portrait ? 0.8 : 0.45)} height={size.h * 0.12} preserveAspectRatio="xMidYMid meet" />
           ) : null}
-          {subscribeOn ? <SubscribeCard logo={kit?.logo ? brandImageUrl(kit.logo) : undefined} name={kit?.channel_name} size={size} liked={t >= subscribeStart + 0.85} subscribed={t >= subscribeStart + 2} /> : null}
+          {subscribeOn ? <SubscribeCard logo={kit?.logo ? brandImageUrl(kit.logo) : undefined} name={kit?.channel_name} size={size} liked={t >= subscribeStart + SUBSCRIBE_LIKED_AT} subscribed={t >= subscribeStart + SUBSCRIBE_DONE_AT} /> : null}
           <Texts edit={edit} frame={frame} size={size} player={player} map={map} />
         </svg>
         {affiliate && affiliateOn ? (

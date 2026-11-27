@@ -182,6 +182,9 @@ func (s SubscribeSprite) rowsPerPage(size htmlstill.Size) int {
 }
 
 func SubscribeHTML(palette *Palette, card SubscribeCard, size htmlstill.Size) ([][]byte, error) {
+	if size != htmlstill.Landscape {
+		return nil, fmt.Errorf("the subscribe button is drawn on a %dx%d page only", htmlstill.Landscape.Width, htmlstill.Landscape.Height)
+	}
 	fonts, err := loadPageFonts()
 	if err != nil {
 		return nil, err

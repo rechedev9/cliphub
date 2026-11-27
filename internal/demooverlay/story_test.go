@@ -217,30 +217,32 @@ func TestHalftimeNeedsAProvenRegulationSwitch(t *testing.T) {
 }
 
 func TestSubscribeSpriteSwingsTheBellFromRest(t *testing.T) {
-	for _, size := range []htmlstill.Size{htmlstill.Landscape} {
-		pages, err := SubscribeHTML(nil, SubscribeCard{ChannelName: "ClipHub"}, size)
-		if err != nil {
-			t.Fatal(err)
+	size := htmlstill.Landscape
+	pages, err := SubscribeHTML(nil, SubscribeCard{ChannelName: "ClipHub"}, size)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sprite := SubscribeSpriteFor()
+	rows := 0
+	for _, page := range pages {
+		count := strings.Count(string(page), `class="row"`)
+		if count*sprite.CellHeight > size.Height || !strings.Contains(string(page), fmt.Sprintf("height:%dpx;overflow", size.Height)) {
+			t.Fatalf("%v page with %d rows does not fit the renderer's %dx%d viewport", size, count, size.Width, size.Height)
 		}
-		sprite := SubscribeSpriteFor()
-		rows := 0
-		for _, page := range pages {
-			count := strings.Count(string(page), `class="row"`)
-			if count*sprite.CellHeight > size.Height || !strings.Contains(string(page), fmt.Sprintf("height:%dpx;overflow", size.Height)) {
-				t.Fatalf("%v page with %d rows does not fit the renderer's %dx%d viewport", size, count, size.Width, size.Height)
-			}
-			rows += count
-		}
-		html := string(bytes.Join(pages, nil))
-		if rows != sprite.Frames+1 || strings.Count(html, `class="bell"`) != sprite.Frames+1 {
-			t.Fatalf("%v sprite has %d rows; want %d", size, rows, sprite.Frames+1)
-		}
-		if first := strings.Index(html, "transform:rotate("); first < 0 || !strings.HasPrefix(html[first:], "transform:rotate(0deg)") || !strings.Contains(html, "transform:rotate(-") {
-			t.Fatalf("%v bell must start at rest and swing both ways", size)
-		}
-		if bottom := sprite.CellTop + sprite.CellHeight; sprite.CellTop < 0 || bottom > size.Height {
-			t.Fatalf("%v cell %d+%d leaves the frame", size, sprite.CellTop, sprite.CellHeight)
-		}
+		rows += count
+	}
+	html := string(bytes.Join(pages, nil))
+	if rows != sprite.Frames+1 || strings.Count(html, `class="bell"`) != sprite.Frames+1 {
+		t.Fatalf("%v sprite has %d rows; want %d", size, rows, sprite.Frames+1)
+	}
+	if first := strings.Index(html, "transform:rotate("); first < 0 || !strings.HasPrefix(html[first:], "transform:rotate(0deg)") || !strings.Contains(html, "transform:rotate(-") {
+		t.Fatalf("%v bell must start at rest and swing both ways", size)
+	}
+	if bottom := sprite.CellTop + sprite.CellHeight; sprite.CellTop < 0 || bottom > size.Height {
+		t.Fatalf("%v cell %d+%d leaves the frame", size, sprite.CellTop, sprite.CellHeight)
+	}
+	if _, err := SubscribeHTML(nil, SubscribeCard{ChannelName: "ClipHub"}, htmlstill.Portrait); err == nil {
+		t.Fatal("a portrait page drew the landscape subscribe button")
 	}
 }
 
