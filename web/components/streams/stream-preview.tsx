@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
-import { Twitch } from 'lucide-react';
 import type { NormalizedRect, StreamClipRange, StreamerBannerPlatform, StreamVariant } from '@/lib/api/streams';
 import { DEFAULT_OVERLAY_FONT_SIZE } from '@/lib/clip-edit';
 import { StreamFrameCanvas, useStreamFrame } from '@/components/streams/stream-frame-session';
@@ -323,7 +322,7 @@ export function StreamPreview({
               {streamerPlatform === 'kick' ? (
                 <KickMark />
               ) : (
-                <Twitch className="h-[62%] w-[62%]" strokeWidth={2.6} aria-hidden />
+                <TwitchMark />
               )}
             </span>
             <span className="truncate px-[3%] font-[family-name:var(--font-display)] text-[5cqw] font-black leading-none tracking-[0.02em]">
@@ -383,6 +382,25 @@ export function StreamPreview({
         />
       ) : null}
     </div>
+  );
+}
+
+function TwitchMark(): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-[62%] w-[62%]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M21 2H3v16h5v4l4-4h5l4-4V2z" />
+      <path d="M11 11V7" />
+      <path d="M16 11V7" />
+    </svg>
   );
 }
 
