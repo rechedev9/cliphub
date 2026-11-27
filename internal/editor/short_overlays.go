@@ -36,6 +36,7 @@ type ShortOverlays struct {
 	// Watermark and Banner are the creator's brand kit, prepared by prepareBrandOverlays.
 	Watermark *BrandWatermark `json:"watermark,omitempty"`
 	Banner    *SponsorBanner  `json:"sponsor_banner,omitempty"`
+	Subscribe *ShortSubscribe `json:"subscribe,omitempty"`
 	// Radar is ClipHub's radar in a corner of the frame.
 	Radar *RadarOverlay `json:"radar,omitempty"`
 	// Subtitles is the team comms transcript on the demo's tick clock.

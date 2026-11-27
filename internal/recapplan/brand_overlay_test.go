@@ -53,3 +53,29 @@ func TestBrandOverlayIsARenderOnlyImageChoice(t *testing.T) {
 		t.Fatal("a transparent watermark was accepted")
 	}
 }
+
+func TestSubscribeCardBrandRidesWithTheSubscribeButton(t *testing.T) {
+	o := fixtureOptions()
+	logo := brandkit.ImageRef{ID: "88888888-8888-4888-8888-888888888888", SHA256: strings.Repeat("8", 64)}
+	o.Overlays.Brand = BrandOverlay{Subscribe: &brandkit.Subscribe{Logo: &logo, ChannelName: "ClipHub RSN"}}
+	assets := []AssetEvidence{{Ref: AssetRef{ID: logo.ID, SHA256: logo.SHA256}, HasImage: true, Title: "logo.png"}}
+	if _, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "not_requested"}, assets, "facts"); err == nil {
+		t.Fatal("a subscribe card brand without the subscribe button was accepted")
+	}
+	o.Overlays.Subscribe = true
+	missing, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "not_requested"}, nil, "facts")
+	if err != nil || len(missing.Blockers) != 1 {
+		t.Fatalf("subscribe logo without evidence: %+v %v", missing.Blockers, err)
+	}
+	d, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "not_requested"}, assets, "facts")
+	if err != nil || len(d.Blockers) != 0 || d.Options.Overlays.Brand.Subscribe.ChannelName != "ClipHub RSN" {
+		t.Fatalf("subscribe card plan: %+v %v", d.Blockers, err)
+	}
+	if refs := d.Options.AssetReferences(); len(refs) != 1 || !d.Options.IsOverlayImage(refs[0]) {
+		t.Fatalf("the subscribe logo is not an overlay image reference: %+v", refs)
+	}
+	o.Overlays.Brand.Subscribe = &brandkit.Subscribe{}
+	if _, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "not_requested"}, assets, "facts"); err == nil {
+		t.Fatal("an empty subscribe card brand was accepted")
+	}
+}

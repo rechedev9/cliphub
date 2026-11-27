@@ -60,6 +60,7 @@ type renderEditRequest struct {
 	// BrandWatermark and BrandBanner turn the saved brand kit on or off; applyBrandKit resolves them.
 	BrandWatermark  *brandChoice[brandkit.Watermark] `json:"brand_watermark"`
 	BrandBanner     *brandChoice[brandkit.Banner]    `json:"brand_banner"`
+	SubscribeBanner *brandChoice[brandkit.Subscribe] `json:"subscribe_banner"`
 	Subtitles       *bool                            `json:"subtitles"`
 	SubtitlesHidden *[]string                        `json:"subtitles_hidden"`
 	OverlayLanguage *overlaylang.Language            `json:"overlay_language"`

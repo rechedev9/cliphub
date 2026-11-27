@@ -82,6 +82,9 @@ HUD only) records without CS2's radar and draws this one in the top left corner 
 The brand kit (get_brand_kit, save_brand_kit) keeps the channel logo, drawn as a watermark in a corner with an
 opacity, and an own sponsor banner with a time window. generate_short and plan_full_demo take brand_watermark and
 brand_banner to apply it; the render copies the kit, and brand_banner does not go with the affiliate banner.
+The kit also keeps the channel name (save_brand_kit channel_name). generate_short subscribe_banner (default off) shows
+a SUBSCRIBE banner once, whose bell swings twice and rings with a ding the first time, 4.5 s from about a third of the Short, with the kit's logo and channel name when
+it has them; ask for the logo file and the name before saving them, never invent a logo.
 Player cards (one-player 9:16 Shorts only): generate_short opening_card, end_card and cover_card each take a
 template from list_short_options player_cards (default none). The opening card covers the first seconds instead
 of the intro text card, the end card closes the Short in place of stats_card, and the cover card lies over the
@@ -104,10 +107,10 @@ plan_full_demo intro_design picks the look of the player intro and final scorebo
 in the colours of the chosen HUD or own theme and neutral over the native CS2 HUD. It only changes the render.
 plan_full_demo halftime_scoreboard shows a compact card with both team names and the score for about 4 s at the
 start of the first round after the regulation side switch (never in overtime); it is left out when that round is
-not in the video or the job has no round results. subscribe_button shows a small SUSCRÍBETE button with a bell in
+not in the video or the job has no round results. subscribe_button shows a SUBSCRIBE button with a ringing bell (a ding on its first swing) in
 the bottom right corner twice, about 6 s each near 25% and 75% of the match, only over rounds and never over the
 intro, the halftime card or the final scoreboard, above a bottom right brand watermark; a short video shows it
-once or not at all. Both are off by default, follow intro_design and only change the render.
+once or not at all, with the brand kit's logo and channel name when it has them. Both are off by default, follow intro_design and only change the render.
 plan_full_demo hook opens the video with a teaser of the player's best play: 8 to 20 s from about 3 s before the
 play's first kill to 1.5 s after its last, after the intro clip and before round 1, with a MEJOR JUGADA label in the
 top left corner that follows intro_design. The match then plays from round 1 and shows the play again in its round.

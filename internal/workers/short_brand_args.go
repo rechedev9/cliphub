@@ -36,6 +36,19 @@ func (w *RenderWorker) brandArgs(ctx context.Context, edit renderplan.EditReques
 			args = append(args, "--sponsor-end", strconv.FormatFloat(banner.EndSeconds, 'f', -1, 64))
 		}
 	}
+	if card := edit.SubscribeBanner; card != nil {
+		args = append(args, "--subscribe")
+		if card.Logo != nil {
+			path, err := w.materializeBrandImage(ctx, *card.Logo, filepath.Join(workDir, "brand-subscribe-logo.media"))
+			if err != nil {
+				return nil, fmt.Errorf("subscribe logo: %w", err)
+			}
+			args = append(args, "--subscribe-logo", path)
+		}
+		if card.ChannelName != "" {
+			args = append(args, "--subscribe-channel", card.ChannelName)
+		}
+	}
 	return args, nil
 }
 

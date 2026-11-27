@@ -8,6 +8,8 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -23,6 +25,7 @@ const (
 	MinOpacity     = 0.1
 	// MaxBannerSeconds bounds a banner window; a Full Demo program stays under 12 hours.
 	MaxBannerSeconds = 43200
+	MaxChannelNameRunes = 30
 )
 
 // Corners are the watermark positions, in the order the UI offers them.
@@ -58,7 +61,13 @@ type Kit struct {
 	Banner             *ImageRef `json:"banner,omitempty"`
 	BannerStartSeconds float64   `json:"banner_start_seconds"`
 	BannerEndSeconds   float64   `json:"banner_end_seconds,omitempty"`
+	ChannelName        string    `json:"channel_name,omitempty"`
 	UpdatedAt          time.Time `json:"updated_at,omitzero"`
+}
+
+type Subscribe struct {
+	Logo        *ImageRef `json:"logo,omitempty"`
+	ChannelName string    `json:"channel_name,omitempty"`
 }
 
 // Default is the kit before the user saves one.
@@ -95,7 +104,48 @@ func (k Kit) SponsorBanner() (Banner, error) {
 	return Banner{Image: *k.Banner, StartSeconds: k.BannerStartSeconds, EndSeconds: k.BannerEndSeconds}, nil
 }
 
+func (k Kit) SubscribeCard() Subscribe {
+	card := Subscribe{ChannelName: k.ChannelName}
+	if k.Logo != nil {
+		logo := *k.Logo
+		card.Logo = &logo
+	}
+	return card
+}
+
+func (s Subscribe) Branded() bool {
+	return s.Logo != nil || s.ChannelName != ""
+}
+
+func (s Subscribe) Validate() error {
+	if s.Logo != nil {
+		if err := s.Logo.Validate(); err != nil {
+			return fmt.Errorf("subscribe logo: %w", err)
+		}
+	}
+	return ValidateChannelName(s.ChannelName)
+}
+
+func ValidateChannelName(name string) error {
+	if strings.TrimSpace(name) != name {
+		return fmt.Errorf("channel name must not start or end with spaces")
+	}
+	if !utf8.ValidString(name) {
+		return fmt.Errorf("channel name must be valid UTF-8 text")
+	}
+	if utf8.RuneCountInString(name) > MaxChannelNameRunes {
+		return fmt.Errorf("channel name must be at most %d characters", MaxChannelNameRunes)
+	}
+	if strings.ContainsFunc(name, unicode.IsControl) {
+		return fmt.Errorf("channel name must be one line of text")
+	}
+	return nil
+}
+
 func (k Kit) Validate() error {
+	if err := ValidateChannelName(k.ChannelName); err != nil {
+		return err
+	}
 	if k.Logo != nil {
 		if err := k.Logo.Validate(); err != nil {
 			return fmt.Errorf("logo: %w", err)

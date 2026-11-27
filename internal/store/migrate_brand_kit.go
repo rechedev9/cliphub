@@ -24,3 +24,14 @@ func migrateV29BrandKit(tx *sql.Tx) error {
 	}
 	return nil
 }
+
+func migrateV39BrandKitChannelName(tx *sql.Tx) error {
+	found, err := columnExists(tx, "brand_kit", "channel_name")
+	if err != nil || found {
+		return err
+	}
+	if _, err := tx.Exec(`ALTER TABLE brand_kit ADD COLUMN channel_name TEXT NOT NULL DEFAULT ''`); err != nil {
+		return fmt.Errorf("brand kit channel name: %w", err)
+	}
+	return nil
+}

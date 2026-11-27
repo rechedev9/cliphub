@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"path/filepath"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/brandkit"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
+	"github.com/rechedev9/cliphub/internal/htmlstill"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -176,7 +178,7 @@ func TestSubscribeButtonSitsAboveABottomRightWatermark(t *testing.T) {
 	for _, size := range [][2]int{{400, 200}, {64, 64}, {900, 120}} {
 		_, _, _, top := watermarkPlacement(brandkit.CornerBottomRight, size[0], size[1], demooverlay.FrameWidth, demooverlay.FrameHeight)
 		lift := subscribeLiftOverWatermark(size[0], size[1])
-		if bottom := demooverlay.SubscribeBottomEdge - lift; lift <= 0 || bottom > top-fullDemoStoryMarginPixels {
+		if bottom := demooverlay.SubscribeBottomEdge - lift; lift < 0 || bottom > top-fullDemoStoryMarginPixels {
 			t.Fatalf("a %dx%d logo at y=%d leaves the button's bottom edge at %d", size[0], size[1], top, bottom)
 		}
 	}
@@ -185,8 +187,9 @@ func TestSubscribeButtonSitsAboveABottomRightWatermark(t *testing.T) {
 	if lift, err := fullDemoSubscribeLift(short); err != nil || lift != 0 {
 		t.Fatalf("a watermark in another corner moved the button: %d %v", lift, err)
 	}
-	effect := fullDemoSubscribeEffect("subscribe.png", fullDemoStoryWindow{100, 106}, 101)
-	if effect.Y != "-101" || effect.Source != fullDemoSubscribeSource || !strings.Contains(effect.X, "480") || !strings.Contains(effect.X, "100.400") || !strings.Contains(effect.X, "105.700") {
+	sprite := demooverlay.SubscribeSpriteFor(htmlstill.Landscape)
+	effect := fullDemoSubscribeEffect(fullDemoSubscribeImage{path: "subscribe.png", sprite: sprite, lift: 101}, fullDemoStoryWindow{100, 106})
+	if effect.Y != strconv.Itoa(sprite.CellTop-101) || effect.Height != sprite.Height() || effect.Sprite == nil || effect.Source != fullDemoSubscribeSource || !strings.Contains(effect.X, "900") || !strings.Contains(effect.X, "100.400") || !strings.Contains(effect.X, "105.700") {
 		t.Fatalf("subscribe effect = %+v", effect)
 	}
 }
@@ -197,7 +200,7 @@ func TestStoryOverlaysKeepThePerItemComposition(t *testing.T) {
 	halftime, _ := fullDemoHalftimeWindow(short, 13)
 	short.Effects = append(short.Effects, fullDemoHalftimeEffect(short, filepath.Join(dir, "halftime.png"), halftime))
 	for _, window := range fullDemoSubscribeWindows(short, fullDemoStoryBusyWindows(short.Effects)) {
-		short.Effects = append(short.Effects, fullDemoSubscribeEffect(filepath.Join(dir, "subscribe.png"), window, 0))
+		short.Effects = append(short.Effects, fullDemoSubscribeEffect(fullDemoSubscribeImage{path: filepath.Join(dir, "subscribe.png"), sprite: demooverlay.SubscribeSpriteFor(htmlstill.Landscape)}, window))
 	}
 	if len(short.Effects) != 5 {
 		t.Fatalf("effects = %d, want the roster, the scoreboard, the halftime card and two buttons", len(short.Effects))
@@ -252,5 +255,52 @@ func TestStoryOverlaysDrawNothingWithoutAChoiceOrAScore(t *testing.T) {
 	short.FullDemo.Effective.Options.Overlays.Subscribe = true
 	if _, err := fullDemoStoryOverlayEffects(manifest, short); err == nil {
 		t.Fatal("a chosen button that cannot be drawn must fail the render like the roster does")
+	}
+}
+
+func TestSubscribeCardTakesTheApprovedLogoAndName(t *testing.T) {
+	dir := t.TempDir()
+	logo := filepath.Join(dir, "logo.media")
+	writeBrandPNG(t, logo, 40, 40, color.NRGBA{R: 255, A: 255})
+	ref := brandkit.ImageRef{ID: "99999999-9999-4999-8999-999999999999", SHA256: strings.Repeat("9", 64)}
+	short := storyFixtureShort(dir, storyFixtureMatch(2))
+	if card, err := fullDemoSubscribeCard(short); err != nil || card != (demooverlay.SubscribeCard{}) {
+		t.Fatalf("a plan without the card brand = %+v %v; want the plain button", card, err)
+	}
+	short.FullDemo.Effective.Options.Overlays.Brand.Subscribe = &brandkit.Subscribe{Logo: &ref, ChannelName: "ClipHub RSN"}
+	short.fullDemo.execution.Assets = []FullDemoLocalMedia{{Ref: recapplan.AssetRef{ID: ref.ID, SHA256: ref.SHA256}, Path: logo}}
+	if card, err := fullDemoSubscribeCard(short); err != nil || card.LogoPath != logo || card.ChannelName != "ClipHub RSN" {
+		t.Fatalf("card = %+v %v", card, err)
+	}
+	short.fullDemo.execution.Assets = nil
+	if _, err := fullDemoSubscribeCard(short); err == nil {
+		t.Fatal("a missing approved subscribe logo was silently left out")
+	}
+}
+
+func TestFullDemoBellDingsOnlyInTheItemItRingsIn(t *testing.T) {
+	short := fullDemoItemOverlayFixtureShort(t.TempDir())
+	sprite := demooverlay.SubscribeSpriteFor(htmlstill.Landscape)
+	short.Effects = append(short.Effects, fullDemoSubscribeEffect(fullDemoSubscribeImage{path: "subscribe.png", sprite: sprite}, fullDemoStoryWindow{0.25, 6.25}))
+	ring := recapplan.TimelineItem{Role: "round", SourceRef: "round-001", SourceStartTick: 64, EndFrame: 60, EndSample: 48000}
+	command, err := fullDemoItemStreamCommand(short, ring, "item.nut", fullDemoItemAudioOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(command, " ")
+	if !strings.Contains(joined, "aevalsrc=") || !strings.Contains(joined, "adelay=36000S") || argIndex(command, "[subscribeaudio]") < 0 {
+		t.Fatalf("the ring 0.75 s into the program has no ding at sample 36000: %v", command)
+	}
+	later := ring
+	later.StartFrame, later.EndFrame = 60, 120
+	if command, err = fullDemoItemStreamCommand(short, later, "item.nut", fullDemoItemAudioOnly); err != nil || strings.Contains(strings.Join(command, " "), "aevalsrc=") {
+		t.Fatalf("an item after the ring dings again: %v %v", command, err)
+	}
+	muted := short
+	muted.FullDemo.Effective.Options.Audio.Game.Gain = 0
+	muted.FullDemo.Effective.Options.Audio.Voice.Enabled = false
+	muted.FullDemo.Effective.Options.Audio.Music.Enabled = false
+	if command, err = fullDemoItemStreamCommand(muted, ring, "item.nut", fullDemoItemAudioOnly); err != nil || strings.Contains(strings.Join(command, " "), "aevalsrc=") {
+		t.Fatalf("a plan that mutes every source got a ding: %v %v", command, err)
 	}
 }

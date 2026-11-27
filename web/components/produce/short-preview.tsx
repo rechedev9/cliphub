@@ -92,6 +92,8 @@ export function ShortPreview({ preset, edit, map, player, frameClassName, classN
   const affiliateOn = affiliate !== undefined && t >= (edit.keyDropStartSeconds ?? 0) && t < affiliateEnd;
   const bannerOn = edit.brandBanner === true && kit?.banner !== undefined
     && t >= kit.banner_start_seconds && t < (kit.banner_end_seconds ?? timeline.duration);
+  const subscribeStart = timeline.duration * 0.35;
+  const subscribeOn = edit.subscribeBanner === true && t >= subscribeStart && t < subscribeStart + 4.5;
   const affiliateWidth = Math.min(720, Math.max(280, size.w * 0.55)) / size.w;
 
   return (
@@ -110,6 +112,7 @@ export function ShortPreview({ preset, edit, map, player, frameClassName, classN
           {kit?.banner && bannerOn ? (
             <image href={brandImageUrl(kit.banner)} x={size.w * (portrait ? 0.1 : 0.275)} y={size.h * 0.8} width={size.w * (portrait ? 0.8 : 0.45)} height={size.h * 0.12} preserveAspectRatio="xMidYMid meet" />
           ) : null}
+          {subscribeOn ? <SubscribeCard logo={kit?.logo ? brandImageUrl(kit.logo) : undefined} name={kit?.channel_name} size={size} /> : null}
           <Texts edit={edit} frame={frame} size={size} player={player} map={map} />
         </svg>
         {affiliate && affiliateOn ? (
@@ -207,6 +210,38 @@ function Watermark({ href, corner, opacity, size }: { href: string; corner: Bran
   const atBottom = corner.startsWith('bottom');
   return <image href={href} x={right ? size.w - w - margin : margin} y={atBottom ? size.h - h - bottom : margin} width={w} height={h} opacity={opacity}
     preserveAspectRatio={`${right ? 'xMax' : 'xMin'}${atBottom ? 'YMax' : 'YMin'} meet`} />;
+}
+
+function SubscribeCard({ logo, name, size }: { logo?: string; name?: string; size: Size }): ReactNode {
+  const portrait = size.h > size.w;
+  const scale = portrait ? 1.6 : 1;
+  const pad = 16 * scale;
+  const gap = 18 * scale;
+  const logoSide = 64 * scale;
+  const fontSize = (portrait ? 44 : 30);
+  const nameWidth = name ? Math.min(name.length * fontSize * 0.58, portrait ? 440 : 450) : 0;
+  const button = { w: 220 * scale, h: 64 * scale };
+  const branded = Boolean(logo || name);
+  const width = pad * 2 + (logo ? logoSide + gap : 0) + (name ? nameWidth + gap : 0) + button.w;
+  const pillHeight = portrait ? 108 : 68;
+  const height = branded ? 96 * scale : pillHeight;
+  const x = portrait ? (size.w - width) / 2 : size.w - width - 44;
+  const y = portrait ? 1290 : size.h - height - 170;
+  let cursor = x + pad;
+  const middle = y + height / 2;
+  const logoX = cursor;
+  if (logo) cursor += logoSide + gap;
+  const nameX = cursor;
+  if (name) cursor += nameWidth + gap;
+  return (
+    <g fontFamily={FONT} fontWeight="700">
+      <rect x={x} y={y} width={width} height={height} rx={height / 2} fill="#0a090d" opacity={0.94} stroke="#d99aff" strokeWidth={2} />
+      {logo ? <image href={logo} x={logoX} y={middle - logoSide / 2} width={logoSide} height={logoSide} clipPath="circle()" preserveAspectRatio="xMidYMid slice" /> : null}
+      {name ? <text x={nameX} y={middle + fontSize * 0.35} fontSize={fontSize} fill="#f1eaf9" textLength={nameWidth} lengthAdjust="spacingAndGlyphs">{name}</text> : null}
+      <rect x={cursor} y={middle - button.h / 2} width={button.w} height={button.h} rx={button.h / 2} fill="#ff0033" />
+      <text x={cursor + button.w / 2} y={middle + 9 * scale} fontSize={24 * scale} fill="white" textAnchor="middle" letterSpacing={1.5}>SUBSCRIBE</text>
+    </g>
+  );
 }
 
 /** CS2's notices in their corner, or ClipHub's centred feed under the vertical HUD. */

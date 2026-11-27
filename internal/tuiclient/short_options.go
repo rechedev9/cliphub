@@ -72,8 +72,9 @@ type ShortEdit struct {
 	PlayerLabels  bool `json:"player_labels,omitempty"`
 	GrenadeTrails bool `json:"grenade_trails,omitempty"`
 	// BrandWatermark and BrandBanner draw the saved brand kit (GetBrandKit).
-	BrandWatermark bool `json:"brand_watermark,omitempty"`
-	BrandBanner    bool `json:"brand_banner,omitempty"`
+	BrandWatermark  bool `json:"brand_watermark,omitempty"`
+	BrandBanner     bool `json:"brand_banner,omitempty"`
+	SubscribeBanner bool `json:"subscribe_banner,omitempty"`
 	// SeparateShorts renders each segment as its own Short from one capture (Auto-Shorts).
 	SeparateShorts bool `json:"separate_shorts,omitempty"`
 	// PreRollSeconds starts each play 5 or 8 s before its first kill; 0 keeps the 3 s of the analysis.

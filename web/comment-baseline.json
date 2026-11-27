@@ -798,7 +798,7 @@
   "lib/bootstrap-fragment.ts": 4,
   "lib/brand-kit-store.ts": 1,
   "lib/brand-kit.test.ts": 1,
-  "lib/brand-kit.ts": 9,
+  "lib/brand-kit.ts": 8,
   "lib/browser-import/import-queue.test.ts": 1,
   "lib/browser-import/import-queue.ts": 21,
   "lib/browser-import/import-runner.ts": 13,
