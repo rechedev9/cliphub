@@ -17,23 +17,33 @@ async function readPublicTeams(): Promise<{ status: ProCatalogStatus; teams: Pro
   return { status: page.status, teams: page.status === 'ok' ? page.facets.teams : [] };
 }
 
+const PUBLIC_TEAMS_RETRY_MS = 3000;
+const PUBLIC_TEAMS_RETRIES = 5;
+const CATALOG_DOWN: { status: ProCatalogStatus; teams: ProTeamCount[] } = { status: 'unavailable', teams: [] };
+
 export function usePublicTeams(): readonly ProTeamCount[] | null {
   const [teams, setTeams] = useState<ProTeamCount[] | null>(null);
   useEffect(() => {
     let active = true;
+    let timer: number | undefined;
     if (hasDemoCookie(document.cookie)) {
       setTeams([]);
       return;
     }
-    readPublicTeams()
-      .then((catalog) => {
-        if (active) setTeams(catalog.teams);
-      })
-      .catch(() => {
-        if (active) setTeams([]);
-      });
+    const read = (left: number): void => {
+      readPublicTeams()
+        .catch(() => CATALOG_DOWN)
+        .then((catalog) => {
+          if (!active) return;
+          setTeams(catalog.teams);
+          const pending = catalog.status === 'unavailable' || catalog.status === 'missing';
+          if (pending && left > 0) timer = window.setTimeout(() => read(left - 1), PUBLIC_TEAMS_RETRY_MS);
+        });
+    };
+    read(PUBLIC_TEAMS_RETRIES);
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
   }, []);
   return teams;
