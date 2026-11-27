@@ -49,6 +49,16 @@ function Test-ProcessBelongsToLaunch {
     if ($CandidateProcessID -le 0 -or $LaunchProcessID -le 0) {
         return $false
     }
+    $processesByID = @{}
+    try {
+        foreach ($snapshotProcess in @(Get-CimInstance Win32_Process `
+            -Property ProcessId, ParentProcessId, CreationDate `
+            -ErrorAction Stop)) {
+            $processesByID[[int]$snapshotProcess.ProcessId] = $snapshotProcess
+        }
+    } catch {
+        Fail "could not inspect process ancestry: $($_.Exception.Message)"
+    }
     $currentProcessID = $CandidateProcessID
     $descendantStartedAt = $null
     for ($depth = 0; $depth -lt 128 -and $currentProcessID -gt 0; $depth++) {
@@ -56,13 +66,7 @@ function Test-ProcessBelongsToLaunch {
             return $null -eq $descendantStartedAt -or
                 $descendantStartedAt -ge $LaunchStartedAt
         }
-        try {
-            $process = Get-CimInstance Win32_Process `
-                -Filter ("ProcessId = {0}" -f $currentProcessID) `
-                -ErrorAction Stop
-        } catch {
-            Fail "could not inspect ancestry for process ${currentProcessID}: $($_.Exception.Message)"
-        }
+        $process = $processesByID[$currentProcessID]
         if ($null -eq $process) {
             return $false
         }
