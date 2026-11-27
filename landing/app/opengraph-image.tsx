@@ -29,7 +29,7 @@ export default async function OpengraphImage() {
         </div>
       </div>
       <div style={{ position: "absolute", left: 64, right: 64, bottom: 56, display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", fontSize: 20, letterSpacing: 6, color: "#22e07c" }}>CLIPS Y SHORTS DE CS2 · GRATIS</div>
+        <div style={{ display: "flex", fontSize: 20, letterSpacing: 6, color: "#22e07c" }}>CLIPS Y SHORTS DE CS2 · HAZLO TÚ O LO HACEMOS POR TI</div>
         <div style={{ display: "flex", marginTop: 14, fontSize: 104, fontWeight: 800, lineHeight: 0.95, color: "#fff", fontStyle: "italic" }}>
           TU DEMO, HECHA VÍDEO.
         </div>

@@ -11,9 +11,9 @@ const sairaCondensed = Saira_Condensed({
 });
 const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500", "600"], display: "swap" });
 
-const TITLE = "Clips y Shorts de CS2 desde tus demos, gratis | ClipHub Studio";
+const TITLE = "Clips y Shorts de CS2 desde tus demos | ClipHub Studio";
 const DESCRIPTION =
-  "Studio graba tus jugadas dentro de CS2 y monta Shorts verticales, el partido entero con HUD de retransmisión y clips de tu stream. Gratis para Windows, todo en tu PC.";
+  "Studio graba tus jugadas dentro de CS2 y monta Shorts verticales, el partido entero con HUD de retransmisión y clips de tu stream. Empieza gratis en Windows, o deja que editemos por ti.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://cliphub.rechedev.cloud"),

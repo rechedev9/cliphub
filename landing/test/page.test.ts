@@ -18,18 +18,20 @@ function attr(tag: string, name: string): string | undefined {
   return new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
 }
 
-test("the hero has the headline and the download", () => {
+test("the hero offers the tool and the editing service", () => {
   assert.match(html, /<h1[^>]*>Tu demo, hecha vídeo\.<\/h1>/);
   assert.ok(html.includes(`href="${constant("DOWNLOAD_URL")}"`), "no link to the installer");
-  assert.ok(html.includes("Descargar para Windows"));
+  assert.ok(html.includes("Descargar gratis"));
+  assert.ok(html.includes(`href="${constant("SERVICE_CONTACT_URL")}"`), "no link to ask for the service");
+  assert.ok(html.includes("Habla con nosotros"));
   assert.ok(html.includes(constant("RELEASE_VERSION")), "the release version is not shown");
 });
 
 test("every agreed section exists and the nav reaches it", () => {
-  for (const id of ["como-funciona", "shorts", "demo-completa", "streams", "preguntas", "descargar"]) {
+  for (const id of ["como-funciona", "shorts", "demo-completa", "streams", "servicio", "planes", "preguntas", "descargar"]) {
     assert.match(html, new RegExp(`<section[^>]*id="${id}"`), `section #${id} is missing`);
   }
-  for (const id of ["shorts", "demo-completa", "streams", "preguntas"]) {
+  for (const id of ["shorts", "demo-completa", "streams", "servicio", "preguntas"]) {
     assert.ok(html.includes(`href="#${id}"`), `nav link to #${id} is missing`);
   }
 });

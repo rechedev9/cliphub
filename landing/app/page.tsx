@@ -7,9 +7,12 @@ import {
   FULL_DEMO,
   HERO,
   NAV,
+  PATHS,
   PHONES,
+  PLANS,
   POV_FILM,
   REQUIREMENTS,
+  SERVICE,
   SHORT_FEATURES,
   STATS,
   STEPS,
@@ -17,7 +20,7 @@ import {
   TICKER,
   type Feature,
 } from "@/lib/content";
-import { DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL } from "@/lib/site";
+import { DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL, SERVICE_CONTACT_URL } from "@/lib/site";
 
 const wrap = "mx-auto w-full max-w-7xl px-5 sm:px-10";
 const eyebrow =
@@ -52,6 +55,36 @@ function Eyebrow({ index, label }: { index: string; label: string }) {
       <span className="bg-brand px-1.5 text-bg">{index}</span>
       {label}
     </p>
+  );
+}
+
+interface PathCardProps {
+  href: string;
+  tag: string;
+  title: string;
+  text: string;
+  cta: string;
+  side: "ct" | "t";
+}
+
+function PathCard({ href, tag, title, text, cta, side }: PathCardProps) {
+  const tone = side === "ct" ? "text-side-ct" : "text-side-t";
+  return (
+    <a
+      href={href}
+      className="hud-cut group relative flex flex-col bg-surface/90 p-5 backdrop-blur transition-colors hover:bg-line sm:p-6"
+    >
+      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1.5 ${side === "ct" ? "bg-side-ct" : "bg-side-t"}`} />
+      <span className={`font-mono text-[11px] uppercase tracking-[0.22em] ${tone}`}>{tag}</span>
+      <span className={`${giant} mt-2 text-4xl`}>{title}</span>
+      <span className="mt-2 text-sm leading-relaxed text-muted">{text}</span>
+      <span className="mt-5 inline-flex items-center gap-2 font-display text-sm font-extrabold uppercase tracking-[0.18em] text-brand">
+        {cta}
+        <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">
+          →
+        </span>
+      </span>
+    </a>
   );
 }
 
@@ -132,9 +165,9 @@ export default function Home() {
                 </h1>
               </div>
               <p className={lead}>{HERO.lead}</p>
-              <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-                <Cta href={DOWNLOAD_URL} label={HERO.primary} solid />
-                <Cta href="#shorts" label={HERO.secondary} />
+              <div className="mt-10 grid gap-3 sm:grid-cols-2">
+                <PathCard href={DOWNLOAD_URL} side="ct" {...PATHS.tool} />
+                <PathCard href={SERVICE_CONTACT_URL} side="t" {...PATHS.service} />
               </div>
               <p className="mt-4 font-mono text-xs uppercase tracking-wider text-faint">
                 {RELEASE_VERSION} · {INSTALLER_SIZE} · Windows 10 y 11
@@ -260,10 +293,74 @@ export default function Home() {
           </div>
         </section>
 
+        <section id="servicio" aria-labelledby="servicio-titulo" className="relative border-t border-line py-24 sm:py-32">
+          <div className={`${wrap} grid gap-14 lg:grid-cols-[1fr_1.1fr] lg:items-start`}>
+            <div>
+              <Eyebrow index="05" label="Servicio" />
+              <h2 id="servicio-titulo" className={h2}>
+                {SERVICE.title}
+              </h2>
+              <p className={lead}>{SERVICE.lead}</p>
+              <div className="mt-10">
+                <Cta href={SERVICE_CONTACT_URL} label={PATHS.service.cta} solid />
+              </div>
+              <p className="mt-4 font-mono text-xs uppercase tracking-wider text-faint">{SERVICE.note}</p>
+            </div>
+            <ol className="grid gap-3">
+              {SERVICE.steps.map((step, i) => (
+                <li key={step.title} className="hud-cut flex items-stretch bg-surface">
+                  <span className="flex w-16 shrink-0 items-center justify-center bg-side-t font-display text-3xl font-black italic text-bg">
+                    {i + 1}
+                  </span>
+                  <span className="px-5 py-5">
+                    <span className={`${giant} block text-2xl`}>{step.title}</span>
+                    <span className="mt-1 block text-sm text-muted">{step.text}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section id="planes" aria-labelledby="planes-titulo" className="hud-grid border-t border-line py-24 sm:py-32">
+          <div className={wrap}>
+            <Eyebrow index="06" label="Elige cómo" />
+            <h2 id="planes-titulo" className={`${h2} max-w-5xl`}>
+              Tú editas o editamos nosotros.
+            </h2>
+            <ul className="mt-14 grid gap-4 md:grid-cols-2">
+              {PLANS.map((plan) => {
+                const ct = plan.id === "studio";
+                return (
+                  <li key={plan.id} className="hud-cut relative flex flex-col bg-surface p-7 sm:p-9">
+                    <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1.5 ${ct ? "bg-side-ct" : "bg-side-t"}`} />
+                    <span className={`font-mono text-xs uppercase tracking-[0.22em] ${ct ? "text-side-ct" : "text-side-t"}`}>
+                      {plan.tag}
+                    </span>
+                    <h3 className={`${giant} mt-3 text-5xl`}>{plan.name}</h3>
+                    <p className="mt-2 font-display text-xl font-bold uppercase tracking-[0.08em] text-brand">{plan.price}</p>
+                    <ul className="mt-6 flex-1 space-y-3 text-muted">
+                      {plan.points.map((point) => (
+                        <li key={point} className="flex items-start gap-3">
+                          <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rotate-45 bg-brand" />
+                          {point}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-8">
+                      <Cta href={ct ? DOWNLOAD_URL : SERVICE_CONTACT_URL} label={plan.cta} solid={ct} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </section>
+
         <section id="preguntas" aria-labelledby="preguntas-titulo" className="border-t border-line py-24 sm:py-32">
           <div className={`${wrap} grid gap-12 lg:grid-cols-[1fr_1.4fr]`}>
             <div>
-              <Eyebrow index="05" label="Preguntas" />
+              <Eyebrow index="07" label="Preguntas" />
               <h2 id="preguntas-titulo" className={h2}>
                 Antes de que preguntes.
               </h2>
@@ -286,12 +383,13 @@ export default function Home() {
 
         <section id="descargar" aria-labelledby="descargar-titulo" className="hud-grid relative overflow-hidden border-t border-line py-24 sm:py-32">
           <div className={`${wrap} relative`}>
-            <Eyebrow index="06" label="Empieza ahora" />
+            <Eyebrow index="08" label="Empieza ahora" />
             <h2 id="descargar-titulo" className={`${giant} hud-glitch mt-5 text-[clamp(3.6rem,13vw,11rem)]`}>
               Dale a grabar.
             </h2>
             <div className="mt-12 flex flex-col gap-3 sm:flex-row">
               <Cta href={DOWNLOAD_URL} label={HERO.primary} solid />
+              <Cta href={SERVICE_CONTACT_URL} label={PATHS.service.cta} />
             </div>
             <p className="mt-5 font-mono text-xs uppercase tracking-wider text-faint">
               {RELEASE_VERSION} · {INSTALLER_SIZE} · Windows 10 y 11
@@ -332,6 +430,9 @@ export default function Home() {
           <span className="flex flex-wrap gap-8">
             <a href={DOWNLOAD_URL} className="transition-colors hover:text-brand">
               Descargar para Windows
+            </a>
+            <a href={SERVICE_CONTACT_URL} className="transition-colors hover:text-brand">
+              Servicio de edición
             </a>
             <a href={REPO_URL} className="transition-colors hover:text-brand">
               GitHub

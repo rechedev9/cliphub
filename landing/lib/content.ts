@@ -17,9 +17,23 @@ export const HERO = {
   kicker: "Clipping de CS2 para creadores · Windows",
   title: "Tu demo, hecha vídeo.",
   lead: "Studio graba tus jugadas dentro de CS2 y monta el Short o el partido entero por ti, con kill feed, música, radar y tu marca. Sin abrir un editor.",
-  primary: "Descargar para Windows",
-  secondary: "Ver qué hace",
-  assurances: ["Gratis, sin tarjeta", "Todo se queda en tu PC", "Demos de FACEIT, Matchmaking y pro"],
+  primary: "Descargar gratis",
+  assurances: ["Empieza gratis", "Todo se queda en tu PC", "Demos de FACEIT, Matchmaking y pro"],
+} as const;
+
+export const PATHS = {
+  tool: {
+    tag: "Hazlo tú",
+    title: "Studio",
+    text: "Descarga la app y saca tus clips cuando quieras. Empieza gratis.",
+    cta: "Descargar gratis",
+  },
+  service: {
+    tag: "Lo hacemos por ti",
+    title: "Servicio",
+    text: "¿Sin tiempo para editar? Nos mandas tus demos o tu VOD y te devolvemos los vídeos listos.",
+    cta: "Habla con nosotros",
+  },
 } as const;
 
 export const PHONES = [
@@ -44,7 +58,7 @@ export const STATS = [
   { value: "10", label: "Shorts de una demo con un clic", side: "ct" },
   { value: "9:16", label: "Vertical para Shorts, TikTok y Reels", side: "t" },
   { value: "16:9", label: "Horizontal para YouTube", side: "ct" },
-  { value: "0 €", label: "Sin planes de pago", side: "t" },
+  { value: "3", label: "Plataformas de stream: Twitch, Kick y YouTube", side: "t" },
 ] as const;
 
 export const STEPS: readonly Feature[] = [
@@ -95,10 +109,44 @@ export const STREAMS = {
   ],
 } as const satisfies { title: string; lead: string; points: readonly Feature[] };
 
+export const SERVICE = {
+  title: "Lo hacemos por ti.",
+  lead: "Si no tienes tiempo para editar, lo hacemos nosotros con Studio. Cada canal es distinto, así que el servicio se ajusta a ti: qué vídeos, cuántos y cada cuánto.",
+  steps: [
+    { title: "Cuéntanos tu canal", text: "Qué publicas, dónde y qué tipo de vídeos quieres." },
+    { title: "Mándanos el material", text: "Tus demos, el enlace de tu VOD o tus partidas de FACEIT." },
+    { title: "Recibe los vídeos", text: "Shorts y vídeos largos listos para subir, con tu marca." },
+  ],
+  note: "Sin tarifas cerradas: lo hablamos contigo y te damos un precio a tu medida.",
+} as const satisfies { title: string; lead: string; steps: readonly Feature[]; note: string };
+
+export const PLANS = [
+  {
+    id: "studio",
+    tag: "Hazlo tú",
+    name: "Studio",
+    price: "Gratis para empezar",
+    points: ["Shorts, demo completa y clips de stream", "Todo en tu PC, sin subir nada", "Plan Pro con más funciones, muy pronto"],
+    cta: "Descargar gratis",
+  },
+  {
+    id: "servicio",
+    tag: "Lo hacemos por ti",
+    name: "Servicio",
+    price: "A tu medida",
+    points: ["Nosotros editamos con Studio", "Shorts y vídeos largos con tu marca", "Volumen y ritmo según tu canal"],
+    cta: "Habla con nosotros",
+  },
+] as const;
+
 export const FAQ = [
   {
     q: "¿Es gratis?",
-    a: "Sí. Studio es gratis: Shorts, demo completa y clips de stream, sin tarjeta y sin cuenta.",
+    a: "Studio tiene un plan gratis para empezar, sin tarjeta y sin cuenta. Más adelante llegará un plan Pro con más funciones.",
+  },
+  {
+    q: "¿Cuánto cuesta el servicio?",
+    a: "Depende de tu canal y de lo que necesites. Lo hablamos contigo y te damos un precio a tu medida.",
   },
   {
     q: "¿Necesito tener CS2?",
@@ -134,5 +182,6 @@ export const NAV = [
   { href: "#shorts", label: "Shorts" },
   { href: "#demo-completa", label: "Demo completa" },
   { href: "#streams", label: "Streams" },
+  { href: "#servicio", label: "Servicio" },
   { href: "#preguntas", label: "Preguntas" },
 ] as const;
