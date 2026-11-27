@@ -1,0 +1,25 @@
+{
+  "player": "ropz",
+  "source": "clip",
+  "note": "Not from a demo: a clip of ropz's own stream that the user sent on 2026-11-26 (X post by MoonSkinCs) and asked to publish as a Short. Nothing to record or clean in Studio.",
+  "team": "Vitality",
+  "pov": {
+    "skipped": "not a demo"
+  },
+  "shorts": [
+    {
+      "play": "ropz lands a jump on stream and reacts; his camera on top, credit 'CLIP: ROPZ STREAM'",
+      "video": "%USERPROFILE%\\Videos\\cliphub-youtube\\clip-ropz-impossible-jump\\short.mp4",
+      "thumbnail": "%USERPROFILE%\\Videos\\cliphub-youtube\\clip-ropz-impossible-jump\\short_thumb.png",
+      "title": "ropz Hits an IMPOSSIBLE Jump Live on Stream 🤯 #cs2 #ropz",
+      "tags": "ropz,Robin Kool,Team Vitality,Vitality,ropz jump,cs2 jump,cs2 movement,cs2,counter strike 2,cs2 highlights",
+      "youtube_id": "_N95Zmq7ZjE",
+      "scheduled_for": "2026-11-27T10:00:00+01:00",
+      "published_at": "2026-11-27T10:00:00+01:00",
+      "related_linked": "no-pov",
+      "crossposted_queued": false,
+      "thumbnail_redone": "2026-11-27: new design (name, ELO and hook large, map top left), user's order",
+      "thumbnail_checked": true
+    }
+  ]
+}

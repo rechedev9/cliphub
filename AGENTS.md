@@ -17,7 +17,8 @@ thumbnails) and **CS2 analysis with AI over MCP**. Three products serve them:
 - **ClipMind (ClipHub Strats)**, the web edition of the analysis at `cliphubstrats.rechedev.cloud`:
   accounts, team workspaces and a library that syncs with Studio. PC-bound features stay in Studio.
 - **The content product**, the owner's own YouTube pipeline: owner-only, never in the installer. It
-  does not exist in code yet; its design and PR plan are
+  lives in `content/` as the `cliphub-content` stdio MCP server
+  ([docs/content/README.md](docs/content/README.md)); its design and PR plan are
   [ADR 0003](docs/adr/0003-content-vertical-and-monorepo.md).
 
 Studio and ClipMind ship together from the same commit: every Studio release also deploys
@@ -32,6 +33,7 @@ it. [ClipMind and the VPS](.claude/rules/clipmind.md).
 | `desktop/` | Electron shell of Studio and the installer build |
 | `cmd/`, `internal/` | Go: the orchestrator, workers, parser, recorder, editor, store and the CLIs |
 | `mcp-apps/` | React views that `zv-mcp` serves as MCP Apps (built into `cmd/zv-mcp/apps/`) |
+| `content/` | The content product: the `cliphub-content` MCP server, its CLI and its SQLite state ([docs/content/README.md](docs/content/README.md)) |
 | `landing/` | The public site `cliphub.rechedev.cloud`, a static export |
 | `services/community` | Community API on the VPS: pro reference, rankings, pro lineups, pro matches (`pro_match_maps`) |
 | `services/telemetry` | Telemetry collector on the VPS. [Remote debugging](docs/remote-debug-tracing.md) |
@@ -71,7 +73,7 @@ it. [ClipMind and the VPS](.claude/rules/clipmind.md).
   Pre-PR runs use the full suite. `internal/editor` alone nears the 10 min default on Windows, so
   pass `-timeout 30m` to a full run.
 - One root pnpm workspace (`pnpm-workspace.yaml`: `web`, `desktop`, `landing`, `mcp-apps`,
-  `tools/hltv-harvester`) with one `pnpm-lock.yaml` and a hoisted `node_modules`: install once with
+  `tools/hltv-harvester`, `content`) with one `pnpm-lock.yaml` and a hoisted `node_modules`: install once with
   `pnpm install`, never inside a package. Shared dependency versions live in the `catalog:` of
   `pnpm-workspace.yaml`; overrides, `allowBuilds` and patches live there too.
 - `pnpm run check` is the local gate: every package's `typecheck`, `lint` and `test:unit`, then
@@ -92,7 +94,7 @@ Each rule names what enforces it. "Review only" means nothing fails when an agen
 | Rule | Enforced by |
 |---|---|
 | Source files stay at or under 1000 lines. Files already past it are frozen: they shrink, never grow, and no max is raised. [Split a file](.claude/skills/split-file/SKILL.md) | `TestGoFileLength` (`cmd/zv`), oxlint `max-lines` |
-| Code has no comments and no `eslint-*` or `oxlint-*` directives; only `//go:build`, `//go:embed`, a generated-code header, `/// <reference` and a shebang are allowed. Files that had comments before the rule are frozen in a `comment-baseline.json` that only shrinks: never raise a count or add a file. A lint exception goes in the package's `.oxlintrc.json` `overrides`. After you delete comments, lower the baseline with `go test ./cmd/zv -run TestNoComments -shrink-comment-baseline` or `node ../tools/oxlint-no-comments/shrink-baseline.mjs` in the package | `TestNoComments` and `TestCommentBaselinesOnlyShrink` (`cmd/zv`); oxlint `cliphub/no-comments` (`tools/oxlint-no-comments`) in web, desktop, landing and mcp-apps |
+| Code has no comments and no `eslint-*` or `oxlint-*` directives; only `//go:build`, `//go:embed`, a generated-code header, `/// <reference` and a shebang are allowed. Files that had comments before the rule are frozen in a `comment-baseline.json` that only shrinks: never raise a count or add a file. A lint exception goes in the package's `.oxlintrc.json` `overrides`. After you delete comments, lower the baseline with `go test ./cmd/zv -run TestNoComments -shrink-comment-baseline` or `node ../tools/oxlint-no-comments/shrink-baseline.mjs` in the package | `TestNoComments` and `TestCommentBaselinesOnlyShrink` (`cmd/zv`); oxlint `cliphub/no-comments` (`tools/oxlint-no-comments`) in web, desktop, landing, mcp-apps and content |
 | No production function that only tests call; a helper that only `_windows.go` code calls lives in a `_windows.go` file | `TestNoDeadCode` (`cmd/zv`, pinned `deadcode` and `staticcheck U1000` for Windows and Linux). `-short` skips it, so a `-short` run proves nothing about dead code |
 | UI code calls an API only through `apiFetch` (`web/lib/api/edition-fetch.ts`), and a shared component gates a Studio-only call on `currentEdition()`. [ClipMind and the VPS](.claude/rules/clipmind.md) | oxlint `no-restricted-globals` (bare `fetch`, `XMLHttpRequest`) in web; `apiFetch` refuses a route the edition lacks (`web/lib/api/edition-fetch.test.ts`). The gate itself is review only |
 | A UI feature lands with its `cmd/zv-mcp` tool, `serverInstructions` and `docs/studio-mcp.md` row. [MCP parity](.claude/rules/mcp-parity.md) | `TestEveryRouteHasAnMCPTool` (`internal/httpapi`) for a new route; a feature on an existing route is review only |

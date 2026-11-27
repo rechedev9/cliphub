@@ -1,0 +1,44 @@
+{
+  "player": "poiii",
+  "source": "event",
+  "hltv_match_id": 2400581,
+  "map": "mirage",
+  "match_url": "https://www.hltv.org/matches/2400581/m80-vs-100-thieves-pgl-major-singapore-2026-stage-1",
+  "match_time": "2026-11-27T13:00:00+01:00",
+  "map_number": 3,
+  "demo_path": "/download/demo/1",
+  "event": "PGL Major Singapore 2026",
+  "stage": "Stage 1, Swiss round 5",
+  "date": "2026-11-27",
+  "hltv_player_id": 23397,
+  "rating": 1.72,
+  "team": "100 Thieves",
+  "opponent": "M80",
+  "score": "13-5",
+  "result": "win",
+  "kills": 19,
+  "deaths": 7,
+  "adr": 79.4,
+  "pov": {
+    "skipped": "cadence"
+  },
+  "shorts": [
+    {
+      "segment": "seg-004",
+      "round": 6,
+      "play": "T execute on A: opening AK headshot through smoke on slaxz- in Palace, then Swisher on Scaffolding; bomb exploded, round won",
+      "video": "%LOCALAPPDATA%\\cliphub-fixture\\seg-004.mp4",
+      "thumbnail": "%USERPROFILE%\\Videos\\cliphub-youtube\\2400581-mirage\\short-6_thumb.png",
+      "title": "poiii Opens the A Execute With Two AK Kills on Mirage vs M80 🔥 #cs2 #poiii",
+      "tags": "poiii,100 Thieves,M80,mirage,de_mirage,PGL Major Singapore 2026,cs2,counter strike 2,cs2 highlights",
+      "youtube_id": "",
+      "published_at": "",
+      "related_linked": "no-pov",
+      "thumbnail_checked": false,
+      "pending": "Short, Gemini thumbnail and copy ready; waits for an event Short slot (FACEIT Short first). No SUBSCRIBE banner: Studio 5.34.0 generate_short has no subscribe_banner option."
+    }
+  ],
+  "job_id": "00000000-0000-4000-8000-000000000003",
+  "steamid": "76561190000000001",
+  "demo": "%USERPROFILE%\\cliphub-hltv\\demos\\2400581\\m80-vs-100-thieves-m3-mirage.dem"
+}

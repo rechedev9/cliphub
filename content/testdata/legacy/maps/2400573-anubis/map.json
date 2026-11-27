@@ -1,0 +1,48 @@
+{
+  "player": "Kvem",
+  "source": "event",
+  "hltv_match_id": 2400573,
+  "map": "anubis",
+  "match_url": "https://www.hltv.org/matches/2400573/m80-vs-eternal-fire-pgl-major-singapore-2026-stage-1",
+  "match_time": "2026-11-26T07:00:00+01:00",
+  "map_number": 2,
+  "demo_path": "/download/demo/1",
+  "event": "PGL Major Singapore 2026",
+  "stage": "Stage 1 Swiss round 4 (2-1 pool, advancement)",
+  "date": "2026-11-26",
+  "hltv_player_id": 21452,
+  "rating": 1.65,
+  "team": "Eternal Fire",
+  "opponent": "M80",
+  "score": "13-3",
+  "result": "win",
+  "kills": 15,
+  "deaths": 6,
+  "adr": 101.8,
+  "plan_slot": "tiktok-only",
+  "pov": {
+    "skipped": "cadence"
+  },
+  "shorts": [
+    {
+      "segment": "seg-007",
+      "round": 6,
+      "play": "2 AK-47 headshots on T side (Lake, s1n)",
+      "video": "",
+      "thumbnail": "",
+      "title": "Kvem Drops 2 AK-47 Headshots on Anubis vs M80 🎯 #cs2 #Kvem",
+      "tags": "",
+      "youtube_id": "",
+      "published_at": "",
+      "youtube_skipped": "cadence",
+      "related_linked": "no-pov",
+      "thumbnail_checked": false,
+      "crossposted_queued": true,
+      "queue_id": "2026-11-26-kvem-anubis-r6"
+    }
+  ],
+  "demo": "%USERPROFILE%\\cliphub-hltv\\demos\\2400573\\m80-vs-eternal-fire-m2-anubis.dem",
+  "job_id": "00000000-0000-4000-8000-000000000005",
+  "steamid": "76561190000000001",
+  "cleaned_at": "2026-11-26T12:07:02+01:00"
+}

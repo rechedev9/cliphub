@@ -1,0 +1,43 @@
+{
+  "player": "ropz",
+  "hltv_match_id": 2400204,
+  "map": "mirage",
+  "match_url": "https://www.hltv.org/matches/2400204/vitality-vs-mouz-blast-rivals-2026-season-2",
+  "event": "BLAST Rivals 2026 Season 2",
+  "stage": "Quarter-final",
+  "date": "2026-11-13",
+  "team": "Vitality",
+  "opponent": "MOUZ",
+  "score": "8-13",
+  "result": "loss",
+  "kills": 19,
+  "deaths": 14,
+  "adr": 95,
+  "demo": "%USERPROFILE%\\cliphub-hltv\\demos\\2400204\\vitality-vs-mouz-m1-mirage.dem",
+  "job_id": "00000000-0000-4000-8000-000000000001",
+  "pov": {
+    "video": "",
+    "thumbnail": "",
+    "title": "ropz POV (19-14) | Vitality vs MOUZ (Mirage) | BLAST Rivals 2026 Season 2",
+    "tags": "ropz,Robin Kool,Team Vitality,Vitality,MOUZ,mirage,de_mirage,BLAST Rivals 2026,cs2,counter strike 2,cs2 pov",
+    "youtube_id": "ZXbmyirqaJw",
+    "published_at": "2026-11-23T23:52:37.433Z"
+  },
+  "shorts": [
+    {
+      "segment": "seg-006",
+      "round": 6,
+      "play": "1v2 retake on A: headshot wallbang on PR, headshot on Spinx, defuse",
+      "video": "",
+      "thumbnail": "%USERPROFILE%\\Videos\\cliphub-youtube\\2400204-mirage\\short-6_thumb.png",
+      "title": "ropz Wins a 1v2 CLUTCH Retake on Mirage vs MOUZ 🔥 #cs2 #ropz",
+      "tags": "ropz,Robin Kool,Team Vitality,Vitality,MOUZ,mirage,de_mirage,BLAST Rivals 2026,cs2,counter strike 2,cs2 highlights",
+      "youtube_id": "8YG_9kHmkhY",
+      "published_at": "2026-11-23T23:54:22.904Z",
+      "related_linked": true,
+      "thumbnail_checked": true,
+      "thumbnail_redone": "2026-11-27: new design (name, ELO and hook large, map top left), user's order"
+    }
+  ],
+  "cleaned_at": "2026-11-24T14:40:43.161Z"
+}
