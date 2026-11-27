@@ -15,9 +15,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   CHALLENGE_SCRIPT, HLTV, MATCH_SCRIPT, RANKING_SCRIPT, RESULTS_SCRIPT,
-  cutRanking, normalizeName, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState,
+  cutRanking, normalizeName, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar,
   rankedTeamIn, selectCandidates, sidecarFor, windowMs, withSeries, type HarvestRecord, type HarvestState, type RankedTeam, type ResultRow,
 } from "./hltv.ts";
+import { communityURL, registeredMatches } from "./registry.ts";
+import { archiveOf, hasLocalDemo, loadState as loadStoreState, recordMatch, splitRegistered, storePaths } from "./store.ts";
 import { ChallengeTimeoutError, FailureBreaker, isTransient, withRetry } from "./retry.ts";
 import { MAP_STATS_SCRIPT, isoDay, parseTeamMapStats, pickBestPerMap, teamSlug, type BestMapPick, type TeamStats } from "./best-maps.ts";
 import {
@@ -36,8 +38,9 @@ const SIGN_IN_POLL_MS = 15_000;
 const FACEIT_REQUEST_MS = 60_000;
 
 const opts = parseArgs(process.argv.slice(2), join(homedir(), "cliphub-hltv"));
-const downloadsDir = join(opts.outDir, "downloads");
-const statePath = join(opts.outDir, "harvest-state.json");
+const store = storePaths(opts.outDir);
+const downloadsDir = store.downloads;
+const registryURL = communityURL(opts.communityUrl, process.env);
 
 // Electron on Windows drops console output when it is redirected, so the log is a file.
 function log(msg: string): void {
@@ -56,13 +59,11 @@ function pause(): Promise<void> {
 }
 
 function loadState(): HarvestState {
-  if (!existsSync(statePath)) return { matches: {} };
-  return parseState(JSON.parse(readFileSync(statePath, "utf8")));
+  return loadStoreState(store);
 }
 
 function record(state: HarvestState, matchId: number, rec: Omit<HarvestRecord, "at">): void {
-  state.matches[String(matchId)] = { at: new Date().toISOString(), ...rec };
-  writeFileSync(statePath, JSON.stringify(state, null, 2));
+  recordMatch({ paths: store, state, matchId, rec });
 }
 
 class Browser {
@@ -231,8 +232,13 @@ async function harvest(win: BrowserWindow, ses: Session): Promise<void> {
   const ranked = await rankedTeams(browser);
   const names = new Set(ranked.map((t) => normalizeName(t.name)));
   const { rows, complete } = await recentResults(browser, Date.now() - windowMs(opts));
-  const { todo, seen, unranked } = selectCandidates(rows, { state, rankedNames: names, rankedOnly: opts.rankedOnly, max: opts.maxMatches });
-  log(`class=listed results=${rows.length} candidates=${todo.length} already_seen=${seen} unranked=${unranked} ranked=${ranked.length} ranked_only=${opts.rankedOnly} days=${opts.days} hours=${opts.hours} results_incomplete=${!complete}`);
+  const selection = selectCandidates(rows, { state, rankedNames: names, rankedOnly: opts.rankedOnly, max: opts.maxMatches });
+  const { seen, unranked } = selection;
+  const reply = await registeredMatches({ base: registryURL, ids: selection.todo.map((r) => r.matchId) });
+  if (!reply.ok) log(`class=registry_unavailable error="${reply.error}" message="sigo con el estado local"`);
+  const { todo, registered } = splitRegistered(selection.todo, reply);
+  for (const r of registered) record(state, r.matchId, { status: "registered" });
+  log(`class=listed results=${rows.length} candidates=${todo.length} already_seen=${seen} registered=${registered.length} unranked=${unranked} ranked=${ranked.length} ranked_only=${opts.rankedOnly} days=${opts.days} hours=${opts.hours} results_incomplete=${!complete}`);
   const breaker = new FailureBreaker(MAX_CONSECUTIVE_FAILURES);
   let downloaded = 0;
   let failed = 0;
@@ -272,7 +278,7 @@ async function visit(ctx: VisitContext): Promise<boolean> {
     return false;
   }
   if (match.unixMs === 0) match.unixMs = row.unixMs;
-  const file = join(downloadsDir, `${row.matchId}.rar`);
+  const file = archiveOf(store, row.matchId);
   log(`class=downloading match=${row.matchId} event="${match.event}" maps=${match.maps.length}`);
   try {
     await browser.download(ses, `${HLTV}${demoPath}`, file);
@@ -289,6 +295,7 @@ async function visit(ctx: VisitContext): Promise<boolean> {
 async function refetch(win: BrowserWindow, ses: Session): Promise<void> {
   mkdirSync(downloadsDir, { recursive: true });
   const browser = new Browser(win);
+  const state = loadState();
   await browser.open(`${HLTV}/results`);
   let downloaded = 0;
   for (const name of readdirSync(opts.refetch).filter((f) => f.endsWith(".json")).sort()) {
@@ -298,8 +305,8 @@ async function refetch(win: BrowserWindow, ses: Session): Promise<void> {
       log(`class=refetch_skipped file=${name}`);
       continue;
     }
-    const file = join(downloadsDir, `${sidecar.match_id}.rar`);
-    if (existsSync(file)) continue;
+    const file = archiveOf(store, sidecar.match_id);
+    if (hasLocalDemo(store, sidecar.match_id)) continue;
     await pause();
     log(`class=refetching match=${sidecar.match_id}`);
     try {
@@ -309,9 +316,24 @@ async function refetch(win: BrowserWindow, ses: Session): Promise<void> {
       continue;
     }
     writeFileSync(join(downloadsDir, `${sidecar.match_id}.json`), JSON.stringify(sidecar, null, 2));
+    record(state, sidecar.match_id, { status: "downloaded", file });
     downloaded++;
   }
   log(`class=done refetched=${downloaded}`);
+}
+
+async function fetchMatch(win: BrowserWindow, ses: Session): Promise<void> {
+  mkdirSync(downloadsDir, { recursive: true });
+  if (hasLocalDemo(store, opts.match)) {
+    log(`class=done match=${opts.match} already_local=true`);
+    return;
+  }
+  const browser = new Browser(win);
+  const ranked = await rankedTeams(browser);
+  const row: ResultRow = { matchId: opts.match, path: `/matches/${opts.match}/match`, team1: "", team2: "", event: "", unixMs: Date.now() };
+  const saved = await visit({ browser, ses, state: loadState(), ranked, row });
+  log(`class=done match=${opts.match} downloaded=${saved}`);
+  if (!saved) process.exitCode = 1;
 }
 
 // vetoBackfill reads the format and veto of each sidecar's match page into the sidecar; it downloads no demo.
@@ -491,7 +513,8 @@ app.whenReady().then(async () => {
   const ses = session.fromPartition("persist:hltv");
   const win = new BrowserWindow({ width: 1280, height: 860, show: true, title: "ClipHub: recolector HLTV", webPreferences: { session: ses, contextIsolation: true, sandbox: true } });
   try {
-    if (opts.faceit !== "") await faceit(win, ses);
+    if (opts.match > 0) await fetchMatch(win, ses);
+    else if (opts.faceit !== "") await faceit(win, ses);
     else if (opts.vetoBackfill !== "") await vetoBackfill(win);
     else if (opts.bestMaps) await bestMaps(win);
     else await (opts.refetch === "" ? harvest(win, ses) : refetch(win, ses));

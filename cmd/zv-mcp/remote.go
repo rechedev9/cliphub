@@ -55,7 +55,7 @@ var remoteTools = map[string]bool{
 	"list_library_series": true, "create_library_series": true, "update_library_series": true, "delete_library_series": true,
 	"list_lineups": true, "get_lineup": true, "save_lineup": true, "update_lineup": true, "delete_lineup": true,
 	"search_studio": true, "show_zones": true,
-	"list_pro_matches": true, "import_pro_match": true, "list_pro_follows": true, "follow_pro_team": true, "unfollow_pro_team": true,
+	"list_pro_matches": true, "import_pro_match": true, "import_pro_team": true, "list_pro_follows": true, "follow_pro_team": true, "unfollow_pro_team": true,
 	"list_pro_lineup_maps": true, "find_pro_lineups": true, "get_pro_lineup": true, "save_pro_lineup": true, "list_pro_combos": true,
 	"pro_grenade_meta": true,
 }

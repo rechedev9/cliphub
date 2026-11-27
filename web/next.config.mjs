@@ -1,10 +1,12 @@
 import { copyFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
+const unrarPackage = dirname(createRequire(import.meta.url).resolve('node-unrar-js/package.json'));
 // Same-origin fetch for browser unrar; copied so it tracks the npm package version.
-copyFileSync(join(here, 'node_modules/node-unrar-js/esm/js/unrar.wasm'), join(here, 'public/unrar.wasm'));
+copyFileSync(join(unrarPackage, 'esm/js/unrar.wasm'), join(here, 'public/unrar.wasm'));
 
 const securityHeaders = [
   {
@@ -37,13 +39,12 @@ export default {
   poweredByHeader: false,
   // Emit the self-contained server bundle assembled into the desktop installer.
   output: 'standalone',
-  // Pin the file-tracing root to this app. Without it, Next walks up and can pick
-  // a parent package.json (e.g. a stray ~/package.json) as the workspace root,
-  // which nests the standalone output under the build machine's absolute path
-  // (…/standalone/<abs/path>/web/server.js) instead of a flat …/standalone/
-  // server.js. Desktop packaging relies on the flat layout, so make it
-  // deterministic regardless of where the repo is checked out.
-  outputFileTracingRoot: here,
+  // Pin the file-tracing root to the repo root, where the workspace hoists node_modules. Without it,
+  // Next walks up and can pick a stray parent package.json, which nests the standalone output
+  // under the build machine's absolute path. The server lands in standalone/web/server.js;
+  // scripts/flatten-standalone.mjs moves it to standalone/server.js, the layout the desktop
+  // installer and the ClipMind image expect.
+  outputFileTracingRoot: join(here, '..'),
   // No next/image optimization: /_next/image returns 404 and Sharp never loads,
   // so the standalone trace leaves out Sharp and its ~19 MB native runtime.
   images: { unoptimized: true },

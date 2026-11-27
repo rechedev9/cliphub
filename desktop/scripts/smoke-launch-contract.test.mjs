@@ -17,6 +17,18 @@ import { fileURLToPath } from 'node:url';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
+function killProcessTree(child) {
+  if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
+  if (process.platform === 'win32') {
+    spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+  } else {
+    child.kill();
+  }
+}
+
 test('PowerShell smoke waits for and retains the delegated listener identity', () => {
   const source = readFileSync(join(repo, 'scripts', 'smoke-real.ps1'), 'utf8');
   const waitStart = source.indexOf('for ($attempt = 0; $attempt -lt 40; $attempt++)');
@@ -89,9 +101,9 @@ server.listen(0, '127.0.0.1', () => {
   let smoke;
   let decoy;
   t.after(() => {
-    if (smoke?.exitCode === null) smoke.kill();
+    killProcessTree(smoke);
     if (decoy?.exitCode === null) decoy.kill();
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   smoke = spawn(
@@ -141,6 +153,9 @@ server.listen(0, '127.0.0.1', () => {
     });
   });
   await startup;
+  const refusedProbeWindowMs = 1_500;
+  await new Promise((resolveWindow) => setTimeout(resolveWindow, refusedProbeWindowMs));
+  assert.equal(smoke.exitCode, null, `a refused health probe must not end the smoke:\n${stdout}\n${stderr}`);
 
   decoy = spawn(
     process.execPath,
@@ -171,9 +186,9 @@ server.listen(port, '127.0.0.1', () => process.stdout.write('READY'));
 
   const smokeStatus = smoke.exitCode ?? await new Promise((resolveExit, rejectExit) => {
       const timeout = setTimeout(() => {
-        smoke.kill();
+        killProcessTree(smoke);
         rejectExit(new Error(`PowerShell smoke did not reject the decoy:\n${stdout}\n${stderr}`));
-      }, 15_000);
+      }, 30_000);
       smoke.once('error', rejectExit);
       smoke.once('exit', (status) => {
         clearTimeout(timeout);

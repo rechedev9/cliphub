@@ -1,8 +1,0 @@
-allowBuilds:
-  sharp: true
-
-overrides:
-  # CVE-2026-69153 / GHSA-fxqj-rqcc-2cmp: 8.5.19 is below the patched 8.5.23.
-  postcss: 8.5.23
-  # Dependabot high (source-map-js < 1.2.2): transitive through Next.
-  source-map-js: 1.2.2

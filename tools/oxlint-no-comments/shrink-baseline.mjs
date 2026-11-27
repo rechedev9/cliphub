@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { BASELINE_FILE, REPORT_ENV, REPORT_PREFIX } from "./plugin.mjs";
@@ -7,7 +8,7 @@ import { BASELINE_FILE, REPORT_ENV, REPORT_PREFIX } from "./plugin.mjs";
 function currentCommentLines(cwd) {
   const lint = JSON.parse(readFileSync(path.join(cwd, "package.json"), "utf8")).scripts.lint.split(/\s+/);
   if (lint[0] !== "oxlint") throw new Error(`${cwd}: the lint script must start with oxlint`);
-  const oxlint = path.join(cwd, "node_modules", "oxlint", "bin", "oxlint");
+  const oxlint = path.join(path.dirname(createRequire(path.join(cwd, "package.json")).resolve("oxlint/package.json")), "bin", "oxlint");
   const run = spawnSync(process.execPath, [oxlint, ...lint.slice(1), "--format=json"], {
     cwd,
     encoding: "utf8",

@@ -1,0 +1,14 @@
+{
+  "name": "cliphub",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.23.0",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "postinstall": "node -e \"require('electron/install.js')\"",
+    "check": "pnpm run check:js && go run ./cmd/zv check",
+    "check:js": "pnpm -r --workspace-concurrency=1 --if-present run typecheck && pnpm -r --workspace-concurrency=1 --if-present run lint && pnpm -r --workspace-concurrency=1 --if-present run test:unit"
+  }
+}

@@ -50,7 +50,7 @@ test('distribution entrypoint cannot package before the guarded runtime rebuild'
   const rebuild = source.indexOf(
     'runDistributionBuildSteps({ repo, desktop, environment: goEnvironment });',
   );
-  const packageInstaller = source.indexOf("join(desktop, 'node_modules', 'electron-builder', 'cli.js')");
+  const packageInstaller = source.indexOf('electronBuilderCli,');
 
   assert.notEqual(rebuild, -1, 'dist.mjs must invoke the guarded runtime rebuild');
   assert.notEqual(packageInstaller, -1, 'dist.mjs must retain its installer build');

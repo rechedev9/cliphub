@@ -1,0 +1,48 @@
+{
+  "player": "m3wsu",
+  "source": "faceit",
+  "faceit_match_id": "1-00000000-0000-4000-8000-000000000006",
+  "room_url": "https://www.faceit.com/en/cs2/room/1-00000000-0000-4000-8000-000000000006",
+  "map": "ancient",
+  "event": "FACEIT",
+  "competition": "Europe 5v5 Queue",
+  "date": "2026-11-25",
+  "finished": "2026-11-25",
+  "score": "13-3",
+  "result": "win",
+  "kills": 17,
+  "deaths": 7,
+  "adr": 112.5,
+  "hs_pct": 47,
+  "elo": 3995,
+  "steamid": "76561190000000001",
+  "demo": "%USERPROFILE%\\cliphub-hltv\\pov\\faceit\\1-00000000-0000-4000-8000-000000000006-1-1.dem.zst",
+  "pick_reason": "Second FACEIT slot of 2026-11-27: m3wsu has no FACEIT folder yet (first of m3wsu, m0NESY, w0nderful, StRoGo); his newest candidate (kills >= 2x deaths)",
+  "pov": {
+    "video": "",
+    "thumbnail": "",
+    "title": "m3wsu POV (17-7) | 3995 ELO FACEIT on Ancient | with INPUTS and COMMs",
+    "tags": "m3wsu,ancient,de_ancient,faceit,faceit pov,cs2,counter strike 2,cs2 pov",
+    "youtube_id": "bb5wmpxJ0Bg",
+    "published_at": "2026-11-27T11:34:00+01:00",
+    "voice": "team comms (voice_status available)"
+  },
+  "shorts": [
+    {
+      "segment": "seg-010",
+      "round": 13,
+      "play": "1v3 on the T pistol round (second half): two Glock headshots on Gargul9 and lllIlllllII, clutch lost",
+      "video": "",
+      "thumbnail": "",
+      "title": "m3wsu (3995 ELO) Glock Double Headshot in a 1v3 on Ancient 🔥 #cs2 #m3wsu",
+      "tags": "m3wsu,ancient,de_ancient,faceit,cs2,counter strike 2,cs2 highlights",
+      "youtube_id": "vdtZSpucsU0",
+      "published_at": "2026-11-27T16:03:55+01:00",
+      "related_linked": true,
+      "thumbnail_checked": true,
+      "crossposted_queued": true
+    }
+  ],
+  "job_id": "00000000-0000-4000-8000-000000000007",
+  "cleaned_at": "2026-11-27T16:06:57.3754000+01:00"
+}
