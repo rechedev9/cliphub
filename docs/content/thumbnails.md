@@ -1,6 +1,6 @@
 # Thumbnail spec
 
-Status: decisions 1 to 9 were **approved by the owner on 2026-11-27**. Decision 10, the layout
+Status: decisions 1 to 9 and 11 were **made by the owner on 2026-11-27**. Decision 10, the layout
 after LOVE CS 2, was asked for by the owner the same day; its numbers are starting values that the
 owner confirms at the golden review (check 11). See [Decisions](#decisions-2026-11-27). The
 renderer is written against this file.
@@ -25,13 +25,13 @@ keeps out of this public repository.
 | `name` | the player's HLTV nick (FACEIT nick when there is no HLTV page) | normalised (see 4), then charset |
 | `hook` | the LLM, from facts the demo or the HLTV match page proves | charset, word count, kind (see 4) |
 | `map` | the demo | one of the maps in the look table (see 5) |
-| `elo` | `faceit_player` on the day the copy is written, FACEIT matches only | `/^\d{3,4}$/`; absent means no ELO pill |
+| `elo` | `faceit_player` on the day the copy is written, FACEIT matches only | `/^\d{3,4}$/`; absent means no ELO line |
 | `kills` | the featured round (see 4), from Studio's `get_round` kill feed | 1 to 5 kills by the player, each with victim, weapon, headshot and both sides |
 | `background` | the library or Gemini (see 5) | decodes as JPEG or PNG; content checked by a person (see 9) |
 | `portrait` | the player's HLTV bodyshot (see 6), or none | PNG signature, alpha, not the HLTV silhouette |
 
-The LLM never draws text or faces. Gemini draws only the scene; the tool draws all text, the pills
-and the kill feed, and composites the real portrait.
+The LLM never draws text or faces. Gemini draws only the scene; the tool draws all text, the map
+pill and the kill feed, and composites the real portrait.
 
 ## 2. Formats
 
@@ -41,17 +41,18 @@ and the kill feed, and composites the real portrait.
 | Short | 1080x1920 PNG, 9:16 | Short; never a 16:9 image on a Short |
 
 **Short safe zone.** The channel's Shorts tab shows a Short's thumbnail cropped to about 2:3
-around the centre (y = 154 to 1766). Every text box, pill and kill feed row lies inside y = 200 to
-1720, and so does the face. The pill row's top is at y = 310.
+around the centre (y = 154 to 1766). Every text box and the map pill lie inside y = 200 to 1720,
+and so does the face. The map pill's top is at y = 310.
 
 ## 3. Layout
 
 All coordinates are in canvas pixels, origin top left. Layers, bottom to top: scene, shade, halo,
-edge, portrait, text glow, large text, pills, kill feed.
+edge, portrait, text glow, large text, map pill, kill feed.
 
-The layout follows the reference in 5: a large real face on the left (at the bottom on a Short),
-one large statistic over the player's chest, gold pills for context and the featured round's kill
-feed in the top right.
+The layout follows the reference in 5 and keeps the owner's rule that the name and the ELO are
+large: a large real face on the left (at the bottom on a Short), the name and the ELO large beside
+it, one large statistic over the player's chest, a gold map pill and, on a POV, the featured
+round's kill feed.
 
 ### Scene and shade
 
@@ -79,7 +80,7 @@ feed in the top right.
   - edge: RGB (255, 205, 110), Gaussian blur sigma 5, alpha x2, at `y = H - h + 8`;
   - both at the portrait's x.
 
-### Large text (the hook, and the name when there is no portrait)
+### Large text (name, ELO, hook)
 
 - Font: Saira ExtraBold (800). Each line is centred horizontally in its box `[x, x + w]` and
   vertically on `cy`.
@@ -91,38 +92,46 @@ feed in the top right.
   the shadow layer.
 - Shadow and outline layer: fill `#3A1200`, border width `round(size / 18)` in `#160600`, shadow
   black at 75 % offset `(0, round(size / 22))`.
-- Fill: a vertical gold gradient `#FFF4B8`, `#FFC52E`, `#FF7A00` (top, middle, bottom) from
-  `cy - 0.42 * size` to `cy + 0.42 * size`, masked by the glyphs.
+- Fill: a vertical three-stop gradient from `cy - 0.42 * size` to `cy + 0.42 * size`, masked by
+  the glyphs:
+
+| Line | Stops (top, middle, bottom) |
+|---|---|
+| name, hook | gold `#FFF4B8`, `#FFC52E`, `#FF7A00` |
+| ELO (`<elo> ELO`) | FACEIT orange `#FFD2A0`, `#FF7A1A`, `#FF4500` |
+
 - Unit: a hook that ends in `ADR` draws that word at 0.72 of the size, on the same baseline, after
   a space of `0.2 * size`.
+- The name line is always drawn, and the ELO line on every FACEIT match with a readable ELO
+  (decision 11): the face does not replace the name, and neither the map pill nor the kill feed
+  replaces either line.
 
-| Box | POV with portrait | POV without portrait | Short with portrait | Short without portrait |
-|---|---|---|---|---|
-| hook | x 420, w 1440, cy 890, max 300 | x 120, w 1680, cy 870, max 320 | x 40, w 1000, cy 1090, max 300 | x 40, w 1000, cy 1300, max 300 |
-| name | none: the kill feed carries it | x 120, w 1680, cy 520, max 240 | none | x 40, w 1000, cy 1000, max 230 |
+| Box | POV with portrait | POV without portrait | Short (with or without portrait) |
+|---|---|---|---|
+| name | x 760, w 1120, cy 140, max 230 | x 120, w 1680, cy 200, max 250 | x 40, w 1000, cy 560, max 230 |
+| ELO | x 760, w 1120, cy 330, max 165 | x 120, w 1680, cy 400, max 180 | x 40, w 1000, cy 780, max 160 |
+| hook | x 420, w 1440, cy 900, max 290 | x 120, w 1140, cy 880, max 320 | x 40, w 1000, cy 1090, max 300 |
 
-On a POV the hook lies over the portrait's chest, as in the reference. On a Short the hook sits
-above the head and never covers the face (the 699 px cap in Portrait keeps it so).
+On a POV with a portrait the name and the ELO stand right of the head and the hook lies over the
+portrait's chest, as in the reference. On a Short the hook sits above the head and never covers
+the face (the 699 px cap in Portrait keeps it so).
 
-### Pills
+### Map pill
 
-- A pill is a box of height `h` with fully rounded ends (radius `h / 2`), filled with a vertical
-  gradient and framed 5 px in `#5A2A00`. Its text is Saira ExtraBold in `#2A1200`, centred, at
-  `min(round(0.56 * h), fit)`, with `round(0.42 * h)` of padding on each side. The width follows
-  the text up to the max below; a longer text shrinks to fit.
-- Map pill, always: the map name, gold `#FFE58A`, `#F2B01E`, `#C97A00`.
-- ELO pill, FACEIT matches with a readable ELO only: `<elo> ELO`, FACEIT orange `#FFD2A0`,
-  `#FF7A1A`, `#FF4500`.
+- A box of height `h` with fully rounded ends (radius `h / 2`), filled with the vertical gold
+  gradient `#FFE58A`, `#F2B01E`, `#C97A00` and framed 5 px in `#5A2A00`. Its text, the map name, is
+  Saira ExtraBold in `#2A1200`, centred, at `min(round(0.56 * h), fit)`, with `round(0.42 * h)` of
+  padding on each side. The width follows the text up to the max; a longer text shrinks to fit.
 
 | | POV with portrait | POV without portrait | Short |
 |---|---|---|---|
-| map pill | left 840, top 70, h 120, max w 430 | left 120, top 70, h 120, max w 430 | left 40, top 310, h 100, max w 480 |
-| ELO pill | left 840, top 215, h 120, max w 430 | left 120, top 215, h 120, max w 430 | left at the map pill's right + 20, top 310, h 100, max w 480 |
+| map pill | left 760, top 440, h 100, max w 430 | left 120, top 540, h 100, max w 430 | left 40, top 310, h 100, max w 480 |
 
-### Kill feed
+### Kill feed (POV only)
 
 The kills of the featured round (see 4), drawn like the kill feed of Studio's Focus HUD
-(`internal/customhud/killfeed.go`), so the thumbnail matches the video.
+(`internal/customhud/killfeed.go`), so the thumbnail matches the video. A Short has no kill feed:
+its width has no room for one beside the name, the ELO and the hook.
 
 - One row per kill, in the order they happened, top to bottom, at most 5. Each row is
   right-aligned and reads: the player's name in its side's colour, the weapon icon, the headshot
@@ -135,22 +144,23 @@ The kills of the featured round (see 4), drawn like the kill feed of Studio's Fo
 - Names: Saira ExtraBold. A name wider than its max shrinks down to size 26, then loses characters
   from the end until it fits.
 
-| | POV | Short |
+| | POV with portrait | POV without portrait |
 |---|---|---|
-| right edge | x 1880 | x 1040 |
-| first row top | y 40 | y 450 |
-| row height, gap | 62, 8 | 58, 8 |
-| name size, max name width | 38, 180 | 36, 180 |
-| weapon icon height, max width | 32, 120 | 30, 112 |
-| headshot icon | 30 | 28 |
-| padding, item gap | 18, 12 | 18, 12 |
+| right edge | x 1880 | x 1880 |
+| first row top | y 440 | y 540 |
+| row height, gap | 56, 6 | 56, 6 |
+| name size, max name width | 34, 170 | 34, 170 |
+| weapon icon height, max width | 30, 112 | 30, 112 |
+| headshot icon | 28 | 28 |
+| padding, item gap | 16, 10 | 16, 10 |
 
-A full row is at most 582 px wide on a POV, so the kill feed starts right of x = 1298 and clears
-the pills, which end at x = 1270.
+A full row is at most 542 px wide, so the kill feed starts right of x = 1338 and clears the map
+pill, which ends at x = 1190 (550 without a portrait). Five rows end at y = 744 (844 without a
+portrait), above the hook.
 
 ## 4. Text rules
 
-- Every word of the large text and the pills is English. That text is uppercased, then must match
+- Every word of the large text and the map pill is English. That text is uppercased, then must match
   `/^[A-Z0-9 .%!?-]+$/`; the tool refuses anything else (no accents, no emoji).
 - The name is normalised first: uppercased, each `_` becomes a space, and any other character
   outside the charset is dropped. A name left empty is refused.
@@ -158,18 +168,18 @@ the pills, which end at x = 1270.
   writes it, a victim's is the demo's. Characters outside `[A-Za-z0-9._-]` are dropped; a name left
   empty is drawn as `?`.
 - The hook has at most 5 words on a POV and 3 on a Short. The limit counts the hook only, not the
-  name, the pills or the kill feed.
+  name, the ELO line, the map pill or the kill feed.
 - Every fact comes from the demo or the HLTV match page, never from memory.
 
 | Element | POV | Short |
 |---|---|---|
 | hook | the K-D, `22-8`, when kills exceed deaths; otherwise the best multikill the demo proves (`ACE`, `4K`, `3K`) and, without one, the ADR (`112 ADR`). Never a K-D with kills at or under deaths | the play tag the demo proves: `ACE`, `4K`, `3K`, `1V2`, `PISTOL 3K` |
-| name | a large line only when there is no portrait; the player's name always leads each kill feed row | same |
+| name | the nick, always a large line; it also leads each kill feed row | the nick, always a large line |
+| ELO | FACEIT matches with a readable ELO only, `<elo> ELO`, a large line | same |
 | map pill | the map name, `MIRAGE` | same |
-| ELO pill | FACEIT matches with a readable ELO only, `<elo> ELO` | same |
-| featured round | the round with the most kills by the player; a tie goes to more headshots, then to the later round | the round of the play the Short shows |
+| featured round | the round with the most kills by the player; a tie goes to more headshots, then to the later round. It feeds the kill feed and the background's weapon | the round of the play the Short shows; it picks only the background's weapon |
 
-- A FACEIT match whose ELO cannot be read gets no ELO pill, never a guessed number.
+- A FACEIT match whose ELO cannot be read gets no ELO line, never a guessed number.
 - The rating (HLTV Rating 3.0) only picks the player; it never appears on a thumbnail.
 
 ## 5. Background (Gemini, model Neon)
@@ -188,9 +198,9 @@ the pills, which end at x = 1270.
 > muzzle flash, and one distant enemy in CS2 gear is hit at mid range, its face not visible.
 > Recognizable map geometry, sunny, vivid saturated color, warm golden grade, crisp contrast,
 > sparks and glowing embers in the air. <POV: Keep the left 45 % simple for a large player cutout,
-> the top right simple for a kill feed and the bottom fifth for a big statistic. | Short: Keep the
-> bottom third simple for the player cutout and the middle for a big statistic.> No HUD, letters,
-> numbers, logos or watermark.
+> the top right simple for large text and the bottom fifth for a big statistic. | Short: Keep the
+> bottom third simple for the player cutout and the upper middle for large text.> No HUD,
+> letters, numbers, logos or watermark.
 
 | Map | Look |
 |---|---|
@@ -221,11 +231,15 @@ from its videos page and thumbnails on 2026-11-27:
 |---|---|
 | One statistic of at most two words, about a fifth of the canvas tall, low and centred, over the player's chest | the hook box in 3 |
 | A large face with a warm glow, the top of the head near the top edge | the POV portrait and its rim light in 3 |
-| A gold pill with a status mark (`#1`) | the map and ELO pills in 3 |
-| A five-row kill feed in the top right, framed in red | the kill feed in 3 |
+| A gold pill with a status mark (`#1`) | the map pill in 3 |
+| A five-row kill feed, framed in red | the kill feed in 3, on a POV |
 | A bright, warm first-person scene: rifle and muzzle flash in the lower right, an enemy hit in the distance, embers | the prompt above |
 | A smaller unit after the number (`170 ADR`) | Unit in 3 |
 | The same layout in every video, so viewers know the series | one renderer with byte-identical output (check 2) |
+
+What this spec keeps from the channel's own layout: the name and the ELO stay large lines. The
+reference writes no name because it covers one player; @ClipHubRSN covers many, and the owner
+corrected it before when they were left out.
 
 What this spec does better:
 
@@ -304,12 +318,13 @@ Reference (LOVE CS 2: follow the layout, never copy the art):
 - `6Rwsdaswbjs` (140 K views): the same layout with the player in his team's jersey, the closest
   to ours.
 
-Ours before this layout (2026-11-27, replaced by decision 10):
+Ours (2026-11-27; their text stays, the rest follows decision 10):
 
-- donk, FACEIT Ancient POV (`dWPPR5XqqD8`): `DONK`, `5299 ELO` and `32-22` stacked on the right
-  and a face a quarter of the canvas tall. Three lines compete for the eye.
+- donk, FACEIT Ancient POV (`dWPPR5XqqD8`): `DONK`, `5299 ELO` and `32-22`, all large, read at
+  phone size. Decision 10 makes the face larger, moves the map into the gold pill and adds the
+  kill feed.
 - ropz 1v2 Mirage Short (`8YG_9kHmkhY`): `ROPZ` and `1V2` above the head, face whole inside the
-  Shorts band. The new Short keeps the hook above the head.
+  Shorts band.
 
 Bad (do not repeat):
 
@@ -317,6 +332,8 @@ Bad (do not repeat):
   a POV (`155 ADR`, `19 KILLS`): the 2026-11-25 backfill.
 - A K-D with kills at or under deaths as a POV hook: use the fallback in 4 instead.
 - An AI-drawn or AI-edited face or body, or a kill feed the demo does not prove.
+- A name or an ELO that is missing, small or only inside a pill or the kill feed (the mock-up of
+  2026-11-27 did this and the owner corrected it).
 
 ## 9. Acceptance checks
 
@@ -324,21 +341,22 @@ A renderer test can verify each of these without a person:
 
 1. Output is a PNG of exactly 1920x1080 (POV) or 1080x1920 (Short).
 2. Rendering the same inputs twice gives byte-identical PNGs (pinned fonts and renderer).
-3. Large or pill text outside `/^[A-Z0-9 .%!?-]+$/` after uppercasing (and, for the name, after
-   the normalisation in 4) is refused with an error, and no file is written.
-4. A hook of more than 5 words on a POV or 3 on a Short is refused; the name, the pills and the
-   kill feed do not count.
-5. `elo` that is not 3 or 4 digits is refused. With no `elo` there is no ELO pill, and every pixel
-   outside the ELO pill's box equals the render of the same inputs with an `elo`.
+3. Large or map pill text outside `/^[A-Z0-9 .%!?-]+$/` after uppercasing (and, for the name,
+   after the normalisation in 4) is refused with an error, and no file is written.
+4. A hook of more than 5 words on a POV or 3 on a Short is refused; the name, the ELO line, the
+   map pill and the kill feed do not count.
+5. `elo` that is not 3 or 4 digits is refused. With no `elo`, every pixel outside the ELO box
+   equals the render of the same inputs with an `elo`, and the ELO box shows only the layers below
+   it.
 6. Each large text line's bounding box, border included, lies inside its box `[x, x + w]` and
    inside the canvas; its size is the largest one at or under `min(max, floor(w / (0.68 *
    length)))` that fits, with a unit's characters counted at 0.72.
-7. On a Short, every text box, pill and kill feed row lies inside y = 200 to 1720 and x = 0 to
-   1080, and the pill row's top is at y = 310.
-8. The map pill's top-left corner is at (840, 70) on a POV with a portrait, (120, 70) without one
+7. On a Short, every text box and the map pill lie inside y = 200 to 1720 and x = 0 to 1080, the
+   map pill's top is at y = 310, and there is no kill feed.
+8. The map pill's top-left corner is at (760, 440) on a POV with a portrait, (120, 540) without one
    and (40, 310) on a Short, with a 5 px frame of `#5A2A00`.
-9. The pixel at the vertical centre of a hook glyph stem lies on the gold gradient (hue within the
-   `#FFF4B8` to `#FF7A00` range); the ELO pill's fill lies on the orange one.
+9. The pixel at the vertical centre of a name or hook glyph stem lies on the gold gradient (hue
+   within the `#FFF4B8` to `#FF7A00` range); one of the ELO line lies on the orange one.
 10. A portrait that is not a PNG or has no alpha channel is refused, and so is HLTV's silhouette
     (about 12 KB; the exact test is the renderer's); `none` gives the no-portrait layout.
 11. Golden images: for a fixed background, portrait and inputs per case (POV with and without a
@@ -346,10 +364,13 @@ A renderer test can verify each of these without a person:
     icon), the output matches the committed golden within a small per-pixel tolerance. The goldens
     are generated, reviewed by the owner and are the switch from skill to tool.
 12. On a Short the portrait is at most 699 px tall and its top is at y = 1235 or lower.
-13. The kill feed has one row per kill of the featured round, in order; each row's right edge is at
-    x = 1880 (POV) or 1040 (Short) and carries a 3 px `#E0313B` frame. `kills` with no entry or
-    more than 5 is refused.
+13. On a POV the kill feed has one row per kill of the featured round, in order; each row's right
+    edge is at x = 1880 and carries a 3 px `#E0313B` frame. `kills` with no entry or more than 5 is
+    refused.
 14. A hook that ends in `ADR` draws that word at 0.72 of the number's size, on the same baseline.
+15. Every render draws the name line in its box at the size rule of check 6, and every render with
+    an `elo` draws the ELO line in its box the same way; a layout that leaves either out, or draws
+    it smaller than its box's size rule, fails.
 
 Checks a person does (not testable): the background has no readable face, no words and no logos;
 the portrait is the right player and team; every word is true for that video.
@@ -358,8 +379,8 @@ the portrait is the right player and team; every word is true for that video.
 
 The owner settled these on 2026-11-27; each is already applied above.
 
-1. **Short safe zone:** the YouTube Shorts tab's 2:3 band (y = 154 to 1766), with text, pills,
-   kill feed and face inside y = 200 to 1720. TikTok's 3:4 grid is dropped: the channel publishes
+1. **Short safe zone:** the YouTube Shorts tab's 2:3 band (y = 154 to 1766), with text, the map
+   pill and the face inside y = 200 to 1720. TikTok's 3:4 grid is dropped: the channel publishes
    only on YouTube.
 2. **Word limit:** it counts the hook only, at most 5 words on a POV and 3 on a Short.
 3. **POV hook:** the K-D only when kills exceed deaths; otherwise the best multikill the demo
@@ -374,6 +395,9 @@ The owner settled these on 2026-11-27; each is already applied above.
 9. **Nicks outside the charset:** uppercased, `_` becomes a space, other characters dropped; an
    empty result is refused.
 10. **Layout after LOVE CS 2** (asked for on 2026-11-27: imitate it and improve it, face kept
-    human): one large statistic, a large real face, gold pills and the featured round's real kill
-    feed (see 3 and 5). Its numbers are starting values that the owner confirms at the golden
-    review (check 11).
+    human): a large real face with a warm glow, one large statistic over the chest, a gold map pill
+    and, on a POV, the featured round's real kill feed (see 3 and 5). Its numbers are starting
+    values that the owner confirms at the golden review (check 11).
+11. **Name and ELO stay large** (owner's correction, given before and repeated on 2026-11-27 after
+    a mock-up shrank them into the kill feed and a pill): both are large gold and orange lines on
+    every thumbnail that has them (check 15).
