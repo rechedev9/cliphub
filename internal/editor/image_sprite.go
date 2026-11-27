@@ -7,16 +7,27 @@ import (
 )
 
 type ImageSprite struct {
-	CellHeight int       `json:"cell_height"`
-	Frames     int       `json:"frames"`
-	FPS        int       `json:"fps"`
-	PlayAt     []float64 `json:"play_at"`
+	CellHeight  int          `json:"cell_height"`
+	Frames      int          `json:"frames"`
+	FPS         int          `json:"fps"`
+	PlayAt      []float64    `json:"play_at"`
+	Clips       []SpriteClip `json:"clips,omitempty"`
+	RingSeconds float64      `json:"ring_seconds,omitempty"`
+}
+
+type SpriteClip struct {
+	AtSeconds float64 `json:"at_seconds"`
+	First     int     `json:"first"`
+	Last      int     `json:"last"`
 }
 
 func imageSpriteFilters(effect Effect) []string {
 	sprite := effect.Sprite
 	if sprite == nil || sprite.CellHeight <= 0 || sprite.Frames <= 0 || sprite.FPS <= 0 {
 		return nil
+	}
+	if len(sprite.Clips) > 0 {
+		return []string{fmt.Sprintf("crop=w=iw:h=%d:x=0:y='%d*%s'", sprite.CellHeight, sprite.CellHeight, spriteClipCell(effect.StartSeconds, sprite))}
 	}
 	cell := "0"
 	for i := len(sprite.PlayAt) - 1; i >= 0; i-- {
@@ -28,10 +39,25 @@ func imageSpriteFilters(effect Effect) []string {
 	return []string{fmt.Sprintf("crop=w=iw:h=%d:x=0:y='%d*%s'", sprite.CellHeight, sprite.CellHeight, cell)}
 }
 
+func spriteClipCell(effectStart float64, sprite *ImageSprite) string {
+	cell := "0"
+	for _, clip := range sprite.Clips {
+		start := effectStart + clip.AtSeconds
+		frame := fmt.Sprintf("min(%d\\,%d+trunc((t-%.3f)*%d))", min(clip.Last, sprite.Frames), clip.First, start, sprite.FPS)
+		cell = fmt.Sprintf("if(gte(t\\,%.3f)\\,%s\\,%s)", start, frame, cell)
+	}
+	return cell
+}
+
 func spriteRingSeconds(effects []Effect, source string) []float64 {
 	var rings []float64
 	for _, effect := range effects {
-		if effect.Source == source && effect.Sprite != nil && len(effect.Sprite.PlayAt) > 0 {
+		if effect.Source != source || effect.Sprite == nil {
+			continue
+		}
+		if effect.Sprite.RingSeconds > 0 {
+			rings = append(rings, effect.StartSeconds+effect.Sprite.RingSeconds)
+		} else if len(effect.Sprite.PlayAt) > 0 {
 			rings = append(rings, effect.StartSeconds+effect.Sprite.PlayAt[0])
 		}
 	}

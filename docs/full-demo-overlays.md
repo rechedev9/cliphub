@@ -66,14 +66,19 @@ Assistants set them with `plan_full_demo` `halftime_scoreboard` and
   copies them into `overlays.brand.subscribe` and the button becomes a card
   with the round logo, the name and a red SUBSCRIBE button
   (`demooverlay.SubscribeCard`); the logo is an overlay image the plan must
-  verify like the watermark. Shorts use the same card through
-  `subscribe_banner`, once a Short (`internal/editor/short_subscribe.go`).
-  The still is a sprite: one cell at rest and `demooverlay.SubscribeSprite`
-  cells of the bell swinging, which a time-based `crop` picks at
-  `demooverlay.SubscribeBellFPS` from 0.5 s and 2.6 s into each window
-  (`editor.ImageSprite`). The overlay renderer draws only a 1920x1080 or
-  1080x1920 page, so `RenderSubscribeSprite` renders the cells on several such
-  pages and stacks them into one PNG. The first swing adds a soft generated marimba note (`aevalsrc`, C5, no
+  verify like the watermark. The still is a sprite: one cell at rest and
+  `demooverlay.SubscribeSprite` cells of the bell swinging, which a
+  time-based `crop` picks at `demooverlay.SubscribeBellFPS` from 0.5 s and
+  2.6 s into each window (`editor.ImageSprite`).
+  Shorts draw a smaller card of their own through `subscribe_banner`, once a
+  Short (`internal/editor/short_subscribe.go`,
+  `demooverlay.RenderShortSubscribeSprite`): the logo, the name, a like
+  button and the SUBSCRIBE pill. The like fills 0.8 s into the window, then
+  SUBSCRIBE is pressed at 1.9 s, turns SUBSCRIBED and its bell swings. Each
+  step is an `editor.SpriteClip` that holds its last cell, so the card stays
+  liked and subscribed until it slides out. The overlay renderer draws only a
+  1920x1080 or 1080x1920 page, so both sprites render their cells on several
+  such pages and stack them into one PNG. The first swing adds a soft generated marimba note (`aevalsrc`, C5, no
   sound file) to the game audio of a Short and to the item audio of a Full
   Demo, except in a plan that mutes every audio source.
 

@@ -137,27 +137,26 @@ func TestSubscribeCardShowsTheChannelLogoAndName(t *testing.T) {
 	if err := os.WriteFile(logo, encoded.Bytes(), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for size, layout := range map[htmlstill.Size]string{htmlstill.Landscape: "landscape", htmlstill.Portrait: "portrait"} {
-		pages, err := SubscribeHTML(nil, SubscribeCard{LogoPath: logo, ChannelName: "<i>ClipHub</i>"}, size)
-		if err != nil {
-			t.Fatal(err)
-		}
-		html := string(bytes.Join(pages, nil))
-		if !strings.Contains(html, `class="`+layout+`"`) || !strings.Contains(html, fmt.Sprintf("width:%dpx;height:%dpx", size.Width, size.Height)) {
-			t.Fatalf("%s card is not laid out for its frame", layout)
-		}
-		if !strings.Contains(html, `src="data:image/png;base64,`) || !strings.Contains(html, "&lt;i&gt;ClipHub&lt;/i&gt;") || !strings.Contains(html, ">SUBSCRIBE<") || strings.Contains(html, `class="pill"`) {
-			t.Fatalf("%s card lacks the logo, the escaped name or the button", layout)
-		}
+	size := htmlstill.Landscape
+	pages, err := SubscribeHTML(nil, SubscribeCard{LogoPath: logo, ChannelName: "<i>ClipHub</i>"}, size)
+	if err != nil {
+		t.Fatal(err)
 	}
-	nameOnly, err := SubscribeHTML(nil, SubscribeCard{ChannelName: "ClipHub"}, htmlstill.Portrait)
+	html := string(bytes.Join(pages, nil))
+	if !strings.Contains(html, fmt.Sprintf("width:%dpx;height:%dpx", size.Width, size.Height)) {
+		t.Fatal("card is not laid out for its frame")
+	}
+	if !strings.Contains(html, `src="data:image/png;base64,`) || !strings.Contains(html, "&lt;i&gt;ClipHub&lt;/i&gt;") || !strings.Contains(html, ">SUBSCRIBE<") || strings.Contains(html, `class="pill"`) {
+		t.Fatal("card lacks the logo, the escaped name or the button")
+	}
+	nameOnly, err := SubscribeHTML(nil, SubscribeCard{ChannelName: "ClipHub"}, size)
 	if err != nil || len(nameOnly) == 0 || strings.Contains(string(nameOnly[0]), "<img") || !strings.Contains(string(nameOnly[0]), ">ClipHub<") {
 		t.Fatalf("a card without a logo: %v", err)
 	}
 	if err := os.WriteFile(logo, []byte("<svg/>"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := SubscribeHTML(nil, SubscribeCard{LogoPath: logo}, htmlstill.Portrait); err == nil {
+	if _, err := SubscribeHTML(nil, SubscribeCard{LogoPath: logo}, size); err == nil {
 		t.Fatal("a logo that is not a PNG or JPG was drawn")
 	}
 }
@@ -218,12 +217,12 @@ func TestHalftimeNeedsAProvenRegulationSwitch(t *testing.T) {
 }
 
 func TestSubscribeSpriteSwingsTheBellFromRest(t *testing.T) {
-	for _, size := range []htmlstill.Size{htmlstill.Landscape, htmlstill.Portrait} {
+	for _, size := range []htmlstill.Size{htmlstill.Landscape} {
 		pages, err := SubscribeHTML(nil, SubscribeCard{ChannelName: "ClipHub"}, size)
 		if err != nil {
 			t.Fatal(err)
 		}
-		sprite := SubscribeSpriteFor(size)
+		sprite := SubscribeSpriteFor()
 		rows := 0
 		for _, page := range pages {
 			count := strings.Count(string(page), `class="row"`)
@@ -247,7 +246,7 @@ func TestSubscribeSpriteSwingsTheBellFromRest(t *testing.T) {
 
 func TestSubscribeSpriteStacksThePagesCellByCell(t *testing.T) {
 	size := htmlstill.Portrait
-	sprite := SubscribeSpriteFor(size)
+	sprite := ShortSubscribeSpriteFor(size)
 	rows := sprite.rowsPerPage(size)
 	var pages []image.Image
 	for p := 0; p*rows <= sprite.Frames; p++ {

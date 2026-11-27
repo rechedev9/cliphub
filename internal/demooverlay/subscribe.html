@@ -11,19 +11,16 @@
 *{box-sizing:border-box}html,body{margin:0;width:{{.Width}}px;height:{{.Height}}px;overflow:hidden;background:transparent}body{font-family:Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 .row{position:relative;width:{{.Width}}px;height:{{.CellHeight}}px}
 .pill{position:absolute;right:44px;top:50%;transform:translateY(-50%);height:68px;display:flex;align-items:center;gap:14px;padding:0 30px 0 22px;border-radius:34px;font-size:24px;font-weight:700;letter-spacing:2px;text-transform:uppercase;white-space:nowrap}
-.portrait .pill{right:auto;left:50%;transform:translate(-50%,-50%);height:108px;gap:20px;padding:0 44px 0 34px;border-radius:54px;font-size:40px}
-.bell{width:32px;height:32px;flex-shrink:0;transform-origin:50% 12%}.portrait .pill .bell{width:48px;height:48px}
+.bell{width:32px;height:32px;flex-shrink:0;transform-origin:50% 12%}
 .card{position:absolute;display:flex;align-items:center;white-space:nowrap}
-.landscape .card{right:44px;top:50%;transform:translateY(-50%);height:96px;gap:18px;padding:0 16px 0 16px;border-radius:48px}
-.portrait .card{left:50%;top:50%;transform:translate(-50%,-50%);height:156px;gap:26px;padding:0 26px;border-radius:78px}
+.card{right:44px;top:50%;transform:translateY(-50%);height:96px;gap:18px;padding:0 16px 0 16px;border-radius:48px}
 .logo{border-radius:50%;object-fit:cover;flex-shrink:0;background:#000}
-.landscape .logo{width:64px;height:64px}.portrait .logo{width:108px;height:108px}
+.logo{width:64px;height:64px}
 .name{font-weight:700;color:var(--text,#f1eaf9);max-width:15em;overflow:hidden;text-overflow:ellipsis}
-.landscape .name{font-size:30px}.portrait .name{font-size:44px;max-width:10em}
+.name{font-size:30px}
 .yt{display:flex;align-items:center;font-weight:700;text-transform:uppercase;color:#fff;background:#ff0033;box-shadow:0 6px 18px #ff003366}
-.landscape .yt{height:64px;gap:10px;padding:0 26px 0 20px;border-radius:32px;font-size:24px;letter-spacing:1.5px}
-.portrait .yt{height:108px;gap:14px;padding:0 40px 0 30px;border-radius:54px;font-size:40px;letter-spacing:2px}
-.yt .bell{color:#fff}.portrait .yt .bell{width:48px;height:48px}
+.yt{height:64px;gap:10px;padding:0 26px 0 20px;border-radius:32px;font-size:24px;letter-spacing:1.5px}
+.yt .bell{color:#fff}
 {{if .Palette}}{{with .Palette}}:root{--ct:#{{.CT}};--t:#{{.T}};--bg:#{{.Background}};--text:#{{.Text}};--muted:#{{.Muted}}}{{end}}
 .pill{color:var(--text);background:color-mix(in srgb,var(--bg) 94%,transparent);box-shadow:inset 0 0 0 3px var(--ct),0 10px 28px #0009}.bell{color:var(--ct)}
 .card{background:color-mix(in srgb,var(--bg) 94%,transparent);box-shadow:inset 0 0 0 3px var(--ct),0 10px 28px #0009}
@@ -33,5 +30,5 @@
 {{end}}
 </style>
 </head>
-<body class="{{.Layout}}">{{range .Swings}}<div class="row">{{if $.Branded}}<div class="card">{{if $.Logo}}<img class="logo" src="{{$.Logo}}" alt=""/>{{end}}{{if $.ChannelName}}<span class="name">{{$.ChannelName}}</span>{{end}}<div class="yt"><svg class="bell" style="{{.}}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5a1.5 1.5 0 0 0-1.5 1.5v.6A6 6 0 0 0 6 10.5v4.2l-1.6 2.4a.9.9 0 0 0 .75 1.4h13.7a.9.9 0 0 0 .75-1.4L18 14.7v-4.2a6 6 0 0 0-4.5-5.9V4A1.5 1.5 0 0 0 12 2.5z"/><path d="M9.6 20a2.5 2.5 0 0 0 4.8 0z"/></svg><span>{{$.Label}}</span></div></div>{{else}}<div class="pill"><svg class="bell" style="{{.}}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5a1.5 1.5 0 0 0-1.5 1.5v.6A6 6 0 0 0 6 10.5v4.2l-1.6 2.4a.9.9 0 0 0 .75 1.4h13.7a.9.9 0 0 0 .75-1.4L18 14.7v-4.2a6 6 0 0 0-4.5-5.9V4A1.5 1.5 0 0 0 12 2.5z"/><path d="M9.6 20a2.5 2.5 0 0 0 4.8 0z"/></svg><span>{{$.Label}}</span></div>{{end}}</div>{{end}}</body>
+<body>{{range .Swings}}<div class="row">{{if $.Branded}}<div class="card">{{if $.Logo}}<img class="logo" src="{{$.Logo}}" alt=""/>{{end}}{{if $.ChannelName}}<span class="name">{{$.ChannelName}}</span>{{end}}<div class="yt"><svg class="bell" style="{{.}}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5a1.5 1.5 0 0 0-1.5 1.5v.6A6 6 0 0 0 6 10.5v4.2l-1.6 2.4a.9.9 0 0 0 .75 1.4h13.7a.9.9 0 0 0 .75-1.4L18 14.7v-4.2a6 6 0 0 0-4.5-5.9V4A1.5 1.5 0 0 0 12 2.5z"/><path d="M9.6 20a2.5 2.5 0 0 0 4.8 0z"/></svg><span>{{$.Label}}</span></div></div>{{else}}<div class="pill"><svg class="bell" style="{{.}}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5a1.5 1.5 0 0 0-1.5 1.5v.6A6 6 0 0 0 6 10.5v4.2l-1.6 2.4a.9.9 0 0 0 .75 1.4h13.7a.9.9 0 0 0 .75-1.4L18 14.7v-4.2a6 6 0 0 0-4.5-5.9V4A1.5 1.5 0 0 0 12 2.5z"/><path d="M9.6 20a2.5 2.5 0 0 0 4.8 0z"/></svg><span>{{$.Label}}</span></div>{{end}}</div>{{end}}</body>
 </html>
