@@ -22,10 +22,6 @@ catalog:
   tailwindcss: ^4.3.5
   typescript: ^7.0.2
 
-catalogs:
-  ts6:
-    typescript: ^6.0.3
-
 allowBuilds:
   electron: true
   electron-winstaller: true
