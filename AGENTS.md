@@ -70,9 +70,10 @@ it. [ClipMind and the VPS](.claude/rules/clipmind.md).
 - Fast local Go loop: `go test -short ./...` skips the slow FFmpeg renders and `TestNoDeadCode`.
   Pre-PR runs use the full suite. `internal/editor` alone nears the 10 min default on Windows, so
   pass `-timeout 30m` to a full run.
-- `web`, `desktop`, `landing`, `mcp-apps`: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`;
-  `run build` for `web` and `landing`. One test: `pnpm --dir <pkg> exec node --test <path>.test.ts`.
-  `tools/hltv-harvester` has `typecheck` and `test:unit` only.
+- `web`, `desktop`, `mcp-apps`: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build`
+  for `web`. One test: `pnpm --dir <pkg> exec node --test <path>.test.ts`. `landing` names its
+  tests `test` and runs all four with `run check`. `tools/hltv-harvester` has `typecheck` and
+  `test:unit` only.
 - A few Full Demo editor tests depend on the FFmpeg version; Studio ships FFmpeg 8.1.2.
   [Render and the editor](.claude/rules/render-editor.md).
 
@@ -117,6 +118,7 @@ Each rule names what enforces it. "Review only" means nothing fails when an agen
 - [Diff review](.claude/skills/diff-review/SKILL.md): review a branch, diff or PR. Read-only.
 - [Post-work review](.claude/skills/post-work-review/SKILL.md): review and fix the staged change before each commit, then record it for `.githooks/pre-commit`.
 - [Release check](.claude/skills/release-check/SKILL.md): full checks and a dry-run release workflow before a tag. It does not publish.
+- [Shorts thumbnail](.claude/skills/shorts-thumbnail/SKILL.md): pixel-art Shorts thumbnail with Aseprite. The owner's content skills still call it; the thumbnails PR of ADR 0003 replaces it.
 
 ### Docs
 

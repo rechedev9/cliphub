@@ -19,7 +19,9 @@ is not enough.
 
 Each newly observed pipeline error carries a filtered `message` (at most 2 KiB, keeping the start
 and the final cause) and the `job_id`; both are optional on the wire, so older Studio versions stay
-compatible. Updater failures use `component=electron`, `name=update.failed`, with the failed step
+compatible. The filter replaces known credentials, paths, URLs, emails, SteamIDs, IPv4 addresses
+and media filenames, in the desktop queue and again before storage; events keep the 30-day
+retention and the queue revocation of the diagnostic choice. Updater failures use `component=electron`, `name=update.failed`, with the failed step
 (`check`, `checksum`, `download`, `verify`, `apply`) as the class. Query an installation by its
 support code:
 
