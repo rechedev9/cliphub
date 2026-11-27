@@ -14,8 +14,8 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "electron": "^43.8.3",
-    "linkedom": "0.18.12",
+    "electron": "^45.5.0",
+    "linkedom": "0.18.15",
     "typescript": "catalog:"
   }
 }
