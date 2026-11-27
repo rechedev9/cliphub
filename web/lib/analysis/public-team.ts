@@ -7,23 +7,23 @@ const MAX_PUBLIC_BATCHES = 60;
 
 export type PublicSyncProgress = { name: string; held: number; total: number; imported: number; teamId: string | null };
 
-export function proTeamKey(name: string): string {
-  const key = name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-  return key.startsWith('team') && key.length >= 6 ? key.slice(4) : key;
+export function teamNameKey(name: string): string {
+  const key = name.trim().split(/\s+/).join(' ').toLowerCase();
+  return key.startsWith('team ') ? key.slice(5) : key;
 }
 
 function teamKeys(team: Pick<LibraryTeam, 'name' | 'aliases'>): string[] {
-  return [team.name, ...team.aliases].map(proTeamKey).filter((key) => key !== '');
+  return [team.name, ...team.aliases].map(teamNameKey).filter((key) => key !== '');
 }
 
 export function publicTeamFor(team: Pick<LibraryTeam, 'name' | 'aliases'>, teams: readonly ProTeamCount[]): ProTeamCount | null {
   const keys = new Set(teamKeys(team));
-  return teams.find((entry) => keys.has(proTeamKey(entry.name))) ?? null;
+  return teams.find((entry) => keys.has(teamNameKey(entry.name))) ?? null;
 }
 
 export function publicOnlyTeams(library: readonly Pick<LibraryTeam, 'name' | 'aliases' | 'match_count'>[], teams: readonly ProTeamCount[]): ProTeamCount[] {
   const held = new Set(library.filter((team) => team.match_count > 0).flatMap(teamKeys));
-  return teams.filter((entry) => !held.has(proTeamKey(entry.name))).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  return teams.filter((entry) => !held.has(teamNameKey(entry.name))).sort((a, b) => a.name.localeCompare(b.name, 'es'));
 }
 
 export type PublicSyncOptions = {

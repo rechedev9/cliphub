@@ -19,21 +19,29 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PatternsCanvas } from './patterns-canvas';
 
 /** The Buscador de patrones without a team: one sentence and the team select. */
+type OpeningState = 'loading' | 'offline' | 'unreadable';
+
+const OPENING_LINE: Record<OpeningState, (name: string) => string> = {
+  loading: (name) => `Trayendo las partidas públicas de ${name}…`,
+  offline: (name) => `No se pudieron traer las partidas públicas de ${name}. Comprueba la conexión y vuelve a elegirlo.`,
+  unreadable: (name) => `El servidor no tiene ningún mapa legible de ${name}. Prueba con otro equipo.`,
+};
+
 export function PatternsIndex(): ReactNode {
   const router = useRouter();
   const teams = useTeamList();
   const publicTeams = usePublicTeams();
   const offered = useMemo(() => publicOnlyTeams(teams ?? [], publicTeams ?? []), [teams, publicTeams]);
-  const [opening, setOpening] = useState<{ name: string; failed: boolean } | null>(null);
+  const [opening, setOpening] = useState<{ name: string; state: OpeningState } | null>(null);
   useDocumentTitle('Buscador de patrones · ClipHub');
   const openPublic = (team: ProTeamCount): void => {
-    setOpening({ name: team.name, failed: false });
+    setOpening({ name: team.name, state: 'loading' });
     syncPublicTeam({ hltvId: team.id, call: importProTeam, onBatch: (progress) => progress.teamId === null })
       .then((progress) => {
-        if (progress.teamId === null) setOpening({ name: team.name, failed: true });
+        if (progress.teamId === null) setOpening({ name: team.name, state: 'unreadable' });
         else router.push(patternsHref(progress.teamId));
       })
-      .catch(() => setOpening({ name: team.name, failed: true }));
+      .catch(() => setOpening({ name: team.name, state: 'offline' }));
   };
   return (
     <div className="mx-auto flex w-full max-w-[59.375rem] flex-col gap-4">
@@ -48,15 +56,15 @@ export function PatternsIndex(): ReactNode {
       </div>
       <TeamChoice
         sentence={`Elige el equipo del que quieres buscar granadas, posiciones de jugadores y patrones sobre el mapa. La búsqueda junta tus demos con todas sus partidas públicas de los últimos ${PUBLIC_TEAM_DAYS} días.`}
-        teams={teams}
+        teams={publicTeams === null ? null : teams}
         onPick={(teamId) => router.push(patternsHref(teamId))}
         publicTeams={offered}
         onPickPublic={openPublic}
-        disabled={opening !== null && !opening.failed}
+        disabled={opening?.state === 'loading'}
       />
       {opening === null ? null : (
         <p role="status" className="text-body-sm text-fg-2">
-          {opening.failed ? `No se pudieron traer las partidas públicas de ${opening.name}. Comprueba la conexión y vuelve a elegirlo.` : `Trayendo las partidas públicas de ${opening.name}…`}
+          {OPENING_LINE[opening.state](opening.name)}
         </p>
       )}
     </div>

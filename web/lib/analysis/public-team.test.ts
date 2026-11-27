@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ProTeamImport } from '../api/pro-matches.ts';
-import { proTeamKey, publicOnlyTeams, publicTeamFor, syncPublicTeam } from './public-team.ts';
+import { publicOnlyTeams, publicTeamFor, syncPublicTeam, teamNameKey } from './public-team.ts';
 
 const catalog = [
   { id: 9565, name: 'Vitality', matches: 12 },
@@ -10,17 +10,18 @@ const catalog = [
   { id: 4608, name: 'Natus Vincere', matches: 5 },
 ];
 
-test('a team key ignores case, spaces, symbols and a leading Team, as the community server does', () => {
-  assert.equal(proTeamKey('Team Vitality'), 'vitality');
-  assert.equal(proTeamKey('FaZe Clan'), 'fazeclan');
-  assert.equal(proTeamKey('Team'), 'team');
-  assert.equal(proTeamKey('Natus Vincere'), 'natusvincere');
+test('a team key ignores case, extra spaces and a leading "Team ", as the library does when it files an imported map', () => {
+  assert.equal(teamNameKey('Team Vitality'), 'vitality');
+  assert.equal(teamNameKey('  FaZe   Clan '), 'faze clan');
+  assert.equal(teamNameKey('Team'), 'team');
+  assert.equal(teamNameKey('TeamSpirit'), 'teamspirit');
 });
 
-test('a library team finds its HLTV team by its name or one of its aliases', () => {
+test('a library team finds its HLTV team only under a name the library would file the maps under', () => {
   assert.equal(publicTeamFor({ name: 'Team Vitality', aliases: [] }, catalog)?.id, 9565);
   assert.equal(publicTeamFor({ name: 'FaZe Clan', aliases: ['FaZe'] }, catalog)?.id, 6667);
   assert.equal(publicTeamFor({ name: 'NAVI', aliases: [] }, catalog), null);
+  assert.equal(publicTeamFor({ name: 'Natus-Vincere', aliases: [] }, catalog), null);
 });
 
 test('the picker adds the public teams the library has no match of, by name', () => {
