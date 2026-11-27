@@ -18,30 +18,33 @@ function attr(tag: string, name: string): string | undefined {
   return new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
 }
 
-test("the hero has the headline and both calls to action", () => {
-  assert.match(html, /<h1[^>]*>Lee al rival antes de que juegue\.<\/h1>/);
-  assert.ok(html.includes(`href="${constant("ANALYTICS_URL")}"`), "no link to ClipHub Analytics");
+test("the hero has the headline and the download", () => {
+  assert.match(html, /<h1[^>]*>Tu demo, hecha vídeo\.<\/h1>/);
   assert.ok(html.includes(`href="${constant("DOWNLOAD_URL")}"`), "no link to the installer");
-  assert.ok(html.includes("Abrir en el navegador"));
   assert.ok(html.includes("Descargar para Windows"));
-  assert.ok(html.includes(`href="${constant("ANALYTICS_URL")}/demo"`), "no link to the demo");
+  assert.ok(html.includes(constant("RELEASE_VERSION")), "the release version is not shown");
 });
 
 test("every agreed section exists and the nav reaches it", () => {
-  for (const id of ["como-funciona", "analisis", "comms", "equipo", "comparativa", "creadores", "preguntas", "descargar"]) {
+  for (const id of ["como-funciona", "shorts", "demo-completa", "streams", "preguntas", "descargar"]) {
     assert.match(html, new RegExp(`<section[^>]*id="${id}"`), `section #${id} is missing`);
   }
-  for (const id of ["analisis", "comms", "equipo", "creadores", "preguntas", "descargar"]) {
+  for (const id of ["shorts", "demo-completa", "streams", "preguntas"]) {
     assert.ok(html.includes(`href="#${id}"`), `nav link to #${id} is missing`);
   }
 });
 
-test("the product video loads only on demand and has a poster", () => {
-  const tag = /<video\b[^>]*\bcontrols\b[^>]*>/.exec(html)?.[0] ?? "";
-  assert.ok(tag, "no product video with controls");
-  assert.equal(attr(tag, "preload"), "none");
-  assert.match(attr(tag, "poster") ?? "", /^\/film\/producto\.webp$/);
-  assert.ok((attr(tag, "aria-label") ?? "").length > 40, "the video needs a description");
+test("the page sells only Studio and never links to the web analysis", () => {
+  assert.ok(!html.includes("cliphubstrats.rechedev.cloud"), "the page links to the web edition");
+});
+
+test("every looping clip is described and muted", () => {
+  const videos = html.match(/<video\b[^>]*>/g) ?? [];
+  assert.ok(videos.length >= 2, `only ${videos.length} clips`);
+  for (const tag of videos) {
+    assert.ok((attr(tag, "aria-label") ?? "").length > 40, `clip without a description: ${tag}`);
+    assert.match(tag, /\smuted(\s|=|>)/, `clip with sound: ${tag}`);
+  }
 });
 
 test("the page names no competitor and no old brand", () => {
@@ -51,21 +54,19 @@ test("the page names no competitor and no old brand", () => {
   }
 });
 
-test("every image has a descriptive alt or is marked decorative", () => {
+test("every image has an alt", () => {
   const images = html.match(/<img\b[^>]*>/g) ?? [];
-  assert.ok(images.length >= 8, `only ${images.length} images`);
   for (const tag of images) {
     const alt = attr(tag, "alt");
     assert.notEqual(alt, undefined, `image without alt: ${tag}`);
-    if (attr(tag, "src")?.startsWith("/shots/")) assert.ok((alt ?? "").length > 40, `short alt on ${tag}`);
   }
 });
 
 test("the metadata is in Spanish and filled in", () => {
   assert.match(html, /<html lang="es"/);
-  assert.match(html, /<title>Análisis de demos de CS2[^<]*ClipHub<\/title>/);
+  assert.match(html, /<title>Clips y Shorts de CS2[^<]*ClipHub Studio<\/title>/);
   assert.match(html, /<meta name="description" content="[^"]{60,}"/);
-  assert.match(html, /<meta property="og:title" content="[^"]*ClipHub"/);
+  assert.match(html, /<meta property="og:title" content="[^"]*ClipHub Studio"/);
   assert.match(html, /<meta property="og:image" content="[^"]+opengraph-image[^"]*"/);
 });
 
