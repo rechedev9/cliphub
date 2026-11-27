@@ -279,7 +279,9 @@ try {
     }
     Write-Host "[local-studio] starting web UI (Ctrl+C to stop everything)..."
     $nodeCommand = (Get-Command node.exe -ErrorAction Stop).Source
-    $nextCommand = (& $nodeCommand -p "require.resolve('next/dist/bin/next', { paths: [process.argv[1]] })" $webDir).Trim()
+    $nextCommand = & $nodeCommand -p "require.resolve('next/dist/bin/next', { paths: [process.argv[1]] })" $webDir
+    if ($LASTEXITCODE -ne 0 -or -not $nextCommand) { throw "cannot resolve next from $webDir - run pnpm install --frozen-lockfile at the repository root" }
+    $nextCommand = "$nextCommand".Trim()
     # Windows PowerShell 5 flattens ArgumentList into one command line, so an
     # entrypoint beneath a repository path containing spaces must retain quotes.
     $quotedNextCommand = '"' + $nextCommand + '"'

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,10 +23,18 @@ function installedMinimatches(modulesDirectory) {
   return found.filter(existsSync);
 }
 
+function workspacePackages() {
+  const manifest = readFileSync(join(repoRoot, 'pnpm-workspace.yaml'), 'utf8');
+  const block = manifest.split(/\r?\n(?=\S)/).find((section) => section.startsWith('packages:'));
+  assert.ok(block, 'pnpm-workspace.yaml lists no packages');
+  return [...block.matchAll(/^\s+-\s+["']?([^"'\s]+)["']?\s*$/gm)].map((match) => match[1]);
+}
+
 test('every installed minimatch can expand brace globs with its compatible dependency API', () => {
   const rootModules = join(repoRoot, 'node_modules');
   assert.equal(existsSync(rootModules), true, `workspace install missing: ${rootModules}`);
-  const installations = installedMinimatches(rootModules);
+  const installations = [rootModules, ...workspacePackages().map((pkg) => join(repoRoot, pkg, 'node_modules'))]
+    .flatMap(installedMinimatches);
   assert.ok(installations.length > 0, 'no minimatch installations found');
 
   for (const packageJSON of installations) {
