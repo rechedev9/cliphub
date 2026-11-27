@@ -69,12 +69,11 @@ Run `.\bin\zv.exe --help` for the other commands, or `zv workflows list` through
 
 ## Run from source
 
-Requirements: Go 1.26.10 (from `go.mod`), Node 24, pnpm 11.22.0, and Steam with CS2 for capture.
+Requirements: Go 1.26.10 (from `go.mod`), Node 26, the pnpm pinned in the root `package.json`, and Steam with CS2 for capture.
 
 ```powershell
 .\scripts\build.ps1                                   # Go binaries into bin\
-pnpm --dir web install --frozen-lockfile
-pnpm --dir desktop install --frozen-lockfile
+pnpm install --frozen-lockfile                       # one root workspace and lockfile
 pnpm --dir desktop run build
 pnpm --dir desktop run assemble                       # stages bin\, the web build and HLAE
 $env:CLIPHUB_E2E_USER_DATA = "C:\temp\cliphub-try\$(Get-Date -f yyyyMMdd-HHmmss)"
@@ -99,11 +98,10 @@ Repository layout:
 go vet ./...
 go test ./... -count=1 -timeout 30m
 go run ./cmd/zv check
-pnpm --dir web run typecheck && pnpm --dir web run lint && pnpm --dir web run test:unit
-pnpm --dir desktop run typecheck && pnpm --dir desktop run lint && pnpm --dir desktop run test:unit
+pnpm run check                                        # every package's typecheck, lint and test:unit, then zv check
 ```
 
-`make test` runs the Go tests and `zv check`; `make build` builds the binaries. A few Full Demo editor tests depend on the FFmpeg version, and Studio ships FFmpeg 8.1.2. There is no CI on pushes or pull requests; the release workflow runs the checks before it publishes, so run the checks for what you touched before you push. [AGENTS.md](AGENTS.md) describes how to verify a change by hand in the real app.
+`make check` runs `pnpm run check`; `make test` runs the Go tests and `zv check`; `make build` builds the binaries. A few Full Demo editor tests depend on the FFmpeg version, and Studio ships FFmpeg 8.1.2. There is no CI on pushes or pull requests; the release workflow runs the checks before it publishes, so run the checks for what you touched before you push. [AGENTS.md](AGENTS.md) describes how to verify a change by hand in the real app.
 
 ## Releases
 
@@ -113,14 +111,9 @@ Bump `desktop/package.json` and `landing/lib/site.ts`, commit `chore(release): p
 
 | File | Topic |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Layout, build, checks, manual verification and releases |
+| [AGENTS.md](AGENTS.md) | The index: products, layout, build, checks, golden rules, rules and skills |
 | [docs/incidents.md](docs/incidents.md) | Domain rules and the incidents behind them |
-| [docs/custom-hud.md](docs/custom-hud.md) | Custom broadcast HUDs |
-| [docs/full-demo-simple-ux.md](docs/full-demo-simple-ux.md) | The long-video form and its choices |
-| [docs/full-demo-overlays.md](docs/full-demo-overlays.md) | Roster and scoreboard overlays |
-| [docs/full-demo-transitions.md](docs/full-demo-transitions.md) | Round transitions |
-| [docs/full-demo-bumpers.md](docs/full-demo-bumpers.md) | Intro, sponsor and outro clips |
-| [docs/long-video-publish-templates.md](docs/long-video-publish-templates.md) | Preparing a long video for YouTube (Spanish) |
-| [docs/remote-error-diagnostics.md](docs/remote-error-diagnostics.md) | Remote error events |
-| [docs/remote-debug-tracing.md](docs/remote-debug-tracing.md) | Remote debugging and trace delivery |
-| [docs/experiments/webmcp-local.md](docs/experiments/webmcp-local.md) | Local WebMCP preview (Spanish) |
+| [docs/studio-mcp.md](docs/studio-mcp.md) | The Studio MCP server and its tools |
+| [docs/remote-debug-tracing.md](docs/remote-debug-tracing.md) | Remote error events, debugging and trace delivery |
+| [docs/adr/](docs/adr/) | Architecture decisions |
+| [docs/product-vision.md](docs/product-vision.md) | Product vision (Spanish) |

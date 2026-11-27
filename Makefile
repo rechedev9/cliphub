@@ -21,7 +21,7 @@ test:
 	go run ./cmd/zv check
 
 check:
-	go run ./cmd/zv check
+	pnpm run check
 
 workflows-check:
 	go run ./cmd/zv workflows check

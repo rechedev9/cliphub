@@ -12,7 +12,7 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 
 ## File structure
 
-This repo is single-context: one glossary and one ADR folder for Studio, ClipMind and the VPS services.
+This repo is single-context: one glossary and one ADR folder for Studio, ClipMind, the content product and the VPS services.
 
 ```
 /

@@ -1,0 +1,9 @@
+{
+  "statePath": "%LOCALAPPDATA%\\cliphub-content\\state.db",
+  "legacyMapsDir": "%USERPROFILE%\\Videos\\cliphub-youtube",
+  "legacyMetricsDir": "%USERPROFILE%\\path\\to\\Roles\\cliphub\\metrics",
+  "studioMcp": {
+    "command": "%APPDATA%\\cliphub-studio\\mcp\\zv-mcp.exe",
+    "args": []
+  }
+}

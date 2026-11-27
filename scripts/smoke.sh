@@ -164,6 +164,14 @@ process_belongs_to_launch() {
         }
         $launchNotBeforeTicks = [long]$env:FF_LAUNCH_NOT_BEFORE_TICKS
         $descendantStartedTicks = [long]0
+        $processesByID = @{}
+        try {
+          foreach ($snapshotProcess in @(Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId, CreationDate -ErrorAction Stop)) {
+            $processesByID[[int]$snapshotProcess.ProcessId] = $snapshotProcess
+          }
+        } catch {
+          exit 1
+        }
         for ($depth = 0; $depth -lt 128 -and $candidate -gt 0; $depth++) {
           if ($candidate -eq $root) {
             if ($descendantStartedTicks -eq 0) {
@@ -205,11 +213,7 @@ process_belongs_to_launch() {
             }
             exit 1
           }
-          try {
-            $process = Get-CimInstance Win32_Process -Filter ("ProcessId = {0}" -f $candidate) -ErrorAction Stop
-          } catch {
-            exit 1
-          }
+          $process = $processesByID[$candidate]
           if ($null -eq $process) {
             exit 1
           }

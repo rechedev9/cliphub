@@ -1,0 +1,34 @@
+{
+  "player": "MartinezSa",
+  "source": "event",
+  "hltv_match_id": 2400574,
+  "map": "nuke",
+  "match_url": "https://www.hltv.org/matches/2400574/heroic-vs-faze-pgl-major-singapore-2026-stage-1",
+  "match_time": "2026-11-26T07:00:00+01:00",
+  "map_number": 3,
+  "demo_path": "/download/demo/1",
+  "event": "PGL Major Singapore 2026",
+  "stage": "Stage 1 Swiss round 4 (1-2 pool, elimination)",
+  "date": "2026-11-26",
+  "hltv_player_id": 21239,
+  "rating": 1.59,
+  "team": "HEROIC",
+  "opponent": "FaZe",
+  "score": "13-3",
+  "result": "win",
+  "kills": 15,
+  "deaths": 6,
+  "adr": 84.2,
+  "plan_slot": "tiktok-only",
+  "pov": {
+    "skipped": "cadence"
+  },
+  "shorts": [],
+  "demo": "%USERPROFILE%\\cliphub-hltv\\demos\\2400574\\heroic-vs-faze-m3-nuke.dem",
+  "job_id": "00000000-0000-4000-8000-000000000002",
+  "steamid": "76561190000000001",
+  "skipped": {
+    "at": "2026-11-26T10:04:26.7088978+01:00",
+    "reason": "no play with score >= 0.6 (best 0.547)"
+  }
+}

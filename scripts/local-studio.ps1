@@ -23,8 +23,8 @@
 #
 # Prerequisites:
 #   - Build the binaries first:  .\scripts\build.ps1   (produces .\bin\zv.exe)
-#   - Node.js + pnpm 11.22.0. If node_modules is missing, the script installs
-#     exactly the dependency graph in pnpm-lock.yaml.
+#   - Node.js + the pnpm pinned in package.json. If node_modules is missing, the script installs
+#     exactly the dependency graph in the root pnpm-lock.yaml.
 #   - CS2 + an HLAE build compatible with the installed CS2: the Studio pin from
 #     desktop/src/hlae-tool.json (%APPDATA%\cliphub-studio\tools\hlae\<version>\HLAE.exe)
 #     or an official release under C:\HLAE-<version>\HLAE.exe. Capture needs them;
@@ -140,9 +140,9 @@ if (-not (Test-Path $binOrchestrator)) {
     throw "missing $binOrchestrator - build the binaries first with .\scripts\build.ps1"
 }
 
-if (-not (Test-Path (Join-Path $webDir "node_modules"))) {
+if (-not (Test-Path (Join-Path $repoRoot "node_modules"))) {
     Write-Host "[local-studio] installing web dependencies (first run)..."
-    Push-Location $webDir
+    Push-Location $repoRoot
     try { & pnpm install --frozen-lockfile; if ($LASTEXITCODE -ne 0) { throw "pnpm install failed" } }
     finally { Pop-Location }
 }
@@ -279,7 +279,7 @@ try {
     }
     Write-Host "[local-studio] starting web UI (Ctrl+C to stop everything)..."
     $nodeCommand = (Get-Command node.exe -ErrorAction Stop).Source
-    $nextCommand = Join-Path $webDir "node_modules\next\dist\bin\next"
+    $nextCommand = (& $nodeCommand -p "require.resolve('next/dist/bin/next', { paths: [process.argv[1]] })" $webDir).Trim()
     # Windows PowerShell 5 flattens ArgumentList into one command line, so an
     # entrypoint beneath a repository path containing spaces must retain quotes.
     $quotedNextCommand = '"' + $nextCommand + '"'

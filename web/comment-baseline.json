@@ -1060,7 +1060,7 @@
   "lib/voice-plugin-view.ts": 2,
   "lib/webmcp.ts": 3,
   "lib/window-activity.ts": 7,
-  "next.config.mjs": 17,
+  "next.config.mjs": 16,
   "proxy.ts": 14,
   "scripts/bench-hub-poll.mjs": 2,
   "scripts/bench-tactical-decode.mjs": 4,

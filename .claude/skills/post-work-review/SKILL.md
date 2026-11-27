@@ -27,7 +27,7 @@ Run the checks of each area the diff touches ([Build and check](../../../AGENTS.
 - Go: `go vet ./...`, `go test` of the touched packages, and `go test ./cmd/zv -run 'TestGoFileLength|TestNoDeadCode' -count=1` when a Go function is added or removed.
 - `web`, `desktop`, `landing`, `mcp-apps`: that package's `typecheck`, `lint` and `test:unit`.
 
-Fix what the change introduced and stage the fix. Report a failure outside the change instead of fixing it here.
+Fix what the change introduced and stage the fix. Fix a failure outside the change too, in its own commit, and name it in the reply; only a fix too big for the session moves to its own PR, opened right away (the user's rule, 2026-11-27: deferred failures boomerang).
 
 ## 4. Record the review
 
