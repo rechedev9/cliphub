@@ -24,6 +24,8 @@ import { PlayerFinder } from '@/components/patterns/player-finder';
 import { TeamDocuments } from '@/components/patterns/team-documents';
 import { TeamGrenades } from '@/components/patterns/team-grenades';
 import { ImportDemosButton } from '@/components/matches/import-demos-button';
+import { PublicSyncNote } from '@/components/patterns/public-sync-note';
+import type { PublicSyncState } from '@/hooks/use-public-team';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { CanvasPanel, type PanelTone } from './canvas-panel';
@@ -47,7 +49,17 @@ const DOCUMENT_QUERY = 'documento';
  * at the left, the map in the centre, the rounds and the saved tactics at the right and the replay with
  * its time window along the bottom. Each panel hosts one of the Replay's finders.
  */
-export function PatternsCanvas({ analysis, onTeam, onImported }: { analysis: TeamAnalysis; onTeam: (teamId: string) => void; onImported: () => void }): ReactNode {
+export function PatternsCanvas({
+  analysis,
+  onTeam,
+  onImported,
+  publicSync,
+}: {
+  analysis: TeamAnalysis;
+  onTeam: (teamId: string) => void;
+  onImported: () => void;
+  publicSync: { state: PublicSyncState; retry: () => void };
+}): ReactNode {
   const { team, matches, lineups } = analysis;
   const teams = useTeamList();
   const tactics = useTeamTactics(team.id);
@@ -218,7 +230,8 @@ export function PatternsCanvas({ analysis, onTeam, onImported }: { analysis: Tea
               ))}
             </div>
           )}
-          <div className="mt-auto pt-1">
+          <div className="mt-auto flex flex-col items-start gap-2 pt-1">
+            <PublicSyncNote state={publicSync.state} onRetry={publicSync.retry} />
             <ImportDemosButton onImported={onImported} />
           </div>
         </aside>

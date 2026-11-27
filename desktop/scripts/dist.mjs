@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { rmSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import {
   goRuntimeBuildEnvironment,
@@ -21,6 +22,9 @@ import { releasePaths, verifyReleaseChecksums, writeReleaseChecksums } from './r
 
 const here = dirname(fileURLToPath(import.meta.url));
 const desktop = join(here, '..');
+const requireFromHere = createRequire(import.meta.url);
+const electronBuilderCli = requireFromHere.resolve('electron-builder/cli.js');
+const electronVersion = requireFromHere('electron/package.json').version;
 const repo = join(desktop, '..');
 const canonicalRelease = releasePaths(desktop);
 const stagingDirectory = join(
@@ -46,10 +50,11 @@ try {
   recoverInterruptedPublication(canonicalRelease.directory);
   runDistributionBuildSteps({ repo, desktop, environment: goEnvironment });
   execFileSync(process.execPath, [
-    join(desktop, 'node_modules', 'electron-builder', 'cli.js'),
+    electronBuilderCli,
     '--win',
     'nsis',
     `--config.directories.output=${stagingDirectory}`,
+    `--config.electronVersion=${electronVersion}`,
   ], {
     cwd: desktop,
     env: sanitizedEnvironment,

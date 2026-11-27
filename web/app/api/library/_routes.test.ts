@@ -325,6 +325,8 @@ test('pro match routes take only HLTV ids and map entries', () => {
   assert.equal(matchLibraryRoute('POST', ['pro-matches', '2400001', '..%2Fdb', 'import']), undefined);
   assert.equal(matchLibraryRoute('DELETE', ['pro-follows', '9565'])?.response.kind, 'empty');
   assert.equal(matchLibraryRoute('DELETE', ['pro-follows', 'faze']), undefined);
+  assert.equal(matchLibraryRoute('POST', ['pro-teams', '9565', 'import'])?.response.kind, 'json');
+  assert.equal(matchLibraryRoute('POST', ['pro-teams', 'vitality', 'import']), undefined);
 });
 
 test('team voice imports 2 GiB plus the multipart framing, streams a numbered track, and a sync carries only the offset', () => {

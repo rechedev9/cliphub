@@ -57,6 +57,7 @@ overlays/**/out/
 *.swp
 
 # Local frontend toolchains
+/node_modules/
 /internal/httpapi/workbench_assets/node_modules/
 
 # Local one-box deploy data (scripts/run-local.sh)
@@ -86,3 +87,6 @@ logs/
 # The landing ships its own film loops.
 !landing/public/film/*.mp4
 !landing/public/film/*.webm
+
+# cliphub-content: per-PC config (paths, the zv-mcp command). config.example.json is the committed template.
+/content/config.local.json

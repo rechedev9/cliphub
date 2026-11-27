@@ -9,6 +9,11 @@ paths:
   - "internal/reconcile/**"
   - "internal/demooverlay/**"
   - "internal/captureretention/**"
+  - "internal/customhud/**"
+  - "internal/hudthemes/**"
+  - "internal/htmlstill/**"
+  - "internal/radaroverlay/**"
+  - "cmd/zv-recorder/**"
 ---
 
 # Render and the editor
@@ -49,3 +54,14 @@ A render attempt writes durable state only while it still owns that state. A tas
 `fullDemoCachedArtifacts` (`internal/workers/full_demo_cache.go`) reuses a finished render only when the approved plan matches, the video bytes match `Delivery.ContentSHA256`, and every document from `editor.FullDemoDocumentFiles` exists beside the video and deep-equals the expected one. Anything missing or altered is a miss. The contract is `TestFullDemoCacheRequiresCommittedBytesAndDocuments`.
 
 Which captures an edit reuses and which ones `captureretention` frees: `docs/incidents.md`, **Editing a finished video**.
+
+## Full Demo plans, HUD and overlays
+
+- An approved plan keeps its hash. A new optional plan field is omitted from the wire when absent (`omitempty`), so a document approved before it existed stays approvable. Decoding is strict (`decodeStrict` in `internal/recapplan/validation.go` refuses unknown fields), so a retired field needs an explicit drop there, as `dropRetiredSponsor` does, or older documents stop decoding. A missing, stale or blocked plan is never replaced with an older approval.
+- The capture hash leaves overlays out. A HUD theme, its composition, team names, transitions, bumpers and overlay timing change only the render and reuse the capture; a capture choice (the HUD capture profile, `capture.cliphub_radar`) moves the capture hash.
+- The custom HUD capture sets its CS2 cvars through HLAE, verifies their readback during the capture and restores the saved values after. A new cvar joins that same snapshot, readback and restore.
+- Adding a recorded field to the HUD telemetry (`internal/customhud`) moves the telemetry version; a fact derived at render time does not.
+- The selected player's SteamID sets both the capture and the HUD focus; roster order and other players' deaths never change it. A player portrait is never inferred from a name: without one, the slot shows the CT or T label.
+- An overlay never invents a value: a missing fact hides the element (alive counts, win probability, FACEIT statistics). A Short without radar data renders without the radar, while a Full Demo radar track that is missing or does not match its SHA-256 fails the render.
+- The intro and scoreboard pages render in Studio's own Chromium through `--cliphub-render-overlay` (`ZV_OVERLAY_RENDERER_PATH`); do not add a Python or second browser runtime. Own HUD themes stay on the PC, outside library sync, and a plan copies the theme whole.
+- That renderer draws only a 1920x1080 or 1080x1920 page, so a sprite sheet (the Full Demo SUBSCRIBE button, the Short's like and subscribe card) renders its cells across several such pages stacked into one PNG (`renderSpriteSheet` in `internal/demooverlay`). Each `editor.SpriteClip` holds its last cell until the card leaves, so the Short card stays liked and SUBSCRIBED; the first bell swing adds the generated marimba note unless the plan mutes every audio source. Tests: `internal/demooverlay/short_subscribe_test.go`, `TestLikeThenSubscribeHoldAndDingInTheCompilation` (`internal/editor`).

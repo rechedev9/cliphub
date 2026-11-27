@@ -72,6 +72,8 @@ export type ProMatchInfo = {
 
 export type ProMatchQuery = { days: number; team: string; event: string; map: string; page: number };
 
+export type ProTeamImport = { team_id?: string; name: string; days: number; total: number; held: number; imported: number; remaining: number };
+
 /** since is the local midnight proMatchSearch sends for Hoy. */
 export const PRO_MATCH_QUERY = ['days', 'since', 'team', 'event', 'map', 'page'] as const satisfies readonly (keyof ProMatchQuery | 'since')[];
 export const PRO_MATCHES_KEYS = [
@@ -79,6 +81,7 @@ export const PRO_MATCHES_KEYS = [
 ] as const satisfies readonly (keyof ProMatchesPage)[];
 export const PRO_IMPORT_KEYS = ['match_id', 'demo_id', 'created', 'studio_path', 'radar_may_be_off'] as const satisfies readonly (keyof ProImport)[];
 export const PRO_FOLLOW_KEYS = ['team_id', 'name', 'followed_at', 'synced_at'] as const satisfies readonly (keyof ProFollow)[];
+export const PRO_TEAM_IMPORT_KEYS = ['team_id', 'name', 'days', 'total', 'held', 'imported', 'remaining'] as const satisfies readonly (keyof ProTeamImport)[];
 export const PRO_MATCH_INFO_KEYS = [
   'hltv_match_id', 'entry', 'map', 'event', 'played_at', 'teams', 'analysis_version', 'radar_may_be_off', 'old_analysis', 'hltv_url',
 ] as const satisfies readonly (keyof ProMatchInfo)[];
@@ -151,6 +154,10 @@ export function refreshedProPage(current: ProMatchesPage | null, next: ProMatche
 
 export function importProMatch(matchId: number, entry: string): Promise<ProImport> {
   return request<ProImport>(`/pro-matches/${matchId}/${encodeURIComponent(entry)}/import`, jsonInit('POST'));
+}
+
+export function importProTeam(teamId: number): Promise<ProTeamImport> {
+  return request<ProTeamImport>(`/pro-teams/${teamId}/import`, jsonInit('POST'));
 }
 
 export function followProTeam(teamId: number, name: string): Promise<ProFollow> {

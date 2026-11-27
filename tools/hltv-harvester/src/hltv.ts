@@ -28,7 +28,7 @@ export type MatchPage = {
   veto: VetoLine[];
 };
 
-export type HarvestRecord = { at: string; status: "downloaded" | "skipped" | "no_demo"; reason?: string; file?: string };
+export type HarvestRecord = { at: string; status: "downloaded" | "skipped" | "no_demo" | "registered"; reason?: string; file?: string };
 
 export type HarvestState = { matches: Record<string, HarvestRecord> };
 
@@ -199,7 +199,7 @@ export function parseState(raw: unknown): HarvestState {
   for (const [id, rec] of Object.entries(raw.matches)) {
     if (!isRecord(rec)) continue;
     const status = rec.status;
-    if (status === "downloaded" || status === "skipped" || status === "no_demo") {
+    if (status === "downloaded" || status === "skipped" || status === "no_demo" || status === "registered") {
       state.matches[id] = { at: str(rec.at), status, reason: str(rec.reason) || undefined, file: str(rec.file) || undefined };
     }
   }
@@ -220,11 +220,13 @@ export type HarvestOptions = {
   /** A folder of sidecars whose format and veto are read from their match pages, without downloading a demo. */
   vetoBackfill: string;
   faceit: string;
+  match: number;
+  communityUrl: string;
   invalid: string;
 };
 
 export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
-  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false, faceit: "", invalid: "" };
+  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false, faceit: "", match: 0, communityUrl: "", invalid: "" };
   for (let i = 0; i < argv.length; i++) {
     // A following flag is never a value, so `--hours --ranked-only` keeps the flag.
     const raw = argv[i + 1] ?? "";
@@ -243,6 +245,8 @@ export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
       case "--ranked-only": opts.rankedOnly = true; break;
       case "--veto-backfill": if (next !== "") opts.vetoBackfill = next; i += skip; break;
       case "--faceit": opts.faceit = next; if (next === "") opts.invalid = "--faceit needs room ids, room links or a file"; i += skip; break;
+      case "--match": opts.match = positive(next, 0); if (opts.match === 0) opts.invalid = "--match needs an HLTV match id"; i += skip; break;
+      case "--community-url": if (next !== "") opts.communityUrl = next; i += skip; break;
     }
   }
   return opts;
