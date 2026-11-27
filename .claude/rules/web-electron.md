@@ -20,6 +20,10 @@ Do not loosen the guard or the cookie to make a test or the browser pane work. D
 
 `landing/` is a public site, separate from the installed app. Baseline Widely available features need no fallback. A newer feature needs feature detection and a fallback of at most 20 lines, with no new dependency.
 
+## WebMCP preview
+
+`web/lib/webmcp.ts` registers a few page tools only with `NEXT_PUBLIC_WEBMCP_PREVIEW=1`, on loopback, in a Chromium that exposes `document.modelContext`. It has no polyfill and offers no create, delete or render tool.
+
 ## React attributes
 
 Type a newly shipped HTML attribute by augmenting React's attribute types in a `.d.ts`. This replaces the `as any` spread that the `modern-web-guidance` skill suggests.

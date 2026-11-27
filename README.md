@@ -113,14 +113,9 @@ Bump `desktop/package.json` and `landing/lib/site.ts`, commit `chore(release): p
 
 | File | Topic |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Layout, build, checks, manual verification and releases |
+| [AGENTS.md](AGENTS.md) | The index: products, layout, build, checks, golden rules, rules and skills |
 | [docs/incidents.md](docs/incidents.md) | Domain rules and the incidents behind them |
-| [docs/custom-hud.md](docs/custom-hud.md) | Custom broadcast HUDs |
-| [docs/full-demo-simple-ux.md](docs/full-demo-simple-ux.md) | The long-video form and its choices |
-| [docs/full-demo-overlays.md](docs/full-demo-overlays.md) | Roster and scoreboard overlays |
-| [docs/full-demo-transitions.md](docs/full-demo-transitions.md) | Round transitions |
-| [docs/full-demo-bumpers.md](docs/full-demo-bumpers.md) | Intro, sponsor and outro clips |
-| [docs/long-video-publish-templates.md](docs/long-video-publish-templates.md) | Preparing a long video for YouTube (Spanish) |
-| [docs/remote-error-diagnostics.md](docs/remote-error-diagnostics.md) | Remote error events |
-| [docs/remote-debug-tracing.md](docs/remote-debug-tracing.md) | Remote debugging and trace delivery |
-| [docs/experiments/webmcp-local.md](docs/experiments/webmcp-local.md) | Local WebMCP preview (Spanish) |
+| [docs/studio-mcp.md](docs/studio-mcp.md) | The Studio MCP server and its tools |
+| [docs/remote-debug-tracing.md](docs/remote-debug-tracing.md) | Remote error events, debugging and trace delivery |
+| [docs/adr/](docs/adr/) | Architecture decisions |
+| [docs/product-vision.md](docs/product-vision.md) | Product vision (Spanish) |

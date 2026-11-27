@@ -1,28 +1,33 @@
 # Remote debugging and trace delivery
 
-The debugging contract is to reconstruct a failing Studio job from the collector,
-including the first subprocess failure, its surrounding technical output, the
-job and attempt that produced it, and any missing diagnostic data. A generic
-`exit status 1` is not sufficient evidence.
+Studio sends two kinds of diagnostics to the telemetry collector (`services/telemetry`, on the
+VPS) while Diagnósticos is on in Ajustes: schema-2 error events and the filtered log channel. The
+goal is to rebuild a failing job from the collector alone: the first subprocess failure, the
+output around it, its job and attempt, and what evidence is missing. A generic `exit status 1`
+is not enough.
 
-## Implementation requirements
+## Invariants
 
-- Preserve the existing error and performance event API for released clients.
-- Add durable, filtered Studio logs with acknowledged, idempotent delivery to
-  the collector. Persist before upload, resume after restart, and retain pending
-  data on network/server failure. Bounded storage must report gaps explicitly.
-- Record every task attempt's start, finish, outcome and duration without
-  sampling. Correlate subprocess output with the job and attempt. Do not log
-  command arguments, environment variables, media contents or task payloads.
-- Keep original local logs and existing diagnostic choices. Filter technical
-  text before it enters the upload spool and again at the collector.
-- Expose authenticated, paginated queries by job, installation and session,
-  and delivery health, so operators can distinguish a successful job, an
-  unfinished trace, a failed job and unavailable evidence.
-- Verify a real subprocess failure through the production desktop logging and
-  upload modules into a real collector, then reconstruct its cause using only
-  the remote query. Also cover recovery, consent, redaction, retention,
-  concurrency, rejection and backward compatibility.
+- Released clients keep working: the error and performance event API does not change shape.
+- Nothing logs command arguments, environment variables, media contents or task payloads.
+  Technical text is filtered before it enters the upload spool and again at the collector.
+- The local `studio.log` and the user's diagnostic choice stay as they are; upload never
+  replaces them.
+- Every task attempt records its start, finish, outcome and duration, without sampling.
+
+## Error events (schema 2)
+
+Each newly observed pipeline error carries a filtered `message` (at most 2 KiB, keeping the start
+and the final cause) and the `job_id`; both are optional on the wire, so older Studio versions stay
+compatible. Updater failures use `component=electron`, `name=update.failed`, with the failed step
+(`check`, `checksum`, `download`, `verify`, `apply`) as the class. Query an installation by its
+support code:
+
+```sh
+bash scripts/telemetry-query.sh incident CH-XXXX-XXXX-XXXX-XXXX-XXXX 50
+```
+
+Aggregate stats group by stable codes, never by message text.
 
 ## Delivery boundaries
 
@@ -108,9 +113,11 @@ compatible with the previous schema-2 binary. A collector rollback can restore
 the previous binary without restoring or deleting event rows. Preserve the
 separate log database: new clients will retain pending records while the old
 binary returns 404. Do not discard diagnostic evidence to make a rollback look
-healthy. Normal Studio release and installation procedures remain in AGENTS.md.
+healthy. A change on the VPS needs the owner's approval first
+([ClipMind and the VPS](../.claude/rules/clipmind.md)); the Studio release steps are in
+[Release](../.claude/rules/release.md).
 
-## Reproducible validation
+## Tests
 
 ```sh
 go test ./internal/telemetry ./services/telemetry ./internal/httpapi ./internal/obs ./internal/workers ./cmd/zv-orchestrator -count=1
@@ -128,17 +135,6 @@ pnpm --dir web run build
 The collector integration test builds and starts the real Go service, executes a
 failing worker subprocess, uses production ProcessSession and DiagnosticLogClient,
 loses a receipt after the real commit, restarts delivery, deletes `studio.log`,
-and reconstructs the cause solely from collector queries. It writes
-`.local/remote-debug-validation/collector-only-canary.json`. Separate actual
-FFmpeg tests prove causal stderr and exit codes in both buffered and progress
-paths without changing the original returned output.
-
-Validated on 2026-09-12 against Studio base 3.0.2 in an isolated checkout:
-the complete editor suite passed in 375.899 seconds after live FFmpeg tracing;
-all affected backend packages, desktop unit tests/typecheck/lint, real collector
-integration and Electron diagnostic UI flow passed. The collector Linux amd64
-artifact was additionally run on the actual VPS against a SQLite backup in an
-isolated temporary directory: all 100 legacy rows remained intact, three log
-records were committed, their exact retry inserted zero rows, and authenticated
-pagination and redaction passed. That validation did not replace or restart the
-production service. Runtime rollout remains a separate step from these results.
+and reconstructs the cause solely from collector queries. Separate FFmpeg tests
+prove causal stderr and exit codes in both buffered and progress paths without
+changing the original returned output.
