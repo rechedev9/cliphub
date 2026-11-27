@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getLibraryTeam } from '@/lib/api/library';
+import { getLibraryTeam, listLibraryMatches } from '@/lib/api/library';
 import { DEFAULT_PRO_QUERY, importProTeam, listProMatches, type ProCatalogStatus, type ProTeamCount } from '@/lib/api/pro-matches';
 import { PUBLIC_TEAM_DAYS, publicTeamFor, syncPublicTeam, type PublicSyncProgress } from '@/lib/analysis/public-team';
 import { hasDemoCookie } from '@/lib/clipmind/demo';
@@ -51,9 +51,9 @@ export function usePublicTeamSync(teamId: string, onImported: () => void): { sta
     let name = '';
     setState({ kind: 'idle' });
     if (hasDemoCookie(document.cookie)) return;
-    Promise.all([getLibraryTeam(teamId), readPublicTeams()])
-      .then(async ([team, catalog]) => {
-        if (!active) return;
+    Promise.all([getLibraryTeam(teamId), listLibraryMatches({ team_id: teamId }), readPublicTeams()])
+      .then(async ([team, matches, catalog]) => {
+        if (!active || !matches.some((match) => match.source === 'pro')) return;
         if (catalog.status === 'unavailable') {
           setState({ kind: 'failed', name: team.name });
           return;
