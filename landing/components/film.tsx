@@ -6,15 +6,21 @@ import type { Film } from "@/lib/content";
 interface FilmBackdropProps {
   film: Film;
   priority?: boolean;
+  position?: string;
+  startAt?: number;
 }
 
-/** A full-bleed muted loop that plays only while on screen; reduced motion keeps the still frame. */
-export default function FilmBackdrop({ film, priority = false }: FilmBackdropProps) {
+export default function FilmBackdrop({ film, priority = false, position = "50% 50%", startAt = 0 }: FilmBackdropProps) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const video = ref.current;
     if (!video || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const seek = () => {
+      if (startAt > 0 && video.currentTime < startAt) video.currentTime = startAt;
+    };
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) seek();
+    else video.addEventListener("loadedmetadata", seek, { once: true });
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) void video.play().catch(() => undefined);
@@ -23,13 +29,17 @@ export default function FilmBackdrop({ film, priority = false }: FilmBackdropPro
       { threshold: 0.15 },
     );
     observer.observe(video);
-    return () => observer.disconnect();
-  }, []);
+    return () => {
+      observer.disconnect();
+      video.removeEventListener("loadedmetadata", seek);
+    };
+  }, [startAt]);
 
   return (
     <video
       ref={ref}
       className="absolute inset-0 size-full object-cover"
+      style={{ objectPosition: position }}
       poster={`${film.src}.webp`}
       muted
       loop

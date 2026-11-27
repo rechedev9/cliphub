@@ -6,30 +6,29 @@ const saira = Saira({ variable: "--font-saira", subsets: ["latin"], weight: ["40
 const sairaCondensed = Saira_Condensed({
   variable: "--font-saira-condensed",
   subsets: ["latin"],
-  weight: ["500", "700", "800"],
+  weight: ["500", "700", "800", "900"],
   display: "swap",
 });
 const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500", "600"], display: "swap" });
 
-const TITLE = "Análisis de demos de CS2 gratis para equipos | ClipHub";
+const TITLE = "Clips y Shorts de CS2 desde tus demos | ClipHub Studio";
 const DESCRIPTION =
-  "Lee al rival antes de que juegue: replay 2D, scouting, bombsites, playbook, veto y comms de voz. Tus demos no salen de tu ordenador. Gratis, en el navegador o en Windows.";
+  "Studio graba tus jugadas dentro de CS2 y monta Shorts verticales, el partido entero con HUD de retransmisión y clips de tu stream. Empieza gratis en Windows, o deja que editemos por ti.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://cliphub.rechedev.cloud"),
   title: TITLE,
   description: DESCRIPTION,
-  applicationName: "ClipHub",
-  keywords: ["CS2", "Counter-Strike 2", "análisis de demos", "scouting", "anti-strat", "replay 2D", "comms", "coach", "IGL"],
+  applicationName: "ClipHub Studio",
+  keywords: ["CS2", "Counter-Strike 2", "clips", "Shorts", "highlights", "demo", "POV", "creadores", "stream"],
   openGraph: {
     type: "website",
     locale: "es_ES",
-    siteName: "ClipHub",
+    siteName: "ClipHub Studio",
     title: TITLE,
     description: DESCRIPTION,
     url: "/",
   },
-  // app/opengraph-image.tsx supplies the image and its alt for both.
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 

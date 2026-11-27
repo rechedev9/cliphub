@@ -5,12 +5,11 @@ import Wordmark from "@/components/wordmark";
 
 interface SiteHeaderProps {
   nav: readonly { href: string; label: string }[];
-  appUrl: string;
+  downloadUrl: string;
   ctaLabel: string;
 }
 
-/** Transparent over the hero, solid once the page scrolls. Below lg the sections sit in a menu; phones also get a bottom bar. */
-export default function SiteHeader({ nav, appUrl, ctaLabel }: SiteHeaderProps) {
+export default function SiteHeader({ nav, downloadUrl, ctaLabel }: SiteHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [pastHero, setPastHero] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -42,7 +41,7 @@ export default function SiteHeader({ nav, appUrl, ctaLabel }: SiteHeaderProps) {
         }`}
       >
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-6 px-5 sm:h-20 sm:px-10">
-          <a href="#" aria-label="ClipHub, inicio">
+          <a href="#" aria-label="ClipHub Studio, inicio">
             <Wordmark />
           </a>
           <nav aria-label="Secciones" className="hidden items-center gap-8 lg:flex">
@@ -50,18 +49,18 @@ export default function SiteHeader({ nav, appUrl, ctaLabel }: SiteHeaderProps) {
               <a
                 key={item.href}
                 href={item.href}
-                className="font-display text-sm font-bold uppercase tracking-[0.2em] text-fg/80 transition-colors hover:text-fg"
+                className="font-display text-sm font-bold uppercase tracking-[0.2em] text-fg/75 transition-colors hover:text-brand"
               >
                 {item.label}
               </a>
             ))}
           </nav>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <a
-              href={appUrl}
-              className="hidden font-display text-sm font-bold uppercase tracking-[0.2em] text-fg underline decoration-2 underline-offset-8 hover:decoration-brand sm:inline"
+              href={downloadUrl}
+              className="hud-cut hidden min-h-11 items-center bg-brand px-5 font-display text-sm font-extrabold uppercase tracking-[0.18em] text-bg transition-colors hover:bg-fg sm:inline-flex"
             >
-              Abrir ClipHub
+              Descargar
             </a>
             <button
               type="button"
@@ -86,15 +85,18 @@ export default function SiteHeader({ nav, appUrl, ctaLabel }: SiteHeaderProps) {
                 <a
                   href={item.href}
                   onClick={() => setMenuOpen(false)}
-                  className="flex min-h-12 items-center border-b border-line font-display text-base font-bold uppercase tracking-[0.2em] text-fg/80 hover:text-fg"
+                  className="flex min-h-12 items-center border-b border-line font-display text-base font-bold uppercase tracking-[0.2em] text-fg/80 hover:text-brand"
                 >
                   {item.label}
                 </a>
               </li>
             ))}
             <li className="sm:hidden">
-              <a href={appUrl} className="flex min-h-12 items-center font-display text-base font-bold uppercase tracking-[0.2em] text-fg">
-                Abrir ClipHub
+              <a
+                href={downloadUrl}
+                className="flex min-h-12 items-center font-display text-base font-bold uppercase tracking-[0.2em] text-brand"
+              >
+                Descargar
               </a>
             </li>
           </ul>
@@ -107,9 +109,9 @@ export default function SiteHeader({ nav, appUrl, ctaLabel }: SiteHeaderProps) {
         }`}
       >
         <a
-          href={appUrl}
+          href={downloadUrl}
           tabIndex={pastHero ? 0 : -1}
-          className="flex min-h-12 items-center justify-center border-2 border-fg bg-fg font-display text-sm font-bold uppercase tracking-[0.2em] text-bg"
+          className="hud-cut flex min-h-12 items-center justify-center bg-brand font-display text-sm font-extrabold uppercase tracking-[0.2em] text-bg"
         >
           {ctaLabel}
         </a>

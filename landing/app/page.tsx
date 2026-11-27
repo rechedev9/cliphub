@@ -1,30 +1,30 @@
-import { ChevronDown } from "lucide-react";
 import FilmBackdrop from "@/components/film";
-import ProductViewer from "@/components/product-viewer";
+import { PhoneFan, Ticker, Timeline } from "@/components/hud";
 import SiteHeader from "@/components/site-header";
 import Wordmark from "@/components/wordmark";
 import {
-  CAPABILITIES,
-  COMMS,
-  COMPARISON,
-  CREATOR_POINTS,
   FAQ,
-  FILMS,
+  FULL_DEMO,
   HERO,
   NAV,
-  PRODUCT_VIDEO,
+  PATHS,
+  PHONES,
+  PLANS,
+  POV_FILM,
   REQUIREMENTS,
+  SERVICE,
+  SHORT_FEATURES,
   STATS,
   STEPS,
-  TEAM_POINTS,
-  VIEWER_TABS,
+  STREAMS,
+  TICKER,
+  type Feature,
 } from "@/lib/content";
-import { ANALYTICS_URL, DEMO_URL, DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL } from "@/lib/site";
+import { DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL, SERVICE_CONTACT_URL } from "@/lib/site";
 
 const wrap = "mx-auto w-full max-w-7xl px-5 sm:px-10";
-const eyebrow = "font-display text-xs font-bold uppercase tracking-[0.3em] text-muted sm:text-sm";
-const giant = "font-display font-extrabold uppercase leading-[0.88] tracking-[-0.01em]";
-const h2 = `${giant} mt-4 text-5xl sm:text-7xl lg:text-8xl`;
+const giant = "font-display font-black uppercase italic leading-[0.86] tracking-[-0.01em]";
+const h2 = `${giant} hud-glitch text-5xl sm:text-7xl lg:text-8xl`;
 const lead = "mt-6 max-w-xl text-base leading-relaxed text-muted sm:text-lg";
 
 interface CtaProps {
@@ -35,24 +35,57 @@ interface CtaProps {
 
 function Cta({ href, label, solid = false }: CtaProps) {
   const look = solid
-    ? "border-fg bg-fg text-bg hover:bg-transparent hover:text-fg"
-    : "border-fg text-fg hover:bg-fg hover:text-bg";
+    ? "bg-brand text-bg hover:bg-fg"
+    : "border-2 border-fg/40 text-fg hover:border-brand hover:text-brand";
   return (
     <a
       href={href}
-      className={`inline-flex min-h-12 items-center justify-center border-2 px-7 font-display text-sm font-bold uppercase tracking-[0.2em] transition-colors duration-300 ${look}`}
+      className={`hud-cut inline-flex min-h-13 items-center justify-center px-8 font-display text-base font-extrabold uppercase tracking-[0.18em] transition-colors duration-200 ${look}`}
     >
       {label}
     </a>
   );
 }
 
-function Scrim() {
+interface PathCardProps {
+  href: string;
+  title: string;
+  text: string;
+  cta: string;
+  side: "ct" | "t";
+}
+
+function PathCard({ href, title, text, cta, side }: PathCardProps) {
+  const tone = side === "ct" ? "text-side-ct" : "text-side-t";
   return (
-    <div
-      aria-hidden="true"
-      className="absolute inset-0 bg-[linear-gradient(to_top,#000_0%,rgb(0_0_0/0.75)_35%,rgb(0_0_0/0.15)_75%,rgb(0_0_0/0.45)_100%),linear-gradient(to_right,rgb(0_0_0/0.7)_0%,transparent_65%)]"
-    />
+    <a
+      href={href}
+      className="hud-cut group relative flex flex-col bg-surface/90 p-5 backdrop-blur transition-colors hover:bg-line sm:p-6"
+    >
+      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1.5 ${side === "ct" ? "bg-side-ct" : "bg-side-t"}`} />
+      <span className={`${giant} text-[2.1rem] leading-none ${tone}`}>{title}</span>
+      <span className="mt-2 text-sm leading-relaxed text-muted">{text}</span>
+      <span className="mt-5 inline-flex items-center gap-2 font-display text-sm font-extrabold uppercase tracking-[0.18em] text-brand">
+        {cta}
+        <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">
+          →
+        </span>
+      </span>
+    </a>
+  );
+}
+
+function FeatureCards({ items }: { items: readonly Feature[] }) {
+  return (
+    <ol className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+      {items.map((f) => (
+        <li key={f.title} className="group relative bg-bg p-6 transition-colors hover:bg-surface sm:p-7">
+          <h3 className={`${giant} text-3xl`}>{f.title}</h3>
+          <p className="mt-3 text-sm leading-relaxed text-muted">{f.text}</p>
+          <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 origin-left scale-x-0 bg-brand transition-transform duration-300 group-hover:scale-x-100" />
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -60,10 +93,11 @@ const STRUCTURED_DATA = [
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: "ClipHub",
-    applicationCategory: "SportsApplication",
-    operatingSystem: "Web, Windows",
+    name: "ClipHub Studio",
+    applicationCategory: "MultimediaApplication",
+    operatingSystem: "Windows",
     description: HERO.lead,
+    downloadUrl: DOWNLOAD_URL,
     offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
   },
   {
@@ -88,56 +122,75 @@ export default function Home() {
         Saltar al contenido
       </a>
 
-      <SiteHeader nav={NAV} appUrl={ANALYTICS_URL} ctaLabel={HERO.primary} />
+      <SiteHeader nav={NAV} downloadUrl={DOWNLOAD_URL} ctaLabel={HERO.primary} />
 
       <main id="contenido" tabIndex={-1} className="outline-none">
-        <section aria-labelledby="hero-titulo" className="relative flex min-h-svh items-end overflow-hidden">
-          <FilmBackdrop film={FILMS.hero} priority />
-          <Scrim />
-          <div className={`${wrap} relative pb-20 pt-32 sm:pb-24`}>
-            <p className={eyebrow}>{HERO.kicker}</p>
-            <h1 id="hero-titulo" className={`${giant} mt-5 max-w-5xl text-[clamp(3.5rem,11vw,10rem)]`}>
-              {HERO.title}
-            </h1>
-            <p className={lead}>{HERO.lead}</p>
-            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-              <Cta href={ANALYTICS_URL} label={HERO.primary} solid />
-              <Cta href={DOWNLOAD_URL} label={HERO.secondary} />
+        <section aria-labelledby="hero-titulo" className="hud-grid relative overflow-hidden pb-16 pt-28 sm:pt-36 lg:pb-24">
+          <div aria-hidden="true" className="hud-scanlines pointer-events-none absolute inset-0" />
+          <div className={`${wrap} relative grid items-center gap-16 lg:grid-cols-[1.15fr_1fr]`}>
+            <div>
+              <div className="relative">
+                <span
+                  aria-hidden="true"
+                  className="absolute left-[38%] top-1/2 h-3 w-[75%] -translate-x-1/2 -translate-y-1/2 -rotate-[24deg] bg-brand shadow-[0_0_30px_var(--color-brand)] sm:h-5"
+                />
+                <h1
+                  id="hero-titulo"
+                  className={`${giant} hud-glitch relative max-w-3xl text-[clamp(3.6rem,13vw,9.5rem)]`}
+                >
+                  {HERO.title}
+                </h1>
+              </div>
+              <p className={lead}>{HERO.lead}</p>
+              <div className="mt-10 grid gap-3 sm:grid-cols-2">
+                <PathCard href={DOWNLOAD_URL} side="ct" {...PATHS.tool} />
+                <PathCard href={SERVICE_CONTACT_URL} side="t" {...PATHS.service} />
+              </div>
+              <p className="mt-4 font-mono text-xs uppercase tracking-wider text-faint">
+                {RELEASE_VERSION} · {INSTALLER_SIZE} · Windows 10 y 11
+              </p>
+              <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 font-display text-xs font-bold uppercase tracking-[0.2em] text-fg/70">
+                {HERO.assurances.map((a) => (
+                  <li key={a} className="flex items-center gap-2">
+                    <span aria-hidden="true" className="size-1.5 rotate-45 bg-brand" />
+                    {a}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 font-display text-xs font-bold uppercase tracking-[0.2em] text-fg/70">
-              {HERO.assurances.map((a) => (
-                <li key={a} className="flex items-center gap-2">
-                  <span aria-hidden="true" className="size-1.5 bg-brand" />
-                  {a}
-                </li>
-              ))}
-            </ul>
+            <div>
+              <PhoneFan film={POV_FILM} phones={PHONES} />
+              <Timeline />
+            </div>
           </div>
-          <ChevronDown aria-hidden="true" className="absolute bottom-6 left-1/2 size-6 -translate-x-1/2 text-fg/60" />
         </section>
 
-        <section aria-label="ClipHub en cifras" className="border-y border-line">
-          <ul className={`${wrap} grid divide-line py-14 sm:grid-cols-3 sm:divide-x`}>
+        <Ticker items={TICKER} />
+
+        <section aria-label="ClipHub Studio en cifras" className="py-14">
+          <ul className={`${wrap} grid gap-3 sm:grid-cols-2 lg:grid-cols-4`}>
             {STATS.map((s) => (
-              <li key={s.label} className="py-4 sm:px-10 sm:first:pl-0">
-                <span className={`${giant} block text-7xl sm:text-8xl`}>{s.value}</span>
-                <span className={`${eyebrow} mt-3 block`}>{s.label}</span>
+              <li key={s.label} className="hud-cut flex items-stretch bg-surface">
+                <span className={`w-2 shrink-0 ${s.side === "ct" ? "bg-side-ct" : "bg-side-t"}`} />
+                <span className="flex flex-col justify-center px-5 py-5">
+                  <span className={`${giant} text-5xl ${s.side === "ct" ? "text-side-ct" : "text-side-t"}`}>{s.value}</span>
+                  <span className="mt-2 font-display text-xs font-bold uppercase tracking-[0.16em] text-muted">{s.label}</span>
+                </span>
               </li>
             ))}
           </ul>
         </section>
 
-        <section id="como-funciona" aria-labelledby="como-titulo" className="py-24 sm:py-32">
+        <section id="como-funciona" aria-labelledby="como-titulo" className="border-t border-line py-24 sm:py-32">
           <div className={wrap}>
-            <p className={eyebrow}>Cómo funciona</p>
             <h2 id="como-titulo" className={`${h2} max-w-5xl`}>
-              De la demo al anti-strat en tres pasos.
+              De la demo al vídeo en tres pasos.
             </h2>
-            <ol className="mt-16 grid gap-12 md:grid-cols-3">
+            <ol className="mt-16 grid gap-10 md:grid-cols-3">
               {STEPS.map((step, i) => (
-                <li key={step.title}>
-                  <span className={`${giant} block text-8xl text-fg/15 sm:text-9xl`}>{i + 1}</span>
-                  <h3 className={`${giant} mt-2 text-3xl`}>{step.title}</h3>
+                <li key={step.title} className="relative border-l-2 border-brand pl-6">
+                  <span className={`${giant} block text-8xl text-fg/10 sm:text-9xl`}>{i + 1}</span>
+                  <h3 className={`${giant} -mt-6 text-3xl`}>{step.title}</h3>
                   <p className="mt-3 max-w-sm text-muted">{step.text}</p>
                 </li>
               ))}
@@ -145,187 +198,38 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="video" aria-labelledby="video-titulo" className="border-t border-line py-24 sm:py-32">
+        <section id="shorts" aria-labelledby="shorts-titulo" className="border-t border-line py-24 sm:py-32">
           <div className={wrap}>
-            <p className={eyebrow}>En un minuto</p>
-            <h2 id="video-titulo" className={`${h2} max-w-5xl`}>
-              {PRODUCT_VIDEO.title}
-            </h2>
-            <p className={lead}>{PRODUCT_VIDEO.lead}</p>
-            <video
-              controls
-              playsInline
-              preload="none"
-              poster={`${PRODUCT_VIDEO.src}.webp`}
-              aria-label={PRODUCT_VIDEO.label}
-              width={1920}
-              height={1080}
-              className="mt-14 block h-auto w-full border border-line bg-surface"
-            >
-              <source src={`${PRODUCT_VIDEO.src}.webm`} type="video/webm" />
-              <source src={`${PRODUCT_VIDEO.src}.mp4`} type="video/mp4" />
-            </video>
-          </div>
-        </section>
-
-        <section id="analisis" aria-labelledby="analisis-titulo" className="relative flex min-h-svh items-end overflow-hidden">
-          <FilmBackdrop film={FILMS.duels} />
-          <Scrim />
-          <div className={`${wrap} relative py-24`}>
-            <p className={eyebrow}>Preparar al rival</p>
-            <h2 id="analisis-titulo" className={`${h2} max-w-4xl`}>
-              Cada duelo. Cada ruta. Cada ronda.
+            <h2 id="shorts-titulo" className={`${h2} max-w-5xl`}>
+              Hecho para el scroll.
             </h2>
             <p className={lead}>
-              ClipHub lee la demo entera, no media partida, y te da los números con las rondas detrás. El anti-strat
-              sale de lo que pasó, no de una impresión.
+              Elige las jugadas o deja que Auto-Shorts saque hasta diez de una demo. Cada Short sale con todo lo que necesita
+              para que nadie lo pase de largo.
             </p>
-          </div>
-        </section>
-
-        <section aria-labelledby="pantallas-titulo" className="py-24 sm:py-32">
-          <div className={wrap}>
-            <p className={eyebrow}>El producto</p>
-            <h2 id="pantallas-titulo" className={h2}>
-              El rival, en números.
-            </h2>
             <div className="mt-14">
-              <ProductViewer tabs={VIEWER_TABS} />
-            </div>
-            <div className="mt-14 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
-              <Cta href={ANALYTICS_URL} label="Pruébalo con tus demos" solid />
-              <Cta href={DEMO_URL} label="Ver la demo sin cuenta" />
-              <span className="text-sm text-muted">Gratis. Sin tarjeta. Sin subir tus demos.</span>
+              <FeatureCards items={SHORT_FEATURES} />
             </div>
           </div>
         </section>
 
-        <section aria-labelledby="capacidades-titulo" className="border-t border-line py-24 sm:py-32">
-          <div className={wrap}>
-            <h2 id="capacidades-titulo" className="sr-only">
-              Qué puedes hacer
-            </h2>
-            <ol className="grid gap-x-12 gap-y-14 sm:grid-cols-2 lg:grid-cols-3">
-              {CAPABILITIES.map((c, i) => (
-                <li key={c.title} className="border-t-2 border-fg pt-6">
-                  <span className="font-mono text-sm text-faint">{String(i + 1).padStart(2, "0")}</span>
-                  <h3 className={`${giant} mt-3 text-4xl`}>{c.title}</h3>
-                  <p className="mt-3 text-muted">{c.text}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
-        <section id="comms" aria-labelledby="comms-titulo" className="border-t border-line bg-surface py-24 sm:py-32">
-          <div className={`${wrap} grid gap-16 lg:grid-cols-[1fr_1.1fr] lg:items-center`}>
-            <div>
-              <p className={eyebrow}>Comms de voz · Solo Windows</p>
-              <h2 id="comms-titulo" className={h2}>
-                {COMMS.title}
-              </h2>
-              <p className={lead}>{COMMS.lead}</p>
-            </div>
-            <figure>
-              <figcaption className="flex items-center justify-between border-b border-line pb-4 font-mono text-xs uppercase tracking-wider text-faint">
-                <span>Ronda 14 · Mirage · T</span>
-                <span>Ejemplo</span>
-              </figcaption>
-              <ol>
-                {COMMS.sample.map((line) => (
-                  <li
-                    key={line.clock}
-                    className="grid grid-cols-[4.5rem_1fr] gap-4 border-b border-line py-6 sm:grid-cols-[6rem_1fr]"
-                  >
-                    <span className={`${giant} text-3xl text-side-t sm:text-4xl`}>{line.clock}</span>
-                    <span>
-                      <span className="font-display text-xs font-bold uppercase tracking-[0.2em] text-faint">
-                        {line.speaker} · {line.phase}
-                      </span>
-                      <span className="mt-1 block text-lg leading-snug sm:text-xl">{line.text}</span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </figure>
-          </div>
-        </section>
-
-        <section id="equipo" aria-labelledby="equipo-titulo" className="relative flex min-h-svh items-end overflow-hidden">
-          <FilmBackdrop film={FILMS.team} />
-          <Scrim />
+        <section id="demo-completa" aria-labelledby="demo-titulo" className="relative flex min-h-svh items-end overflow-hidden">
+          <FilmBackdrop film={POV_FILM} />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-[linear-gradient(to_top,#000_0%,rgb(0_0_0/0.8)_40%,rgb(0_0_0/0.2)_80%,rgb(0_0_0/0.5)_100%)]"
+          />
+          <div aria-hidden="true" className="hud-scanlines absolute inset-0" />
           <div className={`${wrap} relative py-24`}>
-            <Wordmark analytics />
-            <h2 id="equipo-titulo" className={`${h2} max-w-5xl`}>
-              Todo el staff. Una biblioteca.
+            <h2 id="demo-titulo" className={`${h2} max-w-5xl`}>
+              {FULL_DEMO.title}
             </h2>
-            <p className={lead}>
-              ClipHub Analytics en el navegador y ClipHub Studio en Windows comparten la misma biblioteca. El coach
-              prepara desde el portátil y el analista sigue en el PC del bootcamp.
-            </p>
-            <ul className="mt-10 flex flex-col gap-3 sm:flex-row sm:gap-10">
-              {TEAM_POINTS.map((p) => (
-                <li key={p} className="font-display text-sm font-bold uppercase tracking-[0.18em] text-fg/90">
-                  {p}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        <section id="comparativa" aria-labelledby="comparativa-titulo" className="py-24 sm:py-32">
-          <div className={wrap}>
-            <p className={eyebrow}>Comparativa</p>
-            <h2 id="comparativa-titulo" className={`${h2} max-w-5xl`}>
-              Lo que otros cobran, aquí es gratis.
-            </h2>
-            <table className="mt-14 w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b-2 border-fg font-display text-xs font-bold uppercase tracking-[0.2em]">
-                  <th scope="col" className="py-4 pr-4">
-                    <span className="sr-only">Función</span>
-                  </th>
-                  <th scope="col" className="py-4 pr-4">
-                    {COMPARISON.ours}
-                  </th>
-                  <th scope="col" className="py-4 text-faint">
-                    {COMPARISON.theirs}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARISON.rows.map((row) => (
-                  <tr key={row.feature} className="border-b border-line">
-                    <th
-                      scope="row"
-                      className="py-5 pr-4 align-top font-display text-sm font-bold uppercase tracking-[0.12em] sm:text-base"
-                    >
-                      {row.feature}
-                    </th>
-                    <td className="py-5 pr-4 align-top text-sm sm:text-lg">{row.ours}</td>
-                    <td className="py-5 align-top text-sm text-faint sm:text-lg">{row.theirs}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section id="creadores" aria-labelledby="creadores-titulo" className="relative flex min-h-svh items-end overflow-hidden">
-          <FilmBackdrop film={FILMS.pro} />
-          <Scrim />
-          <div className={`${wrap} relative py-24`}>
-            <p className={eyebrow}>Para creadores · Solo Windows</p>
-            <h2 id="creadores-titulo" className={`${h2} max-w-5xl`}>
-              De la demo al vídeo.
-            </h2>
-            <p className={lead}>
-              ClipHub Studio añade las herramientas de clipping: graba las jugadas dentro de CS2 y monta el vídeo por ti.
-            </p>
-            <ul className="mt-12 grid gap-8 border-t border-fg/30 pt-8 sm:grid-cols-3">
-              {CREATOR_POINTS.map((p) => (
-                <li key={p.title}>
-                  <h3 className={`${giant} text-3xl`}>{p.title}</h3>
+            <p className={lead}>{FULL_DEMO.lead}</p>
+            <ul className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {FULL_DEMO.points.map((p, i) => (
+                <li key={p.title} className="hud-cut bg-bg/70 p-5 backdrop-blur">
+                  <span className={`block h-1 w-10 ${i % 2 === 0 ? "bg-side-ct" : "bg-side-t"}`} />
+                  <h3 className={`${giant} mt-4 text-2xl`}>{p.title}</h3>
                   <p className="mt-2 text-sm text-muted">{p.text}</p>
                 </li>
               ))}
@@ -333,20 +237,107 @@ export default function Home() {
           </div>
         </section>
 
+        <section id="streams" aria-labelledby="streams-titulo" className="border-t border-line bg-surface py-24 sm:py-32">
+          <div className={`${wrap} grid gap-14 lg:grid-cols-[1fr_1.1fr] lg:items-center`}>
+            <div>
+              <h2 id="streams-titulo" className={h2}>
+                {STREAMS.title}
+              </h2>
+              <p className={lead}>{STREAMS.lead}</p>
+              <p className="mt-6 flex flex-wrap gap-2 font-display text-xs font-bold uppercase tracking-[0.2em]">
+                {["Twitch", "Kick", "YouTube", ".mp4"].map((s) => (
+                  <span key={s} className="border border-line-strong px-3 py-1.5 text-fg/80">
+                    {s}
+                  </span>
+                ))}
+              </p>
+            </div>
+            <ol className="border-t-2 border-brand">
+              {STREAMS.points.map((p, i) => (
+                <li key={p.title} className="grid grid-cols-[3.5rem_1fr] gap-4 border-b border-line py-6">
+                  <span className={`${giant} text-4xl text-brand`}>{String(i + 1).padStart(2, "0")}</span>
+                  <span>
+                    <span className={`${giant} block text-2xl`}>{p.title}</span>
+                    <span className="mt-1 block text-muted">{p.text}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section id="servicio" aria-labelledby="servicio-titulo" className="relative border-t border-line py-24 sm:py-32">
+          <div className={`${wrap} grid gap-14 lg:grid-cols-[1fr_1.1fr] lg:items-start`}>
+            <div>
+              <h2 id="servicio-titulo" className={h2}>
+                {SERVICE.title}
+              </h2>
+              <p className={lead}>{SERVICE.lead}</p>
+              <div className="mt-10">
+                <Cta href={SERVICE_CONTACT_URL} label={PATHS.service.cta} solid />
+              </div>
+              <p className="mt-4 font-mono text-xs uppercase tracking-wider text-faint">{SERVICE.note}</p>
+            </div>
+            <ol className="grid gap-3">
+              {SERVICE.steps.map((step, i) => (
+                <li key={step.title} className="hud-cut flex items-stretch bg-surface">
+                  <span className="flex w-16 shrink-0 items-center justify-center bg-side-t font-display text-3xl font-black italic text-bg">
+                    {i + 1}
+                  </span>
+                  <span className="px-5 py-5">
+                    <span className={`${giant} block text-2xl`}>{step.title}</span>
+                    <span className="mt-1 block text-sm text-muted">{step.text}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section id="planes" aria-labelledby="planes-titulo" className="hud-grid border-t border-line py-24 sm:py-32">
+          <div className={wrap}>
+            <h2 id="planes-titulo" className={`${h2} max-w-5xl`}>
+              Tú editas o editamos nosotros.
+            </h2>
+            <ul className="mt-14 grid gap-4 md:grid-cols-2">
+              {PLANS.map((plan) => {
+                const ct = plan.id === "studio";
+                return (
+                  <li key={plan.id} className="hud-cut relative flex flex-col bg-surface p-7 sm:p-9">
+                    <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1.5 ${ct ? "bg-side-ct" : "bg-side-t"}`} />
+                    <h3 className={`${giant} text-5xl`}>{plan.name}</h3>
+                    <p className="mt-2 font-display text-xl font-bold uppercase tracking-[0.08em] text-brand">{plan.price}</p>
+                    <ul className="mt-6 flex-1 space-y-3 text-muted">
+                      {plan.points.map((point) => (
+                        <li key={point} className="flex items-start gap-3">
+                          <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rotate-45 bg-brand" />
+                          {point}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-8">
+                      <Cta href={ct ? DOWNLOAD_URL : SERVICE_CONTACT_URL} label={plan.cta} solid={ct} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </section>
+
         <section id="preguntas" aria-labelledby="preguntas-titulo" className="border-t border-line py-24 sm:py-32">
           <div className={`${wrap} grid gap-12 lg:grid-cols-[1fr_1.4fr]`}>
             <div>
-              <p className={eyebrow}>Preguntas</p>
               <h2 id="preguntas-titulo" className={h2}>
                 Antes de que preguntes.
               </h2>
             </div>
-            <div className="border-t-2 border-fg">
+            <div className="border-t-2 border-brand">
               {FAQ.map((item) => (
                 <details key={item.q} className="group border-b border-line">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-6 font-display text-lg font-bold uppercase tracking-[0.06em] sm:text-xl [&::-webkit-details-marker]:hidden">
+                  <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-6 py-6 font-display text-lg font-bold uppercase tracking-[0.06em] transition-colors hover:text-brand sm:text-xl [&::-webkit-details-marker]:hidden">
                     {item.q}
-                    <span aria-hidden="true" className="text-2xl font-normal transition-transform group-open:rotate-45">
+                    <span aria-hidden="true" className="text-2xl font-normal text-brand transition-transform group-open:rotate-45">
                       +
                     </span>
                   </summary>
@@ -357,34 +348,36 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="descargar" aria-labelledby="descargar-titulo" className="border-t border-line py-24 sm:py-32">
-          <div className={wrap}>
-            <p className={eyebrow}>Empieza ahora</p>
-            <h2 id="descargar-titulo" className={`${giant} mt-4 text-[clamp(3.5rem,12vw,11rem)]`}>
-              Gratis. Hoy.
+        <section id="descargar" aria-labelledby="descargar-titulo" className="hud-grid relative overflow-hidden border-t border-line py-24 sm:py-32">
+          <div className={`${wrap} relative`}>
+            <h2 id="descargar-titulo" className={`${giant} hud-glitch text-[clamp(3.6rem,13vw,11rem)]`}>
+              Dale a grabar.
             </h2>
             <div className="mt-12 flex flex-col gap-3 sm:flex-row">
-              <Cta href={ANALYTICS_URL} label={HERO.primary} solid />
-              <Cta href={DOWNLOAD_URL} label={HERO.secondary} />
+              <Cta href={DOWNLOAD_URL} label={HERO.primary} solid />
+              <Cta href={SERVICE_CONTACT_URL} label={PATHS.service.cta} />
             </div>
             <p className="mt-5 font-mono text-xs uppercase tracking-wider text-faint">
               {RELEASE_VERSION} · {INSTALLER_SIZE} · Windows 10 y 11
             </p>
             <div className="mt-20 grid gap-12 border-t border-line pt-10 md:grid-cols-2">
               <div>
-                <h3 className={eyebrow}>Qué necesitas para Studio</h3>
+                <h3 className={`${giant} text-3xl`}>Qué necesitas</h3>
                 <ul className="mt-5 space-y-2 text-muted">
                   {REQUIREMENTS.map((r) => (
-                    <li key={r}>{r}</li>
+                    <li key={r} className="flex items-center gap-3">
+                      <span aria-hidden="true" className="size-1.5 rotate-45 bg-brand" />
+                      {r}
+                    </li>
                   ))}
                 </ul>
               </div>
               <div>
-                <h3 className={eyebrow}>Si Windows avisa al instalar</h3>
+                <h3 className={`${giant} text-3xl`}>Si Windows avisa al instalar</h3>
                 <p className="mt-5 leading-relaxed text-muted">
                   El instalador aún no está firmado, así que Windows puede mostrar «Windows protegió su PC». Pulsa «Más
                   información» y luego «Ejecutar de todas formas». El código y el checksum de cada versión están en{" "}
-                  <a href={REPO_URL} className="text-fg underline underline-offset-4">
+                  <a href={REPO_URL} className="text-fg underline underline-offset-4 hover:text-brand">
                     GitHub
                   </a>
                   .
@@ -399,17 +392,18 @@ export default function Home() {
         <div
           className={`${wrap} flex flex-col gap-6 font-display text-xs font-bold uppercase tracking-[0.2em] text-faint sm:flex-row sm:items-center sm:justify-between`}
         >
-          <span>ClipHub © 2026</span>
+          <Wordmark />
           <span className="flex flex-wrap gap-8">
-            <a href={ANALYTICS_URL} className="transition-colors hover:text-fg">
-              ClipHub Analytics
+            <a href={DOWNLOAD_URL} className="transition-colors hover:text-brand">
+              Descargar para Windows
             </a>
-            <a href={DOWNLOAD_URL} className="transition-colors hover:text-fg">
-              Studio para Windows
+            <a href={SERVICE_CONTACT_URL} className="transition-colors hover:text-brand">
+              Servicio de edición
             </a>
-            <a href={REPO_URL} className="transition-colors hover:text-fg">
+            <a href={REPO_URL} className="transition-colors hover:text-brand">
               GitHub
             </a>
+            <span>© 2026</span>
           </span>
         </div>
       </footer>

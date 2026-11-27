@@ -11,6 +11,7 @@
   --color-brand: #22e07c;
   --color-side-ct: #3c86f0;
   --color-side-t: #f0a03a;
+  --color-rec: #ff3b3b;
 
   --font-display: var(--font-saira-condensed), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-saira), ui-sans-serif, system-ui, sans-serif;
@@ -29,13 +30,75 @@ body {
 }
 
 ::selection {
-  background: var(--color-fg);
+  background: var(--color-brand);
   color: var(--color-bg);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-fg);
+  outline: 2px solid var(--color-brand);
   outline-offset: 3px;
+}
+
+.hud-cut {
+  clip-path: polygon(0.75rem 0, 100% 0, 100% calc(100% - 0.75rem), calc(100% - 0.75rem) 100%, 0 100%, 0 0.75rem);
+}
+
+.hud-glitch {
+  text-shadow:
+    -0.04em 0 0 rgb(60 134 240 / 0.7),
+    0.04em 0 0 rgb(240 160 58 / 0.7);
+}
+
+.hud-scanlines {
+  background-image: repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.05) 0 1px, transparent 1px 4px);
+}
+
+.hud-grid {
+  background-image:
+    linear-gradient(rgb(34 224 124 / 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(34 224 124 / 0.07) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.hud-corners {
+  background:
+    linear-gradient(var(--color-brand) 0 0) top left / 14px 2px no-repeat,
+    linear-gradient(var(--color-brand) 0 0) top left / 2px 14px no-repeat,
+    linear-gradient(var(--color-brand) 0 0) bottom right / 14px 2px no-repeat,
+    linear-gradient(var(--color-brand) 0 0) bottom right / 2px 14px no-repeat;
+}
+
+@keyframes hud-ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.hud-ticker {
+  animation: hud-ticker 40s linear infinite;
+}
+
+@keyframes hud-blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+.hud-blink {
+  animation: hud-blink 1.2s steps(1) infinite;
+}
+
+@keyframes hud-playhead {
+  from {
+    left: 4%;
+  }
+  to {
+    left: 96%;
+  }
+}
+
+.hud-playhead {
+  animation: hud-playhead 8s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -46,5 +109,6 @@ body {
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
+    animation: none !important;
   }
 }

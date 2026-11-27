@@ -1,6 +1,6 @@
 # Spec: nueva landing de ClipHub
 
-Estado: ready-for-agent
+Estado: sustituida el 2026-11-27. La landing de `landing/` vende solo ClipHub Studio (clipping: Shorts, demo completa y clips de stream) con un diseño de HUD de retransmisión. ClipHub Analytics tendrá su propia landing más adelante.
 
 ## Problem Statement
 

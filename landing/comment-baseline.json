@@ -1,11 +1,4 @@
 {
-  "app/layout.tsx": 1,
-  "app/opengraph-image.tsx": 2,
-  "components/film.tsx": 1,
-  "components/product-viewer.tsx": 1,
-  "components/site-header.tsx": 1,
-  "components/wordmark.tsx": 1,
-  "lib/site.ts": 1,
   "next.config.mjs": 3,
   "test/page.test.ts": 2
 }
