@@ -306,7 +306,9 @@ pick_by or decider) and the HLTV veto when the server has one), import_pro_match
 demos joined after a server restart; returns the library match_id and studio_path, read only until its .dem is
 imported; old_analysis marks one older than the current scan; the maps of one HLTV match share a library series that
 carries its format, event and veto, so set_match_series is not needed; list_library_series marks it from_import,
-and later imports refresh it until someone edits it), follow_pro_team, unfollow_pro_team and
+and later imports refresh it until someone edits it), import_pro_team (every catalog map of one HLTV team over the
+catalog period, as the Buscador de patrones does when it opens the team, so the team tools search its public maps with
+the user's own demos; a map the user deleted stays out), follow_pro_team, unfollow_pro_team and
 list_pro_follows (a followed team's last five maps and its new ones are imported on their own).
 launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades,
 lineup_ids of Libreta lineups or pro_lineup_ids of pro lineups on one map.

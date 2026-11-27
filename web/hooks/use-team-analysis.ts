@@ -26,7 +26,7 @@ export function useTeamAnalysis(teamId: string): { state: TeamAnalysisState; rel
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
-    setState({ kind: 'loading' });
+    setState((current) => (current.kind === 'ready' && current.data.team.id === teamId ? current : { kind: 'loading' }));
     Promise.all([
       getLibraryTeam(teamId),
       listLibraryMatches({ team_id: teamId }),

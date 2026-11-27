@@ -99,3 +99,19 @@ func (c *Client) FollowProTeam(ctx context.Context, teamID int, name string) (li
 func (c *Client) UnfollowProTeam(ctx context.Context, teamID int) error {
 	return c.doJSON(ctx, http.MethodDelete, "/api/library/pro-follows/"+strconv.Itoa(teamID), nil, nil)
 }
+
+type ProTeamImport struct {
+	TeamID    *uuid.UUID `json:"team_id,omitempty"`
+	Name      string     `json:"name"`
+	Days      int        `json:"days"`
+	Total     int        `json:"total"`
+	Held      int        `json:"held"`
+	Imported  int        `json:"imported"`
+	Remaining int        `json:"remaining"`
+}
+
+func (c *Client) ImportProTeam(ctx context.Context, teamID int) (ProTeamImport, error) {
+	var out ProTeamImport
+	err := c.doJSON(ctx, http.MethodPost, "/api/library/pro-teams/"+strconv.Itoa(teamID)+"/import", nil, &out)
+	return out, err
+}
