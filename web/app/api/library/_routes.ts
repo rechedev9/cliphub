@@ -31,7 +31,7 @@ import { TEAM_GRENADES_KEYS, TEAM_GRENADES_QUERY } from '../../../lib/api/grenad
 import { LINEUP_FIELDS, LINEUP_KEYS, LINEUP_LIST_QUERY, LINEUP_PATCH_FIELDS } from '../../../lib/api/lineups.ts';
 import { PRO_LINEUP_MAP_KEYS, PRO_LINEUP_MAPS_KEYS } from '../../../lib/api/pro-lineups.ts';
 import { BOT_REPLAY_FIELDS, BOT_REPLAY_KEYS } from '../../../lib/api/bot-replay.ts';
-import { PRO_FOLLOW_KEYS, PRO_IMPORT_KEYS, PRO_MATCH_INFO_KEYS, PRO_MATCH_QUERY, PRO_MATCHES_KEYS } from '../../../lib/api/pro-matches.ts';
+import { PRO_FOLLOW_KEYS, PRO_IMPORT_KEYS, PRO_MATCH_INFO_KEYS, PRO_MATCH_QUERY, PRO_MATCHES_KEYS, PRO_TEAM_IMPORT_KEYS } from '../../../lib/api/pro-matches.ts';
 import { ROLE_SHEET_FIELDS, ROLE_SHEET_KEYS, TEAM_ROLES_KEYS } from '../../../lib/api/roles.ts';
 import { CALL_FIELDS, CALL_KEYS, CALL_LIST_QUERY } from '../../../lib/api/calls.ts';
 import {
@@ -370,6 +370,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['pro-follows'], response: json(['follows']) },
   { method: 'POST', segments: ['pro-follows'], body: fields(['team_id', 'name']), response: json(PRO_FOLLOW_KEYS) },
   { method: 'DELETE', segments: ['pro-follows', HLTV_ID], response: { kind: 'empty' } },
+  { method: 'POST', segments: ['pro-teams', HLTV_ID, 'import'], response: json(PRO_TEAM_IMPORT_KEYS) },
   { method: 'GET', segments: ['jobs'], response: json(['unlinked_job_ids']) },
   { method: 'POST', segments: ['jobs'], response: json(['demos']) },
   { method: 'GET', segments: ['jobs', UUID], response: json(LIBRARY_DEMO_KEYS) },
