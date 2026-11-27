@@ -13,6 +13,10 @@ function installedMinimatches(modulesDirectory) {
   for (const entry of readdirSync(modulesDirectory, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const entryPath = join(modulesDirectory, entry.name);
+    if (entry.name.startsWith('@')) {
+      found.push(...installedMinimatches(entryPath));
+      continue;
+    }
     if (entry.name === 'minimatch') found.push(join(entryPath, 'package.json'));
     found.push(...installedMinimatches(join(entryPath, 'node_modules')));
   }
