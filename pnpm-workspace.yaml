@@ -4,6 +4,7 @@ packages:
   - landing
   - mcp-apps
   - tools/hltv-harvester
+  - content
 
 # Next's standalone output is copied into the Studio installer and the ClipMind web image, which
 # need a plain tree of real files. A hoisted (flat) node_modules gives that, and
