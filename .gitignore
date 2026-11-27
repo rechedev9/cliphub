@@ -88,9 +88,5 @@ logs/
 !landing/public/film/*.mp4
 !landing/public/film/*.webm
 
-<<<<<<< HEAD
-# Content product machine config: accounts, device ids, local folders (docs/content/thumbnails.md)
-=======
 # cliphub-content: per-PC config (paths, the zv-mcp command). config.example.json is the committed template.
->>>>>>> origin/main
 /content/config.local.json
