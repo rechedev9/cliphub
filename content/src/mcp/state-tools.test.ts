@@ -87,6 +87,7 @@ test("record_map_event walks a Short to done and refuses steps out of order", as
   const published = await event({ type: "short_published", position: 1, youtubeId: "abc123", publishedAt: "2026-11-28T10:00:00+01:00" });
   assert.equal(at(published.body, "shorts.0.status.kind"), "published");
   assert.deepEqual(at(published.body, "shorts.0.status.needs"), ["thumbnail_check"]);
+  assert.equal((await event({ type: "short_related_linked", position: 1 })).isError, true);
   assert.equal((await event({ type: "short_published", position: 1, youtubeId: "other", publishedAt: "2026-11-28T11:00:00+01:00" })).isError, true);
   assert.equal((await event({ type: "short_youtube_skipped", position: 1, reason: "cadence" })).isError, true);
   assert.equal((await event({ type: "map_cleaned", at: "2026-11-28T10:00:00+01:00" })).isError, true);
@@ -124,6 +125,7 @@ test("the import refuses a state database inside a legacy folder and runs withou
   harness = await openHarness();
   assert.equal((await harness.call("import_legacy_state")).isError, true);
   await harness.close();
+  harness = null;
   const copy = mkdtempSync(path.join(tmpdir(), "cliphub-content-maps-"));
   try {
     cpSync(LEGACY_MAPS, copy, { recursive: true });
@@ -131,8 +133,8 @@ test("the import refuses a state database inside a legacy folder and runs withou
     const refused = await harness.call("import_legacy_state");
     assert.equal(refused.isError, true);
     assert.match(refused.text, /inside the legacy folder/);
-    await harness.close();
   } finally {
+    await harness?.close();
     harness = null;
     rmSync(copy, { recursive: true, force: true });
   }

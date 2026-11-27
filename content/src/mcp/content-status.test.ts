@@ -27,6 +27,7 @@ test("content_status says when the Studio MCP is missing or does not answer", as
   assert.equal(at(unset.body, "studio.configured"), false);
   assert.equal(at(unset.body, "studio.answers"), false);
   await harness.close();
+  harness = null;
 
   harness = await openHarness({ studioMcp: { command: path.join(path.dirname(FAKE_STUDIO), "missing-zv-mcp.exe") } });
   const broken = await harness.call("content_status");

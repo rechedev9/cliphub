@@ -6,6 +6,7 @@ export type Decoded<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const text = z.string().nullable().optional();
 const count = z.number().nullable().optional();
+const whole = z.int().nullable().optional();
 
 const legacyPov = z.object({
   video: text,
@@ -20,7 +21,7 @@ const legacyPov = z.object({
 const legacyShort = z.object({
   segment: text,
   segments: z.array(z.union([z.string(), z.number()])).optional(),
-  round: count,
+  round: whole,
   play: text,
   video: text,
   thumbnail: text,
@@ -34,10 +35,12 @@ const legacyShort = z.object({
   youtube_skipped: text,
 });
 
+const legacySkipped = z.object({ at: z.string(), reason: z.string() });
+
 const legacyMap = z.object({
   player: z.string().min(1),
   source: z.enum(["event", "faceit", "clip"]).optional(),
-  hltv_match_id: count,
+  hltv_match_id: whole,
   faceit_match_id: text,
   map: text,
   match_url: text,
@@ -49,18 +52,18 @@ const legacyMap = z.object({
   opponent: text,
   score: text,
   result: text,
-  kills: count,
-  deaths: count,
+  kills: whole,
+  deaths: whole,
   adr: count,
   rating: count,
   hs_pct: count,
-  elo: count,
+  elo: whole,
   steamid: text,
   demo: text,
   job_id: text,
   pov: z.record(z.string(), z.unknown()).optional(),
   shorts: z.array(z.record(z.string(), z.unknown())).optional(),
-  skipped: z.object({ at: z.string(), reason: z.string() }).optional(),
+  skipped: legacySkipped.optional(),
   cleaned_at: text,
 });
 
@@ -167,6 +170,11 @@ export function decodeLegacyMap(id: string, raw: unknown): Decoded<MapRecord> {
   }
   const legacy = rest(record, legacyMap.shape);
   if (Object.keys(pov.value.legacy).length > 0) legacy.pov = pov.value.legacy;
+  const rawSkipped = record.skipped;
+  if (typeof rawSkipped === "object" && rawSkipped !== null && !Array.isArray(rawSkipped)) {
+    const extra = rest({ ...rawSkipped }, legacySkipped.shape);
+    if (Object.keys(extra).length > 0) legacy.skipped = extra;
+  }
   return {
     ok: true,
     value: {

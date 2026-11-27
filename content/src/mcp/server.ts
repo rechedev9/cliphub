@@ -78,12 +78,14 @@ async function status(deps: ContentServerDeps): Promise<ToolResult> {
 
 function recordEvent(store: StateStore, request: { mapId: string; event: MapEvent }): ToolResult {
   const { mapId, event } = request;
-  const map = store.getMap(mapId);
-  if (map === null) return failure(`no map ${mapId} in the state`);
-  const result = applyMapEvent(map, event);
-  if (!result.ok) return failure(result.error);
-  store.saveMap(result.map);
-  return ok(summary(result.map));
+  return store.transaction({ commit: true }, () => {
+    const map = store.getMap(mapId);
+    if (map === null) return failure(`no map ${mapId} in the state`);
+    const result = applyMapEvent(map, event);
+    if (!result.ok) return failure(result.error);
+    store.saveMap(result.map);
+    return ok(summary(result.map));
+  });
 }
 
 export function createContentServer(deps: ContentServerDeps): McpServer {

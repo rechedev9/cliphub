@@ -165,6 +165,7 @@ function shortEvent(map: MapRecord, event: Extract<MapEvent, { position: number 
         if (status.kind !== "ready") return reject(`${label} is ${status.kind}, so it cannot be published`);
         return { ...short, youtubeId: event.youtubeId, publishedAt: event.publishedAt };
       case "short_related_linked":
+        if (short.related === "no-pov") return reject(`${label} has no POV to link to`);
         if (status.kind !== "published" && status.kind !== "verified") return reject(`${label} is ${status.kind}: link it after it is published`);
         return { ...short, related: "linked" };
       case "short_thumbnail_checked":
@@ -201,7 +202,8 @@ export function applyMapEvent(map: MapRecord, event: MapEvent): EventResult {
     case "pov_skipped": {
       const pov = povStatus(map.pov);
       if (pov.kind === "published") return reject(`the POV of ${map.id} is already published`);
-      return { ok: true, map: { ...map, pov: { ...map.pov, skipped: event.reason } } };
+      const shorts = map.shorts.map((s): ShortRecord => (s.related === "pending" ? { ...s, related: "no-pov" } : s));
+      return { ok: true, map: { ...map, pov: { ...map.pov, skipped: event.reason }, shorts } };
     }
     default:
       return shortEvent(map, event);

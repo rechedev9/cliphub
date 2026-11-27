@@ -23,6 +23,13 @@ async function run(argv: string[]): Promise<number> {
     process.stdout.write(`${USAGE}\n`);
     return tool === undefined ? 2 : 0;
   }
+  let args: Record<string, unknown>;
+  try {
+    args = parseArguments(raw);
+  } catch (error) {
+    process.stderr.write(`invalid arguments: ${error instanceof Error ? error.message : String(error)}\n${USAGE}\n`);
+    return 2;
+  }
   const config = loadConfig({ env: process.env });
   const store = openStateStore({ path: config.statePath });
   const server = createContentServer({ config, store, probeStudio: () => probeStudio({ config: config.studioMcp, timeoutMs: STUDIO_TIMEOUT_MS }) });
@@ -36,7 +43,7 @@ async function run(argv: string[]): Promise<number> {
       for (const t of tools) process.stdout.write(`${t.name}\t${t.description ?? ""}\n`);
       return 0;
     }
-    const result = await client.callTool({ name: tool, arguments: parseArguments(raw) });
+    const result = await client.callTool({ name: tool, arguments: args });
     for (const block of result.content) if (block.type === "text") process.stdout.write(`${block.text}\n`);
     return result.isError === true ? 1 : 0;
   } finally {

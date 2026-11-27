@@ -380,11 +380,15 @@ function upsertSql(target: Statement, key: string[]): string {
 
 function migrate(db: DatabaseSync, now: () => string): void {
   db.exec("CREATE TABLE IF NOT EXISTS migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT");
-  const applied = new Set(db.prepare("SELECT version FROM migrations").all().map((row) => Number(row.version)));
+  const isApplied = db.prepare("SELECT 1 FROM migrations WHERE version = ?");
   for (const migration of MIGRATIONS) {
-    if (applied.has(migration.version)) continue;
+    if (isApplied.get(migration.version) !== undefined) continue;
     db.exec("BEGIN IMMEDIATE");
     try {
+      if (isApplied.get(migration.version) !== undefined) {
+        db.exec("COMMIT");
+        continue;
+      }
       db.exec(migration.sql);
       db.prepare("INSERT INTO migrations (version, name, applied_at) VALUES (?, ?, ?)").run(migration.version, migration.name, now());
       db.exec("COMMIT");
@@ -399,7 +403,7 @@ export function openStateStore(options: { path: string; now?: () => string }): S
   const now = options.now ?? (() => new Date().toISOString());
   mkdirSync(path.dirname(options.path), { recursive: true });
   const db = new DatabaseSync(options.path);
-  db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000");
+  db.exec("PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL");
   migrate(db, now);
 
   const upsertMap = db.prepare(upsertSql({ table: "maps", columns: MAP_COLUMNS }, ["id"]));
