@@ -42,6 +42,7 @@ func (a *api) routes() http.Handler {
 	mux.HandleFunc("GET /v1/pro-players", a.handleProPlayers)
 	mux.HandleFunc("GET /v1/pro-clips/{match}/{file}", a.handleProClip)
 	mux.HandleFunc("GET /v1/pro-matches", a.handleProMatches)
+	mux.HandleFunc("GET /v1/pro-match-ids", a.handleRegisteredMatches)
 	mux.HandleFunc("GET /v1/pro-matches/{match}", a.handleProMatch)
 	mux.HandleFunc("GET /v1/pro-matches/{match}/{map}", a.handleProMatchFile)
 	mux.HandleFunc("GET /v1/rankings", a.handleRankings)

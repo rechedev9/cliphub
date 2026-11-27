@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:unit": "node --no-warnings --test --test-reporter=dot \"src/**/*.test.ts\"",
-    "start": "pnpm run build && electron ."
+    "start": "pnpm run build && electron .",
+    "ingest": "node --no-warnings src/ingest/cli.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

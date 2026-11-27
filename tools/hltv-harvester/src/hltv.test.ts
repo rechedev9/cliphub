@@ -35,14 +35,21 @@ test("candidate rows and ranked teams match by normalized name and by id", () =>
 });
 
 test("only matches never seen or still without a demo are visited again", () => {
-  const state = parseState({ matches: { "1": { status: "downloaded", at: "" }, "2": { status: "no_demo", at: "" }, "3": { status: "bogus" } } });
+  const state = parseState({ matches: { "1": { status: "downloaded", at: "" }, "2": { status: "no_demo", at: "" }, "3": { status: "bogus" }, "4": { status: "registered", at: "" } } });
   assert.equal(needsVisit(state, 1), false);
+  assert.equal(needsVisit(state, 4), false);
   assert.equal(needsVisit(state, 2), true);
   assert.equal(needsVisit(state, 3), true);
 });
 
 test("parseArgs ignores invalid numbers", () => {
-  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false, faceit: "", invalid: "" });
+  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false, faceit: "", match: 0, communityUrl: "", invalid: "" });
+});
+
+test("--match takes one HLTV match id and --community-url the registry", () => {
+  const o = parseArgs(["--match", "2400507", "--community-url", "http://127.0.0.1:9"], "out");
+  assert.deepEqual([o.match, o.communityUrl, o.invalid], [2400507, "http://127.0.0.1:9", ""]);
+  assert.notEqual(parseArgs(["--match", "x"], "out").invalid, "");
 });
 
 test("cutRanking keeps the whole ranking unless the run keeps ranked matches only", () => {
