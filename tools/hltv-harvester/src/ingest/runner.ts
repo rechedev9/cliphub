@@ -43,7 +43,13 @@ export function spawnRunner(echo: (line: string) => void): Runner {
         let stdout = "";
         child.stdout?.setEncoding("utf8").on("data", (d: string) => { stdout += d; });
         child.stderr?.setEncoding("utf8").on("data", (d: string) => { for (const l of d.split(/\r?\n/)) if (l !== "") echo(l); });
-        if (c.stdinFile !== undefined && child.stdin !== null) createReadStream(c.stdinFile).pipe(child.stdin);
+        if (c.stdinFile !== undefined && child.stdin !== null) {
+          child.stdin.on("error", (err) => echo(`${c.cmd} stdin: ${String(err)}`));
+          createReadStream(c.stdinFile).on("error", (err) => {
+            echo(`${c.stdinFile}: ${String(err)}`);
+            child.stdin?.destroy();
+          }).pipe(child.stdin);
+        }
         child.on("error", (err) => {
           echo(`${c.cmd}: ${String(err)}`);
           resolve({ code: 127, stdout });
