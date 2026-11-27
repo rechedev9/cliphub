@@ -12,15 +12,19 @@ nodeLinker: hoisted
 
 catalog:
   "@tailwindcss/postcss": ^4.3.2
-  "@types/node": ^22.10.0
+  "@types/node": ^26.6.11
   "@types/react": ^19.0.0
   "@types/react-dom": ^19.0.0
-  oxlint: ^1.91.0
-  oxlint-tsgolint: ^0.24.0
+  oxlint: ^1.95.0
+  oxlint-tsgolint: ^7.0.2009
   react: ^19.0.0
   react-dom: ^19.0.0
   tailwindcss: ^4.3.2
-  typescript: ^5.7.0
+  typescript: ^7.0.2
+
+catalogs:
+  ts6:
+    typescript: ^6.0.3
 
 allowBuilds:
   electron: true

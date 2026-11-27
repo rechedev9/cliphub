@@ -26,6 +26,6 @@
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
     "tailwindcss": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:ts6"
   }
 }
