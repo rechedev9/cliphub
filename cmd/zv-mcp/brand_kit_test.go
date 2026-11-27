@@ -57,3 +57,32 @@ func TestBrandChoicesOnShortsAndFullDemo(t *testing.T) {
 		t.Fatal("brand_watermark false kept the watermark")
 	}
 }
+
+func TestChannelNameAndSubscribeBanner(t *testing.T) {
+	name, empty := "  ClipHub RSN ", ""
+	kit, err := mergeBrandKit(brandkit.Default(), saveBrandKitIn{ChannelName: &name})
+	if err != nil || kit.ChannelName != "ClipHub RSN" {
+		t.Fatalf("merged = %+v %v; want the trimmed name", kit, err)
+	}
+	if kept, err := mergeBrandKit(kit, saveBrandKitIn{}); err != nil || kept.ChannelName != "ClipHub RSN" {
+		t.Fatalf("a left out name = %+v %v; want it kept", kept, err)
+	}
+	if cleared, err := mergeBrandKit(kit, saveBrandKitIn{ChannelName: &empty}); err != nil || cleared.ChannelName != "" {
+		t.Fatalf("an empty name = %+v %v; want it removed", cleared, err)
+	}
+	long := strings.Repeat("x", brandkit.MaxChannelNameRunes+1)
+	if _, err := mergeBrandKit(kit, saveBrandKitIn{ChannelName: &long}); err == nil {
+		t.Fatal("accepted a channel name too long for the banner")
+	}
+	if out := describeBrandKit(tuiclient.BrandKit{Kit: kit}); out.ChannelName != "ClipHub RSN" || !strings.Contains(out.Summary, "ClipHub RSN") {
+		t.Fatalf("describe = %+v", out)
+	}
+	on := true
+	edit, err := resolveEdit(shortChoices{SubscribeBanner: &on})
+	if err != nil || !edit.SubscribeBanner || !strings.Contains(describeShortRequest(tuiclient.GenerateRequest{Edit: edit}), "subscribe_banner") {
+		t.Fatalf("resolveEdit = %+v, %v; want the subscribe banner on and in the summary", edit, err)
+	}
+	if plain, _ := resolveEdit(shortChoices{}); plain.SubscribeBanner {
+		t.Fatal("the subscribe banner is on by default")
+	}
+}

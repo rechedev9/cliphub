@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { brandBannerOf, brandKitProblem, brandWatermarkOf, exclusiveBanner, isBrandOverlay, parseBrandKit, type BrandKit } from './brand-kit.ts';
+import { brandBannerOf, brandKitProblem, brandSubscribeOf, brandWatermarkOf, exclusiveBanner, isBrandOverlay, parseBrandKit, type BrandKit } from './brand-kit.ts';
 import { buildEditRequest } from './api/edit-request.ts';
 import { parseEffectiveEditConfig } from './api/render-hydration.ts';
 import { coerceEditConfig } from './api/reel-store.ts';
-import { currentFullDemoOptions, isFullDemoOptions, isFullDemoSnapshot } from './full-demo-plan.ts';
+import { currentFullDemoOptions, isFullDemoOptions, isFullDemoSnapshot, withFullDemoStoryOverlay } from './full-demo-plan.ts';
 import { FULL_DEMO_EDIT } from './full-demo.ts';
 import type { EditConfig } from './api/types.ts';
 
@@ -73,4 +73,43 @@ test('a Full Demo plan keeps its brand copy and drops an empty one, as Go omits 
   assert.deepEqual(currentFullDemoOptions(branded).overlays.brand, brand);
   assert.equal('brand' in currentFullDemoOptions({ ...options, overlays: { ...options.overlays, brand: {} } }).overlays, false);
   assert.equal(isFullDemoOptions({ ...options, overlays: { ...options.overlays, brand: { watermark: { ...brand.watermark, opacity: 0 } } } }), false);
+});
+
+test('the channel name is kept, checked and read back from the server', () => {
+  assert.equal(parseBrandKit({ ...KIT, channel_name: 'ClipHub RSN' })?.channel_name, 'ClipHub RSN');
+  assert.equal(parseBrandKit({ ...KIT, channel_name: ' ClipHub' }), undefined);
+  assert.equal(brandKitProblem({ ...KIT, channel_name: 'x'.repeat(31) })?.includes('30'), true);
+  assert.equal(brandKitProblem({ ...KIT, channel_name: 'ClipHub RSN' }), null);
+  assert.deepEqual(brandSubscribeOf({ ...KIT, channel_name: 'ClipHub RSN' }), { logo: IMAGE, channel_name: 'ClipHub RSN' });
+  assert.equal(brandSubscribeOf({ watermark_corner: 'top-right', watermark_opacity: 1, banner_start_seconds: 0 }), undefined);
+});
+
+test('the subscribe banner travels for a Short and comes back from the effective edit', () => {
+  const body = buildEditRequest(edit({ subscribeBanner: true }));
+  assert.equal(body.subscribe_banner, true);
+  assert.equal('subscribe_banner' in buildEditRequest(edit()), false);
+  assert.equal('subscribe_banner' in buildEditRequest(edit({ subscribeBanner: true, matchRecap: true })), false);
+  assert.equal('subscribe_banner' in buildEditRequest({ ...FULL_DEMO_EDIT, subscribeBanner: true }), false);
+  for (const copy of [{}, { channel_name: 'ClipHub RSN' }, { logo: IMAGE, channel_name: 'ClipHub RSN' }]) {
+    assert.equal(parseEffectiveEditConfig({ ...body, subscribe_banner: copy })?.subscribeBanner, true);
+  }
+  assert.equal(parseEffectiveEditConfig({ ...body, subscribe_banner: { logo: {} } })?.subscribeBanner, undefined);
+  assert.equal(coerceEditConfig({ ...edit(), subscribeBanner: true }).subscribeBanner, true);
+});
+
+test('the Full Demo subscribe button carries the kit card only while it is on', () => {
+  const raw: unknown = JSON.parse(readFileSync(new URL('./full-demo-plan.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoSnapshot(raw));
+  const options = currentFullDemoOptions(raw.document.options);
+  const card = brandSubscribeOf({ ...KIT, channel_name: 'ClipHub RSN' });
+  const on = withFullDemoStoryOverlay(options, 'subscribe', true, card);
+  assert.deepEqual(on.overlays.brand?.subscribe, card);
+  assert.equal(isFullDemoOptions(on), true);
+  assert.deepEqual(currentFullDemoOptions(on).overlays.brand, { subscribe: card });
+  assert.deepEqual(withFullDemoStoryOverlay(on, 'halftime', true).overlays.brand, { subscribe: card });
+  const off = withFullDemoStoryOverlay(on, 'subscribe', false);
+  assert.equal('brand' in off.overlays, false);
+  assert.equal('brand' in currentFullDemoOptions({ ...off, overlays: { ...off.overlays, brand: { subscribe: card } } }).overlays, false);
+  assert.equal('brand' in withFullDemoStoryOverlay(options, 'subscribe', true).overlays, false);
+  assert.equal(isBrandOverlay({ subscribe: {} }), false);
 });

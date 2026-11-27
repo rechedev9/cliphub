@@ -43,6 +43,7 @@ export type EditRequestBody = {
   cover_card?: string;
   brand_watermark?: boolean;
   brand_banner?: boolean;
+  subscribe_banner?: boolean;
   cover_strategy: EditConfig['coverStrategy'];
   intro_text?: string;
   outro_text?: string;
@@ -93,6 +94,7 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     }
     if (edit.brandWatermark) body.brand_watermark = true;
     if (edit.brandBanner && !edit.keyDropStyle?.trim()) body.brand_banner = true;
+    if (edit.subscribeBanner) body.subscribe_banner = true;
   }
   const portraitShort = edit.format === 'short-9x16' && !edit.fullDemo && !edit.deathReel;
   const verticalHud = portraitShort && !!edit.verticalHud && !edit.matchRecap && !edit.nativeHud;

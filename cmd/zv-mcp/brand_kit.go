@@ -31,6 +31,7 @@ type brandKitOut struct {
 	HasBanner          bool     `json:"has_banner" jsonschema:"a sponsor banner is saved, so brand_banner can be used"`
 	BannerStartSeconds float64  `json:"banner_start_seconds"`
 	BannerEndSeconds   float64  `json:"banner_end_seconds,omitempty" jsonschema:"0 or absent keeps the banner to the end of the video"`
+	ChannelName        string   `json:"channel_name,omitempty" jsonschema:"channel name the SUBSCRIBE banner shows beside the logo"`
 	Corners            []string `json:"corners" jsonschema:"values for watermark_corner"`
 	Summary            string   `json:"summary"`
 }
@@ -42,11 +43,12 @@ type saveBrandKitIn struct {
 	Banner             string   `json:"banner,omitempty" jsonschema:"absolute path of a PNG or JPG up to 10 MB with the sponsor banner, or none to remove it; left out keeps the saved one"`
 	BannerStartSeconds *float64 `json:"banner_start_seconds,omitempty" jsonschema:"second of the video when the banner appears; left out keeps the saved one"`
 	BannerEndSeconds   *float64 `json:"banner_end_seconds,omitempty" jsonschema:"second of the video when the banner leaves; 0 keeps it to the end; left out keeps the saved one"`
+	ChannelName        *string  `json:"channel_name,omitempty" jsonschema:"YouTube channel name, up to 30 characters, shown with the logo on the SUBSCRIBE banner (generate_short subscribe_banner, plan_full_demo subscribe_button); empty removes it; left out keeps the saved one"`
 }
 
 func describeBrandKit(kit tuiclient.BrandKit) brandKitOut {
 	out := brandKitOut{HasLogo: kit.Logo != nil, WatermarkCorner: kit.WatermarkCorner, WatermarkOpacity: int(math.Round(kit.WatermarkOpacity * 100)),
-		HasBanner: kit.Banner != nil, BannerStartSeconds: kit.BannerStartSeconds, BannerEndSeconds: kit.BannerEndSeconds, Corners: kit.Corners}
+		HasBanner: kit.Banner != nil, BannerStartSeconds: kit.BannerStartSeconds, BannerEndSeconds: kit.BannerEndSeconds, ChannelName: kit.ChannelName, Corners: kit.Corners}
 	parts := []string{"Kit de marca: sin logo", "sin banner de sponsor"}
 	if out.HasLogo {
 		parts[0] = fmt.Sprintf("Kit de marca: logo como marca de agua en la esquina %s al %d %%", out.WatermarkCorner, out.WatermarkOpacity)
@@ -58,14 +60,18 @@ func describeBrandKit(kit tuiclient.BrandKit) brandKitOut {
 		}
 		parts[1] = "banner de sponsor " + window
 	}
+	if out.ChannelName != "" {
+		parts = append(parts, fmt.Sprintf("canal %q en el banner de Subscribe", out.ChannelName))
+	}
 	out.Summary = strings.Join(parts, ", ") + "."
 	return out
 }
 
 func registerBrandKitTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "get_brand_kit", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-		Description: "Read the creator's saved brand kit: the channel logo drawn as a watermark (corner and opacity) and the own sponsor banner (time window). " +
-			"generate_short and plan_full_demo apply it with brand_watermark and brand_banner; each render copies the kit, so later edits do not change it."},
+		Description: "Read the creator's saved brand kit: the channel logo drawn as a watermark (corner and opacity), the own sponsor banner (time window) and the channel name. " +
+			"generate_short and plan_full_demo apply it with brand_watermark and brand_banner; the logo and channel name also brand generate_short subscribe_banner and plan_full_demo subscribe_button. " +
+			"Each render copies the kit, so later edits do not change it."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, brandKitOut, error) {
 			c, err := s.client(ctx)
 			if err != nil {
@@ -141,6 +147,9 @@ func mergeBrandKit(kit brandkit.Kit, in saveBrandKitIn) (brandkit.Kit, error) {
 	}
 	if in.BannerEndSeconds != nil {
 		kit.BannerEndSeconds = *in.BannerEndSeconds
+	}
+	if in.ChannelName != nil {
+		kit.ChannelName = strings.TrimSpace(*in.ChannelName)
 	}
 	if err := kit.Validate(); err != nil {
 		return brandkit.Kit{}, fmt.Errorf("these brand kit values cannot be saved: %w", err)

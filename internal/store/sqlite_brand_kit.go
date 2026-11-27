@@ -25,8 +25,8 @@ func (r *SQLiteBrandKitRepository) GetBrandKit(ctx context.Context) (brandkit.Ki
 		bannerID, bannerSHA string
 		updated             int64
 	)
-	err := r.db.QueryRowContext(ctx, `SELECT logo_id, logo_sha256, watermark_corner, watermark_opacity, banner_id, banner_sha256, banner_start_seconds, banner_end_seconds, updated_at FROM brand_kit WHERE id = 1`).
-		Scan(&logoID, &logoSHA, &kit.WatermarkCorner, &kit.WatermarkOpacity, &bannerID, &bannerSHA, &kit.BannerStartSeconds, &kit.BannerEndSeconds, &updated)
+	err := r.db.QueryRowContext(ctx, `SELECT logo_id, logo_sha256, watermark_corner, watermark_opacity, banner_id, banner_sha256, banner_start_seconds, banner_end_seconds, channel_name, updated_at FROM brand_kit WHERE id = 1`).
+		Scan(&logoID, &logoSHA, &kit.WatermarkCorner, &kit.WatermarkOpacity, &bannerID, &bannerSHA, &kit.BannerStartSeconds, &kit.BannerEndSeconds, &kit.ChannelName, &updated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return brandkit.Default(), nil
 	}
@@ -47,12 +47,12 @@ func (r *SQLiteBrandKitRepository) SaveBrandKit(ctx context.Context, kit brandki
 	saved.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
 	logoID, logoSHA := imageRefValues(saved.Logo)
 	bannerID, bannerSHA := imageRefValues(saved.Banner)
-	if _, err := r.db.ExecContext(ctx, `INSERT INTO brand_kit (id, logo_id, logo_sha256, watermark_corner, watermark_opacity, banner_id, banner_sha256, banner_start_seconds, banner_end_seconds, updated_at)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	if _, err := r.db.ExecContext(ctx, `INSERT INTO brand_kit (id, logo_id, logo_sha256, watermark_corner, watermark_opacity, banner_id, banner_sha256, banner_start_seconds, banner_end_seconds, channel_name, updated_at)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET logo_id = excluded.logo_id, logo_sha256 = excluded.logo_sha256, watermark_corner = excluded.watermark_corner,
 			watermark_opacity = excluded.watermark_opacity, banner_id = excluded.banner_id, banner_sha256 = excluded.banner_sha256,
-			banner_start_seconds = excluded.banner_start_seconds, banner_end_seconds = excluded.banner_end_seconds, updated_at = excluded.updated_at`,
-		logoID, logoSHA, saved.WatermarkCorner, saved.WatermarkOpacity, bannerID, bannerSHA, saved.BannerStartSeconds, saved.BannerEndSeconds, millis(saved.UpdatedAt)); err != nil {
+			banner_start_seconds = excluded.banner_start_seconds, banner_end_seconds = excluded.banner_end_seconds, channel_name = excluded.channel_name, updated_at = excluded.updated_at`,
+		logoID, logoSHA, saved.WatermarkCorner, saved.WatermarkOpacity, bannerID, bannerSHA, saved.BannerStartSeconds, saved.BannerEndSeconds, saved.ChannelName, millis(saved.UpdatedAt)); err != nil {
 		return brandkit.Kit{}, fmt.Errorf("save brand kit: %w", err)
 	}
 	return saved, nil

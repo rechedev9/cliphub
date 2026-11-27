@@ -3,10 +3,20 @@ package demooverlay
 import (
 	"bytes"
 	"embed"
+	"encoding/base64"
+	"fmt"
 	"html/template"
+	"image"
+	"image/draw"
+	"image/png"
+	"math"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/htmlstill"
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
@@ -18,9 +28,11 @@ const (
 	HalftimeLabel       = "DESCANSO"
 
 	SubscribeSeconds     = 6.0
-	SubscribeBottomEdge  = 1036
-	SubscribeSlidePixels = 480
-	SubscribeLabel       = "SUSCRÍBETE"
+	SubscribeBottomEdge  = 910
+	SubscribeSlidePixels = 900
+	SubscribeLabel       = "SUBSCRIBE"
+	SubscribeBellFPS     = 20
+	subscribeBellFrames  = 18
 )
 
 //go:embed halftime.html subscribe.html
@@ -137,16 +149,93 @@ func HalftimeHTML(halftime Halftime, palette *Palette) ([]byte, error) {
 	return storyPage("halftime.html", data)
 }
 
-func SubscribeHTML(palette *Palette) ([]byte, error) {
+type SubscribeCard struct {
+	LogoPath    string
+	ChannelName string
+}
+
+type SubscribeSprite struct {
+	CellTop    int
+	CellHeight int
+	Frames     int
+}
+
+func SubscribeSpriteFor(size htmlstill.Size) SubscribeSprite {
+	if size.Height > size.Width {
+		return SubscribeSprite{CellTop: 1253, CellHeight: 230, Frames: subscribeBellFrames}
+	}
+	return SubscribeSprite{CellTop: SubscribeBottomEdge - 48 - 75, CellHeight: 150, Frames: subscribeBellFrames}
+}
+
+func (s SubscribeSprite) Height() int {
+	return s.CellHeight * (s.Frames + 1)
+}
+
+func subscribeBellSwings(frames int) []template.CSS {
+	swings := []template.CSS{"transform:rotate(0deg)"}
+	for k := range frames {
+		angle := 20 * math.Exp(-float64(k)/8) * math.Sin(math.Pi*float64(k+1)/3)
+		swings = append(swings, template.CSS(fmt.Sprintf("transform:rotate(%.1fdeg)", angle)))
+	}
+	return swings
+}
+
+func (s SubscribeSprite) rowsPerPage(size htmlstill.Size) int {
+	return size.Height / s.CellHeight
+}
+
+func SubscribeHTML(palette *Palette, card SubscribeCard, size htmlstill.Size) ([][]byte, error) {
 	fonts, err := loadPageFonts()
 	if err != nil {
 		return nil, err
 	}
-	return storyPage("subscribe.html", struct {
-		pageFonts
-		Palette *Palette
-		Label   string
-	}{fonts, palette, SubscribeLabel})
+	logo, err := subscribeLogoURL(card.LogoPath)
+	if err != nil {
+		return nil, err
+	}
+	layout := "landscape"
+	if size.Height > size.Width {
+		layout = "portrait"
+	}
+	sprite := SubscribeSpriteFor(size)
+	swings, rows := subscribeBellSwings(sprite.Frames), sprite.rowsPerPage(size)
+	if rows < 1 {
+		return nil, fmt.Errorf("subscribe sprite cell of %d px does not fit a %dx%d page", sprite.CellHeight, size.Width, size.Height)
+	}
+	var pages [][]byte
+	for first := 0; first < len(swings); first += rows {
+		page, err := storyPage("subscribe.html", struct {
+			pageFonts
+			Palette                   *Palette
+			Label                     string
+			Layout                    string
+			Width, Height, CellHeight int
+			Swings                    []template.CSS
+			Branded                   bool
+			Logo                      template.URL
+			ChannelName               string
+		}{fonts, palette, SubscribeLabel, layout, size.Width, size.Height, sprite.CellHeight, swings[first:min(first+rows, len(swings))], logo != "" || card.ChannelName != "", logo, card.ChannelName})
+		if err != nil {
+			return nil, err
+		}
+		pages = append(pages, page)
+	}
+	return pages, nil
+}
+
+func subscribeLogoURL(path string) (template.URL, error) {
+	if path == "" {
+		return "", nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("subscribe logo: %w", err)
+	}
+	kind := http.DetectContentType(data)
+	if kind != "image/png" && kind != "image/jpeg" {
+		return "", fmt.Errorf("subscribe logo must be a PNG or JPG, got %s", kind)
+	}
+	return template.URL("data:" + kind + ";base64," + base64.StdEncoding.EncodeToString(data)), nil
 }
 
 func storyPage(file string, data any) ([]byte, error) {
@@ -173,10 +262,57 @@ func RenderHalftimePNG(halftime Halftime, palette *Palette, outPath string) erro
 	return renderHTMLStill(html, outPath)
 }
 
-func RenderSubscribePNG(palette *Palette, outPath string) error {
-	html, err := SubscribeHTML(palette)
+func RenderSubscribeSprite(palette *Palette, card SubscribeCard, size htmlstill.Size, outPath string) (SubscribeSprite, error) {
+	pages, err := SubscribeHTML(palette, card, size)
 	if err != nil {
+		return SubscribeSprite{}, err
+	}
+	sprite := SubscribeSpriteFor(size)
+	if err := os.MkdirAll(filepath.Dir(outPath), 0750); err != nil {
+		return SubscribeSprite{}, err
+	}
+	dir, err := os.MkdirTemp(filepath.Dir(outPath), ".subscribe-sprite-")
+	if err != nil {
+		return SubscribeSprite{}, err
+	}
+	defer os.RemoveAll(dir)
+	stills := make([]image.Image, 0, len(pages))
+	for i, page := range pages {
+		pagePath := filepath.Join(dir, fmt.Sprintf("page-%d.png", i))
+		if err := htmlstill.Render(page, pagePath, size); err != nil {
+			return SubscribeSprite{}, err
+		}
+		still, err := decodePNG(pagePath)
+		if err != nil {
+			return SubscribeSprite{}, err
+		}
+		stills = append(stills, still)
+	}
+	return sprite, encodePNG(sprite.stack(stills, size), outPath)
+}
+
+func (s SubscribeSprite) stack(pages []image.Image, size htmlstill.Size) *image.NRGBA {
+	sheet := image.NewNRGBA(image.Rect(0, 0, size.Width, s.Height()))
+	for i, page := range pages {
+		top := i * s.rowsPerPage(size) * s.CellHeight
+		draw.Draw(sheet, image.Rect(0, top, size.Width, s.Height()), page, image.Point{}, draw.Src)
+	}
+	return sheet
+}
+
+func decodePNG(path string) (image.Image, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return png.Decode(f)
+}
+
+func encodePNG(img image.Image, path string) error {
+	var out bytes.Buffer
+	if err := png.Encode(&out, img); err != nil {
 		return err
 	}
-	return renderHTMLStill(html, outPath)
+	return os.WriteFile(path, out.Bytes(), 0600)
 }

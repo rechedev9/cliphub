@@ -521,6 +521,11 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 		fadeSamples := min(int64(240), samples/2)
 		audio += fmt.Sprintf(";[a]afade=t=in:ss=0:ns=%d,afade=t=out:ss=%d:ns=%d[declicked]", fadeSamples, samples-fadeSamples, fadeSamples)
 		sfx, audioLabel := fullDemoTransitionSFX(edges, samples)
+		ding := fullDemoBellDing(short, item)
+		ding.in, ding.samples = audioLabel, samples
+		if dings := ding.clauses(); len(dings) > 0 {
+			sfx, audioLabel = sfx+";"+strings.Join(dings, ";"), ding.out
+		}
 		clauses = append(clauses, audio+sfx)
 		maps = append(maps, "-map", "["+audioLabel+"]")
 	}

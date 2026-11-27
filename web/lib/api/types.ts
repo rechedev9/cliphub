@@ -328,6 +328,7 @@ export type EditConfig = {
   brandWatermark?: boolean;
   /** Shorts only: the brand kit's own sponsor banner; it replaces the affiliate banner. */
   brandBanner?: boolean;
+  subscribeBanner?: boolean;
   coverStrategy: CoverStrategy;
   introText?: string;
   outroText?: string;

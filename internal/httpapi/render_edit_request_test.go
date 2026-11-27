@@ -35,7 +35,7 @@ func TestRenderEditRequestMergeCoversEveryField(t *testing.T) {
 	pv := reflect.ValueOf(patch)
 	for i := range pv.NumField() {
 		// applyBrandKit resolves the brand choices from the saved kit (TestRenderBrandKitChoices).
-		if name := pv.Type().Field(i).Name; name == "BrandWatermark" || name == "BrandBanner" {
+		if name := pv.Type().Field(i).Name; name == "BrandWatermark" || name == "BrandBanner" || name == "SubscribeBanner" {
 			continue
 		}
 		if pv.Field(i).IsNil() {

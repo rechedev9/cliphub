@@ -40,3 +40,24 @@ func TestEditRequestBrandKitRules(t *testing.T) {
 		t.Fatal("an unknown watermark corner was accepted")
 	}
 }
+
+func TestEditRequestSubscribeBannerRules(t *testing.T) {
+	logo := brandkit.ImageRef{ID: "0b5d1b6e-8a3c-4f0e-9d8a-1c2b3d4e5f60", SHA256: strings.Repeat("a", 64)}
+	edit := DefaultEditRequest()
+	for _, card := range []brandkit.Subscribe{{}, {ChannelName: "ClipHub RSN"}, {Logo: &logo, ChannelName: "ClipHub RSN"}} {
+		edit.SubscribeBanner = &card
+		if err := edit.Validate(); err != nil {
+			t.Fatalf("subscribe banner %+v was rejected: %v", card, err)
+		}
+	}
+	recap := edit
+	recap.MatchRecap = true
+	if err := recap.Validate(); err == nil {
+		t.Fatal("a match recap took the subscribe banner outside its approved plan")
+	}
+	bad := edit
+	bad.SubscribeBanner = &brandkit.Subscribe{ChannelName: " ClipHub"}
+	if err := bad.Validate(); err == nil {
+		t.Fatal("an untrimmed channel name was accepted")
+	}
+}

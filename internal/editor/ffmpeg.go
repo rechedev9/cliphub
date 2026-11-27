@@ -355,7 +355,13 @@ func CompilationFilter(short ShortEdit) string {
 		concatCount++
 		cursorFrame = partStartFrame + partFrames + holdFrames
 	}
-	clauses = append(clauses, fmt.Sprintf("%sconcat=n=%d:v=1:a=1[catv][gamea]", strings.Join(concatLabels, ""), concatCount))
+	dings := bellDingMix{in: "gameraw", out: "gamea", rings: spriteRingSeconds(short.Effects, shortSubscribeSource)}.clauses()
+	gameOut := "gamea"
+	if len(dings) > 0 {
+		gameOut = "gameraw"
+	}
+	clauses = append(clauses, fmt.Sprintf("%sconcat=n=%d:v=1:a=1[catv][%s]", strings.Join(concatLabels, ""), concatCount, gameOut))
+	clauses = append(clauses, dings...)
 	imageInputStart := len(short.Parts)
 	if short.MusicPath != "" {
 		imageInputStart++

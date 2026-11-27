@@ -262,17 +262,14 @@ func imageOverlayFilter(effect Effect, short ShortEdit) string {
 }
 
 func buildImageOverlayFilter(effect Effect, short ShortEdit) string {
-	filters := []string{
-		"format=rgba",
-		imageScaleFilter(effect),
-	}
+	filters := []string{"format=rgba", imageScaleFilter(effect)}
 	if hasEffectFade(effect) || effect.Source == "full-demo-intro" {
 		window := overlayActiveWindowForEffect(effect)
 		if window.DurationSeconds() > 0 {
 			filters = append(filters, imageOverlayWindowFilters(effect, short, window)...)
 		}
 	}
-	return strings.Join(filters, ",")
+	return strings.Join(append(filters, imageSpriteFilters(effect)...), ",")
 }
 
 // overlayActiveWindow is the explicit timeline span where an image overlay must

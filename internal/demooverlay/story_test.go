@@ -1,11 +1,19 @@
 package demooverlay
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"image"
+	"image/color"
+	"image/png"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/htmlstill"
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
@@ -100,7 +108,8 @@ func TestHalftimeAndSubscribePagesFollowTheDesign(t *testing.T) {
 		if strings.Index(page, "Vitality") > strings.Index(page, "Spirit") || !strings.Contains(page, `class="lead">7<`) || strings.Contains(page, `class="lead">5<`) {
 			t.Fatalf("%s halftime must put the POV team first and mark the leader", name)
 		}
-		button, err := SubscribeHTML(design)
+		pages, err := SubscribeHTML(design, SubscribeCard{}, htmlstill.Landscape)
+		button := bytes.Join(pages, nil)
 		if err != nil {
 			t.Fatalf("%s subscribe: %v", name, err)
 		}
@@ -112,9 +121,44 @@ func TestHalftimeAndSubscribePagesFollowTheDesign(t *testing.T) {
 				t.Fatalf("%s page does not use its own colours", name)
 			}
 		}
-		if !strings.Contains(string(button), ">SUSCRÍBETE<") || !strings.Contains(string(button), "<svg") {
+		if !strings.Contains(string(button), ">SUBSCRIBE<") || !strings.Contains(string(button), "<svg") || !strings.Contains(string(button), `class="pill"`) {
 			t.Fatalf("%s subscribe lacks its label or bell", name)
 		}
+	}
+}
+
+func TestSubscribeCardShowsTheChannelLogoAndName(t *testing.T) {
+	logo := filepath.Join(t.TempDir(), "logo.png")
+	img := image.NewNRGBA(image.Rect(0, 0, 4, 4))
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, img); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(logo, encoded.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for size, layout := range map[htmlstill.Size]string{htmlstill.Landscape: "landscape", htmlstill.Portrait: "portrait"} {
+		pages, err := SubscribeHTML(nil, SubscribeCard{LogoPath: logo, ChannelName: "<i>ClipHub</i>"}, size)
+		if err != nil {
+			t.Fatal(err)
+		}
+		html := string(bytes.Join(pages, nil))
+		if !strings.Contains(html, `class="`+layout+`"`) || !strings.Contains(html, fmt.Sprintf("width:%dpx;height:%dpx", size.Width, size.Height)) {
+			t.Fatalf("%s card is not laid out for its frame", layout)
+		}
+		if !strings.Contains(html, `src="data:image/png;base64,`) || !strings.Contains(html, "&lt;i&gt;ClipHub&lt;/i&gt;") || !strings.Contains(html, ">SUBSCRIBE<") || strings.Contains(html, `class="pill"`) {
+			t.Fatalf("%s card lacks the logo, the escaped name or the button", layout)
+		}
+	}
+	nameOnly, err := SubscribeHTML(nil, SubscribeCard{ChannelName: "ClipHub"}, htmlstill.Portrait)
+	if err != nil || len(nameOnly) == 0 || strings.Contains(string(nameOnly[0]), "<img") || !strings.Contains(string(nameOnly[0]), ">ClipHub<") {
+		t.Fatalf("a card without a logo: %v", err)
+	}
+	if err := os.WriteFile(logo, []byte("<svg/>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SubscribeHTML(nil, SubscribeCard{LogoPath: logo}, htmlstill.Portrait); err == nil {
+		t.Fatal("a logo that is not a PNG or JPG was drawn")
 	}
 }
 
@@ -170,5 +214,60 @@ func TestHalftimeNeedsAProvenRegulationSwitch(t *testing.T) {
 	lateShort[0].TargetSide = ""
 	if got := BuildHalftime(halftimeDocument(), lateShort, customhud.Teams{}); got != nil {
 		t.Fatalf("a non-standard half needs the POV on one side through all of it: %+v", got)
+	}
+}
+
+func TestSubscribeSpriteSwingsTheBellFromRest(t *testing.T) {
+	for _, size := range []htmlstill.Size{htmlstill.Landscape, htmlstill.Portrait} {
+		pages, err := SubscribeHTML(nil, SubscribeCard{ChannelName: "ClipHub"}, size)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sprite := SubscribeSpriteFor(size)
+		rows := 0
+		for _, page := range pages {
+			count := strings.Count(string(page), `class="row"`)
+			if count*sprite.CellHeight > size.Height || !strings.Contains(string(page), fmt.Sprintf("height:%dpx;overflow", size.Height)) {
+				t.Fatalf("%v page with %d rows does not fit the renderer's %dx%d viewport", size, count, size.Width, size.Height)
+			}
+			rows += count
+		}
+		html := string(bytes.Join(pages, nil))
+		if rows != sprite.Frames+1 || strings.Count(html, `class="bell"`) != sprite.Frames+1 {
+			t.Fatalf("%v sprite has %d rows; want %d", size, rows, sprite.Frames+1)
+		}
+		if first := strings.Index(html, "transform:rotate("); first < 0 || !strings.HasPrefix(html[first:], "transform:rotate(0deg)") || !strings.Contains(html, "transform:rotate(-") {
+			t.Fatalf("%v bell must start at rest and swing both ways", size)
+		}
+		if bottom := sprite.CellTop + sprite.CellHeight; sprite.CellTop < 0 || bottom > size.Height {
+			t.Fatalf("%v cell %d+%d leaves the frame", size, sprite.CellTop, sprite.CellHeight)
+		}
+	}
+}
+
+func TestSubscribeSpriteStacksThePagesCellByCell(t *testing.T) {
+	size := htmlstill.Portrait
+	sprite := SubscribeSpriteFor(size)
+	rows := sprite.rowsPerPage(size)
+	var pages []image.Image
+	for p := 0; p*rows <= sprite.Frames; p++ {
+		page := image.NewNRGBA(image.Rect(0, 0, size.Width, size.Height))
+		for r := 0; r < rows; r++ {
+			for y := r * sprite.CellHeight; y < (r+1)*sprite.CellHeight; y++ {
+				page.SetNRGBA(0, y, color.NRGBA{R: uint8(p*rows + r), A: 255})
+			}
+		}
+		pages = append(pages, page)
+	}
+	sheet := sprite.stack(pages, size)
+	if sheet.Bounds().Dy() != sprite.Height() {
+		t.Fatalf("sheet is %d px tall; want %d", sheet.Bounds().Dy(), sprite.Height())
+	}
+	for cell := 0; cell <= sprite.Frames; cell++ {
+		for _, y := range []int{cell * sprite.CellHeight, (cell+1)*sprite.CellHeight - 1} {
+			if got := sheet.NRGBAAt(0, y).R; int(got) != cell {
+				t.Fatalf("row %d holds cell %d; want %d", y, got, cell)
+			}
+		}
 	}
 }

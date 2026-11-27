@@ -125,6 +125,9 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		sponsorImage        = fs.String("sponsor-image", "", "optional PNG or JPG sponsor banner drawn near the bottom of the short")
 		sponsorStart        = fs.Float64("sponsor-start", 0, "sponsor banner appears at this second")
 		sponsorEnd          = fs.Float64("sponsor-end", 0, "sponsor banner disappears at this second; 0 keeps it to the end")
+		subscribe           = fs.Bool("subscribe", false, "show a SUBSCRIBE banner with a ringing bell once, a third into the short")
+		subscribeLogo       = fs.String("subscribe-logo", "", "optional PNG or JPG channel logo on the subscribe banner")
+		subscribeChannel    = fs.String("subscribe-channel", "", "optional channel name on the subscribe banner")
 		lineupCatalogPath   = fs.String("lineup-catalog", "", "optional directory with manual smoke lineup catalog JSON files")
 		segments            = fs.String("segments", "", "optional comma-separated segment ids to render, e.g. seg-001,seg-004")
 		limit               = fs.Int("limit", 0, "optional max number of shorts to render after segment filtering")
@@ -265,6 +268,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		OverlayLanguage:       language,
 		Watermark:             brandWatermarkFlag(*watermarkImage, *watermarkCorner, *watermarkOpacity),
 		SponsorBanner:         sponsorBannerFlag(*sponsorImage, *sponsorStart, *sponsorEnd),
+		SubscribeCard:         subscribeCardFlag(*subscribe, *subscribeLogo, *subscribeChannel),
 		LineupCatalogPath:     *lineupCatalogPath,
 		SegmentIDs:            segmentIDs,
 		Limit:                 *limit,
@@ -424,4 +428,11 @@ func sponsorBannerFlag(path string, start, end float64) *editor.SponsorBanner {
 		return nil
 	}
 	return &editor.SponsorBanner{Path: path, StartSeconds: start, EndSeconds: end}
+}
+
+func subscribeCardFlag(on bool, logo, channel string) *editor.SubscribeCard {
+	if !on {
+		return nil
+	}
+	return &editor.SubscribeCard{LogoPath: logo, ChannelName: channel}
 }

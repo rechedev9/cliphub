@@ -190,7 +190,7 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "plan_full_demo",
 		Description: "Prepare a Full Demo: one long video of the whole match from one player's point of view. This only builds and saves the plan, it never starts CS2. " +
 			"Choose the HUD with list_hud_themes first. Options left out keep Studio's defaults. " +
-			"halftime_scoreboard adds a score card at the side switch and subscribe_button a SUSCRÍBETE button twice over the rounds; both are off by default and only change the render. " +
+			"halftime_scoreboard adds a score card at the side switch and subscribe_button a SUBSCRIBE button with a ringing bell twice over the rounds; both are off by default and only change the render. " +
 			"hook opens the video with an 8 to 20 s teaser of the player's best play before round 1; it is off by default, only changes the render and the reply's hook_round says which round it shows. " +
 			"second_camera adds a small window with the view of an enemy who stood almost still holding an angle in the 5 s before the player killed them (left side, enemy name under it, about 5 s before the kill to 1 s after, no audio), at most one per round and second_camera_max in total (default 5); a match analysed before this option is read once more for it; it costs an extra capture pass in CS2 (about 11 s per window, recorded rounds are reused) and changes only the render otherwise; the reply's second_camera_moments lists them and second_camera_remove takes their ids to drop some. " +
 			"Show the user the summary, then call render_full_demo with the plan_hash if they agree."},
@@ -223,6 +223,9 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 				return nil, fullDemoPlanOut{}, err
 			}
 			if err := resolveBrandKit(ctx, c, &in.brandChoiceIn); err != nil {
+				return nil, fullDemoPlanOut{}, err
+			}
+			if err := resolveSubscribeCard(ctx, c, &in.storyOverlaysIn); err != nil {
 				return nil, fullDemoPlanOut{}, err
 			}
 			options, err = applyFullDemoChoices(options, in)

@@ -227,7 +227,7 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 		if err := verifyFullDemoCapturedInputs(ctx, recordingResult.Artifacts, recordingBaseDir, ffprobePath, cfg.DryRun); err != nil {
 			return runInputs{}, err
 		}
-		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.PlayBadges || cfg.WinProbability || cfg.PlayerLabels || cfg.GrenadeTrails || cfg.WorldTrackPath != "" || cfg.VerticalHUD || cfg.VerticalHUDTrackPath != "" || cfg.StatsCardPath != "" || cfg.PlayerCardsPath != "" || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" || cfg.Watermark != nil || cfg.SponsorBanner != nil || cfg.Radar || cfg.RadarTrackPath != "" || cfg.SubtitlesPath != "" || cfg.OverlayLanguage != overlaylang.Spanish {
+		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.PlayBadges || cfg.WinProbability || cfg.PlayerLabels || cfg.GrenadeTrails || cfg.WorldTrackPath != "" || cfg.VerticalHUD || cfg.VerticalHUDTrackPath != "" || cfg.StatsCardPath != "" || cfg.PlayerCardsPath != "" || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" || cfg.Watermark != nil || cfg.SponsorBanner != nil || cfg.SubscribeCard != nil || cfg.Radar || cfg.RadarTrackPath != "" || cfg.SubtitlesPath != "" || cfg.OverlayLanguage != overlaylang.Spanish {
 			return runInputs{}, fmt.Errorf("full demo execution cannot be overridden by legacy editorial flags")
 		}
 		if coversEnabled != (fullDemoExecution.Approved.Document.Options.Outputs.CoverPolicy != "no-cover") {
@@ -264,6 +264,9 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 		return runInputs{}, err
 	}
 	if overlays.Watermark, overlays.Banner, err = prepareBrandOverlays(cfg.Watermark, cfg.SponsorBanner, outDir); err != nil {
+		return runInputs{}, err
+	}
+	if overlays.Subscribe, err = prepareShortSubscribe(cfg.SubscribeCard, cfg.OutputFormat, outDir); err != nil {
 		return runInputs{}, err
 	}
 	if path := strings.TrimSpace(cfg.StatsCardPath); path != "" {

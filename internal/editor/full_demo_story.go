@@ -7,6 +7,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/brandkit"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
+	"github.com/rechedev9/cliphub/internal/htmlstill"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -56,12 +57,17 @@ func fullDemoStoryOverlayEffects(manifest *Manifest, short ShortEdit) ([]Effect,
 	if err != nil {
 		return nil, err
 	}
+	card, err := fullDemoSubscribeCard(short)
+	if err != nil {
+		return nil, err
+	}
 	path := filepath.Join(manifest.OutputDir, fullDemoSubscribeSource+".png")
-	if err := demooverlay.RenderSubscribePNG(palette, path); err != nil {
+	sprite, err := demooverlay.RenderSubscribeSprite(palette, card, htmlstill.Landscape, path)
+	if err != nil {
 		return nil, err
 	}
 	for _, window := range windows {
-		effects = append(effects, fullDemoSubscribeEffect(path, window, lift))
+		effects = append(effects, fullDemoSubscribeEffect(fullDemoSubscribeImage{path: path, sprite: sprite, lift: lift}, window))
 	}
 	return effects, nil
 }
@@ -130,11 +136,17 @@ func fullDemoHalftimeEffect(short ShortEdit, path string, window fullDemoStoryWi
 	}
 }
 
-func fullDemoSubscribeEffect(path string, window fullDemoStoryWindow, lift int) Effect {
+type fullDemoSubscribeImage struct {
+	path   string
+	sprite demooverlay.SubscribeSprite
+	lift   int
+}
+
+func fullDemoSubscribeEffect(image fullDemoSubscribeImage, window fullDemoStoryWindow) Effect {
 	return Effect{
-		Type: EffectImage, Path: path, Source: fullDemoSubscribeSource,
-		X: fullDemoStorySlide(window, demooverlay.SubscribeSlidePixels, 0), Y: strconv.Itoa(-lift),
-		Width: demooverlay.FrameWidth, Height: demooverlay.FrameHeight,
+		Type: EffectImage, Path: image.path, Source: fullDemoSubscribeSource,
+		X: fullDemoStorySlide(window, demooverlay.SubscribeSlidePixels, 0), Y: strconv.Itoa(image.sprite.CellTop - image.lift),
+		Width: demooverlay.FrameWidth, Height: image.sprite.Height(), Sprite: subscribeBellSprite(image.sprite),
 		StartSeconds: window.start, EndSeconds: window.end,
 		FadeInSeconds: demooverlay.IntroOverlaySlideSeconds, FadeOutSeconds: demooverlay.IntroOverlaySlideOutSeconds,
 	}
@@ -199,6 +211,29 @@ func fullDemoStoryFreeWindows(span fullDemoStoryWindow, busy []fullDemoStoryWind
 		free = next
 	}
 	return free
+}
+
+func fullDemoBellDing(short ShortEdit, item recapplan.TimelineItem) bellDingMix {
+	if fullDemoSilentApproved(short) {
+		return bellDingMix{}
+	}
+	return bellDingMix{out: "subscribeaudio", rings: spriteRingSeconds(short.Effects, fullDemoSubscribeSource), offsetSeconds: float64(item.StartFrame) / recapplan.OutputFPS}
+}
+
+func fullDemoSubscribeCard(short ShortEdit) (demooverlay.SubscribeCard, error) {
+	brand := short.FullDemo.Effective.Options.Overlays.Brand.Subscribe
+	if brand == nil {
+		return demooverlay.SubscribeCard{}, nil
+	}
+	card := demooverlay.SubscribeCard{ChannelName: brand.ChannelName}
+	if logo := brand.Logo; logo != nil {
+		path, err := short.fullDemo.execution.assetPath(recapplan.AssetRef{ID: logo.ID, SHA256: logo.SHA256})
+		if err != nil {
+			return demooverlay.SubscribeCard{}, err
+		}
+		card.LogoPath = path
+	}
+	return card, nil
 }
 
 func fullDemoSubscribeLift(short ShortEdit) (int, error) {
