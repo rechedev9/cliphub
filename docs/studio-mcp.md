@@ -53,8 +53,9 @@ Claude Desktop / Claude Code
   [remote mode](#remote-mode-clipmind-workspaces).
 - HTTP goes through `internal/tuiclient` (base URL, token header, multipart, `APIError`, Full
   Demo helpers). A new orchestrator call is added there.
-- Without a session file, `zv-mcp` falls back to `ORCHESTRATOR_URL` and `ZV_MUTATION_TOKEN` (and
-  `CLIPHUB_WEB_ORIGIN` for the UI links), which is how a bare orchestrator is driven in development.
+- Without a session file and with `ORCHESTRATOR_URL` set, `zv-mcp` uses `ORCHESTRATOR_URL` and
+  `ZV_MUTATION_TOKEN` (and `CLIPHUB_WEB_ORIGIN` for the UI links), which is how a bare orchestrator
+  is driven in development. Without the file and without that variable, Studio is closed.
 
 ### Session discovery
 
@@ -469,8 +470,10 @@ clave and Anti-estrategias (one counter per finding, as "if they do X, we do Y")
 
 - The orchestrator routes without a tool are listed with their reason in `routesWithoutMCPTool`
   (`internal/httpapi/mcp_parity_routes_test.go`).
-- A report's export (`POST /api/library/reports/{id}/export`) and the Libreta's Modo partida window
-  (its data is `plan_table` and `list_lineups`) have no tool. The only resources are the app views.
+- A report's exports have no tool: the HTML page, which the UI builds itself
+  (`web/lib/reports/export-html.ts`), and the `.cliphub` package of
+  `POST /api/library/reports/{id}/export`. The Libreta's Modo partida window has none either (its
+  data is `plan_table` and `list_lineups`). The only resources are the app views.
 - Steam sign-in and the Steam authentication code stay in the UI on purpose: an assistant never
   handles Steam credentials. The same goes for the ClipMind account: signing in (Ajustes > Cuenta
   ClipMind) is done by the user, so there is no `clipmind_connect`.
