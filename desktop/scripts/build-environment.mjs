@@ -12,6 +12,8 @@ export function environmentWithoutXAIAPIKey(environment = process.env) {
 // and arbitrary npm configuration never cross the release boundary.
 const RELEASE_ENVIRONMENT_ALLOWLIST = new Set([
   'APPDATA',
+  'CARGO_HOME',
+  'CARGO_TARGET_DIR',
   'CI',
   'COLORTERM',
   'COMSPEC',
@@ -41,6 +43,7 @@ const RELEASE_ENVIRONMENT_ALLOWLIST = new Set([
   'PROGRAMFILES',
   'PROGRAMFILES(X86)',
   'PROGRAMW6432',
+  'RUSTUP_HOME',
   'SOURCE_DATE_EPOCH',
   'SYSTEMDRIVE',
   'SYSTEMROOT',

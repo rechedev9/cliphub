@@ -1,0 +1,9 @@
+Embedded fallback fonts bundled in cliphub-render:
+
+1. Saira-ExtraBold.ttf
+   - Copyright 2020 The Saira Project Authors (https://github.com/Omnibus-Type/Saira)
+   - License: SIL Open Font License 1.1 (https://scripts.sil.org/OFL)
+
+2. IBMPlexMono-SemiBold.ttf
+   - Copyright 2017 IBM Corp. All rights reserved.
+   - License: SIL Open Font License 1.1 (https://scripts.sil.org/OFL)

@@ -4,6 +4,7 @@ import path from "node:path";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { loadConfig, type Config } from "../config.ts";
 import { createContentServer } from "../mcp/server.ts";
+import { RenderJobManager } from "../render/client.ts";
 import { openStateStore, type StateStore } from "../state/store.ts";
 import { probeStudio } from "../studio/client.ts";
 
@@ -35,7 +36,13 @@ export async function openHarness(file: Record<string, unknown> = {}): Promise<H
   writeFileSync(configFile, JSON.stringify({ statePath: path.join(dir, "state.db"), ...file }));
   const config = loadConfig({ env: { CLIPHUB_CONTENT_CONFIG: configFile } });
   const store = openStateStore({ path: config.statePath });
-  const server = createContentServer({ config, store, probeStudio: () => probeStudio({ config: config.studioMcp, timeoutMs: 20_000 }) });
+  const renderJobs = new RenderJobManager();
+  const server = createContentServer({
+    config,
+    store,
+    renderJobs,
+    probeStudio: () => probeStudio({ config: config.studioMcp, timeoutMs: 20_000 }),
+  });
   const client = new Client({ name: "cliphub-content-test", version: "0.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
@@ -50,6 +57,7 @@ export async function openHarness(file: Record<string, unknown> = {}): Promise<H
       return { isError: result.isError === true, body: result.structuredContent, text };
     },
     async close() {
+      renderJobs.closeAll();
       await client.close();
       await server.close();
       store.close();

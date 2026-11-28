@@ -59,7 +59,7 @@ column are kept in a `legacy_json` column, so an import loses nothing.
 
 Config: `content/config.example.json` is the template; copy it to `content/config.local.json`
 (gitignored). `CLIPHUB_CONTENT_*` variables override it (`CONFIG`, `STATE_PATH`, `LEGACY_MAPS_DIR`,
-`LEGACY_METRICS_DIR`, `STUDIO_MCP_COMMAND`). Tokens stay where they are today; the config never
+`LEGACY_METRICS_DIR`, `STUDIO_MCP_COMMAND`, `RENDER_BIN`). Tokens stay where they are today; the config never
 holds one.
 
 ## MCP tools today
@@ -70,6 +70,10 @@ holds one.
 | `list_maps`, `get_map` | maps with their derived stage and statuses |
 | `record_map_event` | one step of a map: POV or Short published, Short linked, thumbnail checked, skips, clean |
 | `import_legacy_state` | reads the old `map.json` folders, their `*.youtube.json` receipts, `channel-snapshots.jsonl` and `videos-latest.json`; a dry run unless `write` is true, and it only reads those folders |
+| `render_gpu_info` | probes the discrete GPU adapter (Vulkan/DX12) and FFmpeg NVENC encoders via `tools/render` (`cliphub-render`) |
+| `validate_essay_spec` | validates a `ProjectSpec` or multi-scene `EssaySpec` JSON against `tools/render` and verifies all media paths |
+| `snapshot_essay` | renders fast GPU PNG snapshots at requested timestamps for visual QA before a full render |
+| `start_essay_render`, `get_essay_render_status` | launches a non-blocking GPU render (`--require-gpu` on by default) via `tools/render` and polls completion + structured FPS/timing stats |
 
 Long jobs (renders, uploads) will run as MCP Tasks. The TypeScript SDK (v2) has no server runtime for
 Tasks yet (`@modelcontextprotocol/ext-tasks` covers the client side only), so those tools are not built

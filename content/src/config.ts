@@ -11,6 +11,7 @@ export type Config = {
   legacyMapsDir: string | null;
   legacyMetricsDir: string | null;
   studioMcp: StudioMcpConfig | null;
+  renderBin: string | null;
 };
 
 export type ConfigEnv = Readonly<Record<string, string | undefined>>;
@@ -30,6 +31,7 @@ const fileSchema = z.strictObject({
       args: z.array(z.string()).default([]),
     })
     .optional(),
+  renderBin: z.string().min(1).optional(),
 });
 
 type ConfigFile = z.infer<typeof fileSchema>;
@@ -101,5 +103,6 @@ export function loadConfig(options: { env: ConfigEnv; packageDir?: string }): Co
     legacyMapsDir: envValue(env, "LEGACY_MAPS_DIR") ?? resolveFrom(at, file.legacyMapsDir),
     legacyMetricsDir: envValue(env, "LEGACY_METRICS_DIR") ?? resolveFrom(at, file.legacyMetricsDir),
     studioMcp: studioCommand === null ? fileStudio : { command: studioCommand, args: fileStudio?.args ?? [] },
+    renderBin: envValue(env, "RENDER_BIN") ?? resolveFrom(at, file.renderBin),
   };
 }

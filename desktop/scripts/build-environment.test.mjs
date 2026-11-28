@@ -130,3 +130,18 @@ test('release build environment preserves host GOTOOLCHAIN when present', () => 
   assert.equal(sanitized.GOTOOLCHAIN, 'local');
   assert.equal(sanitized.Path, 'C:\\tools');
 });
+
+test('release build environment preserves Cargo and Rustup toolchain paths', () => {
+  const original = {
+    Path: 'C:\\tools',
+    CARGO_HOME: 'C:\\cache\\cargo',
+    CARGO_TARGET_DIR: 'C:\\cache\\target',
+    RUSTUP_HOME: 'C:\\cache\\rustup',
+    GH_TOKEN: 'fixture',
+  };
+  const sanitized = goRuntimeBuildEnvironment(original);
+  assert.equal(sanitized.CARGO_HOME, 'C:\\cache\\cargo');
+  assert.equal(sanitized.CARGO_TARGET_DIR, 'C:\\cache\\target');
+  assert.equal(sanitized.RUSTUP_HOME, 'C:\\cache\\rustup');
+  assert.equal('GH_TOKEN' in sanitized, false);
+});

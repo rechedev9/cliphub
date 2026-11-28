@@ -84,3 +84,23 @@ test('distribution entrypoint locks and recovers before starting a rebuild', () 
   assert.ok(recover < rebuild, 'recovery must happen before the long distribution build');
   assert.ok(commit < release, 'the publication lock must remain held through commit');
 });
+
+test('assemble stages cliphub-render.exe alongside Studio Go binaries', () => {
+  const source = readFileSync(new URL('./assemble.mjs', import.meta.url), 'utf8');
+  assert.match(source, /const cliphubRender = join\(bin, 'cliphub-render\.exe'\);/);
+  assert.match(source, /\[zvOrchestrator, zvEditor, zvRecorder, zvMcp, cliphubRender\]/);
+  assert.match(source, /cpSync\(cliphubRender, join\(out, 'bin', 'cliphub-render\.exe'\)\);/);
+});
+
+test('build.ps1 builds and atomically stages cliphub-render.exe without Go VCS stamping it', () => {
+  const source = readFileSync(new URL('../../scripts/build.ps1', import.meta.url), 'utf8');
+  const cargoBuild = source.search(/^\s+& cargo build --release --manifest-path \$renderManifest\s*$/m);
+  const goStamp = source.search(/^\s+\$stamp = Assert-VcsRevisionStamped -Path \$out\s*$/m);
+  const publish = source.search(/^\s+Publish-BuildArtifacts\b/m);
+  assert.notEqual(cargoBuild, -1, 'build.ps1 must build tools/render with cargo --release');
+  assert.notEqual(goStamp, -1, 'build.ps1 must stamp Go binaries');
+  assert.notEqual(publish, -1, 'build.ps1 must publish artifacts atomically');
+  assert.ok(goStamp < cargoBuild && cargoBuild < publish, 'cliphub-render must build after Go VCS stamping and before atomic publication');
+  assert.match(source, /\$RequireFaceitEmbed -and -not \$hasCargo/);
+  assert.match(source, /\$publishNames\.Add\("cliphub-render"\)/);
+});

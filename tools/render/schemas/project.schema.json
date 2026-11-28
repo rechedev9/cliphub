@@ -1,0 +1,1723 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectSpec",
+  "type": "object",
+  "properties": {
+    "audio": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AudioClipSpec"
+      }
+    },
+    "background": {
+      "type": "string",
+      "default": "#07090E"
+    },
+    "base_dir": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "bg_mood": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "camera": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CameraTween"
+      }
+    },
+    "camera_shakes": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CameraShake"
+      }
+    },
+    "desk_pattern": {
+      "type": "boolean",
+      "default": true
+    },
+    "duration": {
+      "type": "number",
+      "format": "double"
+    },
+    "encoder": {
+      "$ref": "#/$defs/EncoderConfig",
+      "default": {
+        "codec": "auto",
+        "cq": 19,
+        "preset": "p4"
+      }
+    },
+    "fonts": {
+      "$ref": "#/$defs/FontConfig",
+      "default": {
+        "display": null,
+        "mono": null,
+        "sans": null
+      }
+    },
+    "fps": {
+      "type": "integer",
+      "format": "uint32",
+      "default": 60,
+      "minimum": 0
+    },
+    "height": {
+      "type": "integer",
+      "format": "uint32",
+      "default": 1080,
+      "minimum": 0
+    },
+    "layers": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LayerSpec"
+      }
+    },
+    "normalize_lufs": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "double",
+      "default": null
+    },
+    "vignette": {
+      "type": "number",
+      "format": "float",
+      "default": 0.44999998807907104
+    },
+    "width": {
+      "type": "integer",
+      "format": "uint32",
+      "default": 1920,
+      "minimum": 0
+    }
+  },
+  "required": [
+    "duration"
+  ],
+  "$defs": {
+    "AudioClipSpec": {
+      "type": "object",
+      "properties": {
+        "duration": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double",
+          "default": null
+        },
+        "fade_in": {
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "fade_out": {
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "media_start": {
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "src": {
+          "type": "string"
+        },
+        "start": {
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "volume": {
+          "type": "number",
+          "format": "float",
+          "default": 1.0
+        }
+      },
+      "required": [
+        "src"
+      ]
+    },
+    "CameraShake": {
+      "type": "object",
+      "properties": {
+        "amplitude_x": {
+          "type": "number",
+          "format": "float",
+          "default": -7.0
+        },
+        "amplitude_y": {
+          "type": "number",
+          "format": "float",
+          "default": 4.0
+        },
+        "at": {
+          "type": "number",
+          "format": "double"
+        },
+        "duration": {
+          "type": "number",
+          "format": "double",
+          "default": 0.22
+        }
+      },
+      "required": [
+        "at"
+      ]
+    },
+    "CameraTween": {
+      "type": "object",
+      "properties": {
+        "duration": {
+          "type": "number",
+          "format": "double"
+        },
+        "ease": {
+          "$ref": "#/$defs/EaseKind",
+          "default": "linear"
+        },
+        "from_scale": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float",
+          "default": null
+        },
+        "from_x": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float",
+          "default": null
+        },
+        "from_y": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float",
+          "default": null
+        },
+        "start": {
+          "type": "number",
+          "format": "double"
+        },
+        "to_scale": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float",
+          "default": null
+        },
+        "to_x": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float",
+          "default": null
+        },
+        "to_y": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float",
+          "default": null
+        }
+      },
+      "required": [
+        "start",
+        "duration"
+      ]
+    },
+    "CaptionItem": {
+      "type": "object",
+      "properties": {
+        "end": {
+          "type": "number",
+          "format": "double"
+        },
+        "start": {
+          "type": "number",
+          "format": "double"
+        },
+        "text": {
+          "type": "string"
+        },
+        "words": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CaptionWord"
+          }
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "text"
+      ]
+    },
+    "CaptionWord": {
+      "type": "object",
+      "properties": {
+        "end": {
+          "type": "number",
+          "format": "double"
+        },
+        "start": {
+          "type": "number",
+          "format": "double"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "text"
+      ]
+    },
+    "ColorKeyframe": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "number",
+          "format": "double"
+        },
+        "border_color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "fill": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "fill"
+      ]
+    },
+    "CounterSpec": {
+      "type": "object",
+      "properties": {
+        "decimals": {
+          "type": "integer",
+          "format": "uint",
+          "default": 0,
+          "minimum": 0
+        },
+        "duration": {
+          "type": "number",
+          "format": "double"
+        },
+        "ease": {
+          "$ref": "#/$defs/EaseKind",
+          "default": "power1_in_out"
+        },
+        "from": {
+          "type": "number",
+          "format": "double"
+        },
+        "start": {
+          "type": "number",
+          "format": "double"
+        },
+        "suffix": {
+          "type": "string",
+          "default": ""
+        },
+        "to": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "start",
+        "duration",
+        "from",
+        "to"
+      ]
+    },
+    "EaseKind": {
+      "type": "string",
+      "enum": [
+        "linear",
+        "power1_in_out",
+        "power2_in",
+        "power2_out",
+        "power3_in",
+        "power3_out",
+        "power3_in_out",
+        "power4_in",
+        "power4_out",
+        "back_out",
+        "elastic_out",
+        "sine_in_out"
+      ]
+    },
+    "EncoderConfig": {
+      "type": "object",
+      "properties": {
+        "codec": {
+          "type": "string",
+          "default": "auto"
+        },
+        "cq": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 19,
+          "minimum": 0
+        },
+        "preset": {
+          "type": "string",
+          "default": "p4"
+        }
+      }
+    },
+    "EnterKind": {
+      "type": "string",
+      "enum": [
+        "none",
+        "fade",
+        "up",
+        "down",
+        "left",
+        "right",
+        "pop",
+        "slam",
+        "zoom",
+        "stamp"
+      ]
+    },
+    "ExitKind": {
+      "type": "string",
+      "enum": [
+        "fade",
+        "up",
+        "none"
+      ]
+    },
+    "FontConfig": {
+      "type": "object",
+      "properties": {
+        "display": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "mono": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "sans": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      }
+    },
+    "FontRole": {
+      "type": "string",
+      "enum": [
+        "display",
+        "mono",
+        "sans"
+      ]
+    },
+    "LayerSpec": {
+      "type": "object",
+      "properties": {
+        "end": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double",
+          "default": null
+        },
+        "enter": {
+          "$ref": "#/$defs/EnterKind",
+          "default": "fade"
+        },
+        "enter_duration": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double",
+          "default": null
+        },
+        "exit": {
+          "$ref": "#/$defs/ExitKind",
+          "default": "fade"
+        },
+        "exit_duration": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double",
+          "default": null
+        },
+        "fixed": {
+          "type": "boolean",
+          "default": false
+        },
+        "id": {
+          "type": "string"
+        },
+        "pulse": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PulseSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rotation_deg": {
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        },
+        "start": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "border_color": {
+              "type": "string",
+              "default": "rgba(255,255,255,0.16)"
+            },
+            "border_width": {
+              "type": "number",
+              "format": "float",
+              "default": 3.0
+            },
+            "contrast": {
+              "type": "number",
+              "format": "float",
+              "default": 1.0
+            },
+            "height": {
+              "type": "number",
+              "format": "float"
+            },
+            "radius": {
+              "type": "number",
+              "format": "float",
+              "default": 14.0
+            },
+            "segments": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/VideoSegmentSpec"
+              }
+            },
+            "shadow": {
+              "type": "boolean",
+              "default": true
+            },
+            "tag": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TagSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "type": {
+              "type": "string",
+              "const": "video_box"
+            },
+            "width": {
+              "type": "number",
+              "format": "float"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            },
+            "zoom": {
+              "type": "number",
+              "format": "float",
+              "default": 1.0
+            }
+          },
+          "required": [
+            "type",
+            "x",
+            "y",
+            "width",
+            "height",
+            "segments"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "border_color": {
+              "type": "string",
+              "default": "rgba(255,255,255,0.16)"
+            },
+            "border_width": {
+              "type": "number",
+              "format": "float",
+              "default": 3.0
+            },
+            "contrast": {
+              "type": "number",
+              "format": "float",
+              "default": 1.0
+            },
+            "height": {
+              "type": "number",
+              "format": "float"
+            },
+            "radius": {
+              "type": "number",
+              "format": "float",
+              "default": 14.0
+            },
+            "shadow": {
+              "type": "boolean",
+              "default": true
+            },
+            "src": {
+              "type": "string"
+            },
+            "tag": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TagSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "type": {
+              "type": "string",
+              "const": "image_box"
+            },
+            "width": {
+              "type": "number",
+              "format": "float"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            },
+            "zoom": {
+              "type": "number",
+              "format": "float",
+              "default": 1.0
+            }
+          },
+          "required": [
+            "type",
+            "src",
+            "x",
+            "y",
+            "width",
+            "height"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "border_color": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "border_width": {
+              "type": "number",
+              "format": "float",
+              "default": 0.0
+            },
+            "fill": {
+              "type": "string"
+            },
+            "fill_keyframes": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/ColorKeyframe"
+              }
+            },
+            "height": {
+              "type": "number",
+              "format": "float"
+            },
+            "radius": {
+              "type": "number",
+              "format": "float",
+              "default": 0.0
+            },
+            "text": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "text_color": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "text_size": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "type": {
+              "type": "string",
+              "const": "rect"
+            },
+            "value_keyframes": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/ValueKeyframe"
+              }
+            },
+            "width": {
+              "type": "number",
+              "format": "float"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "x",
+            "y",
+            "width",
+            "height",
+            "fill"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accent_top": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "bg": {
+              "type": "string",
+              "default": "rgba(13,18,29,0.90)"
+            },
+            "border_color": {
+              "type": "string",
+              "default": "rgba(255,255,255,0.13)"
+            },
+            "height": {
+              "type": "number",
+              "format": "float"
+            },
+            "radius": {
+              "type": "number",
+              "format": "float",
+              "default": 14.0
+            },
+            "shadow": {
+              "type": "boolean",
+              "default": true
+            },
+            "type": {
+              "type": "string",
+              "const": "panel"
+            },
+            "width": {
+              "type": "number",
+              "format": "float"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "x",
+            "y",
+            "width",
+            "height"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "anim_duration": {
+              "type": "number",
+              "format": "double",
+              "default": 0.8
+            },
+            "bottom_text": {
+              "type": "string"
+            },
+            "color": {
+              "type": "string"
+            },
+            "fraction": {
+              "type": "number",
+              "format": "float"
+            },
+            "max_height": {
+              "type": "number",
+              "format": "float"
+            },
+            "sub_text": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "top_text": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "pedestal"
+            },
+            "width": {
+              "type": "number",
+              "format": "float"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "x",
+            "y",
+            "width",
+            "max_height",
+            "fraction",
+            "color",
+            "top_text",
+            "bottom_text"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "anim_duration": {
+              "type": "number",
+              "format": "double",
+              "default": 1.1
+            },
+            "color": {
+              "type": "string"
+            },
+            "cx": {
+              "type": "number",
+              "format": "float"
+            },
+            "cy": {
+              "type": "number",
+              "format": "float"
+            },
+            "fraction": {
+              "type": "number",
+              "format": "float"
+            },
+            "label": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "radius": {
+              "type": "number",
+              "format": "float"
+            },
+            "ref_color": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "ref_fraction": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "stroke_width": {
+              "type": "number",
+              "format": "float",
+              "default": 34.0
+            },
+            "track_color": {
+              "type": "string",
+              "default": "rgba(255,255,255,0.09)"
+            },
+            "type": {
+              "type": "string",
+              "const": "donut"
+            },
+            "value_text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "cx",
+            "cy",
+            "radius",
+            "fraction",
+            "color",
+            "value_text"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "door_color": {
+              "type": "string",
+              "default": "#131926"
+            },
+            "frame_color": {
+              "type": "string",
+              "default": "#FACC15"
+            },
+            "glow_color": {
+              "type": "string",
+              "default": "#FACC15"
+            },
+            "height": {
+              "type": "number",
+              "format": "float"
+            },
+            "open_at": {
+              "type": "number",
+              "format": "double"
+            },
+            "open_duration": {
+              "type": "number",
+              "format": "double",
+              "default": 1.1
+            },
+            "type": {
+              "type": "string",
+              "const": "door"
+            },
+            "width": {
+              "type": "number",
+              "format": "float"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "x",
+            "y",
+            "width",
+            "height",
+            "open_at"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "anim_duration": {
+              "type": "number",
+              "format": "double",
+              "default": 0.45
+            },
+            "color": {
+              "type": "string"
+            },
+            "stroke_width": {
+              "type": "number",
+              "format": "float",
+              "default": 6.0
+            },
+            "type": {
+              "type": "string",
+              "const": "line"
+            },
+            "x1": {
+              "type": "number",
+              "format": "float"
+            },
+            "x2": {
+              "type": "number",
+              "format": "float"
+            },
+            "y1": {
+              "type": "number",
+              "format": "float"
+            },
+            "y2": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "x1",
+            "y1",
+            "x2",
+            "y2",
+            "color"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "anim_duration": {
+              "type": "number",
+              "format": "double",
+              "default": 0.45
+            },
+            "color": {
+              "type": "string"
+            },
+            "head_size": {
+              "type": "number",
+              "format": "float",
+              "default": 34.0
+            },
+            "stroke_width": {
+              "type": "number",
+              "format": "float",
+              "default": 10.0
+            },
+            "type": {
+              "type": "string",
+              "const": "arrow"
+            },
+            "x1": {
+              "type": "number",
+              "format": "float"
+            },
+            "x2": {
+              "type": "number",
+              "format": "float"
+            },
+            "y1": {
+              "type": "number",
+              "format": "float"
+            },
+            "y2": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "x1",
+            "y1",
+            "x2",
+            "y2",
+            "color"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "color": {
+              "type": "string"
+            },
+            "cx": {
+              "type": "number",
+              "format": "float"
+            },
+            "cy": {
+              "type": "number",
+              "format": "float"
+            },
+            "intensity": {
+              "type": "number",
+              "format": "float",
+              "default": 0.2199999988079071
+            },
+            "rx": {
+              "type": "number",
+              "format": "float"
+            },
+            "ry": {
+              "type": "number",
+              "format": "float"
+            },
+            "type": {
+              "type": "string",
+              "const": "floor_glow"
+            }
+          },
+          "required": [
+            "type",
+            "cx",
+            "cy",
+            "rx",
+            "ry",
+            "color"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accent_top": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "bg": {
+              "type": "string",
+              "default": "#ECE5D5"
+            },
+            "fold": {
+              "type": "boolean",
+              "default": true
+            },
+            "height": {
+              "type": "number",
+              "format": "float"
+            },
+            "kicker": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "subtitle": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "type": {
+              "type": "string",
+              "const": "card"
+            },
+            "width": {
+              "type": "number",
+              "format": "float"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "x",
+            "y",
+            "width",
+            "height"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "align": {
+              "$ref": "#/$defs/TextAlign",
+              "default": "left"
+            },
+            "color": {
+              "type": "string"
+            },
+            "counter": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CounterSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "font": {
+              "$ref": "#/$defs/FontRole",
+              "default": "display"
+            },
+            "size": {
+              "type": "number",
+              "format": "float"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "text"
+            },
+            "value_keyframes": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/ValueKeyframe"
+              }
+            },
+            "width": {
+              "type": "number",
+              "format": "float",
+              "default": 1700.0
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "text",
+            "x",
+            "y",
+            "size",
+            "color"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "bg": {
+              "type": "string"
+            },
+            "fg": {
+              "type": "string"
+            },
+            "font_size": {
+              "type": "number",
+              "format": "float",
+              "default": 30.0
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "chip"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "text",
+            "x",
+            "y",
+            "bg",
+            "fg"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accent_top": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "label": {
+              "type": "string"
+            },
+            "label_keyframes": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/ValueKeyframe"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "hud_box"
+            },
+            "value": {
+              "type": "string"
+            },
+            "value_color": {
+              "type": "string",
+              "default": "#00D4FF"
+            },
+            "value_keyframes": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/ValueKeyframe"
+              }
+            },
+            "value_size": {
+              "type": "number",
+              "format": "float",
+              "default": 78.0
+            },
+            "width": {
+              "type": "number",
+              "format": "float"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "label",
+            "value",
+            "x",
+            "y",
+            "width"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "color": {
+              "type": "string"
+            },
+            "cx": {
+              "type": "number",
+              "format": "float"
+            },
+            "cy": {
+              "type": "number",
+              "format": "float"
+            },
+            "diameter": {
+              "type": "number",
+              "format": "float"
+            },
+            "glow": {
+              "type": "boolean",
+              "default": true
+            },
+            "stroke_width": {
+              "type": "number",
+              "format": "float",
+              "default": 6.0
+            },
+            "type": {
+              "type": "string",
+              "const": "ring"
+            }
+          },
+          "required": [
+            "type",
+            "cx",
+            "cy",
+            "diameter",
+            "color"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "color": {
+              "type": "string"
+            },
+            "font_size": {
+              "type": "number",
+              "format": "float",
+              "default": 76.0
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "stamp"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "text",
+            "x",
+            "y",
+            "color"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "dot_color": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "legend"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "label",
+            "dot_color",
+            "x",
+            "y"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "anim_duration": {
+              "type": "number",
+              "format": "double",
+              "default": 0.8
+            },
+            "bar_width": {
+              "type": "number",
+              "format": "float"
+            },
+            "color": {
+              "type": "string"
+            },
+            "font_size": {
+              "type": "number",
+              "format": "float",
+              "default": 32.0
+            },
+            "fraction": {
+              "type": "number",
+              "format": "float"
+            },
+            "height": {
+              "type": "number",
+              "format": "float",
+              "default": 62.0
+            },
+            "label": {
+              "type": "string"
+            },
+            "label_color": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "label_width": {
+              "type": "number",
+              "format": "float",
+              "default": 260.0
+            },
+            "type": {
+              "type": "string",
+              "const": "progress_bar"
+            },
+            "value_size": {
+              "type": "number",
+              "format": "float",
+              "default": 46.0
+            },
+            "value_text": {
+              "type": "string"
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "type",
+            "label",
+            "value_text",
+            "fraction",
+            "x",
+            "y",
+            "bar_width",
+            "color"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "font_size": {
+              "type": "number",
+              "format": "float",
+              "default": 44.0
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/CaptionItem"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "captions"
+            },
+            "y": {
+              "type": "number",
+              "format": "float",
+              "default": 955.0
+            }
+          },
+          "required": [
+            "type",
+            "items"
+          ]
+        }
+      ],
+      "required": [
+        "id",
+        "start"
+      ]
+    },
+    "PulseSpec": {
+      "type": "object",
+      "properties": {
+        "half_period": {
+          "type": "number",
+          "format": "double",
+          "default": 0.45
+        },
+        "repeats": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 3,
+          "minimum": 0
+        },
+        "scale": {
+          "type": "number",
+          "format": "float",
+          "default": 1.1799999475479126
+        },
+        "start": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "start"
+      ]
+    },
+    "TagSpec": {
+      "type": "object",
+      "properties": {
+        "bg": {
+          "type": "string"
+        },
+        "fg": {
+          "type": "string"
+        },
+        "font_size": {
+          "type": "number",
+          "format": "float",
+          "default": 28.0
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "bg",
+        "fg"
+      ]
+    },
+    "TextAlign": {
+      "type": "string",
+      "enum": [
+        "left",
+        "center",
+        "right"
+      ]
+    },
+    "ValueKeyframe": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "number",
+          "format": "double"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "jump_scale": {
+          "type": "number",
+          "format": "float",
+          "default": 1.600000023841858
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "text"
+      ]
+    },
+    "VideoSegmentSpec": {
+      "type": "object",
+      "properties": {
+        "duration": {
+          "type": "number",
+          "format": "double"
+        },
+        "media_start": {
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "playback_rate": {
+          "type": "number",
+          "format": "double",
+          "default": 1.0
+        },
+        "src": {
+          "type": "string"
+        },
+        "start": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "src",
+        "start",
+        "duration"
+      ]
+    }
+  }
+}

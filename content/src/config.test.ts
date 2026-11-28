@@ -41,6 +41,7 @@ test("without a config file the state lives under LOCALAPPDATA and nothing else 
       legacyMapsDir: null,
       legacyMetricsDir: null,
       studioMcp: null,
+      renderBin: null,
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });

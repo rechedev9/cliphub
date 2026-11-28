@@ -2,6 +2,13 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import type { Config } from "../config.ts";
 import { importLegacyState, LegacyImportError } from "../legacy/import.ts";
+import {
+  probeRenderGpu,
+  RenderJobManager,
+  resolveRenderBinary,
+  runEssaySnapshot,
+  validateEssaySpec,
+} from "../render/client.ts";
 import { applyMapEvent, mapStage, povStatus, shortStatus, type MapEvent, type MapRecord } from "../state/model.ts";
 import type { StateStore } from "../state/store.ts";
 import type { StudioProbe } from "../studio/client.ts";
@@ -10,6 +17,7 @@ export type ContentServerDeps = {
   config: Config;
   store: StateStore;
   probeStudio: () => Promise<StudioProbe>;
+  renderJobs?: RenderJobManager;
 };
 
 export const SERVER_INFO = { name: "cliphub-content", version: "0.1.0" };
@@ -19,7 +27,11 @@ const INSTRUCTIONS = `cliphub-content keeps the state of the ClipHub YouTube cha
 A map's stage (open, ready, done, cleaned, skipped) and each Short's status are derived from its fields; change them only
 with record_map_event, which refuses an illegal step (for example cleaning a map that is not done). content_status says
 whether the config was found, where the state lives, its schema version and whether the Studio MCP (zv-mcp) answers.
-import_legacy_state reads the old map.json folders and metrics files; it is a dry run unless write is true.`;
+import_legacy_state reads the old map.json folders and metrics files; it is a dry run unless write is true.
+For GPU-accelerated analysis videos rendered by tools/render (cliphub-render), call render_gpu_info to verify discrete GPU
+and NVENC availability, validate_essay_spec to check a JSON spec before rendering, snapshot_essay to inspect key PNG frames,
+start_essay_render to launch a non-blocking GPU render job (requireGpu defaults to true), and get_essay_render_status to poll
+completion and read structured FPS and timing stats.`;
 
 const stageKinds = z.enum(["open", "ready", "done", "cleaned", "skipped"]);
 
@@ -91,6 +103,8 @@ function recordEvent(store: StateStore, request: { mapId: string; event: MapEven
 export function createContentServer(deps: ContentServerDeps): McpServer {
   const server = new McpServer(SERVER_INFO, { capabilities: { tools: {} }, instructions: INSTRUCTIONS });
   const { store, config } = deps;
+  const renderJobs = deps.renderJobs ?? new RenderJobManager();
+  const renderBin = () => resolveRenderBinary(config.renderBin);
 
   server.registerTool(
     "content_status",
@@ -145,6 +159,100 @@ export function createContentServer(deps: ContentServerDeps): McpServer {
         if (error instanceof LegacyImportError) return failure(error.message);
         throw error;
       }
+    },
+  );
+
+  server.registerTool(
+    "render_gpu_info",
+    {
+      description: "Probe the GPU adapter, backend (Vulkan/DX12) and available FFmpeg NVENC encoders via cliphub-render.",
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      try {
+        const bin = renderBin();
+        const info = await probeRenderGpu(bin);
+        return ok({ binary: bin, ...info });
+      } catch (error) {
+        return failure(error instanceof Error ? error.message : String(error));
+      }
+    },
+  );
+
+  server.registerTool(
+    "validate_essay_spec",
+    {
+      description: "Validate a ProjectSpec or multi-scene EssaySpec JSON file and verify all referenced media assets.",
+      inputSchema: z.object({ specPath: z.string().min(1) }),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ specPath }) => {
+      try {
+        const result = await validateEssaySpec(renderBin(), specPath);
+        return ok(result);
+      } catch (error) {
+        return failure(error instanceof Error ? error.message : String(error));
+      }
+    },
+  );
+
+  server.registerTool(
+    "snapshot_essay",
+    {
+      description: "Render PNG snapshots at specific timestamps (seconds) on GPU for fast visual QA before a full render.",
+      inputSchema: z.object({
+        specPath: z.string().min(1),
+        at: z.array(z.number().nonnegative()).min(1),
+        outDir: z.string().min(1),
+        scene: z.string().min(1).optional(),
+        requireGpu: z.boolean().default(true),
+      }),
+    },
+    async (input) => {
+      try {
+        const result = await runEssaySnapshot(renderBin(), input);
+        return ok(result);
+      } catch (error) {
+        return failure(error instanceof Error ? error.message : String(error));
+      }
+    },
+  );
+
+  server.registerTool(
+    "start_essay_render",
+    {
+      description: "Start a non-blocking GPU video render via cliphub-render (--require-gpu enabled by default). Poll completion with get_essay_render_status.",
+      inputSchema: z.object({
+        specPath: z.string().min(1),
+        outputPath: z.string().min(1),
+        codec: z.enum(["h264_nvenc", "hevc_nvenc", "av1_nvenc", "libx264"]).optional(),
+        preset: z.string().min(1).optional(),
+        cq: z.int().min(1).max(51).optional(),
+        workers: z.int().min(1).max(6).optional(),
+        lufs: z.number().min(-30).max(-5).optional(),
+        requireGpu: z.boolean().default(true),
+        cudaDecode: z.boolean().default(false),
+      }),
+    },
+    (input) => {
+      const state = renderJobs.start(renderBin(), input);
+      return ok(state);
+    },
+  );
+
+  server.registerTool(
+    "get_essay_render_status",
+    {
+      description: "Poll a background cliphub-render job by jobId, or omit jobId to list all tracked render jobs and their GPU stats.",
+      inputSchema: z.object({ jobId: z.string().min(1).optional() }),
+      annotations: { readOnlyHint: true },
+    },
+    ({ jobId }) => {
+      if (jobId === undefined) {
+        return ok({ jobs: renderJobs.list() });
+      }
+      const job = renderJobs.get(jobId);
+      return job === null ? failure(`no render job ${jobId}`) : ok(job);
     },
   );
 

@@ -242,6 +242,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerSteamTools(server, s)
 	registerFaceitRoomTools(server, s)
 	registerClipMindTools(server, s)
+	registerRenderGPUTools(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,
 		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE). Also returns the Studio version, support code and studio.log path a bug report needs, and the automatic approvals the user turned on in Studio (auto_approve_starts, auto_approve_deletes)."},

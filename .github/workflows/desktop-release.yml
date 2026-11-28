@@ -60,6 +60,25 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
+      - name: Setup Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy
+          rustup default stable
+          rustc --version
+          cargo --version
+
+      - name: Cache Cargo for cliphub-render
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            tools/render/target/
+          key: ${{ runner.os }}-cargo-render-checks-${{ hashFiles('tools/render/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-render-checks-
+
       - name: Install Studio's FFmpeg
         # Studio's own installer and pins (FFmpeg 8.1.2 from our releases, checksummed), so a
         # fresh install's downloads are proven too. The Go tests find ffmpeg on PATH.
@@ -84,6 +103,12 @@ jobs:
           go vet ./...
           go test -short ./... -count=1 -timeout 20m
           go run ./cmd/zv check
+
+      - name: Rust render engine test and clippy
+        working-directory: tools/render
+        run: |
+          cargo test
+          cargo clippy --all-targets -- -D warnings
 
       - name: Capture simulator contracts
         run: node --test scripts/capturelab/*.test.mjs
@@ -164,6 +189,26 @@ jobs:
           node-version: 26
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+          cargo --version
+
+      - name: Cache Cargo for cliphub-render
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            tools/render/target/
+          key: ${{ runner.os }}-cargo-render-release-${{ hashFiles('tools/render/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-render-release-
 
       - name: Install the workspace dependencies
         run: pnpm install --frozen-lockfile

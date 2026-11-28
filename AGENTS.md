@@ -38,6 +38,7 @@ it. [ClipMind and the VPS](.claude/rules/clipmind.md).
 | `services/community` | Community API on the VPS: pro reference, rankings, pro lineups, pro matches (`pro_match_maps`) |
 | `services/telemetry` | Telemetry collector on the VPS. [Remote debugging](docs/remote-debug-tracing.md) |
 | `tools/hltv-harvester` | Operator Electron tool on the owner's PC that downloads HLTV demo archives |
+| `tools/render` | Rust GPU render engine (`cliphub-render.exe`), an internal Studio binary built by `scripts/build.ps1` and bundled in the installer ([Render and the editor](.claude/rules/render-editor.md)) |
 | `tools/chperf`, `tools/oxlint-no-comments` | A C performance probe, and the oxlint plugin behind `cliphub/no-comments` |
 | `plugins/teamspeak` | TeamSpeak plugin that records team voice for Studio (`scripts/build-teamspeak-plugin.ps1`) |
 | `data/`, `deploy/`, `scripts/` | Bundled game data and music catalog, VPS copies of the deploy files, build and operator scripts |
@@ -51,7 +52,7 @@ it. [ClipMind and the VPS](.claude/rules/clipmind.md).
 - `cmd/zv-orchestrator` serves the local HTTP API (`internal/httpapi`) and the job queue. Workers in
   `internal/workers` parse demos in process (`internal/parser`) and run `zv-recorder` (CS2 capture
   through HLAE) and `zv-editor` (FFmpeg render) as subprocesses. State lives in SQLite through
-  `internal/store`. The installer ships these three binaries plus `zv-mcp.exe`.
+  `internal/store`. The installer ships these three binaries plus `zv-mcp.exe` and `cliphub-render.exe` (`tools/render`).
 - `cmd/zv-mcp` is the stdio MCP server for assistants, an adapter over the orchestrator API
   ([docs/studio-mcp.md](docs/studio-mcp.md)). `cmd/zv` is the CLI over the same pipeline; the other
   `cmd/` tools are for development.
@@ -80,6 +81,7 @@ it. [ClipMind and the VPS](.claude/rules/clipmind.md).
 - Fast local Go loop: `go test -short ./...` skips the slow FFmpeg renders and `TestNoDeadCode`.
   Pre-PR runs use the full suite. `internal/editor` alone nears the 10 min default on Windows, so
   pass `-timeout 30m` to a full run.
+- Rust (`tools/render`): `cargo test` and `cargo clippy --all-targets -- -D warnings`. `scripts/build.ps1` builds `cliphub-render.exe` into `bin/` alongside the Go binaries (required with `-RequireFaceitEmbed`, skipped with a warning locally if `cargo` is absent).
 - One root pnpm workspace (`pnpm-workspace.yaml`: `web`, `desktop`, `landing`, `mcp-apps`,
   `tools/hltv-harvester`, `content`) with one `pnpm-lock.yaml` and a hoisted `node_modules`: install once with
   `pnpm install`, never inside a package. Shared dependency versions live in the `catalog:` of

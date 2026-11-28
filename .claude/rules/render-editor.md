@@ -13,12 +13,18 @@ paths:
   - "internal/hudthemes/**"
   - "internal/htmlstill/**"
   - "internal/radaroverlay/**"
+  - "internal/renderengine/**"
   - "cmd/zv-recorder/**"
+  - "tools/render/**"
 ---
 
 # Render and the editor
 
 `zv-editor` is the FFmpeg render. The domain rules are in `docs/incidents.md`: read **Full Demo audio mastering** before you change the audio chain, **Full Demo overlay format** before you change overlays, and **How to diagnose a user's render failure** for telemetry. Do not copy them here.
+
+## GPU render engine (`cliphub-render`)
+
+`tools/render` builds `cliphub-render.exe` (Rust + wgpu/vello), an internal Studio binary staged into `bin/` by `scripts/build.ps1` (required with `-RequireFaceitEmbed`, skipped locally with a warning when `cargo` is absent) and bundled into `desktop/build-resources/bin/` by `desktop/scripts/assemble.mjs`. Studio invokes it through `internal/renderengine`; its default `auto` codec cascades hardware encoders (`h264_nvenc` -> `h264_amf` -> `h264_qsv` -> `libx264`) and embeds open-source fallback fonts so renders stay portable across Windows PCs.
 
 ## FFmpeg 8.1.2
 

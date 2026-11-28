@@ -142,6 +142,11 @@ try {
     if (($TeamSpeakPlugin -or $RequireFaceitEmbed) -and -not $hasGcc) {
         throw "gcc (MinGW-w64) is not on PATH, so the TeamSpeak 3 plugin cannot be built and a release must not ship without it. Install MinGW-w64 and retry."
     }
+    $renderManifest = Join-Path (Resolve-Path ".").Path "tools\render\Cargo.toml"
+    $hasCargo = [bool](Get-Command cargo -ErrorAction SilentlyContinue)
+    if ($RequireFaceitEmbed -and -not $hasCargo) {
+        throw "cargo (Rust toolchain) is not on PATH, so cliphub-render.exe cannot be built and a release must not ship without it. Install Rust (rustup) and retry."
+    }
     $faceitEmbedKey = Get-FaceitEmbedKey
     if ($RequireFaceitEmbed -and $faceitEmbedKey -eq "") {
         throw "FACEIT_API_KEY is required to embed in zv-orchestrator.exe for the installer"
@@ -157,8 +162,10 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "git rev-parse HEAD failed with exit $LASTEXITCODE"
     }
+    $isGitWorktree = Test-Path -LiteralPath (Join-Path (Resolve-Path ".").Path ".git") -PathType Leaf
     $modifiedTree = $false
     $foreignRevision = ""
+    $worktreeSkippedStamp = $false
     foreach ($name in $commands) {
         $out = Join-Path $stagingDir "$name.exe"
         $pkg = "./cmd/$name"
@@ -182,12 +189,19 @@ try {
         if ($name -eq "zv-orchestrator" -and $faceitEmbedKey -ne "") {
             Assert-FaceitKeyEmbedded -Path $out -Key $faceitEmbedKey
         }
-        $stamp = Assert-VcsRevisionStamped -Path $out
-        if ($stamp.Modified) {
-            $modifiedTree = $true
-        }
-        if ($stamp.Revision -ne $headRevision.Trim()) {
-            $foreignRevision = $stamp.Revision
+        try {
+            $stamp = Assert-VcsRevisionStamped -Path $out
+            if ($stamp.Modified) {
+                $modifiedTree = $true
+            }
+            if ($stamp.Revision -ne $headRevision.Trim()) {
+                $foreignRevision = $stamp.Revision
+            }
+        } catch {
+            if ($RequireFaceitEmbed -or -not $isGitWorktree) {
+                throw
+            }
+            $worktreeSkippedStamp = $true
         }
     }
     # Go stamps the enclosing checkout when the repo is a worktree nested in another one.
@@ -198,14 +212,48 @@ try {
         }
         Write-Host $message -ForegroundColor Yellow
     }
+    if ($worktreeSkippedStamp) {
+        Write-Host "Skipped vcs.revision check: git worktree checkout (.git file) is not stamped by Go -buildvcs. Release builds (-RequireFaceitEmbed) still require a full checkout." -ForegroundColor Yellow
+    }
     if ($modifiedTree) {
         Write-Host "The binaries carry vcs.modified=true: uncommitted changes keep the commit's vcs.revision, so the library retry after an upgrade does not treat them as a new build." -ForegroundColor Yellow
+    }
+
+    $publishNames = [System.Collections.Generic.List[string]]::new()
+    foreach ($name in $commands) {
+        $publishNames.Add($name)
+    }
+
+    if ($hasCargo) {
+        Write-Host "cargo build --release --manifest-path tools/render/Cargo.toml"
+        & cargo build --release --manifest-path $renderManifest
+        if ($LASTEXITCODE -ne 0) {
+            throw "cargo build failed for tools/render"
+        }
+        $cargoTargetDir = if (-not [string]::IsNullOrWhiteSpace($env:CARGO_TARGET_DIR)) {
+            $env:CARGO_TARGET_DIR
+        } else {
+            Join-Path (Split-Path -Parent $renderManifest) "target"
+        }
+        $renderBuilt = Join-Path $cargoTargetDir "release\cliphub-render.exe"
+        if (-not (Test-Path -LiteralPath $renderBuilt -PathType Leaf)) {
+            throw "cargo build did not produce $renderBuilt"
+        }
+        $renderStaged = Join-Path $stagingDir "cliphub-render.exe"
+        Copy-Item -LiteralPath $renderBuilt -Destination $renderStaged -Force
+        $renderArtifact = Get-Item -LiteralPath $renderStaged
+        if ($renderArtifact.PSIsContainer -or $renderArtifact.Length -le 0) {
+            throw "cargo build produced an invalid artifact for cliphub-render"
+        }
+        $publishNames.Add("cliphub-render")
+    } else {
+        Write-Host "GPU render engine skipped: cargo (Rust toolchain) is not on PATH. Install Rust (rustup) to build bin\cliphub-render.exe." -ForegroundColor Yellow
     }
 
     # Publish only after the complete runtime set exists. The helper is a
     # testable transaction: every earlier target rolls back on failure, while an
     # incomplete rollback preserves the backup directory for manual recovery.
-    Publish-BuildArtifacts -Names $commands -BinDir $binDir -StagingDir $stagingDir -BackupDir $backupDir -PublicationLock $publicationLock
+    Publish-BuildArtifacts -Names @($publishNames) -BinDir $binDir -StagingDir $stagingDir -BackupDir $backupDir -PublicationLock $publicationLock
 
     # The TeamSpeak 3 plugin package ships in the installer beside the Go runtimes; it needs MinGW-w64 gcc.
     if ($hasGcc) {

@@ -131,3 +131,22 @@ test('every action in the release workflow is pinned to a full commit SHA', () =
     assert.match(ref, /@[0-9a-f]{40}$/, `${ref} must be pinned by SHA`);
   }
 });
+
+test('release workflow checks and builds the Rust GPU render engine', () => {
+  const checks = jobs.checks;
+  assert.ok(checks.includes('working-directory: tools/render'), 'checks must target tools/render');
+  assert.ok(checks.includes('cargo test'), 'checks must run cargo test');
+  assert.ok(
+    checks.includes('cargo clippy --all-targets -- -D warnings'),
+    'checks must run cargo clippy with -D warnings',
+  );
+  assert.ok(checks.includes('tools/render/Cargo.lock'), 'checks must cache Cargo by tools/render/Cargo.lock');
+
+  const installer = jobs['windows-installer'];
+  const rustSetup = installer.indexOf('rustup toolchain install stable');
+  const cargoCache = installer.indexOf('tools/render/Cargo.lock');
+  const distRun = installer.indexOf('pnpm --dir desktop run dist');
+  assert.notEqual(rustSetup, -1, 'windows-installer must ensure stable Rust is installed');
+  assert.notEqual(cargoCache, -1, 'windows-installer must cache Cargo for cliphub-render');
+  assert.ok(rustSetup < distRun && cargoCache < distRun, 'Rust and Cargo cache must be ready before dist');
+});

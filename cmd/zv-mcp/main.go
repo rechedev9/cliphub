@@ -430,13 +430,14 @@ pick_player; check_only only checks the code. Steam sign-in stays in Studio's UI
 render_seconds, whether that work fits), list_storage_files,
 rescan_storage_files, reveal_storage_file, delete_storage_file, delete_captures for Full Demo captures and
 set_capture_retention for how many keep theirs.
-generate_short, generate_shorts_batch, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
+generate_short, generate_shorts_batch, render_full_demo, render_stream, render_stream_summary, gpu_render_video, delete_video, delete_stream,
 delete_stream_video, delete_imported_video, delete_demo, merge_teams, delete_storage_file, delete_captures, set_capture_retention, retry_video,
 change_video_music, delete_video_version, delete_report, delete_team_document, delete_play, delete_lineup, delete_call, delete_pattern, delete_library_series, delete_playlist, delete_voice,
 launch_practice, launch_bot_replay need the user's approval.
 Two switches in Studio, Ajustes, Asistentes, both off by default, skip that question: with Aprobar automáticamente grabaciones y renders on,
-generate_short, generate_shorts_batch, render_full_demo, record_round_pov, render_stream, render_stream_summary, retry_video and change_video_music
+generate_short, generate_shorts_batch, render_full_demo, record_round_pov, render_stream, render_stream_summary, retry_video, change_video_music and gpu_render_video
 start at once; with Aprobar automáticamente borrar vídeos y capturas on, delete_video and delete_captures run at once. Every other approval still asks.
+GPU render engine: gpu_render_info checks the detected GPU adapter, hardware encoders (NVENC, AMF, QSV), recommended codec and FFmpeg editor encoder; validate_gpu_render_spec checks a local scene/essay JSON spec, gpu_render_snapshot renders PNG preview frames, and gpu_render_video renders an MP4 (asking for approval like other renders).
 studio_status auto_approve_starts and auto_approve_deletes report them; only the user changes them, in Studio. Do not ask the user before such a call:
 call the tool, and ask only when the result says needs_approval.
 ClipMind (the web edition of ClipHub): clipmind_status says whether Studio is signed in to a ClipMind account, with its workspace and
