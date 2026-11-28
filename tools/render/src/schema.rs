@@ -1,3 +1,4 @@
+use crate::timing::frame_count;
 use anyhow::{Context, Result, bail};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -905,7 +906,7 @@ impl ProjectSpec {
     }
 
     pub fn total_frames(&self) -> u32 {
-        (self.duration * self.fps as f64).ceil().max(1.0) as u32
+        frame_count(self.duration, self.fps)
     }
 
     pub fn validate(&self, spec_path: &Path) -> Result<Vec<String>> {
@@ -1112,10 +1113,7 @@ impl EssaySpec {
     }
 
     pub fn total_frames(&self) -> u32 {
-        self.scenes
-            .iter()
-            .map(|s| (s.duration * self.fps as f64).ceil().max(1.0) as u32)
-            .sum()
+        self.scene_frame_counts().iter().sum()
     }
 
     pub fn scene_to_project(&self, scene: &EssayScene) -> ProjectSpec {

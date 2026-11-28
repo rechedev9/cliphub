@@ -73,7 +73,7 @@ holds one.
 | `render_gpu_info` | probes the discrete GPU adapter (Vulkan/DX12) and FFmpeg NVENC encoders via `tools/render` (`cliphub-render`) |
 | `validate_essay_spec` | validates a `ProjectSpec` or multi-scene `EssaySpec` JSON against `tools/render` and verifies all media paths |
 | `snapshot_essay` | renders fast GPU PNG snapshots at requested timestamps for visual QA before a full render |
-| `start_essay_render`, `get_essay_render_status` | launches a non-blocking GPU render (`--require-gpu` on by default) via `tools/render` and polls completion + structured FPS/timing stats |
+| `start_essay_render`, `get_essay_render_status` | launches a non-blocking GPU render (`--require-gpu` on by default) via `tools/render` into a file that does not exist yet, and polls completion + structured FPS/timing stats |
 
 Long jobs (renders, uploads) will run as MCP Tasks. The TypeScript SDK (v2) has no server runtime for
 Tasks yet (`@modelcontextprotocol/ext-tasks` covers the client side only), so those tools are not built

@@ -221,7 +221,7 @@ export function createContentServer(deps: ContentServerDeps): McpServer {
   server.registerTool(
     "start_essay_render",
     {
-      description: "Start a non-blocking GPU video render via cliphub-render (--require-gpu enabled by default). Poll completion with get_essay_render_status.",
+      description: "Start a non-blocking GPU video render via cliphub-render (--require-gpu enabled by default). outputPath must not exist yet: the engine never replaces a file. Poll completion with get_essay_render_status.",
       inputSchema: z.object({
         specPath: z.string().min(1),
         outputPath: z.string().min(1),

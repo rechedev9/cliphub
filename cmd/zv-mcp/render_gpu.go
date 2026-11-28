@@ -44,7 +44,7 @@ type gpuRenderSnapshotIn struct {
 
 type gpuRenderVideoIn struct {
 	SpecPath   string   `json:"spec_path" jsonschema:"absolute local path to a cliphub-render JSON scene or essay spec"`
-	OutputPath string   `json:"output_path" jsonschema:"absolute local path for the output MP4 file"`
+	OutputPath string   `json:"output_path" jsonschema:"absolute local path of the new .mp4 file, in an existing folder; an existing file is refused"`
 	Codec      string   `json:"codec,omitempty" jsonschema:"video encoder codec (auto, h264_nvenc, hevc_nvenc, av1_nvenc, h264_amf, hevc_amf, h264_qsv, hevc_qsv, libx264)"`
 	Preset     string   `json:"preset,omitempty" jsonschema:"encoder preset override"`
 	CQ         *int     `json:"cq,omitempty" jsonschema:"quality target override"`
@@ -125,15 +125,15 @@ func registerRenderGPUTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "gpu_render_video",
-		Description: "Render a local cliphub-render JSON scene or essay spec to MP4 using the GPU render engine. " + startApprovalHint,
+		Description: "Render a local cliphub-render JSON scene or essay spec to a new MP4 file using the GPU render engine. It never replaces a file. " + startApprovalHint,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in gpuRenderVideoIn) (*mcp.CallToolResult, gpuRenderVideoOut, error) {
 		specPath, err := checkRenderLocalPath("spec_path", in.SpecPath)
 		if err != nil {
 			return nil, gpuRenderVideoOut{}, err
 		}
-		outputPath, err := checkRenderLocalPath("output_path", in.OutputPath)
-		if err != nil {
-			return nil, gpuRenderVideoOut{}, err
+		outputPath := strings.TrimSpace(in.OutputPath)
+		if err := checkNewLocalFile(outputPath, ".mp4"); err != nil {
+			return nil, gpuRenderVideoOut{}, fmt.Errorf("output_path: %w", err)
 		}
 		payload := renderengine.RenderRequest{
 			SpecPath:   specPath,
@@ -151,9 +151,10 @@ func registerRenderGPUTools(server *mcp.Server, s *studio) {
 			codecLabel = "auto"
 		}
 		summary := fmt.Sprintf(
-			"Renderizar en GPU %s en %s con códec %s.",
+			"Renderizar en GPU %s y crear el vídeo %s en la carpeta %s con códec %s.",
 			quotedName(filepath.Base(specPath), "la especificación"),
 			quotedName(filepath.Base(outputPath), "el archivo MP4"),
+			quotedPath(filepath.Dir(outputPath)),
 			cleanName(codecLabel),
 		)
 		decision, err := sessionApprovals.approve(req, approvalSpec{

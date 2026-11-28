@@ -3,7 +3,7 @@ use crate::schema::{
     FontRole, LayerKind, LayerSpec, ProjectSpec, Rgba, TagSpec, TextAlign, ValueKeyframe,
 };
 use crate::text::{FontRegistry, draw_text_block, measure_line_width};
-use crate::video::{MediaPool, decode_single_frame};
+use crate::video::{FrameClock, MediaPool, active_segment, decode_single_frame};
 use anyhow::{Context, Result, anyhow};
 use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
@@ -903,13 +903,7 @@ impl GpuCompositor {
                     segments,
                     ..
                 } => {
-                    let mut chosen: Option<(usize, &crate::schema::VideoSegmentSpec)> = None;
-                    for (si, seg) in segments.iter().enumerate() {
-                        if t >= seg.start - 0.001 && t <= seg.start + seg.duration + 0.05 {
-                            chosen = Some((si, seg));
-                            break;
-                        }
-                    }
+                    let chosen = active_segment(segments, t);
                     for (si, seg) in segments.iter().enumerate() {
                         if t > seg.start + seg.duration + 0.25 {
                             media.release_stream(&format!("{}#seg{si}", layer.id));
@@ -932,18 +926,13 @@ impl GpuCompositor {
                         ))
                     } else {
                         let stream_key = format!("{}#seg{si}", layer.id);
-                        media
-                            .next_video_frame(
-                                &stream_key,
-                                &path,
-                                seg.media_start,
-                                seg.duration,
-                                seg.playback_rate,
-                                spec.fps,
-                                vw,
-                                vh,
-                            )?
-                            .map(std::borrow::Cow::Borrowed)
+                        Some(std::borrow::Cow::Borrowed(media.video_frame(
+                            &stream_key,
+                            &path,
+                            seg,
+                            FrameClock { t, fps: spec.fps },
+                            (vw, vh),
+                        )?))
                     };
 
                     if let Some(rgba) = pixels_cow {

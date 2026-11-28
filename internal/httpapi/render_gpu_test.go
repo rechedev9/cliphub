@@ -31,7 +31,7 @@ func writeFakeRenderScript(t *testing.T) string {
 			"echo {\"gpu_adapter\":\"Mock RTX 4090\",\"backend\":\"Vulkan\",\"device_type\":\"DiscreteGpu\",\"is_discrete_gpu\":true,\"nvenc_encoders\":[\"h264_nvenc\"],\"hardware_encoders\":[\"h264_nvenc\",\"h264_amf\"],\"recommended_codec\":\"h264_nvenc\"}",
 			"exit /b 0",
 			":do_validate",
-			"echo OK: %~2 (project 1920x1080 @ 60 fps, 2.000s = 120 frames, 1 layers, 0 audio clips)",
+			"echo OK: %~2 (project 1920x1080 @ 60 fps, 2.000s = 120 frames, 1 layers, 0 audio clips) ffmpeg=%ZV_FFMPEG_PATH%",
 			"exit /b 0",
 			":do_snapshot",
 			"echo Rendered 1 snapshots in 10 ms:",
@@ -54,7 +54,7 @@ func writeFakeRenderScript(t *testing.T) string {
 		"    echo '{\"gpu_adapter\":\"Mock RTX 4090\",\"backend\":\"Vulkan\",\"device_type\":\"DiscreteGpu\",\"is_discrete_gpu\":true,\"nvenc_encoders\":[\"h264_nvenc\"],\"hardware_encoders\":[\"h264_nvenc\",\"h264_amf\"],\"recommended_codec\":\"h264_nvenc\"}'",
 		"    exit 0 ;;",
 		"  validate)",
-		"    echo \"OK: $2 (project 1920x1080 @ 60 fps, 2.000s = 120 frames, 1 layers, 0 audio clips)\"",
+		"    echo \"OK: $2 (project 1920x1080 @ 60 fps, 2.000s = 120 frames, 1 layers, 0 audio clips) ffmpeg=$ZV_FFMPEG_PATH\"",
 		"    exit 0 ;;",
 		"  snapshot)",
 		"    echo 'Rendered 1 snapshots in 10 ms:'",
@@ -146,6 +146,9 @@ func TestRenderGPUHandlers(t *testing.T) {
 		}
 		if !got.OK || !strings.Contains(got.Summary, "OK:") {
 			t.Fatalf("got = %+v", got)
+		}
+		if !strings.Contains(got.Summary, "ffmpeg="+fakeFFmpeg) {
+			t.Fatalf("Summary = %q, want the renderer to run with the capabilities FFmpeg %q", got.Summary, fakeFFmpeg)
 		}
 	})
 

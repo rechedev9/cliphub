@@ -1,5 +1,6 @@
 use crate::encode::{VideoEncoder, canonical_codec_name, mux_audio, verify_gpu_codec_name};
 use crate::gpu::GpuCompositor;
+use crate::output::PendingOutput;
 use crate::schema::ProjectSpec;
 use crate::text::FontRegistry;
 use crate::video::MediaPool;
@@ -42,12 +43,18 @@ pub fn render_project(
     output_path: &Path,
     opts: RenderOptions,
 ) -> Result<RenderStats> {
+    let pending = PendingOutput::create(output_path)?;
     let base_dir = spec.resolve_base_dir(spec_path);
     let fonts = FontRegistry::load(&spec.fonts, &base_dir)?;
     let t_init = Instant::now();
     let mut gpu = GpuCompositor::new(spec.width, spec.height, opts.require_gpu)?;
     let init_ms = t_init.elapsed().as_millis();
-    render_project_with_ctx(spec, spec_path, output_path, opts, &fonts, &mut gpu, init_ms)
+    let rendered = pending.file("render.mp4");
+    let mut stats =
+        render_project_with_ctx(spec, spec_path, &rendered, opts, &fonts, &mut gpu, init_ms)?;
+    pending.publish(&rendered)?;
+    stats.output = output_path.display().to_string();
+    Ok(stats)
 }
 
 pub fn render_project_with_ctx(
@@ -69,12 +76,6 @@ pub fn render_project_with_ctx(
     resolved_encoder.codec = codec.clone();
 
     let base_dir = spec.resolve_base_dir(spec_path);
-
-    if let Some(parent) = output_path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)?;
-    }
 
     let video_only_path = if spec.audio.is_empty() {
         output_path.to_path_buf()

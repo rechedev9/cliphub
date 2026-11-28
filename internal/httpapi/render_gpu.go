@@ -32,6 +32,10 @@ func (h *Handlers) renderFFmpegPath() string {
 	return ""
 }
 
+func (h *Handlers) renderEngine() renderengine.Engine {
+	return renderengine.Engine{FFmpegPath: h.renderFFmpegPath()}
+}
+
 func validateAbsoluteLocalPath(field, raw string) (string, error) {
 	p := strings.TrimSpace(raw)
 	if p == "" {
@@ -57,7 +61,7 @@ func (h *Handlers) GetRenderGPUInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp.BinaryPath = bin
-	info, err := renderengine.ProbeGPU(r.Context())
+	info, err := h.renderEngine().ProbeGPU(r.Context())
 	if err != nil {
 		resp.Error = err.Error()
 		writeJSON(w, http.StatusOK, resp)
@@ -79,7 +83,7 @@ func (h *Handlers) ValidateRenderSpec(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	res, err := renderengine.ValidateSpec(r.Context(), specPath)
+	res, err := h.renderEngine().ValidateSpec(r.Context(), specPath)
 	if err != nil {
 		writeRenderEngineError(w, err)
 		return
@@ -109,7 +113,7 @@ func (h *Handlers) SnapshotRenderSpec(w http.ResponseWriter, r *http.Request) {
 	}
 	req.SpecPath = specPath
 	req.OutDir = outDir
-	res, err := renderengine.Snapshot(r.Context(), req)
+	res, err := h.renderEngine().Snapshot(r.Context(), req)
 	if err != nil {
 		writeRenderEngineError(w, err)
 		return
@@ -135,7 +139,7 @@ func (h *Handlers) RunRenderSpec(w http.ResponseWriter, r *http.Request) {
 	}
 	req.SpecPath = specPath
 	req.OutputPath = outputPath
-	stats, err := renderengine.Render(r.Context(), req)
+	stats, err := h.renderEngine().Render(r.Context(), req)
 	if err != nil {
 		writeRenderEngineError(w, err)
 		return

@@ -1,5 +1,6 @@
 use crate::encode::{canonical_codec_name, concat_videos, mux_audio_clips, verify_gpu_codec_name};
 use crate::gpu::GpuCompositor;
+use crate::output::PendingOutput;
 use crate::render::{RenderOptions, RenderStats, render_project_with_ctx};
 use crate::schema::EssaySpec;
 use crate::text::FontRegistry;
@@ -58,22 +59,13 @@ pub fn render_essay(
         bail!("essay has no scenes to render");
     }
 
-    if let Some(parent) = output_path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)?;
-    }
-
     let workers = requested_workers.clamp(1, spec.scenes.len().min(6));
-    let tmp_dir = output_path.with_extension("essay_parts");
-    if tmp_dir.exists() {
-        let _ = std::fs::remove_dir_all(&tmp_dir);
-    }
-    std::fs::create_dir_all(&tmp_dir)?;
+    let pending = PendingOutput::create(output_path)?;
 
     let part_paths: Vec<PathBuf> = (0..spec.scenes.len())
-        .map(|i| tmp_dir.join(format!("scene_{i:03}.mp4")))
+        .map(|i| pending.file(&format!("scene_{i:03}.mp4")))
         .collect();
+    let scene_frames = spec.scene_frame_counts();
     let results: Mutex<Vec<Option<RenderStats>>> = Mutex::new(vec![None; spec.scenes.len()]);
     let first_err: Mutex<Option<anyhow::Error>> = Mutex::new(None);
     let next_idx = AtomicUsize::new(0);
@@ -89,6 +81,7 @@ pub fn render_essay(
             let first_err_ref = &first_err;
             let next_idx_ref = &next_idx;
             let part_paths_ref = &part_paths;
+            let scene_frames_ref = &scene_frames;
             scope.spawn(move || {
                 let t_gpu = Instant::now();
                 let mut gpu = match GpuCompositor::new(spec.width, spec.height, opts.require_gpu) {
@@ -111,7 +104,8 @@ pub fn render_essay(
                         break;
                     }
                     let scene = &spec.scenes[idx];
-                    let proj = spec.scene_to_project(scene);
+                    let mut proj = spec.scene_to_project(scene);
+                    proj.duration = scene_frames_ref[idx] as f64 / spec.fps as f64;
                     gpu.clear_media_cache();
                     match render_project_with_ctx(
                         &proj,
@@ -141,7 +135,6 @@ pub fn render_essay(
     let scenes_wall_ms = t_scenes.elapsed().as_millis();
 
     if let Some(err) = first_err.into_inner().unwrap() {
-        let _ = std::fs::remove_dir_all(&tmp_dir);
         return Err(err);
     }
 
@@ -154,10 +147,11 @@ pub fn render_essay(
         .collect::<Result<Vec<_>>>()?;
 
     let t_concat = Instant::now();
+    let finished_path = pending.file("essay.mp4");
     let concat_video_path = if spec.audio.is_empty() {
-        output_path.to_path_buf()
+        finished_path.clone()
     } else {
-        tmp_dir.join("concat_video.mp4")
+        pending.file("concat_video.mp4")
     };
     concat_videos(&part_paths, &concat_video_path)?;
     let concat_ms = t_concat.elapsed().as_millis();
@@ -167,15 +161,15 @@ pub fn render_essay(
         let base_dir = spec.resolve_base_dir(spec_path);
         mux_audio_clips(
             &concat_video_path,
-            output_path,
+            &finished_path,
             &spec.audio,
-            spec.total_duration(),
+            spec.total_frames() as f64 / spec.fps as f64,
             spec.normalize_lufs,
             &base_dir,
         )?;
     }
     let audio_mux_ms = t_mux.elapsed().as_millis();
-    let _ = std::fs::remove_dir_all(&tmp_dir);
+    pending.publish(&finished_path)?;
 
     let total_ms = t_all.elapsed().as_millis();
     let total_frames = spec.total_frames();

@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 const fakeRenderModeEnv = "CLIPHUB_TEST_FAKE_RENDER_MODE"
@@ -44,6 +45,10 @@ func runFakeRenderCLI(mode string, args []string) int {
 			return 1
 		}
 	case "validate":
+		if mode == "echo-ffmpeg" {
+			fmt.Printf("OK: ffmpeg=%s\n", os.Getenv(envFFmpegPath))
+			return 0
+		}
 		if mode == "validate-ok" {
 			fmt.Printf("OK: %s (project 1920x1080 @ 60 fps, 5.000s = 300 frames, 2 layers, 0 audio clips)\n", args[1])
 			fmt.Println("WARN: font fallback active")
@@ -68,6 +73,9 @@ func runFakeRenderCLI(mode string, args []string) int {
 		fmt.Fprintln(os.Stderr, "snapshot failed: discrete GPU required")
 		return 1
 	case "render":
+		if mode == "render-hang" || mode == "render-leaves-partial" {
+			return runInterruptedRender(mode, args)
+		}
 		if mode == "render-ok" {
 			outPath := ""
 			codec := "auto"
@@ -241,7 +249,7 @@ func TestProbeGPU(t *testing.T) {
 
 	t.Run("full payload", func(t *testing.T) {
 		t.Setenv(fakeRenderModeEnv, "info-full")
-		info, err := ProbeGPU(context.Background())
+		info, err := Engine{}.ProbeGPU(context.Background())
 		if err != nil {
 			t.Fatalf("ProbeGPU() error = %v", err)
 		}
@@ -261,7 +269,7 @@ func TestProbeGPU(t *testing.T) {
 
 	t.Run("legacy payload mirrors nvenc into hardware_encoders", func(t *testing.T) {
 		t.Setenv(fakeRenderModeEnv, "info-legacy")
-		info, err := ProbeGPU(context.Background())
+		info, err := Engine{}.ProbeGPU(context.Background())
 		if err != nil {
 			t.Fatalf("ProbeGPU() error = %v", err)
 		}
@@ -272,14 +280,14 @@ func TestProbeGPU(t *testing.T) {
 
 	t.Run("invalid JSON fails clearly", func(t *testing.T) {
 		t.Setenv(fakeRenderModeEnv, "info-bad-json")
-		if _, err := ProbeGPU(context.Background()); err == nil || !strings.Contains(err.Error(), "parse cliphub-render info JSON") {
+		if _, err := (Engine{}).ProbeGPU(context.Background()); err == nil || !strings.Contains(err.Error(), "parse cliphub-render info JSON") {
 			t.Fatalf("ProbeGPU() error = %v", err)
 		}
 	})
 
 	t.Run("process failure returns stderr detail", func(t *testing.T) {
 		t.Setenv(fakeRenderModeEnv, "fail")
-		if _, err := ProbeGPU(context.Background()); err == nil || !strings.Contains(err.Error(), "no compatible GPU adapter found") {
+		if _, err := (Engine{}).ProbeGPU(context.Background()); err == nil || !strings.Contains(err.Error(), "no compatible GPU adapter found") {
 			t.Fatalf("ProbeGPU() error = %v", err)
 		}
 	})
@@ -290,14 +298,14 @@ func TestValidateSpec(t *testing.T) {
 	t.Setenv(envRenderBin, bin)
 
 	t.Run("empty spec path rejected", func(t *testing.T) {
-		if _, err := ValidateSpec(context.Background(), "   "); err == nil {
+		if _, err := (Engine{}).ValidateSpec(context.Background(), "   "); err == nil {
 			t.Fatal("ValidateSpec(empty) succeeded, want error")
 		}
 	})
 
 	t.Run("valid spec parses summary and warnings", func(t *testing.T) {
 		t.Setenv(fakeRenderModeEnv, "validate-ok")
-		res, err := ValidateSpec(context.Background(), "scene.json")
+		res, err := Engine{}.ValidateSpec(context.Background(), "scene.json")
 		if err != nil {
 			t.Fatalf("ValidateSpec() error = %v", err)
 		}
@@ -311,7 +319,7 @@ func TestValidateSpec(t *testing.T) {
 
 	t.Run("invalid spec surfaces error", func(t *testing.T) {
 		t.Setenv(fakeRenderModeEnv, "fail")
-		if _, err := ValidateSpec(context.Background(), "bad.json"); err == nil || !strings.Contains(err.Error(), "missing duration") {
+		if _, err := (Engine{}).ValidateSpec(context.Background(), "bad.json"); err == nil || !strings.Contains(err.Error(), "missing duration") {
 			t.Fatalf("ValidateSpec() error = %v", err)
 		}
 	})
@@ -323,7 +331,7 @@ func TestSnapshot(t *testing.T) {
 	t.Setenv(fakeRenderModeEnv, "snapshot-ok")
 
 	outDir := filepath.Join(t.TempDir(), "snaps")
-	res, err := Snapshot(context.Background(), SnapshotRequest{
+	res, err := Engine{}.Snapshot(context.Background(), SnapshotRequest{
 		SpecPath:   "essay.json",
 		At:         []float64{0.5, 2.5},
 		OutDir:     outDir,
@@ -342,7 +350,7 @@ func TestSnapshot(t *testing.T) {
 		}
 	}
 
-	if _, err := Snapshot(context.Background(), SnapshotRequest{SpecPath: "essay.json", OutDir: outDir}); err == nil {
+	if _, err := (Engine{}).Snapshot(context.Background(), SnapshotRequest{SpecPath: "essay.json", OutDir: outDir}); err == nil {
 		t.Fatal("Snapshot(no timestamps) succeeded, want error")
 	}
 }
@@ -360,7 +368,7 @@ func TestRender(t *testing.T) {
 	lufs := -14.0
 	outPath := filepath.Join(t.TempDir(), "out.mp4")
 
-	stats, err := Render(context.Background(), RenderRequest{
+	stats, err := Engine{}.Render(context.Background(), RenderRequest{
 		SpecPath:   "essay.json",
 		OutputPath: outPath,
 		Codec:      "auto",
@@ -399,15 +407,94 @@ func TestRender(t *testing.T) {
 
 	t.Run("bad stats JSON fails clearly", func(t *testing.T) {
 		t.Setenv(fakeRenderModeEnv, "render-bad-json")
-		if _, err := Render(context.Background(), RenderRequest{SpecPath: "essay.json", OutputPath: outPath}); err == nil || !strings.Contains(err.Error(), "parse cliphub-render stats JSON") {
+		if _, err := (Engine{}).Render(context.Background(), RenderRequest{SpecPath: "essay.json", OutputPath: outPath}); err == nil || !strings.Contains(err.Error(), "parse cliphub-render stats JSON") {
 			t.Fatalf("Render() error = %v", err)
 		}
 	})
 
 	t.Run("process error surfaces stderr", func(t *testing.T) {
 		t.Setenv(fakeRenderModeEnv, "fail")
-		if _, err := Render(context.Background(), RenderRequest{SpecPath: "essay.json", OutputPath: outPath}); err == nil || !strings.Contains(err.Error(), "encoder open failed") {
+		if _, err := (Engine{}).Render(context.Background(), RenderRequest{SpecPath: "essay.json", OutputPath: outPath}); err == nil || !strings.Contains(err.Error(), "encoder open failed") {
 			t.Fatalf("Render() error = %v", err)
 		}
 	})
+}
+
+func runInterruptedRender(mode string, args []string) int {
+	outPath := ""
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "-o" {
+			outPath = args[i+1]
+		}
+	}
+	workDir := fmt.Sprintf("%s.%d.partial", outPath, os.Getpid())
+	if err := os.Mkdir(workDir, 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	if err := os.WriteFile(filepath.Join(workDir, "render.mp4"), []byte("half"), 0o644); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	if mode == "render-hang" {
+		time.Sleep(time.Minute)
+	}
+	return 1
+}
+
+func TestEnginePassesItsFFmpegToTheRenderer(t *testing.T) {
+	t.Setenv(envRenderBin, makeFakeBinary(t, t.TempDir()))
+	t.Setenv(fakeRenderModeEnv, "echo-ffmpeg")
+	t.Setenv(envFFmpegPath, "inherited-ffmpeg")
+
+	for _, tc := range []struct {
+		engine Engine
+		want   string
+	}{
+		{engine: Engine{FFmpegPath: "studio-ffmpeg"}, want: "OK: ffmpeg=studio-ffmpeg"},
+		{engine: Engine{}, want: "OK: ffmpeg=inherited-ffmpeg"},
+	} {
+		res, err := tc.engine.ValidateSpec(context.Background(), "scene.json")
+		if err != nil {
+			t.Fatalf("ValidateSpec() error = %v", err)
+		}
+		if res.Summary != tc.want {
+			t.Fatalf("Summary = %q, want %q", res.Summary, tc.want)
+		}
+	}
+}
+
+func TestRenderRemovesTheWorkDirectoryOfAFailedRender(t *testing.T) {
+	t.Setenv(envRenderBin, makeFakeBinary(t, t.TempDir()))
+
+	for _, mode := range []string{"render-leaves-partial", "render-hang"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Setenv(fakeRenderModeEnv, mode)
+			dir := t.TempDir()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if mode == "render-hang" {
+				go func() {
+					for ctx.Err() == nil {
+						if found, _ := filepath.Glob(filepath.Join(dir, "*.partial", "render.mp4")); len(found) > 0 {
+							cancel()
+							return
+						}
+						time.Sleep(20 * time.Millisecond)
+					}
+				}()
+			}
+			_, err := Engine{}.Render(ctx, RenderRequest{SpecPath: "essay.json", OutputPath: filepath.Join(dir, "out.mp4")})
+			if err == nil {
+				t.Fatal("Render() succeeded, want error")
+			}
+			left, readErr := os.ReadDir(dir)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if len(left) != 0 {
+				t.Fatalf("left behind %v after %v", left, err)
+			}
+		})
+	}
 }

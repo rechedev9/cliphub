@@ -1,10 +1,13 @@
 mod easing;
 mod encode;
 mod essay;
+mod ffmpeg;
 mod gpu;
+mod output;
 mod render;
 mod schema;
 mod text;
+mod timing;
 mod video;
 
 use anyhow::{Result, bail};
@@ -100,6 +103,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Info { json } => {
+            ffmpeg::command()?;
             let gpu = gpu::probe_gpu()?;
             let encoders = encode::detect_encoders();
 

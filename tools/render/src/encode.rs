@@ -1,8 +1,9 @@
+use crate::ffmpeg;
 use crate::schema::{AudioClipSpec, EncoderConfig, ProjectSpec};
 use anyhow::{Context, Result, bail};
 use std::io::Write;
 use std::path::Path;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::OnceLock;
 use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread::{self, JoinHandle};
@@ -78,8 +79,10 @@ fn probe_ffmpeg_encoder_works(encoder: &str) -> bool {
     } else {
         "yuv420p"
     };
-    Command::new("ffmpeg")
-        .args([
+    let Ok(mut cmd) = ffmpeg::command() else {
+        return false;
+    };
+    cmd.args([
             "-nostdin",
             "-hide_banner",
             "-v",
@@ -108,11 +111,15 @@ fn probe_ffmpeg_encoder_works(encoder: &str) -> bool {
 
 pub fn detect_encoders() -> &'static DetectedEncoders {
     DETECTED_ENCODERS.get_or_init(|| {
-        let hardware_encoders = Command::new("ffmpeg")
-            .args(["-hide_banner", "-encoders"])
-            .stdin(Stdio::null())
-            .stderr(Stdio::null())
-            .output()
+        let hardware_encoders = ffmpeg::command()
+            .ok()
+            .and_then(|mut cmd| {
+                cmd.args(["-hide_banner", "-encoders"])
+                    .stdin(Stdio::null())
+                    .stderr(Stdio::null())
+                    .output()
+                    .ok()
+            })
             .map(|o| parse_ffmpeg_hardware_encoders(&String::from_utf8_lossy(&o.stdout)))
             .unwrap_or_default();
 
@@ -288,7 +295,7 @@ pub fn concat_videos(part_paths: &[std::path::PathBuf], output_path: &Path) -> R
     }
     std::fs::write(&list_path, &lines)?;
 
-    let out = Command::new("ffmpeg")
+    let out = ffmpeg::command()?
         .args([
             "-nostdin",
             "-y",
@@ -329,7 +336,7 @@ impl VideoEncoder {
         fps: u32,
         cfg: &EncoderConfig,
     ) -> Result<Self> {
-        let mut cmd = Command::new("ffmpeg");
+        let mut cmd = ffmpeg::command()?;
         cmd.args([
             "-nostdin",
             "-y",
@@ -419,6 +426,19 @@ impl VideoEncoder {
     }
 }
 
+impl Drop for VideoEncoder {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        drop(self.tx.take());
+        if let Some(handle) = self.writer_thread.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
 pub fn build_audio_filter_complex(
     clips: &[AudioClipSpec],
     total_duration: f64,
@@ -490,7 +510,7 @@ pub fn mux_audio_clips(
     }
 
     let filter = build_audio_filter_complex(clips, total_duration, normalize_lufs);
-    let mut cmd = Command::new("ffmpeg");
+    let mut cmd = ffmpeg::command()?;
     cmd.args(["-nostdin", "-y", "-v", "error", "-i"])
         .arg(video_only_path);
 
@@ -523,7 +543,6 @@ pub fn mux_audio_clips(
         "48000",
         "-ac",
         "2",
-        "-shortest",
         "-movflags",
         "+faststart",
     ])
@@ -548,7 +567,7 @@ pub fn mux_audio(
         video_only_path,
         final_output_path,
         &spec.audio,
-        spec.duration,
+        spec.total_frames() as f64 / spec.fps as f64,
         spec.normalize_lufs,
         base_dir,
     )
@@ -557,6 +576,50 @@ pub fn mux_audio(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn audio_mux_keeps_every_video_frame() {
+        let dir = std::env::temp_dir().join(format!("cliphub-render-mux-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let video = dir.join("video.mp4");
+        let audio = dir.join("tone.wav");
+        let muxed = dir.join("muxed.mp4");
+        let run = |args: &[&str], out: &Path| {
+            let status = ffmpeg::command()
+                .unwrap()
+                .args(["-nostdin", "-y", "-v", "error"])
+                .args(args)
+                .arg(out)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+        run(
+            &["-f", "lavfi", "-i", "color=c=black:s=64x64:r=30", "-frames:v", "31", "-c:v", "libx264"],
+            &video,
+        );
+        run(&["-f", "lavfi", "-i", "sine=duration=2"], &audio);
+        let clips = vec![AudioClipSpec {
+            src: audio.to_string_lossy().into_owned(),
+            start: 0.0,
+            duration: None,
+            media_start: 0.0,
+            volume: 1.0,
+            fade_in: 0.0,
+            fade_out: 0.0,
+        }];
+        mux_audio_clips(&video, &muxed, &clips, 31.0 / 30.0, None, &dir).unwrap();
+        let decoded = ffmpeg::command()
+            .unwrap()
+            .args(["-nostdin", "-v", "error", "-i"])
+            .arg(&muxed)
+            .args(["-map", "0:v:0", "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"])
+            .output()
+            .unwrap();
+        assert_eq!(decoded.stdout.len() / (64 * 64), 31);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn audio_filter_builds_cleanly() {

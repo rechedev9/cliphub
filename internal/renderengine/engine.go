@@ -16,12 +16,20 @@ import (
 )
 
 const (
-	envRenderBin    = "ZV_RENDER_BIN"
-	defaultProbeTTL = 15 * time.Second
-	defaultSnapTTL  = 2 * time.Minute
+	envRenderBin          = "ZV_RENDER_BIN"
+	envFFmpegPath         = "ZV_FFMPEG_PATH"
+	defaultProbeTTL       = 15 * time.Second
+	defaultSnapTTL        = 2 * time.Minute
+	childWaitDelay        = 10 * time.Second
+	partialRemoveAttempts = 20
+	partialRemoveDelay    = 250 * time.Millisecond
 )
 
 var ErrBinaryNotFound = errors.New("cliphub-render binary not found")
+
+type Engine struct {
+	FFmpegPath string
+}
 
 type GPUInfo struct {
 	Adapter          string   `json:"gpu_adapter"`
@@ -187,8 +195,16 @@ func withDefaultTimeout(ctx context.Context, d time.Duration) (context.Context, 
 	return context.WithTimeout(ctx, d)
 }
 
-func runCommand(ctx context.Context, bin string, args ...string) (string, error) {
+func (e Engine) command(ctx context.Context, bin string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.WaitDelay = childWaitDelay
+	if path := strings.TrimSpace(e.FFmpegPath); path != "" {
+		cmd.Env = append(cmd.Environ(), envFFmpegPath+"="+path)
+	}
+	return cmd
+}
+
+func runCommand(cmd *exec.Cmd) (string, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -198,21 +214,21 @@ func runCommand(ctx context.Context, bin string, args ...string) (string, error)
 			detail = strings.TrimSpace(stdout.String())
 		}
 		if detail != "" {
-			return "", fmt.Errorf("cliphub-render %s: %w: %s", args[0], err, detail)
+			return "", fmt.Errorf("cliphub-render %s: %w: %s", cmd.Args[1], err, detail)
 		}
-		return "", fmt.Errorf("cliphub-render %s: %w", args[0], err)
+		return "", fmt.Errorf("cliphub-render %s: %w", cmd.Args[1], err)
 	}
 	return stdout.String(), nil
 }
 
-func ProbeGPU(ctx context.Context) (GPUInfo, error) {
+func (e Engine) ProbeGPU(ctx context.Context) (GPUInfo, error) {
 	bin, err := FindBinary()
 	if err != nil {
 		return GPUInfo{}, err
 	}
 	runCtx, cancel := withDefaultTimeout(ctx, defaultProbeTTL)
 	defer cancel()
-	out, err := runCommand(runCtx, bin, "info", "--json")
+	out, err := runCommand(e.command(runCtx, bin, "info", "--json"))
 	if err != nil {
 		return GPUInfo{}, err
 	}
@@ -232,7 +248,7 @@ func ProbeGPU(ctx context.Context) (GPUInfo, error) {
 	return info, nil
 }
 
-func ValidateSpec(ctx context.Context, specPath string) (ValidationResult, error) {
+func (e Engine) ValidateSpec(ctx context.Context, specPath string) (ValidationResult, error) {
 	specPath = strings.TrimSpace(specPath)
 	if specPath == "" {
 		return ValidationResult{}, errors.New("spec path is required")
@@ -243,7 +259,7 @@ func ValidateSpec(ctx context.Context, specPath string) (ValidationResult, error
 	}
 	runCtx, cancel := withDefaultTimeout(ctx, defaultProbeTTL)
 	defer cancel()
-	out, err := runCommand(runCtx, bin, "validate", specPath)
+	out, err := runCommand(e.command(runCtx, bin, "validate", specPath))
 	if err != nil {
 		return ValidationResult{}, err
 	}
@@ -272,7 +288,7 @@ func ValidateSpec(ctx context.Context, specPath string) (ValidationResult, error
 	}, nil
 }
 
-func Snapshot(ctx context.Context, req SnapshotRequest) (SnapshotResult, error) {
+func (e Engine) Snapshot(ctx context.Context, req SnapshotRequest) (SnapshotResult, error) {
 	specPath := strings.TrimSpace(req.SpecPath)
 	if specPath == "" {
 		return SnapshotResult{}, errors.New("spec path is required")
@@ -301,7 +317,7 @@ func Snapshot(ctx context.Context, req SnapshotRequest) (SnapshotResult, error) 
 	}
 	runCtx, cancel := withDefaultTimeout(ctx, defaultSnapTTL)
 	defer cancel()
-	out, err := runCommand(runCtx, bin, args...)
+	out, err := runCommand(e.command(runCtx, bin, args...))
 	if err != nil {
 		return SnapshotResult{}, err
 	}
@@ -322,7 +338,7 @@ func Snapshot(ctx context.Context, req SnapshotRequest) (SnapshotResult, error) 
 	}, nil
 }
 
-func Render(ctx context.Context, req RenderRequest) (RenderStats, error) {
+func (e Engine) Render(ctx context.Context, req RenderRequest) (RenderStats, error) {
 	specPath := strings.TrimSpace(req.SpecPath)
 	if specPath == "" {
 		return RenderStats{}, errors.New("spec path is required")
@@ -335,9 +351,10 @@ func Render(ctx context.Context, req RenderRequest) (RenderStats, error) {
 	if err != nil {
 		return RenderStats{}, err
 	}
-	args := buildRenderArgs(specPath, outputPath, req)
-	out, err := runCommand(ctx, bin, args...)
+	cmd := e.command(ctx, bin, buildRenderArgs(specPath, outputPath, req)...)
+	out, err := runCommand(cmd)
 	if err != nil {
+		removePartialRender(outputPath, cmd.Process)
 		return RenderStats{}, err
 	}
 	var stats RenderStats
@@ -345,6 +362,19 @@ func Render(ctx context.Context, req RenderRequest) (RenderStats, error) {
 		return RenderStats{}, fmt.Errorf("parse cliphub-render stats JSON: %w", err)
 	}
 	return stats, nil
+}
+
+func removePartialRender(outputPath string, process *os.Process) {
+	if process == nil {
+		return
+	}
+	workDir := fmt.Sprintf("%s.%d.partial", outputPath, process.Pid)
+	for range partialRemoveAttempts {
+		if os.RemoveAll(workDir) == nil {
+			return
+		}
+		time.Sleep(partialRemoveDelay)
+	}
 }
 
 func buildRenderArgs(specPath, outputPath string, req RenderRequest) []string {

@@ -25,6 +25,10 @@ Pipeline de 3 pasadas 100% nativo (cero Chromium, cero Electron, cero Python):
 
 ## Uso
 
+- El motor usa el FFmpeg de `ZV_FFMPEG_PATH` (Studio lo define con su FFmpeg fijado). Sin la variable busca `ffmpeg` en el `PATH`; si apunta a un archivo que no existe, falla.
+- `render` nunca reemplaza un archivo: la salida no debe existir. Trabaja en `<salida>.<pid>.partial/` y publica el MP4 solo cuando el render termina entero.
+- Una fuente de vídeo ilegible, vacía o más de 0,25 s más corta que su segmento hace fallar el render.
+
 ```powershell
 # Ver GPU y encoders NVENC disponibles
 .\target\release\cliphub-render.exe info

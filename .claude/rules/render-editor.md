@@ -26,6 +26,10 @@ paths:
 
 `tools/render` builds `cliphub-render.exe` (Rust + wgpu/vello), an internal Studio binary staged into `bin/` by `scripts/build.ps1` (required with `-RequireFaceitEmbed`, skipped locally with a warning when `cargo` is absent) and bundled into `desktop/build-resources/bin/` by `desktop/scripts/assemble.mjs`. Studio invokes it through `internal/renderengine`; its default `auto` codec cascades hardware encoders (`h264_nvenc` -> `h264_amf` -> `h264_qsv` -> `libx264`) and embeds open-source fallback fonts so renders stay portable across Windows PCs.
 
+- It runs the FFmpeg of `ZV_FFMPEG_PATH`, never one it finds first on `PATH` while that is set (`tools/render/src/ffmpeg.rs` tests, `TestEnginePassesItsFFmpegToTheRenderer`).
+- `render` never replaces a file and publishes the output only when the whole render succeeds, from `<output>.<pid>.partial`, which `internal/renderengine` removes after a failed or canceled run (`output.rs` tests, `TestRenderRemovesTheWorkDirectoryOfAFailedRender`).
+- A video box shows the frame of its timeline position, and a source that cannot cover its segment fails the render (`video_tests.rs`).
+
 ## FFmpeg 8.1.2
 
 Studio ships FFmpeg 8.1.2. Some Full Demo and `internal/demooverlay` tests fail on FFmpeg 9.x because `-filter_complex_script` was removed. Treat those failures as pre-existing and do not change the shipped command to fix them. `docs/incidents.md`, **Local test environment caveat**.

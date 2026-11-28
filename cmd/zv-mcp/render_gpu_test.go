@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -129,6 +131,23 @@ func TestRenderGPUToolsOverMCP(t *testing.T) {
 	}
 	if !firstOut.NeedsApproval || firstOut.ApprovalCode == "" {
 		t.Fatalf("gpu_render_video without approval = %+v, want needs_approval + code", firstOut)
+	}
+	if !strings.Contains(firstOut.Summary, "«"+dir+"»") {
+		t.Fatalf("approval summary %q does not name the output folder %q", firstOut.Summary, dir)
+	}
+
+	existing := filepath.Join(dir, "existing.mp4")
+	if err := os.WriteFile(existing, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, refused := range []string{existing, filepath.Join(dir, "scene.json"), filepath.Join(dir, "missing", "out.mp4")} {
+		res, err = cs.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "gpu_render_video",
+			Arguments: map[string]any{"spec_path": specPath, "output_path": refused},
+		})
+		if err != nil || !res.IsError {
+			t.Fatalf("gpu_render_video into %q: res=%+v err=%v, want a tool error", refused, res, err)
+		}
 	}
 
 	res, err = cs.CallTool(ctx, &mcp.CallToolParams{

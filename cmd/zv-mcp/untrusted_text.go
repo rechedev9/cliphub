@@ -8,6 +8,8 @@ import (
 // maxNameRunes caps a name in tool output.
 const maxNameRunes = 64
 
+const maxFolderRunes = 260
+
 // cleanName keeps a player-chosen string printable and short before it reaches the model.
 func cleanName(s string) string {
 	var b strings.Builder
@@ -29,16 +31,23 @@ func cleanName(s string) string {
 // quotedName puts an untrusted name in «» for approval text, without the quote
 // characters that could close the quote early; empty falls back.
 func quotedName(raw, fallback string) string {
-	name := strings.Map(func(r rune) rune {
+	if name := cleanName(withoutQuotes(raw)); name != "" {
+		return "«" + name + "»"
+	}
+	return fallback
+}
+
+func quotedPath(raw string) string {
+	return "«" + cleanText(withoutQuotes(raw), maxFolderRunes) + "»"
+}
+
+func withoutQuotes(raw string) string {
+	return strings.Map(func(r rune) rune {
 		if strings.ContainsRune("«»‹›\"'`“”„‘’‚", r) {
 			return -1
 		}
 		return r
 	}, raw)
-	if name = cleanName(name); name != "" {
-		return "«" + name + "»"
-	}
-	return fallback
 }
 
 func cleanNames(names []string) []string {
