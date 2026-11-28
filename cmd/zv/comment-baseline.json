@@ -71,7 +71,7 @@
   "cmd/zv-mcp/report_evidence.go": 2,
   "cmd/zv-mcp/reports.go": 5,
   "cmd/zv-mcp/roles.go": 2,
-  "cmd/zv-mcp/round_pov.go": 6,
+  "cmd/zv-mcp/round_pov.go": 5,
   "cmd/zv-mcp/rounds.go": 14,
   "cmd/zv-mcp/rounds_player.go": 7,
   "cmd/zv-mcp/row_links.go": 4,

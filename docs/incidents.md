@@ -184,6 +184,16 @@ frames short (`full_demo_capture_incomplete`). Do not lower it again.
 The same three seconds cap the final round's normal round or death tail, so a
 final round without the scoreboard extension also stops before GOTV playback
 does. The cap never ends the window before the round end or the POV death.
+A Full Demo of one round (`options.rounds` with one number: `record_round_pov`,
+the Replay's round POV, `plan_full_demo rounds`) has no final scoreboard
+(2026-11-28). With it, round POVs showed the Match results table over their
+last 8 s of live play, once over the POV's own death: the scoreboard is drawn
+over the last round's gameplay, and a dead POV's window ends 3 s after the
+death, so there is no free tail to put it on. `recapplan.CanonicalNewOptions`
+keeps `overlays.scoreboard` only for two rounds or more, the round keeps its own
+round or death tail, and the execution gate refuses a one-round plan approved
+with the scoreboard. Test:
+`TestAOneRoundVideoEndsWithTheRoundWithoutTheFinalScoreboard`.
 
 ## HLAE pin and CS2 updates (`desktop/src/hlae-tool.*`)
 

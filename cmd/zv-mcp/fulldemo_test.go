@@ -107,6 +107,10 @@ func TestApplyFullDemoChoicesIntroDesign(t *testing.T) {
 	if out := describeFullDemoPlan("job-1", doc); out.IntroDesign != "hud" || !strings.Contains(out.Summary, "a juego con el HUD") {
 		t.Errorf("HUD intro design plan = %q %q", out.IntroDesign, out.Summary)
 	}
+	doc.Options.Overlays.Scoreboard = false
+	if out := describeFullDemoPlan("job-1", doc); strings.Contains(out.Summary, "Intro y marcador final") || !strings.Contains(out.Summary, "sin el marcador final") {
+		t.Errorf("a plan without the final scoreboard reads %q", out.Summary)
+	}
 }
 
 func TestDescribeFullDemoPlan(t *testing.T) {

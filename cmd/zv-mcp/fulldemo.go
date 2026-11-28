@@ -74,7 +74,7 @@ type planFullDemoIn struct {
 	BetweenRoundEffects *bool  `json:"between_round_effects,omitempty" jsonschema:"dynamic transition effects between rounds; default on"`
 	TrueView            *bool  `json:"true_view,omitempty" jsonschema:"original 1:1 POV (CS2 TrueView) instead of the standard view; default off"`
 	ClipHubRadar        *bool  `json:"cliphub_radar,omitempty" jsonschema:"ClipHub's own radar in the top left corner in place of CS2's: the 2D Replay map art, every living player with where it looks, smokes, fires, flashes, deaths and the bomb, with no zone names; custom HUD only, changes the capture; default off"`
-	Rounds              []int  `json:"rounds,omitempty" jsonschema:"only these round numbers; empty means every round"`
+	Rounds              []int  `json:"rounds,omitempty" jsonschema:"only these round numbers; empty means every round; one round ends without the final scoreboard"`
 	fullDemoExtrasIn
 	hudLookIn
 	brandChoiceIn

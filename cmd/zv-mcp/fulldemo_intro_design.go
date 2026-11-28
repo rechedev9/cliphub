@@ -30,11 +30,15 @@ func introDesignOf(o recapplan.OverlayOptions) string {
 }
 
 func describeIntroDesign(o recapplan.OverlayOptions) string {
+	pieces, ending := "Intro y marcador final", ""
+	if !o.Scoreboard {
+		pieces, ending = "Intro", " Termina con la ronda, sin el marcador final."
+	}
 	switch {
 	case o.Theme != recapplan.OverlayThemeHUD:
-		return ""
+		return ending
 	case o.HUDTheme == "":
-		return " Intro y marcador final a juego con el HUD, en tonos neutros."
+		return " " + pieces + " a juego con el HUD, en tonos neutros." + ending
 	}
-	return " Intro y marcador final a juego con el HUD."
+	return " " + pieces + " a juego con el HUD." + ending
 }

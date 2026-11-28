@@ -44,7 +44,9 @@ import { useProduceBack } from './use-produce-back';
 import { roundListLabel } from '@/lib/library/analysis-video';
 
 /** The design picks how roster and scoreboard look; the demo origin picks their data. */
-const OVERLAYS_NOTE = 'Pantalla de jugadores al empezar y marcador final. El diseño solo cambia el aspecto y no obliga a volver a grabar. El origen de la demo decide qué datos salen: con FACEIT, nivel y ELO.';
+const OVERLAYS_DETAIL = 'El diseño solo cambia el aspecto y no obliga a volver a grabar. El origen de la demo decide qué datos salen: con FACEIT, nivel y ELO.';
+const OVERLAYS_NOTE = `Pantalla de jugadores al empezar y marcador final. ${OVERLAYS_DETAIL}`;
+const ONE_ROUND_OVERLAYS_NOTE = `Pantalla de jugadores al empezar. Un vídeo de una ronda acaba con la ronda, sin marcador final. ${OVERLAYS_DETAIL}`;
 /** The capture check plans on the server (it hashes the demo), so it waits for the user to stop changing options. */
 const CAPTURE_CHECK_DELAY_MS = 1200;
 const LINK_CLASS = 'text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 focus-visible:outline-2 focus-visible:outline-ring';
@@ -314,7 +316,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
           <SubtitlesPanel jobId={matchId} scope={{ kind: 'rounds', rounds: options.rounds ?? null }} voices={options.audio.voice.enabled} voicesLabel={FULL_DEMO_VOICE_LABEL}
             planAvailability={document?.voice.availability ?? null} onAvailability={setLibraryVoices} value={fullDemoSubtitles(options)} onChange={(next) => change(withFullDemoSubtitles(options, next))} />
         </FullDemoGroup>
-        <FullDemoFold title={INTRO_DESIGN_LABEL} value={options.overlays.theme === 'hud' ? INTRO_DESIGNS.hud : INTRO_DESIGNS.neon} note={OVERLAYS_NOTE}>
+        <FullDemoFold title={INTRO_DESIGN_LABEL} value={options.overlays.theme === 'hud' ? INTRO_DESIGNS.hud : INTRO_DESIGNS.neon} note={options.overlays.scoreboard ? OVERLAYS_NOTE : ONE_ROUND_OVERLAYS_NOTE}>
           <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={assetBusy} />
         </FullDemoFold>
         <FullDemoTransitions options={options} onChange={change} />
