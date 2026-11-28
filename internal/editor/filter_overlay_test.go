@@ -117,6 +117,11 @@ func TestFullDemoCompilationFilterOverlayWindowGraph(t *testing.T) {
 			t.Fatalf("fullDemoCompilationFilter missing %q:\n%s", want, got)
 		}
 	}
+	for _, clause := range strings.Split(got, ";") {
+		if strings.Contains(clause, "overlay=") && !strings.Contains(clause, "format=yuv420:") {
+			t.Fatalf("overlay blends outside yuv420, so every frame of the program converts to RGBA and back:\n%s", clause)
+		}
+	}
 }
 
 func legacyImageOverlayFilter(effect Effect, short ShortEdit) string {

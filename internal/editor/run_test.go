@@ -314,9 +314,7 @@ func TestRunWithFakeFFmpegWritesShortResults(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(publishDir, "01_seg-001_martinezsa_de_ancient_2k_ak47.cover.jpg")); err != nil {
 		t.Fatalf("cover output missing: %v", err)
 	}
-	if got := argAfter(first.FFmpegCommand, "-vf"); !strings.Contains(got, "crop=1080:1920") {
-		t.Fatalf("ffmpeg filter missing vertical crop:\n%s", got)
-	}
+	requireCropBeforeExactScale(t, argAfter(first.FFmpegCommand, "-vf"), 1080, 1920)
 	if got := argAfter(first.CoverCommand, "-ss"); got != "0.880" {
 		t.Fatalf("cover -ss arg = %q, want 0.880", got)
 	}

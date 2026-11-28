@@ -148,9 +148,7 @@ func TestBuildManifestShortsPathIgnoresFullDemoOverlay(t *testing.T) {
 			t.Fatalf("shorts format = %q, want %q", short.OutputFormat, OutputFormatShort9x16)
 		}
 		command := strings.Join(short.FFmpegCommand, " ")
-		if !strings.Contains(command, "crop=1080:1920") {
-			t.Fatalf("shorts lost portrait crop:\n%s", command)
-		}
+		requireCropBeforeExactScale(t, command, 1080, 1920)
 		if strings.Contains(command, "fade=t=in:st=0") {
 			t.Fatalf("shorts gained Full Demo fade-from-black:\n%s", command)
 		}

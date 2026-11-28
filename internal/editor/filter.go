@@ -51,7 +51,7 @@ func validateEffectPosition(field, value string) error {
 }
 
 func VideoFilter(short ShortEdit) string {
-	width, height := outputDimensions(short)
+	_, height := outputDimensions(short)
 	if presetUsesFullFrame(short.Preset) {
 		return FullFrameVideoFilter(short)
 	}
@@ -64,12 +64,7 @@ func VideoFilter(short ShortEdit) string {
 			scaleHeight = "'" + expr + "'"
 		}
 	}
-	filters := []string{
-		scaleFilter(scaleHeight, short),
-	}
-	if !singleCrop {
-		filters = append(filters, fmt.Sprintf("crop=%d:%d:(iw-ow)/2:(ih-oh)/2", width, height))
-	}
+	filters := baseGeometryFilters(short, scaleHeight, singleCrop, false)
 	filters = append(filters, "setsar=1")
 	filters = append(filters, fpsFilter(short))
 	filters = appendTemporalSmoothingFilter(filters, short)
@@ -81,7 +76,7 @@ func VideoFilter(short ShortEdit) string {
 }
 
 func FullFrameVideoFilter(short ShortEdit) string {
-	width, height := outputDimensions(short)
+	_, height := outputDimensions(short)
 	heightExpr, singleCrop := motionSingleCropHeight(short, height)
 	if heightExpr == "" {
 		heightExpr = fmt.Sprintf("%d", height)
@@ -94,12 +89,7 @@ func FullFrameVideoFilter(short ShortEdit) string {
 		filters = []string{"setsar=1"}
 		singleCrop = true
 	} else {
-		filters = []string{
-			fullFrameBackgroundScaleFilter(short, heightExpr),
-		}
-		if !singleCrop {
-			filters = append(filters, fmt.Sprintf("crop=%d:%d:(iw-ow)/2:(ih-oh)/2", width, height))
-		}
+		filters = baseGeometryFilters(short, heightExpr, singleCrop, true)
 		filters = append(filters, "setsar=1")
 		filters = append(filters, fpsFilter(short))
 	}
@@ -183,11 +173,11 @@ func introSlideOverlayClauses(current string, imageInput int, imageLabel, next s
 		fmt.Sprintf("[%s]split=2[%ssrcL][%ssrcR]", imageLabel, imageLabel, imageLabel),
 		fmt.Sprintf("[%ssrcL]crop=%d:%d:0:0[%sL]", imageLabel, leftW, demooverlay.FrameHeight, imageLabel),
 		fmt.Sprintf("[%ssrcR]crop=%d:%d:%d:0[%sR]", imageLabel, rightW, demooverlay.FrameHeight, rightX, imageLabel),
-		fmt.Sprintf("[%s][%sL]overlay=x='%s':y=0:format=auto:eof_action=pass:repeatlast=0:enable='%s'[%s]",
+		fmt.Sprintf("[%s][%sL]overlay=x='%s':y=0:format=yuv420:eof_action=pass:repeatlast=0:enable='%s'[%s]",
 			current, imageLabel,
 			introSlideX(effect.StartSeconds, effect.FadeInSeconds, outStart, effect.EndSeconds, -leftW, 0),
 			enable, mid),
-		fmt.Sprintf("[%s][%sR]overlay=x='%s':y=0:format=auto:eof_action=pass:repeatlast=0:enable='%s'[%s]",
+		fmt.Sprintf("[%s][%sR]overlay=x='%s':y=0:format=yuv420:eof_action=pass:repeatlast=0:enable='%s'[%s]",
 			mid, imageLabel,
 			introSlideX(effect.StartSeconds, effect.FadeInSeconds, outStart, effect.EndSeconds, demooverlay.FrameWidth, rightX),
 			enable, next),
@@ -325,7 +315,7 @@ func imageOverlayWindowFilters(effect Effect, short ShortEdit, window overlayAct
 }
 
 func imageOverlayClause(baseLabel, imageLabel, outputLabel, x, y, enable string) string {
-	return fmt.Sprintf("[%s][%s]overlay=x=%s:y=%s:format=auto:eof_action=pass:repeatlast=0:enable='%s'[%s]",
+	return fmt.Sprintf("[%s][%s]overlay=x=%s:y=%s:format=yuv420:eof_action=pass:repeatlast=0:enable='%s'[%s]",
 		baseLabel, imageLabel, x, y, enable, outputLabel)
 }
 
@@ -411,39 +401,6 @@ func effectPosition(value, fallback string) string {
 	return value
 }
 
-func scaleFilter(height string, short ShortEdit) string {
-	filter := fmt.Sprintf("scale=w=-2:h=%s:%s", height, scaleEvalMode(height))
-	if short.HQFilters {
-		filter += ":flags=" + hqScaleFlags(short)
-	}
-	return filter
-}
-
-// scaleEvalMode selects how often FFmpeg evaluates the scale geometry. A plain
-// integer height is constant across the timeline, so eval=init lets FFmpeg
-// compute the scaled size once and reuse it; a zoom-driven height expression
-// depends on t and must be re-evaluated for every frame (eval=frame).
-func scaleEvalMode(height string) string {
-	if isPlainIntegerHeight(height) {
-		return "eval=init"
-	}
-	return "eval=frame"
-}
-
-// isPlainIntegerHeight reports whether a scale height argument is a constant
-// integer (e.g. "1920") rather than a quoted dynamic expression ("'if(…)'").
-func isPlainIntegerHeight(height string) bool {
-	if height == "" {
-		return false
-	}
-	for _, r := range height {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
-}
-
 func fpsFilter(short ShortEdit) string {
 	return fmt.Sprintf("fps=%d", outputFPS(short))
 }
@@ -453,19 +410,6 @@ func outputFPS(short ShortEdit) int {
 		return short.OutputFPS
 	}
 	return 60
-}
-
-func fullFrameBackgroundScaleFilter(short ShortEdit, heightExpr string) string {
-	width, _ := outputDimensions(short)
-	filter := fmt.Sprintf("scale=w=%d:h=%s:force_original_aspect_ratio=increase:%s", width, heightExpr, scaleEvalMode(heightExpr))
-	if short.HQFilters {
-		filter += ":flags=" + hqScaleFlags(short)
-	}
-	return filter
-}
-
-func hqScaleFlags(short ShortEdit) string {
-	return "lanczos+accurate_rnd+full_chroma_int"
 }
 
 func appendTemporalSmoothingFilter(filters []string, short ShortEdit) []string {

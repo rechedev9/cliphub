@@ -62,7 +62,7 @@ func fullDemoHUDPortrait(short ShortEdit, item recapplan.TimelineItem, command [
 	}
 	index := fullDemoInputCount(command)
 	command = append(command, "-i", path)
-	video += fmt.Sprintf("[hudbase];[%d:v]format=rgba,scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih):color=black@0,setsar=1[hudportrait];[hudbase][hudportrait]overlay=x=%d:y=%d:eof_action=repeat:repeatlast=1:format=auto,format=yuv420p",
+	video += fmt.Sprintf("[hudbase];[%d:v]format=rgba,scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih):color=black@0,setsar=1[hudportrait];[hudbase][hudportrait]overlay=x=%d:y=%d:eof_action=repeat:repeatlast=1:format=yuv420,format=yuv420p",
 		index, customhud.PortraitWidth, customhud.PortraitHeight, customhud.PortraitWidth, customhud.PortraitHeight, customhud.PortraitX, customhud.PortraitY)
 	return command, video, nil
 }

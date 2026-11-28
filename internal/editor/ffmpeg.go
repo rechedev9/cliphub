@@ -179,7 +179,7 @@ func singleClipVideoClauses(short ShortEdit, killfeeds []Effect) []string {
 		next := fmt.Sprintf("vkf%d", i)
 		clauses = append(clauses,
 			fmt.Sprintf("[kfsrc%d]%s[%s]", i, killfeedCropFilter(effect, short, sampleSeconds), killfeedLabel),
-			fmt.Sprintf("[%s][%s]overlay=x=%s:y=%s:format=auto:enable='%s'[%s]",
+			fmt.Sprintf("[%s][%s]overlay=x=%s:y=%s:format=yuv420:enable='%s'[%s]",
 				current,
 				killfeedLabel,
 				effectPosition(effect.X, "W-w-18"),
@@ -426,7 +426,7 @@ func appendCompilationProgramVideo(clauses []string, short ShortEdit, catLabel s
 		next := fmt.Sprintf("vkf%d", i)
 		clauses = append(clauses,
 			fmt.Sprintf("[%d:v]%s[%s]", partIndex, killfeedCropFilter(effect, short, sampleSeconds), killfeedLabel),
-			fmt.Sprintf("[%s][%s]overlay=x=%s:y=%s:format=auto:enable='%s'[%s]",
+			fmt.Sprintf("[%s][%s]overlay=x=%s:y=%s:format=yuv420:enable='%s'[%s]",
 				current,
 				killfeedLabel,
 				effectPosition(effect.X, "W-w-18"),

@@ -96,10 +96,7 @@ func fullDemoItemOverlaysInactive(short ShortEdit, item recapplan.TimelineItem) 
 // of the first image.
 func fullDemoItemVideoClauses(short ShortEdit, item recapplan.TimelineItem, videoBase string, images []Effect, imageInputStart int) ([]string, string) {
 	if fullDemoItemOverlaysInactive(short, item) {
-		// overlay=format=auto negotiates RGBA even while every overlay is
-		// disabled. Preserve that round trip, including its chroma rounding and
-		// color range; simply removing the overlays changes inactive pixels.
-		return []string{videoBase + ",format=rgba,format=yuv420p,settb=expr=1/60,setpts=N[vout]"}, "[vout]"
+		return []string{videoBase + ",settb=expr=1/60,setpts=N[vout]"}, "[vout]"
 	}
 	if !fullDemoItemOverlayEligible(short) || len(images) == 0 {
 		return []string{videoBase + "[v]"}, "[v]"

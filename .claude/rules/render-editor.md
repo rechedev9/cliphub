@@ -24,6 +24,12 @@ paths:
 
 Studio ships FFmpeg 8.1.2. Some Full Demo and `internal/demooverlay` tests fail on FFmpeg 9.x because `-filter_complex_script` was removed. Treat those failures as pre-existing and do not change the shipped command to fix them. `docs/incidents.md`, **Local test environment caveat**.
 
+## Filter graph cost
+
+- A part crops to the output aspect before it scales to the output size. Scaling up and then cropping spends Lanczos on pixels the crop throws away. A zoom keeps its per-frame scale. `TestBaseGeometryCropsBeforeScalingForEveryFormat` (`internal/editor/scale_filters_test.go`).
+- Overlays that cover a whole part or item blend with `overlay=format=yuv420`. `format=auto` converts every frame to RGBA and back, even while the overlay is disabled. Only the single-frame cover card keeps `format=auto`. `TestFullDemoCompilationFilterOverlayWindowGraph`.
+- The editor's NVENC preset is `p4` (`internal/editor/video_encode.go`). On CS2 footage it encodes about a third faster than `p5` at the same bitrate, and the quality difference cannot be seen. `p3` and faster presets lose more quality and spend more bits. Measure SSIM and bitrate before you move it.
+
 ## Render deadline
 
 A `RenderWorker` render's deadline scales with its program length (a Full Demo's approved timeline, else the captured plays, since a summary has no length cap) and never drops below the configured one; a run its deadline cut fails with `render_timeout`. Do not go back to one fixed deadline for every render. `docs/incidents.md`, **a slow PC's Full Demo render was cut at the fixed deadline**.

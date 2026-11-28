@@ -310,7 +310,7 @@ func TestFullDemoInactiveItemOmitsStillInputs(t *testing.T) {
 		t.Fatalf("inactive overlays still add image inputs: %v", command)
 	}
 	filter := command[argIndex(command, "-filter_complex")+1]
-	if !strings.Contains(filter, "format=rgba,format=yuv420p,settb=expr=1/60,setpts=N[vout]") || strings.Contains(filter, "overlay=") {
+	if !strings.HasSuffix(filter, ",settb=expr=1/60,setpts=N[vout]") || strings.Contains(filter, "overlay=") || strings.Contains(filter, "format=rgba") {
 		t.Fatalf("inactive item lost color/clock equivalence: %s", filter)
 	}
 }

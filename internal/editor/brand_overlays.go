@@ -199,7 +199,7 @@ func fullDemoBrandOverlays(short ShortEdit, item recapplan.TimelineItem, command
 		w, h, x, y := watermarkPlacement(wm.Corner, width, height, frameW, frameH)
 		index := fullDemoInputCount(command)
 		command = append(command, "-i", path)
-		video += fmt.Sprintf("[brandwmbase];[%d:v]format=rgba,scale=%d:%d:flags=lanczos,colorchannelmixer=aa=%s,setsar=1[brandwm];[brandwmbase][brandwm]overlay=x=%d:y=%d:eof_action=repeat:repeatlast=1:format=auto,format=yuv420p",
+		video += fmt.Sprintf("[brandwmbase];[%d:v]format=rgba,scale=%d:%d:flags=lanczos,colorchannelmixer=aa=%s,setsar=1[brandwm];[brandwmbase][brandwm]overlay=x=%d:y=%d:eof_action=repeat:repeatlast=1:format=yuv420,format=yuv420p",
 			index, w, h, strconv.FormatFloat(wm.Opacity, 'f', 3, 64), x, y)
 	}
 	if banner := brand.Banner; banner != nil {
@@ -220,7 +220,7 @@ func fullDemoBrandOverlays(short ShortEdit, item recapplan.TimelineItem, command
 		w, h := fitBox(width, height, fullDemoBannerMaxWidth, fullDemoBannerMaxHeight)
 		index := fullDemoInputCount(command)
 		command = append(command, "-i", path)
-		video += fmt.Sprintf("[brandbnbase];[%d:v]format=rgba,scale=%d:%d:flags=lanczos,setsar=1[brandbn];[brandbnbase][brandbn]overlay=x=%d:y=%d:eof_action=repeat:repeatlast=1:format=auto:enable='%s',format=yuv420p",
+		video += fmt.Sprintf("[brandbnbase];[%d:v]format=rgba,scale=%d:%d:flags=lanczos,setsar=1[brandbn];[brandbnbase][brandbn]overlay=x=%d:y=%d:eof_action=repeat:repeatlast=1:format=yuv420:enable='%s',format=yuv420p",
 			index, w, h, (frameW-w)/2, fullDemoBannerTop, betweenExpression(max(0, start-itemStart), math.Min(end, itemEnd)-itemStart))
 	}
 	return command, video, nil

@@ -138,7 +138,7 @@ func fullDemoRadarOverlay(s fullDemoRadarStep) ([]string, string, error) {
 	}
 	index := fullDemoInputCount(s.command)
 	command := append(s.command, "-i", plate)
-	video := s.video + fmt.Sprintf("[radarbase];[%d:v]format=rgba,setsar=1[radarplate];[radarbase][radarplate]overlay=x=%d:y=%d:eof_action=repeat:repeatlast=1:format=auto,format=yuv420p", index, box.X, box.Y)
+	video := s.video + fmt.Sprintf("[radarbase];[%d:v]format=rgba,setsar=1[radarplate];[radarbase][radarplate]overlay=x=%d:y=%d:eof_action=repeat:repeatlast=1:format=yuv420,format=yuv420p", index, box.X, box.Y)
 	if script == "" {
 		return command, video, nil
 	}

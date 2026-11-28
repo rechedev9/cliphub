@@ -167,7 +167,7 @@ func TestFullDemoItemOverlaysMatchLegacyPreEncodePixels(t *testing.T) {
 		items   []fullDemoMediaItem
 	}{
 		{
-			name:    "inactive middle item keeps the original color round trip",
+			name:    "inactive middle item matches the legacy pixels",
 			seconds: 12,
 			intro:   [2]float64{0, 2},
 			outro:   [2]float64{10, 12},

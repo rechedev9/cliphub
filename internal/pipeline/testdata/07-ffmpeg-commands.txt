@@ -8,8 +8,8 @@
   -i
   $WORK/recording/segments/seg-004-victim.mp4
   -filter_complex
-    [0:v]scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    [0:v]crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     fade=t=out:st=14.009:d=0.100:color=white
@@ -21,8 +21,8 @@
     atrim=duration=7.116667
     asetpts=PTS-STARTPTS[pa0]
     [1:v]setpts=PTS/0.500
-    scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     fade=t=in:st=0:d=0.100:color=white
@@ -71,8 +71,8 @@
   -i
   $WORK/recording/segments/seg-011-victim.mp4
   -filter_complex
-    [0:v]scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    [0:v]crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     fade=t=out:st=11.650:d=0.100:color=white
@@ -84,8 +84,8 @@
     atrim=duration=4.750000
     asetpts=PTS-STARTPTS[pa0]
     [1:v]setpts=PTS/0.500
-    scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     fade=t=in:st=0:d=0.100:color=white
@@ -134,8 +134,8 @@
   -i
   $WORK/recording/segments/seg-002-victim.mp4
   -filter_complex
-    [0:v]scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    [0:v]crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     fade=t=out:st=12.900:d=0.100:color=white
@@ -147,8 +147,8 @@
     atrim=duration=6.000000
     asetpts=PTS-STARTPTS[pa0]
     [1:v]setpts=PTS/0.500
-    scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     fade=t=in:st=0:d=0.100:color=white
