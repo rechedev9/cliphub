@@ -16,6 +16,8 @@ const (
 	shortSubscribeAt            = 0.35
 	shortSubscribeMarginSeconds = 1.5
 	shortSubscribeSlidePixels   = 220
+	shortSubscribeLikeAt        = 0.8
+	shortSubscribeFollowAt      = 1.9
 )
 
 type SubscribeCard struct {
@@ -36,6 +38,18 @@ func subscribeBellSprite(sprite demooverlay.SubscribeSprite) *ImageSprite {
 	return &ImageSprite{CellHeight: sprite.CellHeight, Frames: sprite.Frames, FPS: demooverlay.SubscribeBellFPS, PlayAt: slices.Clone(subscribeBellRings)}
 }
 
+func shortSubscribeSprite(sprite demooverlay.SubscribeSprite) *ImageSprite {
+	bell := float64(demooverlay.ShortSubscribeBellFirst-demooverlay.ShortSubscribeFollowFirst) / demooverlay.SubscribeBellFPS
+	return &ImageSprite{
+		CellHeight: sprite.CellHeight, Frames: sprite.Frames, FPS: demooverlay.SubscribeBellFPS,
+		Clips: []SpriteClip{
+			{AtSeconds: shortSubscribeLikeAt, First: demooverlay.ShortSubscribeLikeFirst, Last: demooverlay.ShortSubscribeLikeLast},
+			{AtSeconds: shortSubscribeFollowAt, First: demooverlay.ShortSubscribeFollowFirst, Last: demooverlay.ShortSubscribeFollowLast},
+		},
+		RingSeconds: shortSubscribeFollowAt + bell,
+	}
+}
+
 func prepareShortSubscribe(card *SubscribeCard, format, outDir string) (*ShortSubscribe, error) {
 	if card == nil {
 		return nil, nil
@@ -48,7 +62,7 @@ func prepareShortSubscribe(card *SubscribeCard, format, outDir string) (*ShortSu
 		size = htmlstill.Landscape
 	}
 	path := filepath.Join(outDir, shortSubscribeSource+".png")
-	sprite, err := demooverlay.RenderSubscribeSprite(nil, demooverlay.SubscribeCard{LogoPath: card.LogoPath, ChannelName: card.ChannelName}, size, path)
+	sprite, err := demooverlay.RenderShortSubscribeSprite(demooverlay.SubscribeCard{LogoPath: card.LogoPath, ChannelName: card.ChannelName}, size, path)
 	if err != nil {
 		return nil, fmt.Errorf("subscribe banner: %w", err)
 	}
@@ -78,7 +92,7 @@ func generatedSubscribeEffects(short ShortEdit) []Effect {
 	slide := "'" + introSlideX(start, demooverlay.IntroOverlaySlideSeconds, end-demooverlay.IntroOverlaySlideOutSeconds, end, sprite.CellTop+shortSubscribeSlidePixels, sprite.CellTop) + "'"
 	return []Effect{{
 		Type: EffectImage, Path: subscribe.Path, Source: shortSubscribeSource,
-		X: "0", Y: slide, Width: frameW, Height: sprite.Height(), Sprite: subscribeBellSprite(sprite),
+		X: "0", Y: slide, Width: frameW, Height: sprite.Height(), Sprite: shortSubscribeSprite(sprite),
 		StartSeconds: start, EndSeconds: end,
 		FadeInSeconds: demooverlay.IntroOverlaySlideSeconds, FadeOutSeconds: demooverlay.IntroOverlaySlideOutSeconds,
 	}}

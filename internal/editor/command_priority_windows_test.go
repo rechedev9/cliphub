@@ -108,30 +108,38 @@ func TestFullDemoItemPoolsStartTheirProcessesInTheirPriorityClass(t *testing.T) 
 		{"audio only", fullDemoItemAudioOnly, windows.NORMAL_PRIORITY_CLASS},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			done := make(chan error, 1)
-			go func() {
-				_, err := runFullDemoItemPoolJobs(ctx, short, tc.streams, nil, 1)
-				done <- err
-			}()
 			observed := map[uint32]int{}
-			for {
-				for _, class := range childFFmpegPriorityClasses(t) {
-					observed[class]++
-				}
-				select {
-				case err := <-done:
-					if err != nil {
-						t.Fatal(err)
-					}
-					if len(observed) != 1 || observed[tc.want] == 0 {
-						t.Fatalf("observed priority classes %#v, want only %#x", observed, tc.want)
-					}
-					return
-				default:
-					time.Sleep(time.Millisecond)
-				}
+			for attempt := 0; attempt < 5 && len(observed) == 0; attempt++ {
+				observed = observeItemPoolPriorityClasses(t, func() error {
+					_, err := runFullDemoItemPoolJobs(ctx, short, tc.streams, nil, 1)
+					return err
+				})
+			}
+			if len(observed) != 1 || observed[tc.want] == 0 {
+				t.Fatalf("observed priority classes %#v, want only %#x", observed, tc.want)
 			}
 		})
+	}
+}
+
+func observeItemPoolPriorityClasses(t *testing.T, run func() error) map[uint32]int {
+	t.Helper()
+	observed := map[uint32]int{}
+	done := make(chan error, 1)
+	go func() { done <- run() }()
+	for {
+		for _, class := range childFFmpegPriorityClasses(t) {
+			observed[class]++
+		}
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatal(err)
+			}
+			return observed
+		default:
+			time.Sleep(time.Millisecond)
+		}
 	}
 }
 

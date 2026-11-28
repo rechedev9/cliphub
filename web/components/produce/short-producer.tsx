@@ -682,7 +682,7 @@ function overlaysSummary(edit: EditConfig): string {
   if (edit.victimReplay) parts.push('Repetición');
   if (edit.brandWatermark) parts.push('Marca de agua');
   if (edit.brandBanner && !edit.keyDropStyle) parts.push('Sponsor');
-  if (edit.subscribeBanner) parts.push('Subscribe');
+  if (edit.subscribeBanner) parts.push('Like y suscripción');
   if (edit.keyDropStyle) parts.push('Afiliado');
   if (englishOverlays(edit)) parts.push('Textos en inglés');
   return parts.length > 0 ? parts.join(' + ') : 'Solo efectos';

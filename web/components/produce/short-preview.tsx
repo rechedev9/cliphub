@@ -20,6 +20,10 @@ type Size = { w: number; h: number };
 const RADAR_SHARE: Record<RadarSize, number> = { small: 0.26, medium: 0.32, large: 0.4 };
 const SHADOW = { filter: 'drop-shadow(3px 3px 0 rgb(0 0 0 / 0.85))' };
 const FONT = 'var(--font-display)';
+const SUBSCRIBE_AT = 0.35;
+const SUBSCRIBE_SECONDS = 4.5;
+const SUBSCRIBE_LIKED_AT = 0.85;
+const SUBSCRIBE_DONE_AT = 2;
 
 /** internal/editor fitFontSize: the largest size, in steps of 2 down to 32, whose rough width fits. */
 function fitFontSize(text: string, { base, safeWidth }: { base: number; safeWidth: number }): number {
@@ -92,8 +96,8 @@ export function ShortPreview({ preset, edit, map, player, frameClassName, classN
   const affiliateOn = affiliate !== undefined && t >= (edit.keyDropStartSeconds ?? 0) && t < affiliateEnd;
   const bannerOn = edit.brandBanner === true && kit?.banner !== undefined
     && t >= kit.banner_start_seconds && t < (kit.banner_end_seconds ?? timeline.duration);
-  const subscribeStart = timeline.duration * 0.35;
-  const subscribeOn = edit.subscribeBanner === true && t >= subscribeStart && t < subscribeStart + 4.5;
+  const subscribeStart = timeline.duration * SUBSCRIBE_AT;
+  const subscribeOn = edit.subscribeBanner === true && t >= subscribeStart && t < subscribeStart + SUBSCRIBE_SECONDS;
   const affiliateWidth = Math.min(720, Math.max(280, size.w * 0.55)) / size.w;
 
   return (
@@ -112,7 +116,7 @@ export function ShortPreview({ preset, edit, map, player, frameClassName, classN
           {kit?.banner && bannerOn ? (
             <image href={brandImageUrl(kit.banner)} x={size.w * (portrait ? 0.1 : 0.275)} y={size.h * 0.8} width={size.w * (portrait ? 0.8 : 0.45)} height={size.h * 0.12} preserveAspectRatio="xMidYMid meet" />
           ) : null}
-          {subscribeOn ? <SubscribeCard logo={kit?.logo ? brandImageUrl(kit.logo) : undefined} name={kit?.channel_name} size={size} /> : null}
+          {subscribeOn ? <SubscribeCard logo={kit?.logo ? brandImageUrl(kit.logo) : undefined} name={kit?.channel_name} size={size} liked={t >= subscribeStart + SUBSCRIBE_LIKED_AT} subscribed={t >= subscribeStart + SUBSCRIBE_DONE_AT} /> : null}
           <Texts edit={edit} frame={frame} size={size} player={player} map={map} />
         </svg>
         {affiliate && affiliateOn ? (
@@ -212,34 +216,35 @@ function Watermark({ href, corner, opacity, size }: { href: string; corner: Bran
     preserveAspectRatio={`${right ? 'xMax' : 'xMin'}${atBottom ? 'YMax' : 'YMin'} meet`} />;
 }
 
-function SubscribeCard({ logo, name, size }: { logo?: string; name?: string; size: Size }): ReactNode {
+type SubscribeCardProps = { logo?: string; name?: string; size: Size; liked: boolean; subscribed: boolean };
+
+const SUBSCRIBE_THUMB = 'M2 10h4v11H2zM8 10.4l4.3-6.9c.45-.72 1.45-.86 2.07-.27.43.4.6 1.02.44 1.59L13.7 9H20a2 2 0 0 1 1.97 2.35l-1.3 7.6A2.5 2.5 0 0 1 18.2 21H8z';
+
+function SubscribeCard({ logo, name, size, liked, subscribed }: SubscribeCardProps): ReactNode {
   const portrait = size.h > size.w;
-  const scale = portrait ? 1.6 : 1;
-  const pad = 16 * scale;
-  const gap = 18 * scale;
-  const logoSide = 64 * scale;
-  const fontSize = (portrait ? 44 : 30);
-  const nameWidth = name ? Math.min(name.length * fontSize * 0.58, portrait ? 440 : 450) : 0;
-  const button = { w: 220 * scale, h: 64 * scale };
-  const branded = Boolean(logo || name);
-  const width = pad * 2 + (logo ? logoSide + gap : 0) + (name ? nameWidth + gap : 0) + button.w;
-  const pillHeight = portrait ? 108 : 68;
-  const height = branded ? 96 * scale : pillHeight;
+  const s = portrait
+    ? { height: 100, pad: 14, gap: 16, button: 72, font: 34, pill: 330, pillFont: 30, middle: 1368 }
+    : { height: 76, pad: 10, gap: 12, button: 56, font: 26, pill: 270, pillFont: 23, middle: 862 };
+  const nameWidth = name ? Math.min(name.length * s.font * 0.58, s.font * 9) : 0;
+  const width = s.pad * 2 + (logo ? s.button + s.gap : 0) + (name ? nameWidth + s.gap : 0) + s.button + s.gap + s.pill;
   const x = portrait ? (size.w - width) / 2 : size.w - width - 44;
-  const y = portrait ? 1290 : size.h - height - 170;
-  let cursor = x + pad;
-  const middle = y + height / 2;
+  let cursor = x + s.pad;
   const logoX = cursor;
-  if (logo) cursor += logoSide + gap;
+  if (logo) cursor += s.button + s.gap;
   const nameX = cursor;
-  if (name) cursor += nameWidth + gap;
+  if (name) cursor += nameWidth + s.gap;
+  const likeX = cursor;
+  cursor += s.button + s.gap;
+  const thumb = s.button * 0.52;
   return (
     <g fontFamily={FONT} fontWeight="700">
-      <rect x={x} y={y} width={width} height={height} rx={height / 2} fill="#0a090d" opacity={0.94} stroke="#d99aff" strokeWidth={2} />
-      {logo ? <image href={logo} x={logoX} y={middle - logoSide / 2} width={logoSide} height={logoSide} clipPath="circle()" preserveAspectRatio="xMidYMid slice" /> : null}
-      {name ? <text x={nameX} y={middle + fontSize * 0.35} fontSize={fontSize} fill="#f1eaf9" textLength={nameWidth} lengthAdjust="spacingAndGlyphs">{name}</text> : null}
-      <rect x={cursor} y={middle - button.h / 2} width={button.w} height={button.h} rx={button.h / 2} fill="#ff0033" />
-      <text x={cursor + button.w / 2} y={middle + 9 * scale} fontSize={24 * scale} fill="white" textAnchor="middle" letterSpacing={1.5}>SUBSCRIBE</text>
+      <rect x={x} y={s.middle - s.height / 2} width={width} height={s.height} rx={s.height / 2} fill="#0f0f0f" opacity={0.9} stroke="#ffffff" strokeOpacity={0.14} strokeWidth={2} />
+      {logo ? <image href={logo} x={logoX} y={s.middle - s.button / 2} width={s.button} height={s.button} clipPath="circle()" preserveAspectRatio="xMidYMid slice" /> : null}
+      {name ? <text x={nameX} y={s.middle + s.font * 0.35} fontSize={s.font} fill="#f1f1f1" textLength={nameWidth} lengthAdjust="spacingAndGlyphs">{name}</text> : null}
+      <circle cx={likeX + s.button / 2} cy={s.middle} r={s.button / 2} fill="#272727" stroke={liked ? '#3ea6ff' : 'none'} strokeWidth={3} />
+      <path d={SUBSCRIBE_THUMB} transform={`translate(${likeX + (s.button - thumb) / 2} ${s.middle - thumb / 2}) scale(${thumb / 24})`} fill={liked ? '#3ea6ff' : '#ffffff'} />
+      <rect x={cursor} y={s.middle - s.button / 2} width={s.pill} height={s.button} rx={s.button / 2} fill={subscribed ? '#3a3a3a' : '#ff0033'} />
+      <text x={cursor + s.pill / 2} y={s.middle + s.pillFont * 0.35} fontSize={s.pillFont} fill="white" textAnchor="middle" letterSpacing={1.5}>{subscribed ? 'SUBSCRIBED' : 'SUBSCRIBE'}</text>
     </g>
   );
 }

@@ -11,7 +11,6 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/brandkit"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
-	"github.com/rechedev9/cliphub/internal/htmlstill"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -187,7 +186,7 @@ func TestSubscribeButtonSitsAboveABottomRightWatermark(t *testing.T) {
 	if lift, err := fullDemoSubscribeLift(short); err != nil || lift != 0 {
 		t.Fatalf("a watermark in another corner moved the button: %d %v", lift, err)
 	}
-	sprite := demooverlay.SubscribeSpriteFor(htmlstill.Landscape)
+	sprite := demooverlay.SubscribeSpriteFor()
 	effect := fullDemoSubscribeEffect(fullDemoSubscribeImage{path: "subscribe.png", sprite: sprite, lift: 101}, fullDemoStoryWindow{100, 106})
 	if effect.Y != strconv.Itoa(sprite.CellTop-101) || effect.Height != sprite.Height() || effect.Sprite == nil || effect.Source != fullDemoSubscribeSource || !strings.Contains(effect.X, "900") || !strings.Contains(effect.X, "100.400") || !strings.Contains(effect.X, "105.700") {
 		t.Fatalf("subscribe effect = %+v", effect)
@@ -200,7 +199,7 @@ func TestStoryOverlaysKeepThePerItemComposition(t *testing.T) {
 	halftime, _ := fullDemoHalftimeWindow(short, 13)
 	short.Effects = append(short.Effects, fullDemoHalftimeEffect(short, filepath.Join(dir, "halftime.png"), halftime))
 	for _, window := range fullDemoSubscribeWindows(short, fullDemoStoryBusyWindows(short.Effects)) {
-		short.Effects = append(short.Effects, fullDemoSubscribeEffect(fullDemoSubscribeImage{path: filepath.Join(dir, "subscribe.png"), sprite: demooverlay.SubscribeSpriteFor(htmlstill.Landscape)}, window))
+		short.Effects = append(short.Effects, fullDemoSubscribeEffect(fullDemoSubscribeImage{path: filepath.Join(dir, "subscribe.png"), sprite: demooverlay.SubscribeSpriteFor()}, window))
 	}
 	if len(short.Effects) != 5 {
 		t.Fatalf("effects = %d, want the roster, the scoreboard, the halftime card and two buttons", len(short.Effects))
@@ -280,7 +279,7 @@ func TestSubscribeCardTakesTheApprovedLogoAndName(t *testing.T) {
 
 func TestFullDemoBellDingsOnlyInTheItemItRingsIn(t *testing.T) {
 	short := fullDemoItemOverlayFixtureShort(t.TempDir())
-	sprite := demooverlay.SubscribeSpriteFor(htmlstill.Landscape)
+	sprite := demooverlay.SubscribeSpriteFor()
 	short.Effects = append(short.Effects, fullDemoSubscribeEffect(fullDemoSubscribeImage{path: "subscribe.png", sprite: sprite}, fullDemoStoryWindow{0.25, 6.25}))
 	ring := recapplan.TimelineItem{Role: "round", SourceRef: "round-001", SourceStartTick: 64, EndFrame: 60, EndSample: 48000}
 	command, err := fullDemoItemStreamCommand(short, ring, "item.nut", fullDemoItemAudioOnly)

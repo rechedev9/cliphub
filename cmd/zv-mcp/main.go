@@ -83,7 +83,8 @@ The brand kit (get_brand_kit, save_brand_kit) keeps the channel logo, drawn as a
 opacity, and an own sponsor banner with a time window. generate_short and plan_full_demo take brand_watermark and
 brand_banner to apply it; the render copies the kit, and brand_banner does not go with the affiliate banner.
 The kit also keeps the channel name (save_brand_kit channel_name). generate_short subscribe_banner (default off) shows
-a SUBSCRIBE banner once, whose bell swings twice and rings with a ding the first time, 4.5 s from about a third of the Short, with the kit's logo and channel name when
+a small like and SUBSCRIBE card once, 4.5 s from about a third of the Short: the like button fills, then SUBSCRIBE is pressed and
+turns SUBSCRIBED while its bell swings and rings with one ding; it carries the kit's logo and channel name when
 it has them; ask for the logo file and the name before saving them, never invent a logo.
 Player cards (one-player 9:16 Shorts only): generate_short opening_card, end_card and cover_card each take a
 template from list_short_options player_cards (default none). The opening card covers the first seconds instead
