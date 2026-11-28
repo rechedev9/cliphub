@@ -16,8 +16,8 @@ thumbnails) and **CS2 analysis with AI over MCP**. Three products serve them:
   only when the user links a ClipMind workspace. Assistants drive it through `zv-mcp`.
 - **ClipMind (ClipHub Strats)**, the web edition of the analysis at `cliphubstrats.rechedev.cloud`:
   accounts, team workspaces and a library that syncs with Studio. PC-bound features stay in Studio.
-- **The content product**, the owner's own YouTube pipeline: owner-only, switched off in the
-  installer. ClipHub has one MCP server, `cliphub-studio` (`cmd/zv-mcp`); the channel tools join it
+- **The content product**, the owner's own YouTube pipeline: owner-only, never registered for
+  installer users. ClipHub has one MCP server, `cliphub-studio` (`cmd/zv-mcp`); the channel tools join it
   as owner-only `channel_` tools ([ADR 0004](docs/adr/0004-one-mcp-server.md)). Until that port
   lands, the channel core is the TypeScript package in `content/`, run through its CLI
   ([docs/content/README.md](docs/content/README.md)); the product's design is

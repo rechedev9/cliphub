@@ -20,8 +20,8 @@ paths:
 
 - Decide whether a step is a tool or a prompt by "The rule" of the README. Do not leave a step with one right answer in a skill or in a scheduled-task prompt.
 - The thumbnail renderer is written against [docs/content/thumbnails.md](../../docs/content/thumbnails.md). A change to the look changes that spec in the same PR.
-- Do not build a long job (a render, an upload) as one blocking tool call. "MCP tools today" in the README says what it waits for.
-- A tool lands with its row in the tool table of the README and with `INSTRUCTIONS` in `content/src/mcp/server.ts` saying when to call it.
+- Do not build a long job (a render, an upload) as one blocking tool call. Follow the `zv-mcp` pattern that "Tools today" in the README names: a start tool that returns an id and a `wait_for_*` tool.
+- A channel tool lands with its row in the tool table of the README and with `serverInstructions` of `zv-mcp` saying when to call it, shown only behind the owner gate.
 
 ## State
 
