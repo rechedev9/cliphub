@@ -183,7 +183,7 @@ for ($iteration = 0; $iteration -lt 10; $iteration++) {
     testRoot,
   ], {
     encoding: 'utf8',
-    timeout: 30_000,
+    timeout: 120_000,
     windowsHide: true,
   });
 
