@@ -3,6 +3,7 @@ package workers
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -70,5 +71,31 @@ func TestRecordDemoStudioNVENCEncoderRoundTripsThroughAttemptValidation(t *testi
 	}}
 	if err := w.HandleRecordDemo(context.Background(), recordTaskFor(t, id, []string{"seg-001"})); err != nil {
 		t.Fatalf("idempotent retry = %v, want skip", err)
+	}
+}
+
+func TestFirstUsableRenderEncoderPrefersNVENCThenAMF(t *testing.T) {
+	cases := []struct {
+		name   string
+		usable map[string]bool
+		want   string
+	}{
+		{name: "NVIDIA and AMD GPUs", usable: map[string]bool{recording.EncoderNVENC: true, recording.EncoderAMF: true}, want: recording.EncoderNVENC},
+		{name: "AMD GPU only", usable: map[string]bool{recording.EncoderAMF: true}, want: recording.EncoderAMF},
+		{name: "Intel GPU keeps libx264", usable: map[string]bool{recording.EncoderQSV: true}, want: ""},
+		{name: "no GPU encoder keeps libx264", usable: map[string]bool{}, want: ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := firstUsableRenderEncoder(func(encoder string) error {
+				if tc.usable[encoder] {
+					return nil
+				}
+				return errors.New("driver refused the encoder")
+			})
+			if got != tc.want {
+				t.Fatalf("firstUsableRenderEncoder() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

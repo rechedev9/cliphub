@@ -134,7 +134,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		rankMoments         = fs.Bool("rank-moments", false, "score and order embedded recording segments best-first before applying --limit")
 		videoCRF            = fs.Int("video-crf", 0, "x264 CRF quality from 1..51; lower is higher quality; defaults by preset")
 		videoPreset         = fs.String("video-preset", "", "x264 preset; defaults by preset")
-		videoEncoder        = fs.String("video-encoder", "", "final render encoder: nvenc-h264 or libx264 default")
+		videoEncoder        = fs.String("video-encoder", "", "final render encoder: nvenc-h264, amf-h264 or libx264 default")
 		threads             = fs.Int("threads", 0, "cap encoder threads per render; 0 lets FFmpeg pick its own default")
 		hqFilters           = fs.Bool("hq-filters", false, "use Lanczos scaling and square-pixel normalization")
 		audioNormalize      = fs.Bool("audio-normalize", false, "normalize audio with FFmpeg loudnorm")

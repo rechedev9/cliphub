@@ -322,7 +322,7 @@ func fullDemoTimingEncoder(args []string) string {
 		switch args[i] {
 		case "-c:v", "-codec:v", "-c:a", "-codec:a":
 			switch args[i+1] {
-			case "h264_nvenc", "libx264", "aac_mf", "aac":
+			case "h264_nvenc", "h264_amf", "libx264", "aac_mf", "aac":
 				return args[i+1]
 			}
 		}
