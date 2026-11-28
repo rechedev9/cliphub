@@ -64,7 +64,12 @@ func TestIsRoundPOVPlan(t *testing.T) {
 	if isRoundPOVPlan(withScoreboard, 7) {
 		t.Fatal("a one round plan saved with the final scoreboard needs a new plan")
 	}
-	doc.Options.Transitions = &recapplan.TransitionOptions{Enabled: true}
+	effects := *doc.Options.Transitions
+	effects.Enabled = true
+	doc.Options.Transitions = &effects
+	if doc.Options.ValidateCurrentFullDemoPolicy() != nil {
+		t.Fatal("the transitions case must pass the policy gate so it tests the effects condition alone")
+	}
 	if isRoundPOVPlan(doc, 7) {
 		t.Fatal("a plan with effects is not the plain one")
 	}
