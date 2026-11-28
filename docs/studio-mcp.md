@@ -1,61 +1,40 @@
-# Studio MCP server: implementation plan
+# Studio MCP server
 
-## Goal
+`zv-mcp` (`cmd/zv-mcp`) lets a user drive ClipHub Studio from an assistant (Claude Desktop, Claude
+Code, ChatGPT Desktop) in plain language: "import my last demo and make a Short of the two best
+clutches".
 
 Studio has two kinds of users, and both are first class. Some work in the Studio UI, where the
-visual tasks live (reviewing plays, the editor, the analysis views). Others prefer to stay in an
-assistant (Claude Desktop, ChatGPT Desktop) and do everything from there. The MCP server serves the
-second group without taking anything from the first: both drive the same orchestrator, a job
-started from the assistant shows up in the UI, and the UI stays complete on its own.
-
-Let a user drive ClipHub Studio from an assistant in plain language:
-"import my last demo and make a Short of the two best clutches". Claude acts on the Studio the
-user has open, through the same orchestrator the UI uses, so every job Claude starts shows up in
-the app as it runs.
+visual tasks live. Others prefer to stay in an assistant and do everything from there. The MCP
+server serves the second group without taking anything from the first: both drive the same
+orchestrator, a job started from the assistant shows up in the UI as it runs, and the UI stays
+complete on its own.
 
 The MCP server is a thin adapter over the orchestrator HTTP API. It adds no domain logic: what a
-Short is, how plays are picked and how renders run stay in the orchestrator.
+Short is, how plays are picked and how renders run stay in the orchestrator. It checks Full Demo and
+Short requests with the server's own packages (`internal/recapplan`, `internal/renderplan`,
+`internal/customhud`), so a request the server would refuse is refused before it is sent.
 
-Why MCP and not only a CLI: MCP gives Claude live job progress, in-chat approval before expensive
-work, and a one-click path for customers who use Claude Desktop.
-
-## History: the first MCP
-
-Studio already shipped a local MCP server once. `768ffe32` (2026-07-13) added `desktop/src/mcp/`:
-a TypeScript stdio server with a discovery handshake, generic `search`/`execute` tools,
-preview-then-`confirmed=true` mutations and a Settings registration card (released in 2.1.0 and
-2.2.0). `5422982d` (2026-07-20) retired it, the same day an in-app Codex agent landed
-(`936f15c6`), and later releases removed the `discovery_secret` it kept in `ports.json`
-(`desktop/src/stable-ports.ts`). The retire commit gives no reason; the reason, per the product
-owner: in July 2026 MCP clients were immature and few users worked from an assistant. Both have
-changed. `web/lib/webmcp.ts` is a still-live WebMCP preview.
-
-What this attempt changes:
-- Product-action tools (`generate_short`) instead of a generic `execute` over every endpoint.
-- Go in `cmd/zv-mcp`, reusing `internal/tuiclient`, instead of 5,600 lines of TypeScript beside
-  Electron.
-- An explicit opt-in switch, so the session file exists only for users who connect Claude.
-- Protocol features that did not exist or were not used then: elicitation and progress.
-
-Decide in phase 1 whether the WebMCP preview stays.
+What a change to the UI or to a tool has to update is in
+[MCP parity](../.claude/rules/mcp-parity.md).
 
 ## Product behavior
 
-- Settings has an "Asistentes (Claude, ChatGPT)" card with the switch "Permitir que un asistente use
-  Studio" (default off) and two copy buttons: the Claude Desktop config snippet and the
-  `claude mcp add` command. Both point at a stable copy, `<userData>\mcp\zv-mcp.exe`, so a running
-  `zv-mcp.exe` never blocks the auto-updater and a custom install folder never breaks the config.
-  A `zv-mcp` the assistant kept running through an update keeps the old build in memory. It reads
+- Ajustes has the card "Asistentes (Claude, ChatGPT)" (`web/components/settings/assistant-settings.tsx`)
+  with the switch "Permitir que un asistente use Studio" (default off) and two copy buttons: the
+  Claude Desktop config snippet and the `claude mcp add` command. Both point at a stable copy,
+  `<userData>\mcp\zv-mcp.exe`, so a running `zv-mcp.exe` never blocks the auto-updater and a custom
+  install folder never breaks the config. Studio brings that copy up to date at boot while access is
+  on (`desktop/src/stable-mcp.ts`): when an assistant is running it, Studio moves the running copy
+  aside, puts the new one in place and deletes the old one on a later boot.
+- A `zv-mcp` the assistant kept running through an update keeps the old build in memory. It reads
   Full Demo plans and options as strictly as Studio stores them, so a field one side lacks asks
   for an assistant restart instead of passing as a stale plan.
-- With the switch off, every tool answers with a clear message saying where to turn it on.
-- Starting a Short, a Full Demo or a round POV (`record_round_pov`) launches CS2 and records for minutes, so all ask for approval
-  in the chat before they run. Rendering stream videos (`render_stream`, `render_stream_summary`)
-  encodes for minutes and deleting (`delete_video`, `delete_video_version`, `delete_stream`, `delete_stream_video`, `delete_demo`,
-  `delete_captures`, `set_capture_retention`, `delete_storage_file`) or merging teams (`merge_teams`), and deleting a report or a play
-  (`delete_report`, `delete_play`) or a team document (`delete_team_document`) cannot be undone, so they ask too.
-  So do `retry_video` and `change_video_music`, which render a Short again.
-- The user's own Claude subscription pays for the model. Studio adds no API key and no cost.
+- With Studio closed, every tool says so. With the switch off, every tool answers with a clear
+  message saying where to turn it on.
+- A tool that launches CS2, renders for minutes or cannot be undone asks for approval in the chat
+  before it runs: [Approval](#approval).
+- The user's own assistant subscription pays for the model. Studio adds no API key and no cost.
 
 ## Architecture
 
@@ -69,20 +48,22 @@ Claude Desktop / Claude Code
    Electron writes <userData>/agent-session.json after boot
 ```
 
-- `cmd/zv-mcp`: Go, official SDK `github.com/modelcontextprotocol/go-sdk`, stdio only, no port.
-  The spike pins the version and confirms which protocol features each client supports.
+- `cmd/zv-mcp`: Go, the official SDK `github.com/modelcontextprotocol/go-sdk` (pinned in `go.mod`).
+  Against Studio it speaks stdio only and opens no port; the one HTTP transport is
+  [remote mode](#remote-mode-clipmind-workspaces).
 - HTTP goes through `internal/tuiclient` (base URL, token header, multipart, `APIError`, Full
-  Demo helpers). Add the missing calls there. `tuiclient.New` already reads `ORCHESTRATOR_URL`
-  and `ZV_MUTATION_TOKEN`, so the Go server can be built and tested against a locally run
-  orchestrator before any Electron change.
+  Demo helpers). A new orchestrator call is added there.
+- Without a session file, `zv-mcp` falls back to `ORCHESTRATOR_URL` and `ZV_MUTATION_TOKEN` (and
+  `CLIPHUB_WEB_ORIGIN` for the UI links), which is how a bare orchestrator is driven in development.
 
 ### Session discovery
 
 The orchestrator port is stable across boots (`ports.json`), but the mutation token is minted per
 boot, and production requires it even for reads (`requireMutationToken` in
-`internal/httpapi/routes.go`).
+`internal/httpapi/routes.go`). The desktop side is `desktop/src/agent-session.ts`; the reader is
+`cmd/zv-mcp/studio.go`.
 
-1. After `waitForDesktopServices` succeeds, Electron always writes `<userData>/agent-session.json`
+1. After `waitForDesktopServices` succeeds, Electron writes `<userData>/agent-session.json`
    atomically: `{ "version": 1, "enabled": false }` when the switch is off, and
    `{ "version": 1, "enabled": true, "orchestratorUrl": "http://127.0.0.1:<port>", "token": "<hex>", "webOrigin": "http://127.0.0.1:<port>", "studioVersion": "<x.y.z>", "autoApproveStarts": false, "autoApproveDeletes": false }`
    when it is on. "No file" then means "Studio is closed", and `enabled: false` means "switch off".
@@ -103,19 +84,18 @@ boot, and production requires it even for reads (`requireMutationToken` in
    the file on quit, on boot failure and at the start of a new boot attempt (a new boot mints a new
    token). `webOrigin` serves public UI assets such as the HUD previews (`/hud/*` needs no cookie).
 3. `zv-mcp` finds userData at `%APPDATA%\cliphub-studio`, overridden by
-   `CLIPHUB_STUDIO_USER_DATA`. This is a new variable: `CLIPHUB_E2E_USER_DATA` is consumed and
-   deleted by `isolated-userdata.cjs`, so the MCP cannot inherit it.
-4. Staleness: probe `/healthz` (outside auth) and reread the file on any 401. No pid check: pid
-   liveness on Windows needs Win32 calls and pid reuse makes it unreliable.
+   `CLIPHUB_STUDIO_USER_DATA`. That variable is its own: `CLIPHUB_E2E_USER_DATA` belongs to
+   `desktop/scripts/isolated-userdata.cjs`.
+4. `zv-mcp` reads the session file on every call and probes `/healthz` (outside auth) before it
+   uses it, so a restarted Studio (a new port or token) heals without restarting the assistant. It
+   accepts only version 1, an `http://127.0.0.1:<port>` URL and a 64-character hex token
+   (`parseAgentSession`). A 401 tells the model to call the tool once more and, if it fails again,
+   to ask the user to restart Studio. There is no pid check.
 
 Security: the web child already holds the same token in its environment (`boot-security.ts`), and
 any process of the same Windows user can read the profile's database and media, so a file in
 userData keeps the boundary at "the logged-in user". The switch keeps the token off disk for users
-who never connect Claude. The token never appears in tool output, logs or telemetry.
-
-The settings switch needs a new store file, a new action in the typed settings IPC
-(`studio-settings-ipc.ts`), preload wiring and a web Settings component. The retired
-`web/components/settings/mcp-settings.tsx` (in `5422982d^`) is a starting point.
+who never connect an assistant. The token never appears in tool output, logs or telemetry.
 
 ### Long jobs and progress
 
@@ -123,12 +103,11 @@ There is no event stream; the UI polls.
 - Start tools return right away with the job id and first status.
 - `wait_for_job` blocks up to 50 s by default, polls `GET /api/jobs/{id}?view=status` every 2 s
   and sends MCP progress notifications. It returns the final status with `failure_code`, or
-  "still running" so Claude calls it again.
+  "still running" so the assistant calls it again.
 - After capture a Short job stays `recorded`; the render outcome lives in
-  `GET /api/jobs/{id}/renders/{variant}`, and `render/render-progress.json` is never deleted. So for
-  `recorded`, `wait_for_job` decides from the render variant state (queued or rendering is running,
-  failed is a failure, ready is done), never from the progress file alone. `generate_short` and
-  `render_full_demo` return the variant to pass in.
+  `GET /api/jobs/{id}/renders/{variant}`. So for `recorded`, `wait_for_job` decides from the render
+  variant state (queued or rendering is running, failed is a failure, ready is done), never from
+  the render progress alone. `generate_short` and `render_full_demo` return the variant to pass in.
 - The job record also says nothing about a generate run that no worker took yet, or about one whose
   capture failed while the earlier recording was kept: the job stays `parsed` or `recorded` and the
   earlier render stays `ready`. The status view carries that run in `generate` (`variant`, `active`,
@@ -149,29 +128,34 @@ The React views live in `mcp-apps/` (its own pnpm package, like `web/` and `desk
 `pnpm --dir mcp-apps run build` bundles each view with esbuild into one self-contained HTML file in
 `cmd/zv-mcp/apps/` (script and style inline, no network, as the default MCP Apps CSP requires), and
 `zv-mcp` embeds that file with `go:embed`. The built file is committed, so the Go build needs no
-Node: rebuild and commit it with every change under `mcp-apps/src`. Checks:
-`pnpm --dir mcp-apps run typecheck`, `lint` and `test:unit`.
+Node: rebuild and commit it with every change under `mcp-apps/src`
+(`node mcp-apps/scripts/build.mjs --check`, which the release workflow runs, fails on a stale file).
+Checks: `pnpm --dir mcp-apps run typecheck`, `lint` and `test:unit`.
 
 The orchestrator rate limiter is a pass-through in Studio (`WithRateLimit(0, 0)`), so polling is
-safe. Only uploads are limited (2 concurrent).
+safe. Only uploads are limited (`WithUploadConcurrency(2)`).
 
 ### Approval
 
-- Elicitation before `generate_short`, `generate_shorts_batch`, `render_full_demo` and `record_round_pov`, showing what will run: player, map,
-  rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
-- The same approval guards `render_stream` (layout, how many videos, counting a group as one, which are saved moments and
-  which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
-  `delete_stream`, `delete_stream_video` (the video title and its stream), `delete_demo` (the file names; one approval for every demo in `ids`), `merge_teams` (both team names and the match count of the one that goes),
-  `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video`, `change_video_music`,
-  `delete_report`, `delete_play`, `delete_lineup`, `delete_call` and `delete_pattern` (the title), `delete_team_document` (title and team), `delete_playlist` (name and round count), `delete_voice` (track count and length), `delete_voice_recording` (start, track count and length), `delete_library_series` (format and teams),
-  `launch_practice` (map and spot count) and `launch_bot_replay` (round and side).
+- A tool asks before it launches CS2 (`generate_short`, `generate_shorts_batch`, `render_full_demo`,
+  `record_round_pov`, `launch_practice`, `launch_bot_replay`), before it renders for minutes
+  (`render_stream`, `render_stream_summary`, `retry_video`, `change_video_music`) and before a change
+  that cannot be undone: every `delete_*` tool, `merge_teams`, `set_capture_retention` and the
+  batch subtitle corrections (`correct_demo_phrases`, `correct_stream_phrases`). The tools that ask
+  are the ones that build an `approvalSpec` in `cmd/zv-mcp`.
+- The question says what will run or go: player, map, rounds and kills of the chosen plays plus
+  every option, the Full Demo plan summary, the title or file names, the bytes freed. It is Spanish,
+  because clients show it to the user verbatim in the elicitation form.
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
   travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
   clients. A failed or declined question starts nothing and hands out no code.
+  `pinNegotiatedVersion` (`cmd/zv-mcp/protocol.go`) stores the negotiated protocol version, because
+  the SDK reads the one the client asked for: without it, a client that asked for a newer version
+  than the server speaks gets `input_required` results it cannot read and never sees the question.
 - Only a client that does not advertise elicitation gets the approval-code path: an HMAC with a
   per-process random key over the tool, the job and the exact request, single use, expiring after
   10 minutes. This path still relies on the model asking the user, as the tool description says.
-- Headless Claude Code (`claude -p`) advertises elicitation and declines it, so nothing starts.
+  A client that advertises elicitation never gets a code, so one that declines starts nothing.
 - Automatic approval: two switches in Studio, Ajustes, Asistentes, both off by default and disabled while assistant access is off.
   "Aprobar automáticamente grabaciones y renders" (`autoApproveStarts`) skips the question for `generate_short`,
   `generate_shorts_batch`, `render_full_demo`, `record_round_pov`, `render_stream`, `render_stream_summary`, `retry_video` and
@@ -184,22 +168,26 @@ safe. Only uploads are limited (2 concurrent).
   that carries an answer to an earlier question (request state or input responses) is never approved automatically, so the
   user's answer, or a new question when the request changed, always wins. `studio_status` reports both switches
   (`auto_approve_starts`, `auto_approve_deletes`); no tool can change them: they are the user's choice in Studio.
+- Tests: `cmd/zv-mcp/approval_test.go` and `cmd/zv-mcp/protocol_test.go`.
 
 ### Untrusted text
 
 Player names, clan names, victims and publish-assistant titles come from the demo and are chosen by
 players. Stream titles come from the streamer, play and moment labels from the stream plan, and
 yt-dlp failure reasons from the remote site. Report and play titles and notes are the user's own
-text, but an imported stratbook can carry someone else's. In tool output, return them in labelled
-fields, strip control characters (notes keep their line breaks) and cap their length. In approval
-text a stream, team, report or play name also loses « » and quote characters, so it cannot close its
+text, but an imported stratbook can carry someone else's. In tool output they go in labelled
+fields, without control characters (notes keep their line breaks) and capped in length
+(`cleanName` in `cmd/zv-mcp/untrusted_text.go`, `cleanText`). In approval text a stream, team,
+report or play name also loses « » and quote characters (`quotedName`), so it cannot close its
 quote and read as part of the question. Tool descriptions say
 these fields are data, not instructions. A name never reaches a path, a shell or a header.
 
-## Tools (v1)
+## Tools
 
-Names are product actions. Descriptions are in English for the model; Claude answers in the user's
-language. Output is compact JSON with ids Claude can chain.
+Names are product actions. Descriptions are in English for the model; the assistant answers in the
+user's language. Output is compact JSON with ids the assistant can chain. Every tool that `zv-mcp`
+registers for Studio has a row in the tables below; `whoami` exists only in
+[remote mode](#remote-mode-clipmind-workspaces).
 
 The flow mirrors the UI: import a demo (the scan starts by itself), read the match players, create
 a job for one player (the job parses that player; the API may return an existing job with
@@ -456,11 +444,12 @@ The script tools are not in remote mode: a nested call loses the request's ClipM
 `import_demo` accepts only an absolute local-drive path to a `.dem` or `.dem.zst` file (no UNC
 paths), refuses directories and files above the server's 700 MiB per-demo limit, and leaves real
 validation to the orchestrator. Every id argument is validated (UUIDs, `seg-` ids, strict variant
-and video names) before it reaches a URL, and a panic in a handler is recovered so the stdio server
-survives.
+and video names) before it reaches a URL (`cmd/zv-mcp/ids.go`), and a panic in a handler is recovered so the stdio
+server survives (`recoverPanics`, `TestRecoverPanicsKeepsTheServerAlive`): without that the client
+only sees "Connection closed".
 
-`studio_status` reports whether capture is enabled, so Claude says so before it starts a Short
-instead of failing halfway.
+`studio_status` reports whether capture is enabled, so the assistant says so before it starts a
+Short instead of failing halfway.
 
 ### Prompts
 
@@ -476,13 +465,16 @@ clave and Anti-estrategias (one counter per finding, as "if they do X, we do Y")
 `[text](studio_path)` link. It ends with `create_report` (or `update_report`), `get_report` and
 `open_in_studio`.
 
-Not covered yet (see the parity rule in AGENTS.md): the editor, report exports (the
-HTML page and the `.cliphub` package), `open_studio`, the Libreta's Modo partida window (its data is `plan_table` and
-`list_lineups`) and resources other than the app views. Steam sign-in, the authentication code
-and the Web API key stay in the UI on purpose: an assistant never handles Steam credentials. The same goes for the
-ClipMind account: signing in (Ajustes > Cuenta ClipMind) is done by the user, so there is no `clipmind_connect`. There is no tool to cancel a queued
-render: the orchestrator has no cancel route, and Quitar on a queued video in Mis vídeos only drops
-the UI's local record of it.
+### What has no tool
+
+- The orchestrator routes without a tool are listed with their reason in `routesWithoutMCPTool`
+  (`internal/httpapi/mcp_parity_routes_test.go`).
+- A report's export (`POST /api/library/reports/{id}/export`) and the Libreta's Modo partida window
+  (its data is `plan_table` and `list_lineups`) have no tool. The only resources are the app views.
+- Steam sign-in and the Steam authentication code stay in the UI on purpose: an assistant never
+  handles Steam credentials. The same goes for the ClipMind account: signing in (Ajustes > Cuenta
+  ClipMind) is done by the user, so there is no `clipmind_connect`.
+- There is no tool to cancel a queued render: the orchestrator has no cancel route.
 
 ## Remote mode: ClipMind workspaces
 
@@ -502,145 +494,4 @@ on the server. Pinned players, team roles and the team profile save in the works
 pro follows) read the community server as Studio does, and `link_player_faceit` works when the server has a FACEIT key. Map geometry, equipment icons and the radar of any map Studio does not ship come from a CS2 install on the server
 (`CLIPMIND_CS2_PATH`, for example SteamCMD app 730), as Studio reads them from the user's CS2.
 Demos are imported by the user in the web
-app, which parses them in the browser. Signing in with OAuth, so an assistant needs no pasted key, is a later step.
-
-## Spike results (2026-11-01)
-
-- SDK: `github.com/modelcontextprotocol/go-sdk` v1.8.0. Typed tools give `structuredContent` and a
-  JSON text block for free.
-- Claude Code (`claude -p` with `--mcp-config`) ran the whole flow against a throwaway
-  orchestrator in about 30 s and 9 turns: `import_demo`, `wait_for_demo`, `get_match`,
-  `create_job`, `wait_for_job`, `list_moments`, `generate_short` returning `needs_approval`. A
-  random-bytes `.dem` came back as `not_a_demo` with a clear message.
-- Headless Claude Code does not advertise elicitation, so the approval-code fallback is the path
-  it takes. It worked: the model stopped and asked instead of approving on its own.
-- A panic in one tool kills the stdio server and the client only sees "Connection closed". Tool
-  handlers must never panic; the spike hit this once (`toolError(nil)`).
-- A bare orchestrator reports capture enabled even without CS2 on the path checked; do not treat
-  `capture_enabled` as proof that a capture will succeed.
-- Session discovery is in: Electron writes `agent-session.json` after the health checks when
-  `<userData>/agent-access.json` holds `{"enabled": true}` (the Settings switch will write that
-  file), and removes it at boot start, on boot failure and on quit. Studio built from the branch
-  with a throwaway profile published it, and Claude Code ran the flow against that Studio with no
-  URL or token in its config. Re-importing returned `duplicate` and re-creating the job returned
-  `reused`, so repeated assistant calls do not duplicate work.
-- With no session file, every tool answers "ClipHub Studio is not running. Ask the user to open
-  ClipHub Studio and try again".
-- Claude Desktop: registered in `claude_desktop_config.json`; checking it needs a Claude Desktop
-  restart by the user.
-- ChatGPT Desktop is not installed on the development PC, so its stdio support is still unverified.
-
-## Implementation phases
-
-1. **Spike.** Confirm request and response bodies against `internal/httpapi`. Pin the SDK.
-   Register a hello-world `zv-mcp` in Claude Code, Claude Desktop and ChatGPT Desktop and check
-   tool timeouts, progress and elicitation support in each. Reports disagree on whether ChatGPT
-   Desktop runs local stdio servers; if it only takes remote servers, ChatGPT support moves to a
-   later phase and v1 stays stdio. Whatever a client lacks, the hash fallback must cover.
-2. **Read tools**, against a locally run orchestrator with `ORCHESTRATOR_URL` and
-   `ZV_MUTATION_TOKEN`. Map orchestrator errors to clear tool errors (Studio closed, switch off,
-   job not found, capture disabled).
-3. **Write tools, `wait_for_job`, approval and untrusted-text handling.**
-4. **Electron**: session file, settings switch, Settings card with the config snippet and the
-   `claude mcp add` command. Go: `internal/studiosession` reads and validates the file.
-5. **Packaging**: add `zv-mcp` to `$commands` in `scripts/build.ps1`, copy it in `assemble.mjs`
-   (which today copies exactly three exes), and update the release asset list and integrity check
-   if it ships outside the installer.
-6. **Later**: a `.mcpb` bundle. It embeds its own `zv-mcp.exe`, so it ships as a separate release
-   asset with `release-integrity.mjs` and the asset list updated together, not inside the
-   installer.
-
-## Tests
-
-- Unit tests where there is real logic: session file validation, error mapping, argument and path
-  validation, progress mapping, name sanitizing.
-- `TestNoDeadCode` skips under `-short`, and the release runs `-short`, so dead `tuiclient`
-  helpers are caught only locally: run `go test ./cmd/zv -run TestNoDeadCode` before the PR.
-- No e2e suite. Manual check per `AGENTS.md`: build Studio from the branch with a throwaway
-  profile, set `CLIPHUB_STUDIO_USER_DATA` to it, register `zv-mcp` in Claude Code, ask Claude to
-  import a demo and reach the "Prepara tu Short" list. Then import a corrupt `.dem` and check that
-  Claude reports a clear error and `studio.log` shows it.
-
-## Open questions
-
-1. Does the WebMCP preview (`web/lib/webmcp.ts`) stay?
-2. Does ChatGPT Desktop run local stdio servers (answered by the spike)?
-
-## v1 results (2026-11-01)
-
-- Built by a workflow of Sonnet agents in two rounds (implementation, then the fixes from an
-  adversarial review), then checked by hand.
-- Checks: `go vet` and `go test` for `cmd/zv-mcp` and `internal/tuiclient`, `TestNoDeadCode` for both
-  GOOS targets, and typecheck, lint and unit tests for desktop and web all pass.
-- Real Studio from the branch with a throwaway profile: Claude Code, configured only with the stable
-  `<userData>\mcp\zv-mcp.exe`, imported a demo, picked the top fragger, created the job, listed the
-  plays, read the Short options (2 formats, 6 kill effects, 6 transitions, 15 tracks, 7 extras),
-  listed 12 HUDs with 11 previews, planned a Full Demo with the `ember` HUD (23 rounds, 1328 s) and
-  was refused a UNC path and a corrupt demo. The headless client declined the Short and the render,
-  so nothing started. `studio.log` showed no errors and no refused requests, and the match showed up
-  in Partidas.
-- The Settings switch, clicked in the real window: off rewrote the session to
-  `{"version":1,"enabled":false}` and `zv-mcp` answered that access is off; on republished the URL,
-  token and `webOrigin` without a restart. A new `zv-mcp.exe` build replaced the stable copy on the
-  next boot.
-- Not verified yet: MCP Apps rendering, audio playback and the elicitation form in a real Claude
-  Desktop or ChatGPT Desktop (ChatGPT Desktop is not installed here), and a real CS2 capture.
-- `zv-mcp.exe` is about 27 MB because the Full Demo and Short tools import `recapplan`,
-  `renderplan` and `customhud` to validate requests the same way the server does.
-
-## QA pass (2026-11-01)
-
-A scripted MCP client drove `zv-mcp` over stdio against real Studio from the branch (throwaway
-profile, two real demos), and a small MCP Apps host emulator ran both views in the built-in browser
-under a strict CSP (`img-src data:; media-src data:; connect-src 'none'`).
-
-- About 70 tool cases: bad and unknown ids, relative, UNC, `\\?\` and missing paths, folders,
-  empty, garbage and corrupt demos, duplicates (same file in another case), bad SteamIDs, a player
-  not in the demo (the job fails with `target_not_found`, as in the UI), out of range limits and
-  levels, unknown HUDs, effects, tracks and presets, duplicate and unknown segments, wrong arg types
-  and extra args. Every one got a clear tool error or a sane clamp; none crashed the server.
-- Approval: decline and cancel start nothing on every protocol; a forged or reused code, or a code
-  for other plays or options, is refused; an elicitation client never gets a code path.
-- Session file: missing, empty, malformed, version 2, non-loopback or `localhost` URL, https, a
-  path in the URL, short or wrong token, dead port, bad `webOrigin` and a 5 MB file each give a
-  specific message. A killed Studio reads as closed; a restarted Studio heals the same `zv-mcp`
-  process in about 4 s. A normal quit deletes the session file.
-- Views: options picker, track previews (switching tracks stops the previous one), the approval
-  step and Cancel, the HUD gallery with 11 thumbnails, planning from the gallery, the chat fallback
-  when the host does not let the view call tools, and a host that refuses `ui/message`.
-
-Fixed during the pass:
-
-- A client asking for a protocol newer than the server negotiates (for example `2026-07-28`, which
-  the stdio handshake answers with `2025-11-25`) got `input_required` results it cannot read, so the
-  approval never showed. `pinNegotiatedVersion` stores the negotiated version; the SDK reads the
-  requested one.
-- Approval text is Spanish and drops the job id and plan hash, since clients show it to the user
-  verbatim in the elicitation form.
-- A rejected token said "call the tool again", an endless loop when the token stays wrong; it now
-  says to retry once and then ask the user to restart Studio.
-- Studio could not refresh the stable `zv-mcp.exe` while an assistant ran it (EPERM). It now moves
-  the running copy aside, puts the new one in place and deletes old copies on a later boot.
-- The picker said "Generado" after only sending the request to the chat; it now says "Enviado" or
-  "En marcha", and the views say "el asistente" instead of "Claude".
-- Full Demo notices were cut at 64 characters; waits now report 100% progress when they finish.
-- `cmd/zv-mcp` was missing from the Makefile and the `zv` pass-throughs, which failed
-  `TestZVBinaryCurrentRepoWorkflowChecksEndToEnd`.
-
-Real capture, approved through elicitation: two plays of job `be912ccd`, glitch, zoom-whip and
-`pase-directo`. CS2 recorded both plays and Studio rendered `viral-60-clean` in about a minute and a
-half: 1080x1920 at 60 fps, 11.8 s, music in the mix, a cover image. `list_videos` returned the MP4
-link (served with range requests) and `publish_copy` the title, description and tags. `studio.log`
-had no errors besides the deliberate bad SteamID.
-
-That run found one more bug, fixed: right after `generate_short`, `wait_for_job` answered "parsed,
-not running", because a worker had not taken the job yet. The status view now reports the accepted
-generate run (`generate.active`), and `wait_for_job` answers "capture queued" until a worker owns
-the job.
-
-Known noise: `list_videos` without a render asks every preset, and each missing one logs a 404 as an
-error diagnostic in `studio.log`.
-
-Still not verified: the views and the elicitation form inside a real Claude Desktop Chat tab or
-ChatGPT Desktop. Without tool calls from the view, the picker has no track previews and the gallery
-has no thumbnails.
+app, which parses them in the browser.

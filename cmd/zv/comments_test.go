@@ -21,7 +21,7 @@ const commentBaselineFile = "cmd/zv/comment-baseline.json"
 
 var generatedHeader = regexp.MustCompile(`^// Code generated .* DO NOT EDIT\.$`)
 
-var jsCommentBaselines = []string{"web", "desktop", "landing", "mcp-apps", "content"}
+var jsCommentBaselines = []string{"web", "desktop", "landing", "mcp-apps", "content", "tools/hltv-harvester"}
 
 var shrinkCommentBaseline = flag.Bool("shrink-comment-baseline", false, "lower "+commentBaselineFile+" to the current comment counts")
 

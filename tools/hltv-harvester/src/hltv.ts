@@ -1,6 +1,3 @@
-// Pure HLTV page readers and selection rules for the harvester. The page scripts
-// run inside the browser window; everything they return is checked here as unknown.
-
 export const HLTV = "https://www.hltv.org";
 
 export type RankedTeam = { id: number; name: string; rank: number };
@@ -14,7 +11,6 @@ export type ResultRow = {
   unixMs: number;
 };
 
-/** One line of the match page veto; team is empty for the map left over. */
 export type VetoLine = { team: string; action: "ban" | "pick" | "decider"; map: string };
 
 export type MatchPage = {
@@ -23,7 +19,6 @@ export type MatchPage = {
   unixMs: number;
   demoPaths: string[];
   maps: string[];
-  /** bo1, bo3 or bo5 from the veto box, or empty when the page does not say. */
   format: string;
   veto: VetoLine[];
 };
@@ -32,7 +27,6 @@ export type HarvestRecord = { at: string; status: "downloaded" | "skipped" | "no
 
 export type HarvestState = { matches: Record<string, HarvestRecord> };
 
-// Page scripts: each one is the body of an expression evaluated in the page.
 export const RANKING_SCRIPT = `[...document.querySelectorAll('.ranked-team')].map(t => ({
   pos: t.querySelector('.position')?.textContent?.trim() ?? '',
   name: t.querySelector('.teamLine .name')?.textContent?.trim() ?? '',
@@ -109,7 +103,6 @@ const FORMAT_TEXT = /best of (\d)/i;
 const VETO_STEP = /^\d+\.\s+(.+?)\s+(removed|picked)\s+(\S+)$/;
 const VETO_LEFT = /^\d+\.\s+(\S+)\s+was left over$/;
 
-/** The series format and the ordered veto in the veto box lines, as HLTV writes them. */
 export function parseVeto(lines: string[]): { format: string; veto: VetoLine[] } {
   const text = lines.join("\n");
   const n = FORMAT_TEXT.exec(text)?.[1];
@@ -145,18 +138,14 @@ export function normalizeName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-// A results row is a candidate when either team name matches a ranked team; the
-// match page then confirms it by team id, since names can collide.
 export function isCandidate(row: ResultRow, rankedNames: Set<string>): boolean {
   return rankedNames.has(normalizeName(row.team1)) || rankedNames.has(normalizeName(row.team2));
 }
 
 export type SelectOptions = { state: HarvestState; rankedNames: Set<string>; rankedOnly: boolean; max: number };
 
-/** What a run visits and why the rest is left: already in the state, or outside the ranking when rankedOnly is set. */
 export type Selection = { todo: ResultRow[]; seen: number; unranked: number };
 
-/** Every results row not yet visited (or still without a demo) is a candidate; rankedOnly restores the top-N filter. */
 export function selectCandidates(rows: ResultRow[], opts: SelectOptions): Selection {
   const todo: ResultRow[] = [];
   const taken = new Set<number>();
@@ -187,7 +176,6 @@ export function rankedTeamIn(match: MatchPage, ranked: RankedTeam[]): RankedTeam
   return null;
 }
 
-// A match without a demo yet is retried on a later run; anything else is final.
 export function needsVisit(state: HarvestState, matchId: number): boolean {
   const rec = state.matches[String(matchId)];
   return rec === undefined || rec.status === "no_demo";
@@ -206,18 +194,11 @@ export function parseState(raw: unknown): HarvestState {
   return state;
 }
 
-/**
- * refetch, when set, is a folder of sidecars whose archives are downloaded again instead of walking results.
- * bestMaps picks the best team per map instead, and writes a sidecar for its latest perMap matches on that map.
- */
 export type HarvestOptions = {
   days: number; top: number; outDir: string; maxMatches: number; refetch: string;
   bestMaps: boolean; minMaps: number; perMap: number;
-  /** When set, the results window is this many hours instead of days: a short run for a frequent schedule. */
   hours: number;
-  /** Keep only matches with a team of the top N, as the harvester did before every match with a demo was wanted. */
   rankedOnly: boolean;
-  /** A folder of sidecars whose format and veto are read from their match pages, without downloading a demo. */
   vetoBackfill: string;
   faceit: string;
   match: number;
@@ -228,7 +209,6 @@ export type HarvestOptions = {
 export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
   const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false, faceit: "", match: 0, communityUrl: "", invalid: "" };
   for (let i = 0; i < argv.length; i++) {
-    // A following flag is never a value, so `--hours --ranked-only` keeps the flag.
     const raw = argv[i + 1] ?? "";
     const next = raw.startsWith("--") ? "" : raw;
     const skip = next === "" ? 0 : 1;
@@ -252,12 +232,10 @@ export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
   return opts;
 }
 
-/** The ranking to use: cut at the top N only when the run keeps ranked matches, else whole so every sidecar gets its rank. */
 export function cutRanking(ranked: RankedTeam[], opts: { top: number; cut: boolean }): RankedTeam[] {
   return opts.cut ? ranked.filter((t) => t.rank <= opts.top) : ranked;
 }
 
-/** The length of the results window in milliseconds: hours when given, else days. */
 export function windowMs(opts: Pick<HarvestOptions, "days" | "hours">): number {
   return opts.hours > 0 ? opts.hours * 60 * 60 * 1000 : opts.days * 24 * 60 * 60 * 1000;
 }
@@ -267,7 +245,6 @@ function positive(v: string, fallback: number): number {
   return Number.isInteger(n) && n > 0 ? n : fallback;
 }
 
-// Sidecar written next to each archive so the ingester knows what it holds.
 export type Sidecar = {
   source: "hltv";
   match_id: number;
@@ -295,7 +272,6 @@ export function sidecarFor(matchId: number, demoPath: string, match: MatchPage, 
   };
 }
 
-/** A sidecar read back from disk, or null when it is not an HLTV demo download of a real match. */
 export function parseSidecar(v: unknown): Sidecar | null {
   if (!isRecord(v) || v.source !== "hltv") return null;
   const id = v.match_id;
@@ -318,7 +294,6 @@ export function parseSidecar(v: unknown): Sidecar | null {
   };
 }
 
-/** The sidecar with the format and veto of its match page, or null when the page holds neither or the sidecar has them. */
 export function withSeries(sidecar: Sidecar, match: MatchPage | null): Sidecar | null {
   if ((sidecar.veto?.length ?? 0) > 0 || match === null || (match.format === "" && match.veto.length === 0)) return null;
   return { ...sidecar, format: match.format || sidecar.format, veto: match.veto.length > 0 ? match.veto : sidecar.veto };

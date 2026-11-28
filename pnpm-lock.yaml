@@ -365,6 +365,12 @@ importers:
       linkedom:
         specifier: 0.18.15
         version: 0.18.15
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.95.0(oxlint-tsgolint@7.0.2009)
+      oxlint-tsgolint:
+        specifier: 'catalog:'
+        version: 7.0.2009
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

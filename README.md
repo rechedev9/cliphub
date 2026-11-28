@@ -90,7 +90,11 @@ Repository layout:
 | `web/` | Studio UI (Next.js) |
 | `desktop/` | Electron shell and installer build |
 | `landing/` | Separate Next.js site |
-| `deploy/` | Telemetry deploy files |
+| `mcp-apps/` | Views the Studio MCP server shows inside an assistant |
+| `services/`, `deploy/` | The community API and the telemetry collector, and the server deploy files |
+| `tools/`, `content/` | Operator tools and the owner's own YouTube pipeline; neither ships in the installer |
+
+[AGENTS.md](AGENTS.md) has the full layout and how the pieces talk.
 
 ## Checks
 

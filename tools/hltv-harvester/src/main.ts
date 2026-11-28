@@ -1,14 +1,3 @@
-// HLTV demo harvester: a visible browser window that walks HLTV results the way a
-// person would and downloads the demo archive of every match that has one, one at a
-// time. It never solves a Cloudflare challenge: it waits for the user.
-// --ranked-only keeps only matches with a top-N team. --hours N reads only the last N hours,
-// for a frequent run: keep the nightly --days 7 run beside it, because a results page that
-// fails mid-walk cuts a window short (the log says results_incomplete=true) and the longer
-// nightly window picks up what a short run missed.
-//
-//   pnpm start -- --days 30 --top 50 --out C:\Users\me\cliphub-hltv
-//   pnpm start -- --best-maps --days 90 --top 20 --min-maps 10 --per-map 5
-//   pnpm start -- --veto-backfill C:\Users\me\cliphub-hltv\series-sidecars
 import { app, BrowserWindow, session, type DownloadItem, type Session } from "electron";
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -42,7 +31,6 @@ const store = storePaths(opts.outDir);
 const downloadsDir = store.downloads;
 const registryURL = communityURL(opts.communityUrl, process.env);
 
-// Electron on Windows drops console output when it is redirected, so the log is a file.
 function log(msg: string): void {
   const line = `${new Date().toISOString()} harvester ${msg}`;
   console.log(line);
@@ -69,8 +57,6 @@ function record(state: HarvestState, matchId: number, rec: Omit<HarvestRecord, "
 class Browser {
   constructor(private readonly win: BrowserWindow) {}
 
-  // open loads a page and, when Cloudflare shows a challenge, hands the window
-  // to the user and waits for the page to come back.
   async open(url: string): Promise<void> {
     await this.load(url);
     if (!(await this.challenged())) return;
@@ -88,7 +74,6 @@ class Browser {
     throw new ChallengeTimeoutError();
   }
 
-  // load retries a cut connection (ERR_CONNECTION_CLOSED and friends) with a growing wait.
   private load(url: string): Promise<void> {
     return withRetry(() => this.win.loadURL(url), {
       attempts: LOAD_ATTEMPTS,
@@ -179,7 +164,6 @@ class Browser {
   }
 }
 
-// Without --ranked-only the ranking only fills each sidecar's rank, so a broken page must not stop the run.
 async function rankedTeams(browser: Browser): Promise<RankedTeam[]> {
   const cut = opts.rankedOnly || opts.bestMaps;
   if (cut) return readRanking(browser, cut);
@@ -201,7 +185,6 @@ async function readRanking(browser: Browser, cut: boolean): Promise<RankedTeam[]
 
 type Listing = { rows: ResultRow[]; complete: boolean };
 
-// complete is false when a results page failed after the first, so the window was cut short.
 async function recentResults(browser: Browser, cutoffMs: number): Promise<Listing> {
   const rows: ResultRow[] = [];
   let complete = true;
@@ -258,7 +241,6 @@ async function harvest(win: BrowserWindow, ses: Session): Promise<void> {
 
 type VisitContext = { browser: Browser; ses: Session; state: HarvestState; ranked: RankedTeam[]; row: ResultRow };
 
-// visit reads one match page and downloads its demo archive; it returns true when an archive was saved.
 async function visit(ctx: VisitContext): Promise<boolean> {
   const { browser, ses, state, ranked, row } = ctx;
   await pause();
@@ -291,7 +273,6 @@ async function visit(ctx: VisitContext): Promise<boolean> {
   return true;
 }
 
-// refetch downloads again the archives of sidecars kept from earlier runs, so their demos can be recorded.
 async function refetch(win: BrowserWindow, ses: Session): Promise<void> {
   mkdirSync(downloadsDir, { recursive: true });
   const browser = new Browser(win);
@@ -336,7 +317,6 @@ async function fetchMatch(win: BrowserWindow, ses: Session): Promise<void> {
   if (!saved) process.exitCode = 1;
 }
 
-// vetoBackfill reads the format and veto of each sidecar's match page into the sidecar; it downloads no demo.
 async function vetoBackfill(win: BrowserWindow): Promise<void> {
   const browser = new Browser(win);
   let filled = 0;
@@ -359,8 +339,6 @@ async function vetoBackfill(win: BrowserWindow): Promise<void> {
   log(`class=done veto_filled=${filled}`);
 }
 
-// bestMaps reads every ranked team's map stats, picks the best team per map and writes a
-// sidecar for its latest matches on that map into refetch-best, for the clip backfill.
 async function bestMaps(win: BrowserWindow): Promise<void> {
   const browser = new Browser(win);
   const ranked = await rankedTeams(browser);

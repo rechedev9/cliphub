@@ -35,6 +35,6 @@ go run ./cmd/zv check
 go test ./cmd/zv -run 'TestGoFileLength|TestNoComments|TestCommentBaselinesOnlyShrink|TestNoDeadCode' -count=1
 ```
 
-`TestNoDeadCode` is slow and installs pinned tools. Skip it when the diff cannot add or remove a Go function. For a web or desktop diff, also re-run that package's `typecheck`, `lint` and `test:unit`.
+`TestNoDeadCode` is slow and installs pinned tools. Skip it when the diff cannot add or remove a Go function. For a diff in a pnpm package, also re-run each of `typecheck`, `lint` and `test:unit` that the package has.
 
 The review is finished when every item above is reported as pass, fail (with file and line) or not applicable.

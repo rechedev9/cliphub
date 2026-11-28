@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint src",
     "test:unit": "node --no-warnings --test --test-reporter=dot \"src/**/*.test.ts\"",
     "start": "pnpm run build && electron .",
     "ingest": "node --no-warnings src/ingest/cli.ts"
@@ -16,6 +17,8 @@
     "@types/node": "catalog:",
     "electron": "^45.5.0",
     "linkedom": "0.18.15",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
     "typescript": "catalog:"
   }
 }
