@@ -1,6 +1,3 @@
-// Best team per map: reads each ranked team's HLTV map stats page and keeps, for every map,
-// the team with the highest win rate over enough maps. Page scripts return unknown, checked here.
-
 export type TeamMapRecord = { map: string; wins: number; draws: number; losses: number };
 
 export type BestMapPick = { map: string; team_id: number; team: string; rank: number; maps: number; win_rate: number };
@@ -12,7 +9,6 @@ export const MAP_STATS_SCRIPT = `[...document.querySelectorAll('.two-grid .col')
 
 const WDL = /^(\d+)\s*\/\s*(\d+)\s*\/\s*(\d+)$/;
 
-/** mapKey turns an HLTV map name ("Dust2", "Mirage - 63.6%") into the demo map key ("de_dust2"). */
 export function mapKey(name: string): string {
   const base = name.split(" - ")[0].trim().toLowerCase().replace(/[^a-z0-9]/g, "");
   return base === "" ? "" : `de_${base}`;
@@ -37,7 +33,6 @@ export function parseTeamMapStats(raw: unknown): TeamMapRecord[] {
 
 export type TeamStats = { id: number; name: string; rank: number; records: TeamMapRecord[] };
 
-/** pickBestPerMap keeps, per map, the best win rate among teams with at least minMaps maps; ties go to more maps, then rank. */
 export function pickBestPerMap(teams: TeamStats[], minMaps: number): BestMapPick[] {
   const best = new Map<string, BestMapPick>();
   for (const t of teams) {
@@ -58,7 +53,6 @@ function better(a: BestMapPick, b: BestMapPick): boolean {
   return a.rank < b.rank;
 }
 
-/** teamSlug is the URL slug HLTV uses for a team name. */
 export function teamSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "team";
 }

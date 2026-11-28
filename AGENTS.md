@@ -58,17 +58,25 @@ it. [ClipMind and the VPS](.claude/rules/clipmind.md).
 - ClipMind: `web/` built with `NEXT_PUBLIC_CLIPHUB_EDITION=web` talks to `cmd/clipmind-server`
   (`internal/clipmind`), which serves the same `httpapi.AnalysisRoutes()` with one SQLite library
   per workspace. Studio syncs a linked workspace through `/api/sync`.
-- Pro matches: `tools/hltv-harvester` downloads HLTV archives into `%USERPROFILE%\cliphub-hltv`;
+- Pro matches: `tools/hltv-harvester` downloads HLTV archives into `%USERPROFILE%\cliphub-hltv`,
+  after it asks the community API which matches the catalog already has;
   `cliphub-community prepare-hltv` scans them into analyses on the same PC; the community API on the
-  VPS serves the pro match catalog that Studio reads.
+  VPS serves the pro match catalog that Studio reads. The harvester's `ingest` commands chain these
+  steps: [tools/hltv-harvester/README.md](tools/hltv-harvester/README.md).
+- Content: the root `.mcp.json` starts `content/` as the `cliphub-content` MCP server in a session
+  of this repo. It keeps its own SQLite state outside the repo and reaches Studio only by spawning
+  `zv-mcp`, never through the orchestrator API. [Content product](.claude/rules/content.md).
 - On the VPS (SSH alias `openclaw`), never in the installer: ClipMind, the community API, telemetry
   and the landing.
 
 ## Build and check
 
+- Toolchain: the Go version of `go.mod`, the Node major of `.node-version` and the pnpm of
+  `packageManager` in the root `package.json`. pnpm only warns ("Unsupported engine") when `node`
+  is older and then runs the scripts on it, so check `node -v` before you trust a local result.
 - Go: `go vet ./...`, `go test ./...`, and `go run ./cmd/zv check` (validates the workflow
   catalog, usage text and command build targets). One test:
-  `go test ./internal/<pkg> -run TestName -count=1`. `make test` runs the Go tests and `zv check`.
+  `go test ./internal/<pkg> -run TestName -count=1`.
 - Fast local Go loop: `go test -short ./...` skips the slow FFmpeg renders and `TestNoDeadCode`.
   Pre-PR runs use the full suite. `internal/editor` alone nears the 10 min default on Windows, so
   pass `-timeout 30m` to a full run.
@@ -77,11 +85,13 @@ it. [ClipMind and the VPS](.claude/rules/clipmind.md).
   `pnpm install`, never inside a package. Shared dependency versions live in the `catalog:` of
   `pnpm-workspace.yaml`; overrides, `allowBuilds` and patches live there too.
 - `pnpm run check` is the local gate: every package's `typecheck`, `lint` and `test:unit`, then
-  `go run ./cmd/zv check`. `make check` calls it. It does not run the Go tests or the builds.
+  `go run ./cmd/zv check`. It does not run the Go tests or the builds. The release workflow runs
+  its own list of checks, which leaves out `content` and `tools/hltv-harvester`: this gate is the
+  only one those two have. The `Makefile` targets (`make check`, `make test`) are aliases for the
+  commands above; a Windows PC without `make` runs the commands.
 - One package: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build` for `web` and
   `landing`. One test: `pnpm --dir <pkg> exec node --test <path>.test.ts`. `landing`'s `test:unit`
-  runs `next build` first, because its tests read the prerendered page. `tools/hltv-harvester` has
-  `typecheck` and `test:unit` only.
+  runs `next build` first, because its tests read the prerendered page.
 - `web`'s `build` flattens Next's monorepo standalone output (`web/scripts/flatten-standalone.mjs`)
   so `.next/standalone/server.js` stays where the installer and the ClipMind image expect it.
 - A few Full Demo editor tests depend on the FFmpeg version; Studio ships FFmpeg 8.1.2.
@@ -94,12 +104,12 @@ Each rule names what enforces it. "Review only" means nothing fails when an agen
 | Rule | Enforced by |
 |---|---|
 | Source files stay at or under 1000 lines. Files already past it are frozen: they shrink, never grow, and no max is raised. [Split a file](.claude/skills/split-file/SKILL.md) | `TestGoFileLength` (`cmd/zv`), oxlint `max-lines` |
-| Code has no comments and no `eslint-*` or `oxlint-*` directives; only `//go:build`, `//go:embed`, a generated-code header, `/// <reference` and a shebang are allowed. Files that had comments before the rule are frozen in a `comment-baseline.json` that only shrinks: never raise a count or add a file. A lint exception goes in the package's `.oxlintrc.json` `overrides`. After you delete comments, lower the baseline with `go test ./cmd/zv -run TestNoComments -shrink-comment-baseline` or `node ../tools/oxlint-no-comments/shrink-baseline.mjs` in the package | `TestNoComments` and `TestCommentBaselinesOnlyShrink` (`cmd/zv`); oxlint `cliphub/no-comments` (`tools/oxlint-no-comments`) in web, desktop, landing, mcp-apps and content |
+| Code has no comments and no `eslint-*` or `oxlint-*` directives; only `//go:build`, `//go:embed`, a generated-code header, `/// <reference` and a shebang are allowed. Files that had comments before the rule are frozen in a `comment-baseline.json` that only shrinks: never raise a count or add a file. A lint exception goes in the package's `.oxlintrc.json` `overrides`. After you delete comments, lower the baseline with `go test ./cmd/zv -run TestNoComments -shrink-comment-baseline` or `node ../tools/oxlint-no-comments/shrink-baseline.mjs` in the package | `TestNoComments` and `TestCommentBaselinesOnlyShrink` (`cmd/zv`); oxlint `cliphub/no-comments` (`tools/oxlint-no-comments`) in every pnpm package |
 | No production function that only tests call; a helper that only `_windows.go` code calls lives in a `_windows.go` file | `TestNoDeadCode` (`cmd/zv`, pinned `deadcode` and `staticcheck U1000` for Windows and Linux). `-short` skips it, so a `-short` run proves nothing about dead code |
 | UI code calls an API only through `apiFetch` (`web/lib/api/edition-fetch.ts`), and a shared component gates a Studio-only call on `currentEdition()`. [ClipMind and the VPS](.claude/rules/clipmind.md) | oxlint `no-restricted-globals` (bare `fetch`, `XMLHttpRequest`) in web; `apiFetch` refuses a route the edition lacks (`web/lib/api/edition-fetch.test.ts`). The gate itself is review only |
 | A UI feature lands with its `cmd/zv-mcp` tool, `serverInstructions` and `docs/studio-mcp.md` row. [MCP parity](.claude/rules/mcp-parity.md) | `TestEveryRouteHasAnMCPTool` (`internal/httpapi`) for a new route; a feature on an existing route is review only |
 | A store method lands in SQLite and memory with a shared contract test. [SQLite store](.claude/rules/store-sqlite.md) | Contract tests in `internal/store` |
-| No e2e suites, verification scripts, evidence folders or reports; the `internal/pipeline` golden test is the one exception. [Render and the editor](.claude/rules/render-editor.md) | Review only |
+| No new e2e suites, verification scripts, evidence folders or reports; the one test to extend is the `internal/pipeline` golden test. The `cmd/zv/*_e2e_test.go` CLI tests and the smoke and capture-lab scripts under `scripts/` are older than this rule: do not add siblings to them. [Render and the editor](.claude/rules/render-editor.md) | Review only |
 | No CI on pushes or pull requests; the full Go suite runs locally before a PR and a release. [Release](.claude/rules/release.md) | Review only |
 | `/post-work-review` (Skill tool) before every commit, `/code-review high --fix` before a PR. [Post-work review](.claude/skills/post-work-review/SKILL.md) | `.githooks/pre-commit` refuses an agent's commit whose staged tree the review did not record (`core.hooksPath` set by the `SessionStart` hook in `.claude/settings.json`) |
 | A user-visible change is checked by hand in a throwaway Studio profile, never the real `%APPDATA%\cliphub-studio` or the session's `cliphub-studio` MCP; the profile is deleted after. [Verify in Studio](.claude/skills/verify-in-studio/SKILL.md) | Review only |
@@ -117,6 +127,7 @@ Each rule names what enforces it. "Review only" means nothing fails when an agen
 - [Web inside Electron](.claude/rules/web-electron.md): the desktop edition's Chromium, the local request guard, the capability cookie, `landing/`, the WebMCP preview, React attribute types.
 - [ClipMind and the VPS](.claude/rules/clipmind.md): the web edition, Studio sync, the servers on the VPS, and how ClipMind and the landing are deployed.
 - [Release](.claude/rules/release.md): the bar before a tag, and the one hosted workflow.
+- [Content product](.claude/rules/content.md): the boundaries of `content/`, tools over prompts, its derived state, and how to run and check it.
 
 ### Skills
 
@@ -136,6 +147,8 @@ Each rule names what enforces it. "Review only" means nothing fails when an agen
 - [docs/studio-mcp.md](docs/studio-mcp.md): the Studio MCP server, its design and its tool table.
 - [docs/remote-debug-tracing.md](docs/remote-debug-tracing.md): telemetry error events and the log channel, and how to query them.
 - [docs/adr/](docs/adr/): architecture decisions. [ADR 0003](docs/adr/0003-content-vertical-and-monorepo.md) holds the monorepo and content-product plan.
+- [docs/content/README.md](docs/content/README.md): the content product's process, state tables, tools and scheduled tasks. [docs/content/thumbnails.md](docs/content/thumbnails.md) is the thumbnail spec its renderer is written against.
+- [tools/hltv-harvester/README.md](tools/hltv-harvester/README.md): the harvester's store, its modes and the `ingest` commands.
 - `docs/product-vision.md` is a human doc on the product direction. Agents need not read it.
 
 ## Agent skills

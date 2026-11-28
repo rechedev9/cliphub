@@ -5,8 +5,8 @@ after LOVE CS 2, was asked for by the owner the same day; its numbers are starti
 owner confirms at the golden review (check 11). See [Decisions](#decisions-2026-11-27). The
 renderer is written against this file.
 
-This file is the single source of truth for the thumbnails of the content product (`content/`,
-not in the repository yet): the full-map POV (16:9) and the Short (9:16) of the YouTube channel
+This file is the single source of truth for the thumbnails of the content product (`content/`):
+the full-map POV (16:9) and the Short (9:16) of the YouTube channel
 @ClipHubRSN. It replaces the Thumbnails section of the old `pro-pov-pipeline` skill and its
 `thumb.ts` and `portraits.ts`, which this spec was read from (state of 2026-11-27). Those, like the
 `youtube-channel` skill and `mock-anime.ts` named below, are the owner's local files, outside this

@@ -25,10 +25,26 @@ the check off).
 
 Modes of the Electron app (`pnpm start -- <flags>`):
 
-- `--days 7 --top 50 --ranked-only --out DIR`: the sweep over recent results.
+- `--days 7 --top 50 --ranked-only --out DIR`: the sweep over recent results. It downloads the
+  archive of every match that has one, one at a time. `--ranked-only` keeps only matches with a
+  team of the top N (`--top`), and `--max N` caps what one run handles.
+- `--hours N` reads only the last N hours, for a frequent run. Keep the nightly `--days 7` run
+  beside it: a results page that fails mid-walk cuts the window short (the log says
+  `results_incomplete=true`), and the longer window picks up what a short run missed.
 - `--match ID --out DIR`: one match, unless its archive or kept demos are already in the store.
 - `--refetch DIR`: download again the archives of a folder of sidecars, skipping the ones in the store.
-- `--best-maps`, `--veto-backfill DIR`, `--faceit ROOMS`: see the top of `src/main.ts`.
+- `--best-maps --days 90 --top 20 --min-maps 10 --per-map 5`: reads every ranked team's map stats
+  page, picks for each map the team with the best win rate over at least `--min-maps` maps (a tie
+  goes to more maps, then to the better rank), and writes a sidecar for its latest `--per-map`
+  matches on that map into `refetch-best/`, for the clip backfill.
+- `--veto-backfill DIR`: reads the format and veto of each sidecar's match page into the sidecar.
+  It downloads no demo.
+- `--faceit ROOMS`: downloads the demos of FACEIT rooms into `faceit/`, each with its sidecar.
+  `ROOMS` is room ids, room links or a file that holds them.
+
+A match without a demo yet is tried again on a later run; any other outcome is final. The log is
+`harvester.log` in the store, because Electron on Windows drops console output when it is
+redirected.
 
 ## Ingest commands
 

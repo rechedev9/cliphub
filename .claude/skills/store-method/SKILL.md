@@ -22,6 +22,6 @@ go test ./internal/store -count=1
 go vet ./...
 ```
 
-Replace `TestName` with the contract you extended (for example `TestJobRepositoryContract` or `TestLibraryRepositoryContract`). For a migration, `-run TestMigrate` runs the migration tests in `internal/store/migrate_test.go`.
+Replace `TestName` with the contract you extended (for example `TestJobRepositoryContract` or `TestLibraryRepositoryContract`). For a migration, `-run 'TestMigrate|TestOpenSQLite'` runs the migration tests in `internal/store/migrate_test.go`.
 
 The store change is finished when the new case runs against both implementations and `go test ./internal/store -count=1` and `go vet ./...` are green.
