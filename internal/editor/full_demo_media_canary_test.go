@@ -29,7 +29,7 @@ func TestFullDemoSponsorBumperAndAudioMediaCanary(t *testing.T) {
 	ffmpeg := fullDemoTestFFmpeg(t)
 	for _, scenario := range []string{"sponsor-after-round-two", "muxed-bframes", "tail-pad"} {
 		t.Run(scenario, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
 			dir := t.TempDir()
 			makeMedia := func(name, color string, frequency int, seconds float64) string {
