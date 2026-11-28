@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rechedev9/cliphub/internal/demooverlay"
+	"github.com/rechedev9/cliphub/internal/htmlstill"
 )
 
 func TestSubscribeBannerShowsOnceAThirdIntoTheShort(t *testing.T) {
@@ -59,23 +62,34 @@ func TestSubscribeBannerNeedsTheRendererAndAOneLineName(t *testing.T) {
 	}
 }
 
-func TestSubscribeBellSwingsAndDingsInTheCompilation(t *testing.T) {
-	subscribe := &ShortSubscribe{Path: "subscribe.png", CellTop: 1253, CellHeight: 230, Frames: 18}
+func TestLikeThenSubscribeHoldAndDingInTheCompilation(t *testing.T) {
+	sprite := demooverlay.ShortSubscribeSpriteFor(htmlstill.Portrait)
+	subscribe := &ShortSubscribe{Path: "subscribe.png", CellTop: sprite.CellTop, CellHeight: sprite.CellHeight, Frames: sprite.Frames}
 	short := ShortEdit{Output: "out.mp4", OutputFormat: OutputFormatShort9x16, DurationSeconds: 30, Overlays: ShortOverlays{Subscribe: subscribe},
 		Parts: []ShortPart{{SegmentID: "seg-001", Input: "a.mp4", DurationSeconds: 15}, {SegmentID: "seg-002", Input: "b.mp4", DurationSeconds: 15}}}
 	short.Effects = generatedBrandEffects(short)
-	if e := short.Effects[0]; e.Height != 230*19 || e.Sprite == nil || len(e.Sprite.PlayAt) != 2 {
-		t.Fatalf("banner = %+v; want a 19-cell sprite that rings twice", e)
+	if e := short.Effects[0]; e.Height != 150*32 || e.Sprite == nil || len(e.Sprite.Clips) != 2 || len(e.Sprite.PlayAt) != 0 {
+		t.Fatalf("banner = %+v; want a 32-cell sprite with a like clip and a subscribe clip", e)
 	}
 	filter := CompilationFilter(short)
-	if !strings.Contains(filter, "crop=w=iw:h=230:x=0:y='230*if(between(t\\,11.000") || !strings.Contains(filter, "between(t\\,13.100") {
-		t.Fatalf("filter = %s; want the bell cell picked at 11.0 s and 13.1 s", filter)
+	cell := "crop=w=iw:h=150:x=0:y='150*if(gte(t\\,12.400)\\,min(31\\,9+trunc((t-12.400)*20))\\,if(gte(t\\,11.300)\\,min(8\\,1+trunc((t-11.300)*20))\\,0))'"
+	if !strings.Contains(filter, cell) {
+		t.Fatalf("filter = %s; want the like at 11.3 s and the subscribe at 12.4 s, each holding its last cell", filter)
 	}
-	if strings.Count(filter, "aevalsrc=") != 1 || !strings.Contains(filter, "adelay=528000S") || !strings.Contains(filter, "[catv][gameraw]") || !strings.Contains(filter, "normalize=0[gamea]") {
-		t.Fatalf("filter = %s; want one ding at 11.0 s mixed into the game audio", filter)
+	if strings.Count(filter, "aevalsrc=") != 1 || !strings.Contains(filter, "adelay=604800S") || !strings.Contains(filter, "[catv][gameraw]") || !strings.Contains(filter, "normalize=0[gamea]") {
+		t.Fatalf("filter = %s; want one ding at 12.6 s, on the bell's first swing, mixed into the game audio", filter)
 	}
 	short.Overlays.Subscribe, short.Effects = nil, nil
 	if filter := CompilationFilter(short); strings.Contains(filter, "aevalsrc") || strings.Contains(filter, "gameraw") {
 		t.Fatalf("a Short without the banner = %s", filter)
+	}
+}
+
+func TestSpriteClipsPlayInTimeOrderWhateverTheirOrder(t *testing.T) {
+	like, follow := SpriteClip{AtSeconds: 0.8, First: 1, Last: 8}, SpriteClip{AtSeconds: 1.9, First: 9, Last: 31}
+	inOrder := imageSpriteFilters(Effect{StartSeconds: 2, Sprite: &ImageSprite{CellHeight: 150, Frames: 31, FPS: 20, Clips: []SpriteClip{like, follow}}})
+	reversed := imageSpriteFilters(Effect{StartSeconds: 2, Sprite: &ImageSprite{CellHeight: 150, Frames: 31, FPS: 20, Clips: []SpriteClip{follow, like}}})
+	if len(inOrder) != 1 || len(reversed) != 1 || inOrder[0] != reversed[0] || !strings.Contains(inOrder[0], `if(gte(t\,3.900)`) {
+		t.Fatalf("in order = %v, reversed = %v; want the later clip checked first either way", inOrder, reversed)
 	}
 }

@@ -160,10 +160,7 @@ type SubscribeSprite struct {
 	Frames     int
 }
 
-func SubscribeSpriteFor(size htmlstill.Size) SubscribeSprite {
-	if size.Height > size.Width {
-		return SubscribeSprite{CellTop: 1253, CellHeight: 230, Frames: subscribeBellFrames}
-	}
+func SubscribeSpriteFor() SubscribeSprite {
 	return SubscribeSprite{CellTop: SubscribeBottomEdge - 48 - 75, CellHeight: 150, Frames: subscribeBellFrames}
 }
 
@@ -185,6 +182,9 @@ func (s SubscribeSprite) rowsPerPage(size htmlstill.Size) int {
 }
 
 func SubscribeHTML(palette *Palette, card SubscribeCard, size htmlstill.Size) ([][]byte, error) {
+	if size != htmlstill.Landscape {
+		return nil, fmt.Errorf("the subscribe button is drawn on a %dx%d page only", htmlstill.Landscape.Width, htmlstill.Landscape.Height)
+	}
 	fonts, err := loadPageFonts()
 	if err != nil {
 		return nil, err
@@ -193,11 +193,7 @@ func SubscribeHTML(palette *Palette, card SubscribeCard, size htmlstill.Size) ([
 	if err != nil {
 		return nil, err
 	}
-	layout := "landscape"
-	if size.Height > size.Width {
-		layout = "portrait"
-	}
-	sprite := SubscribeSpriteFor(size)
+	sprite := SubscribeSpriteFor()
 	swings, rows := subscribeBellSwings(sprite.Frames), sprite.rowsPerPage(size)
 	if rows < 1 {
 		return nil, fmt.Errorf("subscribe sprite cell of %d px does not fit a %dx%d page", sprite.CellHeight, size.Width, size.Height)
@@ -208,13 +204,12 @@ func SubscribeHTML(palette *Palette, card SubscribeCard, size htmlstill.Size) ([
 			pageFonts
 			Palette                   *Palette
 			Label                     string
-			Layout                    string
 			Width, Height, CellHeight int
 			Swings                    []template.CSS
 			Branded                   bool
 			Logo                      template.URL
 			ChannelName               string
-		}{fonts, palette, SubscribeLabel, layout, size.Width, size.Height, sprite.CellHeight, swings[first:min(first+rows, len(swings))], logo != "" || card.ChannelName != "", logo, card.ChannelName})
+		}{fonts, palette, SubscribeLabel, size.Width, size.Height, sprite.CellHeight, swings[first:min(first+rows, len(swings))], logo != "" || card.ChannelName != "", logo, card.ChannelName})
 		if err != nil {
 			return nil, err
 		}
@@ -267,28 +262,32 @@ func RenderSubscribeSprite(palette *Palette, card SubscribeCard, size htmlstill.
 	if err != nil {
 		return SubscribeSprite{}, err
 	}
-	sprite := SubscribeSpriteFor(size)
+	sprite := SubscribeSpriteFor()
+	return sprite, renderSpriteSheet(pages, sprite, size, outPath)
+}
+
+func renderSpriteSheet(pages [][]byte, sprite SubscribeSprite, size htmlstill.Size, outPath string) error {
 	if err := os.MkdirAll(filepath.Dir(outPath), 0750); err != nil {
-		return SubscribeSprite{}, err
+		return err
 	}
 	dir, err := os.MkdirTemp(filepath.Dir(outPath), ".subscribe-sprite-")
 	if err != nil {
-		return SubscribeSprite{}, err
+		return err
 	}
 	defer os.RemoveAll(dir)
 	stills := make([]image.Image, 0, len(pages))
 	for i, page := range pages {
 		pagePath := filepath.Join(dir, fmt.Sprintf("page-%d.png", i))
 		if err := htmlstill.Render(page, pagePath, size); err != nil {
-			return SubscribeSprite{}, err
+			return err
 		}
 		still, err := decodePNG(pagePath)
 		if err != nil {
-			return SubscribeSprite{}, err
+			return err
 		}
 		stills = append(stills, still)
 	}
-	return sprite, encodePNG(sprite.stack(stills, size), outPath)
+	return encodePNG(sprite.stack(stills, size), outPath)
 }
 
 func (s SubscribeSprite) stack(pages []image.Image, size htmlstill.Size) *image.NRGBA {

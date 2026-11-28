@@ -125,7 +125,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		sponsorImage        = fs.String("sponsor-image", "", "optional PNG or JPG sponsor banner drawn near the bottom of the short")
 		sponsorStart        = fs.Float64("sponsor-start", 0, "sponsor banner appears at this second")
 		sponsorEnd          = fs.Float64("sponsor-end", 0, "sponsor banner disappears at this second; 0 keeps it to the end")
-		subscribe           = fs.Bool("subscribe", false, "show a SUBSCRIBE banner with a ringing bell once, a third into the short")
+		subscribe           = fs.Bool("subscribe", false, "show a small like and SUBSCRIBE card once, a third into the short")
 		subscribeLogo       = fs.String("subscribe-logo", "", "optional PNG or JPG channel logo on the subscribe banner")
 		subscribeChannel    = fs.String("subscribe-channel", "", "optional channel name on the subscribe banner")
 		lineupCatalogPath   = fs.String("lineup-catalog", "", "optional directory with manual smoke lineup catalog JSON files")
