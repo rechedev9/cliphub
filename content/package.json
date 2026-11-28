@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Owner-only content tools for the ClipHub YouTube channel, served as the cliphub-content stdio MCP server",
+  "description": "Owner-only content core for the ClipHub YouTube channel, until ADR 0004 ports it into zv-mcp",
   "engines": {
     "node": ">=26"
   },

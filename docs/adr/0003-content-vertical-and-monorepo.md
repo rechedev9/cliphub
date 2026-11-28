@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, superseded in part by ADR 0004
 ---
 
 # A content product in the monorepo, beside Studio and ClipMind
@@ -9,7 +9,7 @@ ClipHub has two verticals: clipping and YouTube content (full demo POVs, Shorts,
 ## Decision
 
 - **Layout.** The top-level folders stay (`web`, `desktop`, `landing`, `mcp-apps`, `tools`, `services`, `cmd`, `internal`), and `content/` joins them at the root. One root pnpm workspace with a catalog holds the shared versions. Node 26 and the latest versions of everything, TypeScript 7 where the tool supports it.
-- **Content product.** TypeScript, owner-only for now, never in the installer. It is its own stdio MCP server, `cliphub-content`, registered in a root `.mcp.json`, and it talks to Studio only through the `zv-mcp` MCP. Long jobs use MCP Tasks. Skills come over MCP, with `.claude/skills` as the fallback. A thin CLI over the same core serves tests and debugging.
+- **Content product.** Superseded by [ADR 0004](0004-one-mcp-server.md): the channel tools are owner-only tools of the one MCP server, `cliphub-studio`, and no longer a `cliphub-content` server. The original text: TypeScript, owner-only for now, never in the installer. It is its own stdio MCP server, `cliphub-content`, registered in a root `.mcp.json`, and it talks to Studio only through the `zv-mcp` MCP. Long jobs use MCP Tasks. Skills come over MCP, with `.claude/skills` as the fallback. A thin CLI over the same core serves tests and debugging.
 - **Tools over prompts.** Every step with one right answer is a TS tool; the LLM supplies the creative inputs and the tool validates them. A step moves from a skill to a tool once the tool passes the golden tests of its spec, with no shadow period. Skills shrink to when and why to call a tool.
 - **Thumbnails.** `docs/content/thumbnails.md` is the source of truth, and the owner approves it before any renderer code.
 - **State.** Local SQLite (`node:sqlite`) with a daily copy to the VPS. No loose JSON state and no private repo. Per-PC settings live in `content/config.local.json` (gitignored) beside a committed `config.example.json`. Tokens stay where they are today.
@@ -20,6 +20,9 @@ ClipHub has two verticals: clipping and YouTube content (full demo POVs, Shorts,
 - **Agent docs.** The root `AGENTS.md` is the one index (`CLAUDE.md` stays `@AGENTS.md`), and `.claude/rules` and `.claude/skills` stay where they are.
 
 ## Planned PRs, in order
+
+PRs 1 to 5 and the thumbnail spec of PR 6 have landed. [ADR 0004](0004-one-mcp-server.md) replaces the server of PR 5 and reorders the rest: PRs 6 to 9 land as tools of `cliphub-studio`.
+
 
 1. Agent docs: `AGENTS.md` as the monorepo index, the doc audit and this ADR.
 2. Root pnpm workspace with a version catalog.

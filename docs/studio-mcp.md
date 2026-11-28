@@ -479,6 +479,23 @@ clave and Anti-estrategias (one counter per finding, as "if they do X, we do Y")
   ClipMind) is done by the user, so there is no `clipmind_connect`.
 - There is no tool to cancel a queued render: the orchestrator has no cancel route.
 
+## Owner tools: the channel
+
+`zv-mcp` is ClipHub's one MCP server ([ADR 0004](adr/0004-one-mcp-server.md)). Besides the Studio
+tools it will carry the owner's YouTube channel tools (map state, essay renders, thumbnails, metrics,
+the planner, upload), named with the `channel_` prefix. None exists in `zv-mcp` yet: the port is
+planned in the ADR, and until then the channel core is `content/`, run through its CLI
+([docs/content/README.md](content/README.md)).
+
+- They are registered only when `zv-mcp` starts with `CLIPHUB_CONTENT_CONFIG` set to a readable
+  channel config with only known keys. Without it, `tools/list`, `serverInstructions`, `search_api`
+  and `run_script` have no channel tool and no word about the channel. The config snippet and the
+  `claude mcp add` command in Ajustes never set the variable, and remote mode never registers them.
+- Their state is a SQLite file of its own (`statePath` in that config), never `jobs.db`, and the
+  config never holds a token.
+- They reach Studio through `internal/tuiclient` like every other tool, and render only through the
+  Studio render tools (the GPU render tools that PR 659 adds).
+
 ## Remote mode: ClipMind workspaces
 
 `zv-mcp --listen 127.0.0.1:8091 --upstream https://clipmind.example.com` serves a ClipMind workspace over MCP's

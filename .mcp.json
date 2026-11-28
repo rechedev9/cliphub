@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "cliphub-content": {
-      "command": "cmd",
-      "args": ["/c", "pnpm", "--silent", "--dir", "content", "run", "mcp"]
-    }
-  }
-}

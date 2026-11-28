@@ -16,9 +16,11 @@ thumbnails) and **CS2 analysis with AI over MCP**. Three products serve them:
   only when the user links a ClipMind workspace. Assistants drive it through `zv-mcp`.
 - **ClipMind (ClipHub Strats)**, the web edition of the analysis at `cliphubstrats.rechedev.cloud`:
   accounts, team workspaces and a library that syncs with Studio. PC-bound features stay in Studio.
-- **The content product**, the owner's own YouTube pipeline: owner-only, never in the installer. It
-  lives in `content/` as the `cliphub-content` stdio MCP server
-  ([docs/content/README.md](docs/content/README.md)); its design and PR plan are
+- **The content product**, the owner's own YouTube pipeline: owner-only, switched off in the
+  installer. ClipHub has one MCP server, `cliphub-studio` (`cmd/zv-mcp`); the channel tools join it
+  as owner-only `channel_` tools ([ADR 0004](docs/adr/0004-one-mcp-server.md)). Until that port
+  lands, the channel core is the TypeScript package in `content/`, run through its CLI
+  ([docs/content/README.md](docs/content/README.md)); the product's design is
   [ADR 0003](docs/adr/0003-content-vertical-and-monorepo.md).
 
 Studio and ClipMind ship together from the same commit: every Studio release also deploys
@@ -33,7 +35,7 @@ it. [ClipMind and the VPS](.claude/rules/clipmind.md).
 | `desktop/` | Electron shell of Studio and the installer build |
 | `cmd/`, `internal/` | Go: the orchestrator, workers, parser, recorder, editor, store and the CLIs |
 | `mcp-apps/` | React views that `zv-mcp` serves as MCP Apps (built into `cmd/zv-mcp/apps/`) |
-| `content/` | The content product: the `cliphub-content` MCP server, its CLI and its SQLite state ([docs/content/README.md](docs/content/README.md)) |
+| `content/` | The content product's TypeScript core, its CLI and its SQLite state, until ADR 0004 ports it into `zv-mcp` ([docs/content/README.md](docs/content/README.md)) |
 | `landing/` | The public site `cliphub.rechedev.cloud`, a static export |
 | `services/community` | Community API on the VPS: pro reference, rankings, pro lineups, pro matches (`pro_match_maps`) |
 | `services/telemetry` | Telemetry collector on the VPS. [Remote debugging](docs/remote-debug-tracing.md) |
@@ -63,9 +65,10 @@ it. [ClipMind and the VPS](.claude/rules/clipmind.md).
   `cliphub-community prepare-hltv` scans them into analyses on the same PC; the community API on the
   VPS serves the pro match catalog that Studio reads. The harvester's `ingest` commands chain these
   steps: [tools/hltv-harvester/README.md](tools/hltv-harvester/README.md).
-- Content: the root `.mcp.json` starts `content/` as the `cliphub-content` MCP server in a session
-  of this repo. It keeps its own SQLite state outside the repo and reaches Studio only by spawning
-  `zv-mcp`, never through the orchestrator API. [Content product](.claude/rules/content.md).
+- Content: there is no second MCP server. The channel tools are owner-only tools of `zv-mcp`,
+  registered only when it starts with `CLIPHUB_CONTENT_CONFIG`; their SQLite state is a file of its
+  own outside the repo, never `jobs.db`. Until the port, `content/` runs through its CLI and reaches
+  Studio only by spawning `zv-mcp`. [Content product](.claude/rules/content.md).
 - On the VPS (SSH alias `openclaw`), never in the installer: ClipMind, the community API, telemetry
   and the landing.
 
@@ -146,7 +149,7 @@ Each rule names what enforces it. "Review only" means nothing fails when an agen
 - `docs/incidents.md`: domain rules and incident history (HLAE pin, Full Demo audio and overlays, telemetry, performance, release steps). The rules name its sections.
 - [docs/studio-mcp.md](docs/studio-mcp.md): the Studio MCP server, its design and its tool table.
 - [docs/remote-debug-tracing.md](docs/remote-debug-tracing.md): telemetry error events and the log channel, and how to query them.
-- [docs/adr/](docs/adr/): architecture decisions. [ADR 0003](docs/adr/0003-content-vertical-and-monorepo.md) holds the monorepo and content-product plan.
+- [docs/adr/](docs/adr/): architecture decisions. [ADR 0003](docs/adr/0003-content-vertical-and-monorepo.md) holds the monorepo and content-product plan; [ADR 0004](docs/adr/0004-one-mcp-server.md) makes `cliphub-studio` the one MCP server and orders the port.
 - [docs/content/README.md](docs/content/README.md): the content product's process, state tables, tools and scheduled tasks. [docs/content/thumbnails.md](docs/content/thumbnails.md) is the thumbnail spec its renderer is written against.
 - [tools/hltv-harvester/README.md](tools/hltv-harvester/README.md): the harvester's store, its modes and the `ingest` commands.
 - `docs/product-vision.md` is a human doc on the product direction. Agents need not read it.

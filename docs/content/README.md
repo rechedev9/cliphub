@@ -2,12 +2,16 @@
 
 The content vertical turns pro CS2 matches into videos for the ClipHub YouTube channel: a full-map POV
 (long video) per map, Shorts of its best plays, and thumbnails with Gemini Neon backgrounds. It is for
-the owner only and is not part of the Studio installer.
+the owner only: its tools are switched off for the users of the Studio installer.
 
-The code lives in `content/` (package `cliphub-content`). It runs as its own stdio MCP server,
-`cliphub-content`, registered in the root `.mcp.json`, and reaches Studio only through Studio's own MCP
-(`zv-mcp`). A thin CLI (`pnpm --dir content run cli <tool> [json]`) runs the same tools in process for
-tests and debugging.
+ClipHub has one MCP server, `cliphub-studio` (`cmd/zv-mcp`). The channel tools join it as owner-only
+`channel_` tools, registered only when `zv-mcp` starts with `CLIPHUB_CONTENT_CONFIG` pointing at the
+channel config ([ADR 0004](../adr/0004-one-mcp-server.md), which also orders the port). There is no
+`cliphub-content` server any more.
+
+Until the port lands, the code lives in `content/` (package `cliphub-content`) as a TypeScript core
+that no MCP client starts. Its CLI (`pnpm --dir content run cli <tool> [json]`) runs the tools below
+in process and reaches Studio only by spawning `zv-mcp`.
 
 ## The rule
 
@@ -58,11 +62,14 @@ them and refuses an illegal step, such as cleaning a map that is not done. Legac
 column are kept in a `legacy_json` column, so an import loses nothing.
 
 Config: `content/config.example.json` is the template; copy it to `content/config.local.json`
-(gitignored). `CLIPHUB_CONTENT_*` variables override it (`CONFIG`, `STATE_PATH`, `LEGACY_MAPS_DIR`,
+(gitignored). After the port, the owner's `cliphub-studio` registration points
+`CLIPHUB_CONTENT_CONFIG` at that file; Studio's own config snippet never sets it. `CLIPHUB_CONTENT_*` variables override it (`CONFIG`, `STATE_PATH`, `LEGACY_MAPS_DIR`,
 `LEGACY_METRICS_DIR`, `STUDIO_MCP_COMMAND`). Tokens stay where they are today; the config never
 holds one.
 
-## MCP tools today
+## Tools today
+
+These run through the CLI until the port, which renames each one with the `channel_` prefix.
 
 | Tool | Does |
 |---|---|
@@ -71,9 +78,9 @@ holds one.
 | `record_map_event` | one step of a map: POV or Short published, Short linked, thumbnail checked, skips, clean |
 | `import_legacy_state` | reads the old `map.json` folders, their `*.youtube.json` receipts, `channel-snapshots.jsonl` and `videos-latest.json`; a dry run unless `write` is true, and it only reads those folders |
 
-Long jobs (renders, uploads) will run as MCP Tasks. The TypeScript SDK (v2) has no server runtime for
-Tasks yet (`@modelcontextprotocol/ext-tasks` covers the client side only), so those tools are not built
-until it does.
+Long jobs (renders, uploads) follow the `zv-mcp` pattern: a start tool that returns an id and a
+`wait_for_*` tool that polls it. Every render goes through the GPU render tools of `zv-mcp`; no channel
+tool drives the render engine on its own.
 
 ## Scheduled tasks
 
