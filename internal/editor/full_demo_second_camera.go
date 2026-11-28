@@ -183,8 +183,8 @@ func fullDemoSecondCameraOverlay(s fullDemoRadarStep) ([]string, string, error) 
 		"[%d:v]format=gray,setsar=1[cammask];"+
 		"[camraw][cammask]alphamerge,settb=expr=1/60,setpts=N+%d,%s[cam];"+
 		"[%d:v]format=rgba,setsar=1,loop=loop=%d:size=1,settb=expr=1/60,setpts=N+%d,%s[camlabel];"+
-		"[cambase][cam]overlay=x=%d:y=%d:eof_action=pass:format=auto:%s[camwin];"+
-		"[camwin][camlabel]overlay=x=%d:y=%d:eof_action=pass:format=auto:%s,format=yuv420p",
+		"[cambase][cam]overlay=x=%d:y=%d:eof_action=pass:format=yuv420:%s[camwin];"+
+		"[camwin][camlabel]overlay=x=%d:y=%d:eof_action=pass:format=yuv420:%s,format=yuv420p",
 		index, trim, trim+frames, fullDemoFrameFilter(s.short.FullDemo.Effective.Options.Capture), w, h,
 		index+1,
 		shot.v0, fade,

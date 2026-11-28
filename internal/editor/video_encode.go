@@ -24,7 +24,7 @@ func appendVideoEncodeArgs(command []string, short ShortEdit) []string {
 	case VideoEncoderNVENC:
 		return append(command,
 			"-c:v", "h264_nvenc",
-			"-preset", "p5",
+			"-preset", "p4",
 			"-rc", "vbr",
 			"-b:v", "0",
 			"-cq", fmt.Sprintf("%d", min(crf+nvencCQOffset, 51)),

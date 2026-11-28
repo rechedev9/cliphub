@@ -8,7 +8,7 @@ import (
 func TestAppendVideoEncodeArgsNVENC(t *testing.T) {
 	args := appendVideoEncodeArgs(nil, ShortEdit{VideoEncoder: VideoEncoderNVENC, VideoCRF: 16})
 	got := strings.Join(args, " ")
-	for _, want := range []string{"-c:v h264_nvenc", "-preset p5", "-rc vbr", "-cq 20", "-pix_fmt yuv420p"} {
+	for _, want := range []string{"-c:v h264_nvenc", "-preset p4", "-rc vbr", "-cq 20", "-pix_fmt yuv420p"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("appendVideoEncodeArgs() = %q, missing %q", got, want)
 		}

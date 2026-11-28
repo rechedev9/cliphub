@@ -20,8 +20,8 @@
   -i
   $WORK/recording/segments/seg-014-victim.mp4
   -filter_complex
-    [0:v]scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    [0:v]crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     format=yuv420p
@@ -32,8 +32,8 @@
     atrim=duration=16.933333
     asetpts=PTS-STARTPTS[pa0]
     [1:v]setpts=PTS/0.500
-    scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     format=yuv420p
@@ -45,8 +45,8 @@
     atempo=0.500
     atrim=duration=7.000000
     asetpts=PTS-STARTPTS[pa1]
-    [2:v]scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    [2:v]crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     format=yuv420p
@@ -57,8 +57,8 @@
     atrim=duration=10.683333
     asetpts=PTS-STARTPTS[pa2]
     [3:v]trim=end_frame=1
-    scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     format=yuv420p
@@ -67,8 +67,8 @@
     trim=end_frame=1[gapv3]
     anullsrc=channel_layout=stereo:sample_rate=48000:d=0.016667[gapa3]
     [3:v]setpts=PTS/0.500
-    scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     format=yuv420p
@@ -80,8 +80,8 @@
     atempo=0.500
     atrim=duration=7.000000
     asetpts=PTS-STARTPTS[pa3]
-    [4:v]scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    [4:v]crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     format=yuv420p
@@ -92,8 +92,8 @@
     atrim=duration=7.116667
     asetpts=PTS-STARTPTS[pa4]
     [5:v]setpts=PTS/0.500
-    scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     format=yuv420p
@@ -105,8 +105,8 @@
     atempo=0.500
     atrim=duration=7.000000
     asetpts=PTS-STARTPTS[pa5]
-    [6:v]scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    [6:v]crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     format=yuv420p
@@ -117,8 +117,8 @@
     atrim=duration=4.750000
     asetpts=PTS-STARTPTS[pa6]
     [7:v]setpts=PTS/0.500
-    scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
-    crop=1080:1920:(iw-ow)/2:(ih-oh)/2
+    crop='trunc(min(iw\,ih*1080/1920)/2)*2':'trunc(min(ih\,iw*1920/1080)/2)*2':(iw-ow)/2:(ih-oh)/2
+    scale=w=1080:h=1920:eval=init:flags=lanczos+accurate_rnd+full_chroma_int
     setsar=1
     fps=60
     format=yuv420p

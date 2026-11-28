@@ -359,11 +359,7 @@ func TestScaleFilterHQUsesAccurateLanczosChromaInterpolation(t *testing.T) {
 
 func TestVideoFilterNoZoomUsesEvalInit(t *testing.T) {
 	filter := VideoFilter(ShortEdit{})
-	for _, want := range []string{"scale=w=-2:h=1920:eval=init", "crop=1080:1920:(iw-ow)/2:(ih-oh)/2"} {
-		if !strings.Contains(filter, want) {
-			t.Fatalf("plain filter missing %q:\n%s", want, filter)
-		}
-	}
+	requireCropBeforeExactScale(t, filter, 1080, 1920)
 	if strings.Contains(filter, "eval=frame") {
 		t.Fatalf("plain filter should not force per-frame eval:\n%s", filter)
 	}
@@ -520,7 +516,7 @@ func TestCompilationFilterOverlaysKillfeedFromSourcePart(t *testing.T) {
 		// shadow crush flattens the world baked into the translucent notice
 		// background; text and icons are bright and stay untouched
 		"curves=all='0/0 0.35/0.08 1/1'",
-		"overlay=x=W-w-24:y=416:format=auto:enable='between(t\\,9.500\\,12.000)'",
+		"overlay=x=W-w-24:y=416:format=yuv420:enable='between(t\\,9.500\\,12.000)'",
 		"format=yuv420p[v]",
 	} {
 		if !strings.Contains(filter, want) {
@@ -644,14 +640,7 @@ func TestBuildManifestUsesLandscapeOutputFormat(t *testing.T) {
 	}
 	first := manifest.Shorts[0]
 	filter := argAfter(first.FFmpegCommand, "-vf")
-	for _, want := range []string{
-		"scale=w=1920:h=1080:force_original_aspect_ratio=increase",
-		"crop=1920:1080:(iw-ow)/2:(ih-oh)/2",
-	} {
-		if !strings.Contains(filter, want) {
-			t.Fatalf("landscape filter missing %q:\n%s", want, filter)
-		}
-	}
+	requireCropBeforeExactScale(t, filter, 1920, 1080)
 	if got := argAfter(first.CoverCommand, "-vf"); !strings.Contains(got, "scale=1920:1080") || !strings.Contains(got, "crop=1920:1080") {
 		t.Fatalf("landscape cover filter = %s", got)
 	}
@@ -805,7 +794,7 @@ func TestBuildFFmpegCommandForCompilationShort(t *testing.T) {
 		"[1:v]",
 		// trim to a single source frame runs before VideoFilter, so scale/crop
 		// only process the frame that survives into the gap freeze
-		"[0:v]trim=end_frame=1,scale=",
+		"[0:v]trim=end_frame=1,crop=",
 		"loop=loop=-1:size=1:start=0,setpts=N/24/TB,trim=end_frame=12[gapv0]",
 		"anullsrc=channel_layout=stereo:sample_rate=48000:d=0.500000",
 		"trim=end_frame=96,setpts=PTS-STARTPTS[pv0]",
@@ -814,7 +803,7 @@ func TestBuildFFmpegCommandForCompilationShort(t *testing.T) {
 		"fps=24",
 		"[2:a]volume=1.00[music]",
 		"[3:v]format=rgba,scale=w=430:h=-1:flags=lanczos,loop=loop=-1:size=1:start=0,setpts=N/24/TB,trim=duration=1.542,fade=t=in:st=0:d=0.100:alpha=1,fade=t=out:st=1.200:d=0.300:alpha=1,setpts=PTS-STARTPTS+0.000/TB",
-		"overlay=x=W-w-34:y=1010:format=auto:eof_action=pass:repeatlast=0:enable='between(t\\,0.000\\,1.500)'[vimages]",
+		"overlay=x=W-w-34:y=1010:format=yuv420:eof_action=pass:repeatlast=0:enable='between(t\\,0.000\\,1.500)'[vimages]",
 		"[vimages]format=yuv420p[v]",
 		"amix=inputs=2:duration=first:dropout_transition=0:normalize=0",
 		"loudnorm=I=-16:TP=-1.5:LRA=11[a]",
