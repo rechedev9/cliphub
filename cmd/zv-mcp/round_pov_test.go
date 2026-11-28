@@ -19,6 +19,9 @@ func TestRoundPOVPlanIsOneRoundWithoutEffects(t *testing.T) {
 	if got.Transitions != nil && got.Transitions.Enabled {
 		t.Fatal("a one round POV must not plan effects between rounds")
 	}
+	if got.Overlays.Scoreboard {
+		t.Fatal("a one round POV must end with the round, without the final scoreboard over it")
+	}
 }
 
 func TestCheckRoundPOV(t *testing.T) {
@@ -45,15 +48,28 @@ func TestCheckRoundPOV(t *testing.T) {
 }
 
 func TestIsRoundPOVPlan(t *testing.T) {
-	var doc recapplan.Document
-	doc.Options.Rounds = []int{7}
+	options, err := applyFullDemoChoices(recapplan.DefaultOptions(), roundPOVPlanIn("job-1", 7))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := recapplan.Document{Options: options}
 	if !isRoundPOVPlan(doc, 7) {
 		t.Fatal("a saved one round plan without effects should be kept")
 	}
 	if isRoundPOVPlan(doc, 8) {
 		t.Fatal("another round needs a new plan")
 	}
-	doc.Options.Transitions = &recapplan.TransitionOptions{Enabled: true}
+	withScoreboard := doc
+	withScoreboard.Options.Overlays.Scoreboard = true
+	if isRoundPOVPlan(withScoreboard, 7) {
+		t.Fatal("a one round plan saved with the final scoreboard needs a new plan")
+	}
+	effects := *doc.Options.Transitions
+	effects.Enabled = true
+	doc.Options.Transitions = &effects
+	if doc.Options.ValidateCurrentFullDemoPolicy() != nil {
+		t.Fatal("the transitions case must pass the policy gate so it tests the effects condition alone")
+	}
 	if isRoundPOVPlan(doc, 7) {
 		t.Fatal("a plan with effects is not the plain one")
 	}

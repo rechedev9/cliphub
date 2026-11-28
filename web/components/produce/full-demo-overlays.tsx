@@ -32,13 +32,13 @@ export function FullDemoOverlays({ options, map, onChange, onAssetBusy }: { opti
   }
   return <div className="grid min-w-0 gap-3">
     <DesignGallery label="Diseño" items={introDesignGallery(options.overlays)} shape="video" tone="full" backdrop={<PreviewBackdrop />} onSelect={choose} />
-    <figure className="grid min-w-0 max-w-64 gap-1.5">
+    {options.overlays.scoreboard ? <figure className="grid min-w-0 max-w-64 gap-1.5">
       <span className="relative isolate block aspect-video w-full overflow-hidden rounded-md bg-surface-0">
         <PreviewBackdrop />
         <CoverImage src={introDesignPreviewUrl({ design: chosen, overlays: options.overlays, outro: true })} className="absolute inset-0 object-contain" />
       </span>
       <figcaption className="text-meta text-fg-3">El marcador final, con el mismo diseño.</figcaption>
-    </figure>
+    </figure> : null}
     <FullDemoChoice label={FULL_DEMO_SOURCE_LABEL} value={options.source_kind} options={FULL_DEMO_SOURCES} onChange={(source_kind) => onChange({ ...options, source_kind })} />
     <StoryOverlayToggle label={FULL_DEMO_HALFTIME_LABEL} note={FULL_DEMO_HALFTIME_NOTE} value={options.overlays.halftime === true}
       onChange={(enabled) => onChange(withFullDemoStoryOverlay(options, 'halftime', enabled))} />

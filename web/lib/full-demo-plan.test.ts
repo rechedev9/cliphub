@@ -459,6 +459,20 @@ test('a round selection from analysis survives normalization and every round dro
   assert.equal(isFullDemoOptions({ ...defaults, rounds: [0] }), false);
 });
 
+test('a one round video ends with the round without the final scoreboard, as Go plans it', () => {
+  const defaults: unknown = JSON.parse(readFileSync(new URL('./full-demo-go-defaults.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoOptions(defaults));
+  const pov = withFullDemoRounds(defaults, [7]);
+  assert.equal(pov.overlays.scoreboard, false);
+  assert.deepEqual(currentFullDemoOptions(pov), pov);
+  assert.equal(currentFullDemoOptions({ ...defaults, rounds: [7] }).overlays.scoreboard, false);
+  assert.equal(withFullDemoRounds(pov, [3, 7]).overlays.scoreboard, true);
+  assert.equal(fullDemoOptionsKey(withFullDemoRounds(pov, null)), fullDemoOptionsKey(defaults));
+  const snapshot = fixture();
+  snapshot.document.options = currentFullDemoOptions({ ...snapshot.document.options, rounds: [7] });
+  assert.equal(fullDemoApprovalKey(snapshot.document, snapshot.document.options), snapshot.document.plan_hash);
+});
+
 test('the HUD look survives drafts and the render request, and leaves with the custom HUD', () => {
   const snapshot = fixture();
   snapshot.document.options.capture.hud_profile = CUSTOM_HUD_CAPTURE_PROFILE;

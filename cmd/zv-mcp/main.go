@@ -106,6 +106,8 @@ plan_full_demo also takes compact_header, hide_inventory, round_win_banner, win_
 team_t_start for the custom HUD scoreboard; they change only the render, never the capture.
 plan_full_demo intro_design picks the look of the player intro and final scoreboard: neon (default) or hud,
 in the colours of the chosen HUD or own theme and neutral over the native CS2 HUD. It only changes the render.
+A Full Demo of one round (plan_full_demo rounds with one number, record_round_pov) ends with that round's own tail and
+has no final scoreboard, which would cover its last seconds; two rounds or more keep it after the last kill.
 plan_full_demo halftime_scoreboard shows a compact card with both team names and the score for about 4 s at the
 start of the first round after the regulation side switch (never in overtime); it is left out when that round is
 not in the video or the job has no round results. subscribe_button shows a SUBSCRIBE button with a ringing bell (a ding on its first swing) in
@@ -347,7 +349,7 @@ export_replay_gif saves a round's tramo as a looping GIF with the radar, players
 export_replay_video saves the tramo of one round, or of several rounds one after another, as an H.264 MP4 (Exportar MP4), with layers
 to pick what is drawn, include_voice for the synced team voice cut to the same moments and freeze_only for its freeze-time comms only.
 record_round_pov is the Replay's "Grabar su POV de esta ronda": one player's first-person video of one round (match_id, round, steamid),
-from the end of freeze time to the end of the round with Studio's default look; it asks for approval, then follow with wait_for_job and the variant it returns.
+from the end of freeze time to the end of the round with Studio's default look and no final scoreboard over it; it asks for approval, then follow with wait_for_job and the variant it returns.
 What the Replay's round panel does with a round: create_job and generate_short make its video, save_round_as_play saves it as a play,
 round_lineups compares its grenades with the lineup catalog, and replay_playlist puts round refs in one passing playlist to open in Studio.
 Saved playlists (Replay > Playlists: rounds of any matches with a comment each, in folders, starred): list_playlists,

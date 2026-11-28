@@ -35,7 +35,7 @@ func roundPOVPlanIn(jobID string, round int) planFullDemoIn {
 func registerRoundPOVTool(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "record_round_pov", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Record one player's point of view for one round of a library match, as the Replay's \"Grabar su POV de esta ronda\" does: " +
-			"a Full Demo limited to that round, from the end of freeze time to the end of the round, with Studio's default look. " +
+			"a Full Demo limited to that round, from the end of freeze time to the end of the round, with Studio's default look and no final scoreboard over it. " +
 			"It creates or reuses the player's job, waits for it to be parsed, plans the round and starts the capture. This opens CS2 full screen. " +
 			startApprovalHint + " Follow with wait_for_job, passing the returned variant; the video lands in Mis vídeos (list_all_videos). " +
 			"For a different look or several rounds use plan_full_demo with rounds and render_full_demo."},
@@ -116,9 +116,8 @@ func waitParsed(ctx context.Context, w parseWait) (string, error) {
 	return status, err
 }
 
-// isRoundPOVPlan: a saved plan already limited to this round with no effects is kept as it is, pro settings included.
 func isRoundPOVPlan(doc recapplan.Document, round int) bool {
-	return len(doc.Options.Rounds) == 1 && doc.Options.Rounds[0] == round && (doc.Options.Transitions == nil || !doc.Options.Transitions.Enabled) && len(doc.Blockers) == 0
+	return len(doc.Options.Rounds) == 1 && doc.Options.Rounds[0] == round && (doc.Options.Transitions == nil || !doc.Options.Transitions.Enabled) && len(doc.Blockers) == 0 && doc.Options.ValidateCurrentFullDemoPolicy() == nil
 }
 
 // planRoundPOV saves the plan of a parsed job and returns it as Studio stored it.

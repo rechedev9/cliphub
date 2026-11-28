@@ -198,7 +198,7 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
     overlays: {
       ...overlays,
       roster: true,
-      scoreboard: true,
+      scoreboard: hasFinalScoreboard(fixed.rounds),
       // Mirrors Go's canonicalOverlayTheme: the HUD design or neon; the retired orange theme becomes neon.
       theme: fixed.overlays.theme === 'hud' ? 'hud' : 'neon-violet',
       source: 'demo',
@@ -272,7 +272,12 @@ function legacySponsorBumper(bumpers: FullDemoOptions['bumpers'], sponsor: unkno
 export function withFullDemoRounds(options: FullDemoOptions, rounds: readonly number[] | null): FullDemoOptions {
   const { rounds: _previous, ...rest } = options;
   const sorted = [...new Set(rounds ?? [])].sort((a, b) => a - b);
-  return sorted.length === 0 ? rest : { ...rest, rounds: sorted };
+  const overlays = { ...rest.overlays, scoreboard: hasFinalScoreboard(sorted) };
+  return sorted.length === 0 ? { ...rest, overlays } : { ...rest, overlays, rounds: sorted };
+}
+
+function hasFinalScoreboard(rounds: readonly number[] | undefined): boolean {
+  return rounds?.length !== 1;
 }
 
 export type FullDemoStoryOverlay = 'halftime' | 'subscribe';

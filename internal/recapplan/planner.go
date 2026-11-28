@@ -146,7 +146,7 @@ func CanonicalNewOptions(options Options) (Options, error) {
 	canonical.Overlays.Source = "demo"
 	canonical.Overlays.Mode = "generated"
 	canonical.Overlays.Roster = true
-	canonical.Overlays.Scoreboard = true
+	canonical.Overlays.Scoreboard = len(canonical.Rounds) != 1
 
 	// The compact control can only enable or disable the established Dinamico
 	// preset; do not let stale granular draft values change a new approval.
@@ -169,6 +169,9 @@ func (o Options) ValidateCurrentFullDemoPolicy() error {
 	}
 	if o.Capture != canonical.Capture {
 		return fmt.Errorf("observed player crosshair and a current HUD capture profile are required")
+	}
+	if o.Overlays.Scoreboard && !canonical.Overlays.Scoreboard {
+		return fmt.Errorf("a video of one round now ends with the round, without the final scoreboard")
 	}
 	if o.Overlays != canonical.Overlays {
 		return fmt.Errorf("automatic roster and scoreboard overlays in the neon or HUD design are required")
