@@ -43,7 +43,8 @@ const (
 	StandardVideoPreset = "slow"
 
 	// VideoEncoderNVENC selects h264_nvenc for final renders when FFmpeg supports it.
-	VideoEncoderNVENC = "nvenc-h264"
+	VideoEncoderNVENC = recording.EncoderNVENC
+	VideoEncoderAMF   = recording.EncoderAMF
 )
 
 const (

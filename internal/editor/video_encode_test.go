@@ -68,3 +68,24 @@ func TestFullFrameVideoFilterKeepsScaleWhenSourceDiffers(t *testing.T) {
 		}
 	}
 }
+
+func TestAppendVideoEncodeArgsAMFUsesConstantQPOfTheCRF(t *testing.T) {
+	got := strings.Join(appendVideoEncodeArgs(nil, ShortEdit{VideoEncoder: VideoEncoderAMF, VideoCRF: 18}), " ")
+	for _, want := range []string{"-c:v h264_amf", "-rc cqp", "-qp_i 18", "-qp_p 18", "-pix_fmt yuv420p"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("appendVideoEncodeArgs(amf) = %q, missing %q", got, want)
+		}
+	}
+	if err := validateVideoEncoder(VideoEncoderAMF); err != nil {
+		t.Fatalf("validateVideoEncoder(amf) = %v", err)
+	}
+}
+
+func TestEveryRenderEncoderIsNamedInFullDemoTimings(t *testing.T) {
+	for _, encoder := range []string{"", VideoEncoderNVENC, VideoEncoderAMF} {
+		args := appendVideoEncodeArgs([]string{"ffmpeg"}, ShortEdit{VideoEncoder: encoder})
+		if fullDemoTimingEncoder(args) == "" {
+			t.Fatalf("Full Demo timings drop the encoder of %q: %v", encoder, args)
+		}
+	}
+}

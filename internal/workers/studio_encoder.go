@@ -50,12 +50,23 @@ func studioRenderVideoEncoder(ffmpegPath string) string {
 		if ffmpegPath == "" {
 			ffmpegPath = recording.FindFFmpeg()
 		}
-		if err := recording.CheckEncoderUsable(ffmpegPath, recording.EncoderNVENC); err != nil {
-			log.Printf("workers: studio render NVENC unavailable: %v", err)
-		} else {
-			studioEncoders.render = recording.EncoderNVENC
-			log.Printf("workers: studio NVENC enabled for render via %s", ffmpegPath)
+		studioEncoders.render = firstUsableRenderEncoder(func(encoder string) error {
+			return recording.CheckEncoderUsable(ffmpegPath, encoder)
+		})
+		if studioEncoders.render != "" {
+			log.Printf("workers: studio %s enabled for render via %s", studioEncoders.render, ffmpegPath)
 		}
 	}
 	return studioEncoders.render
+}
+
+func firstUsableRenderEncoder(usable func(encoder string) error) string {
+	for _, encoder := range []string{recording.EncoderNVENC, recording.EncoderAMF} {
+		err := usable(encoder)
+		if err == nil {
+			return encoder
+		}
+		log.Printf("workers: studio render %s unavailable: %v", encoder, err)
+	}
+	return ""
 }
